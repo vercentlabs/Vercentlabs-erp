@@ -54,7 +54,7 @@ export default function PartnerPage() {
         description="VercentLabs is interested in grounded partnerships that improve product quality, industry understanding and implementation capability."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-5 md:grid-cols-2">
             {partnerTypes.map((partner) => {
@@ -63,7 +63,7 @@ export default function PartnerPage() {
               return (
                 <article
                   key={partner.title}
-                  className="rounded-3xl border border-slate-200 bg-white p-7"
+                  className="rounded-2xl border border-slate-200 bg-white p-7"
                 >
                   <Icon
                     aria-hidden="true"
@@ -82,7 +82,7 @@ export default function PartnerPage() {
             })}
           </div>
 
-          <div className="mt-12 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-12">
+          <div className="mt-10 rounded-3xl bg-slate-950 p-8 text-white sm:p-12">
             <h2 className="font-display text-3xl font-extrabold">
               Start with a direct conversation.
             </h2>

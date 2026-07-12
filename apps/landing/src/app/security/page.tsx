@@ -55,7 +55,7 @@ export default function SecurityPage() {
         description="The security model is designed around identity, least-privilege access, organisation boundaries, approval authority and traceable changes."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <SectionHeading
             eyebrow="Security principles"
@@ -64,14 +64,14 @@ export default function SecurityPage() {
             align="center"
           />
 
-          <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {principles.map((principle) => {
               const Icon = principle.icon;
 
               return (
                 <article
                   key={principle.title}
-                  className="rounded-3xl border border-slate-200 bg-white p-6"
+                  className="rounded-2xl border border-slate-200 bg-white p-6"
                 >
                   <Icon
                     aria-hidden="true"
@@ -90,7 +90,7 @@ export default function SecurityPage() {
             })}
           </div>
 
-          <div className="mt-12 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-12">
+          <div className="mt-10 rounded-3xl bg-slate-950 p-8 text-white sm:p-12">
             <div className="flex items-center gap-3">
               <ShieldCheck
                 aria-hidden="true"

@@ -60,7 +60,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
         }
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
             <div>

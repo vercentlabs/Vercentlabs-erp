@@ -57,13 +57,13 @@ export default function PricingPage() {
         description="Public fixed prices are not shown before the platform, service scope and implementation model are ready to support reliable commercial commitments."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-5 lg:grid-cols-3">
             {engagements.map((engagement, index) => (
               <article
                 key={engagement.name}
-                className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
               >
                 <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
                   Stage {index + 1}
@@ -95,7 +95,7 @@ export default function PricingPage() {
             ))}
           </div>
 
-          <div className="mt-12 rounded-[2rem] bg-indigo-50 p-8 text-center sm:p-12">
+          <div className="mt-10 rounded-3xl bg-indigo-50 p-8 text-center sm:p-12">
             <h2 className="font-display text-3xl font-extrabold text-slate-950">
               Discuss the organisation before discussing a number.
             </h2>

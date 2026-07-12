@@ -742,3 +742,53 @@ body {
     rgba(124, 58, 237, 0.1) 70%
   );
 }
+
+/* PHASE_TWO_DESIGN_PARITY_START */
+.marketing-main {
+  background: #ffffff;
+}
+
+.marketing-main section {
+  scroll-margin-top: 7rem;
+}
+
+.marketing-main a,
+.marketing-main button,
+.marketing-main summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.marketing-main summary::-webkit-details-marker {
+  display: none;
+}
+
+.marketing-main details summary {
+  position: relative;
+}
+
+.marketing-main details summary::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: -0.15rem;
+  color: #4f46e5;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.marketing-main details[open] summary::after {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-main *,
+  .marketing-main *::before,
+  .marketing-main *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+/* PHASE_TWO_DESIGN_PARITY_END */

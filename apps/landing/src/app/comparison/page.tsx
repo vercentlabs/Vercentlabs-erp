@@ -52,9 +52,9 @@ export default function ComparisonPage() {
         description="The appropriate ERP approach depends on the organisation, process complexity, controls, systems and implementation readiness."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
-          <div className="overflow-x-auto rounded-3xl border border-slate-200">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="min-w-[900px] w-full border-collapse text-left">
               <thead className="bg-slate-950 text-white">
                 <tr>

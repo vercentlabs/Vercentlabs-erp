@@ -22,14 +22,14 @@ export default function IndustriesPage() {
         description="Industry context shapes workflows, controls, master data, compliance needs, reporting and implementation priorities."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {industries.map((industry) => (
               <Link
                 key={industry.slug}
                 href={"/industries/" + industry.slug}
-                className="group rounded-3xl border border-slate-200 bg-white p-7 transition hover:-translate-y-1 hover:border-teal-200 hover:shadow-xl"
+                className="group rounded-2xl border border-slate-200 bg-white p-7 transition hover:-translate-y-1 hover:border-teal-200 hover:shadow-lg"
               >
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
                   <Building2 aria-hidden="true" className="h-5 w-5" />

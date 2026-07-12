@@ -12,14 +12,16 @@ type MarketingShellProps = {
 
 export default function MarketingShell({ children }: MarketingShellProps) {
   return (
-    <>
+    <div className="min-h-screen bg-white text-slate-950">
       <AnnouncementBar />
       <Header />
 
-      <main id="main-content">{children}</main>
+      <main id="main-content" className="marketing-main">
+        {children}
+      </main>
 
       <SiteFooter />
       <MobileContactCta />
-    </>
+    </div>
   );
 }

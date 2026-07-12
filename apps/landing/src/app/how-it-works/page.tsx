@@ -50,18 +50,18 @@ export default function HowItWorksPage() {
         }
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <SectionHeading
             eyebrow="Core workflows"
             title="Five connected flows cover the centre of enterprise operations."
           />
 
-          <div className="mt-12 space-y-5">
+          <div className="mt-10 space-y-5">
             {businessFlows.map((flow, index) => (
               <article
                 key={flow.name}
-                className="rounded-3xl border border-slate-200 bg-slate-50 p-6 sm:p-8"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:p-8"
               >
                 <div className="grid gap-6 lg:grid-cols-[0.35fr_1fr]">
                   <div>
@@ -98,7 +98,7 @@ export default function HowItWorksPage() {
         </PageContainer>
       </section>
 
-      <section className="bg-slate-50 py-20 sm:py-24">
+      <section className="bg-slate-50 py-14 sm:py-16">
         <PageContainer>
           <SectionHeading
             eyebrow="Implementation"
@@ -107,11 +107,11 @@ export default function HowItWorksPage() {
             align="center"
           />
 
-          <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {implementationStages.map((stage, index) => (
               <article
                 key={stage.title}
-                className="rounded-3xl border border-slate-200 bg-white p-6"
+                className="rounded-2xl border border-slate-200 bg-white p-6"
               >
                 <span className="text-sm font-extrabold text-indigo-600">
                   Phase {index + 1}

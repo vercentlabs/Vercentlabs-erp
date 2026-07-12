@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import PageContainer from "@/components/layout/page-container";
+import RevealOnScroll from "@/components/ui/reveal-on-scroll";
 
 type PageHeroProps = {
   eyebrow: string;
@@ -16,36 +17,50 @@ export default function PageHero({
   actions,
 }: PageHeroProps) {
   return (
-    <section className="relative overflow-hidden bg-slate-950 py-20 text-white sm:py-24">
+    <section className="relative overflow-hidden border-b border-slate-200 bg-white py-14 sm:py-18 lg:py-20">
       <div
         aria-hidden="true"
-        className="absolute -left-32 top-0 h-80 w-80 rounded-full bg-indigo-600/25 blur-[110px]"
+        className="absolute inset-0 opacity-70"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(99,102,241,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.055) 1px, transparent 1px)",
+          backgroundSize: "42px 42px",
+          maskImage: "linear-gradient(to bottom, black, transparent 85%)",
+        }}
       />
+
       <div
         aria-hidden="true"
-        className="absolute -right-32 bottom-0 h-80 w-80 rounded-full bg-teal-500/20 blur-[110px]"
+        className="absolute -left-24 top-2 h-64 w-64 rounded-full bg-indigo-200/55 blur-[100px]"
+      />
+
+      <div
+        aria-hidden="true"
+        className="absolute -right-20 bottom-0 h-64 w-64 rounded-full bg-teal-200/45 blur-[100px]"
       />
 
       <PageContainer className="relative">
-        <div className="max-w-3xl">
-          <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-indigo-300">
-            {eyebrow}
-          </p>
+        <RevealOnScroll>
+          <div className="mx-auto max-w-3xl text-center">
+            <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.17em] text-indigo-700">
+              {eyebrow}
+            </span>
 
-          <h1 className="font-display mt-5 text-4xl font-extrabold leading-tight tracking-[-0.04em] sm:text-5xl lg:text-6xl">
-            {title}
-          </h1>
+            <h1 className="font-display mt-5 text-4xl font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.45rem]">
+              {title}
+            </h1>
 
-          <p className="mt-6 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
-            {description}
-          </p>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
+              {description}
+            </p>
 
-          {actions ? (
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              {actions}
-            </div>
-          ) : null}
-        </div>
+            {actions ? (
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                {actions}
+              </div>
+            ) : null}
+          </div>
+        </RevealOnScroll>
       </PageContainer>
     </section>
   );

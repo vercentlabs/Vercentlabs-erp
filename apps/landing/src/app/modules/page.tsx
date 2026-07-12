@@ -22,14 +22,14 @@ export default function ModulesPage() {
         description="Each module supports a distinct business responsibility while sharing data, permissions, workflows and reporting with the wider platform."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {erpModules.map((erpModule, index) => (
               <Link
                 key={erpModule.slug}
                 href={"/modules/" + erpModule.slug}
-                className="group rounded-3xl border border-slate-200 bg-white p-7 transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl"
+                className="group rounded-2xl border border-slate-200 bg-white p-7 transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">

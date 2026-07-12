@@ -78,7 +78,7 @@ export default function FeaturesPage() {
         }
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <SectionHeading
             eyebrow="Platform capabilities"
@@ -87,14 +87,14 @@ export default function FeaturesPage() {
             align="center"
           />
 
-          <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {features.map((feature) => {
               const Icon = feature.icon;
 
               return (
                 <article
                   key={feature.title}
-                  className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
+                  className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
                     <Icon aria-hidden="true" className="h-6 w-6" />

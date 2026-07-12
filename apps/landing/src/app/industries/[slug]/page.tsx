@@ -51,7 +51,7 @@ export default async function IndustryPage({ params }: IndustryPageProps) {
         description={industry.description}
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-12 lg:grid-cols-2">
             <div>

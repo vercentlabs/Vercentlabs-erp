@@ -29,7 +29,7 @@ export default function AboutPage() {
         description="VercentLabs LLP is developing Vercent ERP to help organisations replace disconnected operations with governed, connected and understandable business workflows."
       />
 
-      <section className="bg-white py-20 sm:py-24">
+      <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-12 lg:grid-cols-2">
             <div>
