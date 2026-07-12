@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import { ArrowRight, ExternalLink, LockKeyhole } from "lucide-react";
 
@@ -7,15 +7,13 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
-export const metadata: Metadata = {
-  title: "Sign In",
+export const metadata = createPageMetadata({
+  title: "Sign In to Vercent ERP",
   description:
-    "Open the deployed Vercent ERP application or request product access.",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+    "Open the configured Vercent ERP application or request access to the design-partner programme.",
+  path: "/login",
+  noIndex: true,
+});
 
 export default function LoginPage() {
   const appIsConfigured = landingConfig.appUrl.length > 0;

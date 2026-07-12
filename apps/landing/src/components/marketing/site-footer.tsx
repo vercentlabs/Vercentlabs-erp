@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import BrandLogo from "@/components/ui/brand-logo";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 
 const footerGroups = [
   {
@@ -12,7 +12,7 @@ const footerGroups = [
       { label: "How it works", href: "/how-it-works" },
       { label: "API developers", href: "/api-developers" },
       { label: "Security", href: "/security" },
-      { label: "Engagement", href: "/pricing" },
+      { label: "Engagement model", href: "/pricing" },
     ],
   },
   {
@@ -21,7 +21,7 @@ const footerGroups = [
       { label: "Industries", href: "/industries" },
       { label: "Comparison", href: "/comparison" },
       { label: "Design partners", href: "/customers" },
-      { label: "Partners", href: "/partner" },
+      { label: "Implementation partners", href: "/partner" },
     ],
   },
   {
@@ -29,7 +29,7 @@ const footerGroups = [
     links: [
       { label: "About", href: "/about" },
       { label: "Careers", href: "/careers" },
-      { label: "Changelog", href: "/changelog" },
+      { label: "Product progress", href: "/changelog" },
       { label: "Status", href: "/status" },
       { label: "Contact", href: "/contact" },
     ],
@@ -38,7 +38,7 @@ const footerGroups = [
     title: "Resources",
     links: [
       { label: "Help", href: "/help" },
-      { label: "Early access", href: "/signup" },
+      { label: "Apply for access", href: "/signup" },
       { label: "Sign in", href: "/login" },
       { label: "Privacy", href: "/privacy" },
       { label: "Terms", href: "/terms" },
@@ -52,17 +52,16 @@ export default function SiteFooter() {
       <div className="mx-auto grid w-full max-w-[1440px] gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_2fr] lg:px-12">
         <div>
           <BrandLogo variant="text" className="h-8 w-auto" />
-
           <p className="mt-4 max-w-sm text-sm leading-7 text-slate-500">
-            A connected ERP platform for finance, supply chain, manufacturing,
-            people, projects and enterprise reporting.
+            Connected ERP for growing Indian manufacturers, distributors and
+            service businesses—built through real workflow discovery and phased
+            implementation.
           </p>
-
           <Link
-            href="/contact"
-            className="mt-4 inline-flex text-sm font-bold text-indigo-600 transition hover:text-indigo-800"
+            href="/signup"
+            className="mt-5 inline-flex text-sm font-extrabold text-indigo-600 hover:text-indigo-800"
           >
-            Talk to VercentLabs
+            Apply for the design-partner programme
           </Link>
         </div>
 
@@ -72,10 +71,9 @@ export default function SiteFooter() {
               <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-900">
                 {group.title}
               </h2>
-
               <ul className="mt-4 space-y-3">
                 {group.links.map((link) => (
-                  <li key={link.label}>
+                  <li key={link.href}>
                     <Link
                       href={link.href}
                       className="text-sm text-slate-500 transition hover:text-indigo-600"
@@ -92,11 +90,13 @@ export default function SiteFooter() {
 
       <div className="mx-auto mt-10 flex w-full max-w-[1440px] flex-col gap-2 border-t border-slate-200 px-5 pt-5 text-xs text-slate-400 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-12">
         <p>
-          © {new Date().getFullYear()} {landingConfig.companyName}. All rights
+          © {new Date().getFullYear()} {siteConfig.companyName}. All rights
           reserved.
         </p>
-
-        <p>Vercent ERP is under active product development.</p>
+        <p>
+          Vercent ERP is currently available through selected discovery and
+          design-partner engagements.
+        </p>
       </div>
     </footer>
   );

@@ -1,18 +1,17 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { Activity, Check, Clock, Wrench } from "lucide-react";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
-export const metadata: Metadata = {
-  title: "Platform Status",
+export const metadata = createPageMetadata({
+  title: "Vercent ERP Development Status",
   description:
-    "Review the current public development status of the VercentLabs landing site and ERP platform.",
-  alternates: {
-    canonical: "/status",
-  },
-};
+    "Review the current public website, ERP product and production-service development status.",
+  path: "/status",
+  noIndex: true,
+});
 
 const services = [
   {

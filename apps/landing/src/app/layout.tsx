@@ -1,50 +1,42 @@
-import { landingConfig } from "@/lib/landing-config";
 import type { Metadata, Viewport } from "next";
-import { Manrope, Sora } from "next/font/google";
 import type { ReactNode } from "react";
 
+import OrganizationJsonLd from "@/components/seo/organization-json-ld";
+import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 import "./globals.css";
 
-const sora = Sora({
-  subsets: ["latin"],
-  variable: "--font-sora",
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: "--font-manrope",
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
+const rootMetadata = createPageMetadata({
+  title: siteConfig.title,
+  description: siteConfig.description,
+  path: "/",
 });
 
 export const metadata: Metadata = {
+  ...rootMetadata,
   metadataBase: new URL(siteConfig.siteUrl),
   title: {
     default: siteConfig.title,
-    template: `%s | ${siteConfig.name}`,
+    template: "%s | " + siteConfig.name,
   },
-  description: siteConfig.description,
   applicationName: siteConfig.productName,
-  openGraph: {
-    type: "website",
-    locale: siteConfig.locale,
-    siteName: siteConfig.name,
-    title: siteConfig.title,
-    description: siteConfig.description,
-    url: siteConfig.siteUrl,
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/brand/logo.png",
+    apple: "/brand/logo.png",
   },
-  robots: {
-    index: true,
-    follow: true,
+  category: "business software",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
   },
 };
 
 export const viewport: Viewport = {
   themeColor: siteConfig.themeColor,
+  colorScheme: "light",
 };
 
 type RootLayoutProps = Readonly<{
@@ -53,8 +45,9 @@ type RootLayoutProps = Readonly<{
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" data-theme="light">
-      <body className={`${sora.variable} ${manrope.variable} font-body`}>
+    <html lang="en-IN" data-theme="light">
+      <body className="font-body">
+        <OrganizationJsonLd />
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>

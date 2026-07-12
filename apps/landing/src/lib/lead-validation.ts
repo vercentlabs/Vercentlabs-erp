@@ -1,5 +1,32 @@
 export type LeadKind = "contact" | "signup";
 
+export const contactInterests = [
+  "ERP discovery",
+  "Product pilot",
+  "Implementation partnership",
+  "Technology integration",
+  "Careers and collaboration",
+  "Other",
+] as const;
+
+export const signupInterests = [
+  "Finance and accounting",
+  "Inventory and procurement",
+  "Sales and CRM",
+  "Manufacturing",
+  "People and payroll",
+  "Projects and services",
+  "Complete ERP platform",
+] as const;
+
+export const teamSizes = [
+  "1–10",
+  "11–50",
+  "51–200",
+  "201–500",
+  "500+",
+] as const;
+
 export type LeadPayload = {
   kind: LeadKind;
   name: string;
@@ -11,28 +38,30 @@ export type LeadPayload = {
   message: string;
   consent: boolean;
   website: string;
+  startedAt: number;
 };
 
 type ValidationResult =
-  | {
-      success: true;
-      data: LeadPayload;
-    }
-  | {
-      success: false;
-      errors: Record<string, string>;
-    };
+  | { success: true; data: LeadPayload }
+  | { success: false; errors: Record<string, string> };
 
-function text(value: unknown, maximumLength: number): string {
+function cleanText(value: unknown, maximumLength: number) {
   if (typeof value !== "string") {
     return "";
   }
 
-  return value.trim().slice(0, maximumLength);
+  return value
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, maximumLength);
 }
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isAllowed(value: string, allowed: readonly string[]) {
+  return !value || allowed.includes(value);
 }
 
 export function validateLeadPayload(
@@ -40,64 +69,59 @@ export function validateLeadPayload(
   kind: LeadKind,
 ): ValidationResult {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return {
-      success: false,
-      errors: {
-        form: "Invalid request.",
-      },
-    };
+    return { success: false, errors: { form: "Invalid request." } };
   }
 
   const value = input as Record<string, unknown>;
-
   const data: LeadPayload = {
     kind,
-    name: text(value.name, 100),
-    email: text(value.email, 160).toLowerCase(),
-    company: text(value.company, 160),
-    phone: text(value.phone, 40),
-    interest: text(value.interest, 100),
-    teamSize: text(value.teamSize, 60),
-    message: text(value.message, 2000),
+    name: cleanText(value.name, 100),
+    email: cleanText(value.email, 160).toLowerCase(),
+    company: cleanText(value.company, 160),
+    phone: cleanText(value.phone, 40),
+    interest: cleanText(value.interest, 100),
+    teamSize: cleanText(value.teamSize, 60),
+    message: cleanText(value.message, 2000),
     consent: value.consent === true,
-    website: text(value.website, 200),
+    website: cleanText(value.website, 200),
+    startedAt: Number(value.startedAt || 0),
   };
 
   const errors: Record<string, string> = {};
 
-  if (data.name.length < 2) {
-    errors.name = "Enter your full name.";
+  if (data.name.length < 2) errors.name = "Enter your full name.";
+  if (!validEmail(data.email))
+    errors.email = "Enter a valid work email address.";
+  if (data.company.length < 2) errors.company = "Enter your organisation name.";
+  if (data.phone && !/^[0-9+()\-\s]{7,40}$/.test(data.phone)) {
+    errors.phone = "Enter a valid phone number.";
   }
-
-  if (!validEmail(data.email)) {
-    errors.email = "Enter a valid email address.";
-  }
-
-  if (data.company.length < 2) {
-    errors.company = "Enter your organisation name.";
-  }
-
   if (!data.consent) {
     errors.consent = "Confirm that VercentLabs may respond to this request.";
   }
 
+  const allowedInterests =
+    kind === "signup" ? signupInterests : contactInterests;
+  if (!isAllowed(data.interest, allowedInterests)) {
+    errors.interest = "Select a valid discussion area.";
+  }
+  if (kind === "signup" && !data.interest) {
+    errors.interest = "Select the main area you want to explore.";
+  }
+  if (!isAllowed(data.teamSize, teamSizes)) {
+    errors.teamSize = "Select a valid team size.";
+  }
   if (kind === "contact" && data.message.length < 10) {
     errors.message = "Describe the business problem or requirement.";
   }
-
-  if (kind === "signup" && data.interest.length < 2) {
-    errors.interest = "Select the main area you want to explore.";
+  if (
+    data.startedAt <= 0 ||
+    Date.now() - data.startedAt > 24 * 60 * 60 * 1000
+  ) {
+    errors.form = "The form session expired. Refresh the page and try again.";
   }
 
-  if (Object.keys(errors).length > 0) {
-    return {
-      success: false,
-      errors,
-    };
-  }
-
-  return {
-    success: true,
-    data,
-  };
+  return Object.keys(errors).length
+    ? { success: false, errors }
+    : { success: true, data };
 }

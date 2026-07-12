@@ -16,7 +16,7 @@ export default function BrandLogo({
   variant = "text",
   className = "h-10 w-auto",
   alt = "VercentLabs",
-  priority = true,
+  priority = false,
 }: BrandLogoProps) {
   return (
     <Image

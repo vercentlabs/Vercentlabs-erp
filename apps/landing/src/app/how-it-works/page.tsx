@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 
 import PageContainer from "@/components/layout/page-container";
@@ -7,11 +7,12 @@ import PageHero from "@/components/marketing/page-hero";
 import SectionHeading from "@/components/marketing/section-heading";
 import { businessFlows } from "@/content/erp";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "How Vercent ERP Works",
   description:
-    "Understand the process-led architecture and phased implementation approach planned for Vercent ERP.",
-};
+    "Understand Vercent ERP end-to-end workflows and its discovery, validation, migration and phased implementation approach.",
+  path: "/how-it-works",
+});
 
 const implementationStages = [
   {

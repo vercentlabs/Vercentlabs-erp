@@ -24,7 +24,6 @@ import {
   frequentlyAskedQuestions,
   industries,
 } from "@/content/erp";
-import { siteConfig } from "@/lib/site-config";
 
 const problems = [
   {
@@ -227,7 +226,7 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section className="bg-white py-14 sm:py-16">
+      <section id="modules" className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <RevealOnScroll>
@@ -286,7 +285,10 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section className="relative overflow-hidden bg-slate-50 py-14 sm:py-16">
+      <section
+        id="workflows"
+        className="relative overflow-hidden bg-slate-50 py-14 sm:py-16"
+      >
         <div
           aria-hidden="true"
           className="absolute left-1/2 top-32 hidden h-[76%] w-px -translate-x-1/2 bg-gradient-to-b from-indigo-200 via-indigo-300 to-teal-200 lg:block"
@@ -458,7 +460,7 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section className="bg-white py-14 sm:py-16">
+      <section id="security" className="bg-white py-14 sm:py-16">
         <PageContainer>
           <RevealOnScroll>
             <div className="grid gap-8 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-teal-50 p-7 sm:p-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
@@ -576,11 +578,11 @@ export default function ProductMarketingSections() {
 
               <div className="relative mx-auto max-w-2xl">
                 <span className="inline-flex rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-indigo-200">
-                  Build with operational context
+                  Design-partner programme
                 </span>
 
                 <h2 className="font-display mt-4 text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-                  Discuss the workflows your ERP must solve first.
+                  Validate the first workflow your business should connect.
                 </h2>
 
                 <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-slate-300">
@@ -589,17 +591,10 @@ export default function ProductMarketingSections() {
                   VercentLabs.
                 </p>
 
-                <a
-                  href={
-                    "mailto:" +
-                    siteConfig.email +
-                    "?subject=Vercent ERP discovery discussion"
-                  }
-                  className="button-primary mt-7"
-                >
-                  Start a discussion
+                <Link href="/signup" className="button-primary mt-7">
+                  Apply for design partnership
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </a>
+                </Link>
               </div>
             </div>
           </RevealOnScroll>

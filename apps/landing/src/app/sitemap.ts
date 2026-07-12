@@ -1,53 +1,46 @@
 import type { MetadataRoute } from "next";
 
 import { erpModules, industries } from "@/content/erp";
-import { absoluteUrl } from "@/lib/landing-config";
+import { absoluteUrl } from "@/lib/site-config";
 
-const lastModified = new Date("2026-07-12");
-
-const staticRoutes = [
-  { path: "/", priority: 1 },
-  { path: "/features", priority: 0.9 },
-  { path: "/modules", priority: 0.9 },
-  { path: "/how-it-works", priority: 0.85 },
-  { path: "/industries", priority: 0.85 },
-  { path: "/security", priority: 0.8 },
-  { path: "/pricing", priority: 0.75 },
-  { path: "/comparison", priority: 0.7 },
-  { path: "/api-developers", priority: 0.7 },
-  { path: "/partner", priority: 0.7 },
-  { path: "/customers", priority: 0.65 },
-  { path: "/about", priority: 0.65 },
-  { path: "/careers", priority: 0.55 },
-  { path: "/changelog", priority: 0.55 },
-  { path: "/help", priority: 0.6 },
-  { path: "/contact", priority: 0.75 },
-  { path: "/status", priority: 0.45 },
-  { path: "/privacy", priority: 0.3 },
-  { path: "/terms", priority: 0.3 },
-];
+const publicRoutes = [
+  ["/", 1],
+  ["/features", 0.9],
+  ["/modules", 0.9],
+  ["/how-it-works", 0.85],
+  ["/industries", 0.85],
+  ["/customers", 0.8],
+  ["/security", 0.75],
+  ["/pricing", 0.75],
+  ["/comparison", 0.7],
+  ["/api-developers", 0.65],
+  ["/partner", 0.65],
+  ["/about", 0.6],
+  ["/careers", 0.45],
+  ["/changelog", 0.55],
+  ["/help", 0.5],
+  ["/contact", 0.7],
+  ["/privacy", 0.3],
+  ["/terms", 0.3],
+] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const staticEntries: MetadataRoute.Sitemap = staticRoutes.map((route) => ({
-    url: absoluteUrl(route.path),
-    lastModified,
-    changeFrequency: route.path === "/changelog" ? "weekly" : "monthly",
-    priority: route.priority,
-  }));
-
-  const moduleEntries: MetadataRoute.Sitemap = erpModules.map((erpModule) => ({
-    url: absoluteUrl("/modules/" + erpModule.slug),
-    lastModified,
-    changeFrequency: "monthly" as const,
-    priority: 0.72,
-  }));
-
-  const industryEntries: MetadataRoute.Sitemap = industries.map((industry) => ({
-    url: absoluteUrl("/industries/" + industry.slug),
-    lastModified,
-    changeFrequency: "monthly",
-    priority: 0.68,
-  }));
-
-  return [...staticEntries, ...moduleEntries, ...industryEntries];
+  return [
+    ...publicRoutes.map(([route, priority]) => ({
+      url: absoluteUrl(route),
+      changeFrequency:
+        route === "/changelog" ? ("weekly" as const) : ("monthly" as const),
+      priority,
+    })),
+    ...erpModules.map((item) => ({
+      url: absoluteUrl("/modules/" + item.slug),
+      changeFrequency: "monthly" as const,
+      priority: 0.72,
+    })),
+    ...industries.map((item) => ({
+      url: absoluteUrl("/industries/" + item.slug),
+      changeFrequency: "monthly" as const,
+      priority: 0.68,
+    })),
+  ];
 }

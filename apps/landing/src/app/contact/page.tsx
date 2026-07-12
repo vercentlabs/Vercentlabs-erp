@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { Mail, MapPin, MessageSquare } from "lucide-react";
 
 import LeadForm from "@/components/forms/lead-form";
@@ -7,14 +7,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Contact VercentLabs",
   description:
-    "Discuss ERP discovery, product pilots, implementation partnerships and integrations with VercentLabs.",
-  alternates: {
-    canonical: "/contact",
-  },
-};
+    "Discuss ERP discovery, design partnership, implementation collaboration or integration requirements with VercentLabs.",
+  path: "/contact",
+});
 
 export default function ContactPage() {
   return (

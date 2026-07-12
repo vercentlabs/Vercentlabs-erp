@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import {
   BarChart3,
@@ -14,11 +14,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import SectionHeading from "@/components/marketing/section-heading";
 
-export const metadata: Metadata = {
-  title: "Enterprise ERP Features",
+export const metadata = createPageMetadata({
+  title: "Connected ERP Platform Features",
   description:
-    "Explore the connected data, workflow, governance, reporting and enterprise operating capabilities planned for Vercent ERP.",
-};
+    "Explore shared data, workflows, role-based access, reporting and enterprise structures across Vercent ERP.",
+  path: "/features",
+});
 
 const features = [
   {

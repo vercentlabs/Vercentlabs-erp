@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { Building2, Check, Users } from "lucide-react";
 
 import LeadForm from "@/components/forms/lead-form";
@@ -6,15 +6,13 @@ import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
-export const metadata: Metadata = {
-  title: "Request Early Access",
+export const metadata = createPageMetadata({
+  title: "Apply for the Vercent ERP Design Partner Programme",
   description:
-    "Request an ERP discovery, design-partner or early-access discussion with VercentLabs.",
-  robots: {
-    index: false,
-    follow: true,
-  },
-};
+    "Share your organisation, priority workflow and current operating problem for a Vercent ERP design-partner review.",
+  path: "/signup",
+  noIndex: true,
+});
 
 const expectations = [
   "This is an early-access request, not instant account creation",

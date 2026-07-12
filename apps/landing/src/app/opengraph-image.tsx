@@ -1,12 +1,7 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Vercent ERP — Connected enterprise operations";
-
-export const size = {
-  width: 1200,
-  height: 630,
-};
-
+export const alt = "Vercent ERP — Connected ERP for growing Indian businesses";
+export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default function OpenGraphImage() {
@@ -19,7 +14,7 @@ export default function OpenGraphImage() {
         position: "relative",
         overflow: "hidden",
         background:
-          "linear-gradient(135deg, #f8fafc 0%, #eef2ff 52%, #ecfeff 100%)",
+          "linear-gradient(135deg, #f8fafc 0%, #eef2ff 55%, #ecfeff 100%)",
         color: "#0f172a",
         fontFamily: "Arial, sans-serif",
       }}
@@ -28,34 +23,32 @@ export default function OpenGraphImage() {
         style={{
           display: "flex",
           position: "absolute",
-          width: 480,
-          height: 480,
+          width: 460,
+          height: 460,
           borderRadius: 999,
-          left: -140,
+          left: -120,
           top: -160,
           background: "rgba(79,70,229,0.18)",
         }}
       />
-
       <div
         style={{
           display: "flex",
           position: "absolute",
-          width: 400,
-          height: 400,
+          width: 380,
+          height: 380,
           borderRadius: 999,
-          right: -100,
-          bottom: -150,
+          right: -80,
+          bottom: -140,
           background: "rgba(13,148,136,0.16)",
         }}
       />
-
       <div
         style={{
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          padding: "72px 86px",
+          padding: "72px 84px",
           position: "relative",
           width: "100%",
         }}
@@ -71,47 +64,36 @@ export default function OpenGraphImage() {
           <span style={{ color: "#0f3b73" }}>Vercent</span>
           <span style={{ color: "#0284c7" }}>labs</span>
         </div>
-
         <div
           style={{
             display: "flex",
-            marginTop: 50,
-            maxWidth: 930,
-            fontSize: 72,
+            marginTop: 48,
+            maxWidth: 980,
+            fontSize: 68,
             lineHeight: 1.08,
             letterSpacing: -4,
             fontWeight: 800,
           }}
         >
-          One connected enterprise ERP platform.
+          Connected ERP for growing Indian businesses.
         </div>
-
         <div
           style={{
             display: "flex",
-            marginTop: 30,
-            maxWidth: 830,
-            fontSize: 27,
+            marginTop: 28,
+            maxWidth: 900,
+            fontSize: 26,
             lineHeight: 1.45,
             color: "#475569",
           }}
         >
-          Connect finance, supply chain, manufacturing, people, projects and
-          reporting.
+          Finance, inventory, sales and operations on one controlled platform.
         </div>
-
-        <div
-          style={{
-            display: "flex",
-            marginTop: 42,
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "flex", marginTop: 40, gap: 12 }}>
           {[
-            "10 modules",
-            "5 business flows",
-            "Role-based control",
-            "Multi-company foundation",
+            "10 connected modules",
+            "5 end-to-end workflows",
+            "Phased implementation",
           ].map((item) => (
             <div
               key={item}
@@ -119,7 +101,7 @@ export default function OpenGraphImage() {
                 display: "flex",
                 border: "1px solid rgba(79,70,229,0.18)",
                 borderRadius: 999,
-                background: "rgba(255,255,255,0.8)",
+                background: "rgba(255,255,255,0.82)",
                 padding: "10px 18px",
                 fontSize: 18,
                 fontWeight: 700,

@@ -1,52 +1,37 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, LoaderCircle, Mail } from "lucide-react";
+import { type FormEvent, useRef, useState } from "react";
 
-import { landingConfig } from "@/lib/landing-config";
+import {
+  contactInterests,
+  signupInterests,
+  teamSizes,
+} from "@/lib/lead-validation";
+import { siteConfig } from "@/lib/site-config";
 
 type LeadFormMode = "contact" | "signup";
+type FieldErrors = Record<string, string>;
 
-type LeadFormProps = {
-  mode: LeadFormMode;
+type SubmissionState = {
+  status: "idle" | "submitting" | "success" | "error";
+  message: string;
 };
 
-type SubmissionState =
-  | {
-      status: "idle";
-      message: "";
-    }
-  | {
-      status: "submitting";
-      message: string;
-    }
-  | {
-      status: "success";
-      message: string;
-    }
-  | {
-      status: "error";
-      message: string;
-    };
-
-const initialState: SubmissionState = {
-  status: "idle",
-  message: "",
-};
-
-export default function LeadForm({ mode }: LeadFormProps) {
-  const [submission, setSubmission] = useState<SubmissionState>(initialState);
-
+export default function LeadForm({ mode }: { mode: LeadFormMode }) {
+  const [submission, setSubmission] = useState<SubmissionState>({
+    status: "idle",
+    message: "",
+  });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const startedAt = useRef(0);
   const isSignup = mode === "signup";
-  const endpoint = isSignup ? "/api/signup" : "/api/contact";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     const form = event.currentTarget;
     const formData = new FormData(form);
-
     const payload = {
       name: String(formData.get("name") || ""),
       email: String(formData.get("email") || ""),
@@ -57,28 +42,29 @@ export default function LeadForm({ mode }: LeadFormProps) {
       message: String(formData.get("message") || ""),
       website: String(formData.get("website") || ""),
       consent: formData.get("consent") === "on",
+      startedAt: startedAt.current,
     };
 
+    setFieldErrors({});
     setSubmission({
       status: "submitting",
-      message: "Submitting your request...",
+      message: "Submitting your request…",
     });
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch(isSignup ? "/api/signup" : "/api/contact", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       const result = (await response.json()) as {
         ok?: boolean;
         message?: string;
+        errors?: FieldErrors;
       };
 
       if (!response.ok || !result.ok) {
+        setFieldErrors(result.errors || {});
         throw new Error(
           result.message || "The request could not be delivered.",
         );
@@ -88,14 +74,14 @@ export default function LeadForm({ mode }: LeadFormProps) {
         status: "success",
         message: result.message || "Your request has been received.",
       });
-
       form.reset();
+      startedAt.current = Date.now();
 
       if (isSignup) {
-        const email = encodeURIComponent(payload.email);
-
         window.setTimeout(() => {
-          window.location.assign("/signup/verify?email=" + email);
+          window.location.assign(
+            "/signup/verify?email=" + encodeURIComponent(payload.email),
+          );
         }, 700);
       }
     } catch (error) {
@@ -112,6 +98,9 @@ export default function LeadForm({ mode }: LeadFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
+      onFocusCapture={() => {
+        if (startedAt.current === 0) startedAt.current = Date.now();
+      }}
       className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
     >
       <div className="grid gap-5 sm:grid-cols-2">
@@ -121,8 +110,8 @@ export default function LeadForm({ mode }: LeadFormProps) {
           autoComplete="name"
           required
           maxLength={100}
+          error={fieldErrors.name}
         />
-
         <Field
           label="Work email"
           name="email"
@@ -130,91 +119,72 @@ export default function LeadForm({ mode }: LeadFormProps) {
           autoComplete="email"
           required
           maxLength={160}
+          error={fieldErrors.email}
         />
-
         <Field
           label="Organisation"
           name="company"
           autoComplete="organization"
           required
           maxLength={160}
+          error={fieldErrors.company}
         />
-
         <Field
           label="Phone number"
           name="phone"
           type="tel"
           autoComplete="tel"
           maxLength={40}
+          error={fieldErrors.phone}
+        />
+
+        <SelectField
+          label={isSignup ? "Main area of interest" : "Discussion area"}
+          name="interest"
+          required={isSignup}
+          options={isSignup ? signupInterests : contactInterests}
+          error={fieldErrors.interest}
         />
 
         {isSignup ? (
-          <>
-            <SelectField
-              label="Main area of interest"
-              name="interest"
-              required
-              options={[
-                "Finance and accounting",
-                "Inventory and procurement",
-                "Sales and CRM",
-                "Manufacturing",
-                "People and payroll",
-                "Projects and services",
-                "Complete ERP platform",
-              ]}
-            />
-
-            <SelectField
-              label="Approximate team size"
-              name="teamSize"
-              options={["1–10", "11–50", "51–200", "201–500", "500+"]}
-            />
-          </>
-        ) : (
           <SelectField
-            label="Discussion area"
-            name="interest"
-            options={[
-              "ERP discovery",
-              "Product pilot",
-              "Implementation partnership",
-              "Technology integration",
-              "Careers and collaboration",
-              "Other",
-            ]}
+            label="Approximate team size"
+            name="teamSize"
+            options={teamSizes}
+            error={fieldErrors.teamSize}
           />
-        )}
+        ) : null}
       </div>
 
       <div className="mt-5">
         <label htmlFor="message" className="text-sm font-bold text-slate-800">
           {isSignup
-            ? "What would you like the ERP to solve?"
+            ? "What should the ERP solve first?"
             : "Business problem or requirement"}
         </label>
-
         <textarea
           id="message"
           name="message"
           rows={5}
           required={!isSignup}
           maxLength={2000}
-          className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          aria-invalid={Boolean(fieldErrors.message)}
+          aria-describedby={fieldErrors.message ? "message-error" : undefined}
+          className="form-control mt-2"
           placeholder={
             isSignup
-              ? "Share the workflows, systems or business problems you are evaluating."
-              : "Describe your current systems, workflows and the problem you want to solve."
+              ? "Share the current systems, workflow, users and result you want to achieve."
+              : "Describe the current process, systems, users and the problem you want to solve."
           }
         />
+        <FieldError id="message-error" message={fieldErrors.message} />
       </div>
 
       <div
         aria-hidden="true"
-        className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"
+        className="absolute -left-[10000px] h-px w-px overflow-hidden"
       >
         <label htmlFor="website">Website</label>
-
         <input
           id="website"
           name="website"
@@ -231,10 +201,9 @@ export default function LeadForm({ mode }: LeadFormProps) {
           required
           className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
         />
-
         <span>
-          I agree that VercentLabs may use these details to respond to this
-          request. Review the{" "}
+          I agree that VercentLabs may use these details to assess and respond
+          to this request. Review the{" "}
           <Link
             href="/privacy"
             className="font-bold text-indigo-600 hover:text-indigo-800"
@@ -244,6 +213,10 @@ export default function LeadForm({ mode }: LeadFormProps) {
           .
         </span>
       </label>
+      <FieldError
+        id="consent-error"
+        message={fieldErrors.consent || fieldErrors.form}
+      />
 
       <button
         type="submit"
@@ -257,11 +230,10 @@ export default function LeadForm({ mode }: LeadFormProps) {
         ) : (
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         )}
-
         {submission.status === "submitting"
-          ? "Submitting..."
+          ? "Submitting…"
           : isSignup
-            ? "Request early access"
+            ? "Apply for design partnership"
             : "Send enquiry"}
       </button>
 
@@ -283,18 +255,21 @@ export default function LeadForm({ mode }: LeadFormProps) {
 
         {submission.status === "error" ? (
           <a
-            href={
-              "mailto:" +
-              landingConfig.contactEmail +
-              "?subject=Vercent ERP enquiry"
-            }
+            href={"mailto:" + siteConfig.email + "?subject=Vercent ERP enquiry"}
             className="mt-3 inline-flex items-center gap-2 text-sm font-extrabold text-indigo-600"
           >
             <Mail aria-hidden="true" className="h-4 w-4" />
-            Email {landingConfig.contactEmail}
+            Email {siteConfig.email}
           </a>
         ) : null}
       </div>
+
+      <noscript>
+        <p className="mt-4 text-sm text-amber-800">
+          JavaScript is required for secure online submission. Email{" "}
+          {siteConfig.email} instead.
+        </p>
+      </noscript>
     </form>
   );
 }
@@ -306,6 +281,7 @@ type FieldProps = {
   autoComplete?: string;
   required?: boolean;
   maxLength?: number;
+  error?: string;
 };
 
 function Field({
@@ -315,13 +291,14 @@ function Field({
   autoComplete,
   required,
   maxLength,
+  error,
 }: FieldProps) {
+  const errorId = name + "-error";
   return (
     <div>
       <label htmlFor={name} className="text-sm font-bold text-slate-800">
         {label}
       </label>
-
       <input
         id={name}
         name={name}
@@ -329,8 +306,11 @@ function Field({
         autoComplete={autoComplete}
         required={required}
         maxLength={maxLength}
-        className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        className="form-control mt-2"
       />
+      <FieldError id={errorId} message={error} />
     </div>
   );
 }
@@ -338,32 +318,49 @@ function Field({
 type SelectFieldProps = {
   label: string;
   name: string;
-  options: string[];
+  options: readonly string[];
   required?: boolean;
+  error?: string;
 };
 
-function SelectField({ label, name, options, required }: SelectFieldProps) {
+function SelectField({
+  label,
+  name,
+  options,
+  required,
+  error,
+}: SelectFieldProps) {
+  const errorId = name + "-error";
   return (
     <div>
       <label htmlFor={name} className="text-sm font-bold text-slate-800">
         {label}
       </label>
-
       <select
         id={name}
         name={name}
         required={required}
         defaultValue=""
-        className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        className="form-control mt-2"
       >
         <option value="">Select an option</option>
-
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
           </option>
         ))}
       </select>
+      <FieldError id={errorId} message={error} />
     </div>
   );
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  return message ? (
+    <p id={id} className="mt-1.5 text-xs font-semibold text-rose-700">
+      {message}
+    </p>
+  ) : null;
 }

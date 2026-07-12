@@ -4,24 +4,9 @@ export type NavigationItem = {
 };
 
 export const navigationItems: NavigationItem[] = [
-  {
-    label: "Product",
-    href: "/features",
-  },
-  {
-    label: "Modules",
-    href: "/modules",
-  },
-  {
-    label: "Industries",
-    href: "/industries",
-  },
-  {
-    label: "Security",
-    href: "/security",
-  },
-  {
-    label: "Company",
-    href: "/about",
-  },
+  { label: "Product", href: "/features" },
+  { label: "Modules", href: "/modules" },
+  { label: "Workflows", href: "/how-it-works" },
+  { label: "Industries", href: "/industries" },
+  { label: "Security", href: "/security" },
 ];

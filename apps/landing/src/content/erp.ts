@@ -342,35 +342,34 @@ export const industries: Industry[] = [
 
 export const frequentlyAskedQuestions = [
   {
-    question:
-      "Is Vercent ERP already presented as a finished commercial product?",
+    question: "Who is the design-partner programme for?",
     answer:
-      "No unsupported claim is made. The landing application presents the platform vision, intended capabilities and implementation approach while the product is being developed.",
+      "It is intended for growing Indian manufacturers, distributors and service businesses with an important workflow split across spreadsheets or disconnected applications.",
   },
   {
-    question: "Can a company start with selected modules?",
+    question: "Can we begin with one workflow or selected modules?",
     answer:
-      "The architecture is modular. An implementation can begin with the highest-priority workflows and expand through controlled releases.",
+      "Yes. The recommended approach is to define the smallest valuable end-to-end scope, validate it with real users and expand through controlled releases.",
   },
   {
-    question: "How will existing data be handled?",
+    question: "What does a design partner contribute?",
     answer:
-      "Implementation planning includes source-system review, data mapping, cleansing, validation, migration rehearsal and controlled cutover.",
+      "A design partner provides access to process owners, realistic business scenarios, current-system context and structured feedback. Participation does not automatically create a production contract.",
   },
   {
-    question: "How are permissions managed?",
+    question: "How is existing data handled?",
     answer:
-      "The platform design includes role-based access, organisation scope, approval authority and traceable administrative changes.",
+      "Implementation planning includes source review, ownership, cleansing, mapping, migration rehearsal, reconciliation and controlled cutover before production use.",
   },
   {
-    question: "Does the platform support multiple companies and locations?",
+    question: "Can the platform represent multiple companies and locations?",
     answer:
-      "Multi-company, multi-location and shared-service operating structures are part of the intended platform foundation.",
+      "Multi-company, multi-location and shared-service structures are part of the intended platform foundation and must be validated against the organisation's actual control model.",
   },
   {
-    question: "How can an organisation discuss a pilot?",
+    question: "Is public production access available today?",
     answer:
-      "The founding team can review the organisation, current systems, priority workflows and a suitable discovery or pilot scope.",
+      "Public self-service production access is not currently offered. Suitable applications begin with a fit review and may proceed to discovery or a controlled pilot.",
   },
 ];
 

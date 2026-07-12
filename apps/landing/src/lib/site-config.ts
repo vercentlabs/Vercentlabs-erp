@@ -1,24 +1,41 @@
-const fallbackSiteUrl = "http://localhost:3000";
+const defaultSiteUrl = "https://vercentlabs.com";
 
-function normalizeUrl(value: string | undefined): string {
-  const candidate = value?.trim() || fallbackSiteUrl;
+function normalizeUrl(value: string | undefined, fallback = "") {
+  const candidate = value?.trim() || fallback;
+
+  if (!candidate) {
+    return "";
+  }
 
   try {
     return new URL(candidate).origin;
   } catch {
-    return fallbackSiteUrl;
+    return fallback;
   }
 }
 
+const siteUrl = normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL, defaultSiteUrl);
+
 export const siteConfig = {
   name: "VercentLabs",
+  companyName: "VercentLabs LLP",
   productName: "Vercent ERP",
-  title: "Vercent ERP — One Connected Enterprise Platform",
+  title: "Vercent ERP | Connected ERP for Growing Indian Businesses",
   description:
-    "Connect finance, sales, procurement, inventory, manufacturing, people, projects and analytics through one enterprise ERP platform.",
-  siteUrl: normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL),
-  appUrl: process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:3001",
-  email: "vercentlabs@gmail.com",
+    "Connect finance, inventory, sales, procurement, manufacturing, people and projects through one controlled ERP platform built with growing Indian businesses.",
+  siteUrl,
+  appUrl: normalizeUrl(process.env.NEXT_PUBLIC_ERP_APP_URL),
+  email:
+    process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "vercentlabs@gmail.com",
   locale: "en_IN",
-  themeColor: "#080c18",
+  themeColor: "#4f46e5",
+  audience: "Growing Indian manufacturers, distributors and service businesses",
 } as const;
+
+export function absoluteUrl(pathname = "/") {
+  return new URL(pathname, siteConfig.siteUrl + "/").toString();
+}
+
+export function getSignInHref() {
+  return siteConfig.appUrl || "/login";
+}

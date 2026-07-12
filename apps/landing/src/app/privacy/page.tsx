@@ -1,18 +1,16 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 
 import LegalPage, {
   type LegalSection,
 } from "@/components/marketing/legal-page";
 import { landingConfig } from "@/lib/landing-config";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Privacy Policy",
   description:
-    "Review how the VercentLabs landing application handles enquiry and early-access information.",
-  alternates: {
-    canonical: "/privacy",
-  },
-};
+    "Review how the VercentLabs website handles contact and design-partner application information.",
+  path: "/privacy",
+});
 
 const sections: LegalSection[] = [
   {

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,14 +13,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
-export const metadata: Metadata = {
-  title: "Help",
+export const metadata = createPageMetadata({
+  title: "Vercent ERP Help and Product Guidance",
   description:
-    "Find product, implementation, security and contact guidance for Vercent ERP.",
-  alternates: {
-    canonical: "/help",
-  },
-};
+    "Find product, implementation, security, module and contact guidance for Vercent ERP.",
+  path: "/help",
+});
 
 const topics = [
   {

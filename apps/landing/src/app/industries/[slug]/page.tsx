@@ -1,56 +1,49 @@
-import type { Metadata } from "next";
-import { Check } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { getIndustry, industries } from "@/content/erp";
+import { createPageMetadata } from "@/lib/metadata";
 
-type IndustryPageProps = {
-  params: Promise<{
-    slug: string;
-  }>;
-};
+type IndustryPageProps = { params: Promise<{ slug: string }> };
 
 export function generateStaticParams() {
-  return industries.map((industry) => ({
-    slug: industry.slug,
-  }));
+  return industries.map((item) => ({ slug: item.slug }));
 }
 
-export async function generateMetadata({
-  params,
-}: IndustryPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: IndustryPageProps) {
   const { slug } = await params;
-  const industry = getIndustry(slug);
-
-  if (!industry) {
-    return {};
-  }
-
-  return {
-    title: industry.name,
-    description: industry.description,
-  };
+  const item = getIndustry(slug);
+  return item
+    ? createPageMetadata({
+        title: item.name + " ERP",
+        description: item.description,
+        path: "/industries/" + item.slug,
+      })
+    : {};
 }
 
 export default async function IndustryPage({ params }: IndustryPageProps) {
   const { slug } = await params;
-  const industry = getIndustry(slug);
-
-  if (!industry) {
-    notFound();
-  }
+  const item = getIndustry(slug);
+  if (!item) notFound();
 
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Industry solution"
-        title={industry.name}
-        description={industry.description}
+        eyebrow="Industry workflow"
+        title={item.name}
+        description={item.description}
+        actions={
+          <Link href="/signup" className="button-primary">
+            Discuss your operating model
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
+        }
       />
-
       <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="grid gap-12 lg:grid-cols-2">
@@ -58,9 +51,8 @@ export default async function IndustryPage({ params }: IndustryPageProps) {
               <h2 className="font-display text-3xl font-extrabold text-slate-950">
                 Common operating challenges
               </h2>
-
               <div className="mt-7 space-y-3">
-                {industry.challenges.map((challenge) => (
+                {item.challenges.map((challenge) => (
                   <div
                     key={challenge}
                     className="rounded-2xl border border-rose-100 bg-rose-50 p-5 text-sm font-semibold leading-7 text-slate-700"
@@ -70,14 +62,12 @@ export default async function IndustryPage({ params }: IndustryPageProps) {
                 ))}
               </div>
             </div>
-
             <div>
               <h2 className="font-display text-3xl font-extrabold text-slate-950">
                 Relevant platform capabilities
               </h2>
-
               <div className="mt-7 space-y-3">
-                {industry.capabilities.map((capability) => (
+                {item.capabilities.map((capability) => (
                   <div
                     key={capability}
                     className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-5"

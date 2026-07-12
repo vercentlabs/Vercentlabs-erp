@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { ArrowRight, Boxes } from "lucide-react";
 import Link from "next/link";
 
@@ -7,11 +7,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { erpModules } from "@/content/erp";
 
-export const metadata: Metadata = {
-  title: "ERP Modules",
+export const metadata = createPageMetadata({
+  title: "Vercent ERP Modules",
   description:
-    "Explore the ten connected operational and financial modules planned for Vercent ERP.",
-};
+    "Explore ten connected modules across finance, procurement, inventory, sales, CRM, manufacturing, people, projects and reporting.",
+  path: "/modules",
+});
 
 export default function ModulesPage() {
   return (

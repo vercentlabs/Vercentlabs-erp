@@ -1,46 +1,47 @@
-import type { Metadata } from "next";
-import { Check } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import Link from "next/link";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
-import { siteConfig } from "@/lib/site-config";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "ERP Engagement and Pricing",
+export const metadata = createPageMetadata({
+  title: "ERP Engagement and Pricing Approach",
   description:
-    "Understand the discovery, pilot and rollout engagement approach for Vercent ERP.",
-};
+    "Understand how VercentLabs scopes ERP discovery, controlled pilots and phased implementation before providing a commercial proposal.",
+  path: "/pricing",
+});
 
 const engagements = [
   {
     name: "Discovery",
     description:
-      "Assess processes, systems, data, controls, pain points and the highest-value starting scope.",
+      "Define the business problem, process owners, current systems, data, controls and smallest valuable scope.",
     includes: [
-      "Stakeholder and workflow review",
-      "Current-system assessment",
-      "Priority and scope definition",
-      "Implementation recommendation",
+      "Stakeholder and workflow discovery",
+      "Current-system and data review",
+      "Priority and risk definition",
+      "Recommended next-step scope",
     ],
   },
   {
-    name: "Pilot",
+    name: "Controlled pilot",
     description:
-      "Validate selected workflows, roles, data and user scenarios in a controlled implementation.",
+      "Validate selected workflows with realistic roles, data and business scenarios before a wider commitment.",
     includes: [
-      "Selected process configuration",
-      "Data mapping and migration rehearsal",
-      "Business scenario validation",
-      "Pilot review and rollout decision",
+      "Pilot workflow configuration",
+      "Scenario and control validation",
+      "Migration rehearsal where required",
+      "Pilot findings and rollout decision",
     ],
   },
   {
     name: "Phased rollout",
     description:
-      "Expand modules, companies, locations and workflows through governed implementation releases.",
+      "Release approved modules and workflows in manageable stages with training, cutover and improvement ownership.",
     includes: [
-      "Release planning",
+      "Release and environment planning",
       "Configuration and integration",
       "Migration and user preparation",
       "Cutover, support and improvement",
@@ -48,13 +49,27 @@ const engagements = [
   },
 ];
 
+const costDrivers = [
+  "Number and complexity of workflows",
+  "Companies, locations and user roles",
+  "Data quality and migration volume",
+  "Required integrations and reports",
+  "Training, change and rollout responsibility",
+];
+
 export default function PricingPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Commercial approach"
-        title="Pricing should follow verified scope, complexity and implementation responsibility."
-        description="Public fixed prices are not shown before the platform, service scope and implementation model are ready to support reliable commercial commitments."
+        title="Price the verified scope—not an imaginary standard implementation."
+        description="ERP cost depends on the workflows, controls, migration, integrations, users and implementation responsibility. VercentLabs begins with discovery before making a commercial commitment."
+        actions={
+          <Link href="/signup" className="button-primary">
+            Apply for a scope review
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
+        }
       />
 
       <section className="bg-white py-14 sm:py-16">
@@ -68,15 +83,12 @@ export default function PricingPage() {
                 <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
                   Stage {index + 1}
                 </p>
-
                 <h2 className="font-display mt-3 text-2xl font-extrabold text-slate-950">
                   {engagement.name}
                 </h2>
-
                 <p className="mt-4 text-sm leading-7 text-slate-600">
                   {engagement.description}
                 </p>
-
                 <ul className="mt-6 space-y-3">
                   {engagement.includes.map((item) => (
                     <li
@@ -95,26 +107,29 @@ export default function PricingPage() {
             ))}
           </div>
 
-          <div className="mt-10 rounded-3xl bg-indigo-50 p-8 text-center sm:p-12">
-            <h2 className="font-display text-3xl font-extrabold text-slate-950">
-              Discuss the organisation before discussing a number.
-            </h2>
-
-            <p className="mx-auto mt-4 max-w-2xl leading-8 text-slate-600">
-              The founding team can review the current environment and identify
-              an appropriate discovery, pilot or implementation approach.
-            </p>
-
-            <a
-              href={
-                "mailto:" +
-                siteConfig.email +
-                "?subject=Vercent ERP engagement discussion"
-              }
-              className="button-primary mt-7"
-            >
-              Contact VercentLabs
-            </a>
+          <div className="mt-10 grid gap-8 rounded-3xl border border-indigo-100 bg-indigo-50 p-8 sm:p-10 lg:grid-cols-2">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
+                What shapes a proposal
+              </p>
+              <h2 className="font-display mt-3 text-3xl font-extrabold text-slate-950">
+                A useful estimate follows a useful scope.
+              </h2>
+            </div>
+            <ul className="space-y-3">
+              {costDrivers.map((driver) => (
+                <li
+                  key={driver}
+                  className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                >
+                  <Check
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-indigo-600"
+                  />
+                  {driver}
+                </li>
+              ))}
+            </ul>
           </div>
         </PageContainer>
       </section>

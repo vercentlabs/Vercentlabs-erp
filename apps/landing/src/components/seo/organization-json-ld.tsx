@@ -1,4 +1,4 @@
-import { absoluteUrl, landingConfig } from "@/lib/landing-config";
+import { absoluteUrl, siteConfig } from "@/lib/site-config";
 
 export default function OrganizationJsonLd() {
   const schema = {
@@ -7,27 +7,34 @@ export default function OrganizationJsonLd() {
       {
         "@type": "Organization",
         "@id": absoluteUrl("/#organization"),
-        name: landingConfig.companyName,
-        url: landingConfig.siteUrl,
-        email: landingConfig.contactEmail,
+        name: siteConfig.companyName,
+        alternateName: siteConfig.name,
+        url: siteConfig.siteUrl,
+        email: siteConfig.email,
         logo: absoluteUrl("/brand/logo.png"),
+        areaServed: "IN",
       },
       {
         "@type": "WebSite",
         "@id": absoluteUrl("/#website"),
-        name: landingConfig.productName,
-        url: landingConfig.siteUrl,
+        name: siteConfig.productName,
+        url: siteConfig.siteUrl,
+        inLanguage: "en-IN",
         publisher: {
           "@id": absoluteUrl("/#organization"),
         },
       },
       {
         "@type": "SoftwareApplication",
-        name: landingConfig.productName,
+        name: siteConfig.productName,
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
-        description: landingConfig.description,
-        url: landingConfig.siteUrl,
+        description: siteConfig.description,
+        url: siteConfig.siteUrl,
+        audience: {
+          "@type": "BusinessAudience",
+          audienceType: siteConfig.audience,
+        },
         creator: {
           "@id": absoluteUrl("/#organization"),
         },

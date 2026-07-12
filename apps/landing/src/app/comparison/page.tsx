@@ -1,14 +1,15 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
-export const metadata: Metadata = {
-  title: "ERP Approach Comparison",
+export const metadata = createPageMetadata({
+  title: "Connected ERP Approach Comparison",
   description:
-    "Compare fragmented tools, rigid legacy systems and the connected modular approach planned for Vercent ERP.",
-};
+    "Compare fragmented tools, rigid legacy ERP and the modular, process-led approach being developed for Vercent ERP.",
+  path: "/comparison",
+});
 
 const rows = [
   {

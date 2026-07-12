@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { Code2, Database, GitBranch, ShieldCheck, Webhook } from "lucide-react";
 
 import PageContainer from "@/components/layout/page-container";
@@ -6,14 +6,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import SectionHeading from "@/components/marketing/section-heading";
 
-export const metadata: Metadata = {
-  title: "API Developers",
+export const metadata = createPageMetadata({
+  title: "Vercent ERP API and Integrations",
   description:
-    "Explore the planned API, integration and extension architecture for Vercent ERP.",
-  alternates: {
-    canonical: "/api-developers",
-  },
-};
+    "Explore the planned versioned API, webhook, integration and governed extension architecture for Vercent ERP.",
+  path: "/api-developers",
+});
 
 const principles = [
   {

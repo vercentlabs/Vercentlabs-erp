@@ -1,50 +1,47 @@
-import type { Metadata } from "next";
-
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Changelog",
+export const metadata = createPageMetadata({
+  title: "Vercent ERP Product Progress",
   description:
-    "Follow public progress on the Vercent ERP product and landing application.",
-  alternates: {
-    canonical: "/changelog",
-  },
-};
+    "Follow meaningful public milestones across the Vercent ERP platform, product experience and design-partner readiness.",
+  path: "/changelog",
+});
 
 const entries = [
   {
     date: "July 2026",
-    title: "Complete public product experience",
-    status: "Landing Phase 2",
+    title: "Production-hardened public product experience",
+    status: "Website",
     items: [
-      "Expanded the homepage into the complete ERP product story",
-      "Added module and industry route generation",
-      "Added security, comparison, pricing, partner and implementation pages",
-      "Aligned the visual system with the approved VercentLabs design",
+      "Complete product, module, industry and implementation journeys",
+      "Accessible responsive navigation and conversion paths",
+      "Search metadata, structured data, sitemap and social preview",
+      "Hardened form validation, abuse controls and deployment headers",
     ],
   },
   {
     date: "July 2026",
-    title: "Landing foundation",
-    status: "Landing Phase 1",
+    title: "Design-partner programme preparation",
+    status: "Go to market",
     items: [
-      "Established the responsive header, announcement bar and hero",
-      "Introduced the Sora and Manrope typography system",
-      "Created the shared 1440-pixel page container",
-      "Added accessible mobile navigation and reveal-on-scroll behaviour",
+      "Defined discovery, validation and pilot stages",
+      "Created honest application and contact workflows",
+      "Published implementation, security and commercial expectations",
+      "Focused initial positioning on growing Indian operating businesses",
     ],
   },
   {
     date: "July 2026",
-    title: "ERP platform foundation",
-    status: "Product development",
+    title: "Multi-tenant ERP platform foundation",
+    status: "Product engineering",
     items: [
-      "Established the monorepo and shared-package structure",
-      "Prepared local PostgreSQL and Redis infrastructure",
-      "Added control and tenant database migration workflows",
-      "Continued work on the multi-tenant API and web platform",
+      "Established the monorepo and shared package structure",
+      "Prepared PostgreSQL and Redis local infrastructure",
+      "Added control and tenant migration workflows",
+      "Continued API, permission and module foundation work",
     ],
   },
 ];
@@ -53,33 +50,29 @@ export default function ChangelogPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Public changelog"
-        title="Follow what is being built without invented release claims."
-        description="This page records meaningful public progress. Production product releases will be listed only after they are implemented, validated and available."
+        eyebrow="Product progress"
+        title="Follow meaningful milestones across product, implementation and readiness."
+        description="This public record describes completed foundations and current direction. Customer-facing release notes will begin when production product releases are available."
       />
-
       <section className="bg-white py-14 sm:py-16">
         <PageContainer>
           <div className="mx-auto max-w-3xl space-y-6">
             {entries.map((entry) => (
               <article
                 key={entry.title}
-                className="rounded-2xl border border-slate-200 bg-white p-6"
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
                     {entry.status}
                   </p>
-
                   <time className="text-sm font-semibold text-slate-500">
                     {entry.date}
                   </time>
                 </div>
-
                 <h2 className="font-display mt-4 text-2xl font-extrabold text-slate-950">
                   {entry.title}
                 </h2>
-
                 <ul className="mt-5 space-y-3">
                   {entry.items.map((item) => (
                     <li

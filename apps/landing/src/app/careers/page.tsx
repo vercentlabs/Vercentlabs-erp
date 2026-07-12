@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { ArrowRight, Briefcase, Code2, Settings, Users } from "lucide-react";
 
 import PageContainer from "@/components/layout/page-container";
@@ -6,14 +6,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
-export const metadata: Metadata = {
-  title: "Careers",
+export const metadata = createPageMetadata({
+  title: "Careers at VercentLabs",
   description:
-    "Learn about future product, engineering and ERP implementation opportunities at VercentLabs.",
-  alternates: {
-    canonical: "/careers",
-  },
-};
+    "Learn about product engineering, ERP implementation and operating-research opportunities at VercentLabs.",
+  path: "/careers",
+});
 
 const areas = [
   {

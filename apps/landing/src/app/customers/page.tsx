@@ -1,38 +1,70 @@
-import type { Metadata } from "next";
+import {
+  ArrowRight,
+  Building2,
+  Check,
+  ClipboardCheck,
+  Search,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
-import { ArrowRight, Building2, Check, Users } from "lucide-react";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Design Partners",
+export const metadata = createPageMetadata({
+  title: "ERP Design Partner Programme",
   description:
-    "Learn how VercentLabs intends to work with ERP design partners and pilot organisations.",
-  alternates: {
-    canonical: "/customers",
-  },
-};
+    "Apply to work with VercentLabs on real ERP workflows, validation and phased implementation for a growing Indian business.",
+  path: "/customers",
+});
 
-const partnerExpectations = [
-  "A real and clearly owned operating problem",
-  "Access to knowledgeable process participants",
-  "Willingness to validate workflows and terminology",
-  "Realistic data and business scenarios for testing",
-  "Structured feedback and implementation decisions",
+const stages = [
+  {
+    icon: Search,
+    title: "Fit review",
+    description:
+      "Confirm the organisation, process owners, current systems and a clearly owned operating problem.",
+  },
+  {
+    icon: Users,
+    title: "Workflow discovery",
+    description:
+      "Map users, decisions, handoffs, controls, exceptions, reports and data sources.",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "Scenario validation",
+    description:
+      "Review realistic process scenarios and validate terminology, roles and expected outcomes.",
+  },
+  {
+    icon: Building2,
+    title: "Pilot decision",
+    description:
+      "Agree whether a controlled pilot, implementation partnership or later follow-up is appropriate.",
+  },
+];
+
+const fitSignals = [
+  "A growing manufacturer, distributor or service business in India",
+  "Important workflows split across spreadsheets or disconnected applications",
+  "A named process owner who can explain decisions and exceptions",
+  "Willingness to validate realistic scenarios and implementation priorities",
+  "A practical first scope rather than an immediate whole-company replacement",
 ];
 
 export default function CustomersPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Design partners"
-        title="Build with real operating context before publishing customer claims."
-        description="VercentLabs does not present invented customer logos, testimonials or success metrics. The current focus is finding suitable organisations and ERP professionals for controlled discovery and pilot work."
+        eyebrow="Design partner programme"
+        title="Shape the ERP workflows your business will depend on."
+        description="Selected organisations work directly with VercentLabs to turn real operating problems into validated workflows, controls and a practical first implementation scope."
         actions={
-          <Link href="/contact" className="button-primary">
-            Discuss a design partnership
+          <Link href="/signup" className="button-primary">
+            Apply for the programme
             <ArrowRight aria-hidden="true" className="h-4 w-4" />
           </Link>
         }
@@ -40,61 +72,62 @@ export default function CustomersPage() {
 
       <section className="bg-white py-14 sm:py-16">
         <PageContainer>
-          <div className="grid gap-8 lg:grid-cols-2">
-            <div className="rounded-3xl border border-indigo-100 bg-indigo-50 p-7">
-              <Building2
-                aria-hidden="true"
-                className="h-8 w-8 text-indigo-600"
-              />
-
-              <h2 className="font-display mt-5 text-2xl font-extrabold text-slate-950">
-                Suitable pilot organisations
-              </h2>
-
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                Organisations with disconnected systems, manual approvals, weak
-                process visibility or a defined ERP replacement requirement may
-                be suitable for discovery.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-teal-100 bg-teal-50 p-7">
-              <Users aria-hidden="true" className="h-8 w-8 text-teal-700" />
-
-              <h2 className="font-display mt-5 text-2xl font-extrabold text-slate-950">
-                Suitable implementation partners
-              </h2>
-
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                ERP consultants and implementation professionals can help
-                validate process design, migration, controls, adoption and
-                industry requirements.
-              </p>
-            </div>
+          <div className="grid gap-4 lg:grid-cols-4">
+            {stages.map((stage, index) => {
+              const Icon = stage.icon;
+              return (
+                <article
+                  key={stage.title}
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <Icon
+                      aria-hidden="true"
+                      className="h-6 w-6 text-indigo-600"
+                    />
+                    <span className="text-xs font-extrabold text-slate-400">
+                      0{index + 1}
+                    </span>
+                  </div>
+                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
+                    {stage.title}
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                    {stage.description}
+                  </p>
+                </article>
+              );
+            })}
           </div>
 
-          <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-7 sm:p-10">
-            <h2 className="font-display text-3xl font-extrabold text-slate-950">
-              A useful design partnership requires:
-            </h2>
-
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              {partnerExpectations.map((expectation) => (
-                <div
-                  key={expectation}
-                  className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4"
+          <div className="mt-10 grid gap-8 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-teal-50 p-7 sm:p-10 lg:grid-cols-2">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
+                Good programme fit
+              </p>
+              <h2 className="font-display mt-3 text-3xl font-extrabold text-slate-950">
+                Start with a real operating constraint.
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                The strongest applications describe a specific process, the
+                people involved, the current tools and the business consequence
+                of leaving it fragmented.
+              </p>
+            </div>
+            <ul className="space-y-3">
+              {fitSignals.map((signal) => (
+                <li
+                  key={signal}
+                  className="flex items-start gap-3 rounded-2xl bg-white/85 p-4 text-sm font-semibold leading-6 text-slate-700"
                 >
                   <Check
                     aria-hidden="true"
                     className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
                   />
-
-                  <p className="text-sm font-semibold leading-6 text-slate-700">
-                    {expectation}
-                  </p>
-                </div>
+                  {signal}
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </PageContainer>
       </section>

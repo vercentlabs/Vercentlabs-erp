@@ -1,15 +1,15 @@
 import type { MetadataRoute } from "next";
 
-import { absoluteUrl, landingConfig } from "@/lib/landing-config";
+import { absoluteUrl, siteConfig } from "@/lib/site-config";
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/signup/verify", "/login"],
+      disallow: ["/api/"],
     },
     sitemap: absoluteUrl("/sitemap.xml"),
-    host: landingConfig.siteUrl,
+    host: siteConfig.siteUrl,
   };
 }

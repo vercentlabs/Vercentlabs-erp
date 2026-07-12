@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -12,11 +12,12 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import { siteConfig } from "@/lib/site-config";
 
-export const metadata: Metadata = {
-  title: "Partner with VercentLabs",
+export const metadata = createPageMetadata({
+  title: "ERP Implementation Partner Programme",
   description:
-    "Explore implementation, industry, technology and learning partnership opportunities around Vercent ERP.",
-};
+    "Explore implementation, industry, integration and delivery partnership opportunities with VercentLabs.",
+  path: "/partner",
+});
 
 const partnerTypes = [
   {

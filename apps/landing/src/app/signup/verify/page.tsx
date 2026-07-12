@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import { ArrowRight, MailCheck } from "lucide-react";
 
@@ -6,13 +6,13 @@ import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
-export const metadata: Metadata = {
-  title: "Early Access Request Received",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+export const metadata = createPageMetadata({
+  title: "Design Partner Application Received",
+  description:
+    "Confirmation that a Vercent ERP design-partner application was accepted by the configured enquiry service.",
+  path: "/signup/verify",
+  noIndex: true,
+});
 
 type VerifySignupPageProps = {
   searchParams: Promise<{

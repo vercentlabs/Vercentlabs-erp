@@ -1,15 +1,16 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/metadata";
 import { Check } from "lucide-react";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "About VercentLabs",
   description:
-    "Learn about the VercentLabs mission and the principles guiding the development of Vercent ERP.",
-};
+    "Learn why VercentLabs is building a connected ERP platform around real workflows and growing Indian business operations.",
+  path: "/about",
+});
 
 const principles = [
   "Solve operating problems before adding software complexity",
