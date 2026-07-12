@@ -10,7 +10,7 @@ import { businessFlows } from "@/content/erp";
 export const metadata = createPageMetadata({
   title: "How Vercent ERP Works",
   description:
-    "Understand Vercent ERP end-to-end workflows and its discovery, validation, migration and phased implementation approach.",
+    "Understand the six connected business workflows and phased implementation approach in Vercent ERP.",
   path: "/how-it-works",
 });
 

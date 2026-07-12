@@ -8,7 +8,7 @@ import PageHero from "@/components/marketing/page-hero";
 export const metadata = createPageMetadata({
   title: "About VercentLabs",
   description:
-    "Learn why VercentLabs is building a connected ERP platform around real workflows and growing Indian business operations.",
+    "Learn how VercentLabs builds connected ERP software for complete business operations.",
   path: "/about",
 });
 

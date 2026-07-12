@@ -8,7 +8,7 @@ import { landingConfig } from "@/lib/landing-config";
 export const metadata = createPageMetadata({
   title: "Privacy Policy",
   description:
-    "Review how the VercentLabs website handles contact and design-partner application information.",
+    "Review how VercentLabs handles website, demo and account information.",
   path: "/privacy",
 });
 

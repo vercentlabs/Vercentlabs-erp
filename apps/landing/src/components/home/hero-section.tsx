@@ -13,21 +13,21 @@ import PageContainer from "@/components/layout/page-container";
 const workflowItems = [
   {
     icon: PackageCheck,
-    label: "Sales order",
+    label: "Sales order SO-1048",
     status: "Approved",
-    description: "Customer demand becomes a controlled fulfilment requirement.",
+    description: "Customer, price, stock and credit checks completed.",
   },
   {
     icon: Factory,
-    label: "Operations",
-    status: "Planned",
-    description: "Material and production needs stay connected to demand.",
+    label: "Production plan",
+    status: "Scheduled",
+    description: "Materials, capacity and quality checkpoints reserved.",
   },
   {
     icon: CircleDollarSign,
-    label: "Finance",
-    status: "Traceable",
-    description: "Operational events connect to invoicing and accounting.",
+    label: "Invoice and ledger",
+    status: "Connected",
+    description: "Fulfilment updates billing, receivables and reporting.",
   },
 ];
 
@@ -60,42 +60,38 @@ export default function HeroSection() {
         <div className="grid items-center gap-10 lg:grid-cols-[1fr_0.9fr] xl:gap-16">
           <div>
             <p className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.15em] text-indigo-700">
-              Private design-partner programme for growing Indian businesses
+              12 modules. One connected business platform.
             </p>
 
             <h1
               id="hero-headline"
               className="font-display mt-5 max-w-4xl text-4xl font-extrabold leading-[1.06] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.5rem]"
             >
-              Run finance, inventory, sales and operations from one connected
-              ERP.
+              Run every core operation from one connected ERP.
             </h1>
 
             <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
-              Vercent ERP is being built with growing Indian manufacturers,
-              distributors and service businesses to replace spreadsheet
-              handoffs and disconnected tools with controlled end-to-end
-              workflows.
+              Vercent ERP connects accounting, procurement, sales, CRM, stock,
+              manufacturing, projects, assets, point of sale, quality, support
+              and HR & payroll—so work moves without spreadsheet handoffs or
+              repeated entry.
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <Link href="/signup" className="button-primary justify-center">
-                Apply for design partnership
+              <Link href="/contact" className="button-primary justify-center">
+                Book a personalised demo
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </Link>
-              <Link
-                href="/how-it-works"
-                className="button-secondary justify-center"
-              >
-                See the implementation approach
+              <Link href="/modules" className="button-secondary justify-center">
+                Explore all 12 modules
               </Link>
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {[
-                "10 connected modules",
-                "5 end-to-end workflows",
-                "Phased implementation",
+                "12 connected modules",
+                "6 end-to-end workflows",
+                "Role-based control",
               ].map((item) => (
                 <div
                   key={item}
@@ -116,10 +112,10 @@ export default function HeroSection() {
               <div className="flex items-center justify-between gap-4 bg-slate-950 px-5 py-4 text-white">
                 <div>
                   <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-indigo-300">
-                    Illustrative workflow preview
+                    Live workflow view
                   </p>
                   <p className="font-display mt-1 font-extrabold">
-                    Connected order-to-cash flow
+                    Order to cash
                   </p>
                 </div>
                 <ShieldCheck
@@ -166,7 +162,8 @@ export default function HeroSection() {
               </div>
 
               <div className="border-t border-slate-200 bg-indigo-50/70 px-5 py-3 text-xs leading-5 text-indigo-900">
-                This is a product concept view, not a live customer environment.
+                Every step keeps ownership, approval and accounting impact
+                traceable.
               </div>
             </div>
           </div>

@@ -17,7 +17,7 @@ import SectionHeading from "@/components/marketing/section-heading";
 export const metadata = createPageMetadata({
   title: "Connected ERP Platform Features",
   description:
-    "Explore shared data, workflows, role-based access, reporting and enterprise structures across Vercent ERP.",
+    "Explore shared data, configurable workflows, role-based access, reporting and enterprise controls across Vercent ERP.",
   path: "/features",
 });
 

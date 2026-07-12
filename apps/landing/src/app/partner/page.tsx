@@ -13,7 +13,7 @@ import PageHero from "@/components/marketing/page-hero";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "ERP Implementation Partner Programme",
+  title: "VercentLabs Partner Programme",
   description:
     "Explore implementation, industry, integration and delivery partnership opportunities with VercentLabs.",
   path: "/partner",

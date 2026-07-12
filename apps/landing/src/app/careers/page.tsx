@@ -9,7 +9,7 @@ import { landingConfig } from "@/lib/landing-config";
 export const metadata = createPageMetadata({
   title: "Careers at VercentLabs",
   description:
-    "Learn about product engineering, ERP implementation and operating-research opportunities at VercentLabs.",
+    "Explore product engineering, ERP implementation and business operations careers at VercentLabs.",
   path: "/careers",
 });
 

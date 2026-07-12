@@ -30,9 +30,7 @@ export default function Header() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-      }
+      if (event.key === "Escape") setMenuOpen(false);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -62,7 +60,6 @@ export default function Header() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMenuOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={
                   "rounded-lg px-3 py-2 text-sm font-semibold transition " +
@@ -92,8 +89,8 @@ export default function Header() {
               Sign in
             </Link>
           )}
-          <Link href="/signup" className="button-primary">
-            Apply for design partnership
+          <Link href="/contact" className="button-primary">
+            Book a demo
           </Link>
         </div>
 
@@ -138,7 +135,6 @@ export default function Header() {
                 );
               })}
             </nav>
-
             <div className="mt-4 grid gap-2 border-t border-slate-200 pt-4 sm:grid-cols-2">
               {externalSignIn ? (
                 <a
@@ -159,11 +155,11 @@ export default function Header() {
                 </Link>
               )}
               <Link
-                href="/signup"
+                href="/contact"
                 onClick={() => setMenuOpen(false)}
                 className="button-primary justify-center"
               >
-                Apply for design partnership
+                Book a demo
               </Link>
             </div>
           </PageContainer>

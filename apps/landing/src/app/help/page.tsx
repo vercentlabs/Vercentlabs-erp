@@ -14,7 +14,7 @@ import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Help and Product Guidance",
+  title: "Vercent ERP Help",
   description:
     "Find product, implementation, security, module and contact guidance for Vercent ERP.",
   path: "/help",

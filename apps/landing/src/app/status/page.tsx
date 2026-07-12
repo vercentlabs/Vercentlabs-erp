@@ -6,11 +6,10 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Development Status",
+  title: "Vercent ERP Status",
   description:
-    "Review the current public website, ERP product and production-service development status.",
+    "Review the operational status of Vercent ERP services and the public website.",
   path: "/status",
-  noIndex: true,
 });
 
 const services = [

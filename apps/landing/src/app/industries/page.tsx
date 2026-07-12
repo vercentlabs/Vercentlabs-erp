@@ -10,7 +10,7 @@ import { industries } from "@/content/erp";
 export const metadata = createPageMetadata({
   title: "ERP Solutions by Industry",
   description:
-    "Explore how Vercent ERP maps connected workflows to manufacturing, distribution, retail, services and project operations.",
+    "Explore connected ERP workflows for manufacturing, distribution, retail, services and project operations.",
   path: "/industries",
 });
 

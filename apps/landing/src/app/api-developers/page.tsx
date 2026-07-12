@@ -9,7 +9,7 @@ import SectionHeading from "@/components/marketing/section-heading";
 export const metadata = createPageMetadata({
   title: "Vercent ERP API and Integrations",
   description:
-    "Explore the planned versioned API, webhook, integration and governed extension architecture for Vercent ERP.",
+    "Explore versioned APIs, webhooks and governed integrations for Vercent ERP.",
   path: "/api-developers",
 });
 

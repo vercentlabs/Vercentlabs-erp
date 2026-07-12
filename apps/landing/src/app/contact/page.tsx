@@ -8,9 +8,9 @@ import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
 export const metadata = createPageMetadata({
-  title: "Contact VercentLabs",
+  title: "Book a Vercent ERP Demo",
   description:
-    "Discuss ERP discovery, design partnership, implementation collaboration or integration requirements with VercentLabs.",
+    "Book a personalised Vercent ERP demo based on your modules, workflows, locations and current systems.",
   path: "/contact",
 });
 

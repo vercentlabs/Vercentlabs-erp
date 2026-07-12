@@ -2,11 +2,7 @@ const defaultSiteUrl = "https://vercentlabs.com";
 
 function normalizeUrl(value: string | undefined, fallback = "") {
   const candidate = value?.trim() || fallback;
-
-  if (!candidate) {
-    return "";
-  }
-
+  if (!candidate) return "";
   try {
     return new URL(candidate).origin;
   } catch {
@@ -20,16 +16,16 @@ export const siteConfig = {
   name: "VercentLabs",
   companyName: "VercentLabs LLP",
   productName: "Vercent ERP",
-  title: "Vercent ERP | Connected ERP for Growing Indian Businesses",
+  title: "Vercent ERP | 12 Connected Modules for Complete Business Operations",
   description:
-    "Connect finance, inventory, sales, procurement, manufacturing, people and projects through one controlled ERP platform built with growing Indian businesses.",
+    "Run accounting, procurement, sales, CRM, stock, manufacturing, projects, assets, point of sale, quality, support and HR & payroll on one connected ERP platform.",
   siteUrl,
   appUrl: normalizeUrl(process.env.NEXT_PUBLIC_ERP_APP_URL),
   email:
     process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "vercentlabs@gmail.com",
   locale: "en_IN",
   themeColor: "#4f46e5",
-  audience: "Growing Indian manufacturers, distributors and service businesses",
+  audience: "Manufacturers, distributors, retailers and service businesses",
 } as const;
 
 export function absoluteUrl(pathname = "/") {
