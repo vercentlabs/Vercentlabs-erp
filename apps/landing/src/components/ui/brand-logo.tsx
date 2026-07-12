@@ -1,33 +1,35 @@
 import Image from "next/image";
-import Link from "next/link";
+
+type BrandLogoVariant = "mark" | "text";
 
 type BrandLogoProps = {
-  inverted?: boolean;
+  className?: string;
+  alt?: string;
+  variant?: BrandLogoVariant;
+  src?: string;
 };
 
-export default function BrandLogo({ inverted = false }: BrandLogoProps) {
-  return (
-    <Link
-      href="/"
-      aria-label="VercentLabs homepage"
-      className="inline-flex items-center gap-2.5"
-    >
-      <Image
-        src="/brand/logo.png"
-        alt=""
-        width={36}
-        height={36}
-        priority
-        className="h-9 w-9 object-contain"
-      />
+const logoSources: Record<BrandLogoVariant, string> = {
+  mark: "/brand/logo.png",
+  text: "/brand/text-logo.png",
+};
 
-      <span
-        className={`font-display text-lg font-extrabold tracking-[-0.03em] ${
-          inverted ? "text-white" : "text-slate-950"
-        }`}
-      >
-        VercentLabs
-      </span>
-    </Link>
+export default function BrandLogo({
+  className = "h-10 w-auto",
+  alt = "VercentLabs",
+  variant = "text",
+  src,
+}: BrandLogoProps) {
+  const resolvedSrc = src || logoSources[variant];
+
+  return (
+    <Image
+      src={resolvedSrc}
+      alt={alt}
+      width={variant === "mark" ? 40 : 160}
+      height={40}
+      className={className}
+      priority
+    />
   );
 }

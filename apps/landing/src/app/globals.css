@@ -1,59 +1,105 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════════
+   VERCENT DESIGN SYSTEM
+   Principle 4  — Consistency & Standards
+   Principle 8  — Aesthetic & Minimal Design
+   Principle 17 — Simplicity
+   Principle 18 — Hierarchy
+   Principle 20 — Accessibility (WCAG 2.1 AA)
+   ════════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #ffffff;
-  --background-subtle: #f8fafc;
-  --background-muted: #f1f5f9;
-  --background-dark: #080c18;
-  --background-dark-subtle: #0d1224;
+  /* ── Colour palette ─────────────────────────────────────────────────────── */
 
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --primary-light: #eef2ff;
-  --primary-soft: #c7d2fe;
+  /* Page backgrounds */
+  --bg: #ffffff;
+  --bg-subtle: #f8fafc; /* slate-50  — alternating sections */
+  --bg-muted: #f1f5f9; /* slate-100 — card fills, dividers */
 
-  --secondary: #0d9488;
-  --secondary-light: #ccfbf1;
+  /* Primary brand — Indigo (conversion / action) */
+  --primary: #4f46e5; /* indigo-600 */
+  --primary-hover: #4338ca; /* indigo-700 */
+  --primary-dark: #312e81; /* indigo-900 */
+  --primary-light: #eef2ff; /* indigo-50  */
+  --primary-mid: #e0e7ff; /* indigo-100 */
+  --primary-soft: #c7d2fe; /* indigo-200 */
+  --primary-text: #6366f1; /* indigo-500 — on light bg */
 
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
-  --text-on-dark: #f8fafc;
-  --text-muted-on-dark: #94a3b8;
+  /* Secondary ? Teal (active states, live indicators) */
+  --teal-700: #0f766e;
+  --teal-600: #0d9488;
+  --teal-500: #14b8a6;
 
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* Text hierarchy */
+  --text-primary: #0f172a; /* slate-900 */
+  --text-secondary: #334155; /* slate-700 */
+  --text-muted: #64748b; /* slate-500 */
+  --text-faint: #94a3b8; /* slate-400 */
 
-  --success: #059669;
-  --warning: #d97706;
-  --danger: #dc2626;
+  /* Borders */
+  --border: #e2e8f0; /* slate-200 */
+  --border-dark: #cbd5e1; /* slate-300 */
 
-  --radius-small: 0.5rem;
-  --radius-medium: 0.75rem;
-  --radius-large: 1rem;
-  --radius-card: 1.5rem;
-  --radius-section: 2rem;
+  /* Semantic */
+  --success: #059669; /* emerald-600 */
+  --warning: #d97706; /* amber-600   */
+  --danger: #dc2626; /* red-600     */
 
-  --page-width: 80rem;
-  --header-height: 4.5rem;
+  /* ── Backwards-compatible aliases (used across all existing components) ── */
+  --sand-50: #f8fafc;
+  --sand-100: #f1f5f9;
+  --sand-200: #e2e8f0;
+  --ink-900: #0f172a;
+  --ink-700: #334155;
+  --ink-500: #64748b;
+  --stroke: #e2e8f0;
+  --mint-200: #c7d2fe;
+  --mint-100: #e0e7ff;
+  --gold-200: #fde68a;
+  --teal-900: #134e4a;
+  --indigo-700: #4338ca;
+  --indigo-600: #4f46e5;
+  --indigo-500: #6366f1;
+  --indigo-200: #c7d2fe;
+  --indigo-100: #e0e7ff;
+  --indigo-50: #eef2ff;
 
-  --shadow-small:
-    0 1px 3px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
+  /* ── Typography scale ───────────────────────────────────────────────────── */
+  /* Principle 18: Visual Hierarchy */
+  --text-xs: 0.75rem; /* 12px  — labels, badges         */
+  --text-sm: 0.875rem; /* 14px  — body small, captions   */
+  --text-base: 1rem; /* 16px  — body default           */
+  --text-lg: 1.125rem; /* 18px  — body large             */
+  --text-xl: 1.25rem; /* 20px  — subheadings            */
+  --text-2xl: 1.5rem; /* 24px  — section headings       */
+  --text-3xl: 1.875rem; /* 30px  — page headings          */
+  --text-4xl: 2.25rem; /* 36px  — hero subheading        */
+  --text-5xl: 3rem; /* 48px  — hero heading           */
+  --text-6xl: 3.75rem; /* 60px  — display               */
+  --text-7xl: 4.5rem; /* 72px  — large display         */
 
-  --shadow-medium:
-    0 8px 24px rgb(15 23 42 / 0.08), 0 2px 8px rgb(15 23 42 / 0.04);
+  /* ── Spacing scale ──────────────────────────────────────────────────────── */
+  /* Principle 4: Consistency */
+  --space-section: 5rem; /* 80px — vertical section padding */
+  --space-gap: 1.5rem; /* 24px — card grid gap */
 
-  --shadow-large:
-    0 24px 64px rgb(15 23 42 / 0.16), 0 8px 24px rgb(15 23 42 / 0.08);
+  /* ── Radius scale ───────────────────────────────────────────────────────── */
+  --radius-sm: 0.5rem; /*  8px — tags, pills    */
+  --radius-md: 0.75rem; /* 12px — inputs, chips  */
+  --radius-lg: 1rem; /* 16px — cards          */
+  --radius-xl: 1.5rem; /* 24px — larger cards   */
+  --radius-2xl: 2rem; /* 32px — hero card, CTA */
 
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
-
+  /* ── Motion ─────────────────────────────────────────────────────────────── */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
 }
 
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -62,178 +108,637 @@
 
 html {
   scroll-behavior: smooth;
+  /* Prevent horizontal overflow from marquee rows */
   overflow-x: hidden;
 }
 
 body {
-  min-height: 100vh;
   margin: 0;
-  background: var(--background);
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
   color: var(--text-primary);
-  font-family: var(--font-manrope), system-ui, sans-serif;
-  font-size: 1rem;
+  font-size: 14px;
   line-height: 1.6;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-img,
-svg {
-  display: block;
-  max-width: 100%;
+/* ── Typography utilities ──────────────────────────────────────────────────── */
+.font-body {
+  font-family: var(--font-manrope), system-ui, sans-serif;
 }
 
 .font-display {
   font-family: var(--font-sora), system-ui, sans-serif;
 }
 
+/* Gradient headline — unique brand moment */
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #0d9488 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Accessibility ─────────────────────────────────────────────────────────── */
+/* Principle 20: WCAG 2.1 AA — visible focus ring on every interactive element */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* Skip to main content — Principle 20 */
 .skip-link {
   position: fixed;
-  top: -5rem;
+  top: -100%;
   left: 1rem;
   z-index: 9999;
-  border-radius: var(--radius-medium);
+  padding: 0.5rem 1rem;
   background: var(--primary);
-  padding: 0.65rem 1rem;
-  color: white;
-  font-weight: 700;
-  transition: top var(--duration-fast) ease;
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: top 0.15s ease;
 }
-
 .skip-link:focus {
-  top: 1rem;
+  top: 0.5rem;
 }
 
-:focus-visible {
-  outline: 3px solid rgb(99 102 241 / 0.5);
-  outline-offset: 3px;
-  border-radius: var(--radius-small);
+/* Reduce motion for users who prefer it — Principle 20 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-.gradient-text {
+/* ── Interaction feedback ───────────────────────────────────────────────────
+   Principle 19: Every action should have a response
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Primary button — used on all CTA links */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 2rem;
+  background: var(--primary);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);
+  transition:
+    background var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+  user-select: none;
+  white-space: nowrap;
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(79, 70, 229, 0.45);
+}
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+}
+
+/* Ghost button */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 2rem;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out);
+  user-select: none;
+}
+.btn-ghost:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────────
+   Principle 4: Consistency
+   ─────────────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  transition:
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.card:hover {
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+  border-color: var(--primary-soft);
+  transform: translateY(-2px);
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius-xl);
+}
+
+/* ── Section rhythm ──────────────────────────────────────────────────────────
+   Principle 4 + 17: Consistent vertical spacing
+   ─────────────────────────────────────────────────────────────────────────── */
+.section {
+  padding-top: var(--space-section);
+  padding-bottom: var(--space-section);
+}
+.section-sm {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+/* Section heading pattern */
+.section-eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--primary);
+}
+.section-title {
+  font-family: var(--font-sora), system-ui, sans-serif;
+  font-size: clamp(1.5rem, 2vw + 0.75rem, 2.25rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-top: 0.5rem;
+}
+.section-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-top: 0.75rem;
+  max-width: 44ch;
+}
+
+/* ── Marquee ─────────────────────────────────────────────────────────────── */
+.marquee {
+  display: flex;
+  animation: marquee-fwd 28s linear infinite;
+}
+.marquee:hover {
+  animation-play-state: paused;
+}
+.marquee-reverse {
+  display: flex;
+  animation: marquee-rev 28s linear infinite;
+}
+.marquee-reverse:hover {
+  animation-play-state: paused;
+}
+
+/* ── Badge ───────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.badge-primary {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.badge-teal {
+  background: #d1fae5;
+  color: var(--teal-700);
+}
+.badge-amber {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ── Live indicator ──────────────────────────────────────────────────────── */
+/* Principle 1: Visibility of System Status */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.float-slow {
+  animation: float 7s ease-in-out infinite;
+}
+.float-fast {
+  animation: float 5s ease-in-out infinite;
+}
+
+@keyframes marquee-fwd {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes marquee-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-soft);
+}
+
+/* ── Selection ──────────────────────────────────────────────────────────── */
+::selection {
+  background: var(--primary-mid);
+  color: var(--primary-dark);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PREMIUM DESIGN SYSTEM — v2
+   Dark sections, shadow scale, glow utilities, gradient accents
+   Inspired by: Stripe, Linear, Vercel, Apple
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shadow scale (Stripe-level depth) ────────────────────────────────────── */
+:root {
+  --shadow-sm:
+    0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md:
+    0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg:
+    0 12px 32px rgba(15, 23, 42, 0.1), 0 4px 8px rgba(15, 23, 42, 0.06);
+  --shadow-xl:
+    0 20px 48px rgba(15, 23, 42, 0.14), 0 8px 16px rgba(15, 23, 42, 0.08);
+  --shadow-2xl:
+    0 40px 80px rgba(15, 23, 42, 0.18), 0 16px 32px rgba(15, 23, 42, 0.1);
+  --shadow-glow:
+    0 0 40px rgba(79, 70, 229, 0.25), 0 8px 32px rgba(79, 70, 229, 0.15);
+  --shadow-glow-teal:
+    0 0 40px rgba(20, 184, 166, 0.25), 0 8px 32px rgba(20, 184, 166, 0.15);
+}
+
+/* ── Dark section token overrides ─────────────────────────────────────────── */
+/* Apply .section-dark to any <section> to flip to dark navy */
+.section-dark {
+  --bg: #080c18;
+  --bg-subtle: #0d1224;
+  --bg-muted: #131829;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-dark: rgba(255, 255, 255, 0.14);
+  --primary-light: rgba(99, 102, 241, 0.15);
+  background: #080c18;
+  color: #f1f5f9;
+}
+
+/* ── Gradient text variants ────────────────────────────────────────────────── */
+.gradient-text-warm {
+  background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-vivid {
   background: linear-gradient(
     135deg,
-    #a5b4fc 0%,
-    #818cf8 35%,
-    #6366f1 65%,
-    #2dd4bf 100%
+    #818cf8 0%,
+    #6366f1 40%,
+    #4f46e5 70%,
+    #0d9488 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.hero-grid {
-  background-image:
-    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
-  background-size: 42px 42px;
+/* ── Gradient button (premium CTA) ─────────────────────────────────────────── */
+.btn-gradient {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 2.25rem;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow:
+    0 4px 20px rgba(79, 70, 229, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    filter var(--dur-base) var(--ease-out);
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+.btn-gradient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    transparent 60%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+}
+.btn-gradient:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 32px rgba(79, 70, 229, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  filter: brightness(1.08);
+}
+.btn-gradient:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
 }
 
-.ambient-orb {
-  position: absolute;
+/* Ghost button on dark backgrounds */
+.btn-ghost-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 2.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  font-size: var(--text-sm);
+  font-weight: 600;
   border-radius: 9999px;
-  filter: blur(100px);
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+  user-select: none;
+  white-space: nowrap;
+}
+.btn-ghost-dark:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+/* ── Glow utilities ────────────────────────────────────────────────────────── */
+.glow-primary {
+  box-shadow: var(--shadow-glow);
+}
+.glow-teal {
+  box-shadow: var(--shadow-glow-teal);
+}
+
+/* ── Noise overlay (Linear / Vercel texture) ───────────────────────────────── */
+.noise-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Dot grid (Vercel hero pattern) ────────────────────────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.08) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+}
+.dot-grid-light {
+  background-image: radial-gradient(
+    rgba(15, 23, 42, 0.06) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+}
+
+/* ── Large decorative quote mark ───────────────────────────────────────────── */
+.quote-mark {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 6rem;
+  line-height: 0.6;
+  color: var(--primary);
+  opacity: 0.18;
+  user-select: none;
   pointer-events: none;
 }
 
-.ambient-orb-primary {
-  background: rgb(99 102 241 / 0.35);
-}
-
-.ambient-orb-secondary {
-  background: rgb(20 184 166 / 0.25);
-}
-
-.premium-card {
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: var(--radius-card);
-  background: rgb(255 255 255 / 0.055);
-  box-shadow:
-    0 32px 80px rgb(0 0 0 / 0.4),
-    inset 0 1px 0 rgb(255 255 255 / 0.06);
-  backdrop-filter: blur(20px);
-}
-
-.button-primary {
+/* ── Gradient announcement badge ───────────────────────────────────────────── */
+.badge-gradient {
   display: inline-flex;
-  min-height: 3rem;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
+  padding: 0.25rem 0.875rem 0.25rem 0.375rem;
   border-radius: 9999px;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  padding: 0.75rem 1.5rem;
-  color: white;
-  font-size: 0.875rem;
-  font-weight: 800;
-  box-shadow: 0 8px 24px rgb(79 70 229 / 0.35);
-  transition:
-    transform var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-normal) var(--ease-out),
-    filter var(--duration-normal) var(--ease-out);
-}
-
-.button-primary:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-  box-shadow: 0 14px 36px rgb(79 70 229 / 0.48);
-}
-
-.button-secondary {
-  display: inline-flex;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.06);
-  padding: 0.75rem 1.5rem;
-  color: #e2e8f0;
-  font-size: 0.875rem;
+  font-size: 0.6875rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  background: linear-gradient(
+    135deg,
+    rgba(129, 140, 248, 0.2),
+    rgba(79, 70, 229, 0.12)
+  );
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+/* ── Dark section card ─────────────────────────────────────────────────────── */
+.card-dark {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
   transition:
-    background var(--duration-normal) var(--ease-out),
-    border-color var(--duration-normal) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.card-dark:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
 }
 
-.button-secondary:hover {
-  transform: translateY(-1px);
-  border-color: rgb(255 255 255 / 0.28);
-  background: rgb(255 255 255 / 0.11);
+/* ── Divider gradient ──────────────────────────────────────────────────────── */
+.divider-fade {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--border),
+    transparent
+  );
+}
+.divider-fade-dark {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
 }
 
-::selection {
-  background: #c7d2fe;
-  color: #312e81;
+/* ── Metric number (dark section) ──────────────────────────────────────────── */
+.metric-number {
+  font-family: var(--font-sora), system-ui, sans-serif;
+  font-size: clamp(2.25rem, 4vw + 1rem, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+/* ── Announcement bar shimmer ──────────────────────────────────────────────── */
+@keyframes announcement-shimmer {
+  0% {
+    transform: translateX(-100%);
   }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+  100% {
+    transform: translateX(300%);
   }
+}
+.announcement-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 33%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  animation: announcement-shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ── Orb / ambient glow blobs ──────────────────────────────────────────────── */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.4;
+}
+.orb-primary {
+  background: radial-gradient(
+    circle,
+    rgba(99, 102, 241, 0.6) 0%,
+    rgba(79, 70, 229, 0.1) 70%
+  );
+}
+.orb-teal {
+  background: radial-gradient(
+    circle,
+    rgba(20, 184, 166, 0.5) 0%,
+    rgba(13, 148, 136, 0.1) 70%
+  );
+}
+.orb-violet {
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.5) 0%,
+    rgba(124, 58, 237, 0.1) 70%
+  );
 }
