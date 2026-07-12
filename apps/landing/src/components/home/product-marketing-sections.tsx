@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Boxes,
   Building2,
-  Check,
   GitBranch,
   Layers3,
   LockKeyhole,

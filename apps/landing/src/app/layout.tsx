@@ -1,3 +1,4 @@
+import { landingConfig } from "@/lib/landing-config";
 import type { Metadata, Viewport } from "next";
 import { Manrope, Sora } from "next/font/google";
 import type { ReactNode } from "react";
