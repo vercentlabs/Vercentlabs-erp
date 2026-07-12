@@ -6,22 +6,22 @@ export type NavigationItem = {
 export const navigationItems: NavigationItem[] = [
   {
     label: "Product",
-    href: "#platform-preview",
+    href: "/features",
   },
   {
     label: "Modules",
-    href: "#platform-preview",
+    href: "/modules",
   },
   {
     label: "Industries",
-    href: "#platform-preview",
+    href: "/industries",
   },
   {
     label: "Security",
-    href: "#platform-preview",
+    href: "/security",
   },
   {
     label: "Company",
-    href: "#platform-preview",
+    href: "/about",
   },
 ];
