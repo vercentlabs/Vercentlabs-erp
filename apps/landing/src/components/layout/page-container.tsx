@@ -12,8 +12,8 @@ type PageContainerProps = {
 
 const maxWidths: Record<ContainerWidth, string> = {
   narrow: "max-w-3xl",
-  default: "max-w-[1440px]",
-  wide: "max-w-[1600px]",
+  default: "max-w-7xl",
+  wide: "max-w-[1440px]",
   full: "max-w-none",
 };
 
@@ -26,7 +26,7 @@ export default function PageContainer({
 }: PageContainerProps) {
   return (
     <Tag
-      className={`mx-auto w-full ${maxWidths[width]} px-5 sm:px-8 lg:px-14 ${className}`}
+      className={`mx-auto min-w-0 w-full ${maxWidths[width]} px-4 sm:px-6 lg:px-8 ${className}`}
       style={style}
     >
       {children}

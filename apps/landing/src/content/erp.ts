@@ -6,148 +6,143 @@ export type ErpModule = {
   capabilities: string[];
 };
 
+export type BusinessFlow = {
+  name: string;
+  summary: string;
+  stages: string[];
+};
+
+export type Industry = {
+  slug: string;
+  name: string;
+  description: string;
+  challenges: string[];
+  capabilities: string[];
+};
+
 export const erpModules: ErpModule[] = [
   {
     slug: "accounting",
     name: "Accounting",
     summary:
-      "Manage ledgers, receivables, payables, taxes, banking, fixed assets and financial reporting from connected business transactions.",
+      "Control ledgers, receivables, payables, cash, taxes, budgets and financial reporting from the same operational data.",
     outcome:
-      "Close books faster with traceable entries generated from real operational activity.",
+      "Give finance teams a current, traceable view of performance without repeated reconciliation.",
     capabilities: [
       "General ledger and chart of accounts",
       "Accounts receivable and payable",
-      "Bank reconciliation and cash visibility",
-      "Tax-ready invoicing and compliance workflows",
-      "Budgets, cost centres and financial statements",
-      "Period close, controls and audit history",
+      "Cash, bank, tax and payment operations",
+      "Budgets and financial statements",
     ],
   },
   {
     slug: "procurement",
     name: "Procurement",
     summary:
-      "Control purchase requests, approvals, supplier quotations, purchase orders, receipts and invoice matching.",
+      "Manage suppliers, requests, approvals, quotations, purchase orders, receipts and supplier invoices.",
     outcome:
-      "Buy the right materials at the right time with clear ownership, approval and spend visibility.",
+      "Control spend and supplier commitments from request through payment.",
     capabilities: [
-      "Purchase requests and approval chains",
-      "Supplier quotation comparison",
-      "Purchase orders and delivery schedules",
-      "Goods receipt and quality handoff",
-      "Three-way matching",
-      "Supplier performance and spend analysis",
+      "Purchase requests and approvals",
+      "Supplier and quotation management",
+      "Purchase orders and receipts",
+      "Three-way matching and supplier analysis",
     ],
   },
   {
     slug: "sales",
     name: "Sales",
     summary:
-      "Move from quotation to confirmed order, fulfilment, invoicing and collection without re-entering business data.",
+      "Move from quotation to sales order, fulfilment, invoicing, returns and customer commitments in one flow.",
     outcome:
-      "Give sales and operations one reliable view of demand, commitment, fulfilment and revenue.",
+      "Create a reliable order-to-cash process with fewer manual handoffs.",
     capabilities: [
-      "Quotations and pricing rules",
-      "Sales orders and approval controls",
-      "Availability and delivery commitments",
-      "Dispatch and fulfilment tracking",
-      "Invoice and collection handoff",
-      "Sales performance reporting",
+      "Quotations, pricing and contracts",
+      "Sales orders and fulfilment",
+      "Customer credit and commitments",
+      "Returns, invoicing and order visibility",
     ],
   },
   {
     slug: "crm",
     name: "CRM",
     summary:
-      "Manage leads, accounts, contacts, opportunities, activities and customer history before an order is created.",
-    outcome:
-      "Turn follow-up discipline and customer context into a predictable sales pipeline.",
+      "Manage leads, opportunities, activities, pipelines and customer history beside delivery and financial context.",
+    outcome: "Help commercial teams act with complete customer context.",
     capabilities: [
-      "Lead capture and qualification",
-      "Account and contact management",
-      "Opportunity pipeline",
-      "Tasks, meetings and follow-ups",
-      "Sales forecasting",
-      "CRM-to-quotation conversion",
+      "Lead and opportunity management",
+      "Pipeline stages and activities",
+      "Customer interaction history",
+      "Forecasting and sales handoff",
     ],
   },
   {
     slug: "stock",
     name: "Stock",
     summary:
-      "Track items across warehouses, locations, batches, serial numbers, transfers, reservations and replenishment.",
+      "Track stock, warehouses, batches, serial numbers, transfers, replenishment and valuation in real time.",
     outcome:
-      "Know what is available, committed, moving and at risk across every location.",
+      "Maintain reliable availability while reducing shortages and excess stock.",
     capabilities: [
-      "Multi-warehouse stock visibility",
-      "Receipts, issues and transfers",
-      "Batch and serial tracking",
-      "Reservations and available-to-promise",
-      "Reorder rules and replenishment",
-      "Stock valuation and movement history",
+      "Multi-warehouse stock control",
+      "Batch and serial traceability",
+      "Transfers and replenishment",
+      "Valuation and movement history",
     ],
   },
   {
     slug: "manufacturing",
     name: "Manufacturing",
     summary:
-      "Plan materials, bills of materials, work orders, operations, capacity, consumption and finished production.",
+      "Plan materials, bills of material, work orders, capacity, production and shop-floor execution.",
     outcome:
-      "Connect demand, material availability, shop-floor execution and production cost in one flow.",
+      "Connect demand, materials, production progress and cost in one controlled process.",
     capabilities: [
-      "Bills of materials and routings",
-      "Production planning",
-      "Work orders and operations",
-      "Material issue and consumption",
-      "Capacity and work-centre visibility",
-      "Production cost and output tracking",
+      "Bills of material and routings",
+      "Material and production planning",
+      "Work orders and shop-floor activity",
+      "Production cost and variance visibility",
     ],
   },
   {
     slug: "projects",
     name: "Projects",
     summary:
-      "Plan work, resources, time, expenses, milestones, billing and profitability for internal and customer projects.",
+      "Plan work, milestones, tasks, time, expenses, resources, billing and project profitability.",
     outcome:
-      "Keep delivery, utilisation, cost, billing and margin visible throughout every project.",
+      "Connect delivery progress with commercial and financial performance.",
     capabilities: [
       "Projects, milestones and tasks",
-      "Resource planning",
-      "Timesheets and expenses",
-      "Project procurement",
-      "Milestone or time-based billing",
-      "Project cost and profitability",
+      "Time, expense and resource tracking",
+      "Project purchasing and billing",
+      "Budget and profitability visibility",
     ],
   },
   {
     slug: "assets",
     name: "Assets",
     summary:
-      "Manage the lifecycle of equipment, facilities and capital assets from acquisition through maintenance and disposal.",
+      "Manage the lifecycle of equipment and fixed assets from acquisition through use, maintenance and disposal.",
     outcome:
-      "Protect asset value with clear ownership, maintenance history and financial traceability.",
+      "Improve accountability, maintenance planning and financial control over assets.",
     capabilities: [
-      "Asset register and classification",
-      "Assignment and location history",
-      "Preventive maintenance schedules",
-      "Breakdown and service records",
-      "Depreciation integration",
-      "Transfer, retirement and disposal",
+      "Asset register and assignment",
+      "Depreciation and accounting handoff",
+      "Maintenance schedules and history",
+      "Transfer, audit and disposal controls",
     ],
   },
   {
     slug: "point-of-sale",
     name: "Point of Sale",
     summary:
-      "Run counter sales, payments, returns, shifts and store stock with direct accounting and inventory integration.",
+      "Process store transactions, payments, returns, cash shifts and stock movements through a connected POS.",
     outcome:
-      "Give retail teams a fast checkout while keeping stock, cash and finance accurate.",
+      "Keep retail sales, inventory and accounting aligned across locations.",
     capabilities: [
-      "Fast product search and checkout",
-      "Cash, card and digital payments",
-      "Discount and pricing controls",
-      "Returns and exchanges",
-      "Shift and cash-drawer reconciliation",
+      "Fast checkout and payment capture",
+      "Returns, discounts and cash shifts",
+      "Store and terminal controls",
       "Real-time stock and accounting updates",
     ],
   },
@@ -155,162 +150,156 @@ export const erpModules: ErpModule[] = [
     slug: "quality",
     name: "Quality",
     summary:
-      "Define inspections, quality plans, test results, non-conformances, corrective actions and release controls.",
+      "Define inspections, quality plans, non-conformance, corrective action and traceability across operations.",
     outcome:
-      "Prevent defects from moving forward and create an evidence trail for every quality decision.",
+      "Build repeatable quality control into purchasing, production and fulfilment.",
     capabilities: [
-      "Incoming, in-process and final inspections",
-      "Quality plans and checkpoints",
-      "Test results and specifications",
-      "Non-conformance management",
-      "Corrective and preventive actions",
-      "Quality release and audit records",
+      "Quality plans and inspection points",
+      "Incoming, in-process and final checks",
+      "Non-conformance and corrective action",
+      "Traceability and quality reporting",
     ],
   },
   {
     slug: "support",
     name: "Support",
     summary:
-      "Manage customer tickets, service levels, assignments, communication, resolution and complete account context.",
+      "Manage tickets, priorities, service levels, assignments, knowledge and customer communication.",
     outcome:
-      "Resolve issues faster with ownership, priority, history and business context in one place.",
+      "Resolve customer issues with clear ownership and complete operational context.",
     capabilities: [
       "Ticket intake and categorisation",
-      "Priority, assignment and escalation",
-      "Service-level tracking",
-      "Customer and transaction context",
-      "Knowledge and standard responses",
-      "Resolution and support analytics",
+      "Queues, priorities and ownership",
+      "Service targets and escalation",
+      "Knowledge and customer history",
     ],
   },
   {
     slug: "hr-payroll",
     name: "HR & Payroll",
     summary:
-      "Manage employee records, attendance, leave, payroll, reimbursements, documents and workforce reporting.",
+      "Manage employee records, attendance, leave, payroll, expenses, performance and workforce reporting.",
     outcome:
-      "Run people operations and payroll through controlled, employee-centred workflows.",
+      "Connect people operations and payroll with secure controls and financial handoff.",
     capabilities: [
       "Employee records and organisation structure",
       "Attendance, shifts and leave",
-      "Payroll calculation and review",
-      "Reimbursements and employee requests",
-      "Documents and lifecycle workflows",
-      "Workforce and payroll reporting",
+      "Payroll, deductions and payslips",
+      "Performance, expenses and workforce reports",
     ],
   },
 ];
 
-export const businessFlows = [
+export const businessFlows: BusinessFlow[] = [
   {
-    name: "Lead to Cash",
+    name: "Lead to cash",
     summary:
-      "Connect customer acquisition, selling, fulfilment, invoicing and collection.",
+      "Turn an opportunity into an order, delivery, invoice, payment and customer history.",
     stages: [
-      "CRM",
+      "Lead",
       "Quotation",
       "Sales order",
       "Fulfilment",
       "Invoice",
-      "Collection",
-    ],
-  },
-  {
-    name: "Procure to Pay",
-    summary:
-      "Connect internal demand, supplier selection, purchasing, receipt and payment.",
-    stages: [
-      "Request",
-      "Approval",
-      "Quotation",
-      "Purchase order",
-      "Receipt",
       "Payment",
     ],
   },
   {
-    name: "Plan to Produce",
+    name: "Procure to pay",
     summary:
-      "Connect demand, materials, capacity, production, quality and finished stock.",
-    stages: ["Demand", "Plan", "Materials", "Work order", "Quality", "Output"],
-  },
-  {
-    name: "Project to Profit",
-    summary:
-      "Connect opportunity, project delivery, time, cost, billing and margin.",
+      "Move from an approved requirement to supplier selection, receipt, matching and payment.",
     stages: [
-      "Opportunity",
-      "Project",
-      "Resources",
-      "Delivery",
-      "Billing",
-      "Margin",
+      "Request",
+      "Approval",
+      "Purchase order",
+      "Receipt",
+      "Supplier invoice",
+      "Payment",
     ],
   },
   {
-    name: "Hire to Retire",
+    name: "Plan to produce",
     summary:
-      "Connect employee onboarding, attendance, payroll, requests and exit.",
-    stages: ["Hire", "Onboard", "Attendance", "Payroll", "Develop", "Exit"],
+      "Translate demand into materials, capacity, work orders, quality checks and finished stock.",
+    stages: [
+      "Demand",
+      "Plan",
+      "Materials",
+      "Production",
+      "Quality",
+      "Finished stock",
+    ],
   },
   {
-    name: "Issue to Resolution",
+    name: "Stock to fulfilment",
     summary:
-      "Connect customer support intake, ownership, service activity and resolution.",
-    stages: ["Ticket", "Triage", "Assign", "Investigate", "Resolve", "Learn"],
+      "Control availability, reservation, picking, dispatch, returns and stock valuation.",
+    stages: ["Availability", "Reserve", "Pick", "Dispatch", "Return", "Value"],
+  },
+  {
+    name: "Project to profit",
+    summary:
+      "Connect scope, work, resources, cost, billing and project margin.",
+    stages: ["Scope", "Plan", "Deliver", "Track cost", "Bill", "Review margin"],
+  },
+  {
+    name: "Hire to pay",
+    summary:
+      "Manage employee onboarding, attendance, leave, payroll, accounting and workforce reporting.",
+    stages: ["Hire", "Onboard", "Attend", "Approve", "Payroll", "Report"],
   },
 ];
 
-export const industries = [
+export const industries: Industry[] = [
   {
     slug: "manufacturing",
     name: "Manufacturing",
     description:
-      "Connect demand, procurement, stock, production, quality, assets, people and finance.",
+      "Connect demand, procurement, stock, production, quality, maintenance, sales and finance.",
     challenges: [
-      "Material shortages and changing schedules",
-      "Weak work-in-progress visibility",
-      "Disconnected quality and cost records",
+      "Material availability and production visibility",
+      "Quality and traceability across batches",
+      "Actual production cost and margin",
     ],
     capabilities: [
-      "BOM, routing and production planning",
-      "Batch, serial and warehouse control",
-      "Inspection and non-conformance workflows",
-      "Production cost and financial integration",
+      "Planning and work orders",
+      "Batch and serial traceability",
+      "Quality control and asset maintenance",
+      "Production costing and financial posting",
     ],
   },
   {
     slug: "distribution",
-    name: "Distribution and Wholesale",
+    name: "Distribution",
     description:
-      "Coordinate suppliers, warehouses, pricing, sales orders, fulfilment, credit and collections.",
+      "Coordinate purchasing, multi-warehouse stock, pricing, sales orders, fulfilment and collections.",
     challenges: [
-      "Stock spread across locations",
-      "Pricing and margin inconsistency",
-      "Delayed fulfilment and collection visibility",
+      "Availability across warehouses",
+      "Complex pricing and customer commitments",
+      "Fast fulfilment with accurate margin",
     ],
     capabilities: [
-      "Multi-warehouse stock",
-      "Customer and supplier pricing",
-      "Order allocation and dispatch",
-      "Credit, invoicing and collection controls",
+      "Multi-warehouse inventory",
+      "Procurement and replenishment",
+      "Sales order fulfilment",
+      "Credit, collections and margin reporting",
     ],
   },
   {
     slug: "retail",
     name: "Retail",
     description:
-      "Connect point of sale, store stock, purchasing, returns, customer history and finance.",
+      "Unify point of sale, store stock, purchasing, pricing, returns, customers and finance.",
     challenges: [
-      "Store and central stock mismatch",
-      "Slow reconciliation",
-      "Limited customer and margin visibility",
+      "Store and central inventory alignment",
+      "Fast checkout and return control",
+      "Location-level sales and margin visibility",
     ],
     capabilities: [
-      "Integrated point of sale",
-      "Store replenishment",
-      "Returns and exchange workflows",
-      "Daily cash and accounting reconciliation",
+      "Connected point of sale",
+      "Store and warehouse stock",
+      "Pricing, promotions and returns",
+      "Daily financial and operational reporting",
     ],
   },
   {
@@ -319,90 +308,57 @@ export const industries = [
     description:
       "Connect CRM, proposals, projects, resources, time, expenses, billing and profitability.",
     challenges: [
-      "Weak resource visibility",
-      "Unbilled time and expenses",
-      "Disconnected sales and delivery",
+      "Sales-to-delivery handoff",
+      "Resource and milestone visibility",
+      "Accurate project billing and margin",
     ],
     capabilities: [
-      "Opportunity-to-project conversion",
-      "Resource and milestone planning",
-      "Time, expense and approval workflows",
-      "Project billing and margin reporting",
+      "CRM and proposal management",
+      "Projects, tasks and resources",
+      "Time, expense and billing",
+      "Project profitability reporting",
     ],
   },
   {
     slug: "construction",
     name: "Construction and Contracting",
     description:
-      "Coordinate project budgets, materials, procurement, assets, labour, progress billing and finance.",
+      "Control project budgets, procurement, materials, subcontracting, assets, billing and cost.",
     challenges: [
-      "Project cost overruns",
-      "Decentralised material control",
-      "Delayed progress and billing information",
+      "Project-wise material and cost control",
+      "Supplier and subcontractor coordination",
+      "Progress billing and cash visibility",
     ],
     capabilities: [
-      "Project budget and commitment control",
-      "Site stock and procurement",
-      "Asset and workforce allocation",
-      "Progress billing and cost reporting",
+      "Project budgets and cost codes",
+      "Site procurement and stock",
+      "Asset and subcontractor tracking",
+      "Progress billing and margin analysis",
     ],
   },
   {
-    slug: "service-operations",
-    name: "Service Operations",
+    slug: "multi-company",
+    name: "Multi-company Groups",
     description:
-      "Connect customer agreements, support, field work, projects, assets, billing and workforce operations.",
+      "Operate multiple companies, locations and business units with shared governance and controlled reporting.",
     challenges: [
-      "Fragmented customer service history",
-      "Unclear ownership and response times",
-      "Manual service billing",
+      "Consistent master data and permissions",
+      "Company-specific operations and controls",
+      "Group visibility without losing accountability",
     ],
     capabilities: [
-      "Ticket and service workflows",
-      "Customer, asset and transaction context",
-      "Project and workforce coordination",
-      "Service billing and profitability",
+      "Company and location boundaries",
+      "Shared roles and approval policies",
+      "Inter-company operating flows",
+      "Consolidated management visibility",
     ],
-  },
-];
-
-export const frequentlyAskedQuestions = [
-  {
-    question: "Can we start with selected modules?",
-    answer:
-      "Yes. Vercent ERP is modular. Begin with the workflows that create the greatest operational value, then add modules without rebuilding the business foundation.",
-  },
-  {
-    question: "Does Vercent ERP support multiple companies and locations?",
-    answer:
-      "Yes. Company, branch, warehouse, department and shared-service structures can be represented with scoped access and reporting.",
-  },
-  {
-    question: "How is existing data migrated?",
-    answer:
-      "The implementation process covers source assessment, cleansing, mapping, rehearsal, reconciliation and controlled cutover.",
-  },
-  {
-    question: "Can workflows and approvals be configured?",
-    answer:
-      "Yes. Roles, approval steps, responsibilities, exceptions and business rules can be configured around the organisation's operating model.",
-  },
-  {
-    question: "How do the 12 modules stay connected?",
-    answer:
-      "They share governed master data, permissions, documents, workflow events and reporting so a transaction can move across departments without repeated entry.",
-  },
-  {
-    question: "What is the next step?",
-    answer:
-      "Book a product demo. We will review your current systems, priority workflows, organisation structure and implementation goals.",
   },
 ];
 
 export function getModule(slug: string) {
-  return erpModules.find((item) => item.slug === slug);
+  return erpModules.find((erpModule) => erpModule.slug === slug);
 }
 
 export function getIndustry(slug: string) {
-  return industries.find((item) => item.slug === slug);
+  return industries.find((industry) => industry.slug === slug);
 }

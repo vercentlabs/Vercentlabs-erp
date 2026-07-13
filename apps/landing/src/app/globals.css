@@ -216,3 +216,88 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* RESPONSIVE_PRODUCT_EXPERIENCE_START */
+:root {
+  --font-sora: "Segoe UI", Arial, sans-serif;
+  --font-manrope: "Segoe UI", Arial, sans-serif;
+}
+
+html {
+  scroll-padding-top: 6rem;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
+  text-rendering: optimizeLegibility;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+.marketing-main {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+.marketing-main section {
+  scroll-margin-top: 6rem;
+}
+
+.marketing-main :where(h1, h2, h3, p, li, a, span, dd, dt) {
+  overflow-wrap: break-word;
+}
+
+.responsive-table-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.responsive-table-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.responsive-table-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.responsive-table-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #f1f5f9;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.safe-bottom {
+  padding-bottom: calc(0.625rem + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 639px) {
+  .marketing-main .button-primary,
+  .marketing-main .button-secondary {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .marketing-main *,
+  .marketing-main *::before,
+  .marketing-main *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* RESPONSIVE_PRODUCT_EXPERIENCE_END */

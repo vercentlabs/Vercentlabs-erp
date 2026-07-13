@@ -1,23 +1,45 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 export default function AnnouncementBar() {
+  const [visible, setVisible] = useState(true);
+
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <aside
-      aria-label="Vercent ERP announcement"
-      className="border-b border-indigo-500/30 bg-slate-950 px-4 py-2.5 text-center text-sm text-white"
-    >
-      <span className="mr-2 inline-flex rounded-full border border-emerald-300/25 bg-emerald-400/10 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-emerald-200">
-        12 connected modules
-      </span>
-      <span className="text-slate-200">
-        Accounting to payroll—run every core operation on one ERP platform.
-      </span>{" "}
+    <div className="relative z-[60] bg-gradient-to-r from-indigo-800 via-indigo-700 to-violet-700 px-12 py-2.5 text-center text-xs font-semibold leading-5 text-white sm:text-sm">
+      <span>One connected ERP with 12 operational modules.</span>{" "}
       <Link
-        href="/contact"
-        className="font-extrabold text-white underline decoration-indigo-300 underline-offset-4 hover:text-indigo-200"
+        href="/modules"
+        className="font-extrabold underline decoration-white/50 underline-offset-4 hover:decoration-white"
       >
-        Book a demo
+        Explore every module
       </Link>
-    </aside>
+      <button
+        type="button"
+        onClick={() => setVisible(false)}
+        aria-label="Dismiss announcement"
+        className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M2 2l10 10M12 2L2 12"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+    </div>
   );
 }

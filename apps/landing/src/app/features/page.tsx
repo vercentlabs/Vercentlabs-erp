@@ -1,62 +1,102 @@
-import { createPageMetadata } from "@/lib/metadata";
-import Link from "next/link";
+import type { Metadata } from "next";
 import {
+  ArrowRight,
   BarChart3,
-  Building2,
+  Check,
   GitBranch,
+  Layers3,
   LockKeyhole,
   Network,
   Workflow,
 } from "lucide-react";
+import Link from "next/link";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 import SectionHeading from "@/components/marketing/section-heading";
 
-export const metadata = createPageMetadata({
-  title: "Connected ERP Platform Features",
+export const metadata: Metadata = {
+  title: "ERP Platform Features",
   description:
-    "Explore shared data, configurable workflows, role-based access, reporting and enterprise controls across Vercent ERP.",
-  path: "/features",
-});
+    "Explore the shared workflow, permission, reporting, audit, integration and multi-company capabilities behind all 12 Vercent ERP modules.",
+  alternates: {
+    canonical: "/features",
+  },
+};
 
-const features = [
+const groups = [
   {
-    icon: Network,
-    title: "Shared business data",
+    icon: Layers3,
+    title: "Connected master data",
     description:
-      "Connect customers, suppliers, products, employees, locations, accounts and transactions through governed records.",
+      "Use consistent customers, suppliers, items, employees, companies and locations across modules.",
+    items: [
+      "Shared business records",
+      "Controlled ownership",
+      "Validation rules",
+      "Cross-module context",
+    ],
   },
   {
     icon: Workflow,
-    title: "Configurable operations",
+    title: "Workflows and approvals",
     description:
-      "Model approvals, responsibilities, exceptions and handoffs around the organisation's real processes.",
+      "Route decisions, exceptions and repeatable work through explicit responsibility.",
+    items: [
+      "Approval policies",
+      "Status transitions",
+      "Escalation paths",
+      "Notifications",
+    ],
   },
   {
     icon: LockKeyhole,
-    title: "Controlled access",
+    title: "Roles and organisation boundaries",
     description:
-      "Apply role, company, location and responsibility boundaries throughout the platform.",
-  },
-  {
-    icon: BarChart3,
-    title: "Operational visibility",
-    description:
-      "Build dashboards and reports from connected operational and financial information.",
-  },
-  {
-    icon: Building2,
-    title: "Enterprise structures",
-    description:
-      "Represent multiple companies, locations, departments and shared-service teams.",
+      "Apply access rules by company, location, team, role and business action.",
+    items: [
+      "Least-privilege access",
+      "Company boundaries",
+      "Sensitive fields",
+      "Controlled administration",
+    ],
   },
   {
     icon: GitBranch,
-    title: "End-to-end traceability",
+    title: "Audit and traceability",
     description:
-      "Follow business activity across workflows rather than through disconnected departmental records.",
+      "Understand who created, changed, approved and completed meaningful business activity.",
+    items: [
+      "Record history",
+      "Approval history",
+      "Ownership changes",
+      "Operational traceability",
+    ],
+  },
+  {
+    icon: BarChart3,
+    title: "Dashboards and reporting",
+    description:
+      "Combine operational and financial context for role-based decisions.",
+    items: [
+      "Operational dashboards",
+      "Financial reports",
+      "Exception visibility",
+      "Exportable analysis",
+    ],
+  },
+  {
+    icon: Network,
+    title: "Integration foundation",
+    description:
+      "Connect approved systems through versioned contracts, events and controlled data exchange.",
+    items: [
+      "REST APIs",
+      "Business-event webhooks",
+      "Import and export",
+      "Integration access scopes",
+    ],
   },
 ];
 
@@ -64,53 +104,71 @@ export default function FeaturesPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Product capabilities"
-        title="An ERP foundation designed around connected enterprise operations."
-        description="Vercent ERP brings workflows, data, controls and reporting together so departments can operate from shared business context."
+        eyebrow="Platform capabilities"
+        title="One consistent foundation beneath every ERP module."
+        description="Vercent ERP combines modular applications with shared data, workflow, permission, audit, reporting and integration capabilities."
         actions={
-          <>
-            <Link href="/modules" className="button-primary">
-              Explore modules
-            </Link>
-            <Link href="/how-it-works" className="button-secondary">
-              See how it works
-            </Link>
-          </>
+          <Link href="/modules" className="button-primary">
+            Explore 12 modules
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
         }
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-16 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
-            eyebrow="Platform capabilities"
-            title="Build processes on one governed operating foundation."
-            description="The platform capabilities support every module and end-to-end workflow."
+            eyebrow="Shared capabilities"
+            title="Avoid rebuilding the same control separately in every department."
             align="center"
           />
 
           <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {features.map((feature) => {
-              const Icon = feature.icon;
+            {groups.map((group) => {
+              const Icon = group.icon;
 
               return (
                 <article
-                  key={feature.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
+                  key={group.title}
+                  className="rounded-3xl border border-slate-200 bg-white p-6"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                    <Icon aria-hidden="true" className="h-6 w-6" />
-                  </div>
-
-                  <h2 className="font-display mt-6 text-xl font-extrabold text-slate-950">
-                    {feature.title}
+                  <Icon
+                    aria-hidden="true"
+                    className="h-7 w-7 text-indigo-600"
+                  />
+                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
+                    {group.title}
                   </h2>
-
                   <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {feature.description}
+                    {group.description}
                   </p>
+                  <ul className="mt-5 space-y-3">
+                    {group.items.map((item) => (
+                      <li
+                        key={item}
+                        className="flex items-start gap-3 text-sm font-semibold text-slate-700"
+                      >
+                        <Check
+                          aria-hidden="true"
+                          className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                        />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </article>
               );
             })}
+          </div>
+
+          <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link href="/contact" className="button-primary min-h-[52px]">
+              Book a product demo
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+            <Link href="/comparison" className="button-secondary min-h-[52px]">
+              Compare ERP approaches
+            </Link>
           </div>
         </PageContainer>
       </section>
