@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Generated Next.js files
+.next/
+**/.next/
+out/
+**/out/
+
+# Build and test outputs
+dist/
+build/
+coverage/
+.turbo/
+playwright-report/
+test-results/
+
+# Lock files
+pnpm-lock.yaml
+
+# Static binary assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.pdf
