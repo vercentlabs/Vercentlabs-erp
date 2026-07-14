@@ -5,7 +5,7 @@
   "packageManager": "pnpm@11.13.0",
   "scripts": {
     "dev:landing": "pnpm --filter @vercent/landing dev",
-    "build:landing": "pnpm --filter @vercent/landing build",
+    "build:landing": "npm --prefix apps/landing run build",
     "lint:landing": "pnpm --filter @vercent/landing lint",
     "typecheck:landing": "pnpm --filter @vercent/landing typecheck",
     "format:landing": "pnpm --filter @vercent/landing format"
