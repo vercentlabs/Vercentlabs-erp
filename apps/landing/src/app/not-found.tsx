@@ -7,7 +7,7 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 export default function NotFoundPage() {
   return (
     <MarketingShell>
-      <section className="bg-white py-24 sm:py-32">
+      <section className="bg-white py-14 sm:py-32">
         <PageContainer>
           <div className="mx-auto max-w-xl text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
@@ -18,7 +18,7 @@ export default function NotFoundPage() {
               Error 404
             </p>
 
-            <h1 className="font-display mt-3 text-4xl font-extrabold tracking-[-0.04em] text-slate-950">
+            <h1 className="font-display mt-2 text-3xl font-extrabold tracking-[-0.04em] text-slate-950 sm:mt-3 sm:text-4xl">
               This page could not be found.
             </h1>
 

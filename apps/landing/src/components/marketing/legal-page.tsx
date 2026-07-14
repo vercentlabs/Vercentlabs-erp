@@ -28,27 +28,27 @@ export default function LegalPage({
     <MarketingShell>
       <PageHero eyebrow={eyebrow} title={title} description={description} />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <div className="mx-auto max-w-3xl">
-            <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-900">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900 sm:rounded-2xl sm:p-4 sm:text-sm sm:leading-7">
               Last updated: {updated}. This document should be reviewed by
               qualified legal counsel before the platform begins processing
               production customer data.
             </p>
 
-            <div className="mt-10 space-y-10">
+            <div className="mt-7 space-y-7 sm:mt-10 sm:space-y-10">
               {sections.map((section) => (
                 <section key={section.title} className="scroll-mt-28">
-                  <h2 className="font-display text-2xl font-extrabold text-slate-950">
+                  <h2 className="font-display text-xl font-extrabold text-slate-950 sm:text-2xl">
                     {section.title}
                   </h2>
 
-                  <div className="mt-4 space-y-4">
+                  <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
                     {section.paragraphs.map((paragraph) => (
                       <p
                         key={paragraph}
-                        className="text-sm leading-7 text-slate-600"
+                        className="text-xs leading-6 text-slate-600 sm:text-sm sm:leading-7"
                       >
                         {paragraph}
                       </p>
@@ -56,11 +56,11 @@ export default function LegalPage({
                   </div>
 
                   {section.bullets ? (
-                    <ul className="mt-4 space-y-3">
+                    <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-3">
                       {section.bullets.map((item) => (
                         <li
                           key={item}
-                          className="flex gap-3 text-sm leading-7 text-slate-600"
+                          className="flex gap-2 text-xs leading-6 text-slate-600 sm:gap-3 sm:text-sm sm:leading-7"
                         >
                           <span
                             aria-hidden="true"

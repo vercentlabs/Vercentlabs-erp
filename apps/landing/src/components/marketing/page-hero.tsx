@@ -17,7 +17,7 @@ export default function PageHero({
   actions,
 }: PageHeroProps) {
   return (
-    <section className="relative overflow-hidden border-b border-slate-200 bg-white py-14 sm:py-18 lg:py-20">
+    <section className="page-hero relative overflow-hidden border-b border-slate-200 bg-white py-7 sm:py-18 lg:py-20">
       <div
         aria-hidden="true"
         className="absolute inset-0 opacity-70"
@@ -42,20 +42,20 @@ export default function PageHero({
       <PageContainer className="relative">
         <RevealOnScroll>
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.17em] text-indigo-700">
+            <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-indigo-700 sm:px-3.5 sm:py-1.5 sm:text-[11px] sm:tracking-[0.17em]">
               {eyebrow}
             </span>
 
-            <h1 className="font-display mt-5 text-4xl font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-5xl lg:text-[3.45rem]">
+            <h1 className="font-display mt-3 text-2xl font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:mt-5 sm:text-5xl lg:text-[3.45rem]">
               {title}
             </h1>
 
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
+            <p className="mx-auto mt-3 max-w-2xl text-xs leading-5 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
               {description}
             </p>
 
             {actions ? (
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <div className="mt-4 flex w-full flex-col items-center justify-center gap-2 sm:mt-8 sm:w-auto sm:flex-row sm:gap-3">
                 {actions}
               </div>
             ) : null}

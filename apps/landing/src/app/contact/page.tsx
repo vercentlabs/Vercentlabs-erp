@@ -8,9 +8,9 @@ import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
 export const metadata = createPageMetadata({
-  title: "Book a Vercent ERP Demo",
+  title: "Book a VercentLabs ERP Demo",
   description:
-    "Book a personalised Vercent ERP demo based on your modules, workflows, locations and current systems.",
+    "Book a personalised VercentLabs ERP demo based on your modules, workflows, locations and current systems.",
   path: "/contact",
 });
 
@@ -23,9 +23,9 @@ export default function ContactPage() {
         description="Share the current systems, operating process, organisation context and the outcome you are trying to achieve."
       />
 
-      <section className="bg-slate-50 py-14 sm:py-16">
+      <section className="bg-slate-50 py-9 sm:py-16">
         <PageContainer>
-          <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
+          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[0.72fr_1.28fr]">
             <div className="space-y-4">
               <ContactCard
                 icon={Mail}
@@ -62,7 +62,7 @@ type ContactCardProps = {
 
 function ContactCard({ icon: Icon, title, description }: ContactCardProps) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5">
+    <article className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-5">
       <Icon aria-hidden="true" className="h-6 w-6 text-indigo-600" />
 
       <h2 className="font-display mt-4 text-lg font-extrabold text-slate-950">

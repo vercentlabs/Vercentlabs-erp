@@ -15,8 +15,9 @@ const siteUrl = normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL, defaultSiteUrl);
 export const siteConfig = {
   name: "VercentLabs",
   companyName: "VercentLabs LLP",
-  productName: "Vercent ERP",
-  title: "Vercent ERP | 12 Connected Modules for Complete Business Operations",
+  productName: "VercentLabs ERP",
+  title:
+    "VercentLabs ERP | 12 Connected Modules for Complete Business Operations",
   description:
     "Run accounting, procurement, sales, CRM, stock, manufacturing, projects, assets, point of sale, quality, support and HR & payroll on one connected ERP platform.",
   siteUrl,

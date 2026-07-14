@@ -10,7 +10,7 @@ import SectionHeading from "@/components/marketing/section-heading";
 export const metadata: Metadata = {
   title: "ERP Comparison",
   description:
-    "Compare spreadsheets and point tools, accounting-only systems, traditional legacy ERP and the connected modular Vercent ERP approach.",
+    "Compare spreadsheets and point tools, accounting-only systems, traditional legacy ERP and the connected modular VercentLabs ERP approach.",
   alternates: {
     canonical: "/comparison",
   },
@@ -37,7 +37,7 @@ const approaches = [
   },
   {
     key: "vercent",
-    name: "Vercent ERP",
+    name: "VercentLabs ERP",
     summary: "Twelve modular applications on one shared operating foundation.",
   },
 ] as const;
@@ -123,7 +123,7 @@ const faqs = [
       "No. It compares broad operating approaches. Product selection should use verified requirements, demonstrations, references, technical review and the current commercial proposal for each shortlisted vendor.",
   },
   {
-    question: "Can Vercent ERP replace every existing system immediately?",
+    question: "Can VercentLabs ERP replace every existing system immediately?",
     answer:
       "A phased rollout is usually safer. The implementation plan identifies which processes should move first, which systems should integrate temporarily and what can be retired after validation.",
   },
@@ -148,18 +148,24 @@ export default function ComparisonPage() {
         description="A useful ERP decision considers data, workflows, governance, implementation, reporting, expansion and total cost—not only a checklist of screens."
         actions={
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <Link href="/contact" className="button-primary min-h-[52px]">
+            <Link
+              href="/contact"
+              className="button-primary min-h-11 text-xs sm:min-h-[52px] sm:text-sm"
+            >
               Book a comparison demo
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
-            <Link href="/pricing" className="button-secondary min-h-[52px]">
+            <Link
+              href="/pricing"
+              className="button-secondary min-h-11 text-xs sm:min-h-[52px] sm:text-sm"
+            >
               Review pricing
             </Link>
           </div>
         }
       />
 
-      <section className="bg-white py-16 sm:py-20 lg:py-24">
+      <section className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="Four common approaches"
@@ -168,12 +174,12 @@ export default function ComparisonPage() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             {approaches.map((approach, index) => (
               <article
                 key={approach.key}
                 className={
-                  "rounded-2xl border p-6 " +
+                  "rounded-xl border p-4 sm:rounded-2xl sm:p-6 " +
                   (approach.key === "vercent"
                     ? "border-indigo-300 bg-indigo-50 shadow-lg shadow-indigo-100"
                     : "border-slate-200 bg-slate-50")
@@ -190,37 +196,37 @@ export default function ComparisonPage() {
                     />
                   ) : null}
                 </div>
-                <h2 className="font-display mt-4 text-xl font-extrabold text-slate-950">
+                <h2 className="font-display mt-3 text-base font-extrabold text-slate-950 sm:mt-4 sm:text-xl">
                   {approach.name}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {approach.summary}
                 </p>
               </article>
             ))}
           </div>
 
-          <div className="mt-10 lg:hidden">
+          <div className="mt-7 sm:mt-10 lg:hidden">
             <h2 className="sr-only">Mobile comparison details</h2>
-            <div className="space-y-5">
+            <div className="space-y-3 sm:space-y-5">
               {rows.map((row) => (
                 <article
                   key={row.topic}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white sm:rounded-2xl"
                 >
-                  <h3 className="bg-slate-950 px-5 py-4 font-display text-lg font-extrabold text-white">
+                  <h3 className="bg-slate-950 px-4 py-3 font-display text-base font-extrabold text-white sm:px-5 sm:py-4 sm:text-lg">
                     {row.topic}
                   </h3>
 
                   <dl className="divide-y divide-slate-200">
                     {approaches.map((approach) => (
-                      <div key={approach.key} className="p-5">
+                      <div key={approach.key} className="p-3.5 sm:p-5">
                         <dt className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
                           {approach.name}
                         </dt>
                         <dd
                           className={
-                            "mt-2 text-sm leading-7 " +
+                            "mt-1.5 text-xs leading-6 sm:mt-2 sm:text-sm sm:leading-7 " +
                             (approach.key === "vercent"
                               ? "font-semibold text-indigo-800"
                               : "text-slate-600")
@@ -240,7 +246,7 @@ export default function ComparisonPage() {
             <table className="w-full min-w-[1040px] table-fixed border-collapse text-left">
               <caption className="sr-only">
                 Comparison of spreadsheets and point tools, accounting-only
-                systems, traditional legacy ERP and Vercent ERP
+                systems, traditional legacy ERP and VercentLabs ERP
               </caption>
               <thead className="bg-slate-950 text-white">
                 <tr>
@@ -299,7 +305,7 @@ export default function ComparisonPage() {
         </PageContainer>
       </section>
 
-      <section className="border-y border-slate-200 bg-slate-50 py-16 sm:py-20 lg:py-24">
+      <section className="border-y border-slate-200 bg-slate-50 py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="Decision guide"
@@ -307,11 +313,11 @@ export default function ComparisonPage() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:gap-5 lg:grid-cols-3">
             {decisionGuide.map((item, index) => (
               <article
                 key={item.title}
-                className="rounded-2xl border border-slate-200 bg-white p-6"
+                className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
                   {index === 2 ? (
@@ -320,10 +326,10 @@ export default function ComparisonPage() {
                     <Minus aria-hidden="true" className="h-5 w-5" />
                   )}
                 </span>
-                <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
+                <h2 className="font-display mt-3.5 text-base font-extrabold text-slate-950 sm:mt-5 sm:text-xl">
                   {item.title}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {item.when}
                 </p>
               </article>
@@ -332,7 +338,7 @@ export default function ComparisonPage() {
         </PageContainer>
       </section>
 
-      <section className="bg-white py-16 sm:py-20 lg:py-24">
+      <section className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer width="narrow">
           <SectionHeading
             eyebrow="Comparison FAQ"
@@ -340,30 +346,30 @@ export default function ComparisonPage() {
             align="center"
           />
 
-          <div className="mt-10 divide-y divide-slate-200 overflow-hidden rounded-3xl border border-slate-200 bg-white px-5 sm:px-7">
+          <div className="mt-7 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white px-4 sm:mt-10 sm:rounded-3xl sm:px-7">
             {faqs.map((faq, index) => (
               <details key={faq.question} open={index === 0}>
-                <summary className="flex min-h-[64px] cursor-pointer list-none items-center py-5 pr-8 text-left text-base font-extrabold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600">
+                <summary className="flex min-h-[52px] cursor-pointer list-none items-center py-3.5 pr-7 text-left text-sm font-extrabold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600 sm:min-h-[64px] sm:py-5 sm:pr-8 sm:text-base">
                   {faq.question}
                 </summary>
-                <p className="pb-6 text-sm leading-7 text-slate-600">
+                <p className="pb-4 text-xs leading-6 text-slate-600 sm:pb-6 sm:text-sm sm:leading-7">
                   {faq.answer}
                 </p>
               </details>
             ))}
           </div>
 
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <div className="mt-6 flex flex-col justify-center gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
             <Link
               href="/contact"
-              className="button-primary min-h-[52px] w-full sm:w-auto"
+              className="button-primary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
             >
               Compare using your workflow
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
             <Link
               href="/modules"
-              className="button-secondary min-h-[52px] w-full sm:w-auto"
+              className="button-secondary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
             >
               Explore all modules
             </Link>

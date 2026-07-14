@@ -7,7 +7,7 @@ import OrganizationJsonLd from "@/components/seo/organization-json-ld";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white pb-20 text-slate-950 md:pb-0">
+    <div className="min-h-screen bg-white pb-16 text-slate-950 sm:pb-20 md:pb-0">
       <OrganizationJsonLd />
       <AnnouncementBar />
 

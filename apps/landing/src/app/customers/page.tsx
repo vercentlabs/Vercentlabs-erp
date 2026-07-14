@@ -70,7 +70,7 @@ export default function CustomersPage() {
         }
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <div className="grid gap-4 lg:grid-cols-4">
             {stages.map((stage, index) => {
@@ -78,7 +78,7 @@ export default function CustomersPage() {
               return (
                 <article
                   key={stage.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6"
                 >
                   <div className="flex items-center justify-between">
                     <Icon
@@ -100,12 +100,12 @@ export default function CustomersPage() {
             })}
           </div>
 
-          <div className="mt-10 grid gap-8 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-teal-50 p-7 sm:p-10 lg:grid-cols-2">
+          <div className="mt-7 grid gap-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-teal-50 p-4 sm:mt-10 sm:gap-8 sm:rounded-3xl sm:p-10 lg:grid-cols-2">
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
                 Good programme fit
               </p>
-              <h2 className="font-display mt-3 text-3xl font-extrabold text-slate-950">
+              <h2 className="font-display mt-2 text-2xl font-extrabold text-slate-950 sm:mt-3 sm:text-3xl">
                 Start with a real operating constraint.
               </h2>
               <p className="mt-4 text-sm leading-7 text-slate-600">

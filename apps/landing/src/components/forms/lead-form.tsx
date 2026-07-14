@@ -101,9 +101,9 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       onFocusCapture={() => {
         if (startedAt.current === 0) startedAt.current = Date.now();
       }}
-      className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-8"
     >
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-5">
         <Field
           label="Full name"
           name="name"
@@ -156,8 +156,11 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         ) : null}
       </div>
 
-      <div className="mt-5">
-        <label htmlFor="message" className="text-sm font-bold text-slate-800">
+      <div className="mt-4 sm:mt-5">
+        <label
+          htmlFor="message"
+          className="text-xs font-bold text-slate-800 sm:text-sm"
+        >
           {isSignup
             ? "What should the ERP solve first?"
             : "Business problem or requirement"}
@@ -165,12 +168,12 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         <textarea
           id="message"
           name="message"
-          rows={5}
+          rows={4}
           required={!isSignup}
           maxLength={2000}
           aria-invalid={Boolean(fieldErrors.message)}
           aria-describedby={fieldErrors.message ? "message-error" : undefined}
-          className="form-control mt-2"
+          className="form-control mt-1.5 sm:mt-2"
           placeholder={
             isSignup
               ? "Share the current systems, workflow, users and result you want to achieve."
@@ -194,7 +197,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         />
       </div>
 
-      <label className="mt-5 flex items-start gap-3 text-sm leading-6 text-slate-600">
+      <label className="mt-4 flex items-start gap-2.5 text-xs leading-5 text-slate-600 sm:mt-5 sm:gap-3 sm:text-sm sm:leading-6">
         <input
           name="consent"
           type="checkbox"
@@ -221,7 +224,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       <button
         type="submit"
         disabled={submission.status === "submitting"}
-        className="button-primary mt-6 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        className="button-primary mt-5 min-h-11 w-full justify-center text-xs disabled:cursor-not-allowed disabled:opacity-60 sm:mt-6 sm:w-auto sm:text-sm"
       >
         {submission.status === "submitting" ? (
           <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -237,11 +240,11 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
             : "Send enquiry"}
       </button>
 
-      <div aria-live="polite" className="mt-4 min-h-6">
+      <div aria-live="polite" className="mt-3 min-h-5 sm:mt-4 sm:min-h-6">
         {submission.message ? (
           <p
             className={
-              "text-sm font-semibold " +
+              "text-xs font-semibold sm:text-sm " +
               (submission.status === "success"
                 ? "text-emerald-700"
                 : submission.status === "error"
@@ -255,8 +258,10 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
 
         {submission.status === "error" ? (
           <a
-            href={"mailto:" + siteConfig.email + "?subject=Vercent ERP enquiry"}
-            className="mt-3 inline-flex items-center gap-2 text-sm font-extrabold text-indigo-600"
+            href={
+              "mailto:" + siteConfig.email + "?subject=VercentLabs ERP enquiry"
+            }
+            className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-600 sm:mt-3 sm:gap-2 sm:text-sm"
           >
             <Mail aria-hidden="true" className="h-4 w-4" />
             Email {siteConfig.email}
@@ -265,7 +270,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       </div>
 
       <noscript>
-        <p className="mt-4 text-sm text-amber-800">
+        <p className="mt-3 text-xs text-amber-800 sm:mt-4 sm:text-sm">
           JavaScript is required for secure online submission. Email{" "}
           {siteConfig.email} instead.
         </p>
@@ -296,7 +301,10 @@ function Field({
   const errorId = name + "-error";
   return (
     <div>
-      <label htmlFor={name} className="text-sm font-bold text-slate-800">
+      <label
+        htmlFor={name}
+        className="text-xs font-bold text-slate-800 sm:text-sm"
+      >
         {label}
       </label>
       <input
@@ -308,7 +316,7 @@ function Field({
         maxLength={maxLength}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
-        className="form-control mt-2"
+        className="form-control mt-1.5 sm:mt-2"
       />
       <FieldError id={errorId} message={error} />
     </div>
@@ -333,7 +341,10 @@ function SelectField({
   const errorId = name + "-error";
   return (
     <div>
-      <label htmlFor={name} className="text-sm font-bold text-slate-800">
+      <label
+        htmlFor={name}
+        className="text-xs font-bold text-slate-800 sm:text-sm"
+      >
         {label}
       </label>
       <select
@@ -343,7 +354,7 @@ function SelectField({
         defaultValue=""
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
-        className="form-control mt-2"
+        className="form-control mt-1.5 sm:mt-2"
       >
         <option value="">Select an option</option>
         {options.map((option) => (

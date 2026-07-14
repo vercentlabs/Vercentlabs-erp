@@ -7,9 +7,9 @@ import PageHero from "@/components/marketing/page-hero";
 import SectionHeading from "@/components/marketing/section-heading";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP API and Integrations",
+  title: "VercentLabs ERP API and Integrations",
   description:
-    "Explore versioned APIs, webhooks and governed integrations for Vercent ERP.",
+    "Explore versioned APIs, webhooks and governed integrations for VercentLabs ERP.",
   path: "/api-developers",
 });
 
@@ -60,11 +60,11 @@ export default function ApiDevelopersPage() {
     <MarketingShell>
       <PageHero
         eyebrow="Developer platform"
-        title="Connect Vercent ERP without bypassing business controls."
+        title="Connect VercentLabs ERP without bypassing business controls."
         description="The integration architecture is being designed around versioned contracts, tenant-safe access, idempotent operations, business events and traceable changes."
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <SectionHeading
             eyebrow="API principles"
@@ -73,14 +73,14 @@ export default function ApiDevelopersPage() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
             {principles.map((principle) => {
               const Icon = principle.icon;
 
               return (
                 <article
                   key={principle.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-5"
+                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-5"
                 >
                   <Icon
                     aria-hidden="true"
@@ -99,8 +99,8 @@ export default function ApiDevelopersPage() {
             })}
           </div>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <div className="mt-7 grid gap-4 sm:mt-10 sm:gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:rounded-2xl sm:p-6">
               <GitBranch
                 aria-hidden="true"
                 className="h-7 w-7 text-indigo-600"
@@ -124,7 +124,7 @@ export default function ApiDevelopersPage() {
                 Planned contract example
               </div>
 
-              <pre className="overflow-x-auto p-6 text-sm leading-7 text-indigo-100">
+              <pre className="overflow-x-auto p-4 text-xs leading-6 text-indigo-100 sm:p-6 sm:text-sm sm:leading-7">
                 <code>{exampleLines.join("\n")}</code>
               </pre>
             </div>

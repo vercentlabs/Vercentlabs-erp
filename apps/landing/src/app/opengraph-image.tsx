@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Vercent ERP — Connected ERP for growing Indian businesses";
+export const alt =
+  "VercentLabs ERP — Connected ERP for growing Indian businesses";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -61,7 +62,7 @@ export default function OpenGraphImage() {
             letterSpacing: -1,
           }}
         >
-          <span style={{ color: "#0f3b73" }}>Vercent</span>
+          <span style={{ color: "#0f3b73" }}>VercentLabs</span>
           <span style={{ color: "#0284c7" }}>labs</span>
         </div>
         <div

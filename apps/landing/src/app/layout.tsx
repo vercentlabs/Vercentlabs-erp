@@ -8,12 +8,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
   title: {
-    default: "Vercent ERP | One connected system for business operations",
-    template: "%s | Vercent ERP",
+    default: "VercentLabs ERP | One connected system for business operations",
+    template: "%s | VercentLabs ERP",
   },
   description:
     "Run finance, procurement, sales, CRM, stock, manufacturing, projects, assets, point of sale, quality, support, HR and payroll on one connected ERP.",
-  applicationName: "Vercent ERP",
+  applicationName: "VercentLabs ERP",
   alternates: {
     canonical: "/",
   },
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     "manufacturing ERP",
     "distribution ERP",
     "Indian business ERP",
-    "Vercent ERP",
+    "VercentLabs ERP",
   ],
   openGraph: {
     type: "website",
     locale: siteConfig.locale,
     siteName: siteConfig.name,
-    title: "Vercent ERP | Run every core operation in one system",
+    title: "VercentLabs ERP | Run every core operation in one system",
     description:
       "Twelve connected ERP modules with shared data, workflows, permissions and reporting.",
     url: siteConfig.siteUrl,
@@ -38,13 +38,13 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Vercent ERP connected business platform",
+        alt: "VercentLabs ERP connected business platform",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Vercent ERP | Run every core operation in one system",
+    title: "VercentLabs ERP | Run every core operation in one system",
     description:
       "Twelve connected ERP modules with shared data, workflows, permissions and reporting.",
     images: ["/opengraph-image"],

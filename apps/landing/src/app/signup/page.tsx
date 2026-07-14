@@ -7,9 +7,9 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
 export const metadata = createPageMetadata({
-  title: "Apply for the Vercent ERP Design Partner Programme",
+  title: "Apply for the VercentLabs ERP Design Partner Programme",
   description:
-    "Share your organisation, priority workflow and current operating problem for a Vercent ERP design-partner review.",
+    "Share your organisation, priority workflow and current operating problem for a VercentLabs ERP design-partner review.",
   path: "/signup",
   noIndex: true,
 });
@@ -27,14 +27,14 @@ export default function SignupPage() {
       <PageHero
         eyebrow="Early access"
         title="Request a product, pilot or design-partner discussion."
-        description="Vercent ERP is under active development. Early-access requests are reviewed for fit, process clarity and implementation readiness."
+        description="VercentLabs ERP is under active development. Early-access requests are reviewed for fit, process clarity and implementation readiness."
       />
 
-      <section className="bg-slate-50 py-14 sm:py-16">
+      <section className="bg-slate-50 py-9 sm:py-16">
         <PageContainer>
-          <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
+          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[0.72fr_1.28fr]">
             <div>
-              <div className="rounded-3xl border border-indigo-100 bg-indigo-50 p-7">
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:rounded-3xl sm:p-7">
                 <Building2
                   aria-hidden="true"
                   className="h-8 w-8 text-indigo-600"
@@ -50,7 +50,7 @@ export default function SignupPage() {
                 </p>
               </div>
 
-              <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-7">
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 sm:mt-4 sm:rounded-3xl sm:p-7">
                 <Users aria-hidden="true" className="h-7 w-7 text-teal-700" />
 
                 <ul className="mt-5 space-y-3">

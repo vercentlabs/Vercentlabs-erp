@@ -8,9 +8,9 @@ import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
 export const metadata = createPageMetadata({
-  title: "Sign In to Vercent ERP",
+  title: "Sign In to VercentLabs ERP",
   description:
-    "Open the configured Vercent ERP application or request access to the design-partner programme.",
+    "Open the configured VercentLabs ERP application or request access to the design-partner programme.",
   path: "/login",
   noIndex: true,
 });
@@ -24,7 +24,7 @@ export default function LoginPage() {
         eyebrow="Sign in"
         title={
           appIsConfigured
-            ? "Open the Vercent ERP application."
+            ? "Open the VercentLabs ERP application."
             : "Production sign-in is not publicly available yet."
         }
         description={
@@ -34,9 +34,9 @@ export default function LoginPage() {
         }
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
-          <div className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-sm sm:p-10">
+          <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm sm:rounded-3xl sm:p-10">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
               <LockKeyhole aria-hidden="true" className="h-6 w-6" />
             </div>
@@ -60,7 +60,7 @@ export default function LoginPage() {
                 rel="noreferrer"
                 className="button-primary mt-6"
               >
-                Open Vercent ERP
+                Open VercentLabs ERP
                 <ExternalLink aria-hidden="true" className="h-4 w-4" />
               </a>
             ) : (

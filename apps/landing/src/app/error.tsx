@@ -17,13 +17,13 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
   }, [error]);
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center bg-white px-5 py-20">
+    <div className="flex min-h-[60vh] items-center justify-center bg-white px-4 py-12 sm:min-h-[70vh] sm:px-5 sm:py-20">
       <div className="max-w-xl text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
           <AlertTriangle aria-hidden="true" className="h-7 w-7" />
         </div>
 
-        <h1 className="font-display mt-6 text-4xl font-extrabold tracking-[-0.04em] text-slate-950">
+        <h1 className="font-display mt-4 text-3xl font-extrabold tracking-[-0.04em] text-slate-950 sm:mt-6 sm:text-4xl">
           This page could not be displayed.
         </h1>
 

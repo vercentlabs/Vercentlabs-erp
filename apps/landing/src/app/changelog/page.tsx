@@ -4,9 +4,9 @@ import PageHero from "@/components/marketing/page-hero";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Product Progress",
+  title: "VercentLabs ERP Product Progress",
   description:
-    "Follow meaningful public milestones across the Vercent ERP platform, product experience and design-partner readiness.",
+    "Follow meaningful public milestones across the VercentLabs ERP platform, product experience and design-partner readiness.",
   path: "/changelog",
 });
 
@@ -54,13 +54,13 @@ export default function ChangelogPage() {
         title="Follow meaningful milestones across product, implementation and readiness."
         description="This public record describes completed foundations and current direction. Customer-facing release notes will begin when production product releases are available."
       />
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <div className="mx-auto max-w-3xl space-y-6">
             {entries.map((entry) => (
               <article
                 key={entry.title}
-                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">

@@ -9,7 +9,7 @@ import { createPageMetadata } from "@/lib/metadata";
 export const metadata = createPageMetadata({
   title: "ERP Security and Governance",
   description:
-    "Review the security architecture priorities for Vercent ERP, including tenant isolation, role-based access, auditability and secure delivery.",
+    "Review the security architecture priorities for VercentLabs ERP, including tenant isolation, role-based access, auditability and secure delivery.",
   path: "/security",
 });
 
@@ -46,7 +46,7 @@ export default function SecurityPage() {
       <PageHero
         eyebrow="Security and governance"
         title="Build control into the ERP architecture—not around it later."
-        description="Vercent ERP is being designed around tenant isolation, least privilege, approval authority, traceability and secure operational practices. Specific assurances will be published only after implementation and verification."
+        description="VercentLabs ERP is being designed around tenant isolation, least privilege, approval authority, traceability and secure operational practices. Specific assurances will be published only after implementation and verification."
         actions={
           <Link href="/contact" className="button-primary">
             Discuss security requirements
@@ -55,7 +55,7 @@ export default function SecurityPage() {
         }
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {foundations.map((item) => {
@@ -63,7 +63,7 @@ export default function SecurityPage() {
               return (
                 <article
                   key={item.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6"
                 >
                   <Icon
                     aria-hidden="true"
@@ -80,12 +80,12 @@ export default function SecurityPage() {
             })}
           </div>
 
-          <div className="mt-10 grid gap-8 rounded-3xl bg-slate-950 p-7 text-white sm:p-10 lg:grid-cols-2">
+          <div className="mt-7 grid gap-5 rounded-2xl bg-slate-950 p-4 text-white sm:mt-10 sm:gap-8 sm:rounded-3xl sm:p-10 lg:grid-cols-2">
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-300">
                 Evidence before assurance
               </p>
-              <h2 className="font-display mt-3 text-3xl font-extrabold">
+              <h2 className="font-display mt-2 text-2xl font-extrabold sm:mt-3 sm:text-3xl">
                 Security claims must follow verification.
               </h2>
             </div>

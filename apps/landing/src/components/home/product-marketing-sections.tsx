@@ -139,7 +139,7 @@ const comparisonPoints = [
       "Broad capability, but change and usability can become expensive or specialist-dependent.",
   },
   {
-    title: "Vercent ERP",
+    title: "VercentLabs ERP",
     detail:
       "Twelve modular applications on one shared data, workflow and control foundation.",
   },
@@ -184,12 +184,12 @@ const faqs = [
       "Pricing depends on selected modules, users, companies, locations, implementation effort, migration, integrations and support requirements. The pricing page explains every cost component used in a proposal.",
   },
   {
-    question: "Can Vercent ERP support multiple companies and locations?",
+    question: "Can VercentLabs ERP support multiple companies and locations?",
     answer:
       "Yes. Organisation boundaries, locations, roles, permissions and reporting are part of the shared platform foundation.",
   },
   {
-    question: "How does Vercent ERP compare with our current tools?",
+    question: "How does VercentLabs ERP compare with our current tools?",
     answer:
       "The comparison page evaluates common operating approaches across data, workflow, controls, reporting, implementation and expansion without relying on unsupported competitor claims.",
   },
@@ -210,10 +210,10 @@ export default function ProductMarketingSections() {
     <>
       <section
         aria-label="Product summary"
-        className="border-b border-slate-200 bg-white py-6"
+        className="border-b border-slate-200 bg-white py-4 sm:py-6"
       >
         <PageContainer>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             {[
               ["12", "separate ERP modules"],
               ["6", "connected business flows"],
@@ -222,12 +222,12 @@ export default function ProductMarketingSections() {
             ].map(([value, label]) => (
               <div
                 key={label}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-center"
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center sm:rounded-2xl sm:px-4 sm:py-4"
               >
-                <p className="font-display text-xl font-extrabold text-slate-950">
+                <p className="font-display text-lg font-extrabold text-slate-950 sm:text-xl">
                   {value}
                 </p>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
+                <p className="mt-0.5 text-[10px] font-semibold leading-4 text-slate-500 sm:mt-1 sm:text-xs sm:leading-normal">
                   {label}
                 </p>
               </div>
@@ -236,31 +236,34 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section id="problems" className="bg-white py-16 sm:py-20 lg:py-24">
+      <section id="problems" className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="Why connected ERP"
             title="Operational growth becomes expensive when every team runs a different system."
-            description="Vercent ERP replaces repeated entry and unclear handoffs with connected records, responsibilities and controls."
+            description="VercentLabs ERP replaces repeated entry and unclear handoffs with connected records, responsibilities and controls."
             align="center"
           />
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:gap-5 md:grid-cols-3">
             {problems.map((problem) => {
               const Icon = problem.icon;
 
               return (
                 <article
                   key={problem.title}
-                  className="rounded-3xl border border-rose-100 bg-rose-50/60 p-6 sm:p-7"
+                  className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4 sm:rounded-3xl sm:p-7"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-rose-600 shadow-sm">
-                    <Icon aria-hidden="true" className="h-5 w-5" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-rose-600 shadow-sm sm:h-11 sm:w-11 sm:rounded-2xl">
+                    <Icon
+                      aria-hidden="true"
+                      className="h-4 w-4 sm:h-5 sm:w-5"
+                    />
                   </div>
-                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
+                  <h2 className="font-display mt-3.5 text-base font-extrabold text-slate-950 sm:mt-5 sm:text-xl">
                     {problem.title}
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                  <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                     {problem.description}
                   </p>
                 </article>
@@ -272,10 +275,10 @@ export default function ProductMarketingSections() {
 
       <section
         id="modules"
-        className="border-y border-slate-200 bg-slate-50 py-16 sm:py-20 lg:py-24"
+        className="border-y border-slate-200 bg-slate-50 py-10 sm:py-20 lg:py-24"
       >
         <PageContainer>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeading
               eyebrow="Complete product scope"
               title="Twelve modules. One operating foundation."
@@ -283,14 +286,14 @@ export default function ProductMarketingSections() {
             />
             <Link
               href="/modules"
-              className="button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+              className="button-secondary min-h-11 w-full shrink-0 px-4 text-xs sm:w-auto sm:px-5 sm:text-sm"
             >
               View all module details
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {erpModules.map((erpModule, index) => {
               const Icon = moduleIcons[index] ?? Boxes;
 
@@ -298,24 +301,27 @@ export default function ProductMarketingSections() {
                 <Link
                   key={erpModule.slug}
                   href={"/modules/" + erpModule.slug}
-                  className="group min-w-0 rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                  className="group min-w-0 rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 sm:rounded-2xl sm:p-5"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                      <Icon aria-hidden="true" className="h-5 w-5" />
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 sm:h-10 sm:w-10 sm:rounded-xl">
+                      <Icon
+                        aria-hidden="true"
+                        className="h-4 w-4 sm:h-5 sm:w-5"
+                      />
                     </span>
-                    <span className="text-xs font-extrabold text-slate-400">
+                    <span className="text-[10px] font-extrabold text-slate-400 sm:text-xs">
                       {String(index + 1).padStart(2, "0")}
                     </span>
                   </div>
 
-                  <h2 className="font-display mt-5 text-lg font-extrabold text-slate-950">
+                  <h2 className="font-display mt-3.5 text-base font-extrabold text-slate-950 sm:mt-5 sm:text-lg">
                     {erpModule.name}
                   </h2>
-                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
+                  <p className="mt-1.5 line-clamp-3 text-xs leading-5 text-slate-600 sm:mt-2 sm:text-sm sm:leading-6">
                     {erpModule.summary}
                   </p>
-                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-indigo-600">
+                  <span className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-600 sm:mt-5 sm:gap-2 sm:text-sm">
                     Explore
                     <ArrowRight
                       aria-hidden="true"
@@ -329,7 +335,7 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section id="workflows" className="bg-white py-16 sm:py-20 lg:py-24">
+      <section id="workflows" className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="End-to-end workflows"
@@ -338,31 +344,31 @@ export default function ProductMarketingSections() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-2">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:gap-5 lg:grid-cols-2">
             {businessFlows.map((flow, index) => (
               <article
                 key={flow.name}
-                className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7"
+                className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-7"
               >
-                <div className="flex items-start gap-4">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 font-display text-sm font-extrabold text-teal-700">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 font-display text-xs font-extrabold text-teal-700 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-sm">
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0">
-                    <h2 className="font-display text-xl font-extrabold text-slate-950">
+                    <h2 className="font-display text-base font-extrabold text-slate-950 sm:text-xl">
                       {flow.name}
                     </h2>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">
+                    <p className="mt-1.5 text-xs leading-6 text-slate-600 sm:mt-2 sm:text-sm sm:leading-7">
                       {flow.summary}
                     </p>
                   </div>
                 </div>
 
-                <ol className="mt-5 flex flex-wrap gap-2">
+                <ol className="mt-4 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
                   {flow.stages.map((stage, stageIndex) => (
                     <li
                       key={stage}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-700 sm:gap-2 sm:px-3 sm:py-2 sm:text-xs"
                     >
                       <span className="text-indigo-600">{stageIndex + 1}</span>
                       {stage}
@@ -377,7 +383,7 @@ export default function ProductMarketingSections() {
 
       <section
         id="platform"
-        className="border-y border-slate-200 bg-slate-950 py-16 text-white sm:py-20 lg:py-24"
+        className="border-y border-slate-200 bg-slate-950 py-10 text-white sm:py-20 lg:py-24"
       >
         <PageContainer>
           <SectionHeading
@@ -385,22 +391,26 @@ export default function ProductMarketingSections() {
             title="The controls underneath every module matter as much as the screens."
             description="Permissions, approvals, history and reporting apply consistently across the complete ERP."
             align="center"
+            tone="dark"
           />
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             {platformCapabilities.map((capability) => {
               const Icon = capability.icon;
 
               return (
                 <article
                   key={capability.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.06] p-6"
+                  className="rounded-xl border border-white/10 bg-white/[0.06] p-4 sm:rounded-2xl sm:p-6"
                 >
-                  <Icon aria-hidden="true" className="h-6 w-6 text-teal-300" />
-                  <h2 className="font-display mt-5 text-lg font-extrabold text-white">
+                  <Icon
+                    aria-hidden="true"
+                    className="h-5 w-5 text-teal-300 sm:h-6 sm:w-6"
+                  />
+                  <h2 className="font-display mt-3.5 text-base font-extrabold text-white sm:mt-5 sm:text-lg">
                     {capability.title}
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">
+                  <p className="mt-2 text-xs leading-6 text-slate-300 sm:mt-3 sm:text-sm sm:leading-7">
                     {capability.description}
                   </p>
                 </article>
@@ -410,9 +420,9 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section id="industries" className="bg-white py-16 sm:py-20 lg:py-24">
+      <section id="industries" className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeading
               eyebrow="Industry solutions"
               title="Configure the ERP around the way your organisation operates."
@@ -420,31 +430,31 @@ export default function ProductMarketingSections() {
             />
             <Link
               href="/industries"
-              className="button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+              className="button-secondary min-h-11 w-full shrink-0 px-4 text-xs sm:w-auto sm:px-5 sm:text-sm"
             >
               Explore industries
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {industries.map((industry) => (
               <Link
                 key={industry.slug}
                 href={"/industries/" + industry.slug}
-                className="group rounded-2xl border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:border-teal-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-1 hover:border-teal-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:rounded-2xl sm:p-6"
               >
                 <Building2
                   aria-hidden="true"
-                  className="h-6 w-6 text-teal-600"
+                  className="h-5 w-5 text-teal-600 sm:h-6 sm:w-6"
                 />
-                <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
+                <h2 className="font-display mt-3.5 text-base font-extrabold text-slate-950 sm:mt-5 sm:text-xl">
                   {industry.name}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {industry.description}
                 </p>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-teal-700">
+                <span className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-teal-700 sm:mt-5 sm:gap-2 sm:text-sm">
                   View solution
                   <ArrowRight
                     aria-hidden="true"
@@ -459,7 +469,7 @@ export default function ProductMarketingSections() {
 
       <section
         id="pricing"
-        className="border-y border-slate-200 bg-indigo-50/50 py-16 sm:py-20 lg:py-24"
+        className="border-y border-slate-200 bg-indigo-50/50 py-10 sm:py-20 lg:py-24"
       >
         <PageContainer>
           <SectionHeading
@@ -469,44 +479,44 @@ export default function ProductMarketingSections() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:gap-5 lg:grid-cols-3">
             {pricingOptions.map((option, index) => (
               <article
                 key={option.name}
                 className={
-                  "relative rounded-3xl border bg-white p-6 sm:p-7 " +
+                  "relative rounded-2xl border bg-white p-4 sm:rounded-3xl sm:p-7 " +
                   (index === 1
                     ? "border-indigo-300 shadow-xl shadow-indigo-100"
                     : "border-slate-200")
                 }
               >
                 {index === 1 ? (
-                  <span className="absolute right-5 top-5 rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
+                  <span className="absolute right-4 top-4 rounded-full bg-indigo-600 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white sm:right-5 sm:top-5 sm:px-3 sm:text-[10px] sm:tracking-[0.12em]">
                     Most flexible
                   </span>
                 ) : null}
 
-                <p className="text-xs font-extrabold uppercase tracking-[0.15em] text-indigo-600">
+                <p className="max-w-[60%] text-[10px] font-extrabold uppercase tracking-[0.13em] text-indigo-600 sm:max-w-none sm:text-xs sm:tracking-[0.15em]">
                   {option.fit}
                 </p>
-                <h2 className="font-display mt-3 text-2xl font-extrabold text-slate-950">
+                <h2 className="font-display mt-2 text-xl font-extrabold text-slate-950 sm:mt-3 sm:text-2xl">
                   {option.name}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {option.description}
                 </p>
-                <p className="font-display mt-6 text-3xl font-extrabold text-slate-950">
+                <p className="font-display mt-4 text-2xl font-extrabold text-slate-950 sm:mt-6 sm:text-3xl">
                   Custom quote
                 </p>
-                <ul className="mt-6 space-y-3">
+                <ul className="mt-4 space-y-2 sm:mt-6 sm:space-y-3">
                   {option.items.map((item) => (
                     <li
                       key={item}
-                      className="flex items-start gap-3 text-sm font-semibold leading-6 text-slate-700"
+                      className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-700 sm:gap-3 sm:text-sm sm:leading-6"
                     >
                       <Check
                         aria-hidden="true"
-                        className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 sm:h-5 sm:w-5"
                       />
                       {item}
                     </li>
@@ -516,17 +526,17 @@ export default function ProductMarketingSections() {
             ))}
           </div>
 
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mt-6 flex flex-col items-center justify-center gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
             <Link
               href="/pricing"
-              className="button-primary min-h-[52px] w-full sm:w-auto"
+              className="button-primary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
             >
               Understand pricing
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
             <Link
               href="/contact"
-              className="button-secondary min-h-[52px] w-full sm:w-auto"
+              className="button-secondary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
             >
               Request a scoped proposal
             </Link>
@@ -534,7 +544,7 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section id="comparison" className="bg-white py-16 sm:py-20 lg:py-24">
+      <section id="comparison" className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="Compare approaches"
@@ -543,34 +553,34 @@ export default function ProductMarketingSections() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             {comparisonPoints.map((point, index) => (
               <article
                 key={point.title}
                 className={
-                  "rounded-2xl border p-6 " +
+                  "rounded-xl border p-4 sm:rounded-2xl sm:p-6 " +
                   (index === comparisonPoints.length - 1
                     ? "border-indigo-300 bg-indigo-50"
                     : "border-slate-200 bg-slate-50")
                 }
               >
-                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400 sm:text-xs sm:tracking-[0.14em]">
                   Approach {index + 1}
                 </p>
-                <h2 className="font-display mt-3 text-lg font-extrabold text-slate-950">
+                <h2 className="font-display mt-2 text-base font-extrabold text-slate-950 sm:mt-3 sm:text-lg">
                   {point.title}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {point.detail}
                 </p>
               </article>
             ))}
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="mt-6 text-center sm:mt-8">
             <Link
               href="/comparison"
-              className="button-secondary min-h-[52px] w-full sm:w-auto"
+              className="button-secondary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
             >
               Open the full comparison
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -581,7 +591,7 @@ export default function ProductMarketingSections() {
 
       <section
         id="implementation"
-        className="border-y border-slate-200 bg-slate-50 py-16 sm:py-20 lg:py-24"
+        className="border-y border-slate-200 bg-slate-50 py-10 sm:py-20 lg:py-24"
       >
         <PageContainer>
           <SectionHeading
@@ -591,29 +601,29 @@ export default function ProductMarketingSections() {
             align="center"
           />
 
-          <ol className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <ol className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             {implementationStages.map((stage) => (
               <li
                 key={stage.number}
-                className="rounded-2xl border border-slate-200 bg-white p-6"
+                className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
               >
-                <span className="font-display text-sm font-extrabold text-indigo-600">
+                <span className="font-display text-xs font-extrabold text-indigo-600 sm:text-sm">
                   {stage.number}
                 </span>
-                <h2 className="font-display mt-4 text-xl font-extrabold text-slate-950">
+                <h2 className="font-display mt-3 text-base font-extrabold text-slate-950 sm:mt-4 sm:text-xl">
                   {stage.title}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {stage.description}
                 </p>
               </li>
             ))}
           </ol>
 
-          <div className="mt-8 text-center">
+          <div className="mt-6 text-center sm:mt-8">
             <Link
               href="/how-it-works"
-              className="button-secondary min-h-[52px] w-full sm:w-auto"
+              className="button-secondary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
             >
               Review the implementation approach
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -622,32 +632,35 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section id="security" className="bg-white py-16 sm:py-20 lg:py-24">
+      <section id="security" className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
-          <div className="grid gap-8 rounded-3xl border border-indigo-100 bg-indigo-50 p-6 sm:p-9 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div className="grid gap-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:gap-8 sm:rounded-3xl sm:p-9 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
             <div>
               <ShieldCheck
                 aria-hidden="true"
-                className="h-9 w-9 text-indigo-600"
+                className="h-7 w-7 text-indigo-600 sm:h-9 sm:w-9"
               />
-              <p className="mt-5 text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
+              <p className="mt-3.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-indigo-600 sm:mt-5 sm:text-xs sm:tracking-[0.16em]">
                 Security and governance
               </p>
-              <h2 className="font-display mt-3 text-3xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+              <h2 className="font-display mt-2 text-2xl font-extrabold tracking-[-0.035em] text-slate-950 sm:mt-3 sm:text-4xl">
                 Keep access, responsibility and change visible.
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
+              <p className="mt-3 text-xs leading-6 text-slate-600 sm:mt-4 sm:text-base sm:leading-7">
                 Identity, least-privilege permissions, approval authority,
                 organisation boundaries and audit history form the control
                 foundation of every module.
               </p>
-              <Link href="/security" className="button-primary mt-6">
+              <Link
+                href="/security"
+                className="button-primary mt-5 text-xs sm:mt-6 sm:text-sm"
+              >
                 Review the security approach
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </Link>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {[
                 "Role-based permissions",
                 "Company and location boundaries",
@@ -658,13 +671,15 @@ export default function ProductMarketingSections() {
               ].map((item) => (
                 <div
                   key={item}
-                  className="flex min-h-16 items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-4"
+                  className="flex min-h-12 items-center gap-2 rounded-xl border border-indigo-100 bg-white p-2.5 sm:min-h-16 sm:gap-3 sm:rounded-2xl sm:p-4"
                 >
                   <LockKeyhole
                     aria-hidden="true"
-                    className="h-5 w-5 shrink-0 text-indigo-600"
+                    className="h-4 w-4 shrink-0 text-indigo-600 sm:h-5 sm:w-5"
                   />
-                  <p className="text-sm font-bold text-slate-700">{item}</p>
+                  <p className="text-[10px] font-bold leading-4 text-slate-700 sm:text-sm sm:leading-normal">
+                    {item}
+                  </p>
                 </div>
               ))}
             </div>
@@ -674,7 +689,7 @@ export default function ProductMarketingSections() {
 
       <section
         id="faq"
-        className="border-y border-slate-200 bg-slate-50 py-16 sm:py-20 lg:py-24"
+        className="border-y border-slate-200 bg-slate-50 py-10 sm:py-20 lg:py-24"
       >
         <PageContainer width="narrow">
           <SectionHeading
@@ -684,13 +699,13 @@ export default function ProductMarketingSections() {
             align="center"
           />
 
-          <div className="mt-10 divide-y divide-slate-200 overflow-hidden rounded-3xl border border-slate-200 bg-white px-5 sm:px-7">
+          <div className="mt-7 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white px-4 sm:mt-10 sm:rounded-3xl sm:px-7">
             {faqs.map((faq, index) => (
               <details key={faq.question} className="group" open={index === 0}>
-                <summary className="flex min-h-[64px] cursor-pointer list-none items-center justify-between gap-6 py-5 pr-8 text-left text-base font-extrabold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600">
+                <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-4 py-3.5 pr-7 text-left text-sm font-extrabold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600 sm:min-h-[64px] sm:gap-6 sm:py-5 sm:pr-8 sm:text-base">
                   {faq.question}
                 </summary>
-                <p className="max-w-2xl pb-6 text-sm leading-7 text-slate-600">
+                <p className="max-w-2xl pb-4 text-xs leading-6 text-slate-600 sm:pb-6 sm:text-sm sm:leading-7">
                   {faq.answer}
                 </p>
               </details>
@@ -699,36 +714,36 @@ export default function ProductMarketingSections() {
         </PageContainer>
       </section>
 
-      <section className="bg-white py-16 sm:py-20 lg:py-24">
+      <section className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
-          <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-12 text-center text-white sm:px-10 sm:py-16">
+          <div className="relative overflow-hidden rounded-2xl bg-slate-950 px-4 py-8 text-center text-white sm:rounded-[2rem] sm:px-10 sm:py-16">
             <div
               aria-hidden="true"
               className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-indigo-600/40 blur-[110px]"
             />
             <div className="relative mx-auto max-w-3xl">
-              <p className="text-xs font-extrabold uppercase tracking-[0.17em] text-teal-300">
-                See Vercent ERP in your operating context
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-teal-300 sm:text-xs sm:tracking-[0.17em]">
+                See VercentLabs ERP in your operating context
               </p>
-              <h2 className="font-display mt-4 text-balance text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl lg:text-5xl">
+              <h2 className="font-display mt-3 text-balance text-2xl font-extrabold tracking-[-0.04em] sm:mt-4 sm:text-4xl lg:text-5xl">
                 Bring one real workflow. Leave with a clear ERP scope.
               </h2>
-              <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+              <p className="mx-auto mt-3.5 max-w-2xl text-xs leading-6 text-slate-300 sm:mt-5 sm:text-base sm:leading-7">
                 Share your current systems, process owners, modules, users,
                 locations, integrations and business priorities for a focused
                 demonstration.
               </p>
-              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <div className="mt-5 flex flex-col justify-center gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
                 <Link
                   href="/contact"
-                  className="button-primary min-h-[52px] w-full sm:w-auto"
+                  className="button-primary min-h-11 w-full text-xs sm:min-h-[52px] sm:w-auto sm:text-sm"
                 >
                   Book a personalised demo
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/pricing"
-                  className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-white/20 bg-white/10 px-6 text-sm font-extrabold text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:w-auto"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 text-xs font-extrabold text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:min-h-[52px] sm:w-auto sm:px-6 sm:text-sm"
                 >
                   Review pricing
                 </Link>

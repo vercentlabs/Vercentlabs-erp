@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 type BrandLogoProps = {
-  variant?: "mark" | "text";
+  variant?: "mark" | "text" | "footer";
   className?: string;
   alt?: string;
   priority?: boolean;
@@ -10,6 +10,7 @@ type BrandLogoProps = {
 const logoSources = {
   mark: "/brand/logo.png",
   text: "/brand/text-logo.png",
+  footer: "/brand/text-logo-white.png",
 } as const;
 
 export default function BrandLogo({

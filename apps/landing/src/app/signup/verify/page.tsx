@@ -9,7 +9,7 @@ import PageHero from "@/components/marketing/page-hero";
 export const metadata = createPageMetadata({
   title: "Design Partner Application Received",
   description:
-    "Confirmation that a Vercent ERP design-partner application was accepted by the configured enquiry service.",
+    "Confirmation that a VercentLabs ERP design-partner application was accepted by the configured enquiry service.",
   path: "/signup/verify",
   noIndex: true,
 });
@@ -38,9 +38,9 @@ export default async function VerifySignupPage({
         description="This confirms only that the early-access request was accepted by the configured enquiry service. It does not create a production ERP account."
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
-          <div className="mx-auto max-w-xl rounded-3xl border border-emerald-200 bg-emerald-50 p-7 text-center sm:p-10">
+          <div className="mx-auto max-w-xl rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center sm:rounded-3xl sm:p-10">
             <MailCheck
               aria-hidden="true"
               className="mx-auto h-11 w-11 text-emerald-700"

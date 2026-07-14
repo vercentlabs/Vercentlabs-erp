@@ -6,9 +6,9 @@ import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Status",
+  title: "VercentLabs ERP Status",
   description:
-    "Review the operational status of Vercent ERP services and the public website.",
+    "Review the operational status of VercentLabs ERP services and the public website.",
   path: "/status",
 });
 
@@ -22,7 +22,7 @@ const services = [
   },
   {
     icon: Wrench,
-    title: "Vercent ERP product",
+    title: "VercentLabs ERP product",
     status: "Active development",
     description:
       "Core platform, API, tenant, database and ERP module work is continuing.",
@@ -45,9 +45,9 @@ export default function StatusPage() {
         description="This status page distinguishes the public website from the ERP product and any future customer production services."
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:gap-3 sm:rounded-2xl sm:p-5">
             <Activity aria-hidden="true" className="h-6 w-6 text-emerald-700" />
 
             <div>
@@ -69,7 +69,7 @@ export default function StatusPage() {
               return (
                 <article
                   key={service.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6"
+                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
                 >
                   <Icon
                     aria-hidden="true"

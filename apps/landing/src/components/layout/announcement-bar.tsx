@@ -11,7 +11,7 @@ export default function AnnouncementBar() {
   }
 
   return (
-    <div className="relative z-[60] bg-gradient-to-r from-indigo-800 via-indigo-700 to-violet-700 px-12 py-2.5 text-center text-xs font-semibold leading-5 text-white sm:text-sm">
+    <div className="relative z-[60] bg-gradient-to-r from-indigo-800 via-indigo-700 to-violet-700 px-10 py-2 text-center text-[11px] font-semibold leading-4 text-white sm:px-12 sm:py-2.5 sm:text-sm sm:leading-5">
       <span>One connected ERP with 12 operational modules.</span>{" "}
       <Link
         href="/modules"
@@ -23,7 +23,7 @@ export default function AnnouncementBar() {
         type="button"
         onClick={() => setVisible(false)}
         aria-label="Dismiss announcement"
-        className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        className="absolute right-0.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-1 sm:h-11 sm:w-11"
       >
         <svg
           width="14"

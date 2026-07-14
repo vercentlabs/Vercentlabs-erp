@@ -19,7 +19,7 @@ import SectionHeading from "@/components/marketing/section-heading";
 export const metadata: Metadata = {
   title: "ERP Pricing",
   description:
-    "Understand how Vercent ERP pricing is structured across software, implementation, migration, integrations and support.",
+    "Understand how VercentLabs ERP pricing is structured across software, implementation, migration, integrations and support.",
   alternates: {
     canonical: "/pricing",
   },
@@ -145,18 +145,24 @@ export default function PricingPage() {
         description="Every proposal separates software, implementation, migration, integration and support so you can understand the complete cost of the selected operating scope."
         actions={
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <Link href="/contact" className="button-primary min-h-[52px]">
+            <Link
+              href="/contact"
+              className="button-primary min-h-11 text-xs sm:min-h-[52px] sm:text-sm"
+            >
               Request a scoped proposal
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
-            <Link href="/comparison" className="button-secondary min-h-[52px]">
+            <Link
+              href="/comparison"
+              className="button-secondary min-h-11 text-xs sm:min-h-[52px] sm:text-sm"
+            >
               Compare approaches
             </Link>
           </div>
         }
       />
 
-      <section className="bg-slate-50 py-16 sm:py-20 lg:py-24">
+      <section className="bg-slate-50 py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="Engagement options"
@@ -165,19 +171,19 @@ export default function PricingPage() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:gap-5 lg:grid-cols-3">
             {packages.map((item) => (
               <article
                 key={item.name}
                 className={
-                  "relative flex min-w-0 flex-col rounded-3xl border bg-white p-6 sm:p-8 " +
+                  "relative flex min-w-0 flex-col rounded-2xl border bg-white p-4 sm:rounded-3xl sm:p-8 " +
                   (item.featured
                     ? "border-indigo-300 shadow-xl shadow-indigo-100"
                     : "border-slate-200")
                 }
               >
                 {item.featured ? (
-                  <span className="absolute right-5 top-5 rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
+                  <span className="absolute right-4 top-4 rounded-full bg-indigo-600 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white sm:right-5 sm:top-5 sm:px-3 sm:text-[10px] sm:tracking-[0.12em]">
                     Most flexible
                   </span>
                 ) : null}
@@ -185,15 +191,15 @@ export default function PricingPage() {
                 <p className="max-w-[70%] text-xs font-extrabold uppercase tracking-[0.15em] text-indigo-600">
                   {item.eyebrow}
                 </p>
-                <h2 className="font-display mt-3 text-2xl font-extrabold text-slate-950">
+                <h2 className="font-display mt-2 text-xl font-extrabold text-slate-950 sm:mt-3 sm:text-2xl">
                   {item.name}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                   {item.description}
                 </p>
 
-                <div className="mt-6 border-y border-slate-200 py-5">
-                  <p className="font-display text-3xl font-extrabold text-slate-950">
+                <div className="mt-4 border-y border-slate-200 py-3.5 sm:mt-6 sm:py-5">
+                  <p className="font-display text-2xl font-extrabold text-slate-950 sm:text-3xl">
                     Custom quote
                   </p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -201,15 +207,15 @@ export default function PricingPage() {
                   </p>
                 </div>
 
-                <ul className="mt-6 flex-1 space-y-3">
+                <ul className="mt-4 flex-1 space-y-2 sm:mt-6 sm:space-y-3">
                   {item.features.map((feature) => (
                     <li
                       key={feature}
-                      className="flex items-start gap-3 text-sm font-semibold leading-6 text-slate-700"
+                      className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-700 sm:gap-3 sm:text-sm sm:leading-6"
                     >
                       <Check
                         aria-hidden="true"
-                        className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 sm:h-5 sm:w-5"
                       />
                       {feature}
                     </li>
@@ -219,7 +225,7 @@ export default function PricingPage() {
                 <Link
                   href="/contact"
                   className={
-                    "mt-7 min-h-[52px] w-full " +
+                    "mt-5 min-h-11 w-full text-xs sm:mt-7 sm:min-h-[52px] sm:text-sm " +
                     (item.featured ? "button-primary" : "button-secondary")
                   }
                 >
@@ -232,7 +238,7 @@ export default function PricingPage() {
         </PageContainer>
       </section>
 
-      <section className="bg-white py-16 sm:py-20 lg:py-24">
+      <section className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer>
           <SectionHeading
             eyebrow="What shapes the proposal"
@@ -241,23 +247,23 @@ export default function PricingPage() {
             align="center"
           />
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {costComponents.map((component) => {
               const Icon = component.icon;
 
               return (
                 <article
                   key={component.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6"
+                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
                 >
                   <Icon
                     aria-hidden="true"
-                    className="h-6 w-6 text-indigo-600"
+                    className="h-5 w-5 text-indigo-600 sm:h-6 sm:w-6"
                   />
-                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
+                  <h2 className="font-display mt-3.5 text-base font-extrabold text-slate-950 sm:mt-5 sm:text-xl">
                     {component.title}
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                  <p className="mt-2 text-xs leading-6 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
                     {component.description}
                   </p>
                 </article>
@@ -267,28 +273,28 @@ export default function PricingPage() {
         </PageContainer>
       </section>
 
-      <section className="border-y border-slate-200 bg-indigo-50/60 py-16 sm:py-20">
+      <section className="border-y border-slate-200 bg-indigo-50/60 py-10 sm:py-20">
         <PageContainer>
-          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
                 Scope before price
               </p>
-              <h2 className="font-display mt-3 text-3xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+              <h2 className="font-display mt-2 text-2xl font-extrabold tracking-[-0.035em] text-slate-950 sm:mt-3 sm:text-4xl">
                 A useful proposal begins with one real business workflow.
               </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
+              <p className="mt-3 text-xs leading-6 text-slate-600 sm:mt-4 sm:text-base sm:leading-7">
                 Bring the current process, systems, users, locations, data,
                 controls, pain points and desired outcome. The discovery
                 conversation turns that context into an understandable scope.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-indigo-100 bg-white p-6 sm:p-8">
-              <h3 className="font-display text-xl font-extrabold text-slate-950">
+            <div className="rounded-2xl border border-indigo-100 bg-white p-4 sm:rounded-3xl sm:p-8">
+              <h3 className="font-display text-base font-extrabold text-slate-950 sm:text-xl">
                 Information to prepare
               </h3>
-              <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+              <ul className="mt-3.5 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3">
                 {[
                   "Priority workflows",
                   "Required modules",
@@ -301,7 +307,7 @@ export default function PricingPage() {
                 ].map((item) => (
                   <li
                     key={item}
-                    className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-700"
+                    className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-[10px] font-bold leading-4 text-slate-700 sm:gap-3 sm:rounded-xl sm:p-3 sm:text-sm sm:leading-normal"
                   >
                     <Check
                       aria-hidden="true"
@@ -311,7 +317,10 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/contact" className="button-primary mt-6 w-full">
+              <Link
+                href="/contact"
+                className="button-primary mt-4 w-full text-xs sm:mt-6 sm:text-sm"
+              >
                 Request a proposal
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </Link>
@@ -320,7 +329,7 @@ export default function PricingPage() {
         </PageContainer>
       </section>
 
-      <section className="bg-white py-16 sm:py-20 lg:py-24">
+      <section className="bg-white py-10 sm:py-20 lg:py-24">
         <PageContainer width="narrow">
           <SectionHeading
             eyebrow="Pricing FAQ"
@@ -328,13 +337,13 @@ export default function PricingPage() {
             align="center"
           />
 
-          <div className="mt-10 divide-y divide-slate-200 overflow-hidden rounded-3xl border border-slate-200 bg-white px-5 sm:px-7">
+          <div className="mt-7 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white px-4 sm:mt-10 sm:rounded-3xl sm:px-7">
             {faqs.map((faq, index) => (
               <details key={faq.question} open={index === 0}>
-                <summary className="flex min-h-[64px] cursor-pointer list-none items-center py-5 pr-8 text-left text-base font-extrabold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600">
+                <summary className="flex min-h-[52px] cursor-pointer list-none items-center py-3.5 pr-7 text-left text-sm font-extrabold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600 sm:min-h-[64px] sm:py-5 sm:pr-8 sm:text-base">
                   {faq.question}
                 </summary>
-                <p className="pb-6 text-sm leading-7 text-slate-600">
+                <p className="pb-4 text-xs leading-6 text-slate-600 sm:pb-6 sm:text-sm sm:leading-7">
                   {faq.answer}
                 </p>
               </details>

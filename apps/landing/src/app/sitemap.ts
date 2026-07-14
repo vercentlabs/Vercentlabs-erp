@@ -7,6 +7,7 @@ const lastModified = new Date("2026-07-12");
 
 const staticRoutes = [
   { path: "/", priority: 1, changeFrequency: "weekly" as const },
+  { path: "/product", priority: 0.95, changeFrequency: "weekly" as const },
   { path: "/features", priority: 0.9, changeFrequency: "monthly" as const },
   { path: "/modules", priority: 0.9, changeFrequency: "monthly" as const },
   {

@@ -43,7 +43,7 @@ export default function CareersPage() {
         description="VercentLabs is building its product and implementation capability carefully. Formal openings will be published only when a defined role, responsibility and selection process is ready."
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <div className="grid gap-4 md:grid-cols-3">
             {areas.map((area) => {
@@ -52,7 +52,7 @@ export default function CareersPage() {
               return (
                 <article
                   key={area.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6"
+                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
                 >
                   <Icon
                     aria-hidden="true"
@@ -71,10 +71,10 @@ export default function CareersPage() {
             })}
           </div>
 
-          <div className="mt-10 rounded-3xl border border-indigo-100 bg-indigo-50 p-7 sm:p-10">
+          <div className="mt-7 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:mt-10 sm:rounded-3xl sm:p-10">
             <Briefcase aria-hidden="true" className="h-8 w-8 text-indigo-600" />
 
-            <h2 className="font-display mt-5 text-3xl font-extrabold text-slate-950">
+            <h2 className="font-display mt-3.5 text-2xl font-extrabold text-slate-950 sm:mt-5 sm:text-3xl">
               No formal vacancy is currently published.
             </h2>
 

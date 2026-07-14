@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Vercent ERP",
-    short_name: "Vercent ERP",
+    name: "VercentLabs ERP",
+    short_name: "VercentLabs ERP",
     description: "Connected enterprise operations by VercentLabs.",
     start_url: "/",
     display: "standalone",

@@ -14,9 +14,9 @@ import PageHero from "@/components/marketing/page-hero";
 import { landingConfig } from "@/lib/landing-config";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Help",
+  title: "VercentLabs ERP Help",
   description:
-    "Find product, implementation, security, module and contact guidance for Vercent ERP.",
+    "Find product, implementation, security, module and contact guidance for VercentLabs ERP.",
   path: "/help",
 });
 
@@ -55,7 +55,7 @@ export default function HelpPage() {
         description="Formal product documentation and customer support service levels will be published when the production platform is ready. Current enquiries are handled directly by VercentLabs."
       />
 
-      <section className="bg-white py-14 sm:py-16">
+      <section className="bg-white py-9 sm:py-16">
         <PageContainer>
           <div className="grid gap-4 md:grid-cols-3">
             {topics.map((topic) => {
@@ -64,7 +64,7 @@ export default function HelpPage() {
               return (
                 <article
                   key={topic.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6"
+                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
                 >
                   <Icon
                     aria-hidden="true"
@@ -91,10 +91,10 @@ export default function HelpPage() {
             })}
           </div>
 
-          <div className="mt-10 rounded-3xl bg-slate-950 p-7 text-white sm:p-10">
+          <div className="mt-7 rounded-2xl bg-slate-950 p-4 text-white sm:mt-10 sm:rounded-3xl sm:p-10">
             <Mail aria-hidden="true" className="h-8 w-8 text-indigo-300" />
 
-            <h2 className="font-display mt-5 text-3xl font-extrabold">
+            <h2 className="font-display mt-3.5 text-2xl font-extrabold sm:mt-5 sm:text-3xl">
               Need a direct answer?
             </h2>
 

@@ -6,9 +6,9 @@ import LegalPage, {
 import { landingConfig } from "@/lib/landing-config";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Terms",
+  title: "VercentLabs ERP Terms",
   description:
-    "Review the terms governing the VercentLabs website and Vercent ERP service.",
+    "Review the terms governing the VercentLabs website and VercentLabs ERP service.",
   path: "/terms",
 });
 
