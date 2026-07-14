@@ -2,7 +2,7 @@
   "name": "vercentlabs-erp",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@11.13.0",
   "scripts": {
     "dev:landing": "pnpm --filter @vercent/landing dev",
     "build:landing": "pnpm --filter @vercent/landing build",
