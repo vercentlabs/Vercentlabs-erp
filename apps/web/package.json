@@ -1,0 +1,41 @@
+{
+  "name": "@vercent/web",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test tests/*.test.mjs",
+    "verify:foundation": "node scripts/verify-foundation.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:cleanup-auth": "node scripts/cleanup-auth.mjs",
+    "verify:database": "node scripts/verify-database.mjs",
+    "email:verify": "node scripts/verify-email-delivery.mjs",
+    "verify:experience": "node --test tests/design-system.test.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "next": "16.2.10",
+    "nodemailer": "^9.0.3",
+    "pg": "^8.16.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3"
+  }
+}

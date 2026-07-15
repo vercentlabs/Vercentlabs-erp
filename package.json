@@ -5,9 +5,26 @@
   "packageManager": "pnpm@11.13.0",
   "scripts": {
     "dev:landing": "pnpm --filter @vercent/landing dev",
-    "build:landing": "npm --prefix apps/landing run build",
+    "build:landing": "pnpm --filter @vercent/landing build",
     "lint:landing": "pnpm --filter @vercent/landing lint",
     "typecheck:landing": "pnpm --filter @vercent/landing typecheck",
-    "format:landing": "pnpm --filter @vercent/landing format"
+    "format:landing": "pnpm --filter @vercent/landing format",
+    "dev:web": "pnpm --filter @vercent/web dev",
+    "build:web": "pnpm --filter @vercent/web build",
+    "lint:web": "pnpm --filter @vercent/web lint",
+    "typecheck:web": "pnpm --filter @vercent/web typecheck",
+    "infra:up": "docker compose -f infrastructure/docker/compose.local.yml up -d",
+    "infra:down": "docker compose -f infrastructure/docker/compose.local.yml down",
+    "infra:logs": "docker compose -f infrastructure/docker/compose.local.yml logs -f",
+    "db:migrate:control": "pnpm --filter @vercent/web db:migrate",
+    "test:web": "pnpm --filter @vercent/web test",
+    "format:web": "pnpm --filter @vercent/web format",
+    "verify:web": "pnpm --filter @vercent/web verify:foundation",
+    "verify:database": "pnpm --filter @vercent/web verify:database",
+    "db:cleanup:auth": "pnpm --filter @vercent/web db:cleanup-auth",
+    "db:verify:control": "pnpm --filter @vercent/web verify:database",
+    "email:verify": "pnpm --filter @vercent/web email:verify",
+    "verify:platform-foundation": "node scripts/validation/verify-platform-foundation.mjs",
+    "verify:web-experience": "pnpm --filter @vercent/web verify:experience"
   }
 }

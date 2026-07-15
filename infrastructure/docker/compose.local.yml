@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vercent-postgres
+    environment:
+      POSTGRES_USER: vercent
+      POSTGRES_PASSWORD: vercent_local_password
+      POSTGRES_DB: vercent_control
+    ports:
+      - "5433:5432"
+    volumes:
+      - vercent_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vercent -d vercent_control"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  vercent_postgres_data:
