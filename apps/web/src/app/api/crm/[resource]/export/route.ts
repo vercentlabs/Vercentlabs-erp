@@ -1,6 +1,7 @@
 import { listCrmRecords } from "@vercent/api";
 import { getSessionContext } from "@/lib/auth";
 import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
+import { requireCrmResourceView } from "@/lib/crm-api";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError } from "@/lib/http";
@@ -24,6 +25,7 @@ export async function GET(
     const { resource } = await route.params;
     if (!isCrmDefinition(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    requireCrmResourceView(session, resource);
     const context = crmContext(session);
     const result = await tenantTransaction(context.organizationId, (client) =>
       listCrmRecords(client, context, resource, { limit: 500, offset: 0 }),

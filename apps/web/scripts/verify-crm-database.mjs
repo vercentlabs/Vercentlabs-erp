@@ -43,6 +43,22 @@ const required = [
   "crm_integrations",
   "crm_webhook_subscriptions",
   "crm_outbox_events",
+  "crm_sales_teams",
+  "crm_sales_team_members",
+  "crm_territories",
+  "crm_territory_assignments",
+  "crm_quota_plans",
+  "crm_forecast_periods",
+  "crm_forecast_submissions",
+  "crm_forecast_snapshots",
+  "crm_account_plans",
+  "crm_account_stakeholders",
+  "crm_playbooks",
+  "crm_playbook_questions",
+  "crm_playbook_responses",
+  "crm_consent_events",
+  "crm_privacy_requests",
+  "crm_data_quality_scores",
 ];
 try {
   const tables = await pool.query(
@@ -65,7 +81,7 @@ try {
   const permissions = await pool.query(
     "SELECT count(*)::int AS count FROM permissions WHERE key LIKE 'crm.%'",
   );
-  if (Number(permissions.rows[0]?.count || 0) < 12)
+  if (Number(permissions.rows[0]?.count || 0) < 19)
     throw new Error("CRM permission catalog is incomplete.");
   const seeds = await pool.query(
     "SELECT (SELECT count(*) FROM tenant.crm_pipeline_stages) AS stages,(SELECT count(*) FROM tenant.crm_lead_sources) AS sources,(SELECT count(*) FROM tenant.crm_lost_reasons) AS reasons",

@@ -21,6 +21,21 @@ export const CRM_RESOURCE_KEYS = Object.freeze([
   "integrations",
   "webhook-subscriptions",
   "saved-views",
+  "sales-teams",
+  "sales-team-members",
+  "territories",
+  "territory-assignments",
+  "quota-plans",
+  "forecast-periods",
+  "forecast-submissions",
+  "account-plans",
+  "account-stakeholders",
+  "playbooks",
+  "playbook-questions",
+  "playbook-responses",
+  "consent-events",
+  "privacy-requests",
+  "data-quality-scores",
 ]);
 
 export const CRM_LEAD_STATUSES = Object.freeze([

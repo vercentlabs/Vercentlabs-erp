@@ -11,4 +11,11 @@ export const CRM_PERMISSIONS: Readonly<{
   export: "crm.export";
   reportsView: "crm.reports.view";
   settingsManage: "crm.settings.manage";
+  revenueManage: "crm.revenue.manage";
+  accountsManage: "crm.accounts.manage";
+  playbooksManage: "crm.playbooks.manage";
+  privacyManage: "crm.privacy.manage";
+  dataQualityManage: "crm.data-quality.manage";
+  integrationsManage: "crm.integrations.manage";
+  aiManage: "crm.ai.manage";
 }>;

@@ -1,8 +1,38 @@
 import type { CrmResourceKey } from "@vercent/shared-types";
 import type { SessionContext } from "@/lib/auth";
 import { crmDefinitions } from "@/lib/crm";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import {
+  hasPermission,
+  requirePermissionFromSession,
+  PERMISSIONS,
+} from "@/lib/authorization";
 import { HttpError } from "@/lib/http";
+
+const restrictedResources = new Set<CrmResourceKey>([
+  "integrations",
+  "webhook-subscriptions",
+  "sales-teams",
+  "sales-team-members",
+  "territories",
+  "territory-assignments",
+  "quota-plans",
+  "forecast-periods",
+  "forecast-submissions",
+  "account-plans",
+  "account-stakeholders",
+  "playbooks",
+  "playbook-questions",
+  "playbook-responses",
+  "consent-events",
+  "privacy-requests",
+  "data-quality-scores",
+]);
+
+const reportPermissions: Record<string, string> = {
+  "revenue-operations": PERMISSIONS.crmRevenueManage,
+  "account-health": PERMISSIONS.crmAccountsManage,
+  privacy: PERMISSIONS.crmPrivacyManage,
+};
 
 export function assertCrmIdentifier(value: string) {
   if (
@@ -12,12 +42,55 @@ export function assertCrmIdentifier(value: string) {
   )
     throw new HttpError(400, "Invalid CRM record identifier.");
 }
+
 export function requireCrmView(session: SessionContext) {
   requirePermissionFromSession(session, PERMISSIONS.crmView);
 }
+
+export function canViewCrmResource(
+  session: SessionContext,
+  resource: CrmResourceKey,
+) {
+  return (
+    hasPermission(session, PERMISSIONS.crmView) &&
+    (!restrictedResources.has(resource) ||
+      hasPermission(session, crmDefinitions[resource].permission))
+  );
+}
+
+export function requireCrmResourceView(
+  session: SessionContext,
+  resource: CrmResourceKey,
+) {
+  if (!canViewCrmResource(session, resource))
+    throw new HttpError(
+      403,
+      "You do not have permission to view this CRM resource.",
+    );
+}
+
 export function requireCrmManage(
   session: SessionContext,
   resource: CrmResourceKey,
 ) {
   requirePermissionFromSession(session, crmDefinitions[resource].permission);
+}
+
+export function canViewCrmReport(session: SessionContext, report: string) {
+  return (
+    hasPermission(session, PERMISSIONS.crmReportsView) &&
+    (!reportPermissions[report] ||
+      hasPermission(session, reportPermissions[report]))
+  );
+}
+
+export function requireCrmReportView(
+  session: SessionContext,
+  report: string,
+) {
+  if (!canViewCrmReport(session, report))
+    throw new HttpError(
+      403,
+      "You do not have permission to view this CRM report.",
+    );
 }

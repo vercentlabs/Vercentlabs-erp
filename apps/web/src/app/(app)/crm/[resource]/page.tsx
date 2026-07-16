@@ -5,6 +5,7 @@ import CrmResourceManager from "@/components/crm-resource-manager";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { crmContext, crmDefinitions, isCrmDefinition } from "@/lib/crm";
+import { canViewCrmResource } from "@/lib/crm-api";
 import { tenantTransaction } from "@/lib/db";
 export const dynamic = "force-dynamic";
 export async function generateMetadata({
@@ -29,7 +30,11 @@ export default async function CrmResourcePage({
   )
     notFound();
   const session = await requireWorkspace();
-  if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
+  if (
+    !hasPermission(session, PERMISSIONS.crmView) ||
+    !canViewCrmResource(session, resource)
+  )
+    notFound();
   const context = crmContext(session);
   const result = await tenantTransaction(
     context.organizationId,

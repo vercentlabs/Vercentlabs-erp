@@ -5,6 +5,7 @@ import {
 import { createCrmRecord } from "@vercent/api";
 import { getSessionContext } from "@/lib/auth";
 import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
+import { requireCrmManage } from "@/lib/crm-api";
 import { crmSchemas } from "@/lib/crm-validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
@@ -41,6 +42,7 @@ export async function POST(
     const { resource } = await route.params;
     if (!isCrmDefinition(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    requireCrmManage(session, resource);
     const text = await request.text();
     if (text.length > 2_000_000)
       throw new HttpError(413, "CSV import is limited to 2 MB.");

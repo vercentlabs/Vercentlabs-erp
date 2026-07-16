@@ -415,6 +415,296 @@ const resources = Object.freeze({
       status: "status",
     },
   },
+  "sales-teams": {
+    table: "tenant.crm_sales_teams",
+    search: ["code", "name"],
+    orderBy: "name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      parentTeamId: "parent_team_id",
+      code: "code",
+      name: "name",
+      managerUserId: "manager_user_id",
+      defaultPipelineId: "default_pipeline_id",
+      currencyCode: "currency_code",
+      status: "status",
+    },
+  },
+  "sales-team-members": {
+    table: "tenant.crm_sales_team_members",
+    search: ["member_role", "status"],
+    orderBy: "effective_from DESC, created_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      teamId: "team_id",
+      userId: "user_id",
+      memberRole: "member_role",
+      allocationPercent: "allocation_percent",
+      effectiveFrom: "effective_from",
+      effectiveTo: "effective_to",
+      status: "status",
+    },
+  },
+  territories: {
+    table: "tenant.crm_territories",
+    search: ["code", "name", "territory_type"],
+    orderBy: "name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      parentTerritoryId: "parent_territory_id",
+      code: "code",
+      name: "name",
+      territoryType: "territory_type",
+      managerUserId: "manager_user_id",
+      assignmentRules: "assignment_rules",
+      status: "status",
+    },
+  },
+  "territory-assignments": {
+    table: "tenant.crm_territory_assignments",
+    search: ["assignee_type", "assignment_role", "source"],
+    orderBy: "effective_from DESC, created_at DESC",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      territoryId: "territory_id",
+      assigneeType: "assignee_type",
+      assigneeId: "assignee_id",
+      assignmentRole: "assignment_role",
+      effectiveFrom: "effective_from",
+      effectiveTo: "effective_to",
+      source: "source",
+    },
+  },
+  "quota-plans": {
+    table: "tenant.crm_quota_plans",
+    search: ["name", "quota_type"],
+    orderBy: "period_start DESC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      teamId: "team_id",
+      territoryId: "territory_id",
+      userId: "user_id",
+      name: "name",
+      quotaType: "quota_type",
+      periodStart: "period_start",
+      periodEnd: "period_end",
+      currencyCode: "currency_code",
+      targetAmount: "target_amount",
+      stretchAmount: "stretch_amount",
+      status: "status",
+    },
+  },
+  "forecast-periods": {
+    table: "tenant.crm_forecast_periods",
+    search: ["name", "period_type"],
+    orderBy: "period_start DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      name: "name",
+      periodType: "period_type",
+      periodStart: "period_start",
+      periodEnd: "period_end",
+      currencyCode: "currency_code",
+      freezeAt: "freeze_at",
+      status: "status",
+    },
+  },
+  "forecast-submissions": {
+    table: "tenant.crm_forecast_submissions",
+    search: ["status", "notes"],
+    orderBy: "updated_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      periodId: "period_id",
+      teamId: "team_id",
+      territoryId: "territory_id",
+      ownerUserId: "owner_user_id",
+      pipelineAmount: "pipeline_amount",
+      bestCaseAmount: "best_case_amount",
+      commitAmount: "commit_amount",
+      closedAmount: "closed_amount",
+      managerAdjustment: "manager_adjustment",
+      currencyCode: "currency_code",
+      confidencePercent: "confidence_percent",
+      notes: "notes",
+      status: "status",
+    },
+  },
+  "account-plans": {
+    table: "tenant.crm_account_plans",
+    search: ["account_tier", "lifecycle_stage", "health_status"],
+    orderBy: "next_review_at ASC NULLS LAST, updated_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      partyId: "party_id",
+      ownerUserId: "owner_user_id",
+      executiveSponsorUserId: "executive_sponsor_user_id",
+      accountTier: "account_tier",
+      lifecycleStage: "lifecycle_stage",
+      objectives: "objectives",
+      risks: "risks",
+      whiteSpace: "white_space",
+      successPlan: "success_plan",
+      renewalDate: "renewal_date",
+      annualRevenue: "annual_revenue",
+      potentialRevenue: "potential_revenue",
+      healthScore: "health_score",
+      healthStatus: "health_status",
+      lastReviewedAt: "last_reviewed_at",
+      nextReviewAt: "next_review_at",
+      status: "status",
+    },
+  },
+  "account-stakeholders": {
+    table: "tenant.crm_account_stakeholders",
+    search: ["name", "title", "stakeholder_role", "sentiment"],
+    orderBy: "influence_level DESC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      accountPlanId: "account_plan_id",
+      contactId: "contact_id",
+      name: "name",
+      title: "title",
+      stakeholderRole: "stakeholder_role",
+      influenceLevel: "influence_level",
+      sentiment: "sentiment",
+      relationshipOwnerUserId: "relationship_owner_user_id",
+      engagementScore: "engagement_score",
+      notes: "notes",
+      status: "status",
+    },
+  },
+  playbooks: {
+    table: "tenant.crm_playbooks",
+    search: ["name", "framework", "description"],
+    orderBy: "name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      pipelineId: "pipeline_id",
+      name: "name",
+      framework: "framework",
+      description: "description",
+      guidance: "guidance",
+      status: "status",
+    },
+  },
+  "playbook-questions": {
+    table: "tenant.crm_playbook_questions",
+    search: ["question_key", "prompt", "response_type"],
+    orderBy: "sequence ASC, prompt ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      playbookId: "playbook_id",
+      stageId: "stage_id",
+      questionKey: "question_key",
+      prompt: "prompt",
+      responseType: "response_type",
+      responseOptions: "response_options",
+      required: "required",
+      blocksStageExit: "blocks_stage_exit",
+      sequence: "sequence",
+      scoringWeight: "scoring_weight",
+      status: "status",
+    },
+  },
+  "playbook-responses": {
+    table: "tenant.crm_playbook_responses",
+    search: ["source"],
+    orderBy: "responded_at DESC",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      playbookId: "playbook_id",
+      questionId: "question_id",
+      opportunityId: "opportunity_id",
+      leadId: "lead_id",
+      response: "response",
+      respondedBy: "responded_by",
+      respondedAt: "responded_at",
+      source: "source",
+    },
+  },
+  "consent-events": {
+    table: "tenant.crm_consent_events",
+    search: ["channel", "purpose", "action", "source"],
+    orderBy: "occurred_at DESC",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      leadId: "lead_id",
+      contactId: "contact_id",
+      partyId: "party_id",
+      channel: "channel",
+      purpose: "purpose",
+      action: "action",
+      lawfulBasis: "lawful_basis",
+      source: "source",
+      evidence: "evidence",
+      occurredAt: "occurred_at",
+      expiresAt: "expires_at",
+    },
+  },
+  "privacy-requests": {
+    table: "tenant.crm_privacy_requests",
+    search: ["request_type", "subject_type", "requester_name", "requester_email", "status"],
+    orderBy: "due_at ASC, created_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      requestType: "request_type",
+      subjectType: "subject_type",
+      subjectId: "subject_id",
+      requesterName: "requester_name",
+      requesterEmail: "requester_email",
+      identityVerifiedAt: "identity_verified_at",
+      dueAt: "due_at",
+      status: "status",
+      resolutionNotes: "resolution_notes",
+      completedAt: "completed_at",
+      assignedTo: "assigned_to",
+    },
+  },
+  "data-quality-scores": {
+    table: "tenant.crm_data_quality_scores",
+    search: ["entity_type", "calculation_version"],
+    orderBy: "overall_score ASC, calculated_at DESC",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      entityType: "entity_type",
+      entityId: "entity_id",
+      completenessScore: "completeness_score",
+      validityScore: "validity_score",
+      freshnessScore: "freshness_score",
+      duplicateRiskScore: "duplicate_risk_score",
+      overallScore: "overall_score",
+      issues: "issues",
+      calculatedAt: "calculated_at",
+      calculationVersion: "calculation_version",
+    },
+  },
   "saved-views": {
     table: "tenant.crm_saved_views",
     search: ["name", "resource"],
@@ -462,10 +752,102 @@ function addParameter(parameters, value) {
   return `$${parameters.length}`;
 }
 
-function companyScope(definition, context, parameters, alias = "record") {
-  if (!definition.companyScoped || context.allowAllCompanies) return "";
-  if (!context.activeCompanyId) return " AND false";
-  return ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
+function recordScope(definition, context, parameters, alias = "record") {
+  let sql = "";
+  if (definition.companyScoped && !context.allowAllCompanies) {
+    if (!context.activeCompanyId) return " AND false";
+    sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
+  }
+  if (definition.fields?.branchId && context.activeBranchId) {
+    sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
+  }
+  return sql;
+}
+
+function assertWritableScope(definition, context, input) {
+  if (
+    definition.companyScoped &&
+    !context.allowAllCompanies &&
+    input.companyId &&
+    input.companyId !== context.activeCompanyId
+  ) {
+    throw new CrmError(403, "The CRM record belongs to another company.");
+  }
+  if (
+    definition.fields?.branchId &&
+    context.activeBranchId &&
+    input.branchId &&
+    input.branchId !== context.activeBranchId
+  ) {
+    throw new CrmError(403, "The CRM record belongs to another branch.");
+  }
+}
+
+function assertLifecycleUpdate(resource, before, input) {
+  if (resource === "consent-events") {
+    throw new CrmError(
+      409,
+      "Consent evidence is immutable. Record a new consent event instead.",
+      "CRM_CONSENT_IMMUTABLE",
+    );
+  }
+  if (resource === "forecast-submissions" && input.status !== undefined) {
+    const transitions = {
+      draft: new Set(["draft", "submitted", "superseded"]),
+      submitted: new Set(["submitted", "approved", "rejected", "superseded"]),
+      approved: new Set(["approved", "superseded"]),
+      rejected: new Set(["rejected", "draft", "superseded"]),
+      superseded: new Set(["superseded"]),
+    };
+    if (!transitions[before.status]?.has(input.status)) {
+      throw new CrmError(
+        409,
+        `Forecast submission cannot move from ${before.status} to ${input.status}.`,
+        "CRM_FORECAST_TRANSITION_INVALID",
+      );
+    }
+  }
+  if (
+    resource === "privacy-requests" &&
+    before.status === "completed" &&
+    input.status !== undefined &&
+    input.status !== "completed"
+  ) {
+    throw new CrmError(
+      409,
+      "Completed privacy requests cannot be reopened. Create a new request.",
+      "CRM_PRIVACY_REQUEST_CLOSED",
+    );
+  }
+  const controlledFields =
+    resource === "opportunities"
+      ? ["pipelineId", "stageId", "probability", "forecastCategory", "status"]
+      : [];
+  for (const field of controlledFields) {
+    if (
+      input[field] !== undefined &&
+      comparable(input[field]) !== comparable(before[field])
+    ) {
+      throw new CrmError(
+        409,
+        "Use the governed opportunity stage action for pipeline, stage, probability, forecast category or status changes.",
+      );
+    }
+  }
+  if (
+    resource === "leads" &&
+    input.status === "converted" &&
+    before.status !== "converted"
+  ) {
+    throw new CrmError(409, "Use the governed lead conversion action.");
+  }
+  if (
+    resource === "activities" &&
+    input.status === "completed" &&
+    before.status !== "completed"
+  ) {
+    throw new CrmError(409, "Use the governed activity completion action.");
+  }
 }
 
 async function nextCode(client, organizationId, entityType) {
@@ -522,7 +904,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   const definition = definitionFor(resource);
   const parameters = [context.organizationId];
   let where = "record.organization_id = $1";
-  where += companyScope(definition, context, parameters);
+  where += recordScope(definition, context, parameters);
   where += buildSearch(definition, filters.search, parameters);
   where += buildFilters(definition, filters, parameters);
   const limit = limitValue(filters.limit);
@@ -547,7 +929,7 @@ export async function getCrmRecord(client, context, resource, id) {
   const definition = definitionFor(resource);
   const parameters = [context.organizationId, id];
   const result = await client.query(
-    `SELECT record.* FROM ${definition.table} record WHERE record.organization_id = $1 AND record.id = $2${companyScope(definition, context, parameters)} LIMIT 1`,
+    `SELECT record.* FROM ${definition.table} record WHERE record.organization_id = $1 AND record.id = $2${recordScope(definition, context, parameters)} LIMIT 1`,
     parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
@@ -562,6 +944,7 @@ function mutableEntries(definition, input) {
 
 export async function createCrmRecord(client, context, resource, input) {
   const definition = definitionFor(resource);
+  assertWritableScope(definition, context, input);
   const prepared = { ...input };
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
@@ -679,6 +1062,8 @@ export async function createCrmRecord(client, context, resource, input) {
 export async function updateCrmRecord(client, context, resource, id, input) {
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
+  assertWritableScope(definition, context, input);
+  assertLifecycleUpdate(resource, before, input);
   const prepared = { ...input };
   if (resource === "leads")
     prepared.score = await calculateLeadScore(client, context.organizationId, {
@@ -692,8 +1077,12 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     ([key], index) => `${definition.fields[key]} = $${index + 1}`,
   );
   parameters.push(context.userId, context.organizationId, id);
+  const userParameter = entries.length + 1;
+  const organizationParameter = entries.length + 2;
+  const idParameter = entries.length + 3;
+  const scope = recordScope(definition, context, parameters);
   const result = await client.query(
-    `UPDATE ${definition.table} SET ${assignments.join(", ")}, updated_by = $${entries.length + 1}, updated_at = now() WHERE organization_id = $${entries.length + 2} AND id = $${entries.length + 3} RETURNING *`,
+    `UPDATE ${definition.table} record SET ${assignments.join(", ")}, updated_by = $${userParameter}, updated_at = now() WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope} RETURNING record.*`,
     parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
@@ -723,10 +1112,19 @@ export async function updateCrmRecord(client, context, resource, id, input) {
 
 export async function archiveCrmRecord(client, context, resource, id) {
   const definition = definitionFor(resource);
+  const parameters = [context.organizationId, id];
+  const scope = recordScope(definition, context, parameters);
+  if (resource === "consent-events") {
+    throw new CrmError(
+      409,
+      "Consent evidence is immutable and cannot be deleted.",
+      "CRM_CONSENT_IMMUTABLE",
+    );
+  }
   if (!definition.statusColumn) {
     const result = await client.query(
-      `DELETE FROM ${definition.table} WHERE organization_id = $1 AND id = $2 RETURNING id`,
-      [context.organizationId, id],
+      `DELETE FROM ${definition.table} record WHERE record.organization_id = $1 AND record.id = $2${scope} RETURNING record.id`,
+      parameters,
     );
     if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
     return { id, deleted: true };
@@ -739,10 +1137,16 @@ export async function archiveCrmRecord(client, context, resource, id) {
       campaigns: "cancelled",
       sequences: "archived",
       integrations: "disabled",
+      "quota-plans": "cancelled",
+      "forecast-periods": "closed",
+      "forecast-submissions": "superseded",
+      "privacy-requests": "cancelled",
     }[resource] || "inactive";
+  const statusParameter = addParameter(parameters, status);
+  const userParameter = addParameter(parameters, context.userId);
   const result = await client.query(
-    `UPDATE ${definition.table} SET ${definition.statusColumn} = $1, updated_by = $2, updated_at = now() WHERE organization_id = $3 AND id = $4 RETURNING *`,
-    [status, context.userId, context.organizationId, id],
+    `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope} RETURNING record.*`,
+    parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
   const record = camelizeRow(result.rows[0]);
@@ -860,18 +1264,19 @@ export async function resolveLeadOwner(client, context, input) {
 }
 
 export async function convertCrmLead(client, context, leadId, input = {}) {
+  const leadParameters = [context.organizationId, leadId];
+  const leadResult = await client.query(
+    `SELECT record.* FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.id = $2${recordScope(resources.leads, context, leadParameters)} FOR UPDATE`,
+    leadParameters,
+  );
+  const lead = leadResult.rows[0];
+  if (!lead) throw new CrmError(404, "Lead not found.");
   const existing = await client.query(
     `SELECT * FROM tenant.crm_conversion_records WHERE organization_id = $1 AND lead_id = $2 LIMIT 1`,
     [context.organizationId, leadId],
   );
   if (existing.rows[0])
     return { ...camelizeRow(existing.rows[0]), replayed: true };
-  const leadResult = await client.query(
-    `SELECT * FROM tenant.crm_leads WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
-    [context.organizationId, leadId],
-  );
-  const lead = leadResult.rows[0];
-  if (!lead) throw new CrmError(404, "Lead not found.");
   if (lead.status === "archived")
     throw new CrmError(409, "Archived leads cannot be converted.");
   let partyId = input.partyId || null;
@@ -1004,9 +1409,10 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
 export async function mergeCrmLead(client, context, sourceId, targetId) {
   if (sourceId === targetId)
     throw new CrmError(400, "A lead cannot be merged into itself.");
+  const parameters = [context.organizationId, [sourceId, targetId]];
   const rows = await client.query(
-    `SELECT * FROM tenant.crm_leads WHERE organization_id = $1 AND id = ANY($2::uuid[]) FOR UPDATE`,
-    [context.organizationId, [sourceId, targetId]],
+    `SELECT record.* FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.id = ANY($2::uuid[])${recordScope(resources.leads, context, parameters)} FOR UPDATE`,
+    parameters,
   );
   const source = rows.rows.find((row) => row.id === sourceId);
   const target = rows.rows.find((row) => row.id === targetId);
@@ -1067,9 +1473,10 @@ export async function moveOpportunityStage(
   stageId,
   note = null,
 ) {
+  const opportunityParameters = [context.organizationId, opportunityId];
   const opportunityResult = await client.query(
-    `SELECT * FROM tenant.crm_opportunities WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
-    [context.organizationId, opportunityId],
+    `SELECT record.* FROM tenant.crm_opportunities record WHERE record.organization_id = $1 AND record.id = $2${recordScope(resources.opportunities, context, opportunityParameters)} FOR UPDATE`,
+    opportunityParameters,
   );
   const opportunity = opportunityResult.rows[0];
   if (!opportunity) throw new CrmError(404, "Opportunity not found.");
@@ -1083,6 +1490,41 @@ export async function moveOpportunityStage(
       409,
       "The selected stage is not part of this opportunity pipeline.",
     );
+  const requiredPlaybookResponses = await client.query(
+    `SELECT question.id, question.prompt
+       FROM tenant.crm_playbook_questions question
+       JOIN tenant.crm_playbooks playbook
+         ON playbook.id = question.playbook_id
+        AND playbook.organization_id = question.organization_id
+       LEFT JOIN tenant.crm_playbook_responses response
+         ON response.question_id = question.id
+        AND response.organization_id = question.organization_id
+        AND response.opportunity_id = $2
+      WHERE question.organization_id = $1
+        AND playbook.pipeline_id = $3
+        AND playbook.status = 'active'
+        AND question.status = 'active'
+        AND question.required = true
+        AND question.blocks_stage_exit = true
+        AND (question.stage_id IS NULL OR question.stage_id = $4)
+        AND response.id IS NULL
+      ORDER BY question.sequence, question.prompt`,
+    [
+      context.organizationId,
+      opportunityId,
+      opportunity.pipeline_id,
+      opportunity.stage_id,
+    ],
+  );
+  if (requiredPlaybookResponses.rows.length) {
+    throw new CrmError(
+      409,
+      `Complete required playbook questions before changing stage: ${requiredPlaybookResponses.rows
+        .map((row) => row.prompt)
+        .join("; ")}`,
+      "CRM_PLAYBOOK_INCOMPLETE",
+    );
+  }
   const status = stage.is_won ? "won" : stage.is_lost ? "lost" : "open";
   const result = await client.query(
     `UPDATE tenant.crm_opportunities SET stage_id = $1, probability = $2, forecast_category = $3, status = $4, actual_close_date = CASE WHEN $4 IN ('won','lost') THEN current_date ELSE NULL END, updated_by = $5, updated_at = now() WHERE organization_id = $6 AND id = $7 RETURNING *`,
@@ -1134,9 +1576,10 @@ export async function completeCrmActivity(
   activityId,
   outcome = null,
 ) {
+  const parameters = [outcome, context.userId, context.organizationId, activityId];
   const result = await client.query(
-    `UPDATE tenant.crm_activities SET status = 'completed', completed_at = now(), outcome = COALESCE($1, outcome), updated_by = $2, updated_at = now() WHERE organization_id = $3 AND id = $4 RETURNING *`,
-    [outcome, context.userId, context.organizationId, activityId],
+    `UPDATE tenant.crm_activities record SET status = 'completed', completed_at = now(), outcome = COALESCE($1, outcome), updated_by = $2, updated_at = now() WHERE record.organization_id = $3 AND record.id = $4${recordScope(resources.activities, context, parameters)} RETURNING record.*`,
+    parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "Activity not found.");
   const activity = camelizeRow(result.rows[0]);
@@ -1258,94 +1701,121 @@ export async function queueOutboxEvent(
 }
 
 export async function getCrmOptions(client, context) {
-  const [
-    companies,
-    branches,
-    currencies,
-    pipelines,
-    stages,
-    sources,
-    campaigns,
-    users,
-    parties,
-    contacts,
-    items,
-    priceLists,
-    tags,
-    lostReasons,
-    leads,
-    opportunities,
-    sequences,
-  ] = [
-    await client.query(
-      `SELECT id, name FROM public.companies WHERE organization_id = $1 AND status = 'active' ORDER BY is_primary DESC, name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name, company_id FROM public.branches WHERE organization_id = $1 AND status = 'active' ORDER BY is_primary DESC, name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT code AS id, code AS name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name, company_id FROM tenant.crm_pipelines WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, pipeline_id, name, sequence, probability, is_won, is_lost FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND status = 'active' ORDER BY pipeline_id, sequence`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name FROM tenant.crm_campaigns WHERE organization_id = $1 AND status IN ('planned','active','paused') ORDER BY name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT u.id, u.full_name AS name FROM public.organization_memberships m JOIN public.users u ON u.id = m.user_id WHERE m.organization_id = $1 AND m.status = 'active' ORDER BY u.full_name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, display_name AS name FROM tenant.business_parties WHERE organization_id = $1 AND status = 'active' ORDER BY display_name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, btrim(first_name || ' ' || COALESCE(last_name,'')) AS name, party_id FROM tenant.contacts WHERE organization_id = $1 AND status = 'active' ORDER BY first_name, last_name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name, currency_code FROM tenant.price_lists WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND status = 'active' ORDER BY category, name`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, btrim(first_name || ' ' || COALESCE(last_name,'')) AS name FROM tenant.crm_leads WHERE organization_id = $1 AND status NOT IN ('converted','archived') ORDER BY updated_at DESC LIMIT 500`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name FROM tenant.crm_opportunities WHERE organization_id = $1 AND status <> 'archived' ORDER BY updated_at DESC LIMIT 500`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT id, name FROM tenant.crm_sequences WHERE organization_id = $1 AND status <> 'archived' ORDER BY name`,
-      [context.organizationId],
-    ),
+  const parameters = [
+    context.organizationId,
+    context.activeCompanyId,
+    context.activeBranchId,
+    Boolean(context.allowAllCompanies),
   ];
+  const companyVisible = (alias, includeUnassigned = true) =>
+    `($4::boolean OR ($2::uuid IS NOT NULL AND ${includeUnassigned ? `(${alias}.company_id IS NULL OR ${alias}.company_id = $2)` : `${alias}.company_id = $2`}))`;
+  const branchVisible = (alias) =>
+    `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
+
+  const queryOptions = (sql, values) =>
+    client.query(
+      `WITH crm_scope_parameters AS (
+        SELECT $1::uuid AS organization_id,
+          $2::uuid AS active_company_id,
+          $3::uuid AS active_branch_id,
+          $4::boolean AS allow_all_companies
+      )
+      ${sql}`,
+      values,
+    );
+  const companies = await queryOptions(
+    `SELECT company.id, company.name FROM public.companies company WHERE company.organization_id = $1 AND company.status = 'active' AND ($4::boolean OR company.id = $2) ORDER BY company.is_primary DESC, company.name`,
+    parameters,
+  );
+  const branches = await queryOptions(
+    `SELECT branch.id, branch.name, branch.company_id FROM public.branches branch WHERE branch.organization_id = $1 AND branch.status = 'active' AND ${companyVisible("branch", false)} AND ($3::uuid IS NULL OR branch.id = $3) ORDER BY branch.is_primary DESC, branch.name`,
+    parameters,
+  );
+  const currencies = await queryOptions(
+    `SELECT code AS id, code AS name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`,
+    parameters,
+  );
+  const pipelines = await queryOptions(
+    `SELECT pipeline.id, pipeline.name, pipeline.company_id FROM tenant.crm_pipelines pipeline WHERE pipeline.organization_id = $1 AND pipeline.status = 'active' AND ${companyVisible("pipeline")} ORDER BY pipeline.is_default DESC, pipeline.name`,
+    parameters,
+  );
+  const stages = await queryOptions(
+    `SELECT stage.id, stage.pipeline_id, stage.name, stage.sequence, stage.probability, stage.is_won, stage.is_lost FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} ORDER BY stage.pipeline_id, stage.sequence`,
+    parameters,
+  );
+  const sources = await queryOptions(
+    `SELECT id, name FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, name`,
+    parameters,
+  );
+  const campaigns = await queryOptions(
+    `SELECT campaign.id, campaign.name FROM tenant.crm_campaigns campaign WHERE campaign.organization_id = $1 AND campaign.status IN ('planned','active','paused') AND ${companyVisible("campaign")} ORDER BY campaign.name`,
+    parameters,
+  );
+  const users = await queryOptions(
+    `SELECT user_account.id, user_account.full_name AS name FROM public.organization_memberships membership JOIN public.users user_account ON user_account.id = membership.user_id WHERE membership.organization_id = $1 AND membership.status = 'active' ORDER BY user_account.full_name`,
+    parameters,
+  );
+  const parties = await queryOptions(
+    `SELECT party.id, party.display_name AS name FROM tenant.business_parties party WHERE party.organization_id = $1 AND party.status = 'active' AND ${companyVisible("party")} ORDER BY party.display_name`,
+    parameters,
+  );
+  const contacts = await queryOptions(
+    `SELECT contact.id, btrim(contact.first_name || ' ' || COALESCE(contact.last_name,'')) AS name, contact.party_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.id = contact.party_id AND party.organization_id = contact.organization_id WHERE contact.organization_id = $1 AND contact.status = 'active' AND ${companyVisible("party")} ORDER BY contact.first_name, contact.last_name`,
+    parameters,
+  );
+  const items = await queryOptions(
+    `SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
+    parameters,
+  );
+  const priceLists = await queryOptions(
+    `SELECT id, name, currency_code FROM tenant.price_lists WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
+    parameters,
+  );
+  const tags = await queryOptions(
+    `SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
+    parameters,
+  );
+  const lostReasons = await queryOptions(
+    `SELECT id, name FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND status = 'active' ORDER BY category, name`,
+    parameters,
+  );
+  const leads = await queryOptions(
+    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")} ORDER BY lead.updated_at DESC LIMIT 500`,
+    parameters,
+  );
+  const opportunities = await queryOptions(
+    `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
+    parameters,
+  );
+  const sequences = await queryOptions(
+    `SELECT id, name FROM tenant.crm_sequences WHERE organization_id = $1 AND status <> 'archived' ORDER BY name`,
+    parameters,
+  );
+  const salesTeams = await queryOptions(
+    `SELECT team.id, team.name, team.company_id FROM tenant.crm_sales_teams team WHERE team.organization_id = $1 AND team.status = 'active' AND ${companyVisible("team")} ORDER BY team.name`,
+    parameters,
+  );
+  const territories = await queryOptions(
+    `SELECT territory.id, territory.name, territory.company_id FROM tenant.crm_territories territory WHERE territory.organization_id = $1 AND territory.status = 'active' AND ${companyVisible("territory")} ORDER BY territory.name`,
+    parameters,
+  );
+  const forecastPeriods = await queryOptions(
+    `SELECT period.id, period.name, period.period_start, period.period_end, period.company_id FROM tenant.crm_forecast_periods period WHERE period.organization_id = $1 AND period.status IN ('planned','open','frozen') AND ${companyVisible("period")} ORDER BY period.period_start DESC`,
+    parameters,
+  );
+  const accountPlans = await queryOptions(
+    `SELECT plan.id, party.display_name AS name, plan.company_id FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${companyVisible("plan")} ORDER BY party.display_name`,
+    parameters,
+  );
+  const playbooks = await queryOptions(
+    `SELECT playbook.id, playbook.name, playbook.company_id FROM tenant.crm_playbooks playbook WHERE playbook.organization_id = $1 AND playbook.status = 'active' AND ${companyVisible("playbook")} ORDER BY playbook.name`,
+    parameters,
+  );
+  const playbookQuestions = await queryOptions(
+    `SELECT question.id, question.prompt AS name, question.playbook_id, question.company_id FROM tenant.crm_playbook_questions question WHERE question.organization_id = $1 AND question.status = 'active' AND ${companyVisible("question")} ORDER BY question.sequence, question.prompt`,
+    parameters,
+  );
+
   const map = (result) => result.rows.map(camelizeRow);
   return {
     companies: map(companies),
@@ -1365,28 +1835,51 @@ export async function getCrmOptions(client, context) {
     leads: map(leads),
     opportunities: map(opportunities),
     sequences: map(sequences),
+    salesTeams: map(salesTeams),
+    territories: map(territories),
+    forecastPeriods: map(forecastPeriods),
+    accountPlans: map(accountPlans),
+    playbooks: map(playbooks),
+    playbookQuestions: map(playbookQuestions),
   };
 }
 
 export async function getCrmDashboard(client, context) {
-  const result = await client.query(
-    `SELECT (SELECT count(*)::int FROM tenant.crm_leads WHERE organization_id = $1 AND status NOT IN ('converted','archived')) AS open_leads, (SELECT count(*)::int FROM tenant.crm_leads WHERE organization_id = $1 AND status = 'qualified') AS qualified_leads, (SELECT count(*)::int FROM tenant.crm_opportunities WHERE organization_id = $1 AND status = 'open') AS open_opportunities, (SELECT COALESCE(sum(amount),0)::numeric FROM tenant.crm_opportunities WHERE organization_id = $1 AND status = 'open') AS pipeline_value, (SELECT COALESCE(sum(amount * probability / 100),0)::numeric FROM tenant.crm_opportunities WHERE organization_id = $1 AND status = 'open') AS weighted_pipeline, (SELECT count(*)::int FROM tenant.crm_activities WHERE organization_id = $1 AND status NOT IN ('completed','cancelled') AND due_at < now()) AS overdue_activities, (SELECT count(*)::int FROM tenant.crm_activities WHERE organization_id = $1 AND status NOT IN ('completed','cancelled') AND due_at >= current_date AND due_at < current_date + interval '1 day') AS due_today, (SELECT count(*)::int FROM tenant.crm_leads WHERE organization_id = $1 AND created_at >= date_trunc('month', now())) AS leads_this_month, (SELECT count(*)::int FROM tenant.crm_conversion_records WHERE organization_id = $1 AND converted_at >= date_trunc('month', now())) AS conversions_this_month`,
-    [context.organizationId],
-  );
-  const [stages, sources, activities] = [
-    await client.query(
-      `SELECT s.id, s.name, s.sequence, count(o.id)::int AS opportunity_count, COALESCE(sum(o.amount),0)::numeric AS amount FROM tenant.crm_pipeline_stages s LEFT JOIN tenant.crm_opportunities o ON o.stage_id = s.id AND o.organization_id = s.organization_id AND o.status = 'open' WHERE s.organization_id = $1 AND s.status = 'active' GROUP BY s.id ORDER BY s.sequence`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT COALESCE(src.name,'Unspecified') AS name, count(l.id)::int AS lead_count, count(l.id) FILTER (WHERE l.status = 'converted')::int AS converted_count FROM tenant.crm_leads l LEFT JOIN tenant.crm_lead_sources src ON src.id = l.source_id WHERE l.organization_id = $1 GROUP BY src.name ORDER BY lead_count DESC LIMIT 10`,
-      [context.organizationId],
-    ),
-    await client.query(
-      `SELECT a.*, u.full_name AS assigned_name FROM tenant.crm_activities a LEFT JOIN public.users u ON u.id = a.assigned_to WHERE a.organization_id = $1 AND a.status NOT IN ('completed','cancelled') ORDER BY a.due_at ASC NULLS LAST LIMIT 10`,
-      [context.organizationId],
-    ),
+  const parameters = [
+    context.organizationId,
+    context.activeCompanyId,
+    context.activeBranchId,
+    Boolean(context.allowAllCompanies),
   ];
+  const companyVisible = (alias) =>
+    `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
+  const branchVisible = (alias) =>
+    `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
+  const result = await client.query(
+    `SELECT
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS open_leads,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status = 'qualified' AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS qualified_leads,
+      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS open_opportunities,
+      (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS pipeline_value,
+      (SELECT COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS weighted_pipeline,
+      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at < now() AND ${companyVisible("activity")} AND ${branchVisible("activity")}) AS overdue_activities,
+      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day' AND ${companyVisible("activity")} AND ${branchVisible("activity")}) AS due_today,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.created_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS leads_this_month,
+      (SELECT count(*)::int FROM tenant.crm_conversion_records conversion JOIN tenant.crm_leads lead ON lead.id = conversion.lead_id AND lead.organization_id = conversion.organization_id WHERE conversion.organization_id = $1 AND conversion.converted_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS conversions_this_month`,
+    parameters,
+  );
+  const stages = await client.query(
+    `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS opportunity_count, COALESCE(sum(opportunity.amount),0)::numeric AS amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`,
+    parameters,
+  );
+  const sources = await client.query(
+    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
+    parameters,
+  );
+  const activities = await client.query(
+    `SELECT activity.*, user_account.full_name AS assigned_name FROM tenant.crm_activities activity LEFT JOIN public.users user_account ON user_account.id = activity.assigned_to WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND ${companyVisible("activity")} AND ${branchVisible("activity")} ORDER BY activity.due_at ASC NULLS LAST LIMIT 10`,
+    parameters,
+  );
   return {
     metrics: camelizeRow(result.rows[0]),
     stages: stages.rows.map(camelizeRow),
@@ -1396,25 +1889,91 @@ export async function getCrmDashboard(client, context) {
 }
 
 export async function getCrmReport(client, context, report, filters = {}) {
-  const from = filters.from || null,
-    to = filters.to || null,
-    parameters = [context.organizationId, from, to];
+  const from = filters.from || null;
+  const to = filters.to || null;
+  const parameters = [
+    context.organizationId,
+    context.activeCompanyId,
+    context.activeBranchId,
+    Boolean(context.allowAllCompanies),
+    from,
+    to,
+  ];
   const dateClause = (column) =>
-    `AND ($2::date IS NULL OR ${column} >= $2::date) AND ($3::date IS NULL OR ${column} < $3::date + 1)`;
+    `AND ($5::date IS NULL OR ${column} >= $5::date) AND ($6::date IS NULL OR ${column} < $6::date + 1)`;
+  const companyVisible = (alias) =>
+    `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
+  const branchVisible = (alias) =>
+    `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
   let sql;
   if (report === "pipeline")
-    sql = `SELECT s.name, s.sequence, count(o.id)::int AS count, COALESCE(sum(o.amount),0)::numeric AS amount, COALESCE(sum(o.amount * o.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages s LEFT JOIN tenant.crm_opportunities o ON o.stage_id=s.id AND o.organization_id=s.organization_id ${dateClause("o.created_at")} WHERE s.organization_id=$1 GROUP BY s.id ORDER BY s.sequence`;
+    sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
   else if (report === "conversion")
-    sql = `SELECT date_trunc('month', l.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE l.status='converted')::int AS converted, round((count(*) FILTER (WHERE l.status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads l WHERE l.organization_id=$1 ${dateClause("l.created_at")} GROUP BY period ORDER BY period`;
+    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
-    sql = `SELECT COALESCE(s.name,'Unspecified') AS source, count(l.id)::int AS leads, count(l.id) FILTER (WHERE l.status='converted')::int AS converted, COALESCE(sum(o.amount) FILTER (WHERE o.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads l LEFT JOIN tenant.crm_lead_sources s ON s.id=l.source_id LEFT JOIN tenant.crm_opportunities o ON o.lead_id=l.id WHERE l.organization_id=$1 ${dateClause("l.created_at")} GROUP BY s.name ORDER BY leads DESC`;
+    sql = `SELECT COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} GROUP BY source.name ORDER BY leads DESC`;
   else if (report === "activities")
-    sql = `SELECT a.activity_type, count(*)::int AS total, count(*) FILTER (WHERE a.status='completed')::int AS completed, count(*) FILTER (WHERE a.due_at<now() AND a.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities a WHERE a.organization_id=$1 ${dateClause("a.created_at")} GROUP BY a.activity_type ORDER BY total DESC`;
+    sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE activity.due_at<now() AND activity.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
-    sql = `SELECT COALESCE(u.full_name,'Unassigned') AS owner, COALESCE(sum(o.amount),0)::numeric AS pipeline, COALESCE(sum(o.amount*o.probability/100),0)::numeric AS weighted, COALESCE(sum(o.amount) FILTER (WHERE o.status='won'),0)::numeric AS won FROM tenant.crm_opportunities o LEFT JOIN public.users u ON u.id=o.owner_user_id WHERE o.organization_id=$1 ${dateClause("o.created_at")} GROUP BY u.full_name ORDER BY weighted DESC`;
+    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount),0)::numeric AS pipeline, COALESCE(sum(opportunity.amount*opportunity.probability/100),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
   else if (report === "campaigns")
-    sql = `SELECT c.name, c.status, c.budget, c.actual_cost, count(m.id)::int AS members, count(m.id) FILTER (WHERE m.member_status IN ('responded','attended','converted'))::int AS responses, count(m.id) FILTER (WHERE m.member_status='converted')::int AS conversions FROM tenant.crm_campaigns c LEFT JOIN tenant.crm_campaign_members m ON m.campaign_id=c.id AND m.organization_id=c.organization_id WHERE c.organization_id=$1 ${dateClause("c.created_at")} GROUP BY c.id ORDER BY c.created_at DESC`;
+    sql = `SELECT campaign.name, campaign.status, campaign.budget, campaign.actual_cost, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_status IN ('responded','attended','converted'))::int AS responses, count(member.id) FILTER (WHERE member.member_status='converted')::int AS conversions FROM tenant.crm_campaigns campaign LEFT JOIN tenant.crm_campaign_members member ON member.campaign_id=campaign.id AND member.organization_id=campaign.organization_id WHERE campaign.organization_id=$1 ${dateClause("campaign.created_at")} AND ${companyVisible("campaign")} GROUP BY campaign.id ORDER BY campaign.created_at DESC`;
+  else if (report === "revenue-operations")
+    sql = `WITH opportunity_rollup AS (
+      SELECT opportunity.owner_user_id,
+        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open'),0)::numeric AS pipeline,
+        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open' AND opportunity.forecast_category = 'best_case'),0)::numeric AS best_case,
+        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open' AND opportunity.forecast_category = 'committed'),0)::numeric AS committed,
+        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'won'),0)::numeric AS won,
+        count(*) FILTER (WHERE opportunity.status = 'won')::int AS won_deals,
+        count(*) FILTER (WHERE opportunity.status = 'lost')::int AS lost_deals,
+        avg(EXTRACT(epoch FROM (COALESCE(opportunity.actual_close_date::timestamptz, now()) - opportunity.created_at)) / 86400.0) FILTER (WHERE opportunity.status IN ('won','lost')) AS average_sales_cycle_days
+      FROM tenant.crm_opportunities opportunity
+      WHERE opportunity.organization_id = $1 ${dateClause("opportunity.created_at")}
+        AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}
+      GROUP BY opportunity.owner_user_id
+    ), quota_rollup AS (
+      SELECT quota.user_id,
+        COALESCE(sum(quota.target_amount),0)::numeric AS quota
+      FROM tenant.crm_quota_plans quota
+      WHERE quota.organization_id = $1
+        AND quota.status IN ('active','closed')
+        AND ${companyVisible("quota")}
+        AND ($5::date IS NULL OR quota.period_end >= $5::date)
+        AND ($6::date IS NULL OR quota.period_start <= $6::date)
+      GROUP BY quota.user_id
+    )
+    SELECT COALESCE(user_account.full_name,'Unassigned') AS owner,
+      COALESCE(quota_rollup.quota,0)::numeric AS quota,
+      COALESCE(opportunity_rollup.pipeline,0)::numeric AS pipeline,
+      COALESCE(opportunity_rollup.best_case,0)::numeric AS best_case,
+      COALESCE(opportunity_rollup.committed,0)::numeric AS committed,
+      COALESCE(opportunity_rollup.won,0)::numeric AS won,
+      CASE WHEN COALESCE(quota_rollup.quota,0) > 0 THEN round(COALESCE(opportunity_rollup.pipeline,0) / quota_rollup.quota, 2) ELSE NULL END AS pipeline_coverage,
+      CASE WHEN COALESCE(quota_rollup.quota,0) > 0 THEN round(COALESCE(opportunity_rollup.won,0) / quota_rollup.quota * 100, 2) ELSE NULL END AS quota_attainment_percent,
+      CASE WHEN COALESCE(opportunity_rollup.won_deals,0) + COALESCE(opportunity_rollup.lost_deals,0) > 0 THEN round(opportunity_rollup.won_deals::numeric / (opportunity_rollup.won_deals + opportunity_rollup.lost_deals) * 100, 2) ELSE NULL END AS win_rate_percent,
+      round(COALESCE(opportunity_rollup.average_sales_cycle_days,0)::numeric, 2) AS average_sales_cycle_days
+    FROM opportunity_rollup
+    FULL OUTER JOIN quota_rollup ON quota_rollup.user_id IS NOT DISTINCT FROM opportunity_rollup.owner_user_id
+    LEFT JOIN public.users user_account ON user_account.id = COALESCE(opportunity_rollup.owner_user_id, quota_rollup.user_id)
+    ORDER BY won DESC, pipeline DESC`;
+  else if (report === "account-health")
+    sql = `SELECT party.display_name AS account, plan.account_tier, plan.lifecycle_stage, plan.health_status, plan.health_score, plan.annual_revenue, plan.potential_revenue, plan.renewal_date, plan.next_review_at FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${companyVisible("plan")} ORDER BY CASE plan.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 WHEN 'healthy' THEN 4 ELSE 5 END, plan.next_review_at NULLS LAST`;
+  else if (report === "privacy")
+    sql = `SELECT request.request_type, request.status, count(*)::int AS requests, count(*) FILTER (WHERE request.due_at < now() AND request.status NOT IN ('completed','rejected','cancelled'))::int AS overdue FROM tenant.crm_privacy_requests request WHERE request.organization_id = $1 ${dateClause("request.created_at")} AND ${companyVisible("request")} GROUP BY request.request_type, request.status ORDER BY request.request_type, request.status`;
   else throw new CrmError(404, "Unknown CRM report.");
+  const scopeParametersCte = `crm_scope_parameters AS (
+    SELECT $1::uuid AS organization_id,
+      $2::uuid AS active_company_id,
+      $3::uuid AS active_branch_id,
+      $4::boolean AS allow_all_companies,
+      $5::date AS date_from,
+      $6::date AS date_to
+  )`;
+  sql = /^\s*WITH\s+/i.test(sql)
+    ? sql.replace(/^\s*WITH\s+/i, `WITH ${scopeParametersCte}, `)
+    : `WITH ${scopeParametersCte} ${sql}`;
+
   const result = await client.query(sql, parameters);
   return { report, rows: result.rows.map(camelizeRow), filters: { from, to } };
 }
@@ -1425,15 +1984,16 @@ export async function findCrmDuplicates(
   input,
   excludeId = null,
 ) {
+  const parameters = [
+    context.organizationId,
+    input.email || null,
+    input.mobile || input.phone || null,
+    input.companyName || null,
+    excludeId,
+  ];
   const result = await client.query(
-    `SELECT id, code, full_name, email, mobile, company_name, status, (CASE WHEN $2::text IS NOT NULL AND normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads WHERE organization_id = $1 AND ($5::uuid IS NULL OR id <> $5) AND (($2::text IS NOT NULL AND normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(company_name) = lower($4))) ORDER BY match_score DESC, updated_at DESC LIMIT 20`,
-    [
-      context.organizationId,
-      input.email || null,
-      input.mobile || input.phone || null,
-      input.companyName || null,
-      excludeId,
-    ],
+    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${recordScope(resources.leads, context, parameters)} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
+    parameters,
   );
   return result.rows.map(camelizeRow);
 }

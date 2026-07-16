@@ -4,7 +4,7 @@ import {
 } from "@/lib/billing";
 import { createCrmRecord, listCrmRecords } from "@vercent/api";
 import { getSessionContext } from "@/lib/auth";
-import { requireCrmManage, requireCrmView } from "@/lib/crm-api";
+import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
 import {
   crmContext,
   crmDefinitions,
@@ -27,7 +27,7 @@ export async function GET(
     const { resource } = await route.params;
     if (!isCrmDefinition(resource))
       throw new HttpError(404, "Unknown CRM resource.");
-    requireCrmView(session);
+    requireCrmResourceView(session, resource);
     const url = new URL(request.url);
     const context = crmContext(session);
     const result = await tenantTransaction(context.organizationId, (client) =>

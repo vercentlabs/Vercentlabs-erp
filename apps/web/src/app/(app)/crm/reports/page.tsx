@@ -2,6 +2,7 @@ import { getCrmReport } from "@vercent/api";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { crmContext } from "@/lib/crm";
+import { canViewCrmReport } from "@/lib/crm-api";
 import { tenantTransaction } from "@/lib/db";
 export const metadata = { title: "CRM reports" };
 export const dynamic = "force-dynamic";
@@ -12,6 +13,9 @@ const names = [
   "activities",
   "forecast",
   "campaigns",
+  "revenue-operations",
+  "account-health",
+  "privacy",
 ] as const;
 const title = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
@@ -19,11 +23,12 @@ export default async function CrmReportsPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmReportsView)) return null;
   const context = crmContext(session);
+  const visibleNames = names.filter((name) => canViewCrmReport(session, name));
   const reports = await tenantTransaction(
     context.organizationId,
     async (client) => {
       const entries = [];
-      for (const name of names) {
+      for (const name of visibleNames) {
         entries.push([name, await getCrmReport(client, context, name)]);
       }
       return Object.fromEntries(entries);
@@ -36,14 +41,14 @@ export default async function CrmReportsPage() {
           <p className="eyebrow">CRM analytics</p>
           <h1>Pipeline, conversion and activity reports</h1>
           <p>
-            Review revenue health, source quality, campaign outcomes, follow-up
-            execution and salesperson forecast.
+            Review revenue health, quotas, pipeline coverage, account risk, source
+            quality, campaign outcomes, privacy operations and seller execution.
           </p>
         </div>
         <span className="status-badge neutral">Live tenant data</span>
       </section>
       <div className="crm-report-grid">
-        {names.map((name) => {
+        {visibleNames.map((name) => {
           const rows = (
             reports[name] as { rows: Array<Record<string, unknown>> }
           ).rows;
@@ -76,7 +81,7 @@ export default async function CrmReportsPage() {
                         {columns.map((column) => (
                           <td key={column}>
                             {row[column] === null
-                              ? "â€”"
+                              ? "—"
                               : String(row[column] ?? "")}
                           </td>
                         ))}

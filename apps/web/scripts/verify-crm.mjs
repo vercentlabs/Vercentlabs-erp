@@ -17,6 +17,9 @@ const required = [
   "src/app/api/crm/public/capture/[key]/route.ts",
   "../../database/control-plane/migrations/004_crm_permissions.sql",
   "../../database/tenant/migrations/002_crm_module.sql",
+  "../../database/tenant/migrations/003_crm_enterprise_core.sql",
+  "../../database/control-plane/migrations/006_crm_enterprise_permissions.sql",
+  "../../docs/architecture/crm-enterprise-core.md",
   "../../services/api/src/crm.js",
   "../../packages/shared-sdk/src/crm.js",
   "../../docs/architecture/crm-module.md",
@@ -25,13 +28,14 @@ for (const relative of required) {
   if (!fs.existsSync(path.resolve(process.cwd(), relative)))
     throw new Error(`Missing CRM path: ${relative}`);
 }
-const sql = fs.readFileSync(
-  path.resolve(
-    process.cwd(),
-    "../../database/tenant/migrations/002_crm_module.sql",
-  ),
-  "utf8",
-);
+const sql = [
+  "../../database/tenant/migrations/002_crm_module.sql",
+  "../../database/tenant/migrations/003_crm_enterprise_core.sql",
+]
+  .map((relative) =>
+    fs.readFileSync(path.resolve(process.cwd(), relative), "utf8"),
+  )
+  .join("\n");
 for (const marker of [
   "crm_leads",
   "crm_opportunities",
@@ -60,8 +64,32 @@ for (const marker of [
   "runCrmAutomation",
   "captureCrmLead",
   "getCrmReport",
+  "CRM_PLAYBOOK_INCOMPLETE",
+  "revenue-operations",
+  "account-health",
 ]) {
   if (!service.includes(marker))
     throw new Error(`CRM service is missing ${marker}`);
+}
+const enterpriseSql = fs.readFileSync(
+  path.resolve(
+    process.cwd(),
+    "../../database/tenant/migrations/003_crm_enterprise_core.sql",
+  ),
+  "utf8",
+);
+for (const marker of [
+  "crm_sales_teams",
+  "crm_territories",
+  "crm_quota_plans",
+  "crm_forecast_submissions",
+  "crm_account_plans",
+  "crm_playbooks",
+  "crm_consent_events",
+  "crm_privacy_requests",
+  "crm_data_quality_scores",
+]) {
+  if (!enterpriseSql.includes(marker))
+    throw new Error(`Enterprise CRM migration is missing ${marker}`);
 }
 console.log(`CRM module verified across ${required.length} permanent paths.`);

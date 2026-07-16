@@ -3,8 +3,11 @@ import test from "node:test";
 import {
   calculateLeadScore,
   getCrmDashboard,
+  getCrmOptions,
+  getCrmReport,
   isCrmResource,
   listCrmRecords,
+  updateCrmRecord,
 } from "../src/crm.js";
 test("CRM rejects unknown resources", () =>
   assert.equal(isCrmResource("anything"), false));
@@ -28,6 +31,21 @@ test("CRM exposes all governed resources", () => {
     "integrations",
     "webhook-subscriptions",
     "saved-views",
+    "sales-teams",
+    "sales-team-members",
+    "territories",
+    "territory-assignments",
+    "quota-plans",
+    "forecast-periods",
+    "forecast-submissions",
+    "account-plans",
+    "account-stakeholders",
+    "playbooks",
+    "playbook-questions",
+    "playbook-responses",
+    "consent-events",
+    "privacy-requests",
+    "data-quality-scores",
   ])
     assert.equal(isCrmResource(key), true, key);
 });
@@ -98,6 +116,201 @@ test("CRM dashboard serializes queries on a transaction client", async () => {
 
   await getCrmDashboard(client, {
     organizationId: "00000000-0000-4000-8000-000000000000",
+    activeCompanyId: null,
+    activeBranchId: null,
+    allowAllCompanies: true,
   });
   assert.equal(calls, 4);
+});
+
+
+test("company and branch scope is applied to CRM record lists", async () => {
+  let captured = "";
+  const client = {
+    async query(text) {
+      captured = text;
+      return { rows: [] };
+    },
+  };
+  await listCrmRecords(
+    client,
+    {
+      organizationId: "00000000-0000-4000-8000-000000000000",
+      userId: "00000000-0000-4000-8000-000000000001",
+      activeCompanyId: "00000000-0000-4000-8000-000000000002",
+      activeBranchId: "00000000-0000-4000-8000-000000000003",
+      allowAllCompanies: false,
+    },
+    "leads",
+    {},
+  );
+  assert.match(captured, /record\.company_id IS NULL/);
+  assert.match(captured, /record\.branch_id IS NULL/);
+});
+
+test("governed opportunity fields cannot be changed through generic PATCH", async () => {
+  const client = {
+    async query() {
+      return {
+        rows: [
+          {
+            id: "00000000-0000-4000-8000-000000000010",
+            organization_id: "00000000-0000-4000-8000-000000000000",
+            company_id: "00000000-0000-4000-8000-000000000002",
+            branch_id: null,
+            stage_id: "00000000-0000-4000-8000-000000000011",
+            pipeline_id: "00000000-0000-4000-8000-000000000012",
+            probability: 25,
+            forecast_category: "pipeline",
+            status: "open",
+          },
+        ],
+      };
+    },
+  };
+  await assert.rejects(
+    () =>
+      updateCrmRecord(
+        client,
+        {
+          organizationId: "00000000-0000-4000-8000-000000000000",
+          userId: "00000000-0000-4000-8000-000000000001",
+          activeCompanyId: "00000000-0000-4000-8000-000000000002",
+          activeBranchId: null,
+          allowAllCompanies: false,
+        },
+        "opportunities",
+        "00000000-0000-4000-8000-000000000010",
+        { stageId: "00000000-0000-4000-8000-000000000099" },
+      ),
+    /governed opportunity stage action/,
+  );
+});
+
+
+test("consent evidence is immutable", async () => {
+  const client = {
+    async query() {
+      return {
+        rows: [
+          {
+            id: "00000000-0000-4000-8000-000000000020",
+            organization_id: "00000000-0000-4000-8000-000000000000",
+            company_id: "00000000-0000-4000-8000-000000000002",
+            channel: "email",
+            purpose: "sales",
+            action: "granted",
+          },
+        ],
+      };
+    },
+  };
+  await assert.rejects(
+    () =>
+      updateCrmRecord(
+        client,
+        {
+          organizationId: "00000000-0000-4000-8000-000000000000",
+          userId: "00000000-0000-4000-8000-000000000001",
+          activeCompanyId: "00000000-0000-4000-8000-000000000002",
+          activeBranchId: null,
+          allowAllCompanies: false,
+        },
+        "consent-events",
+        "00000000-0000-4000-8000-000000000020",
+        { action: "withdrawn" },
+      ),
+    /immutable/,
+  );
+});
+
+test("forecast submissions enforce governed status transitions", async () => {
+  const client = {
+    async query() {
+      return {
+        rows: [
+          {
+            id: "00000000-0000-4000-8000-000000000030",
+            organization_id: "00000000-0000-4000-8000-000000000000",
+            company_id: "00000000-0000-4000-8000-000000000002",
+            status: "approved",
+          },
+        ],
+      };
+    },
+  };
+  await assert.rejects(
+    () =>
+      updateCrmRecord(
+        client,
+        {
+          organizationId: "00000000-0000-4000-8000-000000000000",
+          userId: "00000000-0000-4000-8000-000000000001",
+          activeCompanyId: "00000000-0000-4000-8000-000000000002",
+          activeBranchId: null,
+          allowAllCompanies: false,
+        },
+        "forecast-submissions",
+        "00000000-0000-4000-8000-000000000030",
+        { status: "draft" },
+      ),
+    /cannot move from approved to draft/,
+  );
+});
+
+test("CRM shared option parameters are explicitly typed", async () => {
+  let calls = 0;
+  const client = {
+    async query(text, values) {
+      assert.match(text, /\$1::uuid AS organization_id/);
+      assert.match(text, /\$2::uuid AS active_company_id/);
+      assert.match(text, /\$3::uuid AS active_branch_id/);
+      assert.match(text, /\$4::boolean AS allow_all_companies/);
+      assert.equal(values.length, 4);
+      calls += 1;
+      return { rows: [] };
+    },
+  };
+
+  await getCrmOptions(client, {
+    organizationId: "00000000-0000-4000-8000-000000000000",
+    activeCompanyId: null,
+    activeBranchId: null,
+    allowAllCompanies: true,
+  });
+  assert.equal(calls, 23);
+});
+
+test("CRM report parameters are explicitly typed for every report shape", async () => {
+  const client = {
+    async query(text, values) {
+      for (const marker of [
+        /\$1::uuid AS organization_id/,
+        /\$2::uuid AS active_company_id/,
+        /\$3::uuid AS active_branch_id/,
+        /\$4::boolean AS allow_all_companies/,
+        /\$5::date AS date_from/,
+        /\$6::date AS date_to/,
+      ])
+        assert.match(text, marker);
+      assert.equal(values.length, 6);
+      return { rows: [] };
+    },
+  };
+  const context = {
+    organizationId: "00000000-0000-4000-8000-000000000000",
+    activeCompanyId: null,
+    activeBranchId: null,
+    allowAllCompanies: true,
+  };
+
+  for (const report of [
+    "pipeline",
+    "campaigns",
+    "revenue-operations",
+    "account-health",
+    "privacy",
+  ]) {
+    await getCrmReport(client, context, report);
+  }
 });

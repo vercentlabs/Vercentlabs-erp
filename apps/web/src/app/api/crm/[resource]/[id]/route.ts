@@ -7,7 +7,7 @@ import { getSessionContext } from "@/lib/auth";
 import {
   assertCrmIdentifier,
   requireCrmManage,
-  requireCrmView,
+  requireCrmResourceView,
 } from "@/lib/crm-api";
 import {
   crmContext,
@@ -32,7 +32,7 @@ export async function GET(
     if (!isCrmDefinition(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     assertCrmIdentifier(id);
-    requireCrmView(session);
+    requireCrmResourceView(session, resource);
     const context = crmContext(session);
     const record = await tenantTransaction(context.organizationId, (client) =>
       getCrmRecord(client, context, resource, id),

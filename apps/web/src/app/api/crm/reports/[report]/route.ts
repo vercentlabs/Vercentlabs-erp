@@ -1,7 +1,7 @@
 import { getCrmReport } from "@vercent/api";
 import { getSessionContext } from "@/lib/auth";
 import { crmContext, rethrowCrmError } from "@/lib/crm";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { requireCrmReportView } from "@/lib/crm-api";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
 export async function GET(
@@ -11,8 +11,8 @@ export async function GET(
   try {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmReportsView);
     const { report } = await route.params;
+    requireCrmReportView(session, report);
     const url = new URL(request.url);
     const context = crmContext(session);
     const result = await tenantTransaction(context.organizationId, (client) =>

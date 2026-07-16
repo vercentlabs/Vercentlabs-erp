@@ -21,6 +21,21 @@ export const CRM_RESOURCE_KEYS: readonly [
   "integrations",
   "webhook-subscriptions",
   "saved-views",
+  "sales-teams",
+  "sales-team-members",
+  "territories",
+  "territory-assignments",
+  "quota-plans",
+  "forecast-periods",
+  "forecast-submissions",
+  "account-plans",
+  "account-stakeholders",
+  "playbooks",
+  "playbook-questions",
+  "playbook-responses",
+  "consent-events",
+  "privacy-requests",
+  "data-quality-scores",
 ];
 export type CrmResourceKey = (typeof CRM_RESOURCE_KEYS)[number];
 export const CRM_LEAD_STATUSES: readonly string[];
