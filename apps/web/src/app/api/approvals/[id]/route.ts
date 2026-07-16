@@ -1,3 +1,7 @@
+import {
+  incrementBillingUsage,
+  requireBillingWriteAccess,
+} from "@/lib/billing";
 import { randomUUID } from "node:crypto";
 
 import { requirePermission } from "@/lib/authorization";
@@ -13,6 +17,8 @@ export async function PATCH(
   try {
     assertSameOrigin(request);
     const session = await requirePermission("approvals.manage");
+    await requireBillingWriteAccess(session.organizationId);
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await context.params;
     const input = approvalDecisionSchema.parse(await readJson(request));
     const rows = await query<{

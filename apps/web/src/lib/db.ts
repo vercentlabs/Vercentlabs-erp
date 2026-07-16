@@ -1,3 +1,4 @@
+import { setTenantContext } from "@vercent/database";
 import { Pool, PoolClient, QueryResultRow } from "pg";
 
 declare global {
@@ -49,4 +50,14 @@ export async function transaction<T>(
   } finally {
     client.release();
   }
+}
+
+export async function tenantTransaction<T>(
+  organizationId: string,
+  work: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return transaction(async (client) => {
+    await setTenantContext(client, organizationId);
+    return work(client);
+  });
 }

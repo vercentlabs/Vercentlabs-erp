@@ -17,9 +17,22 @@ type NavigationItem = {
 
 const primaryNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/crm", label: "CRM", icon: "crm", permission: PERMISSIONS.crmView },
+  {
+    href: "/master-data",
+    label: "Master data",
+    icon: "modules",
+    permission: PERMISSIONS.businessDataView,
+  },
   { href: "/modules", label: "Modules", icon: "modules" },
   { href: "/approvals", label: "Approvals", icon: "approvals" },
   { href: "/notifications", label: "Notifications", icon: "notifications" },
+  {
+    href: "/billing",
+    label: "Billing",
+    icon: "billing",
+    permission: PERMISSIONS.billingView,
+  },
   {
     href: "/audit-logs",
     label: "Audit logs",
@@ -274,7 +287,7 @@ export default function AppShell({
               autoComplete="off"
               id="global-search"
               name="q"
-              placeholder="Search companies, branches, departments or users"
+              placeholder="Search partners, items, companies, branches or users"
               type="search"
             />
             <span className="search-scope" aria-hidden="true">

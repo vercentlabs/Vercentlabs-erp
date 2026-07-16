@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
+import "./business-data-extension.css";
+import "./crm-extension.css";
+import "./billing-extension.css";
 
 export const metadata: Metadata = {
   title: { default: "Vercent ERP", template: "%s | Vercent ERP" },

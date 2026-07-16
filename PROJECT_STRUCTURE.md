@@ -26,7 +26,7 @@ VERCENTLABS ERP/
 │  └─ tenant/{migrations,seeds,policies,views,functions}/
 ├─ infrastructure/{docker,kubernetes,terraform}/
 ├─ scripts/{devex,database,deployment,validation}/
-├─ docs/{architecture,database,api,deployment,modules}/
+├─ docs/{architecture,database,api,deployment,modules,commercial}/
 ├─ tests/{integration,e2e,security}/
 └─ .github/workflows/
 ```
@@ -41,3 +41,15 @@ VERCENTLABS ERP/
 - Tenant migrations own ERP business records.
 - Secrets belong only in ignored local environment files.
 - Commands and paths use capability names, never milestone names such as phase1 or phase2.
+
+## Business Data Foundation
+
+- Reusable business queries and mutations belong in `services/api`.
+- ERP master records belong in the PostgreSQL `tenant` schema.
+- Authenticated tenant Route Handlers remain thin adapters in `apps/web`.
+- Shared business resource contracts belong in `packages/shared-types`.
+- Tenant-context helpers belong in `packages/database`.
+
+## CRM boundary
+
+- CRM canonical SQL is `database/tenant/migrations/002_crm_module.sql`; reusable CRM services live in `services/api/src/crm.js`; current route adapters and presentation live in `apps/web`.

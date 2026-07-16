@@ -1,5 +1,16 @@
-# Tenant Database
+# Tenant Business Database
 
-ERP business-module records belong here. Control-plane identity, organisation,
-membership, role, session, audit and onboarding data remain in `database/control-plane`.
-Tenant migrations must include tenant isolation and integration tests.
+This directory owns ERP business records. Identity, organisations, roles,
+sessions and platform administration remain in `database/control-plane`.
+
+## Structure
+
+- `migrations/` — immutable tenant-schema migrations
+- `seeds/` — optional controlled reference-data seeds
+- `policies/` — tenant and business access policy documentation
+- `views/` — governed reporting views
+- `functions/` — tenant database functions
+
+The first business migration establishes trusted partners, product masters,
+warehouse structure and finance setup. All runtime access must use an
+authenticated tenant transaction.

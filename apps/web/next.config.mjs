@@ -8,9 +8,11 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "img-src 'self' data: blob:",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'" + (isProduction ? "" : " 'unsafe-eval'"),
+  "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com" +
+    (isProduction ? "" : " 'unsafe-eval'"),
   "style-src 'self' 'unsafe-inline'",
-  "connect-src 'self'",
+  "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
+  "frame-src https://api.razorpay.com https://checkout.razorpay.com",
   "worker-src 'self' blob:",
 ].join("; ");
 
@@ -19,6 +21,12 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  transpilePackages: [
+    "@vercent/api",
+    "@vercent/database",
+    "@vercent/shared-sdk",
+    "@vercent/shared-types",
+  ],
   async headers() {
     return [
       {

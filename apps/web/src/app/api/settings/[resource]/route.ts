@@ -1,3 +1,8 @@
+import {
+  assertOrganizationLimit,
+  incrementBillingUsage,
+  requireBillingWriteAccess,
+} from "@/lib/billing";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession } from "@/lib/authorization";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
@@ -25,6 +30,14 @@ export async function POST(
       session,
       resourceDefinitions[resource].permission,
     );
+    await requireBillingWriteAccess(session.organizationId);
+    if (resource === "companies") {
+      await assertOrganizationLimit(session.organizationId, "companies");
+    }
+    if (resource === "branches") {
+      await assertOrganizationLimit(session.organizationId, "branches");
+    }
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const input = resourceSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;

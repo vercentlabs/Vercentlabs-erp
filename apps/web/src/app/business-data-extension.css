@@ -1,0 +1,329 @@
+/* Vercent ERP business-data foundation */
+.business-data-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+  gap: 24px;
+  align-items: start;
+}
+
+.business-data-list-panel {
+  min-width: 0;
+}
+
+.business-data-toolbar,
+.business-data-toolbar-actions,
+.business-data-form-actions,
+.business-data-row-actions,
+.business-data-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.business-data-toolbar {
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.business-data-toolbar h2 {
+  margin-top: 4px;
+}
+
+.business-data-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.business-data-filters {
+  align-items: end;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-subtle);
+}
+
+.business-data-filters label {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+.business-data-filters label:last-child {
+  flex: 0 1 220px;
+}
+
+.business-data-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.business-data-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.business-data-table th,
+.business-data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.business-data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-subtle);
+  color: var(--color-ink-secondary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.business-data-table td {
+  color: var(--color-ink-secondary);
+  font-size: 0.875rem;
+}
+
+.business-data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.business-data-table tbody tr:hover td {
+  background: #fbfcff;
+}
+
+.business-data-row-actions {
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.business-data-editor {
+  position: sticky;
+  top: 92px;
+  max-height: calc(100vh - 116px);
+  overflow-y: auto;
+}
+
+.business-data-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.business-data-form > label,
+.business-data-form > .checkbox-row {
+  margin: 0;
+}
+
+.business-data-form > label:has(textarea),
+.business-data-form > .checkbox-row,
+.business-data-form-actions {
+  grid-column: 1 / -1;
+}
+
+.business-data-form textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.business-data-form-actions {
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.icon-button:hover {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.link-button.danger {
+  color: var(--color-danger);
+}
+
+.link-button.danger:hover {
+  background: var(--color-danger-soft);
+}
+
+.notice.success {
+  border-color: #abefc6;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.business-data-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.business-data-overview-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 108px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-subtle);
+}
+
+.business-data-overview-card > span {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.business-data-overview-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.business-data-overview-card small {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.business-data-overview-card strong {
+  color: var(--color-ink);
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.master-data-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.master-data-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 128px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-subtle);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.master-data-card:hover {
+  border-color: var(--color-primary-border);
+  box-shadow: var(--shadow-panel);
+  transform: translateY(-2px);
+}
+
+.master-data-card-icon {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.master-data-card div {
+  display: grid;
+  gap: 5px;
+}
+
+.master-data-card strong {
+  color: var(--color-ink);
+}
+
+.master-data-card span:not(.master-data-card-icon) {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 1180px) {
+  .business-data-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .business-data-editor {
+    position: static;
+    max-height: none;
+  }
+
+  .business-data-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .master-data-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .business-data-toolbar,
+  .business-data-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-data-toolbar-actions,
+  .business-data-form-actions {
+    justify-content: stretch;
+  }
+
+  .business-data-toolbar-actions > *,
+  .business-data-form-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .business-data-form,
+  .business-data-overview,
+  .master-data-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .business-data-form > label,
+  .business-data-form > .checkbox-row,
+  .business-data-form-actions {
+    grid-column: auto;
+  }
+
+  .master-data-card {
+    min-height: 112px;
+  }
+}

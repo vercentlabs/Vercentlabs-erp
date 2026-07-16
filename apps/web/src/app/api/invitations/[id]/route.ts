@@ -1,3 +1,7 @@
+import {
+  incrementBillingUsage,
+  requireBillingWriteAccess,
+} from "@/lib/billing";
 import { createOpaqueToken, getSessionContext, tokenHash } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { query } from "@/lib/db";
@@ -18,6 +22,13 @@ export async function PATCH(
     requirePermissionFromSession(session, PERMISSIONS.usersManage);
     const { id } = await context.params;
     const input = invitationActionSchema.parse(await readJson(request));
+    if (input.action !== "revoke") {
+      await requireBillingWriteAccess(session.organizationId);
+      await incrementBillingUsage(
+        session.organizationId,
+        "api_requests_monthly",
+      );
+    }
     const rows = await query<{
       email: string;
       accepted_at: Date | null;

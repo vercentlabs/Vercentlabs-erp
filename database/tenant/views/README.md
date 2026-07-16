@@ -1,3 +1,4 @@
-# Reserved Boundary
+# Tenant Views
 
-Permanent project boundary.
+Governed cross-module reporting views belong here. No reporting view should
+weaken tenant or company isolation.

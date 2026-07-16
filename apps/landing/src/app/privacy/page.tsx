@@ -1,14 +1,13 @@
-import { createPageMetadata } from "@/lib/metadata";
-
 import LegalPage, {
   type LegalSection,
 } from "@/components/marketing/legal-page";
 import { landingConfig } from "@/lib/landing-config";
+import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "Privacy Policy",
+  title: "VercentLabs Privacy Policy",
   description:
-    "Review how VercentLabs handles website, demo and account information.",
+    "Review how VercentLabs handles website, workspace, billing and payment-related personal information.",
   path: "/privacy",
 });
 
@@ -16,59 +15,56 @@ const sections: LegalSection[] = [
   {
     title: "1. Scope",
     paragraphs: [
-      "This policy describes personal information handled through the public VercentLabs landing application, contact forms and early-access request forms.",
-      "It does not yet describe customer production ERP processing. Any production service will require separate customer agreements, security documentation and processing terms.",
+      "This policy covers personal information handled through the VercentLabs website, enquiries, trials, authenticated ERP workspaces, support and subscription billing.",
+      "A customer organisation controls the business data it enters into the ERP. A production agreement should identify controller, processor and sub-processor responsibilities for that deployment.",
     ],
   },
   {
     title: "2. Information collected",
     paragraphs: [
-      "VercentLabs may collect information that you choose to submit through the website.",
-    ],
-    bullets: [
-      "Name, work email, phone number and organisation",
-      "ERP interests, team size and business requirements",
-      "Messages, partnership enquiries and implementation context",
-      "Basic technical logs required to operate and secure the website",
+      "We may collect account identity, contact details, organisation information, access logs, security events, support communications, product usage, billing profile, GSTIN, invoice details and subscription status.",
+      "Payment credentials are entered into the payment provider's checkout. VercentLabs stores provider identifiers, payment status, amounts, fees, tax and invoice metadata needed for reconciliation, but should not store full card, bank or UPI credentials.",
     ],
   },
   {
     title: "3. Purposes",
     paragraphs: [
-      "Submitted information is used to respond to enquiries, evaluate early-access or design-partner fit, plan product discussions, prevent abuse and maintain the website.",
+      "Information is used to create and secure accounts, provide the ERP, enforce permissions and plan limits, process subscriptions, reconcile payments, prevent abuse, deliver support, maintain audit history and meet legal obligations.",
+      "Product analytics should be minimised and used to improve reliability, adoption and cost planning rather than to sell personal information.",
     ],
   },
   {
-    title: "4. Sharing",
+    title: "4. Payment providers and processors",
     paragraphs: [
-      "Information may be processed by hosting, communication, security or enquiry-management providers used by VercentLabs. Information is not presented as being sold to advertisers.",
-      "Information may also be disclosed when required by applicable law or necessary to protect the rights, security and integrity of the company, users or services.",
+      "Razorpay or another disclosed provider may process payment authorisation, mandates and collections. The provider receives information required to complete the transaction and applies its own terms and privacy policy.",
+      "Hosting, email, monitoring, support and infrastructure providers may process limited information under contractual and security controls appropriate to their role.",
     ],
   },
   {
-    title: "5. Retention and security",
+    title: "5. Security and access",
     paragraphs: [
-      "Enquiry information should be retained only for as long as reasonably required for the stated purpose, business records, dispute handling and applicable legal obligations.",
-      "Reasonable organisational and technical safeguards should be applied. No internet service can promise absolute security.",
+      "VercentLabs uses role-based access, organisation scoping, session controls, audit records and technical safeguards designed to protect information. No service can guarantee absolute security.",
+      "Customers are responsible for configuring access, protecting credentials, reviewing authorised users and promptly reporting suspected compromise.",
     ],
   },
   {
-    title: "6. Your choices",
+    title: "6. Retention and deletion",
     paragraphs: [
-      "You may ask VercentLabs to review, correct or delete enquiry information, subject to applicable law and legitimate record-keeping requirements.",
-      "Send privacy requests to " + landingConfig.contactEmail + ".",
+      "Information is retained while needed to provide the service, resolve disputes, reconcile financial records, maintain security evidence and satisfy legal or contractual requirements.",
+      "Payment, invoice, audit and tax-related records may require longer retention than ordinary workspace content. Deletion requests are evaluated against those obligations.",
     ],
   },
   {
-    title: "7. Children",
+    title: "7. Rights and choices",
     paragraphs: [
-      "The public ERP website is intended for business and professional audiences and is not designed to knowingly collect personal information from children.",
+      "Depending on applicable law and the customer's role, a person may request access, correction, export, withdrawal of consent or deletion. Requests involving customer-controlled ERP data may need to be directed to the relevant customer organisation.",
+      "Marketing communication preferences can be changed without affecting essential account, security or billing notices.",
     ],
   },
   {
-    title: "8. Changes",
+    title: "8. Contact",
     paragraphs: [
-      "This policy may change as the product, website, service providers and applicable obligations evolve. The updated date will be revised when material changes are published.",
+      `Privacy questions may be sent to ${landingConfig.contactEmail}. Production customers should also use the privacy and security contacts stated in their signed agreement.`,
     ],
   },
 ];
@@ -76,10 +72,10 @@ const sections: LegalSection[] = [
 export default function PrivacyPage() {
   return (
     <LegalPage
-      eyebrow="Legal"
-      title="Privacy Policy"
-      description="A transparent description of the information currently handled through the VercentLabs public website."
-      updated="12 July 2026"
+      eyebrow="Privacy"
+      title="Privacy across the website, ERP workspace and billing"
+      description="This policy explains the baseline handling of account, business, usage and subscription information."
+      updated="16 July 2026"
       sections={sections}
     />
   );

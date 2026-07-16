@@ -2,7 +2,7 @@
   "name": "vercentlabs-erp",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.13.0",
+  "packageManager": "pnpm@10.28.2",
   "scripts": {
     "dev:landing": "pnpm --filter @vercent/landing dev",
     "build:landing": "pnpm --filter @vercent/landing build",
@@ -25,6 +25,17 @@
     "db:verify:control": "pnpm --filter @vercent/web verify:database",
     "email:verify": "pnpm --filter @vercent/web email:verify",
     "verify:platform-foundation": "node scripts/validation/verify-platform-foundation.mjs",
-    "verify:web-experience": "pnpm --filter @vercent/web verify:experience"
+    "verify:web-experience": "pnpm --filter @vercent/web verify:experience",
+    "db:migrate:tenant": "pnpm --filter @vercent/web db:migrate:tenant",
+    "db:verify:tenant": "pnpm --filter @vercent/web verify:tenant-database",
+    "verify:business-data": "pnpm --filter @vercent/web verify:business-data && pnpm --filter @vercent/api test && pnpm --filter @vercent/shared-sdk test",
+    "verify:crm": "pnpm --filter @vercent/web verify:crm && pnpm --filter @vercent/api test && pnpm --filter @vercent/shared-sdk test",
+    "db:verify:crm": "pnpm --filter @vercent/web verify:crm-database",
+    "crm:jobs": "pnpm --filter @vercent/web crm:jobs",
+    "verify:billing": "pnpm --filter @vercent/web verify:billing && pnpm --filter @vercent/api test && pnpm --filter @vercent/shared-sdk test && node scripts/validation/verify-commercial-readiness.mjs",
+    "db:verify:billing": "pnpm --filter @vercent/web verify:billing-database",
+    "billing:sync-plans": "pnpm --filter @vercent/web billing:sync-plans",
+    "billing:reconcile": "pnpm --filter @vercent/web billing:reconcile",
+    "verify:commercial-readiness": "node scripts/validation/verify-commercial-readiness.mjs"
   }
 }

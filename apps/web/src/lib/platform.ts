@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
+
+import { seedBusinessDataFoundation } from "@vercent/api";
+import { setTenantContext } from "@vercent/database";
 import type { PoolClient } from "pg";
 
 import type { SessionContext } from "@/lib/auth";
+import { ensureOrganizationBilling } from "@/lib/billing";
 import { query } from "@/lib/db";
 
 export const moduleCatalog = [
@@ -116,38 +120,148 @@ const allPermissions = [
   "approvals.manage",
   "profile.manage",
   "sessions.manage",
+  "business_data.view",
+  "parties.manage",
+  "items.manage",
+  "inventory_setup.manage",
+  "finance_setup.manage",
+  "business_data.import",
+  "crm.view",
+  "crm.leads.manage",
+  "crm.opportunities.manage",
+  "crm.activities.manage",
+  "crm.campaigns.manage",
+  "crm.communications.manage",
+  "crm.automation.manage",
+  "crm.capture.manage",
+  "crm.import",
+  "crm.export",
+  "crm.reports.view",
+  "crm.settings.manage",
+  "billing.view",
+  "billing.manage",
+  "billing.checkout",
+  "billing.audit",
+];
+
+const baseWorkspacePermissions = [
+  "workspace.view",
+  "notifications.view",
+  "profile.manage",
+];
+
+const crmSalesPermissions = [
+  "crm.view",
+  "crm.leads.manage",
+  "crm.opportunities.manage",
+  "crm.activities.manage",
+  "crm.campaigns.manage",
+  "crm.communications.manage",
+  "crm.automation.manage",
+  "crm.capture.manage",
+  "crm.import",
+  "crm.export",
+  "crm.reports.view",
+  "crm.settings.manage",
 ];
 
 function permissionsForRole(slug: string) {
-  if (["organization_owner", "system_administrator"].includes(slug))
+  if (["organization_owner", "system_administrator"].includes(slug)) {
     return allPermissions;
-  if (slug === "company_administrator")
-    return allPermissions.filter((key) => key !== "organization.manage");
-  if (
-    [
-      "finance_manager",
-      "sales_manager",
-      "purchase_manager",
-      "inventory_manager",
-      "manufacturing_manager",
-      "hr_manager",
-    ].includes(slug)
-  ) {
+  }
+
+  if (slug === "company_administrator") {
+    return allPermissions.filter(
+      (key) =>
+        key !== "organization.manage" &&
+        !["billing.manage", "billing.checkout", "billing.audit"].includes(key),
+    );
+  }
+
+  if (slug === "finance_manager") {
     return [
-      "workspace.view",
-      "notifications.view",
-      "profile.manage",
+      ...baseWorkspacePermissions,
       "approvals.manage",
+      "business_data.view",
+      "parties.manage",
+      "finance_setup.manage",
+      "billing.view",
+      "billing.manage",
+      "billing.checkout",
+      "billing.audit",
     ];
   }
-  if (slug === "auditor")
+
+  if (slug === "sales_manager") {
     return [
-      "workspace.view",
-      "audit.view",
-      "notifications.view",
-      "profile.manage",
+      ...baseWorkspacePermissions,
+      "approvals.manage",
+      "business_data.view",
+      "parties.manage",
+      ...crmSalesPermissions,
     ];
-  return ["workspace.view", "notifications.view", "profile.manage"];
+  }
+
+  if (slug === "purchase_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "approvals.manage",
+      "business_data.view",
+      "parties.manage",
+    ];
+  }
+
+  if (["inventory_manager", "manufacturing_manager"].includes(slug)) {
+    return [
+      ...baseWorkspacePermissions,
+      "approvals.manage",
+      "business_data.view",
+      "items.manage",
+      "inventory_setup.manage",
+    ];
+  }
+
+  if (slug === "hr_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "approvals.manage",
+      "business_data.view",
+    ];
+  }
+
+  if (slug === "employee") {
+    return [
+      ...baseWorkspacePermissions,
+      "business_data.view",
+      "crm.view",
+      "crm.leads.manage",
+      "crm.opportunities.manage",
+      "crm.activities.manage",
+      "crm.communications.manage",
+      "crm.export",
+      "crm.reports.view",
+    ];
+  }
+
+  if (slug === "auditor") {
+    return [
+      ...baseWorkspacePermissions,
+      "audit.view",
+      "business_data.view",
+      "crm.view",
+      "crm.export",
+      "crm.reports.view",
+      "billing.view",
+      "billing.audit",
+    ];
+  }
+
+  return [
+    ...baseWorkspacePermissions,
+    "business_data.view",
+    "crm.view",
+    "crm.reports.view",
+  ];
 }
 
 export async function seedOrganizationFoundation(
@@ -230,12 +344,28 @@ export async function seedOrganizationFoundation(
     ["invoice", "INV-"],
     ["employee", "EMP-"],
     ["asset", "AST-"],
+    ["business_party", "PTY-"],
+    ["contact", "CON-"],
+    ["item", "ITM-"],
+    ["warehouse", "WH-"],
+    ["price_list", "PL-"],
   ] as const) {
     await client.query(
       "INSERT INTO numbering_series (organization_id, entity_type, prefix) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
       [input.organizationId, entityType, prefix],
     );
   }
+
+  await setTenantContext(client, input.organizationId);
+  await seedBusinessDataFoundation(client, {
+    organizationId: input.organizationId,
+    userId: input.ownerUserId,
+  });
+
+  await ensureOrganizationBilling(client, {
+    organizationId: input.organizationId,
+    ownerUserId: input.ownerUserId,
+  });
 
   await client.query(
     `

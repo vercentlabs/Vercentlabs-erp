@@ -17,3 +17,15 @@ Development verification, password-reset and invitation URLs are displayed only 
 ## Web experience system
 
 The authenticated workspace follows the permanent design guidance in `docs/design/web-experience-system.md`. Run `pnpm verify:web-experience` to validate its core contracts.
+
+## CRM
+
+The authenticated CRM workspace is available at `/crm`. Run `pnpm verify:crm` and `pnpm db:verify:crm` after CRM changes.
+
+## Billing and Razorpay
+
+- `pnpm billing:sync-plans` validates plan economics and creates missing Razorpay plans.
+- `pnpm billing:reconcile` refreshes provider subscription status.
+- `pnpm db:verify:billing` verifies the commercial schema.
+- `pnpm verify:billing` verifies billing source, API, SDK and margin contracts.
+- Keep Test Mode and observe mode enabled until public HTTPS webhook and recovery tests pass.

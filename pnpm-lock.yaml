@@ -90,6 +90,18 @@ importers:
 
   apps/web:
     dependencies:
+      '@vercent/api':
+        specifier: workspace:*
+        version: link:../../services/api
+      '@vercent/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@vercent/shared-sdk':
+        specifier: workspace:*
+        version: link:../../packages/shared-sdk
+      '@vercent/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2
@@ -139,6 +151,20 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/database: {}
+
+  packages/permissions: {}
+
+  packages/shared-sdk: {}
+
+  packages/shared-types: {}
+
+  services/api:
+    dependencies:
+      '@vercent/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
 
 packages:
 

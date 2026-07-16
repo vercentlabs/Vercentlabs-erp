@@ -1,3 +1,8 @@
+import {
+  assertModuleEntitlement,
+  incrementBillingUsage,
+  requireBillingWriteAccess,
+} from "@/lib/billing";
 import { requirePermission } from "@/lib/authorization";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
@@ -16,6 +21,11 @@ export async function PATCH(
     if (!moduleCatalog.some((module) => module.key === key))
       throw new HttpError(404, "Module not found.");
     const input = moduleStatusSchema.parse(await readJson(request));
+    await requireBillingWriteAccess(session.organizationId);
+    if (input.status === "enabled") {
+      await assertModuleEntitlement(session.organizationId, key);
+    }
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const before = await query<{ module_key: string; status: string }>(
       `
       SELECT module_key,status FROM organization_modules WHERE organization_id=$1 AND module_key=$2

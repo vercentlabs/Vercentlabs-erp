@@ -10,13 +10,23 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test",
     "verify:foundation": "node scripts/verify-foundation.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:cleanup-auth": "node scripts/cleanup-auth.mjs",
     "verify:database": "node scripts/verify-database.mjs",
     "email:verify": "node scripts/verify-email-delivery.mjs",
-    "verify:experience": "node --test tests/design-system.test.mjs"
+    "verify:experience": "node --test tests/design-system.test.mjs",
+    "db:migrate:tenant": "node scripts/migrate-tenant.mjs",
+    "verify:tenant-database": "node scripts/verify-tenant-database.mjs",
+    "verify:business-data": "node scripts/verify-business-data.mjs",
+    "verify:crm": "node scripts/verify-crm.mjs",
+    "verify:crm-database": "node scripts/verify-crm-database.mjs",
+    "crm:jobs": "node scripts/process-crm-jobs.mjs",
+    "verify:billing": "node scripts/verify-billing.mjs",
+    "verify:billing-database": "node scripts/verify-billing-database.mjs",
+    "billing:sync-plans": "node scripts/sync-razorpay-plans.mjs",
+    "billing:reconcile": "node scripts/reconcile-razorpay-billing.mjs"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
@@ -25,7 +35,11 @@
     "pg": "^8.16.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@vercent/api": "workspace:*",
+    "@vercent/database": "workspace:*",
+    "@vercent/shared-sdk": "workspace:*",
+    "@vercent/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20",

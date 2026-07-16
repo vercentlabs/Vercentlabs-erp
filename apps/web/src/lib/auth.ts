@@ -33,6 +33,10 @@ export type SessionContext = {
   branchName: string | null;
 };
 
+export type WorkspaceSessionContext = SessionContext & {
+  organizationId: string;
+};
+
 export async function hashPassword(password: string) {
   const salt = randomBytes(16);
   const derived = (await scrypt(password, salt, 64)) as Buffer;
@@ -281,10 +285,10 @@ export async function requireVerifiedUser() {
   return session;
 }
 
-export async function requireWorkspace() {
+export async function requireWorkspace(): Promise<WorkspaceSessionContext> {
   const session = await requireVerifiedUser();
   if (!session.organizationId) redirect("/onboarding");
-  return session;
+  return session as WorkspaceSessionContext;
 }
 
 export function nextPath(session: SessionContext) {

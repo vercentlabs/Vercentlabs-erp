@@ -1,3 +1,7 @@
+import {
+  incrementBillingUsage,
+  requireBillingWriteAccess,
+} from "@/lib/billing";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { transaction } from "@/lib/db";
@@ -15,6 +19,8 @@ export async function PATCH(
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
     requirePermissionFromSession(session, PERMISSIONS.rolesManage);
+    await requireBillingWriteAccess(session.organizationId);
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await context.params;
     const input = roleSchema.parse(await readJson(request));
     await transaction(async (client) => {
