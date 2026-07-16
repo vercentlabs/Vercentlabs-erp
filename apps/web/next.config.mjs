@@ -24,7 +24,7 @@ const nextConfig = {
   transpilePackages: [
     "@vercent/api",
     "@vercent/database",
-    "@vercent/shared-sdk",
+    "@vercent/permissions",
     "@vercent/shared-types",
   ],
   async headers() {

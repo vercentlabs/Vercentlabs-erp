@@ -46,11 +46,10 @@ export async function POST(
     requirePermissionFromSession(session, PERMISSIONS.businessDataImport);
 
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-
     const envelope = businessDataImportEnvelopeSchema.parse(
       await readJson(request),
     );
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     await incrementBillingUsage(
       session.organizationId,
       "imports_rows_monthly",

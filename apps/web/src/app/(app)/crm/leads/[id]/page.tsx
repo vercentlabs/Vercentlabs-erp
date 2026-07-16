@@ -68,16 +68,16 @@ export default async function LeadDetailPage({
     <>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">Lead Ã‚Â· {String(lead.code)}</p>
+          <p className="eyebrow">Lead · {String(lead.code)}</p>
           <h1>{String(lead.fullName || lead.companyName || "Lead")}</h1>
           <p>
             {[lead.companyName, lead.jobTitle, lead.email, lead.mobile]
               .filter(Boolean)
-              .join(" Ã‚Â· ")}
+              .join(" · ")}
           </p>
         </div>
         <span className="status-badge neutral">
-          {nice(String(lead.status))} Ã‚Â· score {String(lead.score || 0)}
+          {nice(String(lead.status))} · score {String(lead.score || 0)}
         </span>
       </section>
       {hasPermission(session, PERMISSIONS.crmLeadsManage) ? (
@@ -103,7 +103,7 @@ export default async function LeadDetailPage({
                   <dt>{nice(key.replace(/([A-Z])/g, " $1"))}</dt>
                   <dd>
                     {value === null || value === ""
-                      ? "Ã¢â‚¬â€"
+                      ? "—"
                       : typeof value === "object"
                         ? JSON.stringify(value)
                         : String(value)}
@@ -205,7 +205,7 @@ export default async function LeadDetailPage({
                 </small>
               </span>
               <b>
-                {String(row.previous_score)} Ã¢â€ â€™ {String(row.new_score)}
+                {String(row.previous_score)} → {String(row.new_score)}
               </b>
             </div>
           ))}

@@ -1177,7 +1177,7 @@ export async function seedBusinessDataFoundation(client, context) {
           organization_id, code, name, symbol, decimal_places,
           is_base, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $2 = $6, $7, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
         ON CONFLICT (organization_id, code) DO UPDATE SET
           name = EXCLUDED.name,
           symbol = EXCLUDED.symbol,
@@ -1192,7 +1192,7 @@ export async function seedBusinessDataFoundation(client, context) {
         name,
         symbol,
         decimalPlaces,
-        String(organization.base_currency).trim(),
+        code === String(organization.base_currency).trim(),
         context.userId,
       ],
     );

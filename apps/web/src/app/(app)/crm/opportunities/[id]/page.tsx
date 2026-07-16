@@ -67,7 +67,7 @@ export default async function OpportunityDetailPage({
     <>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">Opportunity Ã‚Â· {String(record.code)}</p>
+          <p className="eyebrow">Opportunity · {String(record.code)}</p>
           <h1>{String(record.name)}</h1>
           <p>
             {String(
@@ -78,7 +78,7 @@ export default async function OpportunityDetailPage({
           </p>
         </div>
         <span className="status-badge neutral">
-          {nice(String(record.status))} Ã‚Â· {String(record.probability)}%
+          {nice(String(record.status))} · {String(record.probability)}%
         </span>
       </section>
       {hasPermission(session, PERMISSIONS.crmOpportunitiesManage) ? (
@@ -103,7 +103,7 @@ export default async function OpportunityDetailPage({
                   <dt>{nice(key.replace(/([A-Z])/g, " $1"))}</dt>
                   <dd>
                     {value === null || value === ""
-                      ? "Ã¢â‚¬â€"
+                      ? "—"
                       : typeof value === "object"
                         ? JSON.stringify(value)
                         : String(value)}
@@ -118,10 +118,10 @@ export default async function OpportunityDetailPage({
           <div className="crm-timeline">
             {data.history.map((row) => (
               <article key={String(row.id)}>
-                <span>Ã¢â€ â€™</span>
+                <span>→</span>
                 <div>
                   <strong>
-                    {String(row.from_stage || "Created")} Ã¢â€ â€™{" "}
+                    {String(row.from_stage || "Created")} →{" "}
                     {String(row.to_stage)}
                   </strong>
                   <p>{String(row.note || "")}</p>
@@ -147,7 +147,7 @@ export default async function OpportunityDetailPage({
                 <span>
                   <strong>{String(item.item_name)}</strong>
                   <small>
-                    {String(item.quantity)} Ãƒâ€” {String(item.unit_price)}
+                    {String(item.quantity)} × {String(item.unit_price)}
                   </small>
                 </span>
                 <b>{String(item.line_total)}</b>

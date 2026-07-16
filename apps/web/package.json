@@ -38,7 +38,7 @@
     "zod": "^4.1.12",
     "@vercent/api": "workspace:*",
     "@vercent/database": "workspace:*",
-    "@vercent/shared-sdk": "workspace:*",
+    "@vercent/permissions": "workspace:*",
     "@vercent/shared-types": "workspace:*"
   },
   "devDependencies": {

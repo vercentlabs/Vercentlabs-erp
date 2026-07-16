@@ -1,7 +1,7 @@
 import LegalPage, {
   type LegalSection,
 } from "@/components/marketing/legal-page";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
@@ -73,7 +73,7 @@ const sections: LegalSection[] = [
   {
     title: "9. Contact",
     paragraphs: [
-      `Questions about these terms may be sent to ${landingConfig.contactEmail}.`,
+      `Questions about these terms may be sent to ${siteConfig.email}.`,
     ],
   },
 ];

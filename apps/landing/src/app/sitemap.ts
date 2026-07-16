@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { erpModules, industries } from "@/content/erp";
-import { absoluteUrl } from "@/lib/landing-config";
+import { absoluteUrl } from "@/lib/site-config";
 
 const lastModified = new Date("2026-07-12");
 

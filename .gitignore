@@ -29,6 +29,7 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
 # TypeScript generated files
 *.tsbuildinfo
@@ -62,31 +63,3 @@ temp/
 *.pem
 *.key
 *.crt
-
-# Vercent local-only files
-.env
-.env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
-tmp/
-temp/
-.cache/
-**/.next/
-**/node_modules/
-*.tsbuildinfo
-
-# Vercent local-only files
-.env
-.env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
-tmp/
-temp/
-.cache/
-**/.next/
-**/node_modules/
-*.tsbuildinfo

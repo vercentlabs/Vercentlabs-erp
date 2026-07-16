@@ -53,11 +53,10 @@ export async function PATCH(
     const definition = businessDataDefinitions[resource];
     requirePermissionFromSession(session, definition.managePermission);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-
     const input = businessDataSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = businessDataContext(session);
 
     const updated = await tenantTransaction(context.organizationId, (client) =>

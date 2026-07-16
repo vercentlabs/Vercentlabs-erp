@@ -21,10 +21,10 @@ export async function POST(
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await route.params;
     assertCrmIdentifier(id);
     const { targetLeadId } = mergeLeadSchema.parse(await readJson(request));
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
     const merge = await tenantTransaction(context.organizationId, (client) =>
       mergeCrmLead(client, context, id, targetLeadId),

@@ -7,6 +7,8 @@ export const BUSINESS_DATA_PERMISSIONS: Readonly<{
   import: "business_data.import";
 }>;
 
+export const ALL_PERMISSIONS: readonly string[];
+
 export function buildPermissionKey(input: {
   scope?: string;
   resource: string;
@@ -14,3 +16,22 @@ export function buildPermissionKey(input: {
 }): string;
 export * from "./crm.js";
 export * from "./billing.js";
+export const CORE_PERMISSIONS: Readonly<{
+  workspaceView: "workspace.view";
+  organizationManage: "organization.manage";
+  companyManage: "company.manage";
+  branchManage: "branch.manage";
+  departmentManage: "department.manage";
+  costCenterManage: "cost_center.manage";
+  teamManage: "team.manage";
+  usersView: "users.view";
+  usersManage: "users.manage";
+  rolesManage: "roles.manage";
+  auditView: "audit.view";
+  notificationsView: "notifications.view";
+  modulesManage: "modules.manage";
+  numberingManage: "numbering.manage";
+  approvalsManage: "approvals.manage";
+  profileManage: "profile.manage";
+  sessionsManage: "sessions.manage";
+}>;

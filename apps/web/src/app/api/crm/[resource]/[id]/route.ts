@@ -15,7 +15,7 @@ import {
   isCrmDefinition,
   rethrowCrmError,
 } from "@/lib/crm";
-import { crmSchemas } from "@/lib/crm-validation";
+import { crmPatchSchemas } from "@/lib/crm-validation";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { assertSameOrigin, audit } from "@/lib/security";
@@ -61,10 +61,10 @@ export async function PATCH(
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const input = await crmSchemas[resource].parseAsync(
+    const input = await crmPatchSchemas[resource].parseAsync(
       await readJson(request),
     );
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
     const record = await tenantTransaction(context.organizationId, (client) =>
       updateCrmRecord(client, context, resource, id, input),

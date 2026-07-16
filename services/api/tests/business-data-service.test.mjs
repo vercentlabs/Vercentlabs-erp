@@ -7,6 +7,7 @@ import {
   isBusinessDataResource,
   listBusinessDataRecords,
 } from "../src/index.js";
+import { readFileSync } from "node:fs";
 
 const context = {
   organizationId: "11111111-1111-4111-8111-111111111111",
@@ -73,4 +74,17 @@ test("business-data service builds allowlisted item inserts", async () => {
   assert.match(calls[0].sql, /INSERT INTO tenant\.items/);
   assert.equal(record.organizationId, context.organizationId);
   assert.equal(record.code, "ITM-001");
+});
+
+test("business-data foundation passes an explicit base-currency boolean", () => {
+  const source = readFileSync(
+    new URL("../src/index.js", import.meta.url),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /\$2\s*=\s*\$6/);
+  assert.match(
+    source,
+    /code === String\(organization\.base_currency\)\.trim\(\)/,
+  );
 });

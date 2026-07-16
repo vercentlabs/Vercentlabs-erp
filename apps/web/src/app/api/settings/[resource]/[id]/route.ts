@@ -30,10 +30,10 @@ export async function PATCH(
       resourceDefinitions[resource].permission,
     );
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const input = resourceSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     await updateResource(resource, session.organizationId, id, input);
     await audit({
       organizationId: session.organizationId,

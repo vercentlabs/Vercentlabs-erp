@@ -18,8 +18,8 @@ export async function POST(request: Request) {
       throw new HttpError(401, "Sign in to an organisation workspace.");
     requirePermissionFromSession(session, PERMISSIONS.rolesManage);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const input = roleSchema.parse(await readJson(request));
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const id = randomUUID();
     await transaction(async (client) => {
       const valid = await client.query<{ key: string }>(

@@ -1,3 +1,3 @@
-# Reserved Boundary
+# Integration tests
 
-Permanent project boundary.
+Cross-package and infrastructure-backed integration tests belong here. Keep isolated package tests beside their owning package.

@@ -52,151 +52,237 @@ function normalize(field: CrmField, value: unknown) {
   return String(value).trim();
 }
 
-export const crmSchemas = Object.fromEntries(
-  Object.entries(crmDefinitions).map(([key, definition]) => [
-    key,
-    z
-      .record(z.string(), z.unknown())
-      .superRefine((input, context) => {
-        for (const field of definition.fields) {
-          const value = input[field.name];
-          const empty =
-            value === undefined ||
-            value === null ||
-            String(value).trim() === "";
-          if (field.required && empty) {
-            context.addIssue({
-              code: "custom",
-              path: [field.name],
-              message: `${field.label} is required.`,
-            });
-          }
-          if (!empty && field.options) {
-            const allowed = new Set(field.options.map((option) => option.value));
-            if (!allowed.has(String(value))) {
+function buildCrmSchemas(requireRequiredFields: boolean) {
+  return Object.fromEntries(
+    Object.entries(crmDefinitions).map(([key, definition]) => [
+      key,
+      z
+        .record(z.string(), z.unknown())
+        .superRefine((input, context) => {
+          for (const field of definition.fields) {
+            const value = input[field.name];
+            const empty =
+              value === undefined ||
+              value === null ||
+              String(value).trim() === "";
+            if (requireRequiredFields && field.required && empty) {
               context.addIssue({
                 code: "custom",
                 path: [field.name],
-                message: `${field.label} contains an unsupported value.`,
+                message: `${field.label} is required.`,
               });
             }
-          }
-          if (!empty && field.type === "email") {
-            const email = String(value).trim();
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            if (!empty && field.options) {
+              const allowed = new Set(
+                field.options.map((option) => option.value),
+              );
+              if (!allowed.has(String(value))) {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} contains an unsupported value.`,
+                });
+              }
+            }
+            if (!empty && field.type === "email") {
+              const email = String(value).trim();
+              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} must be a valid email address.`,
+                });
+              }
+            }
+            if (!empty && field.type === "checkbox") {
+              const validBoolean =
+                typeof value === "boolean" ||
+                (typeof value === "string" &&
+                  [
+                    "true",
+                    "false",
+                    "1",
+                    "0",
+                    "yes",
+                    "no",
+                    "on",
+                    "off",
+                  ].includes(value.trim().toLowerCase()));
+              if (!validBoolean) {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} must be true or false.`,
+                });
+              }
+            }
+            if (!empty && field.type === "number") {
+              const number = Number(value);
+              if (!Number.isFinite(number)) {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} must be a number.`,
+                });
+              }
+            }
+            if (
+              !empty &&
+              (field.type === "date" || field.type === "datetime-local")
+            ) {
+              const text = String(value);
+              const expectedFormat =
+                field.type === "date"
+                  ? /^\d{4}-\d{2}-\d{2}$/
+                  : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/;
+              if (
+                !expectedFormat.test(text) ||
+                !Number.isFinite(Date.parse(text))
+              ) {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} must be a valid ${field.type === "date" ? "date" : "date and time"}.`,
+                });
+              }
+            }
+            if (
+              !empty &&
+              jsonFields.has(field.name) &&
+              typeof value === "string"
+            ) {
+              try {
+                JSON.parse(value);
+              } catch {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} must contain valid JSON.`,
+                });
+              }
+            }
+            if (
+              !empty &&
+              (field.name.endsWith("Id") || field.name === "subjectId") &&
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                String(value),
+              )
+            ) {
               context.addIssue({
                 code: "custom",
                 path: [field.name],
-                message: `${field.label} must be a valid email address.`,
+                message: `${field.label} must be a valid UUID.`,
               });
             }
-          }
-          if (
-            !empty &&
-            (field.name.endsWith("Id") || field.name === "subjectId") &&
-            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-              String(value),
-            )
-          ) {
-            context.addIssue({
-              code: "custom",
-              path: [field.name],
-              message: `${field.label} must be a valid UUID.`,
-            });
-          }
-          if (!empty && typeof value === "string") {
-            const maximum = field.type === "textarea" ? 50_000 : 4_000;
-            if (value.length > maximum) {
-              context.addIssue({
-                code: "custom",
-                path: [field.name],
-                message: `${field.label} is too long.`,
-              });
+            if (!empty && typeof value === "string") {
+              const maximum = field.type === "textarea" ? 50_000 : 4_000;
+              if (value.length > maximum) {
+                context.addIssue({
+                  code: "custom",
+                  path: [field.name],
+                  message: `${field.label} is too long.`,
+                });
+              }
             }
           }
-        }
 
-        const requireOneOf = (fields: string[], message: string) => {
-          if (
-            !fields.some((field) => {
+          const requireOneOf = (fields: string[], message: string) => {
+            if (
+              !fields.some((field) => {
+                const value = input[field];
+                return (
+                  value !== undefined &&
+                  value !== null &&
+                  String(value).trim() !== ""
+                );
+              })
+            ) {
+              context.addIssue({ code: "custom", path: fields, message });
+            }
+          };
+
+          if (key === "quota-plans")
+            requireOneOf(
+              ["teamId", "territoryId", "userId"],
+              "Select at least one sales team, territory or salesperson.",
+            );
+          if (key === "consent-events")
+            requireOneOf(
+              ["leadId", "contactId", "partyId"],
+              "Link consent evidence to at least one lead, contact or account.",
+            );
+          if (key === "playbook-responses") {
+            const targets = ["opportunityId", "leadId"].filter((field) => {
               const value = input[field];
-              return value !== undefined && value !== null && String(value).trim() !== "";
-            })
-          ) {
-            context.addIssue({ code: "custom", path: fields, message });
-          }
-        };
-
-        if (key === "quota-plans")
-          requireOneOf(
-            ["teamId", "territoryId", "userId"],
-            "Select at least one sales team, territory or salesperson.",
-          );
-        if (key === "consent-events")
-          requireOneOf(
-            ["leadId", "contactId", "partyId"],
-            "Link consent evidence to at least one lead, contact or account.",
-          );
-        if (key === "playbook-responses") {
-          const targets = ["opportunityId", "leadId"].filter((field) => {
-            const value = input[field];
-            return value !== undefined && value !== null && String(value).trim() !== "";
-          });
-          if (targets.length !== 1)
-            context.addIssue({
-              code: "custom",
-              path: ["opportunityId", "leadId"],
-              message: "Link a playbook response to exactly one opportunity or lead.",
+              return (
+                value !== undefined &&
+                value !== null &&
+                String(value).trim() !== ""
+              );
             });
-        }
-        for (const [startField, endField] of [
-          ["periodStart", "periodEnd"],
-          ["effectiveFrom", "effectiveTo"],
-        ] as const) {
-          const start = input[startField];
-          const end = input[endField];
-          if (start && end && String(start) > String(end))
-            context.addIssue({
-              code: "custom",
-              path: [endField],
-              message: `${endField} must not be earlier than ${startField}.`,
-            });
-        }
-        for (const scoreField of [
-          "confidencePercent",
-          "healthScore",
-          "engagementScore",
-          "completenessScore",
-          "validityScore",
-          "freshnessScore",
-          "duplicateRiskScore",
-          "overallScore",
-          "allocationPercent",
-        ]) {
-          const value = input[scoreField];
-          if (value !== undefined && value !== null && value !== "") {
-            const number = Number(value);
-            if (!Number.isFinite(number) || number < 0 || number > 100)
+            if (targets.length !== 1)
               context.addIssue({
                 code: "custom",
-                path: [scoreField],
-                message: `${scoreField} must be between 0 and 100.`,
+                path: ["opportunityId", "leadId"],
+                message:
+                  "Link a playbook response to exactly one opportunity or lead.",
               });
           }
-        }
-      })
-      .transform((input) =>
-        Object.fromEntries(
-          definition.fields
-            .filter((field) => input[field.name] !== undefined)
-            .map((field) => [field.name, normalize(field, input[field.name])]),
+          for (const [startField, endField] of [
+            ["periodStart", "periodEnd"],
+            ["effectiveFrom", "effectiveTo"],
+          ] as const) {
+            const start = input[startField];
+            const end = input[endField];
+            if (start && end && String(start) > String(end))
+              context.addIssue({
+                code: "custom",
+                path: [endField],
+                message: `${endField} must not be earlier than ${startField}.`,
+              });
+          }
+          for (const scoreField of [
+            "confidencePercent",
+            "healthScore",
+            "engagementScore",
+            "completenessScore",
+            "validityScore",
+            "freshnessScore",
+            "duplicateRiskScore",
+            "overallScore",
+            "allocationPercent",
+          ]) {
+            const value = input[scoreField];
+            if (value !== undefined && value !== null && value !== "") {
+              const number = Number(value);
+              if (!Number.isFinite(number) || number < 0 || number > 100)
+                context.addIssue({
+                  code: "custom",
+                  path: [scoreField],
+                  message: `${scoreField} must be between 0 and 100.`,
+                });
+            }
+          }
+        })
+        .transform((input) =>
+          Object.fromEntries(
+            definition.fields
+              .filter((field) => input[field.name] !== undefined)
+              .map((field) => [
+                field.name,
+                normalize(field, input[field.name]),
+              ]),
+          ),
         ),
-      ),
-  ]),
-) as unknown as Record<
-  keyof typeof crmDefinitions,
-  z.ZodType<Record<string, unknown>>
->;
+    ]),
+  ) as unknown as Record<
+    keyof typeof crmDefinitions,
+    z.ZodType<Record<string, unknown>>
+  >;
+}
+
+export const crmSchemas = buildCrmSchemas(true);
+export const crmPatchSchemas = buildCrmSchemas(false);
 
 export const convertLeadSchema = z.object({
   partyId: z.string().uuid().nullable().optional(),

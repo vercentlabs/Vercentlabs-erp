@@ -20,8 +20,8 @@ export async function POST(request: Request) {
       throw new HttpError(401, "Sign in to an organisation workspace.");
     requirePermissionFromSession(session, PERMISSIONS.usersManage);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const input = invitationSchema.parse(await readJson(request));
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
 
     const roleRows = await query<{ id: string; slug: string; name: string }>(
       "SELECT id, slug, name FROM roles WHERE id = $1 AND organization_id = $2 AND status = 'active'",

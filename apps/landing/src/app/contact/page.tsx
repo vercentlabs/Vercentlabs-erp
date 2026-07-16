@@ -5,7 +5,7 @@ import LeadForm from "@/components/forms/lead-form";
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "Book a VercentLabs ERP Demo",
@@ -30,7 +30,7 @@ export default function ContactPage() {
               <ContactCard
                 icon={Mail}
                 title="Email"
-                description={landingConfig.contactEmail}
+                description={siteConfig.email}
               />
 
               <ContactCard

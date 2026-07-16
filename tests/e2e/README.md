@@ -1,3 +1,3 @@
-# Reserved Boundary
+# End-to-end tests
 
-Permanent project boundary.
+Browser-level workflows belong here. Cover cross-page user journeys against deployed or locally running applications without duplicating unit and service tests.

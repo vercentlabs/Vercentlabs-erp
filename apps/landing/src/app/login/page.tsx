@@ -5,7 +5,7 @@ import { ArrowRight, ExternalLink, LockKeyhole } from "lucide-react";
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
-import { landingConfig } from "@/lib/landing-config";
+import { getSignInHref, siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "Sign In to VercentLabs ERP",
@@ -16,7 +16,7 @@ export const metadata = createPageMetadata({
 });
 
 export default function LoginPage() {
-  const appIsConfigured = landingConfig.appUrl.length > 0;
+  const appIsConfigured = siteConfig.appUrl.length > 0;
 
   return (
     <MarketingShell>
@@ -55,7 +55,7 @@ export default function LoginPage() {
 
             {appIsConfigured ? (
               <a
-                href={landingConfig.appUrl}
+                href={getSignInHref()}
                 target="_blank"
                 rel="noreferrer"
                 className="button-primary mt-6"

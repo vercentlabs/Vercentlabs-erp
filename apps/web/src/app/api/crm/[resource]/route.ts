@@ -62,10 +62,10 @@ export async function POST(
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const input = await crmSchemas[resource].parseAsync(
       await readJson(request),
     );
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
     const record = await tenantTransaction(context.organizationId, (client) =>
       createCrmRecord(client, context, resource, input),

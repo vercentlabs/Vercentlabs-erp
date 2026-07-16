@@ -20,9 +20,9 @@ export async function PATCH(
       throw new HttpError(401, "Sign in to an organisation workspace.");
     requirePermissionFromSession(session, PERMISSIONS.rolesManage);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await context.params;
     const input = roleSchema.parse(await readJson(request));
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     await transaction(async (client) => {
       const role = await client.query<{ is_system: boolean }>(
         "SELECT is_system FROM roles WHERE id=$1 AND organization_id=$2",

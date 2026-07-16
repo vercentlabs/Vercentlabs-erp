@@ -18,9 +18,9 @@ export async function PATCH(
     assertSameOrigin(request);
     const session = await requirePermission("approvals.manage");
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await context.params;
     const input = approvalDecisionSchema.parse(await readJson(request));
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const rows = await query<{
       id: string;
       title: string;

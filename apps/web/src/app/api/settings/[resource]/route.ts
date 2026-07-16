@@ -37,10 +37,10 @@ export async function POST(
     if (resource === "branches") {
       await assertOrganizationLimit(session.organizationId, "branches");
     }
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const input = resourceSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const created = await createResource(
       resource,
       session.organizationId,

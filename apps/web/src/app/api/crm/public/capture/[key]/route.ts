@@ -26,11 +26,12 @@ export async function POST(
 
     if (organizationId) {
       await requireBillingWriteAccess(organizationId);
-
-      await incrementBillingUsage(organizationId, "api_requests_monthly");
     }
 
     const input = publicCaptureSchema.parse(await readJson(request));
+    if (organizationId) {
+      await incrementBillingUsage(organizationId, "api_requests_monthly");
+    }
     await client.query("BEGIN");
     const raw = `${request.headers.get("x-forwarded-for") || "local"}|${request.headers.get("user-agent") || "unknown"}`;
     const result = await captureCrmLead(client, key, input, {

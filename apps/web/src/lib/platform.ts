@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { seedBusinessDataFoundation } from "@vercent/api";
 import { setTenantContext } from "@vercent/database";
+import { ALL_PERMISSIONS } from "@vercent/permissions";
 import type { PoolClient } from "pg";
 
 import type { SessionContext } from "@/lib/auth";
@@ -102,47 +103,7 @@ const roleSeed = [
   ["Read-only User", "read_only", "Read-only workspace access."],
 ] as const;
 
-const allPermissions = [
-  "workspace.view",
-  "organization.manage",
-  "company.manage",
-  "branch.manage",
-  "department.manage",
-  "cost_center.manage",
-  "team.manage",
-  "users.view",
-  "users.manage",
-  "roles.manage",
-  "audit.view",
-  "notifications.view",
-  "modules.manage",
-  "numbering.manage",
-  "approvals.manage",
-  "profile.manage",
-  "sessions.manage",
-  "business_data.view",
-  "parties.manage",
-  "items.manage",
-  "inventory_setup.manage",
-  "finance_setup.manage",
-  "business_data.import",
-  "crm.view",
-  "crm.leads.manage",
-  "crm.opportunities.manage",
-  "crm.activities.manage",
-  "crm.campaigns.manage",
-  "crm.communications.manage",
-  "crm.automation.manage",
-  "crm.capture.manage",
-  "crm.import",
-  "crm.export",
-  "crm.reports.view",
-  "crm.settings.manage",
-  "billing.view",
-  "billing.manage",
-  "billing.checkout",
-  "billing.audit",
-];
+const allPermissions = ALL_PERMISSIONS;
 
 const baseWorkspacePermissions = [
   "workspace.view",

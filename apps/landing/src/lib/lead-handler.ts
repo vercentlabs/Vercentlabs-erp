@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { deliverLead } from "@/lib/lead-delivery";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 import {
   enforceLeadRateLimit,
   hasAllowedOrigin,
@@ -75,7 +75,7 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
         ok: false,
         message:
           rateLimit.message || "The request cannot be accepted right now.",
-        fallbackEmail: landingConfig.contactEmail,
+        fallbackEmail: siteConfig.email,
       },
       rateLimit.status,
       rateHeaders,
@@ -88,7 +88,7 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
       {
         ok: false,
         message: delivery.message,
-        fallbackEmail: landingConfig.contactEmail,
+        fallbackEmail: siteConfig.email,
       },
       delivery.status,
       rateHeaders,

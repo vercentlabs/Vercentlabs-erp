@@ -21,10 +21,10 @@ export async function POST(
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmOpportunitiesManage);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await route.params;
     assertCrmIdentifier(id);
     const input = moveStageSchema.parse(await readJson(request));
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
     const record = await tenantTransaction(context.organizationId, (client) =>
       moveOpportunityStage(client, context, id, input.stageId, input.note),

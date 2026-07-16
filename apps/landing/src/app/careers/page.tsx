@@ -4,7 +4,7 @@ import { ArrowRight, Briefcase, Code2, Settings, Users } from "lucide-react";
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "Careers at VercentLabs",
@@ -87,7 +87,7 @@ export default function CareersPage() {
             <a
               href={
                 "mailto:" +
-                landingConfig.contactEmail +
+                siteConfig.email +
                 "?subject=VercentLabs career introduction"
               }
               className="button-primary mt-6"

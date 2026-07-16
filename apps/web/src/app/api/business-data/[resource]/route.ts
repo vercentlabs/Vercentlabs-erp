@@ -78,11 +78,10 @@ export async function POST(
     const definition = businessDataDefinitions[resource];
     requirePermissionFromSession(session, definition.managePermission);
     await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-
     const input = businessDataSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = businessDataContext(session);
 
     const created = await tenantTransaction(context.organizationId, (client) =>

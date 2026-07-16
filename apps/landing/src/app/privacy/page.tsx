@@ -1,7 +1,7 @@
 import LegalPage, {
   type LegalSection,
 } from "@/components/marketing/legal-page";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
@@ -64,7 +64,7 @@ const sections: LegalSection[] = [
   {
     title: "8. Contact",
     paragraphs: [
-      `Privacy questions may be sent to ${landingConfig.contactEmail}. Production customers should also use the privacy and security contacts stated in their signed agreement.`,
+      `Privacy questions may be sent to ${siteConfig.email}. Production customers should also use the privacy and security contacts stated in their signed agreement.`,
     ],
   },
 ];

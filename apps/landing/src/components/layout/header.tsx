@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import BrandLogo from "@/components/ui/brand-logo";
-import { siteConfig } from "@/lib/site-config";
+import { getSignInHref } from "@/lib/site-config";
 
 import PageContainer from "./page-container";
 
@@ -98,7 +98,7 @@ export default function Header() {
 
           <div className="hidden items-center gap-2 xl:flex">
             <a
-              href={siteConfig.appUrl}
+              href={getSignInHref()}
               className="flex min-h-11 items-center rounded-full px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
             >
               Sign in
@@ -190,7 +190,7 @@ export default function Header() {
 
               <div className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:mt-4 sm:grid-cols-2 sm:pt-4">
                 <a
-                  href={siteConfig.appUrl}
+                  href={getSignInHref()}
                   onClick={closeMenu}
                   className="button-secondary min-h-11 w-full sm:min-h-[52px]"
                 >

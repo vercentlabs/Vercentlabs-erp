@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import BrandLogo from "@/components/ui/brand-logo";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 
 const footerGroups = [
   {
@@ -82,10 +82,10 @@ export default function SiteFooter() {
           </Link>
 
           <a
-            href={"mailto:" + landingConfig.contactEmail}
+            href={"mailto:" + siteConfig.email}
             className="mt-3 block w-fit text-xs font-semibold text-slate-400 underline decoration-slate-600 underline-offset-4 hover:text-white sm:mt-4 sm:text-sm"
           >
-            {landingConfig.contactEmail}
+            {siteConfig.email}
           </a>
         </div>
 
@@ -117,7 +117,7 @@ export default function SiteFooter() {
 
       <div className="mx-auto mt-8 flex w-full max-w-7xl flex-col gap-2 border-t border-slate-800 px-4 pt-5 text-[10px] text-slate-500 sm:mt-10 sm:gap-3 sm:px-6 sm:pt-6 sm:text-xs md:flex-row md:items-center md:justify-between lg:px-8">
         <p>
-          © {new Date().getFullYear()} {landingConfig.companyName}. All rights
+          © {new Date().getFullYear()} {siteConfig.companyName}. All rights
           reserved.
         </p>
         <p>12 modules. One connected ERP.</p>

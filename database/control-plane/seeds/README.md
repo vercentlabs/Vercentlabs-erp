@@ -1,3 +1,3 @@
-# Reserved Boundary
+# Control-plane seeds
 
-Permanent project boundary.
+Idempotent reference-data seeds for the control-plane database belong here. Organization-specific bootstrap logic remains in the application service.

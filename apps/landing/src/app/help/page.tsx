@@ -11,7 +11,7 @@ import {
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
-import { landingConfig } from "@/lib/landing-config";
+import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "VercentLabs ERP Help",
@@ -104,10 +104,10 @@ export default function HelpPage() {
             </p>
 
             <a
-              href={"mailto:" + landingConfig.contactEmail}
+              href={"mailto:" + siteConfig.email}
               className="button-primary mt-6"
             >
-              Email {landingConfig.contactEmail}
+              Email {siteConfig.email}
             </a>
           </div>
         </PageContainer>

@@ -34,5 +34,5 @@ export function absoluteUrl(pathname = "/") {
 }
 
 export function getSignInHref() {
-  return siteConfig.appUrl || "/login";
+  return siteConfig.appUrl ? siteConfig.appUrl + "/login" : "/login";
 }
