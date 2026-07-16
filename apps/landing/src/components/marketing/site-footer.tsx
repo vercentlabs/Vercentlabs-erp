@@ -9,7 +9,7 @@ const footerGroups = [
     links: [
       { label: "Product overview", href: "/product" },
       { label: "Features", href: "/features" },
-      { label: "12 modules", href: "/modules" },
+      { label: "Module roadmap", href: "/modules" },
       { label: "How it works", href: "/how-it-works" },
       { label: "Pricing", href: "/pricing" },
       { label: "Compare", href: "/comparison" },
@@ -70,7 +70,7 @@ export default function SiteFooter() {
           </Link>
 
           <p className="mt-4 max-w-sm text-xs leading-6 text-slate-400 sm:mt-5 sm:text-sm sm:leading-7">
-            VercentLabs ERP connects twelve operational modules through shared
+            VercentLabs ERP is building planned operational modules on shared
             data, workflows, permissions, audit history and reporting.
           </p>
 
@@ -120,7 +120,7 @@ export default function SiteFooter() {
           © {new Date().getFullYear()} {siteConfig.companyName}. All rights
           reserved.
         </p>
-        <p>12 modules. One connected ERP.</p>
+        <p>One foundation. A transparent module roadmap.</p>
       </div>
     </footer>
   );

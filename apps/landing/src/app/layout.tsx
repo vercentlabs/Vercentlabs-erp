@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s | VercentLabs ERP",
   },
   description:
-    "Run finance, procurement, sales, CRM, stock, manufacturing, projects, assets, point of sale, quality, support, HR and payroll on one connected ERP.",
+    "Explore the VercentLabs ERP platform foundation and CRM preview, with additional operational modules planned for phased delivery.",
   applicationName: "VercentLabs ERP",
   alternates: {
     canonical: "/",
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: siteConfig.locale,
     siteName: siteConfig.name,
-    title: "VercentLabs ERP | Run every core operation in one system",
+    title: "VercentLabs ERP | Platform foundation and CRM preview",
     description:
-      "Twelve connected ERP modules with shared data, workflows, permissions and reporting.",
+      "A governed ERP platform foundation and CRM preview, with a clearly labelled roadmap for additional modules.",
     url: siteConfig.siteUrl,
     images: [
       {
@@ -44,9 +44,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "VercentLabs ERP | Run every core operation in one system",
+    title: "VercentLabs ERP | Platform foundation and CRM preview",
     description:
-      "Twelve connected ERP modules with shared data, workflows, permissions and reporting.",
+      "A governed ERP platform foundation and CRM preview, with a clearly labelled roadmap for additional modules.",
     images: ["/opengraph-image"],
   },
   robots: {

@@ -12,16 +12,7 @@ import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError } from "@/lib/http";
 import { audit } from "@/lib/security";
 
-function csvCell(value: unknown) {
-  if (value === null || value === undefined) return "";
-  const text =
-    value instanceof Date
-      ? value.toISOString()
-      : typeof value === "object"
-        ? JSON.stringify(value)
-        : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
-}
+import { csvCell } from "@/lib/csv";
 
 export async function GET(
   request: Request,

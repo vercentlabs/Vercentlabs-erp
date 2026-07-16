@@ -1,21 +1,16 @@
 import { listCrmRecords } from "@vercent/api";
+
 import { getSessionContext } from "@/lib/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
 import { requireCrmResourceView } from "@/lib/crm-api";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { csvCell } from "@/lib/csv";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError } from "@/lib/http";
-function cell(value: unknown) {
-  const text =
-    value === null || value === undefined
-      ? ""
-      : typeof value === "object"
-        ? JSON.stringify(value)
-        : String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
+import { audit } from "@/lib/security";
+
 export async function GET(
-  _request: Request,
+  request: Request,
   route: { params: Promise<{ resource: string }> },
 ) {
   try {
@@ -33,14 +28,30 @@ export async function GET(
     const keys = Array.from(
       new Set(result.rows.flatMap((row) => Object.keys(row))),
     );
-    const csv = [
-      keys.map(cell).join(","),
-      ...result.rows.map((row) => keys.map((key) => cell(row[key])).join(",")),
-    ].join("\n");
+    const csv = `\uFEFF${[
+      keys.map(csvCell).join(","),
+      ...result.rows.map((row) =>
+        keys.map((key) => csvCell(row[key])).join(","),
+      ),
+    ].join("\r\n")}\r\n`;
+
+    await audit({
+      organizationId: context.organizationId,
+      actorUserId: session.userId,
+      eventType: `crm.${resource}.exported`,
+      entityType: resource,
+      afterData: { rowCount: result.rows.length },
+      request,
+    });
+
     return new Response(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename=crm-${resource}.csv`,
+        "Content-Disposition": `attachment; filename="crm-${resource}-${new Date()
+          .toISOString()
+          .slice(0, 10)}.csv"`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error) {

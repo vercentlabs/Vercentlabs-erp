@@ -34,7 +34,10 @@ test("Razorpay integration verifies checkout and safely retries failed webhooks"
   const webhook = read("src/app/api/billing/webhooks/razorpay/route.ts");
   assert.match(payment, /paymentId}\|\${input\.subscriptionId/);
   assert.match(payment, /timingSafeEqual/);
-  assert.match(webhook, /await request\.text\(\)/);
+  assert.match(webhook, /readRequestBytes\(request, maximumBytes\)/);
+  assert.match(webhook, /RAZORPAY_WEBHOOK_MAX_BYTES/);
+  assert.match(webhook, /payload_hash/);
+  assert.match(webhook, /accepted time window/);
   assert.match(webhook, /x-razorpay-event-id/);
   assert.match(webhook, /processing_status = 'processing'/);
   assert.match(webhook, /processing_status = 'failed'/);

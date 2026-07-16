@@ -754,6 +754,9 @@ function addParameter(parameters, value) {
 
 function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
+  if (definition.table === "tenant.crm_saved_views") {
+    sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
+  }
   if (definition.companyScoped && !context.allowAllCompanies) {
     if (!context.activeCompanyId) return " AND false";
     sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
@@ -946,6 +949,7 @@ export async function createCrmRecord(client, context, resource, input) {
   const definition = definitionFor(resource);
   assertWritableScope(definition, context, input);
   const prepared = { ...input };
+  if (resource === "saved-views") prepared.userId = context.userId;
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
       client,
@@ -1063,6 +1067,7 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   assertWritableScope(definition, context, input);
+  if (resource === "saved-views") delete input.userId;
   assertLifecycleUpdate(resource, before, input);
   const prepared = { ...input };
   if (resource === "leads")
@@ -1112,16 +1117,31 @@ export async function updateCrmRecord(client, context, resource, id, input) {
 
 export async function archiveCrmRecord(client, context, resource, id) {
   const definition = definitionFor(resource);
+  const before = await getCrmRecord(client, context, resource, id);
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
-  if (resource === "consent-events") {
+
+  if (
+    resource === "consent-events" ||
+    resource === "communications" ||
+    resource === "playbook-responses" ||
+    resource === "data-quality-scores"
+  ) {
     throw new CrmError(
       409,
-      "Consent evidence is immutable and cannot be deleted.",
-      "CRM_CONSENT_IMMUTABLE",
+      "This CRM record is immutable and cannot be deleted.",
+      "CRM_RECORD_IMMUTABLE",
     );
   }
-  if (!definition.statusColumn) {
+  if (resource === "privacy-requests" && before.status === "completed") {
+    throw new CrmError(
+      409,
+      "Completed privacy requests cannot be archived.",
+      "CRM_PRIVACY_REQUEST_CLOSED",
+    );
+  }
+
+  if (resource === "saved-views") {
     const result = await client.query(
       `DELETE FROM ${definition.table} record WHERE record.organization_id = $1 AND record.id = $2${scope} RETURNING record.id`,
       parameters,
@@ -1129,19 +1149,47 @@ export async function archiveCrmRecord(client, context, resource, id) {
     if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
     return { id, deleted: true };
   }
-  const status =
-    {
-      leads: "archived",
-      opportunities: "archived",
-      activities: "cancelled",
-      campaigns: "cancelled",
-      sequences: "archived",
-      integrations: "disabled",
-      "quota-plans": "cancelled",
-      "forecast-periods": "closed",
-      "forecast-submissions": "superseded",
-      "privacy-requests": "cancelled",
-    }[resource] || "inactive";
+
+  const archiveStatuses = {
+    leads: "archived",
+    opportunities: "archived",
+    activities: "cancelled",
+    campaigns: "cancelled",
+    pipelines: "inactive",
+    stages: "inactive",
+    sources: "inactive",
+    "lost-reasons": "inactive",
+    tags: "inactive",
+    "scoring-rules": "inactive",
+    "assignment-rules": "inactive",
+    sequences: "archived",
+    "sequence-enrollments": "cancelled",
+    "automation-rules": "inactive",
+    "capture-forms": "inactive",
+    competitors: "inactive",
+    integrations: "disabled",
+    "webhook-subscriptions": "inactive",
+    "sales-teams": "inactive",
+    "sales-team-members": "inactive",
+    territories: "archived",
+    "quota-plans": "cancelled",
+    "forecast-periods": "closed",
+    "forecast-submissions": "superseded",
+    "account-plans": "archived",
+    "account-stakeholders": "inactive",
+    playbooks: "archived",
+    "playbook-questions": "inactive",
+    "privacy-requests": "cancelled",
+  };
+  const status = archiveStatuses[resource];
+  if (!definition.statusColumn || !status) {
+    throw new CrmError(
+      409,
+      "This CRM resource has no supported archive transition.",
+      "CRM_ARCHIVE_UNSUPPORTED",
+    );
+  }
+
   const statusParameter = addParameter(parameters, status);
   const userParameter = addParameter(parameters, context.userId);
   const result = await client.query(
@@ -1623,6 +1671,7 @@ export async function runCrmAutomation(
       continue;
     }
     const output = [];
+    await client.query("SAVEPOINT crm_automation_rule");
     try {
       for (const action of Array.isArray(rule.actions) ? rule.actions : []) {
         if (action.type === "create_activity") {
@@ -1667,8 +1716,11 @@ export async function runCrmAutomation(
           output,
         ],
       );
+      await client.query("RELEASE SAVEPOINT crm_automation_rule");
       results.push({ ruleId: rule.id, status: "succeeded", output });
     } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT crm_automation_rule");
+      await client.query("RELEASE SAVEPOINT crm_automation_rule");
       await client.query(
         `INSERT INTO tenant.crm_automation_runs (organization_id, rule_id, event_type, entity_type, entity_id, status, error_message, finished_at) VALUES ($1, $2, $3, $4, $5, 'failed', $6, now())`,
         [

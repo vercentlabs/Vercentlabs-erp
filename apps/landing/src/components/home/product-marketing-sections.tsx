@@ -141,7 +141,7 @@ const comparisonPoints = [
   {
     title: "VercentLabs ERP",
     detail:
-      "Twelve modular applications on one shared data, workflow and control foundation.",
+      "A CRM preview and planned operational modules on one shared data, workflow and control foundation.",
   },
 ];
 
@@ -281,7 +281,7 @@ export default function ProductMarketingSections() {
           <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-end lg:justify-between">
             <SectionHeading
               eyebrow="Complete product scope"
-              title="Twelve modules. One operating foundation."
+              title="One foundation. A phased module roadmap."
               description="Use each module independently while keeping customers, suppliers, items, employees, approvals and reporting connected."
             />
             <Link
@@ -389,7 +389,7 @@ export default function ProductMarketingSections() {
           <SectionHeading
             eyebrow="Shared platform"
             title="The controls underneath every module matter as much as the screens."
-            description="Permissions, approvals, history and reporting apply consistently across the complete ERP."
+            description="Permissions, history and shared controls are implemented in the platform foundation; broader approval and reporting coverage remains phased roadmap scope."
             align="center"
             tone="dark"
           />

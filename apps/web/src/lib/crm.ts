@@ -1250,7 +1250,6 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
     "saved view",
     PERMISSIONS.crmView,
     [
-      { name: "userId", label: "User", type: "select", optionsKey: "users" },
       {
         name: "resource",
         label: "Resource",

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { getSessionContext } from "@/lib/auth";
+import { getSessionContext, setSessionOrganization } from "@/lib/auth";
 import { transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { seedOrganizationFoundation } from "@/lib/platform";
@@ -100,6 +100,18 @@ export async function POST(request: Request) {
         timezone: input.timezone,
       });
     });
+
+    const contextUpdated = await setSessionOrganization(
+      session.sessionId,
+      session.userId,
+      organizationId,
+    );
+    if (!contextUpdated) {
+      throw new HttpError(
+        500,
+        "The new organisation context could not be activated.",
+      );
+    }
 
     await audit({
       organizationId,

@@ -80,7 +80,13 @@ export const onboardingSchema = z.object({
   fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
 });
 
-export const invitationSchema = z.object({ email, roleId: uuid });
+export const invitationSchema = z.object({
+  email,
+  roleId: uuid,
+  companyIds: z.array(uuid).max(100).optional().default([]),
+  branchIds: z.array(uuid).max(300).optional().default([]),
+  departmentIds: z.array(uuid).max(300).optional().default([]),
+});
 
 export const acceptInvitationSchema = z.object({
   token: z.string().min(20).max(500),
@@ -92,6 +98,10 @@ export const acceptInvitationSchema = z.object({
 export const contextSchema = z.object({
   companyId: uuid,
   branchId: uuid.nullable(),
+});
+
+export const organizationContextSchema = z.object({
+  organizationId: uuid,
 });
 
 export const organizationSchema = z.object({

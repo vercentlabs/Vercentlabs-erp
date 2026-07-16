@@ -55,7 +55,11 @@ export async function POST(request: Request) {
       );
     });
 
-    const nextSession = await createSession(session.userId, request);
+    const nextSession = await createSession(
+      session.userId,
+      request,
+      session.organizationId,
+    );
     await audit({
       organizationId: session.organizationId,
       actorUserId: session.userId,

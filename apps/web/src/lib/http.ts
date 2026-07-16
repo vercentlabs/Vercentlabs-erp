@@ -11,7 +11,13 @@ export class HttpError extends Error {
 }
 
 export function ok(data: Record<string, unknown>, status = 200) {
-  return NextResponse.json({ ok: true, ...data }, { status });
+  return NextResponse.json(
+    { ok: true, ...data },
+    {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }
 
 export function fail(
@@ -19,7 +25,13 @@ export function fail(
   status = 400,
   details?: Record<string, unknown>,
 ) {
-  return NextResponse.json({ ok: false, message, ...details }, { status });
+  return NextResponse.json(
+    { ok: false, message, ...details },
+    {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }
 
 export async function readJson(request: Request): Promise<unknown> {

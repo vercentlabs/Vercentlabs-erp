@@ -15,7 +15,7 @@ import {
   isBusinessDataDefinition,
   rethrowBusinessDataError,
 } from "@/lib/business-data";
-import { businessDataSchemas } from "@/lib/business-data-validation";
+import { businessDataPatchSchemas } from "@/lib/business-data-validation";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { assertSameOrigin, audit } from "@/lib/security";
@@ -53,9 +53,12 @@ export async function PATCH(
     const definition = businessDataDefinitions[resource];
     requirePermissionFromSession(session, definition.managePermission);
     await requireBillingWriteAccess(session.organizationId);
-    const input = businessDataSchemas[resource].parse(
+    const input = businessDataPatchSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
+    if (!Object.keys(input).length) {
+      throw new HttpError(400, "Provide at least one field to update.");
+    }
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = businessDataContext(session);
 

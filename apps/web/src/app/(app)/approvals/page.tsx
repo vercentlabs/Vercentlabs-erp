@@ -1,6 +1,4 @@
-import ApprovalActions from "@/components/approval-actions";
 import { requireWorkspace } from "@/lib/auth";
-import { hasPermission } from "@/lib/authorization";
 import { query } from "@/lib/db";
 
 export const metadata = { title: "Approvals" };
@@ -23,7 +21,6 @@ export default async function ApprovalsPage() {
   `,
     [session.organizationId, session.userId],
   );
-  const canDecide = hasPermission(session, "approvals.manage");
   return (
     <>
       <section className="page-heading">
@@ -31,8 +28,9 @@ export default async function ApprovalsPage() {
           <p className="eyebrow">Approval centre</p>
           <h1>Decisions requiring attention</h1>
           <p>
-            Review assigned requests, record a decision and preserve a complete
-            audit trail.
+            Approval requests are visible for review, but decision execution is
+            disabled until each workflow is bound to a transactional business
+            command.
           </p>
         </div>
       </section>
@@ -64,13 +62,7 @@ export default async function ApprovalsPage() {
                   </span>
                 </td>
                 <td>{new Date(row.requested_at).toLocaleString()}</td>
-                <td>
-                  {row.status === "pending" && canDecide ? (
-                    <ApprovalActions id={row.id} />
-                  ) : (
-                    "—"
-                  )}
-                </td>
+                <td>{row.status === "pending" ? "Execution disabled" : "—"}</td>
               </tr>
             ))}
             {!rows.length ? (

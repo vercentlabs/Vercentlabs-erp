@@ -26,7 +26,8 @@
     "verify:billing": "node scripts/verify-billing.mjs",
     "verify:billing-database": "node scripts/verify-billing-database.mjs",
     "billing:sync-plans": "node scripts/sync-razorpay-plans.mjs",
-    "billing:reconcile": "node scripts/reconcile-razorpay-billing.mjs"
+    "billing:reconcile": "node scripts/reconcile-razorpay-billing.mjs",
+    "crm:outbox": "node scripts/deliver-crm-outbox.mjs"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

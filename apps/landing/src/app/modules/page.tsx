@@ -8,9 +8,9 @@ import PageHero from "@/components/marketing/page-hero";
 import { erpModules } from "@/content/erp";
 
 export const metadata: Metadata = {
-  title: "12 ERP Modules",
+  title: "ERP Module Roadmap",
   description:
-    "Explore all 12 VercentLabs ERP modules for accounting, procurement, sales, CRM, stock, manufacturing, projects, assets, point of sale, quality, support, HR and payroll.",
+    "Explore the VercentLabs ERP module roadmap. CRM and the shared platform foundation are in preview; other modules are planned for phased design-partner delivery.",
   alternates: {
     canonical: "/modules",
   },
@@ -21,11 +21,11 @@ export default function ModulesPage() {
     <MarketingShell>
       <PageHero
         eyebrow="Modular enterprise platform"
-        title="Twelve modules. One connected operating foundation."
-        description="Each module supports a distinct business responsibility while sharing data, permissions, workflows, audit history and reporting with the wider platform."
+        title="A transparent roadmap on one connected foundation."
+        description="CRM and the shared platform foundation are in preview. The remaining modules below describe planned design-partner scope and are not represented as generally available production features."
         actions={
           <Link href="/contact" className="button-primary w-full sm:w-auto">
-            Book a module demonstration
+            Discuss the roadmap
             <ArrowRight aria-hidden="true" className="h-4 w-4" />
           </Link>
         }
@@ -61,7 +61,7 @@ export default function ModulesPage() {
                 </p>
 
                 <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 sm:mt-6 sm:gap-2 sm:text-sm">
-                  Explore module
+                  Review roadmap
                   <ArrowRight
                     aria-hidden="true"
                     className="h-4 w-4 transition group-hover:translate-x-1"

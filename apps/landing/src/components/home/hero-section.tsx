@@ -68,7 +68,7 @@ export default function HeroSection() {
                   href="/#modules"
                   className="button-secondary min-h-11 w-full px-4 text-xs sm:min-h-[52px] sm:w-auto sm:px-6 sm:text-sm"
                 >
-                  Explore 12 modules
+                  Explore the roadmap
                 </Link>
               </div>
 

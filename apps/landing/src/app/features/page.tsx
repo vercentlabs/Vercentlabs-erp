@@ -9,7 +9,7 @@ export const metadata = createPageMetadata({
   title:
     "VercentLabs ERP Features | Automation, Control, Reporting and Integrations",
   description:
-    "Explore the automation, permissions, approvals, reporting, audit, integration and multi-company capabilities available across VercentLabs ERP.",
+    "Explore implemented platform and CRM capabilities, together with clearly labelled preview and planned ERP capabilities.",
   path: "/features",
 });
 
@@ -22,7 +22,7 @@ const config: StructuredPageConfig = {
     title:
       "The capabilities your teams need to operate with clarity and control.",
     description:
-      "VercentLabs ERP combines automation, permissions, approvals, reporting, collaboration and integrations across all 12 modules. Give every team a consistent system while maintaining complete control over business data and decisions.",
+      "VercentLabs ERP currently combines authentication, permissions, audit foundations, master data, CRM and billing capabilities. Additional workflow, reporting and operational-module capabilities remain preview or planned scope.",
     primary: { label: "Book a feature walkthrough", href: "/contact" },
     secondary: { label: "Explore the product", href: "/product" },
   },
@@ -407,7 +407,7 @@ const config: StructuredPageConfig = {
     description:
       "See how automation, permissions, approvals, reporting and integrations can support your organisation.",
     primary: { label: "Book a feature walkthrough", href: "/contact" },
-    secondary: { label: "Explore all 12 modules", href: "/modules" },
+    secondary: { label: "Explore the module roadmap", href: "/modules" },
   },
 };
 
