@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  formatWorkspaceDate,
+  formatWorkspaceDateTime,
+} from "@/lib/date-format";
+
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -203,7 +208,7 @@ export default function UserAdministration({
                 </span>
                 <span>
                   {user.lastLoginAt
-                    ? `Last login ${new Date(user.lastLoginAt).toLocaleString()}`
+                    ? `Last login ${formatWorkspaceDateTime(user.lastLoginAt)}`
                     : "No login recorded"}
                 </span>
               </div>
@@ -325,7 +330,7 @@ export default function UserAdministration({
                 <tr key={invite.id}>
                   <td>{invite.email}</td>
                   <td>{invite.roleName}</td>
-                  <td>{new Date(invite.expiresAt).toLocaleDateString()}</td>
+                  <td>{formatWorkspaceDate(invite.expiresAt)}</td>
                   <td>
                     {invite.acceptedAt
                       ? "Accepted"

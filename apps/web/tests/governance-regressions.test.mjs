@@ -70,3 +70,18 @@ test("mutating routes validate JSON before charging API usage", () => {
       ),
   );
 });
+
+test("client components use deterministic workspace date formatting", () => {
+  const formatter = read("src/lib/date-format.ts");
+  assert.match(formatter, /new Intl\.DateTimeFormat\("en-IN"/);
+  assert.match(formatter, /timeZone: "Asia\/Kolkata"/);
+
+  for (const component of [
+    "src/components/notification-list.tsx",
+    "src/components/session-manager.tsx",
+    "src/components/user-administration.tsx",
+  ]) {
+    const source = read(component);
+    assert.doesNotMatch(source, /\.toLocale(?:String|DateString)\(/);
+  }
+});

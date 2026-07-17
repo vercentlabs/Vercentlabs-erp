@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { formatWorkspaceDateTime } from "@/lib/date-format";
+
 export default function SessionManager({
   sessions,
   currentSessionId,
@@ -62,7 +64,7 @@ export default function SessionManager({
               </strong>
               <span>{session.ipAddress || "IP unavailable"}</span>
               <small>
-                Last active {new Date(session.lastSeenAt).toLocaleString()}
+                Last active {formatWorkspaceDateTime(session.lastSeenAt)}
               </small>
             </div>
             {session.id !== currentSessionId ? (

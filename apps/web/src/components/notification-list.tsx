@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { formatWorkspaceDateTime } from "@/lib/date-format";
+
 export default function NotificationList({
   notifications,
 }: {
@@ -52,7 +54,7 @@ export default function NotificationList({
             <div>
               <strong>{item.title}</strong>
               <p>{item.message}</p>
-              <small>{new Date(item.createdAt).toLocaleString()}</small>
+              <small>{formatWorkspaceDateTime(item.createdAt)}</small>
             </div>
             <div className="action-row">
               {item.href ? <a href={item.href}>Open</a> : null}
