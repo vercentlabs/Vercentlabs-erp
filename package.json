@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@11.13.0",
   "scripts": {
+    "start": "node server.js",
     "dev": "corepack pnpm --parallel --filter @vercent/landing --filter @vercent/web dev",
     "dev:landing": "corepack pnpm --filter @vercent/landing dev",
     "build:landing": "corepack pnpm --filter @vercent/landing build",
