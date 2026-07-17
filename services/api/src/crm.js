@@ -2922,7 +2922,9 @@ export async function getCrmReport(client, context, report, filters = {}) {
       CASE WHEN COALESCE(opportunity_rollup.won_deals,0) + COALESCE(opportunity_rollup.lost_deals,0) > 0 THEN round(opportunity_rollup.won_deals::numeric / (opportunity_rollup.won_deals + opportunity_rollup.lost_deals) * 100, 2) ELSE NULL END AS win_rate_percent,
       round(COALESCE(opportunity_rollup.average_sales_cycle_days,0)::numeric, 2) AS average_sales_cycle_days
     FROM opportunity_rollup
-    FULL OUTER JOIN quota_rollup ON quota_rollup.user_id IS NOT DISTINCT FROM opportunity_rollup.owner_user_id
+    FULL OUTER JOIN quota_rollup
+      ON COALESCE(quota_rollup.user_id, '00000000-0000-0000-0000-000000000000'::uuid)
+       = COALESCE(opportunity_rollup.owner_user_id, '00000000-0000-0000-0000-000000000000'::uuid)
     LEFT JOIN public.users user_account ON user_account.id = COALESCE(opportunity_rollup.owner_user_id, quota_rollup.user_id)
     ORDER BY won DESC, pipeline DESC`;
   else if (report === "account-health")
