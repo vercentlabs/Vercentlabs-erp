@@ -40,8 +40,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS master_data_external_ids_organization_id_id_ui
   ON tenant.master_data_external_ids(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS master_data_import_jobs_organization_id_id_uidx
   ON tenant.master_data_import_jobs(organization_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS crm_settings_organization_id_id_uidx
-  ON tenant.crm_settings(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_pipelines_organization_id_id_uidx
   ON tenant.crm_pipelines(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_pipeline_stages_organization_id_id_uidx
@@ -56,16 +54,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS crm_campaigns_organization_id_id_uidx
   ON tenant.crm_campaigns(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_leads_organization_id_id_uidx
   ON tenant.crm_leads(organization_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS crm_lead_tags_organization_id_id_uidx
-  ON tenant.crm_lead_tags(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_scoring_rules_organization_id_id_uidx
   ON tenant.crm_scoring_rules(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_lead_score_history_organization_id_id_uidx
   ON tenant.crm_lead_score_history(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_assignment_rules_organization_id_id_uidx
   ON tenant.crm_assignment_rules(organization_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS crm_round_robin_state_organization_id_id_uidx
-  ON tenant.crm_round_robin_state(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_opportunities_organization_id_id_uidx
   ON tenant.crm_opportunities(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_opportunity_stage_history_organization_id_id_uidx
@@ -74,8 +68,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS crm_opportunity_items_organization_id_id_uidx
   ON tenant.crm_opportunity_items(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_competitors_organization_id_id_uidx
   ON tenant.crm_competitors(organization_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS crm_opportunity_competitors_organization_id_id_uidx
-  ON tenant.crm_opportunity_competitors(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_activities_organization_id_id_uidx
   ON tenant.crm_activities(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_activity_attendees_organization_id_id_uidx
@@ -92,8 +84,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS crm_sequence_enrollments_organization_id_id_ui
   ON tenant.crm_sequence_enrollments(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_capture_forms_organization_id_id_uidx
   ON tenant.crm_capture_forms(organization_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS crm_capture_rate_limits_organization_id_id_uidx
-  ON tenant.crm_capture_rate_limits(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_campaign_members_organization_id_id_uidx
   ON tenant.crm_campaign_members(organization_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS crm_saved_views_organization_id_id_uidx
@@ -2023,6 +2013,8 @@ BEGIN
   END IF;
 END $$;
 ALTER TABLE tenant.crm_data_quality_scores VALIDATE CONSTRAINT crm_data_quality_scores_company_id_organization_fkey;
+
+DROP FUNCTION IF EXISTS tenant.crm_public_capture_form(text);
 
 CREATE OR REPLACE FUNCTION tenant.crm_public_capture_form(form_key text)
 RETURNS TABLE (
