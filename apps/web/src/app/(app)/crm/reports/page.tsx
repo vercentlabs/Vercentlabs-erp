@@ -16,6 +16,11 @@ const names = [
   "revenue-operations",
   "account-health",
   "privacy",
+  "pipeline-intelligence",
+  "engagement-intelligence",
+  "relationship-coverage",
+  "partner-pipeline",
+  "ai-governance",
 ] as const;
 const title = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
@@ -41,8 +46,9 @@ export default async function CrmReportsPage() {
           <p className="eyebrow">CRM analytics</p>
           <h1>Pipeline, conversion and activity reports</h1>
           <p>
-            Review revenue health, quotas, pipeline coverage, account risk, source
-            quality, campaign outcomes, privacy operations and seller execution.
+            Review revenue health, engagement, pipeline risk, relationship
+            coverage, partner contribution, governed AI, privacy and seller
+            execution.
           </p>
         </div>
         <span className="status-badge neutral">Live tenant data</span>

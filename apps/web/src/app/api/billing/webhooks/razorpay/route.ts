@@ -5,6 +5,7 @@ import { mapProviderSubscriptionStatus } from "@vercent/api";
 import { replaceOrganizationSubscription } from "@/lib/billing";
 import { query, transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
+import { readRequestBytes, sha256 } from "@/lib/security";
 import { verifyRazorpayWebhookSignature } from "@/lib/razorpay";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,12 @@ export async function POST(request: Request) {
   let eventRowId: string | null = null;
 
   try {
-    const rawBody = await request.text();
+    const maximumBytes = Math.max(
+      1_024,
+      Number(process.env.RAZORPAY_WEBHOOK_MAX_BYTES || "262144"),
+    );
+    const rawBytes = await readRequestBytes(request, maximumBytes);
+    const rawBody = new TextDecoder("utf-8", { fatal: true }).decode(rawBytes);
     const signature = request.headers.get("x-razorpay-signature") || "";
     if (!signature) {
       throw new HttpError(400, "Missing Razorpay webhook signature.");
@@ -52,6 +58,21 @@ export async function POST(request: Request) {
       request.headers.get("x-razorpay-event-id") ||
       createHash("sha256").update(rawBody).digest("hex");
     const providerCreatedAt = numberDate(event.created_at);
+    const maximumAgeSeconds = Math.max(
+      60,
+      Number(process.env.RAZORPAY_WEBHOOK_MAX_AGE_SECONDS || "86400"),
+    );
+    if (
+      providerCreatedAt &&
+      Math.abs(Date.now() - providerCreatedAt.getTime()) >
+        maximumAgeSeconds * 1_000
+    ) {
+      throw new HttpError(
+        400,
+        "The Razorpay webhook is outside the accepted time window.",
+      );
+    }
+    const payloadHash = sha256(rawBody);
     const subscriptionEntity = entity(event, "subscription");
     const paymentEntity = entity(event, "payment");
     const invoiceEntity = entity(event, "invoice");
@@ -67,20 +88,49 @@ export async function POST(request: Request) {
     const eventRows = await query<{
       id: string;
       processing_status: string;
+      payload_hash: string | null;
     }>(
       `
         INSERT INTO billing_webhook_events (
-          provider_event_id, event_type, provider_created_at, signature, payload
-        ) VALUES ($1, $2, $3, $4, $5::jsonb)
-        ON CONFLICT (provider, provider_event_id) DO UPDATE SET
-          signature = EXCLUDED.signature
-        RETURNING id, processing_status
+          provider_event_id, event_type, provider_created_at,
+          signature, payload, payload_hash
+        ) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+        ON CONFLICT (provider, provider_event_id) DO NOTHING
+        RETURNING id, processing_status, payload_hash
       `,
-      [providerEventId, eventType, providerCreatedAt, signature, rawBody],
+      [
+        providerEventId,
+        eventType,
+        providerCreatedAt,
+        sha256(signature),
+        rawBody,
+        payloadHash,
+      ],
     );
-    const eventRow = eventRows[0];
-    if (!eventRow)
-      throw new Error("Razorpay webhook event could not be recorded.");
+    let eventRow = eventRows[0];
+    if (!eventRow) {
+      const existingRows = await query<{
+        id: string;
+        processing_status: string;
+        payload_hash: string | null;
+      }>(
+        `
+          SELECT id, processing_status, payload_hash
+          FROM billing_webhook_events
+          WHERE provider = 'razorpay' AND provider_event_id = $1
+        `,
+        [providerEventId],
+      );
+      eventRow = existingRows[0];
+      if (!eventRow)
+        throw new Error("Razorpay webhook event could not be recorded.");
+      if (eventRow.payload_hash && eventRow.payload_hash !== payloadHash) {
+        throw new HttpError(
+          409,
+          "The webhook event identifier was reused with different content.",
+        );
+      }
+    }
     eventRowId = eventRow.id;
 
     if (["processed", "ignored"].includes(eventRow.processing_status)) {

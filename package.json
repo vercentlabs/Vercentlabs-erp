@@ -36,6 +36,8 @@
     "db:verify:billing": "pnpm --filter @vercent/web verify:billing-database",
     "billing:sync-plans": "pnpm --filter @vercent/web billing:sync-plans",
     "billing:reconcile": "pnpm --filter @vercent/web billing:reconcile",
-    "verify:commercial-readiness": "node scripts/validation/verify-commercial-readiness.mjs"
+    "verify:commercial-readiness": "node scripts/validation/verify-commercial-readiness.mjs",
+    "db:provision:runtime-role": "node scripts/database/provision-runtime-role.mjs",
+    "crm:outbox": "pnpm --filter @vercent/web crm:outbox"
   }
 }

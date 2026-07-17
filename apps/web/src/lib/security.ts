@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isIP } from "node:net";
+
 import { query } from "@/lib/db";
 import { HttpError } from "@/lib/http";
 
@@ -6,27 +8,105 @@ export function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export function clientIp(request: Request) {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "local"
+function configuredOrigins() {
+  return new Set(
+    (
+      process.env.FORM_ALLOWED_ORIGINS ||
+      process.env.APP_URL ||
+      "http://localhost:3001"
+    )
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => new URL(value).origin),
   );
 }
 
-export function assertSameOrigin(request: Request) {
+function requestOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (!origin) return;
-  const configured = (
-    process.env.FORM_ALLOWED_ORIGINS ||
-    process.env.APP_URL ||
-    "http://localhost:3001"
-  )
+  if (origin && origin !== "null") {
+    try {
+      return new URL(origin).origin;
+    } catch {
+      throw new HttpError(403, "The request origin is not allowed.");
+    }
+  }
+
+  const referer = request.headers.get("referer");
+  if (referer) {
+    try {
+      return new URL(referer).origin;
+    } catch {
+      throw new HttpError(403, "The request origin is not allowed.");
+    }
+  }
+
+  return null;
+}
+
+export function clientIp(request: Request) {
+  const configuredHeader =
+    process.env.TRUSTED_PROXY_IP_HEADER?.trim().toLowerCase();
+
+  if (!configuredHeader) {
+    return process.env.NODE_ENV === "production" ? "unavailable" : "local";
+  }
+
+  const rawValue = request.headers.get(configuredHeader);
+  if (!rawValue) return "unavailable";
+
+  const index = Math.max(
+    0,
+    Number.parseInt(process.env.TRUSTED_PROXY_CLIENT_INDEX || "0", 10) || 0,
+  );
+  const candidate = rawValue
     .split(",")
     .map((value) => value.trim())
-    .filter(Boolean);
-  if (!configured.includes(origin))
+    .filter(Boolean)[index];
+
+  return candidate && isIP(candidate) ? candidate : "unavailable";
+}
+
+export function assertSameOrigin(request: Request) {
+  const origin = requestOrigin(request);
+  if (!origin || !configuredOrigins().has(origin)) {
     throw new HttpError(403, "The request origin is not allowed.");
+  }
+}
+
+export async function readRequestBytes(request: Request, maximumBytes: number) {
+  const lengthHeader = request.headers.get("content-length");
+  if (lengthHeader) {
+    const length = Number(lengthHeader);
+    if (!Number.isFinite(length) || length < 0 || length > maximumBytes) {
+      throw new HttpError(413, "The request is too large.");
+    }
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array();
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maximumBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new HttpError(413, "The request is too large.");
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 export async function enforceRateLimit(

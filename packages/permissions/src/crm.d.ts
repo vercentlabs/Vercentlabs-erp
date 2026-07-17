@@ -18,4 +18,8 @@ export const CRM_PERMISSIONS: Readonly<{
   dataQualityManage: "crm.data-quality.manage";
   integrationsManage: "crm.integrations.manage";
   aiManage: "crm.ai.manage";
+  analyticsManage: "crm.analytics.manage";
+  customizationManage: "crm.customization.manage";
+  partnersManage: "crm.partners.manage";
+  fieldSalesManage: "crm.field-sales.manage";
 }>;

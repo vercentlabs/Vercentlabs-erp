@@ -52,16 +52,46 @@ export async function PATCH(
       if (!role) throw new HttpError(400, "Select a valid role.");
 
       const companyCount = await client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM companies WHERE organization_id=$1 AND id = ANY($2::uuid[])",
+        `
+          SELECT count(*)::int AS count
+          FROM companies
+          WHERE organization_id=$1
+            AND status='active'
+            AND id = ANY($2::uuid[])
+        `,
         [session.organizationId, input.companyIds],
       );
       const branchCount = await client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM branches WHERE organization_id=$1 AND id = ANY($2::uuid[])",
-        [session.organizationId, input.branchIds],
+        `
+          SELECT count(*)::int AS count
+          FROM branches
+          WHERE organization_id=$1
+            AND status='active'
+            AND id = ANY($2::uuid[])
+            AND company_id = ANY($3::uuid[])
+        `,
+        [session.organizationId, input.branchIds, input.companyIds],
       );
       const departmentCount = await client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM departments WHERE organization_id=$1 AND id = ANY($2::uuid[])",
-        [session.organizationId, input.departmentIds],
+        `
+          SELECT count(*)::int AS count
+          FROM departments
+          WHERE organization_id=$1
+            AND status='active'
+            AND id = ANY($2::uuid[])
+            AND (company_id IS NULL OR company_id = ANY($3::uuid[]))
+            AND (
+              branch_id IS NULL
+              OR cardinality($4::uuid[]) = 0
+              OR branch_id = ANY($4::uuid[])
+            )
+        `,
+        [
+          session.organizationId,
+          input.departmentIds,
+          input.companyIds,
+          input.branchIds,
+        ],
       );
       if (
         (companyCount.rows[0]?.count || 0) !== input.companyIds.length ||
@@ -156,11 +186,55 @@ export async function PATCH(
           "INSERT INTO membership_department_access (organization_id,user_id,department_id) VALUES ($1,$2,$3)",
           [session.organizationId, userId, departmentId],
         );
-      if (input.status === "disabled")
-        await client.query(
-          "UPDATE sessions SET revoked_at=now(), revoked_reason='membership_disabled' WHERE user_id=$1 AND revoked_at IS NULL",
-          [userId],
-        );
+      await client.query(
+        `
+          UPDATE user_preferences AS preference
+          SET
+            active_company_id = CASE
+              WHEN preference.active_company_id = ANY($3::uuid[])
+              THEN preference.active_company_id
+              ELSE (
+                SELECT company.id
+                FROM companies AS company
+                WHERE company.organization_id = $1
+                  AND company.id = ANY($3::uuid[])
+                  AND company.status = 'active'
+                ORDER BY company.is_primary DESC, company.created_at ASC, company.id ASC
+                LIMIT 1
+              )
+            END,
+            active_branch_id = CASE
+              WHEN preference.active_branch_id = ANY($4::uuid[])
+              THEN preference.active_branch_id
+              ELSE (
+                SELECT branch.id
+                FROM branches AS branch
+                WHERE branch.organization_id = $1
+                  AND branch.id = ANY($4::uuid[])
+                  AND branch.status = 'active'
+                  AND branch.company_id = ANY($3::uuid[])
+                ORDER BY branch.is_primary DESC, branch.created_at ASC, branch.id ASC
+                LIMIT 1
+              )
+            END,
+            updated_at = now()
+          WHERE preference.organization_id = $1
+            AND preference.user_id = $2
+        `,
+        [session.organizationId, userId, input.companyIds, input.branchIds],
+      );
+      await client.query(
+        `
+          UPDATE sessions
+          SET revoked_at=now(),
+              revoked_reason = CASE
+                WHEN $2 = 'disabled' THEN 'membership_disabled'
+                ELSE 'access_changed'
+              END
+          WHERE user_id=$1 AND revoked_at IS NULL
+        `,
+        [userId, input.status],
+      );
       await client.query(
         `INSERT INTO notifications (organization_id,user_id,type,title,message,href) VALUES ($1,$2,'access','Access settings changed',$3,'/profile')`,
         [session.organizationId, userId, `Your role is now ${role.name}.`],

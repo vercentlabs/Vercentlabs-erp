@@ -667,7 +667,13 @@ const resources = Object.freeze({
   },
   "privacy-requests": {
     table: "tenant.crm_privacy_requests",
-    search: ["request_type", "subject_type", "requester_name", "requester_email", "status"],
+    search: [
+      "request_type",
+      "subject_type",
+      "requester_name",
+      "requester_email",
+      "status",
+    ],
     orderBy: "due_at ASC, created_at DESC",
     statusColumn: "status",
     companyScoped: true,
@@ -703,6 +709,528 @@ const resources = Object.freeze({
       issues: "issues",
       calculatedAt: "calculated_at",
       calculationVersion: "calculation_version",
+    },
+  },
+  "engagement-templates": {
+    table: "tenant.crm_engagement_templates",
+    search: ["name", "subject_template", "body_template", "template_type"],
+    orderBy: "updated_at DESC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      templateType: "template_type",
+      name: "name",
+      subjectTemplate: "subject_template",
+      bodyTemplate: "body_template",
+      languageCode: "language_code",
+      ownerUserId: "owner_user_id",
+      isShared: "is_shared",
+      version: "version",
+      metadata: "metadata",
+      status: "status",
+    },
+  },
+  "meeting-links": {
+    table: "tenant.crm_meeting_links",
+    search: ["name", "slug", "meeting_provider", "location_template"],
+    orderBy: "status ASC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      ownerUserId: "owner_user_id",
+      name: "name",
+      slug: "slug",
+      durationMinutes: "duration_minutes",
+      bufferBeforeMinutes: "buffer_before_minutes",
+      bufferAfterMinutes: "buffer_after_minutes",
+      timezone: "timezone",
+      availability: "availability",
+      meetingProvider: "meeting_provider",
+      locationTemplate: "location_template",
+      status: "status",
+    },
+  },
+  "sync-accounts": {
+    table: "tenant.crm_sync_accounts",
+    search: [
+      "provider",
+      "display_name",
+      "external_account_id",
+      "status",
+      "last_error",
+    ],
+    orderBy: "updated_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      userId: "user_id",
+      provider: "provider",
+      externalAccountId: "external_account_id",
+      displayName: "display_name",
+      credentialReference: "credential_reference",
+      scopes: "scopes",
+      syncDirection: "sync_direction",
+      syncCursor: "sync_cursor",
+      lastSyncedAt: "last_synced_at",
+      lastError: "last_error",
+      status: "status",
+    },
+  },
+  conversations: {
+    table: "tenant.crm_conversations",
+    search: ["title", "provider", "external_id", "channel", "status"],
+    orderBy: "started_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      leadId: "lead_id",
+      opportunityId: "opportunity_id",
+      partyId: "party_id",
+      contactId: "contact_id",
+      communicationId: "communication_id",
+      channel: "channel",
+      provider: "provider",
+      externalId: "external_id",
+      title: "title",
+      startedAt: "started_at",
+      endedAt: "ended_at",
+      recordingReference: "recording_reference",
+      transcriptStatus: "transcript_status",
+      consentStatus: "consent_status",
+      retentionUntil: "retention_until",
+      metadata: "metadata",
+      status: "status",
+    },
+  },
+  "conversation-insights": {
+    table: "tenant.crm_conversation_insights",
+    search: ["title", "content", "insight_type", "review_status"],
+    orderBy: "created_at DESC",
+    statusColumn: "review_status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      conversationId: "conversation_id",
+      insightType: "insight_type",
+      title: "title",
+      content: "content",
+      score: "score",
+      evidence: "evidence",
+      modelProvider: "model_provider",
+      modelName: "model_name",
+      requiresReview: "requires_review",
+      reviewedBy: "reviewed_by",
+      reviewedAt: "reviewed_at",
+      reviewStatus: "review_status",
+    },
+  },
+  "pipeline-inspections": {
+    table: "tenant.crm_pipeline_inspections",
+    search: ["health_status", "calculation_version"],
+    orderBy: "inspected_at DESC",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      opportunityId: "opportunity_id",
+      inspectedAt: "inspected_at",
+      stageAgeDays: "stage_age_days",
+      daysSinceActivity: "days_since_activity",
+      closeDateSlipDays: "close_date_slip_days",
+      amountChange: "amount_change",
+      probabilityChange: "probability_change",
+      healthScore: "health_score",
+      healthStatus: "health_status",
+      issues: "issues",
+      recommendedActions: "recommended_actions",
+      calculationVersion: "calculation_version",
+    },
+  },
+  "deal-risks": {
+    table: "tenant.crm_deal_risks",
+    search: ["title", "description", "risk_type", "severity", "status"],
+    orderBy:
+      "CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, detected_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      opportunityId: "opportunity_id",
+      riskType: "risk_type",
+      severity: "severity",
+      title: "title",
+      description: "description",
+      evidence: "evidence",
+      detectedAt: "detected_at",
+      resolvedAt: "resolved_at",
+      resolutionNotes: "resolution_notes",
+      status: "status",
+    },
+  },
+  recommendations: {
+    table: "tenant.crm_recommendations",
+    search: [
+      "title",
+      "rationale",
+      "recommendation_type",
+      "entity_type",
+      "status",
+    ],
+    orderBy:
+      "CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, due_at ASC NULLS LAST, created_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      entityType: "entity_type",
+      entityId: "entity_id",
+      recommendationType: "recommendation_type",
+      title: "title",
+      rationale: "rationale",
+      actionPayload: "action_payload",
+      priority: "priority",
+      confidence: "confidence",
+      source: "source",
+      modelProvider: "model_provider",
+      modelName: "model_name",
+      dueAt: "due_at",
+      status: "status",
+      decidedBy: "decided_by",
+      decidedAt: "decided_at",
+      decisionNotes: "decision_notes",
+    },
+  },
+  "buying-committees": {
+    table: "tenant.crm_buying_committees",
+    search: ["name", "decision_process", "status"],
+    orderBy: "decision_date ASC NULLS LAST, updated_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      partyId: "party_id",
+      opportunityId: "opportunity_id",
+      name: "name",
+      decisionProcess: "decision_process",
+      decisionDate: "decision_date",
+      coverageScore: "coverage_score",
+      status: "status",
+    },
+  },
+  "buying-committee-members": {
+    table: "tenant.crm_buying_committee_members",
+    search: ["name", "member_role", "sentiment", "gaps"],
+    orderBy:
+      "CASE influence_level WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      committeeId: "committee_id",
+      contactId: "contact_id",
+      name: "name",
+      memberRole: "member_role",
+      influenceLevel: "influence_level",
+      sentiment: "sentiment",
+      engagementScore: "engagement_score",
+      authorityConfirmed: "authority_confirmed",
+      relationshipOwnerUserId: "relationship_owner_user_id",
+      gaps: "gaps",
+      status: "status",
+    },
+  },
+  "relationship-edges": {
+    table: "tenant.crm_relationship_edges",
+    search: [
+      "from_entity_type",
+      "to_entity_type",
+      "relationship_type",
+      "notes",
+    ],
+    orderBy: "strength DESC, updated_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      fromEntityType: "from_entity_type",
+      fromEntityId: "from_entity_id",
+      toEntityType: "to_entity_type",
+      toEntityId: "to_entity_id",
+      relationshipType: "relationship_type",
+      strength: "strength",
+      source: "source",
+      validFrom: "valid_from",
+      validTo: "valid_to",
+      notes: "notes",
+      status: "status",
+    },
+  },
+  "account-signals": {
+    table: "tenant.crm_account_signals",
+    search: ["title", "description", "signal_type", "source", "status"],
+    orderBy: "occurred_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      partyId: "party_id",
+      opportunityId: "opportunity_id",
+      signalType: "signal_type",
+      title: "title",
+      description: "description",
+      signalValue: "signal_value",
+      score: "score",
+      occurredAt: "occurred_at",
+      expiresAt: "expires_at",
+      source: "source",
+      metadata: "metadata",
+      status: "status",
+    },
+  },
+  "partner-accounts": {
+    table: "tenant.crm_partner_accounts",
+    search: ["name", "partner_type", "tier", "region", "status"],
+    orderBy: "tier DESC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      partyId: "party_id",
+      name: "name",
+      partnerType: "partner_type",
+      tier: "tier",
+      region: "region",
+      ownerUserId: "owner_user_id",
+      agreementStart: "agreement_start",
+      agreementEnd: "agreement_end",
+      referralPercent: "referral_percent",
+      metadata: "metadata",
+      status: "status",
+    },
+  },
+  "partner-deals": {
+    table: "tenant.crm_partner_deals",
+    search: ["deal_registration_code", "partner_owner_name", "notes", "status"],
+    orderBy: "registered_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      partnerAccountId: "partner_account_id",
+      opportunityId: "opportunity_id",
+      leadId: "lead_id",
+      dealRegistrationCode: "deal_registration_code",
+      registeredAt: "registered_at",
+      expiresAt: "expires_at",
+      partnerOwnerName: "partner_owner_name",
+      internalOwnerUserId: "internal_owner_user_id",
+      expectedValue: "expected_value",
+      currencyCode: "currency_code",
+      contributionPercent: "contribution_percent",
+      notes: "notes",
+      status: "status",
+    },
+  },
+  "report-definitions": {
+    table: "tenant.crm_report_definitions",
+    search: ["name", "resource", "description", "visualization"],
+    orderBy: "updated_at DESC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      name: "name",
+      resource: "resource",
+      description: "description",
+      dimensions: "dimensions",
+      measures: "measures",
+      filters: "filters",
+      visualization: "visualization",
+      isShared: "is_shared",
+      ownerUserId: "owner_user_id",
+      status: "status",
+    },
+  },
+  dashboards: {
+    table: "tenant.crm_dashboards",
+    search: ["name", "description", "audience"],
+    orderBy: "is_default DESC, updated_at DESC, name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      name: "name",
+      description: "description",
+      audience: "audience",
+      isDefault: "is_default",
+      layout: "layout",
+      ownerUserId: "owner_user_id",
+      status: "status",
+    },
+  },
+  "dashboard-widgets": {
+    table: "tenant.crm_dashboard_widgets",
+    search: ["title", "widget_type"],
+    orderBy: "dashboard_id ASC, sequence ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      dashboardId: "dashboard_id",
+      reportDefinitionId: "report_definition_id",
+      title: "title",
+      widgetType: "widget_type",
+      position: "position",
+      configuration: "configuration",
+      sequence: "sequence",
+      status: "status",
+    },
+  },
+  "custom-object-definitions": {
+    table: "tenant.crm_custom_object_definitions",
+    search: ["object_key", "singular_label", "plural_label", "description"],
+    orderBy: "plural_label ASC",
+    statusColumn: "status",
+    companyScoped: false,
+    fields: {
+      objectKey: "object_key",
+      singularLabel: "singular_label",
+      pluralLabel: "plural_label",
+      description: "description",
+      primaryNameField: "primary_name_field",
+      companyScoped: "company_scoped",
+      status: "status",
+    },
+  },
+  "custom-field-definitions": {
+    table: "tenant.crm_custom_field_definitions",
+    search: ["field_key", "label", "data_type"],
+    orderBy: "object_definition_id ASC, sequence ASC",
+    statusColumn: "status",
+    companyScoped: false,
+    fields: {
+      objectDefinitionId: "object_definition_id",
+      fieldKey: "field_key",
+      label: "label",
+      dataType: "data_type",
+      required: "required",
+      uniqueValue: "unique_value",
+      indexed: "indexed",
+      options: "options",
+      defaultValue: "default_value",
+      validation: "validation",
+      sequence: "sequence",
+      status: "status",
+    },
+  },
+  "custom-records": {
+    table: "tenant.crm_custom_records",
+    search: ["record_name", "status"],
+    orderBy: "updated_at DESC, record_name ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      objectDefinitionId: "object_definition_id",
+      recordName: "record_name",
+      ownerUserId: "owner_user_id",
+      data: "data",
+      status: "status",
+    },
+  },
+  "field-visits": {
+    table: "tenant.crm_field_visits",
+    search: ["visit_type", "address", "objective", "outcome", "status"],
+    orderBy: "planned_start_at ASC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      partyId: "party_id",
+      contactId: "contact_id",
+      opportunityId: "opportunity_id",
+      ownerUserId: "owner_user_id",
+      visitType: "visit_type",
+      plannedStartAt: "planned_start_at",
+      plannedEndAt: "planned_end_at",
+      actualStartAt: "actual_start_at",
+      actualEndAt: "actual_end_at",
+      latitude: "latitude",
+      longitude: "longitude",
+      address: "address",
+      objective: "objective",
+      outcome: "outcome",
+      routeSequence: "route_sequence",
+      status: "status",
+    },
+  },
+  "enrichment-jobs": {
+    table: "tenant.crm_enrichment_jobs",
+    search: ["entity_type", "provider", "status", "error_message"],
+    orderBy: "requested_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      entityType: "entity_type",
+      entityId: "entity_id",
+      provider: "provider",
+      requestedFields: "requested_fields",
+      resultData: "result_data",
+      confidence: "confidence",
+      errorMessage: "error_message",
+      requestedAt: "requested_at",
+      completedAt: "completed_at",
+      status: "status",
+      requestedBy: "requested_by",
+    },
+  },
+  "ai-predictions": {
+    table: "tenant.crm_ai_predictions",
+    search: [
+      "entity_type",
+      "prediction_type",
+      "label",
+      "model_provider",
+      "model_name",
+      "status",
+    ],
+    orderBy: "generated_at DESC",
+    statusColumn: "status",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      entityType: "entity_type",
+      entityId: "entity_id",
+      predictionType: "prediction_type",
+      score: "score",
+      label: "label",
+      explanation: "explanation",
+      inputSnapshot: "input_snapshot",
+      modelProvider: "model_provider",
+      modelName: "model_name",
+      modelVersion: "model_version",
+      generatedAt: "generated_at",
+      expiresAt: "expires_at",
+      status: "status",
+    },
+  },
+  "ai-feedback": {
+    table: "tenant.crm_ai_feedback",
+    search: ["outcome", "feedback"],
+    orderBy: "created_at DESC",
+    companyScoped: true,
+    fields: {
+      companyId: "company_id",
+      predictionId: "prediction_id",
+      recommendationId: "recommendation_id",
+      userId: "user_id",
+      outcome: "outcome",
+      feedback: "feedback",
+      correctedValue: "corrected_value",
     },
   },
   "saved-views": {
@@ -754,6 +1282,9 @@ function addParameter(parameters, value) {
 
 function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
+  if (definition.table === "tenant.crm_saved_views") {
+    sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
+  }
   if (definition.companyScoped && !context.allowAllCompanies) {
     if (!context.activeCompanyId) return " AND false";
     sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
@@ -942,10 +1473,165 @@ function mutableEntries(definition, input) {
   );
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function valueMatchesCustomField(field, value) {
+  if (value === null || value === undefined) return true;
+  if (field.data_type === "boolean") return typeof value === "boolean";
+  if (["number", "currency"].includes(field.data_type))
+    return typeof value === "number" && Number.isFinite(value);
+  if (field.data_type === "multi_select") return Array.isArray(value);
+  if (field.data_type === "json") return typeof value === "object";
+  if (field.data_type === "date")
+    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (field.data_type === "datetime")
+    return typeof value === "string" && Number.isFinite(Date.parse(value));
+  if (field.data_type === "email")
+    return (
+      typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+    );
+  if (field.data_type === "url") {
+    if (typeof value !== "string") return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" || url.protocol === "http:";
+    } catch {
+      return false;
+    }
+  }
+  return typeof value === "string";
+}
+
+async function validateCustomRecord(
+  client,
+  context,
+  prepared,
+  existingId = null,
+) {
+  if (!prepared.objectDefinitionId)
+    throw new CrmError(400, "Custom object definition is required.");
+  if (!isPlainObject(prepared.data))
+    throw new CrmError(400, "Custom record data must be a JSON object.");
+
+  const definitionResult = await client.query(
+    `SELECT id, company_scoped FROM tenant.crm_custom_object_definitions WHERE organization_id = $1 AND id = $2 AND status = 'active'`,
+    [context.organizationId, prepared.objectDefinitionId],
+  );
+  const objectDefinition = definitionResult.rows[0];
+  if (!objectDefinition)
+    throw new CrmError(409, "The custom object definition is not active.");
+  if (objectDefinition.company_scoped && !prepared.companyId)
+    throw new CrmError(400, "A company is required for this custom object.");
+
+  const fieldsResult = await client.query(
+    `SELECT field_key, data_type, required, unique_value, options, validation FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,
+    [context.organizationId, prepared.objectDefinitionId],
+  );
+  const knownFields = new Set(
+    fieldsResult.rows.map((field) => field.field_key),
+  );
+  const unknownFields = Object.keys(prepared.data).filter(
+    (key) => !knownFields.has(key),
+  );
+  if (unknownFields.length)
+    throw new CrmError(
+      400,
+      `Unknown custom fields: ${unknownFields.join(", ")}.`,
+      "CRM_CUSTOM_FIELD_UNKNOWN",
+    );
+
+  for (const field of fieldsResult.rows) {
+    const value = prepared.data[field.field_key];
+    const empty = value === undefined || value === null || value === "";
+    if (field.required && empty)
+      throw new CrmError(
+        400,
+        `${field.field_key} is required.`,
+        "CRM_CUSTOM_FIELD_REQUIRED",
+      );
+    if (empty) continue;
+    if (!valueMatchesCustomField(field, value))
+      throw new CrmError(
+        400,
+        `${field.field_key} has an invalid ${field.data_type} value.`,
+        "CRM_CUSTOM_FIELD_TYPE_INVALID",
+      );
+    if (
+      ["select", "multi_select"].includes(field.data_type) &&
+      Array.isArray(field.options) &&
+      field.options.length
+    ) {
+      const selected = Array.isArray(value) ? value : [value];
+      if (selected.some((item) => !field.options.includes(item)))
+        throw new CrmError(
+          400,
+          `${field.field_key} contains an unsupported option.`,
+          "CRM_CUSTOM_FIELD_OPTION_INVALID",
+        );
+    }
+    const validation = isPlainObject(field.validation) ? field.validation : {};
+    if (typeof value === "string" && validation.pattern) {
+      let pattern;
+      try {
+        pattern = new RegExp(String(validation.pattern));
+      } catch {
+        throw new CrmError(
+          409,
+          `${field.field_key} has an invalid configured validation pattern.`,
+        );
+      }
+      if (!pattern.test(value))
+        throw new CrmError(
+          400,
+          `${field.field_key} does not match its validation rule.`,
+          "CRM_CUSTOM_FIELD_PATTERN_INVALID",
+        );
+    }
+    if (typeof value === "number") {
+      if (
+        validation.minimum !== undefined &&
+        value < Number(validation.minimum)
+      )
+        throw new CrmError(400, `${field.field_key} is below its minimum.`);
+      if (
+        validation.maximum !== undefined &&
+        value > Number(validation.maximum)
+      )
+        throw new CrmError(400, `${field.field_key} exceeds its maximum.`);
+    }
+    if (field.unique_value) {
+      const uniqueParameters = [
+        context.organizationId,
+        prepared.objectDefinitionId,
+        field.field_key,
+        JSON.stringify(value),
+      ];
+      let exclusion = "";
+      if (existingId) {
+        uniqueParameters.push(existingId);
+        exclusion = " AND id <> $5";
+      }
+      const duplicate = await client.query(
+        `SELECT 1 FROM tenant.crm_custom_records WHERE organization_id = $1 AND object_definition_id = $2 AND data -> $3 = $4::jsonb${exclusion} LIMIT 1`,
+        uniqueParameters,
+      );
+      if (duplicate.rows[0])
+        throw new CrmError(
+          409,
+          `${field.field_key} must be unique.`,
+          "CRM_CUSTOM_FIELD_NOT_UNIQUE",
+        );
+    }
+  }
+}
+
 export async function createCrmRecord(client, context, resource, input) {
   const definition = definitionFor(resource);
   assertWritableScope(definition, context, input);
   const prepared = { ...input };
+  if (resource === "saved-views") prepared.userId = context.userId;
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
       client,
@@ -991,6 +1677,8 @@ export async function createCrmRecord(client, context, resource, input) {
       context.organizationId,
       prepared,
     );
+  if (resource === "custom-records")
+    await validateCustomRecord(client, context, prepared);
   const entries = mutableEntries(definition, prepared);
   if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
   const columns = [
@@ -1063,6 +1751,7 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   assertWritableScope(definition, context, input);
+  if (resource === "saved-views") delete input.userId;
   assertLifecycleUpdate(resource, before, input);
   const prepared = { ...input };
   if (resource === "leads")
@@ -1070,6 +1759,12 @@ export async function updateCrmRecord(client, context, resource, id, input) {
       ...before,
       ...prepared,
     });
+  if (resource === "custom-records") {
+    prepared.objectDefinitionId ??= before.objectDefinitionId;
+    prepared.companyId ??= before.companyId;
+    prepared.data ??= before.data;
+    await validateCustomRecord(client, context, prepared, id);
+  }
   const entries = mutableEntries(definition, prepared);
   if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
   const parameters = entries.map(([, value]) => value);
@@ -1112,16 +1807,33 @@ export async function updateCrmRecord(client, context, resource, id, input) {
 
 export async function archiveCrmRecord(client, context, resource, id) {
   const definition = definitionFor(resource);
+  const before = await getCrmRecord(client, context, resource, id);
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
-  if (resource === "consent-events") {
+
+  if (
+    resource === "consent-events" ||
+    resource === "communications" ||
+    resource === "playbook-responses" ||
+    resource === "data-quality-scores" ||
+    resource === "pipeline-inspections" ||
+    resource === "ai-feedback"
+  ) {
     throw new CrmError(
       409,
-      "Consent evidence is immutable and cannot be deleted.",
-      "CRM_CONSENT_IMMUTABLE",
+      "This CRM record is immutable and cannot be deleted.",
+      "CRM_RECORD_IMMUTABLE",
     );
   }
-  if (!definition.statusColumn) {
+  if (resource === "privacy-requests" && before.status === "completed") {
+    throw new CrmError(
+      409,
+      "Completed privacy requests cannot be archived.",
+      "CRM_PRIVACY_REQUEST_CLOSED",
+    );
+  }
+
+  if (resource === "saved-views") {
     const result = await client.query(
       `DELETE FROM ${definition.table} record WHERE record.organization_id = $1 AND record.id = $2${scope} RETURNING record.id`,
       parameters,
@@ -1129,19 +1841,69 @@ export async function archiveCrmRecord(client, context, resource, id) {
     if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
     return { id, deleted: true };
   }
-  const status =
-    {
-      leads: "archived",
-      opportunities: "archived",
-      activities: "cancelled",
-      campaigns: "cancelled",
-      sequences: "archived",
-      integrations: "disabled",
-      "quota-plans": "cancelled",
-      "forecast-periods": "closed",
-      "forecast-submissions": "superseded",
-      "privacy-requests": "cancelled",
-    }[resource] || "inactive";
+
+  const archiveStatuses = {
+    leads: "archived",
+    opportunities: "archived",
+    activities: "cancelled",
+    campaigns: "cancelled",
+    pipelines: "inactive",
+    stages: "inactive",
+    sources: "inactive",
+    "lost-reasons": "inactive",
+    tags: "inactive",
+    "scoring-rules": "inactive",
+    "assignment-rules": "inactive",
+    sequences: "archived",
+    "sequence-enrollments": "cancelled",
+    "automation-rules": "inactive",
+    "capture-forms": "inactive",
+    competitors: "inactive",
+    integrations: "disabled",
+    "webhook-subscriptions": "inactive",
+    "sales-teams": "inactive",
+    "sales-team-members": "inactive",
+    territories: "archived",
+    "quota-plans": "cancelled",
+    "forecast-periods": "closed",
+    "forecast-submissions": "superseded",
+    "account-plans": "archived",
+    "account-stakeholders": "inactive",
+    playbooks: "archived",
+    "playbook-questions": "inactive",
+    "privacy-requests": "cancelled",
+    "engagement-templates": "archived",
+    "meeting-links": "archived",
+    "sync-accounts": "disabled",
+    conversations: "archived",
+    "conversation-insights": "superseded",
+    "deal-risks": "dismissed",
+    recommendations: "expired",
+    "buying-committees": "archived",
+    "buying-committee-members": "inactive",
+    "relationship-edges": "inactive",
+    "account-signals": "dismissed",
+    "partner-accounts": "archived",
+    "partner-deals": "cancelled",
+    "report-definitions": "archived",
+    dashboards: "archived",
+    "dashboard-widgets": "inactive",
+    "custom-object-definitions": "archived",
+    "custom-field-definitions": "archived",
+    "custom-records": "archived",
+    "field-visits": "cancelled",
+    "enrichment-jobs": "cancelled",
+    "ai-predictions": "expired",
+  };
+  const status = archiveStatuses[resource];
+  if (!definition.statusColumn || !status) {
+    throw new CrmError(
+      409,
+      "This CRM resource has no supported archive transition.",
+      "CRM_ARCHIVE_UNSUPPORTED",
+    );
+  }
+
   const statusParameter = addParameter(parameters, status);
   const userParameter = addParameter(parameters, context.userId);
   const result = await client.query(
@@ -1576,7 +2338,12 @@ export async function completeCrmActivity(
   activityId,
   outcome = null,
 ) {
-  const parameters = [outcome, context.userId, context.organizationId, activityId];
+  const parameters = [
+    outcome,
+    context.userId,
+    context.organizationId,
+    activityId,
+  ];
   const result = await client.query(
     `UPDATE tenant.crm_activities record SET status = 'completed', completed_at = now(), outcome = COALESCE($1, outcome), updated_by = $2, updated_at = now() WHERE record.organization_id = $3 AND record.id = $4${recordScope(resources.activities, context, parameters)} RETURNING record.*`,
     parameters,
@@ -1623,6 +2390,7 @@ export async function runCrmAutomation(
       continue;
     }
     const output = [];
+    await client.query("SAVEPOINT crm_automation_rule");
     try {
       for (const action of Array.isArray(rule.actions) ? rule.actions : []) {
         if (action.type === "create_activity") {
@@ -1655,6 +2423,163 @@ export async function runCrmAutomation(
           );
           output.push({ action: action.type });
         }
+        if (action.type === "update_record" && isPlainObject(action.fields)) {
+          const targetResource =
+            entityType === "lead"
+              ? "leads"
+              : entityType === "opportunity"
+                ? "opportunities"
+                : entityType === "activity"
+                  ? "activities"
+                  : null;
+          if (!targetResource)
+            throw new CrmError(
+              400,
+              `Automation cannot update ${entityType} records.`,
+            );
+          await updateCrmRecord(
+            client,
+            context,
+            targetResource,
+            entityId,
+            action.fields,
+          );
+          output.push({ action: action.type, resource: targetResource });
+        }
+        if (action.type === "assign_owner" && action.userId) {
+          const targetResource =
+            entityType === "lead"
+              ? "leads"
+              : entityType === "opportunity"
+                ? "opportunities"
+                : entityType === "activity"
+                  ? "activities"
+                  : null;
+          const ownerField =
+            targetResource === "activities" ? "assignedTo" : "ownerUserId";
+          if (!targetResource)
+            throw new CrmError(
+              400,
+              `Automation cannot assign ${entityType} records.`,
+            );
+          const membership = await client.query(
+            `SELECT 1 FROM public.organization_memberships WHERE organization_id = $1 AND user_id = $2 AND status = 'active'`,
+            [context.organizationId, action.userId],
+          );
+          if (!membership.rows[0])
+            throw new CrmError(
+              409,
+              "Automation owner must be an active organization member.",
+            );
+          await updateCrmRecord(client, context, targetResource, entityId, {
+            [ownerField]: action.userId,
+          });
+          output.push({ action: action.type, userId: action.userId });
+        }
+        if (action.type === "enroll_sequence" && action.sequenceId) {
+          const targetField =
+            entityType === "lead"
+              ? "leadId"
+              : entityType === "opportunity"
+                ? "opportunityId"
+                : entityType === "contact"
+                  ? "contactId"
+                  : null;
+          if (!targetField)
+            throw new CrmError(
+              400,
+              `Automation cannot enroll ${entityType} in a sequence.`,
+            );
+          const enrollment = await createCrmRecord(
+            client,
+            context,
+            "sequence-enrollments",
+            {
+              sequenceId: action.sequenceId,
+              [targetField]: entityId,
+              currentStep: 0,
+              nextRunAt: new Date(
+                Date.now() + Number(action.delayMinutes || 0) * 60000,
+              ).toISOString(),
+              status: "active",
+              enrolledBy: context.userId,
+            },
+          );
+          output.push({ action: action.type, id: enrollment.id });
+        }
+        if (action.type === "create_recommendation" && action.title) {
+          const recommendation = await createCrmRecord(
+            client,
+            context,
+            "recommendations",
+            {
+              companyId: payload.companyId || context.activeCompanyId,
+              entityType,
+              entityId,
+              recommendationType:
+                action.recommendationType || "next_best_action",
+              title: action.title,
+              rationale:
+                action.rationale || "Created by a governed CRM automation.",
+              actionPayload: action.actionPayload || {},
+              priority: action.priority || "medium",
+              confidence: action.confidence ?? null,
+              source: "rules",
+              dueAt: action.dueAt || null,
+              status: "open",
+            },
+          );
+          output.push({ action: action.type, id: recommendation.id });
+        }
+        if (action.type === "queue_communication") {
+          const targetField =
+            entityType === "lead"
+              ? "leadId"
+              : entityType === "opportunity"
+                ? "opportunityId"
+                : entityType === "contact"
+                  ? "contactId"
+                  : entityType === "party"
+                    ? "partyId"
+                    : null;
+          if (!targetField)
+            throw new CrmError(
+              400,
+              `Automation cannot communicate with ${entityType}.`,
+            );
+          const communication = await createCrmRecord(
+            client,
+            context,
+            "communications",
+            {
+              channel: action.channel || "email",
+              direction: "outbound",
+              [targetField]: entityId,
+              provider: action.provider || "outbox",
+              subject: action.subject || null,
+              body: action.body || "",
+              fromAddress: action.fromAddress || null,
+              toAddresses: Array.isArray(action.toAddresses)
+                ? action.toAddresses
+                : [],
+              status: "queued",
+              occurredAt: new Date().toISOString(),
+              metadata: { automationRuleId: rule.id },
+            },
+          );
+          output.push({ action: action.type, id: communication.id });
+        }
+        if (action.type === "emit_event" && action.eventType) {
+          await queueOutboxEvent(
+            client,
+            context,
+            action.eventType,
+            entityType,
+            entityId,
+            isPlainObject(action.payload) ? action.payload : payload,
+          );
+          output.push({ action: action.type, eventType: action.eventType });
+        }
       }
       await client.query(
         `INSERT INTO tenant.crm_automation_runs (organization_id, rule_id, event_type, entity_type, entity_id, status, result, finished_at) VALUES ($1, $2, $3, $4, $5, 'succeeded', $6, now())`,
@@ -1667,8 +2592,11 @@ export async function runCrmAutomation(
           output,
         ],
       );
+      await client.query("RELEASE SAVEPOINT crm_automation_rule");
       results.push({ ruleId: rule.id, status: "succeeded", output });
     } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT crm_automation_rule");
+      await client.query("RELEASE SAVEPOINT crm_automation_rule");
       await client.query(
         `INSERT INTO tenant.crm_automation_runs (organization_id, rule_id, event_type, entity_type, entity_id, status, error_message, finished_at) VALUES ($1, $2, $3, $4, $5, 'failed', $6, now())`,
         [
@@ -1815,6 +2743,38 @@ export async function getCrmOptions(client, context) {
     `SELECT question.id, question.prompt AS name, question.playbook_id, question.company_id FROM tenant.crm_playbook_questions question WHERE question.organization_id = $1 AND question.status = 'active' AND ${companyVisible("question")} ORDER BY question.sequence, question.prompt`,
     parameters,
   );
+  const conversations = await queryOptions(
+    `SELECT conversation.id, COALESCE(conversation.title, initcap(replace(conversation.channel, '_', ' '))) AS name, conversation.company_id FROM tenant.crm_conversations conversation WHERE conversation.organization_id = $1 AND conversation.status <> 'archived' AND ${companyVisible("conversation")} ORDER BY conversation.started_at DESC NULLS LAST, conversation.created_at DESC LIMIT 500`,
+    parameters,
+  );
+  const buyingCommittees = await queryOptions(
+    `SELECT committee.id, committee.name, committee.company_id FROM tenant.crm_buying_committees committee WHERE committee.organization_id = $1 AND committee.status = 'active' AND ${companyVisible("committee")} ORDER BY committee.name`,
+    parameters,
+  );
+  const partnerAccounts = await queryOptions(
+    `SELECT partner.id, partner.name, partner.company_id FROM tenant.crm_partner_accounts partner WHERE partner.organization_id = $1 AND partner.status = 'active' AND ${companyVisible("partner")} ORDER BY partner.name`,
+    parameters,
+  );
+  const reportDefinitions = await queryOptions(
+    `SELECT definition.id, definition.name, definition.company_id FROM tenant.crm_report_definitions definition WHERE definition.organization_id = $1 AND definition.status = 'active' AND ${companyVisible("definition")} ORDER BY definition.name`,
+    parameters,
+  );
+  const dashboards = await queryOptions(
+    `SELECT dashboard.id, dashboard.name, dashboard.company_id FROM tenant.crm_dashboards dashboard WHERE dashboard.organization_id = $1 AND dashboard.status = 'active' AND ${companyVisible("dashboard")} ORDER BY dashboard.name`,
+    parameters,
+  );
+  const customObjects = await queryOptions(
+    `SELECT definition.id, definition.plural_label AS name, definition.object_key FROM tenant.crm_custom_object_definitions definition WHERE definition.organization_id = $1 AND definition.status = 'active' ORDER BY definition.plural_label`,
+    parameters,
+  );
+  const aiPredictions = await queryOptions(
+    `SELECT prediction.id, concat(prediction.entity_type, ': ', prediction.prediction_type) AS name, prediction.company_id FROM tenant.crm_ai_predictions prediction WHERE prediction.organization_id = $1 AND prediction.status = 'active' AND ${companyVisible("prediction")} ORDER BY prediction.created_at DESC LIMIT 500`,
+    parameters,
+  );
+  const recommendations = await queryOptions(
+    `SELECT recommendation.id, recommendation.title AS name, recommendation.company_id FROM tenant.crm_recommendations recommendation WHERE recommendation.organization_id = $1 AND recommendation.status IN ('open','accepted') AND ${companyVisible("recommendation")} ORDER BY recommendation.priority DESC, recommendation.created_at DESC LIMIT 500`,
+    parameters,
+  );
 
   const map = (result) => result.rows.map(camelizeRow);
   return {
@@ -1841,6 +2801,14 @@ export async function getCrmOptions(client, context) {
     accountPlans: map(accountPlans),
     playbooks: map(playbooks),
     playbookQuestions: map(playbookQuestions),
+    conversations: map(conversations),
+    buyingCommittees: map(buyingCommittees),
+    partnerAccounts: map(partnerAccounts),
+    reportDefinitions: map(reportDefinitions),
+    dashboards: map(dashboards),
+    customObjects: map(customObjects),
+    aiPredictions: map(aiPredictions),
+    recommendations: map(recommendations),
   };
 }
 
@@ -1961,6 +2929,16 @@ export async function getCrmReport(client, context, report, filters = {}) {
     sql = `SELECT party.display_name AS account, plan.account_tier, plan.lifecycle_stage, plan.health_status, plan.health_score, plan.annual_revenue, plan.potential_revenue, plan.renewal_date, plan.next_review_at FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${companyVisible("plan")} ORDER BY CASE plan.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 WHEN 'healthy' THEN 4 ELSE 5 END, plan.next_review_at NULLS LAST`;
   else if (report === "privacy")
     sql = `SELECT request.request_type, request.status, count(*)::int AS requests, count(*) FILTER (WHERE request.due_at < now() AND request.status NOT IN ('completed','rejected','cancelled'))::int AS overdue FROM tenant.crm_privacy_requests request WHERE request.organization_id = $1 ${dateClause("request.created_at")} AND ${companyVisible("request")} GROUP BY request.request_type, request.status ORDER BY request.request_type, request.status`;
+  else if (report === "pipeline-intelligence")
+    sql = `SELECT inspection.health_status, count(*)::int AS opportunities, round(avg(inspection.health_score),2) AS average_health_score, round(avg(inspection.stage_age_days),2) AS average_stage_age_days, round(avg(inspection.days_since_activity),2) AS average_days_since_activity, count(*) FILTER (WHERE inspection.close_date_slip_days > 0)::int AS slipped_close_dates FROM tenant.crm_pipeline_inspections inspection WHERE inspection.organization_id = $1 ${dateClause("inspection.inspected_at")} AND ${companyVisible("inspection")} GROUP BY inspection.health_status ORDER BY CASE inspection.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 ELSE 4 END`;
+  else if (report === "engagement-intelligence")
+    sql = `SELECT conversation.channel, count(DISTINCT conversation.id)::int AS conversations, count(insight.id)::int AS insights, count(insight.id) FILTER (WHERE insight.insight_type = 'risk')::int AS risks, count(insight.id) FILTER (WHERE insight.insight_type = 'next_action')::int AS next_actions, count(insight.id) FILTER (WHERE insight.review_status = 'pending')::int AS pending_review FROM tenant.crm_conversations conversation LEFT JOIN tenant.crm_conversation_insights insight ON insight.organization_id = conversation.organization_id AND insight.conversation_id = conversation.id WHERE conversation.organization_id = $1 ${dateClause("conversation.started_at")} AND ${companyVisible("conversation")} GROUP BY conversation.channel ORDER BY conversations DESC`;
+  else if (report === "relationship-coverage")
+    sql = `SELECT committee.status, count(DISTINCT committee.id)::int AS committees, round(avg(committee.coverage_score),2) AS average_coverage_score, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_role = 'economic_buyer')::int AS economic_buyers, count(member.id) FILTER (WHERE member.member_role = 'champion')::int AS champions, count(member.id) FILTER (WHERE member.sentiment IN ('detractor','strong_detractor'))::int AS detractors FROM tenant.crm_buying_committees committee LEFT JOIN tenant.crm_buying_committee_members member ON member.organization_id = committee.organization_id AND member.committee_id = committee.id AND member.status = 'active' WHERE committee.organization_id = $1 ${dateClause("committee.created_at")} AND ${companyVisible("committee")} GROUP BY committee.status ORDER BY committees DESC`;
+  else if (report === "partner-pipeline")
+    sql = `SELECT partner.partner_type, partner.tier, count(deal.id)::int AS registered_deals, COALESCE(sum(deal.expected_value),0)::numeric AS expected_value, count(deal.id) FILTER (WHERE deal.status = 'won')::int AS won_deals, count(deal.id) FILTER (WHERE deal.status IN ('submitted','approved','active'))::int AS active_deals FROM tenant.crm_partner_accounts partner LEFT JOIN tenant.crm_partner_deals deal ON deal.organization_id = partner.organization_id AND deal.partner_account_id = partner.id ${dateClause("deal.registered_at")} WHERE partner.organization_id = $1 AND partner.status = 'active' AND ${companyVisible("partner")} GROUP BY partner.partner_type, partner.tier ORDER BY expected_value DESC`;
+  else if (report === "ai-governance")
+    sql = `SELECT prediction.prediction_type, prediction.model_provider, prediction.model_name, count(*)::int AS predictions, round(avg(prediction.score),4) AS average_score, count(feedback.id)::int AS feedback_events, count(feedback.id) FILTER (WHERE feedback.outcome IN ('accepted','correct'))::int AS positive_feedback, count(feedback.id) FILTER (WHERE feedback.outcome IN ('rejected','incorrect','not_actionable'))::int AS negative_feedback FROM tenant.crm_ai_predictions prediction LEFT JOIN tenant.crm_ai_feedback feedback ON feedback.organization_id = prediction.organization_id AND feedback.prediction_id = prediction.id WHERE prediction.organization_id = $1 ${dateClause("prediction.generated_at")} AND ${companyVisible("prediction")} GROUP BY prediction.prediction_type, prediction.model_provider, prediction.model_name ORDER BY predictions DESC`;
   else throw new CrmError(404, "Unknown CRM report.");
   const scopeParametersCte = `crm_scope_parameters AS (
     SELECT $1::uuid AS organization_id,

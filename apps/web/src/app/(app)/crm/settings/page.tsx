@@ -45,6 +45,40 @@ const groups = {
     ["Privacy requests", "privacy-requests"],
     ["Data quality scores", "data-quality-scores"],
   ],
+  "Unified engagement": [
+    ["Engagement templates", "engagement-templates"],
+    ["Meeting links", "meeting-links"],
+    ["Email and calendar accounts", "sync-accounts"],
+    ["Customer conversations", "conversations"],
+    ["Conversation insights", "conversation-insights"],
+  ],
+  "Revenue and relationship intelligence": [
+    ["Pipeline inspections", "pipeline-inspections"],
+    ["Deal risks", "deal-risks"],
+    ["Seller recommendations", "recommendations"],
+    ["Buying committees", "buying-committees"],
+    ["Buying committee members", "buying-committee-members"],
+    ["Relationship map", "relationship-edges"],
+    ["Account signals", "account-signals"],
+  ],
+  "Partner and field selling": [
+    ["Partner accounts", "partner-accounts"],
+    ["Partner deals", "partner-deals"],
+    ["Field visits", "field-visits"],
+  ],
+  "Analytics and customization": [
+    ["Report definitions", "report-definitions"],
+    ["Dashboards", "dashboards"],
+    ["Dashboard widgets", "dashboard-widgets"],
+    ["Custom object definitions", "custom-object-definitions"],
+    ["Custom field definitions", "custom-field-definitions"],
+    ["Custom records", "custom-records"],
+  ],
+  "Data enrichment and governed AI": [
+    ["Enrichment jobs", "enrichment-jobs"],
+    ["AI predictions", "ai-predictions"],
+    ["AI feedback", "ai-feedback"],
+  ],
   "Integrations and personalisation": [
     ["Communication integrations", "integrations"],
     ["Webhook subscriptions", "webhook-subscriptions"],
@@ -62,6 +96,10 @@ export default async function CrmSettingsPage() {
     PERMISSIONS.crmPrivacyManage,
     PERMISSIONS.crmDataQualityManage,
     PERMISSIONS.crmIntegrationsManage,
+    PERMISSIONS.crmAnalyticsManage,
+    PERMISSIONS.crmCustomizationManage,
+    PERMISSIONS.crmPartnersManage,
+    PERMISSIONS.crmFieldSalesManage,
   ].some((permission) => hasPermission(session, permission));
   return (
     <>
@@ -70,8 +108,9 @@ export default async function CrmSettingsPage() {
           <p className="eyebrow">CRM administration</p>
           <h1>Configure the customer lifecycle</h1>
           <p>
-            Govern stages, scoring, territories, quotas, forecasting, account
-            plans, privacy, data quality and provider-neutral integrations.
+            Govern stages, engagement, intelligence, partner selling, analytics,
+            customization, privacy, data quality and provider-neutral
+            integrations.
           </p>
         </div>
         <span className="status-badge neutral">

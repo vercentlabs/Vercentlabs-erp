@@ -2,7 +2,7 @@ import {
   createSession,
   nextPath,
   setSessionCookie,
-  verifyPassword,
+  verifyPasswordOrDummy,
 } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
@@ -14,6 +14,8 @@ import {
   recordLoginEvent,
 } from "@/lib/security";
 import { loginSchema } from "@/lib/validation";
+
+const genericFailure = "The email or password is incorrect.";
 
 export async function POST(request: Request) {
   try {
@@ -35,90 +37,105 @@ export async function POST(request: Request) {
       role: "owner" | "admin" | "member" | null;
     }>(
       `
-      SELECT u.id, u.email, u.full_name, u.password_hash, u.email_verified_at, u.status, u.locked_until,
-        m.organization_id, o.name AS organization_name, m.role
-      FROM users u
-      LEFT JOIN organization_memberships m ON m.user_id = u.id AND m.status = 'active'
-      LEFT JOIN organizations o ON o.id = m.organization_id
-      WHERE u.email = $1
-      ORDER BY m.created_at ASC NULLS LAST
+      SELECT
+        app_user.id,
+        app_user.email,
+        app_user.full_name,
+        app_user.password_hash,
+        app_user.email_verified_at,
+        app_user.status,
+        app_user.locked_until,
+        membership.organization_id,
+        organization.name AS organization_name,
+        membership.role
+      FROM users AS app_user
+      LEFT JOIN LATERAL (
+        SELECT organization_membership.organization_id,
+          organization_membership.role,
+          organization_membership.created_at
+        FROM organization_memberships AS organization_membership
+        JOIN organizations AS active_organization
+          ON active_organization.id = organization_membership.organization_id
+         AND active_organization.status = 'active'
+        WHERE organization_membership.user_id = app_user.id
+          AND organization_membership.status = 'active'
+        ORDER BY organization_membership.created_at ASC,
+          organization_membership.organization_id ASC
+        LIMIT 1
+      ) AS membership ON true
+      LEFT JOIN organizations AS organization
+        ON organization.id = membership.organization_id
+      WHERE app_user.email = $1
       LIMIT 1
     `,
       [input.email],
     );
 
     const user = rows[0];
-    const generic = "The email or password is incorrect.";
-    if (!user) {
-      await recordLoginEvent({
-        request,
-        email: input.email,
-        succeeded: false,
-        reason: "unknown_account",
-      });
-      throw new HttpError(401, generic);
-    }
-    if (user.status !== "active") {
-      await recordLoginEvent({
-        request,
-        email: input.email,
-        userId: user.id,
-        succeeded: false,
-        reason: "account_disabled",
-      });
-      throw new HttpError(
-        403,
-        "This account is not active. Contact an organisation administrator.",
-      );
-    }
-    if (
-      user.locked_until &&
-      new Date(user.locked_until).getTime() > Date.now()
-    ) {
-      throw new HttpError(
-        429,
-        "This account is temporarily locked. Try again later.",
-      );
-    }
+    const passwordValid = await verifyPasswordOrDummy(
+      input.password,
+      user?.password_hash,
+    );
+    const locked = Boolean(
+      user?.locked_until && new Date(user.locked_until).getTime() > Date.now(),
+    );
+    const accountUsable = Boolean(
+      user &&
+      passwordValid &&
+      user.status === "active" &&
+      user.email_verified_at &&
+      !locked,
+    );
 
-    const valid = await verifyPassword(input.password, user.password_hash);
-    if (!valid) {
-      await query(
-        `
-        UPDATE users SET
-          failed_login_attempts = failed_login_attempts + 1,
-          locked_until = CASE WHEN failed_login_attempts + 1 >= 5 THEN now() + interval '15 minutes' ELSE locked_until END,
-          updated_at = now()
-        WHERE id = $1
-      `,
-        [user.id],
-      );
-      await recordLoginEvent({
-        request,
-        email: input.email,
-        userId: user.id,
-        succeeded: false,
-        reason: "invalid_password",
-      });
-      throw new HttpError(401, generic);
-    }
+    if (!accountUsable) {
+      let reason = "unknown_account";
+      if (user) {
+        if (!passwordValid) reason = "invalid_password";
+        else if (user.status !== "active") reason = "account_disabled";
+        else if (!user.email_verified_at) reason = "email_unverified";
+        else if (locked) reason = "account_locked";
+      }
 
-    if (!user.email_verified_at) {
+      if (user && !passwordValid && !locked) {
+        await query(
+          `
+          UPDATE users SET
+            failed_login_attempts = failed_login_attempts + 1,
+            locked_until = CASE
+              WHEN failed_login_attempts + 1 >= 5
+              THEN now() + interval '15 minutes'
+              ELSE locked_until
+            END,
+            updated_at = now()
+          WHERE id = $1
+        `,
+          [user.id],
+        );
+      }
+
       await recordLoginEvent({
         request,
         email: input.email,
-        userId: user.id,
+        userId: user?.id,
         succeeded: false,
-        reason: "email_unverified",
+        reason,
       });
-      throw new HttpError(403, "Verify your email before signing in.");
+      throw new HttpError(401, genericFailure);
     }
 
     await query(
-      "UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = now(), updated_at = now() WHERE id = $1",
+      `
+      UPDATE users
+      SET failed_login_attempts = 0,
+          locked_until = NULL,
+          last_login_at = now(),
+          updated_at = now()
+      WHERE id = $1
+    `,
       [user.id],
     );
-    const session = await createSession(user.id, request);
+
+    const session = await createSession(user.id, request, user.organization_id);
     const context = {
       sessionId: session.sessionId,
       userId: user.id,
@@ -135,6 +152,7 @@ export async function POST(request: Request) {
       activeBranchId: null,
       branchName: null,
     };
+
     await recordLoginEvent({
       request,
       email: input.email,
@@ -149,10 +167,12 @@ export async function POST(request: Request) {
       entityId: user.id,
       request,
     });
+
     const response = ok({
       message: "Signed in successfully.",
       next: nextPath(context),
     });
+    response.headers.set("Cache-Control", "private, no-store");
     setSessionCookie(response, session);
     return response;
   } catch (error) {

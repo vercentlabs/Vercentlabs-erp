@@ -697,16 +697,39 @@ export async function updateBusinessDataRecord(
   const definition = definitionFor(resource);
 
   try {
-    await assertExistingRecord(client, context, resource, id);
+    const existingRow = await assertExistingRecord(
+      client,
+      context,
+      resource,
+      id,
+    );
+    const suppliedFields = Object.keys(input).filter((field) =>
+      Object.hasOwn(definition.fields, field),
+    );
+    if (!suppliedFields.length) {
+      throw new BusinessDataError(
+        400,
+        "Provide at least one supported field to update.",
+        "EMPTY_PATCH",
+      );
+    }
 
+    const mergedInput = {
+      ...camelizeRow(existingRow),
+      ...input,
+    };
     const scopedInput = await assertRelationScope(
       client,
       context,
       definition,
-      input,
+      mergedInput,
     );
 
-    if (resource === "currencies" && scopedInput.isBase) {
+    if (
+      resource === "currencies" &&
+      suppliedFields.includes("isBase") &&
+      scopedInput.isBase
+    ) {
       await client.query(
         `
           UPDATE tenant.currencies
@@ -719,16 +742,15 @@ export async function updateBusinessDataRecord(
       );
     }
 
-    const entries = Object.entries(definition.fields);
-    const parameters = [
-      id,
-      context.organizationId,
-      ...entries.map(([field]) => scopedInput[field] ?? null),
-      context.userId,
-    ];
-    const assignments = entries.map(
-      ([, column], index) => `${column} = $${index + 3}`,
-    );
+    const parameters = [id, context.organizationId];
+    const assignments = [];
+    for (const field of suppliedFields) {
+      parameters.push(scopedInput[field] ?? null);
+      assignments.push(
+        `${definition.fields[field]} = $${parameters.length}`,
+      );
+    }
+    parameters.push(context.userId);
     const updatedByParameter = `$${parameters.length}`;
 
     const result = await client.query(
@@ -749,7 +771,10 @@ export async function updateBusinessDataRecord(
       throw new BusinessDataError(404, "Record not found.");
     }
 
-    if (resource === "payment-terms") {
+    if (
+      resource === "payment-terms" &&
+      suppliedFields.includes("defaultDueDays")
+    ) {
       await client.query(
         `
           INSERT INTO tenant.payment_term_lines (

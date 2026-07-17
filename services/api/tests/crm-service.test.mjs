@@ -278,7 +278,7 @@ test("CRM shared option parameters are explicitly typed", async () => {
     activeBranchId: null,
     allowAllCompanies: true,
   });
-  assert.equal(calls, 23);
+  assert.equal(calls, 31);
 });
 
 test("CRM report parameters are explicitly typed for every report shape", async () => {

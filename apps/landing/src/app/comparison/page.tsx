@@ -38,7 +38,8 @@ const approaches = [
   {
     key: "vercent",
     name: "VercentLabs ERP",
-    summary: "Twelve modular applications on one shared operating foundation.",
+    summary:
+      "A shared platform and CRM preview with a phased operational-module roadmap.",
   },
 ] as const;
 
@@ -48,7 +49,7 @@ const rows = [
     fragmented: "Repeated across files and departmental tools",
     accounting: "Financial data is central; operating data remains separate",
     legacy: "Centralised in a large suite",
-    vercent: "Shared across 12 connected modules",
+    vercent: "Shared foundation; additional modules are planned",
   },
   {
     topic: "Workflow",

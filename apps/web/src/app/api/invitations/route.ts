@@ -21,7 +21,6 @@ export async function POST(request: Request) {
     requirePermissionFromSession(session, PERMISSIONS.usersManage);
     await requireBillingWriteAccess(session.organizationId);
     const input = invitationSchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
 
     const roleRows = await query<{ id: string; slug: string; name: string }>(
       "SELECT id, slug, name FROM roles WHERE id = $1 AND organization_id = $2 AND status = 'active'",
@@ -37,9 +36,12 @@ export async function POST(request: Request) {
 
     const existingMember = await query<{ id: string }>(
       `
-      SELECT u.id FROM users u
-      JOIN organization_memberships m ON m.user_id = u.id
-      WHERE m.organization_id = $1 AND u.email = $2
+      SELECT app_user.id
+      FROM users AS app_user
+      JOIN organization_memberships AS membership
+        ON membership.user_id = app_user.id
+      WHERE membership.organization_id = $1
+        AND app_user.email = $2
     `,
       [session.organizationId, input.email],
     );
@@ -64,7 +66,94 @@ export async function POST(request: Request) {
 
     const rawToken = createOpaqueToken();
     const invitationId = randomUUID();
-    await transaction(async (client) => {
+    const selectedScopes = await transaction(async (client) => {
+      let companyIds = [...new Set(input.companyIds)];
+      if (!companyIds.length) {
+        const defaults = await client.query<{ id: string }>(
+          `
+            SELECT id
+            FROM companies
+            WHERE organization_id = $1 AND status = 'active'
+            ORDER BY is_primary DESC, created_at ASC, id ASC
+            LIMIT 1
+          `,
+          [session.organizationId],
+        );
+        companyIds = defaults.rows.map((row) => row.id);
+      }
+      if (!companyIds.length)
+        throw new HttpError(
+          409,
+          "Create an active company before inviting users.",
+        );
+
+      let branchIds = [...new Set(input.branchIds)];
+      if (!branchIds.length) {
+        const defaults = await client.query<{ id: string }>(
+          `
+            SELECT id
+            FROM branches
+            WHERE organization_id = $1
+              AND company_id = ANY($2::uuid[])
+              AND status = 'active'
+            ORDER BY is_primary DESC, created_at ASC, id ASC
+            LIMIT 1
+          `,
+          [session.organizationId, companyIds],
+        );
+        branchIds = defaults.rows.map((row) => row.id);
+      }
+      const departmentIds = [...new Set(input.departmentIds)];
+
+      const companies = await client.query<{ count: number }>(
+        `
+          SELECT count(*)::int AS count
+          FROM companies
+          WHERE organization_id = $1
+            AND status = 'active'
+            AND id = ANY($2::uuid[])
+        `,
+        [session.organizationId, companyIds],
+      );
+      const branches = await client.query<{ count: number }>(
+        `
+          SELECT count(*)::int AS count
+          FROM branches
+          WHERE organization_id = $1
+            AND status = 'active'
+            AND id = ANY($2::uuid[])
+            AND company_id = ANY($3::uuid[])
+        `,
+        [session.organizationId, branchIds, companyIds],
+      );
+      const departments = await client.query<{ count: number }>(
+        `
+          SELECT count(*)::int AS count
+          FROM departments
+          WHERE organization_id = $1
+            AND status = 'active'
+            AND id = ANY($2::uuid[])
+            AND (company_id IS NULL OR company_id = ANY($3::uuid[]))
+            AND (
+              branch_id IS NULL
+              OR cardinality($4::uuid[]) = 0
+              OR branch_id = ANY($4::uuid[])
+            )
+        `,
+        [session.organizationId, departmentIds, companyIds, branchIds],
+      );
+
+      if (
+        companies.rows[0]?.count !== companyIds.length ||
+        branches.rows[0]?.count !== branchIds.length ||
+        departments.rows[0]?.count !== departmentIds.length
+      ) {
+        throw new HttpError(
+          400,
+          "One or more invitation access scopes are invalid.",
+        );
+      }
+
       await client.query(
         `
         UPDATE organization_invitations
@@ -91,7 +180,42 @@ export async function POST(request: Request) {
           session.userId,
         ],
       );
+
+      for (const companyId of companyIds) {
+        await client.query(
+          `
+            INSERT INTO organization_invitation_company_access (
+              invitation_id, organization_id, company_id
+            ) VALUES ($1, $2, $3)
+          `,
+          [invitationId, session.organizationId, companyId],
+        );
+      }
+      for (const branchId of branchIds) {
+        await client.query(
+          `
+            INSERT INTO organization_invitation_branch_access (
+              invitation_id, organization_id, branch_id
+            ) VALUES ($1, $2, $3)
+          `,
+          [invitationId, session.organizationId, branchId],
+        );
+      }
+      for (const departmentId of departmentIds) {
+        await client.query(
+          `
+            INSERT INTO organization_invitation_department_access (
+              invitation_id, organization_id, department_id
+            ) VALUES ($1, $2, $3)
+          `,
+          [invitationId, session.organizationId, departmentId],
+        );
+      }
+
+      return { companyIds, branchIds, departmentIds };
     });
+
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
 
     const url =
       (process.env.APP_URL || "http://localhost:3001") +
@@ -109,13 +233,21 @@ export async function POST(request: Request) {
       eventType: "access.invitation_created",
       entityType: "invitation",
       entityId: invitationId,
-      metadata: { email: input.email, role: role.slug },
+      metadata: {
+        email: input.email,
+        role: role.slug,
+        scopeCounts: {
+          companies: selectedScopes.companyIds.length,
+          branches: selectedScopes.branchIds.length,
+          departments: selectedScopes.departmentIds.length,
+        },
+      },
       request,
     });
 
     return ok(
       {
-        message: "Invitation created.",
+        message: "Invitation created with least-privilege access.",
         ...(process.env.NODE_ENV !== "production"
           ? { developmentUrl: url }
           : {}),

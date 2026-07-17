@@ -5,20 +5,109 @@ import {
   hashPassword,
   setSessionCookie,
   tokenHash,
-  verifyPassword,
+  verifyPasswordOrDummy,
 } from "@/lib/auth";
-import { transaction } from "@/lib/db";
+import { query, transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { passwordPolicyIssues } from "@/lib/password-policy";
-import { assertSameOrigin, audit } from "@/lib/security";
+import {
+  assertSameOrigin,
+  audit,
+  clientIp,
+  enforceRateLimit,
+  sha256,
+} from "@/lib/security";
 import { acceptInvitationSchema } from "@/lib/validation";
+
+const invalidInvitation = "This invitation is invalid or expired.";
+const invalidCredentials = "The invitation could not be accepted.";
 
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = acceptInvitationSchema.parse(await readJson(request));
+    const invitationTokenHash = tokenHash(input.token);
+
+    await enforceRateLimit(`invite-accept-ip:${clientIp(request)}`, 12, 900);
+    await enforceRateLimit(
+      `invite-accept-token:${invitationTokenHash}`,
+      8,
+      900,
+    );
+
+    const invitationRows = await query<{
+      id: string;
+      organization_id: string;
+      email: string;
+      role_id: string;
+      role_slug: string;
+      role_name: string;
+      user_id: string | null;
+      password_hash: string | null;
+      user_status: string | null;
+    }>(
+      `
+        SELECT
+          invitation.id,
+          invitation.organization_id,
+          invitation.email,
+          invitation.role_id,
+          role.slug AS role_slug,
+          role.name AS role_name,
+          app_user.id AS user_id,
+          app_user.password_hash,
+          app_user.status AS user_status
+        FROM organization_invitations AS invitation
+        JOIN roles AS role
+          ON role.id = invitation.role_id
+         AND role.organization_id = invitation.organization_id
+         AND role.status = 'active'
+        LEFT JOIN users AS app_user ON app_user.email = invitation.email
+        WHERE invitation.token_hash = $1
+          AND invitation.accepted_at IS NULL
+          AND invitation.revoked_at IS NULL
+          AND invitation.expires_at > now()
+        LIMIT 1
+      `,
+      [invitationTokenHash],
+    );
+    const invitationSnapshot = invitationRows[0];
+    if (!invitationSnapshot) throw new HttpError(400, invalidInvitation);
+
+    await enforceRateLimit(
+      `invite-accept-email:${sha256(invitationSnapshot.email)}`,
+      8,
+      900,
+    );
+
+    const existingPasswordValid = await verifyPasswordOrDummy(
+      input.password,
+      invitationSnapshot.password_hash,
+    );
+    if (invitationSnapshot.user_id) {
+      if (
+        !existingPasswordValid ||
+        invitationSnapshot.user_status !== "active"
+      ) {
+        throw new HttpError(401, invalidCredentials);
+      }
+    } else {
+      const issues = passwordPolicyIssues(input.password);
+      if (issues.length) throw new HttpError(400, issues[0]);
+      if (input.password !== input.confirmPassword)
+        throw new HttpError(400, "Passwords do not match.");
+    }
+
+    const newPasswordHash = invitationSnapshot.user_id
+      ? null
+      : await hashPassword(input.password);
 
     const accepted = await transaction(async (client) => {
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        [invitationSnapshot.email],
+      );
+
       const invitationResult = await client.query<{
         id: string;
         organization_id: string;
@@ -28,53 +117,78 @@ export async function POST(request: Request) {
         role_name: string;
       }>(
         `
-        SELECT i.id, i.organization_id, i.email, i.role_id,
-          r.slug AS role_slug, r.name AS role_name
-        FROM organization_invitations i
-        JOIN roles r ON r.id = i.role_id AND r.organization_id = i.organization_id
-        WHERE i.token_hash = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
-        FOR UPDATE
+        SELECT invitation.id,
+          invitation.organization_id,
+          invitation.email,
+          invitation.role_id,
+          role.slug AS role_slug,
+          role.name AS role_name
+        FROM organization_invitations AS invitation
+        JOIN roles AS role
+          ON role.id = invitation.role_id
+         AND role.organization_id = invitation.organization_id
+         AND role.status = 'active'
+        WHERE invitation.token_hash = $1
+          AND invitation.accepted_at IS NULL
+          AND invitation.revoked_at IS NULL
+          AND invitation.expires_at > now()
+        FOR UPDATE OF invitation
       `,
-        [tokenHash(input.token)],
+        [invitationTokenHash],
       );
       const invitation = invitationResult.rows[0];
-      if (!invitation)
-        throw new HttpError(400, "This invitation is invalid or expired.");
+      if (!invitation || invitation.id !== invitationSnapshot.id) {
+        throw new HttpError(400, invalidInvitation);
+      }
 
-      const userResult = await client.query<{
+      const currentUserResult = await client.query<{
         id: string;
         password_hash: string;
-      }>("SELECT id, password_hash FROM users WHERE email = $1", [
-        invitation.email,
-      ]);
+        status: string;
+      }>(
+        "SELECT id, password_hash, status FROM users WHERE email = $1 FOR UPDATE",
+        [invitation.email],
+      );
+
       let userId: string;
-      if (userResult.rows[0]) {
-        const existing = userResult.rows[0];
-        if (!(await verifyPassword(input.password, existing.password_hash))) {
-          throw new HttpError(
-            401,
-            "This email already has an account. Enter the existing account password.",
-          );
+      const currentUser = currentUserResult.rows[0];
+      if (currentUser) {
+        if (
+          currentUser.id !== invitationSnapshot.user_id ||
+          currentUser.status !== "active"
+        ) {
+          throw new HttpError(409, invalidCredentials);
         }
-        userId = existing.id;
+        userId = currentUser.id;
         await client.query(
-          "UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), full_name = $1, status = 'active', updated_at = now() WHERE id = $2",
-          [input.fullName, userId],
+          `
+            UPDATE users
+            SET email_verified_at = COALESCE(email_verified_at, now()),
+                updated_at = now()
+            WHERE id = $1 AND status = 'active'
+          `,
+          [userId],
         );
       } else {
-        const issues = passwordPolicyIssues(input.password);
-        if (issues.length) throw new HttpError(400, issues[0]);
-        if (input.password !== input.confirmPassword)
-          throw new HttpError(400, "Passwords do not match.");
+        if (!newPasswordHash || invitationSnapshot.user_id) {
+          throw new HttpError(409, invalidCredentials);
+        }
         userId = randomUUID();
-        const passwordHash = await hashPassword(input.password);
         await client.query(
-          `INSERT INTO users (id, email, full_name, password_hash, email_verified_at, password_changed_at) VALUES ($1,$2,$3,$4,now(),now())`,
-          [userId, invitation.email, input.fullName, passwordHash],
+          `
+            INSERT INTO users (
+              id, email, full_name, password_hash,
+              email_verified_at, password_changed_at
+            ) VALUES ($1, $2, $3, $4, now(), now())
+          `,
+          [userId, invitation.email, input.fullName, newPasswordHash],
         );
         await client.query(
-          "INSERT INTO password_history (id, user_id, password_hash) VALUES ($1,$2,$3)",
-          [randomUUID(), userId, passwordHash],
+          `
+            INSERT INTO password_history (id, user_id, password_hash)
+            VALUES ($1, $2, $3)
+          `,
+          [randomUUID(), userId, newPasswordHash],
         );
       }
 
@@ -86,54 +200,213 @@ export async function POST(request: Request) {
         : "member";
       await client.query(
         `
-        INSERT INTO organization_memberships (organization_id, user_id, role, status)
-        VALUES ($1,$2,$3,'active')
-        ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'active'
+        INSERT INTO organization_memberships (
+          organization_id, user_id, role, status
+        ) VALUES ($1, $2, $3, 'active')
+        ON CONFLICT (organization_id, user_id) DO UPDATE SET
+          role = EXCLUDED.role,
+          status = 'active'
       `,
         [invitation.organization_id, userId, legacyRole],
       );
       await client.query(
-        "DELETE FROM user_role_assignments WHERE organization_id = $1 AND user_id = $2",
-        [invitation.organization_id, userId],
-      );
-      await client.query(
-        "INSERT INTO user_role_assignments (organization_id, user_id, role_id, assigned_by) SELECT organization_id, $2, role_id, invited_by FROM organization_invitations WHERE id = $1",
-        [invitation.id, userId],
-      );
-      await client.query(
-        `INSERT INTO membership_company_access (organization_id, user_id, company_id) SELECT $1,$2,id FROM companies WHERE organization_id=$1 AND status='active' ON CONFLICT DO NOTHING`,
-        [invitation.organization_id, userId],
-      );
-      await client.query(
-        `INSERT INTO membership_branch_access (organization_id, user_id, branch_id) SELECT $1,$2,id FROM branches WHERE organization_id=$1 AND status='active' ON CONFLICT DO NOTHING`,
-        [invitation.organization_id, userId],
-      );
-      await client.query(
-        `INSERT INTO membership_department_access (organization_id, user_id, department_id) SELECT $1,$2,id FROM departments WHERE organization_id=$1 AND status='active' ON CONFLICT DO NOTHING`,
+        `
+          DELETE FROM user_role_assignments
+          WHERE organization_id = $1 AND user_id = $2
+        `,
         [invitation.organization_id, userId],
       );
       await client.query(
         `
-        INSERT INTO user_preferences (organization_id, user_id, active_company_id, active_branch_id)
-        SELECT $1,$2,c.id,b.id FROM companies c
-        LEFT JOIN branches b ON b.organization_id=$1 AND b.is_primary=true
-        WHERE c.organization_id=$1 AND c.is_primary=true LIMIT 1
-        ON CONFLICT (organization_id, user_id) DO NOTHING
-      `,
+          INSERT INTO user_role_assignments (
+            organization_id, user_id, role_id, assigned_by
+          )
+          SELECT organization_id, $2, role_id, invited_by
+          FROM organization_invitations
+          WHERE id = $1
+        `,
+        [invitation.id, userId],
+      );
+
+      await client.query(
+        `
+          DELETE FROM membership_company_access
+          WHERE organization_id = $1 AND user_id = $2
+        `,
         [invitation.organization_id, userId],
       );
       await client.query(
-        "UPDATE organization_invitations SET accepted_at = now() WHERE id = $1",
-        [invitation.id],
+        `
+          DELETE FROM membership_branch_access
+          WHERE organization_id = $1 AND user_id = $2
+        `,
+        [invitation.organization_id, userId],
       );
       await client.query(
-        `INSERT INTO notifications (organization_id,user_id,type,title,message,href) VALUES ($1,$2,'access','Workspace access granted',$3,'/dashboard')`,
+        `
+          DELETE FROM membership_department_access
+          WHERE organization_id = $1 AND user_id = $2
+        `,
+        [invitation.organization_id, userId],
+      );
+
+      const companyInsert = await client.query<{ company_id: string }>(
+        `
+          INSERT INTO membership_company_access (
+            organization_id, user_id, company_id
+          )
+          SELECT scope.organization_id, $2, scope.company_id
+          FROM organization_invitation_company_access AS scope
+          JOIN companies AS company
+            ON company.organization_id = scope.organization_id
+           AND company.id = scope.company_id
+           AND company.status = 'active'
+          WHERE scope.invitation_id = $1
+          ON CONFLICT DO NOTHING
+          RETURNING company_id
+        `,
+        [invitation.id, userId],
+      );
+
+      if (!companyInsert.rowCount) {
+        await client.query(
+          `
+            INSERT INTO membership_company_access (
+              organization_id, user_id, company_id
+            )
+            SELECT $1, $2, company.id
+            FROM companies AS company
+            WHERE company.organization_id = $1
+              AND company.status = 'active'
+            ORDER BY company.is_primary DESC, company.created_at ASC, company.id ASC
+            LIMIT 1
+            ON CONFLICT DO NOTHING
+          `,
+          [invitation.organization_id, userId],
+        );
+      }
+
+      await client.query(
+        `
+          INSERT INTO membership_branch_access (
+            organization_id, user_id, branch_id
+          )
+          SELECT scope.organization_id, $2, scope.branch_id
+          FROM organization_invitation_branch_access AS scope
+          JOIN branches AS branch
+            ON branch.organization_id = scope.organization_id
+           AND branch.id = scope.branch_id
+           AND branch.status = 'active'
+          JOIN membership_company_access AS company_access
+            ON company_access.organization_id = branch.organization_id
+           AND company_access.user_id = $2
+           AND company_access.company_id = branch.company_id
+          WHERE scope.invitation_id = $1
+          ON CONFLICT DO NOTHING
+        `,
+        [invitation.id, userId],
+      );
+      await client.query(
+        `
+          INSERT INTO membership_branch_access (
+            organization_id, user_id, branch_id
+          )
+          SELECT branch.organization_id, $2, branch.id
+          FROM branches AS branch
+          JOIN membership_company_access AS company_access
+            ON company_access.organization_id = branch.organization_id
+           AND company_access.user_id = $2
+           AND company_access.company_id = branch.company_id
+          WHERE branch.organization_id = $1
+            AND branch.status = 'active'
+            AND NOT EXISTS (
+              SELECT 1 FROM membership_branch_access AS existing
+              WHERE existing.organization_id = $1 AND existing.user_id = $2
+            )
+          ORDER BY branch.is_primary DESC, branch.created_at ASC, branch.id ASC
+          LIMIT 1
+          ON CONFLICT DO NOTHING
+        `,
+        [invitation.organization_id, userId],
+      );
+      await client.query(
+        `
+          INSERT INTO membership_department_access (
+            organization_id, user_id, department_id
+          )
+          SELECT scope.organization_id, $2, scope.department_id
+          FROM organization_invitation_department_access AS scope
+          JOIN departments AS department
+            ON department.organization_id = scope.organization_id
+           AND department.id = scope.department_id
+           AND department.status = 'active'
+          WHERE scope.invitation_id = $1
+          ON CONFLICT DO NOTHING
+        `,
+        [invitation.id, userId],
+      );
+
+      await client.query(
+        `
+        INSERT INTO user_preferences (
+          organization_id, user_id, active_company_id, active_branch_id
+        )
+        SELECT
+          $1,
+          $2,
+          company_access.company_id,
+          branch_access.branch_id
+        FROM membership_company_access AS company_access
+        LEFT JOIN LATERAL (
+          SELECT access.branch_id
+          FROM membership_branch_access AS access
+          JOIN branches AS branch
+            ON branch.organization_id = access.organization_id
+           AND branch.id = access.branch_id
+           AND branch.company_id = company_access.company_id
+          WHERE access.organization_id = company_access.organization_id
+            AND access.user_id = company_access.user_id
+          ORDER BY branch.is_primary DESC, branch.created_at ASC, branch.id ASC
+          LIMIT 1
+        ) AS branch_access ON true
+        WHERE company_access.organization_id = $1
+          AND company_access.user_id = $2
+        ORDER BY company_access.created_at ASC, company_access.company_id ASC
+        LIMIT 1
+        ON CONFLICT (organization_id, user_id) DO UPDATE SET
+          active_company_id = EXCLUDED.active_company_id,
+          active_branch_id = EXCLUDED.active_branch_id,
+          updated_at = now()
+      `,
+        [invitation.organization_id, userId],
+      );
+
+      const consumed = await client.query(
+        `
+          UPDATE organization_invitations
+          SET accepted_at = now()
+          WHERE id = $1
+            AND accepted_at IS NULL
+            AND revoked_at IS NULL
+            AND expires_at > now()
+        `,
+        [invitation.id],
+      );
+      if (consumed.rowCount !== 1) throw new HttpError(409, invalidInvitation);
+
+      await client.query(
+        `
+          INSERT INTO notifications (
+            organization_id, user_id, type, title, message, href
+          ) VALUES ($1, $2, 'access', 'Workspace access granted', $3, '/dashboard')
+        `,
         [
           invitation.organization_id,
           userId,
           `You joined the organisation as ${invitation.role_name}.`,
         ],
       );
+
       return {
         userId,
         organizationId: invitation.organization_id,
@@ -141,7 +414,11 @@ export async function POST(request: Request) {
       };
     });
 
-    const session = await createSession(accepted.userId, request);
+    const session = await createSession(
+      accepted.userId,
+      request,
+      accepted.organizationId,
+    );
     await audit({
       organizationId: accepted.organizationId,
       actorUserId: accepted.userId,
@@ -154,6 +431,7 @@ export async function POST(request: Request) {
       message: "Invitation accepted.",
       next: "/dashboard",
     });
+    response.headers.set("Cache-Control", "private, no-store");
     setSessionCookie(response, session);
     return response;
   } catch (error) {

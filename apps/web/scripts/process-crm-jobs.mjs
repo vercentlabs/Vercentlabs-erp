@@ -184,7 +184,7 @@ try {
             ],
           );
         } else {
-          await client.query(
+          const communication = await client.query(
             `
               INSERT INTO tenant.crm_communications (
                 organization_id, channel, direction, lead_id,
@@ -194,6 +194,7 @@ try {
                 $1, $2, 'outbound', $3, $4, $5, 'sequence', $6, $7,
                 'queued', now(), $8, $8
               )
+              RETURNING id
             `,
             [
               organization.id,
@@ -210,15 +211,16 @@ try {
             `
               INSERT INTO tenant.crm_outbox_events (
                 organization_id, event_type, entity_type, entity_id, payload
-              ) VALUES ($1, 'crm.communication.queued', $2, $3, $4)
+              ) VALUES ($1, 'crm.communication.queued', 'communication', $2, $3)
             `,
             [
               organization.id,
-              entityType,
-              entityId,
+              communication.rows[0].id,
               {
                 channel: row.action_type,
                 subject: row.subject_template,
+                sourceEntityType: entityType,
+                sourceEntityId: entityId,
               },
             ],
           );
@@ -290,7 +292,7 @@ try {
   }
 
   console.log(
-    `CRM jobs completed. Sequence actions processed: ${processed}. Capacity-blocked organisations: ${blockedByCapacity}. Provider-bound messages remain in the governed outbox until credentials are configured.`,
+    `CRM jobs completed. Sequence actions processed: ${processed}. Capacity-blocked organisations: ${blockedByCapacity}. Provider-bound messages were queued for the CRM outbox delivery worker.`,
   );
 } finally {
   await pool.end();

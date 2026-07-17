@@ -28,6 +28,7 @@ test("the shared permission registry covers every migrated permission", () => {
     "database/control-plane/migrations/004_crm_permissions.sql",
     "database/control-plane/migrations/005_billing_and_razorpay.sql",
     "database/control-plane/migrations/006_crm_enterprise_permissions.sql",
+    "database/control-plane/migrations/008_crm_completion_permissions.sql",
   ]
     .map((path) => read("../../" + path))
     .join("\n");

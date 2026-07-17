@@ -5,20 +5,20 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Product | One Platform for Every Business Operation",
+  title: "VercentLabs ERP Product | Platform Foundation and CRM Preview",
   description:
-    "Run accounting, procurement, sales, CRM, stock, manufacturing, projects, assets, point of sale, quality, support, HR and payroll from one connected ERP platform.",
+    "Review the implemented platform foundation and CRM preview, plus the planned roadmap for additional ERP operations.",
   path: "/product",
 });
 
 const config: StructuredPageConfig = {
   hero: {
     eyebrow: "VercentLabs ERP",
-    title: "Run every core business operation from one connected ERP.",
+    title: "Build connected operations on a governed ERP foundation.",
     description:
-      "VercentLabs ERP connects finance, sales, customers, suppliers, inventory, production, projects, employees and service operations through 12 integrated modules. Replace fragmented tools with one secure platform built for complete business visibility and control.",
+      "VercentLabs ERP currently provides a governed platform foundation and CRM preview. The wider finance, procurement, inventory, production, project and people roadmap is being developed through phased design-partner validation.",
     primary: { label: "Book a personalised demo", href: "/contact" },
-    secondary: { label: "Explore all 12 modules", href: "/modules" },
+    secondary: { label: "Explore the module roadmap", href: "/modules" },
   },
   sections: [
     {
@@ -53,7 +53,7 @@ const config: StructuredPageConfig = {
     },
     {
       eyebrow: "Complete business management",
-      title: "12 modules for complete business management",
+      title: "Planned module roadmap for phased business management",
       items: [
         {
           title: "Accounting",

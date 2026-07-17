@@ -19,7 +19,10 @@ const required = [
   "../../database/tenant/migrations/002_crm_module.sql",
   "../../database/tenant/migrations/003_crm_enterprise_core.sql",
   "../../database/control-plane/migrations/006_crm_enterprise_permissions.sql",
+  "../../database/control-plane/migrations/008_crm_completion_permissions.sql",
+  "../../database/tenant/migrations/005_crm_completion_pack.sql",
   "../../docs/architecture/crm-enterprise-core.md",
+  "../../docs/architecture/crm-completion-pack.md",
   "../../services/api/src/crm.js",
   "../../packages/shared-sdk/src/crm.js",
   "../../docs/architecture/crm-module.md",
@@ -31,6 +34,7 @@ for (const relative of required) {
 const sql = [
   "../../database/tenant/migrations/002_crm_module.sql",
   "../../database/tenant/migrations/003_crm_enterprise_core.sql",
+  "../../database/tenant/migrations/005_crm_completion_pack.sql",
 ]
   .map((relative) =>
     fs.readFileSync(path.resolve(process.cwd(), relative), "utf8"),
@@ -67,6 +71,11 @@ for (const marker of [
   "CRM_PLAYBOOK_INCOMPLETE",
   "revenue-operations",
   "account-health",
+  "pipeline-intelligence",
+  "engagement-intelligence",
+  "relationship-coverage",
+  "partner-pipeline",
+  "ai-governance",
 ]) {
   if (!service.includes(marker))
     throw new Error(`CRM service is missing ${marker}`);
@@ -92,4 +101,29 @@ for (const marker of [
   if (!enterpriseSql.includes(marker))
     throw new Error(`Enterprise CRM migration is missing ${marker}`);
 }
+
+const completionSql = fs.readFileSync(
+  path.resolve(
+    process.cwd(),
+    "../../database/tenant/migrations/005_crm_completion_pack.sql",
+  ),
+  "utf8",
+);
+for (const marker of [
+  "crm_conversations",
+  "crm_conversation_insights",
+  "crm_pipeline_inspections",
+  "crm_deal_risks",
+  "crm_buying_committees",
+  "crm_partner_accounts",
+  "crm_report_definitions",
+  "crm_custom_object_definitions",
+  "crm_field_visits",
+  "crm_enrichment_jobs",
+  "crm_ai_predictions",
+]) {
+  if (!completionSql.includes(marker))
+    throw new Error(`CRM completion migration is missing ${marker}`);
+}
+
 console.log(`CRM module verified across ${required.length} permanent paths.`);

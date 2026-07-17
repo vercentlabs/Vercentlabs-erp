@@ -26,12 +26,41 @@ const restrictedResources = new Set<CrmResourceKey>([
   "consent-events",
   "privacy-requests",
   "data-quality-scores",
+  "engagement-templates",
+  "meeting-links",
+  "sync-accounts",
+  "conversations",
+  "conversation-insights",
+  "pipeline-inspections",
+  "deal-risks",
+  "recommendations",
+  "buying-committees",
+  "buying-committee-members",
+  "relationship-edges",
+  "account-signals",
+  "partner-accounts",
+  "partner-deals",
+  "report-definitions",
+  "dashboards",
+  "dashboard-widgets",
+  "custom-object-definitions",
+  "custom-field-definitions",
+  "custom-records",
+  "field-visits",
+  "enrichment-jobs",
+  "ai-predictions",
+  "ai-feedback",
 ]);
 
 const reportPermissions: Record<string, string> = {
   "revenue-operations": PERMISSIONS.crmRevenueManage,
   "account-health": PERMISSIONS.crmAccountsManage,
   privacy: PERMISSIONS.crmPrivacyManage,
+  "pipeline-intelligence": PERMISSIONS.crmAnalyticsManage,
+  "engagement-intelligence": PERMISSIONS.crmAnalyticsManage,
+  "relationship-coverage": PERMISSIONS.crmAccountsManage,
+  "partner-pipeline": PERMISSIONS.crmPartnersManage,
+  "ai-governance": PERMISSIONS.crmAnalyticsManage,
 };
 
 export function assertCrmIdentifier(value: string) {
@@ -84,10 +113,7 @@ export function canViewCrmReport(session: SessionContext, report: string) {
   );
 }
 
-export function requireCrmReportView(
-  session: SessionContext,
-  report: string,
-) {
+export function requireCrmReportView(session: SessionContext, report: string) {
   if (!canViewCrmReport(session, report))
     throw new HttpError(
       403,

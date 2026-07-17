@@ -172,37 +172,37 @@ const taxCategorySchema = z.object({
   status: companyStatus,
 });
 
-const taxRateSchema = z
-  .object({
-    companyId: optionalUuid,
-    taxCategoryId: uuid,
-    name: z.string().trim().min(2).max(120),
-    code,
-    taxType: z.enum([
-      "gst",
-      "igst",
-      "cgst",
-      "sgst",
-      "cess",
-      "vat",
-      "sales_tax",
-      "other",
-    ]),
-    rate: z.coerce.number().finite().min(0).max(100),
-    effectiveFrom: optionalDate,
-    effectiveTo: optionalDate,
-    status: companyStatus,
-  })
-  .refine(
-    (value) =>
-      !value.effectiveFrom ||
-      !value.effectiveTo ||
-      value.effectiveFrom <= value.effectiveTo,
-    {
-      message: "Effective-to date must not precede effective-from date.",
-      path: ["effectiveTo"],
-    },
-  );
+const taxRateObject = z.object({
+  companyId: optionalUuid,
+  taxCategoryId: uuid,
+  name: z.string().trim().min(2).max(120),
+  code,
+  taxType: z.enum([
+    "gst",
+    "igst",
+    "cgst",
+    "sgst",
+    "cess",
+    "vat",
+    "sales_tax",
+    "other",
+  ]),
+  rate: z.coerce.number().finite().min(0).max(100),
+  effectiveFrom: optionalDate,
+  effectiveTo: optionalDate,
+  status: companyStatus,
+});
+
+const taxRateSchema = taxRateObject.refine(
+  (value) =>
+    !value.effectiveFrom ||
+    !value.effectiveTo ||
+    value.effectiveFrom <= value.effectiveTo,
+  {
+    message: "Effective-to date must not precede effective-from date.",
+    path: ["effectiveTo"],
+  },
+);
 
 const warehouseSchema = z.object({
   companyId: uuid,
@@ -251,39 +251,42 @@ const paymentTermSchema = z.object({
   status: companyStatus,
 });
 
-const priceListSchema = z
-  .object({
-    code,
-    name: z.string().trim().min(2).max(120),
-    priceListType: z.enum(["sales", "purchase"]),
-    currencyCode,
-    taxInclusive: z.coerce.boolean().default(false),
-    validFrom: optionalDate,
-    validTo: optionalDate,
-    status: companyStatus,
-  })
-  .refine(
-    (value) =>
-      !value.validFrom || !value.validTo || value.validFrom <= value.validTo,
-    {
-      message: "Valid-to date must not precede valid-from date.",
-      path: ["validTo"],
-    },
-  );
+const priceListObject = z.object({
+  code,
+  name: z.string().trim().min(2).max(120),
+  priceListType: z.enum(["sales", "purchase"]),
+  currencyCode,
+  taxInclusive: z.coerce.boolean().default(false),
+  validFrom: optionalDate,
+  validTo: optionalDate,
+  status: companyStatus,
+});
 
-const fiscalPeriodSchema = z
-  .object({
-    companyId: uuid,
-    name: z.string().trim().min(2).max(120),
-    fiscalYear: z.string().trim().min(4).max(20),
-    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    status: z.enum(["open", "closed", "locked"]).default("open"),
-  })
-  .refine((value) => value.startDate <= value.endDate, {
+const priceListSchema = priceListObject.refine(
+  (value) =>
+    !value.validFrom || !value.validTo || value.validFrom <= value.validTo,
+  {
+    message: "Valid-to date must not precede valid-from date.",
+    path: ["validTo"],
+  },
+);
+
+const fiscalPeriodObject = z.object({
+  companyId: uuid,
+  name: z.string().trim().min(2).max(120),
+  fiscalYear: z.string().trim().min(4).max(20),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  status: z.enum(["open", "closed", "locked"]).default("open"),
+});
+
+const fiscalPeriodSchema = fiscalPeriodObject.refine(
+  (value) => value.startDate <= value.endDate,
+  {
     message: "End date must not precede start date.",
     path: ["endDate"],
-  });
+  },
+);
 
 const currencySchema = z.object({
   code: currencyCode,
@@ -320,6 +323,24 @@ export const businessDataSchemas = {
   "fiscal-periods": fiscalPeriodSchema,
   currencies: currencySchema,
   "exchange-rates": exchangeRateSchema,
+} satisfies Record<BusinessDataResourceKey, z.ZodType>;
+
+export const businessDataPatchSchemas = {
+  parties: partySchema.partial(),
+  contacts: contactSchema.partial(),
+  addresses: addressSchema.partial(),
+  "units-of-measure": uomSchema.partial(),
+  "item-groups": itemGroupSchema.partial(),
+  items: itemSchema.partial(),
+  "tax-categories": taxCategorySchema.partial(),
+  "tax-rates": taxRateObject.partial(),
+  warehouses: warehouseSchema.partial(),
+  "warehouse-locations": warehouseLocationSchema.partial(),
+  "payment-terms": paymentTermSchema.partial(),
+  "price-lists": priceListObject.partial(),
+  "fiscal-periods": fiscalPeriodObject.partial(),
+  currencies: currencySchema.partial(),
+  "exchange-rates": exchangeRateSchema.partial(),
 } satisfies Record<BusinessDataResourceKey, z.ZodType>;
 
 export const businessDataImportEnvelopeSchema = z.object({
