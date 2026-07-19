@@ -26,18 +26,28 @@ export async function POST(
     const { targetLeadId } = mergeLeadSchema.parse(await readJson(request));
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
-    const merge = await tenantTransaction(context.organizationId, (client) =>
-      mergeCrmLead(client, context, id, targetLeadId),
+    const merge = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const merged = await mergeCrmLead(
+          client,
+          context,
+          id,
+          targetLeadId,
+        );
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: "crm.lead.merged",
+          entityType: "lead",
+          entityId: targetLeadId,
+          afterData: merged,
+          request,
+          client,
+        });
+        return merged;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: "crm.lead.merged",
-      entityType: "lead",
-      entityId: targetLeadId,
-      afterData: merge,
-      request,
-    });
     return ok({ message: "Duplicate lead merged.", merge });
   } catch (error) {
     try {

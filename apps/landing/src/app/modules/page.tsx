@@ -10,7 +10,7 @@ import { erpModules } from "@/content/erp";
 export const metadata: Metadata = {
   title: "ERP Module Roadmap",
   description:
-    "Explore the VercentLabs ERP module roadmap. CRM and the shared platform foundation are in preview; other modules are planned for phased design-partner delivery.",
+    "Explore the VercentLabs ERP module roadmap. CRM and the shared platform foundation are available for controlled early access; other modules are planned for phased design-partner delivery.",
   alternates: {
     canonical: "/modules",
   },
@@ -22,7 +22,7 @@ export default function ModulesPage() {
       <PageHero
         eyebrow="Modular enterprise platform"
         title="A transparent roadmap on one connected foundation."
-        description="CRM and the shared platform foundation are in preview. The remaining modules below describe planned design-partner scope and are not represented as generally available production features."
+        description="CRM and the shared platform foundation are the only released early-access scope. The remaining modules below are roadmap items and are not represented as available product features."
         actions={
           <Link href="/contact" className="button-primary w-full sm:w-auto">
             Discuss the roadmap

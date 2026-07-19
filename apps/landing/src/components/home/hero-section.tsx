@@ -3,8 +3,8 @@ import {
   Boxes,
   CheckCircle2,
   CircleDollarSign,
-  Factory,
   PackageCheck,
+  Target,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -13,10 +13,10 @@ import Header from "@/components/layout/header";
 import PageContainer from "@/components/layout/page-container";
 
 const flowSteps = [
-  { label: "Opportunity", detail: "CRM", icon: CheckCircle2 },
-  { label: "Sales order", detail: "Sales", icon: PackageCheck },
-  { label: "Production", detail: "Manufacturing", icon: Factory },
-  { label: "Invoice", detail: "Accounting", icon: CircleDollarSign },
+  { label: "Capture", detail: "Lead", icon: Target },
+  { label: "Qualify", detail: "Scoring", icon: CheckCircle2 },
+  { label: "Progress", detail: "Opportunity", icon: PackageCheck },
+  { label: "Close", detail: "Forecast", icon: CircleDollarSign },
 ];
 
 export default function HeroSection() {
@@ -41,18 +41,17 @@ export default function HeroSection() {
                   aria-hidden="true"
                   className="h-3.5 w-3.5 sm:h-4 sm:w-4"
                 />
-                Connected enterprise operations
+                Released CRM early access
               </span>
 
               <h1 className="font-display mx-auto mt-4 max-w-4xl text-balance text-3xl font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:mt-6 sm:text-5xl lg:mx-0 lg:mt-4 lg:text-5xl xl:text-6xl">
-                Run every core operation from one connected ERP.
+                Turn every lead into a governed customer journey.
               </h1>
 
               <p className="mx-auto mt-4 max-w-2xl text-pretty text-sm leading-6 text-slate-600 sm:mt-6 sm:text-lg sm:leading-8 lg:mx-0 lg:mt-4 lg:text-base lg:leading-7 xl:text-lg">
-                VercentLabs ERP connects accounting, procurement, sales, CRM,
-                stock, manufacturing, projects, assets, point of sale, quality,
-                support, HR and payroll through shared data, workflows,
-                permissions and reporting.
+                VercentLabs ERP currently delivers CRM, governed master data,
+                permissions, auditability and multi-company controls. Eleven
+                additional ERP modules remain clearly labelled roadmap scope.
               </p>
 
               <div className="mt-5 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:gap-3 sm:justify-center lg:mt-6 lg:justify-start">
@@ -75,7 +74,7 @@ export default function HeroSection() {
               <ul className="mx-auto mt-5 grid max-w-xl grid-cols-2 gap-2 text-left sm:mt-8 sm:gap-3 lg:mx-0 lg:mt-6 [@media(max-height:899px)]:hidden">
                 {[
                   "One source of operational data",
-                  "Role-based control and approvals",
+                  "Permission controls and audit history",
                   "Multi-company and multi-location",
                   "API and integration-ready foundation",
                 ].map((item) => (
@@ -102,13 +101,13 @@ export default function HeroSection() {
                         Connected workflow
                       </p>
                       <h2 className="font-display mt-0.5 text-lg font-extrabold text-slate-950 sm:mt-1 sm:text-2xl">
-                        Opportunity to cash
+                        Lead to customer
                       </h2>
                     </div>
 
                     <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 sm:h-2 sm:w-2" />
-                      Live business context
+                      Released CRM scope
                     </span>
                   </div>
 
@@ -145,10 +144,10 @@ export default function HeroSection() {
 
                   <div className="mt-2.5 grid grid-cols-3 gap-1.5 sm:mt-4 sm:gap-3 lg:mt-3 lg:gap-2 xl:gap-3">
                     {[
-                      { label: "Modules", value: "12", icon: Boxes },
+                      { label: "Released module", value: "1", icon: Boxes },
                       {
-                        label: "Connected flows",
-                        value: "6",
+                        label: "Roadmap modules",
+                        value: "11",
                         icon: PackageCheck,
                       },
                       {

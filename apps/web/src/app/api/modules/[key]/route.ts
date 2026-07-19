@@ -18,30 +18,35 @@ export async function PATCH(
     assertSameOrigin(request);
     const session = await requirePermission("modules.manage");
     const { key } = await context.params;
-    if (!moduleCatalog.some((module) => module.key === key))
-      throw new HttpError(404, "Module not found.");
+    const moduleEntry = moduleCatalog.find((module) => module.key === key);
+    if (!moduleEntry) throw new HttpError(404, "Module not found.");
     const input = moduleStatusSchema.parse(await readJson(request));
-    await requireBillingWriteAccess(session.organizationId);
-    if (input.status === "enabled") {
-      await assertModuleEntitlement(session.organizationId, key);
+
+    if (moduleEntry.availability !== "released") {
+      throw new HttpError(
+        409,
+        `${moduleEntry.name} is on the roadmap and cannot be activated in this release.`,
+      );
     }
+    if (key === "crm" && input.status !== "enabled") {
+      throw new HttpError(409, "CRM is the released product and cannot be disabled.");
+    }
+
+    await requireBillingWriteAccess(session.organizationId);
+    await assertModuleEntitlement(session.organizationId, key);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const before = await query<{ module_key: string; status: string }>(
-      `
-      SELECT module_key,status FROM organization_modules WHERE organization_id=$1 AND module_key=$2
-    `,
+      `SELECT module_key,status FROM organization_modules
+       WHERE organization_id=$1 AND module_key=$2`,
       [session.organizationId, key],
     );
-    if (!before[0])
-      throw new HttpError(404, "Module registry entry not found.");
+    if (!before[0]) throw new HttpError(404, "Module registry entry not found.");
+
     await query(
-      `
-      UPDATE organization_modules SET status=$3,
-        enabled_at=CASE WHEN $3='enabled' THEN COALESCE(enabled_at,now()) ELSE NULL END,
-        updated_at=now()
-      WHERE organization_id=$1 AND module_key=$2
-    `,
-      [session.organizationId, key, input.status],
+      `UPDATE organization_modules SET status='enabled',
+         enabled_at=COALESCE(enabled_at,now()), updated_at=now()
+       WHERE organization_id=$1 AND module_key=$2`,
+      [session.organizationId, key],
     );
     await audit({
       organizationId: session.organizationId,
@@ -50,10 +55,10 @@ export async function PATCH(
       entityType: "organization_module",
       entityId: key,
       beforeData: before[0],
-      afterData: input,
+      afterData: { status: "enabled" },
       request,
     });
-    return ok({ message: "Module status updated." });
+    return ok({ message: "CRM is enabled." });
   } catch (error) {
     return errorResponse(error);
   }

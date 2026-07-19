@@ -54,7 +54,7 @@ const plans: PublicPlan[] = [
     features: [
       "Unlimited users",
       "CRM and business master data",
-      "Roles, approvals and audit history",
+      "Roles, permissions and audit history",
       "Standard email support",
     ],
   },
@@ -75,7 +75,7 @@ const plans: PublicPlan[] = [
       "Unlimited users",
       "Everything in Launch",
       "Priority implementation support",
-      "Advanced workflows and reporting capacity",
+      "Advanced CRM workflows and reporting capacity",
     ],
     featured: true,
   },

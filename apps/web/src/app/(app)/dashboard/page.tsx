@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { query } from "@/lib/db";
 
 export const metadata = { title: "Dashboard" };
@@ -21,7 +22,6 @@ export default async function DashboardPage() {
     branches: number;
     users: number;
     departments: number;
-    pending_approvals: number;
     unread_notifications: number;
   }>(
     `
@@ -30,25 +30,27 @@ export default async function DashboardPage() {
         (SELECT count(*)::int FROM branches WHERE organization_id=$1 AND status='active') AS branches,
         (SELECT count(*)::int FROM organization_memberships WHERE organization_id=$1 AND status='active') AS users,
         (SELECT count(*)::int FROM departments WHERE organization_id=$1 AND status='active') AS departments,
-        (SELECT count(*)::int FROM approval_requests WHERE organization_id=$1 AND status='pending') AS pending_approvals,
         (SELECT count(*)::int FROM notifications WHERE organization_id=$1 AND user_id=$2 AND read_at IS NULL) AS unread_notifications
     `,
     [organizationId, session.userId],
   );
 
-  const recentEvents = await query<{
-    event_type: string;
-    entity_type: string;
-    created_at: Date;
-    actor_name: string | null;
-  }>(
-    `
-      SELECT a.event_type, a.entity_type, a.created_at, u.full_name AS actor_name
-      FROM audit_events a LEFT JOIN users u ON u.id=a.actor_user_id
-      WHERE a.organization_id=$1 ORDER BY a.created_at DESC LIMIT 6
-    `,
-    [organizationId],
-  );
+  const canViewAudit = hasPermission(session, PERMISSIONS.auditView);
+  const recentEvents = canViewAudit
+    ? await query<{
+        event_type: string;
+        entity_type: string;
+        created_at: Date;
+        actor_name: string | null;
+      }>(
+        `
+          SELECT a.event_type, a.entity_type, a.created_at, u.full_name AS actor_name
+          FROM audit_events a LEFT JOIN users u ON u.id=a.actor_user_id
+          WHERE a.organization_id=$1 ORDER BY a.created_at DESC LIMIT 6
+        `,
+        [organizationId],
+      )
+    : [];
 
   const activities = await query<{
     id: string;
@@ -69,6 +71,7 @@ export default async function DashboardPage() {
     description: string;
     icon: AppIconName;
     href: string;
+    permission?: string;
     attention?: boolean;
   }> = [
     {
@@ -77,6 +80,7 @@ export default async function DashboardPage() {
       description: "Active legal entities",
       icon: "companies",
       href: "/settings/companies",
+      permission: PERMISSIONS.companyManage,
     },
     {
       label: "Branches",
@@ -84,6 +88,7 @@ export default async function DashboardPage() {
       description: "Operating locations",
       icon: "branches",
       href: "/settings/branches",
+      permission: PERMISSIONS.branchManage,
     },
     {
       label: "Active users",
@@ -91,6 +96,7 @@ export default async function DashboardPage() {
       description: "People with workspace access",
       icon: "users",
       href: "/settings/users",
+      permission: PERMISSIONS.usersView,
     },
     {
       label: "Departments",
@@ -98,14 +104,7 @@ export default async function DashboardPage() {
       description: "Configured responsibility units",
       icon: "departments",
       href: "/settings/departments",
-    },
-    {
-      label: "Pending approvals",
-      value: counts?.pending_approvals || 0,
-      description: "Decisions awaiting action",
-      icon: "approvals",
-      href: "/approvals",
-      attention: Boolean(counts?.pending_approvals),
+      permission: PERMISSIONS.departmentManage,
     },
     {
       label: "Unread notifications",
@@ -122,30 +121,35 @@ export default async function DashboardPage() {
     label: string;
     description: string;
     icon: AppIconName;
+    permission: string;
   }> = [
     {
       href: "/settings/companies",
       label: "Add company",
       description: "Expand the legal entity structure",
       icon: "companies",
+      permission: PERMISSIONS.companyManage,
     },
     {
       href: "/settings/branches",
       label: "Add branch",
       description: "Create another operating location",
       icon: "branches",
+      permission: PERMISSIONS.branchManage,
     },
     {
       href: "/settings/users",
       label: "Invite user",
       description: "Give a team member controlled access",
       icon: "users",
+      permission: PERMISSIONS.usersManage,
     },
     {
       href: "/settings/roles",
       label: "Configure roles",
       description: "Define least-privilege permissions",
       icon: "roles",
+      permission: PERMISSIONS.rolesManage,
     },
   ];
 
@@ -217,12 +221,19 @@ export default async function DashboardPage() {
             <p className="eyebrow">At a glance</p>
             <h2 id="overview-title">Organisation overview</h2>
           </div>
-          <Link href="/audit-logs">
-            Review governance <AppIcon name="arrow-right" size={16} />
-          </Link>
+          {canViewAudit ? (
+            <Link href="/audit-logs">
+              Review governance <AppIcon name="arrow-right" size={16} />
+            </Link>
+          ) : null}
         </div>
         <div className="metric-grid">
-          {metrics.map((metric) => (
+          {metrics
+            .filter(
+              (metric) =>
+                !metric.permission || hasPermission(session, metric.permission),
+            )
+            .map((metric) => (
             <Link
               className={`metric-card${metric.attention ? " attention" : ""}`}
               href={metric.href}
@@ -253,7 +264,9 @@ export default async function DashboardPage() {
           </div>
         </div>
         <div className="quick-actions">
-          {quickActions.map((action) => (
+          {quickActions
+            .filter((action) => hasPermission(session, action.permission))
+            .map((action) => (
             <Link href={action.href} key={action.href}>
               <span aria-hidden="true">
                 <AppIcon name={action.icon} size={20} />
@@ -307,48 +320,50 @@ export default async function DashboardPage() {
           </div>
         </article>
 
+        {canViewAudit ? (
         <article className="panel governance-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Recent governance</p>
-              <h2>Latest audit events</h2>
+            <div className="card-title-row">
+              <div>
+                <p className="eyebrow">Recent governance</p>
+                <h2>Latest audit events</h2>
+              </div>
+              <span className="panel-icon" aria-hidden="true">
+                <AppIcon name="audit" size={20} />
+              </span>
             </div>
-            <span className="panel-icon" aria-hidden="true">
-              <AppIcon name="audit" size={20} />
-            </span>
-          </div>
-          <div className="stack-list audit-list">
-            {recentEvents.map((event, index) => (
-              <div key={`${event.event_type}-${index}`}>
-                <span className="audit-event-icon" aria-hidden="true">
-                  <AppIcon name="security" size={16} />
-                </span>
-                <div>
-                  <strong>{event.event_type.replaceAll("_", " ")}</strong>
-                  <span>
-                    {event.actor_name || "System"} ·{" "}
-                    {formatTime(event.created_at)}
+            <div className="stack-list audit-list">
+              {recentEvents.map((event, index) => (
+                <div key={`${event.event_type}-${index}`}>
+                  <span className="audit-event-icon" aria-hidden="true">
+                    <AppIcon name="security" size={16} />
                   </span>
+                  <div>
+                    <strong>{event.event_type.replaceAll("_", " ")}</strong>
+                    <span>
+                      {event.actor_name || "System"} ·{" "}
+                      {formatTime(event.created_at)}
+                    </span>
+                  </div>
+                  <small>{event.entity_type.replaceAll("_", " ")}</small>
                 </div>
-                <small>{event.entity_type.replaceAll("_", " ")}</small>
-              </div>
-            ))}
-            {!recentEvents.length ? (
-              <div className="empty-state compact">
-                <span className="empty-state-icon" aria-hidden="true">
-                  <AppIcon name="audit" size={20} />
-                </span>
-                <div>
-                  <strong>No events recorded</strong>
-                  <p>Security and configuration activity will appear here.</p>
+              ))}
+              {!recentEvents.length ? (
+                <div className="empty-state compact">
+                  <span className="empty-state-icon" aria-hidden="true">
+                    <AppIcon name="audit" size={20} />
+                  </span>
+                  <div>
+                    <strong>No events recorded</strong>
+                    <p>Security and configuration activity will appear here.</p>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-          </div>
-          <Link className="panel-footer-link" href="/audit-logs">
-            View complete audit log <AppIcon name="arrow-right" size={16} />
-          </Link>
-        </article>
+              ) : null}
+            </div>
+            <Link className="panel-footer-link" href="/audit-logs">
+              View complete audit log <AppIcon name="arrow-right" size={16} />
+            </Link>
+          </article>
+        ) : null}
       </section>
     </>
   );

@@ -78,8 +78,8 @@ for (const [pattern, label] of [
 }
 
 const webhook = read("apps/web/src/app/api/billing/webhooks/razorpay/route.ts");
-if (!webhook.includes("await request.text()"))
-  failures.push("Webhook does not preserve the raw request body.");
+if (!webhook.includes("readRequestBytes") || !webhook.includes("TextDecoder"))
+  failures.push("Webhook does not preserve a bounded raw request body.");
 if (!webhook.includes("x-razorpay-signature"))
   failures.push("Webhook signature validation header is missing.");
 if (!webhook.includes("x-razorpay-event-id"))

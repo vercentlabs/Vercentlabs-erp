@@ -39,7 +39,7 @@ const approaches = [
     key: "vercent",
     name: "VercentLabs ERP",
     summary:
-      "A shared platform and CRM preview with a phased operational-module roadmap.",
+      "A shared platform and released CRM early-access scope with a phased operational-module roadmap.",
   },
 ] as const;
 

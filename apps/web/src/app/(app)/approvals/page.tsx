@@ -1,9 +1,9 @@
-import { requireWorkspace } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorization";
 import { query } from "@/lib/db";
 
 export const metadata = { title: "Approvals" };
 export default async function ApprovalsPage() {
-  const session = await requireWorkspace();
+  const session = await requirePermission("approvals.manage");
   const rows = await query<{
     id: string;
     title: string;

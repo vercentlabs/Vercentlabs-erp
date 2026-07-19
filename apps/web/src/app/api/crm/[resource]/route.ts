@@ -67,18 +67,28 @@ export async function POST(
     );
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
-    const record = await tenantTransaction(context.organizationId, (client) =>
-      createCrmRecord(client, context, resource, input),
+    const record = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const created = await createCrmRecord(
+          client,
+          context,
+          resource,
+          input,
+        );
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: `crm.${resource}.created`,
+          entityType: resource,
+          entityId: String(created.id),
+          afterData: input,
+          request,
+          client,
+        });
+        return created;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: `crm.${resource}.created`,
-      entityType: resource,
-      entityId: String(record.id),
-      afterData: input,
-      request,
-    });
     return ok(
       {
         message: `${crmDefinitions[resource].singular.replace(/^./, (c) => c.toUpperCase())} created.`,

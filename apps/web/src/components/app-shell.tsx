@@ -25,7 +25,6 @@ const primaryNavigation: NavigationItem[] = [
     permission: PERMISSIONS.businessDataView,
   },
   { href: "/modules", label: "Modules", icon: "modules" },
-  { href: "/approvals", label: "Approvals", icon: "approvals" },
   { href: "/notifications", label: "Notifications", icon: "notifications" },
   {
     href: "/billing",

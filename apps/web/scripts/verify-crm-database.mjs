@@ -1,100 +1,156 @@
+import fs from "node:fs";
 import path from "node:path";
+
+import { CRM_PERMISSIONS } from "@vercent/permissions";
 import dotenv from "dotenv";
 import pg from "pg";
-dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
-dotenv.config();
+
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
+dotenv.config({ quiet: true });
+
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const required = [
-  "crm_settings",
-  "crm_pipelines",
-  "crm_pipeline_stages",
-  "crm_lead_sources",
-  "crm_lost_reasons",
-  "crm_tags",
-  "crm_campaigns",
-  "crm_leads",
-  "crm_lead_tags",
-  "crm_scoring_rules",
-  "crm_lead_score_history",
-  "crm_assignment_rules",
-  "crm_round_robin_state",
-  "crm_opportunities",
-  "crm_opportunity_stage_history",
-  "crm_opportunity_items",
-  "crm_competitors",
-  "crm_opportunity_competitors",
-  "crm_activities",
-  "crm_activity_attendees",
-  "crm_notes",
-  "crm_communications",
-  "crm_sequences",
-  "crm_sequence_steps",
-  "crm_sequence_enrollments",
-  "crm_capture_forms",
-  "crm_capture_rate_limits",
-  "crm_campaign_members",
-  "crm_saved_views",
-  "crm_automation_rules",
-  "crm_automation_runs",
-  "crm_conversion_records",
-  "crm_merge_records",
-  "crm_forecast_targets",
-  "crm_integrations",
-  "crm_webhook_subscriptions",
-  "crm_outbox_events",
-  "crm_sales_teams",
-  "crm_sales_team_members",
-  "crm_territories",
-  "crm_territory_assignments",
-  "crm_quota_plans",
-  "crm_forecast_periods",
-  "crm_forecast_submissions",
-  "crm_forecast_snapshots",
-  "crm_account_plans",
-  "crm_account_stakeholders",
-  "crm_playbooks",
-  "crm_playbook_questions",
-  "crm_playbook_responses",
-  "crm_consent_events",
-  "crm_privacy_requests",
-  "crm_data_quality_scores",
-];
+
+const migrationDirectory = path.resolve(
+  process.cwd(),
+  "../../database/tenant/migrations",
+);
+const requiredTables = [
+  ...new Set(
+    fs
+      .readdirSync(migrationDirectory)
+      .filter((name) => name.endsWith(".sql"))
+      .sort()
+      .flatMap((name) => {
+        const source = fs.readFileSync(path.join(migrationDirectory, name), "utf8");
+        return [...source.matchAll(/CREATE TABLE IF NOT EXISTS tenant\.(crm_[a-z0-9_]+)/gi)].map(
+          (match) => match[1],
+        );
+      }),
+  ),
+].sort();
+
+if (!requiredTables.length) {
+  throw new Error("No CRM table contracts were discovered in tenant migrations.");
+}
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+const client = await pool.connect();
+
 try {
-  const tables = await pool.query(
-    "SELECT table_name FROM information_schema.tables WHERE table_schema='tenant' AND table_name = ANY($1::text[])",
-    [required],
+  const tables = await client.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema='tenant' AND table_name = ANY($1::text[])`,
+    [requiredTables],
   );
   const found = new Set(tables.rows.map((row) => row.table_name));
-  const missing = required.filter((name) => !found.has(name));
-  if (missing.length)
-    throw new Error(`Missing CRM tables: ${missing.join(", ")}`);
-  const policies = await pool.query(
-    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='tenant' AND c.relname = ANY($1::text[])",
-    [required],
+  const missing = requiredTables.filter((name) => !found.has(name));
+  if (missing.length) throw new Error(`Missing CRM tables: ${missing.join(", ")}`);
+
+  const policies = await client.query(
+    `SELECT relation.relname, relation.relrowsecurity, relation.relforcerowsecurity,
+       EXISTS (
+         SELECT 1 FROM pg_policy policy WHERE policy.polrelid = relation.oid
+       ) AS has_policy
+     FROM pg_class relation
+     JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
+     WHERE namespace.nspname='tenant'
+       AND relation.relname = ANY($1::text[])`,
+    [requiredTables],
   );
   const insecure = policies.rows
-    .filter((row) => !row.relrowsecurity || !row.relforcerowsecurity)
+    .filter(
+      (row) =>
+        !row.relrowsecurity || !row.relforcerowsecurity || !row.has_policy,
+    )
     .map((row) => row.relname);
-  if (insecure.length)
-    throw new Error(`CRM tables without forced RLS: ${insecure.join(", ")}`);
-  const permissions = await pool.query(
-    "SELECT count(*)::int AS count FROM permissions WHERE key LIKE 'crm.%'",
+  if (insecure.length) {
+    throw new Error(`CRM tables without complete forced RLS: ${insecure.join(", ")}`);
+  }
+
+  const expectedPermissions = Object.values(CRM_PERMISSIONS).sort();
+  const permissions = await client.query(
+    "SELECT key FROM permissions WHERE key = ANY($1::text[])",
+    [expectedPermissions],
   );
-  if (Number(permissions.rows[0]?.count || 0) < 19)
-    throw new Error("CRM permission catalog is incomplete.");
-  const seeds = await pool.query(
-    "SELECT (SELECT count(*) FROM tenant.crm_pipeline_stages) AS stages,(SELECT count(*) FROM tenant.crm_lead_sources) AS sources,(SELECT count(*) FROM tenant.crm_lost_reasons) AS reasons",
+  const permissionKeys = new Set(permissions.rows.map((row) => row.key));
+  const missingPermissions = expectedPermissions.filter(
+    (key) => !permissionKeys.has(key),
   );
-  if (
-    Number(seeds.rows[0].stages) < 7 ||
-    Number(seeds.rows[0].sources) < 8 ||
-    Number(seeds.rows[0].reasons) < 8
-  )
-    throw new Error("Default CRM configuration is incomplete.");
+  if (missingPermissions.length) {
+    throw new Error(
+      `CRM permission catalog is incomplete: ${missingPermissions.join(", ")}`,
+    );
+  }
+
+  const organizations = await client.query(
+    "SELECT id, name FROM organizations WHERE status='active' ORDER BY created_at",
+  );
+  for (const organization of organizations.rows) {
+    await client.query("BEGIN");
+    try {
+      await client.query(
+        "SELECT set_config('app.current_organization_id', $1, true)",
+        [organization.id],
+      );
+      const foundation = await client.query(
+        `SELECT
+          (SELECT count(*)::int FROM tenant.crm_pipelines
+            WHERE organization_id=$1 AND status='active') AS pipelines,
+          (SELECT count(*)::int FROM tenant.crm_pipeline_stages
+            WHERE organization_id=$1 AND status='active') AS stages,
+          (SELECT count(*)::int FROM tenant.crm_lead_sources
+            WHERE organization_id=$1 AND status='active') AS sources,
+          (SELECT count(*)::int FROM tenant.crm_lost_reasons
+            WHERE organization_id=$1 AND status='active') AS reasons,
+          (SELECT count(*)::int FROM tenant.crm_tags
+            WHERE organization_id=$1 AND status='active') AS tags,
+          (SELECT count(*)::int FROM tenant.crm_settings
+            WHERE organization_id=$1) AS settings,
+          (SELECT count(*)::int FROM tenant.crm_sales_teams
+            WHERE organization_id=$1 AND status='active') AS sales_teams`,
+        [organization.id],
+      );
+      const current = foundation.rows[0];
+      if (
+        Number(current.pipelines) < 1 ||
+        Number(current.stages) < 7 ||
+        Number(current.sources) < 8 ||
+        Number(current.reasons) < 8 ||
+        Number(current.tags) < 4 ||
+        Number(current.settings) < 1 ||
+        Number(current.sales_teams) < 1
+      ) {
+        throw new Error(
+          `CRM foundation is incomplete for ${organization.name} (${organization.id}).`,
+        );
+      }
+      await client.query("ROLLBACK");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
+
+    const numbering = await client.query(
+      `SELECT entity_type FROM numbering_series
+       WHERE organization_id=$1
+         AND status='active'
+         AND entity_type = ANY($2::text[])`,
+      [
+        organization.id,
+        ["crm_lead", "crm_opportunity", "crm_campaign", "crm_activity"],
+      ],
+    );
+    if (numbering.rows.length !== 4) {
+      throw new Error(
+        `CRM numbering is incomplete for ${organization.name} (${organization.id}).`,
+      );
+    }
+  }
+
   console.log(
-    `CRM database verified: ${required.length} tables, ${policies.rows.length} forced-RLS contracts and ${permissions.rows[0].count} permissions.`,
+    `CRM database verified: ${requiredTables.length} tables, ${policies.rows.length} forced-RLS contracts, ${expectedPermissions.length} permissions and ${organizations.rows.length} organization foundations.`,
   );
 } finally {
+  client.release();
   await pool.end();
 }

@@ -5,6 +5,7 @@ import { siteConfig } from "@/lib/site-config";
 import {
   enforceLeadRateLimit,
   hasAllowedOrigin,
+  leadFingerprint,
   readJsonBody,
 } from "@/lib/lead-security";
 import { type LeadKind, validateLeadPayload } from "@/lib/lead-validation";
@@ -82,7 +83,23 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
     );
   }
 
-  const delivery = await deliverLead(kind, result.data);
+  const fingerprint = leadFingerprint(request);
+  if (!fingerprint) {
+    return json(
+      {
+        ok: false,
+        message: "Secure form delivery is not configured.",
+        fallbackEmail: siteConfig.email,
+      },
+      503,
+      rateHeaders,
+    );
+  }
+
+  const configuredSiteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || siteConfig.siteUrl;
+  const origin = new URL(configuredSiteUrl).origin;
+  const delivery = await deliverLead(kind, result.data, { fingerprint, origin });
   if (!delivery.success) {
     return json(
       {

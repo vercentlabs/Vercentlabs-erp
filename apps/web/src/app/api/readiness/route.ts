@@ -3,8 +3,8 @@ import { errorResponse, HttpError, ok } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 
-const EXPECTED_CONTROL_MIGRATION = "007_enterprise_security_hardening.sql";
-const EXPECTED_TENANT_MIGRATION = "004_enterprise_tenant_integrity.sql";
+const EXPECTED_CONTROL_MIGRATION = "009_crm_release_scope.sql";
+const EXPECTED_TENANT_MIGRATION = "006_crm_release_foundation.sql";
 
 export async function GET() {
   try {
@@ -15,10 +15,10 @@ export async function GET() {
       `
         SELECT
           EXISTS (
-            SELECT 1 FROM schema_migrations WHERE filename = $1
+            SELECT 1 FROM schema_migrations WHERE name = $1
           ) AS control_ready,
           EXISTS (
-            SELECT 1 FROM tenant_schema_migrations WHERE filename = $2
+            SELECT 1 FROM tenant_schema_migrations WHERE name = $2
           ) AS tenant_ready
       `,
       [EXPECTED_CONTROL_MIGRATION, EXPECTED_TENANT_MIGRATION],
@@ -35,6 +35,8 @@ export async function GET() {
     });
   } catch (error) {
     if (error instanceof HttpError) return errorResponse(error);
-    return errorResponse(new HttpError(503, "The service dependencies are not ready."));
+    return errorResponse(
+      new HttpError(503, "The service dependencies are not ready."),
+    );
   }
 }

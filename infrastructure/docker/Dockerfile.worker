@@ -1,0 +1,27 @@
+FROM node:24-alpine AS dependencies
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/landing/package.json apps/landing/package.json
+COPY services/api/package.json services/api/package.json
+COPY packages/database/package.json packages/database/package.json
+COPY packages/permissions/package.json packages/permissions/package.json
+COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
+COPY packages/shared-types/package.json packages/shared-types/package.json
+RUN pnpm install --prod --frozen-lockfile
+COPY apps/web/scripts apps/web/scripts
+COPY services/api services/api
+COPY packages packages
+
+FROM node:24-alpine AS runtime
+ENV NODE_ENV=production
+WORKDIR /app/apps/web
+RUN addgroup -S vercent && adduser -S vercent -G vercent
+COPY --from=dependencies --chown=vercent:vercent /app/node_modules /app/node_modules
+COPY --from=dependencies --chown=vercent:vercent /app/apps/web/node_modules /app/apps/web/node_modules
+COPY --from=dependencies --chown=vercent:vercent /app/apps/web/scripts /app/apps/web/scripts
+COPY --from=dependencies --chown=vercent:vercent /app/services /app/services
+COPY --from=dependencies --chown=vercent:vercent /app/packages /app/packages
+USER vercent
+CMD ["node", "scripts/process-crm-jobs.mjs"]

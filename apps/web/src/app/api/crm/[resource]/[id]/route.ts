@@ -66,18 +66,29 @@ export async function PATCH(
     );
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
-    const record = await tenantTransaction(context.organizationId, (client) =>
-      updateCrmRecord(client, context, resource, id, input),
+    const record = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const updated = await updateCrmRecord(
+          client,
+          context,
+          resource,
+          id,
+          input,
+        );
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: `crm.${resource}.updated`,
+          entityType: resource,
+          entityId: id,
+          afterData: input,
+          request,
+          client,
+        });
+        return updated;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: `crm.${resource}.updated`,
-      entityType: resource,
-      entityId: id,
-      afterData: input,
-      request,
-    });
     return ok({
       message: `${crmDefinitions[resource].singular.replace(/^./, (c) => c.toUpperCase())} updated.`,
       record,
@@ -107,18 +118,28 @@ export async function DELETE(
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
-    const record = await tenantTransaction(context.organizationId, (client) =>
-      archiveCrmRecord(client, context, resource, id),
+    const record = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const archived = await archiveCrmRecord(
+          client,
+          context,
+          resource,
+          id,
+        );
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: `crm.${resource}.archived`,
+          entityType: resource,
+          entityId: id,
+          afterData: archived,
+          request,
+          client,
+        });
+        return archived;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: `crm.${resource}.archived`,
-      entityType: resource,
-      entityId: id,
-      afterData: record,
-      request,
-    });
     return ok({
       message: `${crmDefinitions[resource].singular.replace(/^./, (c) => c.toUpperCase())} archived.`,
       record,

@@ -16,9 +16,9 @@ export const siteConfig = {
   name: "VercentLabs",
   companyName: "VercentLabs LLP",
   productName: "VercentLabs ERP",
-  title: "VercentLabs ERP | Platform Foundation and CRM Preview",
+  title: "VercentLabs ERP | Platform Foundation and CRM Early Access",
   description:
-    "Explore the VercentLabs ERP platform foundation and CRM preview. Additional operational modules are planned for phased design-partner development.",
+    "Explore the VercentLabs ERP platform foundation and CRM early access. Additional operational modules are planned for phased design-partner development.",
   siteUrl,
   appUrl: normalizeUrl(process.env.NEXT_PUBLIC_ERP_APP_URL),
   email:

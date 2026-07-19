@@ -28,17 +28,21 @@ export async function POST(
     const context = crmContext(session);
     const conversion = await tenantTransaction(
       context.organizationId,
-      (client) => convertCrmLead(client, context, id, input),
+      async (client) => {
+        const converted = await convertCrmLead(client, context, id, input);
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: "crm.lead.converted",
+          entityType: "lead",
+          entityId: id,
+          afterData: converted,
+          request,
+          client,
+        });
+        return converted;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: "crm.lead.converted",
-      entityType: "lead",
-      entityId: id,
-      afterData: conversion,
-      request,
-    });
     return ok({
       message: conversion.replayed
         ? "Lead was already converted."

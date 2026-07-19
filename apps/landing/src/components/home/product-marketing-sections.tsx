@@ -141,7 +141,7 @@ const comparisonPoints = [
   {
     title: "VercentLabs ERP",
     detail:
-      "A CRM preview and planned operational modules on one shared data, workflow and control foundation.",
+      "A released CRM early-access scope and planned operational modules on one shared data, workflow and control foundation.",
   },
 ];
 

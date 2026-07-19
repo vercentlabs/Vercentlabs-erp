@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { getSessionContext, setSessionOrganization } from "@/lib/auth";
+import { getSessionContext } from "@/lib/auth";
 import { transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { seedOrganizationFoundation } from "@/lib/platform";
@@ -99,28 +99,33 @@ export async function POST(request: Request) {
         branchId,
         timezone: input.timezone,
       });
-    });
 
-    const contextUpdated = await setSessionOrganization(
-      session.sessionId,
-      session.userId,
-      organizationId,
-    );
-    if (!contextUpdated) {
-      throw new HttpError(
-        500,
-        "The new organisation context could not be activated.",
+      const contextUpdated = await client.query<{ id: string }>(
+        `UPDATE sessions
+         SET active_organization_id = $3
+         WHERE id = $1
+           AND user_id = $2
+           AND revoked_at IS NULL
+         RETURNING id`,
+        [session.sessionId, session.userId, organizationId],
       );
-    }
+      if (!contextUpdated.rows[0]) {
+        throw new HttpError(
+          500,
+          "The new organisation context could not be activated.",
+        );
+      }
 
-    await audit({
-      organizationId,
-      actorUserId: session.userId,
-      eventType: "organization.created",
-      entityType: "organization",
-      entityId: organizationId,
-      metadata: { companyId, branchId },
-      request,
+      await audit({
+        organizationId,
+        actorUserId: session.userId,
+        eventType: "organization.created",
+        entityType: "organization",
+        entityId: organizationId,
+        metadata: { companyId, branchId },
+        request,
+        client,
+      });
     });
 
     return ok(

@@ -56,6 +56,9 @@ export async function POST(
         let succeeded = 0;
         const errors: Array<{ row: number; message: string }> = [];
         for (let index = 1; index < rows.length; index += 1) {
+          const rowNumber = index + 1;
+          const savepoint = `crm_import_row_${rowNumber}`;
+          await client.query(`SAVEPOINT ${savepoint}`);
           try {
             const values = rows[index];
             const raw = Object.fromEntries(
@@ -63,19 +66,32 @@ export async function POST(
             );
             const input = await crmSchemas[resource].parseAsync(raw);
             await createCrmRecord(client, context, resource, input);
+            await client.query(`RELEASE SAVEPOINT ${savepoint}`);
             succeeded += 1;
           } catch (error) {
+            await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            await client.query(`RELEASE SAVEPOINT ${savepoint}`);
             errors.push({
-              row: index + 1,
+              row: rowNumber,
               message: error instanceof Error ? error.message : "Import failed",
             });
           }
         }
-        return {
+        const importResult = {
           succeeded,
           failed: errors.length,
           errors: errors.slice(0, 100),
         };
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: `crm.${resource}.imported`,
+          entityType: resource,
+          afterData: importResult,
+          request,
+          client,
+        });
+        return importResult;
       },
     );
 
@@ -87,14 +103,6 @@ export async function POST(
         result.succeeded,
       );
     }
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: `crm.${resource}.imported`,
-      entityType: resource,
-      afterData: result,
-      request,
-    });
     return ok({
       message: `Imported ${result.succeeded} records; ${result.failed} failed.`,
       ...result,

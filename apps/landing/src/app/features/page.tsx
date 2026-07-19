@@ -9,7 +9,7 @@ export const metadata = createPageMetadata({
   title:
     "VercentLabs ERP Features | Automation, Control, Reporting and Integrations",
   description:
-    "Explore implemented platform and CRM capabilities, together with clearly labelled preview and planned ERP capabilities.",
+    "Explore implemented platform and CRM capabilities, together with a clearly labelled roadmap for additional ERP modules.",
   path: "/features",
 });
 
@@ -22,7 +22,7 @@ const config: StructuredPageConfig = {
     title:
       "The capabilities your teams need to operate with clarity and control.",
     description:
-      "VercentLabs ERP currently combines authentication, permissions, audit foundations, master data, CRM and billing capabilities. Additional workflow, reporting and operational-module capabilities remain preview or planned scope.",
+      "VercentLabs ERP currently combines authentication, permissions, audit foundations, master data, CRM and billing capabilities. Additional operational modules remain clearly labelled roadmap scope.",
     primary: { label: "Book a feature walkthrough", href: "/contact" },
     secondary: { label: "Explore the product", href: "/product" },
   },

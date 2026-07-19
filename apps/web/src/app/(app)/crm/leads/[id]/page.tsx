@@ -15,6 +15,7 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params;
   const session = await requireWorkspace();
+  if (!hasPermission(session, PERMISSIONS.crmView)) return notFound();
   const context = crmContext(session);
   let data;
   try {

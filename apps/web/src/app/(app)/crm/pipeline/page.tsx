@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { getCrmOptions, listCrmRecords } from "@vercent/api";
 import CrmPipelineBoard from "@/components/crm-pipeline-board";
 import { requireWorkspace } from "@/lib/auth";
@@ -8,6 +9,7 @@ export const metadata = { title: "CRM pipeline" };
 export const dynamic = "force-dynamic";
 export default async function PipelinePage() {
   const session = await requireWorkspace();
+  if (!hasPermission(session, PERMISSIONS.crmView)) return notFound();
   const context = crmContext(session);
   const data = await tenantTransaction(
     context.organizationId,

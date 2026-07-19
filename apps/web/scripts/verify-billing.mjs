@@ -23,7 +23,8 @@ const webhook = fs.readFileSync(
   "utf8",
 );
 for (const contract of [
-  "await request.text()",
+  "readRequestBytes",
+  "TextDecoder",
   "x-razorpay-signature",
   "x-razorpay-event-id",
   "billing_webhook_events",

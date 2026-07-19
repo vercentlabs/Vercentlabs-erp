@@ -14,61 +14,73 @@ export const moduleCatalog = [
     key: "accounting",
     name: "Accounting",
     description: "Financial records, receivables, payables and reporting.",
+    availability: "roadmap",
   },
   {
     key: "procurement",
     name: "Procurement",
     description: "Purchase requests, suppliers, orders and receipts.",
+    availability: "roadmap",
   },
   {
     key: "sales",
     name: "Sales",
     description: "Quotations, orders, fulfilment and revenue operations.",
+    availability: "roadmap",
   },
   {
     key: "crm",
     name: "CRM",
     description: "Leads, opportunities, customer relationships and activities.",
+    availability: "released",
   },
   {
     key: "stock",
     name: "Stock",
     description: "Warehouses, inventory, transfers and traceability.",
+    availability: "roadmap",
   },
   {
     key: "manufacturing",
     name: "Manufacturing",
     description: "Production planning, materials, operations and costs.",
+    availability: "roadmap",
   },
   {
     key: "projects",
     name: "Projects",
     description: "Projects, tasks, time, budgets and profitability.",
+    availability: "roadmap",
   },
   {
     key: "assets",
     name: "Assets",
     description: "Asset lifecycle, depreciation and maintenance.",
+    availability: "roadmap",
   },
   {
     key: "point-of-sale",
     name: "Point of Sale",
     description: "Counter sales, payments, shifts and returns.",
+    availability: "roadmap",
   },
   {
     key: "quality",
     name: "Quality",
     description: "Inspections, non-conformances and corrective action.",
+    availability: "roadmap",
   },
   {
     key: "support",
     name: "Support",
     description: "Customer requests, service targets and resolutions.",
+    availability: "roadmap",
   },
   {
     key: "hr-payroll",
     name: "HR & Payroll",
     description: "Employees, attendance, leave and payroll.",
+    availability: "roadmap",
   },
 ] as const;
 
@@ -126,6 +138,22 @@ const crmSalesPermissions = [
   "crm.settings.manage",
 ];
 
+const crmSalesManagerPermissions = [
+  "crm.revenue.manage",
+  "crm.accounts.manage",
+  "crm.playbooks.manage",
+  "crm.data-quality.manage",
+  "crm.analytics.manage",
+  "crm.partners.manage",
+  "crm.field-sales.manage",
+];
+
+const crmEmployeePermissions = [
+  "crm.accounts.manage",
+  "crm.playbooks.manage",
+  "crm.field-sales.manage",
+];
+
 function permissionsForRole(slug: string) {
   if (["organization_owner", "system_administrator"].includes(slug)) {
     return allPermissions;
@@ -135,6 +163,7 @@ function permissionsForRole(slug: string) {
     return allPermissions.filter(
       (key) =>
         key !== "organization.manage" &&
+        key !== "crm.ai.manage" &&
         !["billing.manage", "billing.checkout", "billing.audit"].includes(key),
     );
   }
@@ -160,6 +189,7 @@ function permissionsForRole(slug: string) {
       "business_data.view",
       "parties.manage",
       ...crmSalesPermissions,
+      ...crmSalesManagerPermissions,
     ];
   }
 
@@ -201,6 +231,7 @@ function permissionsForRole(slug: string) {
       "crm.communications.manage",
       "crm.export",
       "crm.reports.view",
+      ...crmEmployeePermissions,
     ];
   }
 
@@ -212,6 +243,7 @@ function permissionsForRole(slug: string) {
       "crm.view",
       "crm.export",
       "crm.reports.view",
+      "crm.privacy.manage",
       "billing.view",
       "billing.audit",
     ];
@@ -223,6 +255,161 @@ function permissionsForRole(slug: string) {
     "crm.view",
     "crm.reports.view",
   ];
+}
+
+async function seedCrmFoundation(
+  client: PoolClient,
+  input: {
+    organizationId: string;
+    ownerUserId: string;
+    companyId: string;
+    branchId: string;
+  },
+) {
+  const pipeline = await client.query<{ id: string }>(
+    `
+      INSERT INTO tenant.crm_pipelines (
+        organization_id, company_id, name, code, description, is_default,
+        created_by, updated_by
+      ) VALUES (
+        $1, NULL, 'Standard sales pipeline', 'STANDARD',
+        'Default lead-to-customer opportunity pipeline.', true, $2, $2
+      )
+      ON CONFLICT (organization_id, code) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        status = 'active',
+        updated_by = EXCLUDED.updated_by
+      RETURNING id
+    `,
+    [input.organizationId, input.ownerUserId],
+  );
+  const pipelineId = pipeline.rows[0]?.id;
+  if (!pipelineId) throw new Error("CRM pipeline could not be created.");
+
+  for (const stage of [
+    ["Qualification", "QUALIFICATION", 10, 10, "pipeline", false, false, 7],
+    ["Needs analysis", "NEEDS_ANALYSIS", 20, 25, "pipeline", false, false, 10],
+    ["Value proposition", "VALUE_PROPOSITION", 30, 40, "best_case", false, false, 14],
+    ["Proposal", "PROPOSAL", 40, 60, "best_case", false, false, 14],
+    ["Negotiation", "NEGOTIATION", 50, 80, "committed", false, false, 10],
+    ["Closed won", "CLOSED_WON", 60, 100, "closed", true, false, null],
+    ["Closed lost", "CLOSED_LOST", 70, 0, "closed", false, true, null],
+  ] as const) {
+    await client.query(
+      `
+        INSERT INTO tenant.crm_pipeline_stages (
+          organization_id, pipeline_id, name, code, sequence, probability,
+          forecast_category, is_won, is_lost, stale_after_days,
+          created_by, updated_by
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
+        ON CONFLICT (organization_id, pipeline_id, code) DO UPDATE SET
+          name = EXCLUDED.name,
+          sequence = EXCLUDED.sequence,
+          probability = EXCLUDED.probability,
+          forecast_category = EXCLUDED.forecast_category,
+          is_won = EXCLUDED.is_won,
+          is_lost = EXCLUDED.is_lost,
+          stale_after_days = EXCLUDED.stale_after_days,
+          status = 'active',
+          updated_by = EXCLUDED.updated_by
+      `,
+      [input.organizationId, pipelineId, ...stage, input.ownerUserId],
+    );
+  }
+
+  await client.query(
+    `
+      INSERT INTO tenant.crm_settings (
+        organization_id, default_pipeline_id, default_currency_code,
+        created_by, updated_by
+      )
+      SELECT $1, $2, company.base_currency, $3, $3
+      FROM public.companies company
+      WHERE company.id = $4 AND company.organization_id = $1
+      ON CONFLICT (organization_id) DO UPDATE SET
+        default_pipeline_id = COALESCE(tenant.crm_settings.default_pipeline_id, EXCLUDED.default_pipeline_id),
+        default_currency_code = COALESCE(tenant.crm_settings.default_currency_code, EXCLUDED.default_currency_code),
+        updated_by = EXCLUDED.updated_by
+    `,
+    [input.organizationId, pipelineId, input.ownerUserId, input.companyId],
+  );
+
+  for (const source of [
+    ["Website", "WEBSITE", "website", true],
+    ["Referral", "REFERRAL", "referral", false],
+    ["Partner", "PARTNER", "partner", false],
+    ["Event", "EVENT", "event", false],
+    ["Phone enquiry", "PHONE", "phone", false],
+    ["Walk-in", "WALK_IN", "walk_in", false],
+    ["Import", "IMPORT", "import", false],
+    ["Other", "OTHER", "other", false],
+  ] as const) {
+    await client.query(
+      `INSERT INTO tenant.crm_lead_sources (
+        organization_id, name, code, channel, is_default, created_by, updated_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$6)
+      ON CONFLICT (organization_id, code) DO UPDATE SET
+        name=EXCLUDED.name, channel=EXCLUDED.channel, status='active', updated_by=EXCLUDED.updated_by`,
+      [input.organizationId, ...source, input.ownerUserId],
+    );
+  }
+
+  for (const reason of [
+    ["Price too high", "PRICE", "price"],
+    ["Lost to competitor", "COMPETITION", "competition"],
+    ["No budget", "NO_BUDGET", "budget"],
+    ["Timing not right", "TIMING", "timing"],
+    ["Not a fit", "NOT_FIT", "fit"],
+    ["No response", "NO_RESPONSE", "no_response"],
+    ["Duplicate", "DUPLICATE", "duplicate"],
+    ["Other", "OTHER", "other"],
+  ] as const) {
+    await client.query(
+      `INSERT INTO tenant.crm_lost_reasons (
+        organization_id, name, code, category, created_by, updated_by
+      ) VALUES ($1,$2,$3,$4,$5,$5)
+      ON CONFLICT (organization_id, code) DO UPDATE SET
+        name=EXCLUDED.name, category=EXCLUDED.category, status='active', updated_by=EXCLUDED.updated_by`,
+      [input.organizationId, ...reason, input.ownerUserId],
+    );
+  }
+
+  for (const tag of [
+    ["High intent", "#b91c1c"],
+    ["Follow up", "#0369a1"],
+    ["Enterprise", "#6d28d9"],
+    ["SME", "#047857"],
+  ] as const) {
+    await client.query(
+      `INSERT INTO tenant.crm_tags (
+        organization_id, name, color, created_by, updated_by
+      ) VALUES ($1,$2,$3,$4,$4)
+      ON CONFLICT (organization_id, name) DO UPDATE SET
+        color=EXCLUDED.color, status='active', updated_by=EXCLUDED.updated_by`,
+      [input.organizationId, ...tag, input.ownerUserId],
+    );
+  }
+
+  await client.query(
+    `
+      INSERT INTO tenant.crm_sales_teams (
+        organization_id, company_id, code, name, manager_user_id,
+        default_pipeline_id, currency_code, created_by, updated_by
+      )
+      SELECT $1, company.id, 'PRIMARY', 'Primary sales team', $2,
+        $3, company.base_currency, $2, $2
+      FROM public.companies company
+      WHERE company.id = $4 AND company.organization_id = $1
+      ON CONFLICT (organization_id, code) DO UPDATE SET
+        company_id = COALESCE(tenant.crm_sales_teams.company_id, EXCLUDED.company_id),
+        default_pipeline_id = COALESCE(tenant.crm_sales_teams.default_pipeline_id, EXCLUDED.default_pipeline_id),
+        currency_code = COALESCE(tenant.crm_sales_teams.currency_code, EXCLUDED.currency_code),
+        status = 'active',
+        updated_by = EXCLUDED.updated_by
+    `,
+    [input.organizationId, input.ownerUserId, pipelineId, input.companyId],
+  );
 }
 
 export async function seedOrganizationFoundation(
@@ -290,9 +477,20 @@ export async function seedOrganizationFoundation(
   );
 
   for (const moduleEntry of moduleCatalog) {
+    const status = moduleEntry.availability === "released" ? "enabled" : "disabled";
     await client.query(
-      "INSERT INTO organization_modules (organization_id, module_key, name) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-      [input.organizationId, moduleEntry.key, moduleEntry.name],
+      `INSERT INTO organization_modules (
+        organization_id, module_key, name, status, enabled_at
+      ) VALUES ($1, $2, $3, $4, CASE WHEN $4 = 'enabled' THEN now() ELSE NULL END)
+      ON CONFLICT (organization_id, module_key) DO UPDATE SET
+        name = EXCLUDED.name,
+        status = EXCLUDED.status,
+        enabled_at = CASE
+          WHEN EXCLUDED.status = 'enabled' THEN COALESCE(organization_modules.enabled_at, now())
+          ELSE NULL
+        END,
+        updated_at = now()`,
+      [input.organizationId, moduleEntry.key, moduleEntry.name, status],
     );
   }
 
@@ -310,6 +508,10 @@ export async function seedOrganizationFoundation(
     ["item", "ITM-"],
     ["warehouse", "WH-"],
     ["price_list", "PL-"],
+    ["crm_lead", "LEAD-"],
+    ["crm_opportunity", "OPP-"],
+    ["crm_campaign", "CMP-"],
+    ["crm_activity", "ACT-"],
   ] as const) {
     await client.query(
       "INSERT INTO numbering_series (organization_id, entity_type, prefix) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
@@ -322,6 +524,7 @@ export async function seedOrganizationFoundation(
     organizationId: input.organizationId,
     userId: input.ownerUserId,
   });
+  await seedCrmFoundation(client, input);
 
   await ensureOrganizationBilling(client, {
     organizationId: input.organizationId,

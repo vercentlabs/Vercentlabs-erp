@@ -26,18 +26,29 @@ export async function POST(
     const input = moveStageSchema.parse(await readJson(request));
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
-    const record = await tenantTransaction(context.organizationId, (client) =>
-      moveOpportunityStage(client, context, id, input.stageId, input.note),
+    const record = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const moved = await moveOpportunityStage(
+          client,
+          context,
+          id,
+          input.stageId,
+          input.note,
+        );
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: "crm.opportunity.stage_changed",
+          entityType: "opportunity",
+          entityId: id,
+          afterData: moved,
+          request,
+          client,
+        });
+        return moved;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: "crm.opportunity.stage_changed",
-      entityType: "opportunity",
-      entityId: id,
-      afterData: record,
-      request,
-    });
     return ok({ message: "Opportunity stage updated.", record });
   } catch (error) {
     try {

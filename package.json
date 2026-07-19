@@ -39,7 +39,23 @@
     "billing:sync-plans": "corepack pnpm --filter @vercent/web billing:sync-plans",
     "billing:reconcile": "corepack pnpm --filter @vercent/web billing:reconcile",
     "verify:commercial-readiness": "node scripts/validation/verify-commercial-readiness.mjs",
-    "db:provision:runtime-role": "node scripts/database/provision-runtime-role.mjs",
-    "crm:outbox": "corepack pnpm --filter @vercent/web crm:outbox"
+    "db:provision:runtime-role": "corepack pnpm --filter @vercent/web exec node scripts/provision-runtime-role.mjs",
+    "crm:outbox": "corepack pnpm --filter @vercent/web crm:outbox",
+    "test:landing": "corepack pnpm --filter @vercent/landing test",
+    "test:api": "corepack pnpm --filter @vercent/api test",
+    "test:sdk": "corepack pnpm --filter @vercent/shared-sdk test",
+    "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:sdk",
+    "verify:release": "node scripts/validation/verify-crm-release.mjs && pnpm verify:platform-foundation && pnpm verify:business-data && pnpm verify:crm && pnpm verify:billing && pnpm verify:commercial-readiness",
+    "validate:production-env:web": "node scripts/deployment/validate-production-env.mjs web",
+    "validate:production-env:landing": "node scripts/deployment/validate-production-env.mjs landing",
+    "validate:production-env:migration": "node scripts/deployment/validate-production-env.mjs migration",
+    "smoke:deployment": "node scripts/deployment/smoke-deployment.mjs",
+    "db:backup": "bash scripts/database/backup-postgres.sh",
+    "db:restore": "bash scripts/database/restore-postgres.sh",
+    "release:gate": "pnpm test:all && pnpm verify:release && pnpm lint:landing && pnpm typecheck:landing && pnpm build:landing && pnpm lint:web && pnpm typecheck:web && pnpm build:web"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": "11.13.0"
   }
 }

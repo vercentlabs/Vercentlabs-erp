@@ -1,0 +1,24 @@
+FROM node:24-alpine AS build
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/landing/package.json apps/landing/package.json
+COPY services/api/package.json services/api/package.json
+COPY packages/database/package.json packages/database/package.json
+COPY packages/permissions/package.json packages/permissions/package.json
+COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
+COPY packages/shared-types/package.json packages/shared-types/package.json
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build:web
+
+FROM node:24-alpine AS runtime
+ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0
+WORKDIR /app
+RUN addgroup -S vercent && adduser -S vercent -G vercent
+COPY --from=build --chown=vercent:vercent /app/apps/web/.next/standalone ./
+COPY --from=build --chown=vercent:vercent /app/apps/web/.next/static ./apps/web/.next/static
+USER vercent
+EXPOSE 3001
+CMD ["node", "apps/web/server.js"]

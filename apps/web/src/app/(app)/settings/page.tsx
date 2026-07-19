@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 
 export const metadata = { title: "Settings" };
 
@@ -11,6 +12,7 @@ const items: Array<{
   description: string;
   icon: AppIconName;
   group: "Structure" | "Access" | "Controls";
+  permission: string;
 }> = [
   {
     label: "Organisation",
@@ -18,6 +20,7 @@ const items: Array<{
     description: "Workspace identity and operating defaults",
     icon: "organisation",
     group: "Structure",
+    permission: PERMISSIONS.organizationManage,
   },
   {
     label: "Companies",
@@ -25,6 +28,7 @@ const items: Array<{
     description: "Legal entities and fiscal configuration",
     icon: "companies",
     group: "Structure",
+    permission: PERMISSIONS.companyManage,
   },
   {
     label: "Branches",
@@ -32,6 +36,7 @@ const items: Array<{
     description: "Operating locations and company assignment",
     icon: "branches",
     group: "Structure",
+    permission: PERMISSIONS.branchManage,
   },
   {
     label: "Departments",
@@ -39,6 +44,7 @@ const items: Array<{
     description: "Responsibility and reporting units",
     icon: "departments",
     group: "Structure",
+    permission: PERMISSIONS.departmentManage,
   },
   {
     label: "Teams",
@@ -46,6 +52,7 @@ const items: Array<{
     description: "Cross-functional groups and ownership",
     icon: "teams",
     group: "Structure",
+    permission: PERMISSIONS.teamManage,
   },
   {
     label: "Cost centres",
@@ -53,6 +60,7 @@ const items: Array<{
     description: "Cost accountability and reporting structure",
     icon: "cost-centres",
     group: "Structure",
+    permission: PERMISSIONS.costCenterManage,
   },
   {
     label: "Users",
@@ -60,6 +68,7 @@ const items: Array<{
     description: "Invitations, status and operating access",
     icon: "users",
     group: "Access",
+    permission: PERMISSIONS.usersView,
   },
   {
     label: "Roles & permissions",
@@ -67,6 +76,7 @@ const items: Array<{
     description: "Least-privilege roles and capabilities",
     icon: "roles",
     group: "Access",
+    permission: PERMISSIONS.rolesManage,
   },
   {
     label: "Numbering series",
@@ -74,11 +84,12 @@ const items: Array<{
     description: "Consistent identifiers for business records",
     icon: "numbering",
     group: "Controls",
+    permission: PERMISSIONS.numberingManage,
   },
 ];
 
 export default async function SettingsPage() {
-  await requireWorkspace();
+  const session = await requireWorkspace();
 
   return (
     <>
@@ -116,7 +127,10 @@ export default async function SettingsPage() {
           </div>
           <div className="settings-grid">
             {items
-              .filter((item) => item.group === group)
+              .filter(
+                (item) =>
+                  item.group === group && hasPermission(session, item.permission),
+              )
               .map((item) => (
                 <Link href={item.href} key={item.href}>
                   <span className="settings-card-icon" aria-hidden="true">

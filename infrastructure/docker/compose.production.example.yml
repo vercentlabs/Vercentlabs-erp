@@ -1,0 +1,89 @@
+services:
+  landing:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.landing
+    env_file: ../../apps/landing/.env.production
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    env_file: ../../apps/web/.env.production
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  crm-jobs:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.worker
+    env_file: ../../apps/web/.env.production
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          node scripts/process-crm-jobs.mjs
+          sleep "$${CRM_JOBS_INTERVAL_SECONDS:-60}"
+        done
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  crm-outbox:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.worker
+    env_file: ../../apps/web/.env.production
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          node scripts/deliver-crm-outbox.mjs
+          sleep "$${CRM_OUTBOX_INTERVAL_SECONDS:-30}"
+        done
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  billing-reconcile:
+    profiles: ["billing"]
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.worker
+    env_file: ../../apps/web/.env.production
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          node scripts/reconcile-razorpay-billing.mjs
+          sleep "$${BILLING_RECONCILE_INTERVAL_SECONDS:-3600}"
+        done
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

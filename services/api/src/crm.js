@@ -1473,6 +1473,56 @@ function mutableEntries(definition, input) {
   );
 }
 
+const organizationUserReferenceFields = new Set([
+  "ownerUserId",
+  "assignedTo",
+  "assigneeUserId",
+  "userId",
+  "managerUserId",
+  "executiveSponsorUserId",
+  "relationshipOwnerUserId",
+  "reviewedBy",
+  "internalOwnerUserId",
+]);
+
+async function assertActiveOrganizationUsers(client, context, userIds) {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+  if (!uniqueUserIds.length) return;
+  const memberships = await client.query(
+    `SELECT user_id FROM public.organization_memberships
+     WHERE organization_id = $1
+       AND user_id = ANY($2::uuid[])
+       AND status = 'active'`,
+    [context.organizationId, uniqueUserIds],
+  );
+  const active = new Set(memberships.rows.map((row) => row.user_id));
+  const invalid = uniqueUserIds.filter((userId) => !active.has(userId));
+  if (invalid.length) {
+    throw new CrmError(
+      409,
+      "CRM owners and assignees must be active members of this organization.",
+      "CRM_USER_OUTSIDE_ORGANIZATION",
+    );
+  }
+}
+
+async function validateOrganizationUserReferences(
+  client,
+  context,
+  definition,
+  prepared,
+) {
+  const userIds = Object.entries(prepared)
+    .filter(
+      ([key, value]) =>
+        value &&
+        definition.fields[key] &&
+        organizationUserReferenceFields.has(key),
+    )
+    .map(([, value]) => value);
+  await assertActiveOrganizationUsers(client, context, userIds);
+}
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -1679,6 +1729,7 @@ export async function createCrmRecord(client, context, resource, input) {
     );
   if (resource === "custom-records")
     await validateCustomRecord(client, context, prepared);
+  await validateOrganizationUserReferences(client, context, definition, prepared);
   const entries = mutableEntries(definition, prepared);
   if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
   const columns = [
@@ -1765,6 +1816,7 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     prepared.data ??= before.data;
     await validateCustomRecord(client, context, prepared, id);
   }
+  await validateOrganizationUserReferences(client, context, definition, prepared);
   const entries = mutableEntries(definition, prepared);
   if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
   const parameters = entries.map(([, value]) => value);
@@ -2411,6 +2463,7 @@ export async function runCrmAutomation(
           output.push({ action: action.type, id: created.id });
         }
         if (action.type === "notification" && action.userId) {
+          await assertActiveOrganizationUsers(client, context, [action.userId]);
           await client.query(
             `INSERT INTO public.notifications (organization_id, user_id, type, title, message, href) VALUES ($1, $2, 'crm_automation', $3, $4, $5)`,
             [

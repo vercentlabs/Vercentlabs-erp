@@ -1,0 +1,20 @@
+FROM node:24-alpine
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/landing/package.json apps/landing/package.json
+COPY services/api/package.json services/api/package.json
+COPY packages/database/package.json packages/database/package.json
+COPY packages/permissions/package.json packages/permissions/package.json
+COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
+COPY packages/shared-types/package.json packages/shared-types/package.json
+RUN pnpm install --prod --frozen-lockfile
+COPY apps/web/scripts apps/web/scripts
+COPY database database
+COPY packages packages
+COPY services services
+COPY scripts/database scripts/database
+RUN addgroup -S vercent && adduser -S vercent -G vercent && chown -R vercent:vercent /app
+USER vercent
+CMD ["sh", "-ec", "pnpm db:migrate:control && pnpm db:migrate:tenant && pnpm db:provision:runtime-role"]

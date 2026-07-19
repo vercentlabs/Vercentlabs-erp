@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   calculateLeadScore,
+  createCrmRecord,
   getCrmDashboard,
   getCrmOptions,
   getCrmReport,
@@ -313,4 +314,37 @@ test("CRM report parameters are explicitly typed for every report shape", async 
   ]) {
     await getCrmReport(client, context, report);
   }
+});
+
+test("CRM rejects owners outside the active organization", async () => {
+  const client = {
+    async query(text) {
+      if (text.includes("UPDATE public.numbering_series")) {
+        return { rows: [{ prefix: "LEAD-", number: 1, padding: 5 }] };
+      }
+      if (text.includes("crm_scoring_rules")) return { rows: [] };
+      if (text.includes("organization_memberships")) return { rows: [] };
+      throw new Error(`Unexpected query: ${text}`);
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      createCrmRecord(
+        client,
+        {
+          organizationId: "00000000-0000-4000-8000-000000000000",
+          userId: "00000000-0000-4000-8000-000000000001",
+          activeCompanyId: "00000000-0000-4000-8000-000000000002",
+          activeBranchId: null,
+          allowAllCompanies: true,
+        },
+        "leads",
+        {
+          firstName: "Outside",
+          ownerUserId: "00000000-0000-4000-8000-000000000099",
+        },
+      ),
+    /active members of this organization/,
+  );
 });

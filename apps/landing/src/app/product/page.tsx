@@ -7,7 +7,7 @@ import StructuredContentPage, {
 export const metadata = createPageMetadata({
   title: "VercentLabs ERP Product | Platform Foundation and CRM Preview",
   description:
-    "Review the implemented platform foundation and CRM preview, plus the planned roadmap for additional ERP operations.",
+    "Review the implemented platform foundation and CRM early access, plus the planned roadmap for additional ERP operations.",
   path: "/product",
 });
 
@@ -16,7 +16,7 @@ const config: StructuredPageConfig = {
     eyebrow: "VercentLabs ERP",
     title: "Build connected operations on a governed ERP foundation.",
     description:
-      "VercentLabs ERP currently provides a governed platform foundation and CRM preview. The wider finance, procurement, inventory, production, project and people roadmap is being developed through phased design-partner validation.",
+      "VercentLabs ERP currently provides a governed platform foundation and CRM early access. The wider finance, procurement, inventory, production, project and people roadmap is being developed through phased design-partner validation.",
     primary: { label: "Book a personalised demo", href: "/contact" },
     secondary: { label: "Explore the module roadmap", href: "/modules" },
   },

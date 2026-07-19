@@ -1,0 +1,60 @@
+name: CRM release readiness
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vercent
+          POSTGRES_PASSWORD: vercent_ci_password
+          POSTGRES_DB: vercent_control
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vercent -d vercent_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      APP_URL: http://localhost:3001
+      DATABASE_URL: postgresql://vercent:vercent_ci_password@localhost:5433/vercent_control
+      MIGRATION_DATABASE_URL: postgresql://vercent:vercent_ci_password@localhost:5433/vercent_control
+      APP_DATABASE_ROLE: vercent_app_ci
+      APP_DATABASE_PASSWORD: vercent_ci_runtime_password_2026
+      FORM_ALLOWED_ORIGINS: http://localhost:3001
+      BILLING_CHECKOUT_ENABLED: "false"
+      BILLING_ENFORCEMENT_MODE: observe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:all
+      - run: pnpm verify:release
+      - run: pnpm db:migrate:control
+      - run: pnpm db:migrate:tenant
+      - run: pnpm db:provision:runtime-role
+      - name: Switch verification to the restricted runtime role
+        run: |
+          echo "DATABASE_URL=postgresql://vercent_app_ci:vercent_ci_runtime_password_2026@localhost:5433/vercent_control" >> "$GITHUB_ENV"
+          echo "ENFORCE_RESTRICTED_DB_ROLE=true" >> "$GITHUB_ENV"
+      - run: pnpm db:verify:control
+      - run: pnpm db:verify:tenant
+      - run: pnpm db:verify:crm
+      - run: pnpm db:verify:billing
+      - run: pnpm lint:landing && pnpm typecheck:landing && pnpm build:landing
+      - run: pnpm lint:web && pnpm typecheck:web && pnpm build:web

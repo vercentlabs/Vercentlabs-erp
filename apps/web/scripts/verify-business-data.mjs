@@ -109,16 +109,16 @@ const authorization = fs.readFileSync(
   "utf8",
 );
 
-for (const permission of [
-  "business_data.view",
-  "parties.manage",
-  "items.manage",
-  "inventory_setup.manage",
-  "finance_setup.manage",
-  "business_data.import",
+for (const permissionMarker of [
+  "BUSINESS_DATA_PERMISSIONS.view",
+  "BUSINESS_DATA_PERMISSIONS.partiesManage",
+  "BUSINESS_DATA_PERMISSIONS.itemsManage",
+  "BUSINESS_DATA_PERMISSIONS.inventorySetupManage",
+  "BUSINESS_DATA_PERMISSIONS.financeSetupManage",
+  "BUSINESS_DATA_PERMISSIONS.import",
 ]) {
-  if (!authorization.includes(permission)) {
-    throw new Error(`Authorization is missing ${permission}.`);
+  if (!authorization.includes(permissionMarker)) {
+    throw new Error(`Authorization is missing ${permissionMarker}.`);
   }
 }
 

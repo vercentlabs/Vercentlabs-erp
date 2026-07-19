@@ -26,18 +26,28 @@ export async function POST(
     const input = completeActivitySchema.parse(await readJson(request));
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
-    const record = await tenantTransaction(context.organizationId, (client) =>
-      completeCrmActivity(client, context, id, input.outcome),
+    const record = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const completed = await completeCrmActivity(
+          client,
+          context,
+          id,
+          input.outcome,
+        );
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: session.userId,
+          eventType: "crm.activity.completed",
+          entityType: "activity",
+          entityId: id,
+          afterData: completed,
+          request,
+          client,
+        });
+        return completed;
+      },
     );
-    await audit({
-      organizationId: context.organizationId,
-      actorUserId: session.userId,
-      eventType: "crm.activity.completed",
-      entityType: "activity",
-      entityId: id,
-      afterData: record,
-      request,
-    });
     return ok({ message: "Activity completed.", record });
   } catch (error) {
     try {

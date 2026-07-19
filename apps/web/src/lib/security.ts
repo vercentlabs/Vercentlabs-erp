@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
+import type { PoolClient } from "pg";
 
 import { query } from "@/lib/db";
 import { HttpError } from "@/lib/http";
@@ -139,15 +140,15 @@ export async function audit(input: {
   beforeData?: unknown;
   afterData?: unknown;
   request?: Request;
+  client?: PoolClient;
 }) {
-  await query(
-    `
+  const statement = `
     INSERT INTO audit_events (
       id, organization_id, actor_user_id, event_type, entity_type, entity_id,
       metadata, before_data, after_data, ip_address, user_agent
     ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11)
-  `,
-    [
+  `;
+  const values = [
       randomUUID(),
       input.organizationId || null,
       input.actorUserId || null,
@@ -159,8 +160,12 @@ export async function audit(input: {
       input.afterData === undefined ? null : JSON.stringify(input.afterData),
       input.request ? clientIp(input.request) : null,
       input.request?.headers.get("user-agent")?.slice(0, 500) || null,
-    ],
-  );
+    ];
+  if (input.client) {
+    await input.client.query(statement, values);
+  } else {
+    await query(statement, values);
+  }
 }
 
 export async function recordLoginEvent(input: {
