@@ -235,6 +235,7 @@ export const profileSchema = z.object({
 export const approvalDecisionSchema = z.object({
   action: z.enum(["approve", "reject"]),
   note: z.string().trim().max(1000).optional().default(""),
+  expectedVersion: z.number().int().positive(),
 });
 
 export const moduleStatusSchema = z.object({

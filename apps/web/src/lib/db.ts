@@ -1,4 +1,5 @@
 import { setTenantContext } from "@vercent/database";
+import { databaseConfig } from "@vercent/config";
 import { Pool, PoolClient, QueryResultRow } from "pg";
 
 declare global {
@@ -7,22 +8,19 @@ declare global {
 }
 
 function createPool() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is not configured.");
+  const config = databaseConfig(process.env);
 
   return new Pool({
-    connectionString,
-    max: 12,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    connectionString: config.connectionString,
+    max: config.poolMaximum,
+    idleTimeoutMillis: config.idleTimeoutMilliseconds,
+    connectionTimeoutMillis: config.connectionTimeoutMilliseconds,
+    query_timeout: config.queryTimeoutMilliseconds,
     application_name: "vercent-web-runtime",
-    statement_timeout: Math.max(
-      1_000,
-      Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS || "15000"),
-    ),
+    statement_timeout: config.statementTimeoutMilliseconds,
     ssl:
       process.env.NODE_ENV === "production" &&
-      !connectionString.includes("localhost")
+      !config.connectionString.includes("localhost")
         ? { rejectUnauthorized: true }
         : undefined,
   });

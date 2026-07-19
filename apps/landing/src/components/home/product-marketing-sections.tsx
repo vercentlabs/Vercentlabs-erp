@@ -15,6 +15,7 @@ import {
   Workflow,
 } from "lucide-react";
 import Link from "next/link";
+import { isReleasedModule } from "@vercent/shared-types";
 
 import PageContainer from "@/components/layout/page-container";
 import SectionHeading from "@/components/marketing/section-heading";
@@ -282,7 +283,7 @@ export default function ProductMarketingSections() {
             <SectionHeading
               eyebrow="Complete product scope"
               title="One foundation. A phased module roadmap."
-              description="Use each module independently while keeping customers, suppliers, items, employees, approvals and reporting connected."
+              description="Use the released CRM today and evaluate the remaining modules as a phased roadmap on the same shared foundation."
             />
             <Link
               href="/modules"
@@ -310,8 +311,8 @@ export default function ProductMarketingSections() {
                         className="h-4 w-4 sm:h-5 sm:w-5"
                       />
                     </span>
-                    <span className="text-[10px] font-extrabold text-slate-400 sm:text-xs">
-                      {String(index + 1).padStart(2, "0")}
+                    <span className="text-[10px] font-extrabold uppercase text-slate-400 sm:text-xs">
+                      {isReleasedModule(erpModule.slug) ? "Released" : "Roadmap"}
                     </span>
                   </div>
 

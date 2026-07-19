@@ -92,7 +92,7 @@ export default function OpenGraphImage() {
         </div>
         <div style={{ display: "flex", marginTop: 40, gap: 12 }}>
           {[
-            "10 connected modules",
+            "1 released CRM module",
             "5 end-to-end workflows",
             "Phased implementation",
           ].map((item) => (

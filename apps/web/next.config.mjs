@@ -24,9 +24,16 @@ const nextConfig = {
   compress: true,
   transpilePackages: [
     "@vercent/api",
+    "@vercent/config",
     "@vercent/database",
+    "@vercent/document-engine",
+    "@vercent/localization",
+    "@vercent/observability",
     "@vercent/permissions",
+    "@vercent/reporting-engine",
     "@vercent/shared-types",
+    "@vercent/shared-ui",
+    "@vercent/workflows",
   ],
   async headers() {
     return [

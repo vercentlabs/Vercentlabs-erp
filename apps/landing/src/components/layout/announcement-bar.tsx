@@ -12,12 +12,12 @@ export default function AnnouncementBar() {
 
   return (
     <div className="relative z-[60] bg-gradient-to-r from-indigo-800 via-indigo-700 to-violet-700 px-10 py-2 text-center text-[11px] font-semibold leading-4 text-white sm:px-12 sm:py-2.5 sm:text-sm sm:leading-5">
-      <span>One connected ERP with 12 operational modules.</span>{" "}
+      <span>CRM is released; 11 ERP modules are on the roadmap.</span>{" "}
       <Link
         href="/modules"
         className="font-extrabold underline decoration-white/50 underline-offset-4 hover:decoration-white"
       >
-        Explore every module
+        Explore the module roadmap
       </Link>
       <button
         type="button"

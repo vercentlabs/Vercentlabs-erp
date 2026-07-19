@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowRight, Boxes } from "lucide-react";
 import Link from "next/link";
+import { isReleasedModule } from "@vercent/shared-types";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
@@ -34,7 +35,7 @@ export default function ModulesPage() {
       <section className="bg-white py-7 sm:py-20 lg:py-24">
         <PageContainer>
           <div className="grid grid-cols-2 gap-2.5 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
-            {erpModules.map((erpModule, index) => (
+            {erpModules.map((erpModule) => (
               <Link
                 key={erpModule.slug}
                 href={"/modules/" + erpModule.slug}
@@ -47,8 +48,8 @@ export default function ModulesPage() {
                       className="h-4 w-4 sm:h-5 sm:w-5"
                     />
                   </div>
-                  <span className="text-[10px] font-extrabold text-slate-400 sm:text-xs">
-                    {String(index + 1).padStart(2, "0")}
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-600 sm:text-[10px]">
+                    {isReleasedModule(erpModule.slug) ? "Released" : "Roadmap"}
                   </span>
                 </div>
 
@@ -61,7 +62,9 @@ export default function ModulesPage() {
                 </p>
 
                 <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 sm:mt-6 sm:gap-2 sm:text-sm">
-                  Review roadmap
+                  {isReleasedModule(erpModule.slug)
+                    ? "Review released scope"
+                    : "Review roadmap"}
                   <ArrowRight
                     aria-hidden="true"
                     className="h-4 w-4 transition group-hover:translate-x-1"

@@ -6,9 +6,17 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/landing/package.json apps/landing/package.json
 COPY services/api/package.json services/api/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/config/package.json packages/config/package.json
+COPY packages/document-engine/package.json packages/document-engine/package.json
+COPY packages/localization/package.json packages/localization/package.json
+COPY packages/observability/package.json packages/observability/package.json
 COPY packages/permissions/package.json packages/permissions/package.json
+COPY packages/reporting-engine/package.json packages/reporting-engine/package.json
 COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY packages/shared-ui/package.json packages/shared-ui/package.json
+COPY packages/test-utils/package.json packages/test-utils/package.json
+COPY packages/workflows/package.json packages/workflows/package.json
 RUN pnpm install --prod --frozen-lockfile
 COPY apps/web/scripts apps/web/scripts
 COPY services/api services/api

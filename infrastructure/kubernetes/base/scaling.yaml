@@ -1,0 +1,52 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web
+  namespace: vercent
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: web }
+  minReplicas: 2
+  maxReplicas: 12
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: landing
+  namespace: vercent
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: landing }
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+  namespace: vercent
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: vercent-web }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: landing
+  namespace: vercent
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: vercent-landing }

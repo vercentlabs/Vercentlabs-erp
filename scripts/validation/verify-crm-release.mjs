@@ -10,7 +10,9 @@ const requiredFiles = [
   ".github/workflows/release-readiness.yml",
   ".dockerignore",
   "database/control-plane/migrations/009_crm_release_scope.sql",
+  "database/control-plane/migrations/010_approval_execution.sql",
   "database/tenant/migrations/006_crm_release_foundation.sql",
+  "database/tenant/migrations/007_crm_outbox_leases.sql",
   "docs/testing/manual-crm-acceptance.md",
   "docs/deployment/crm-production-runbook.md",
   "infrastructure/docker/Dockerfile.web",
@@ -35,21 +37,22 @@ function requireMarkers(file, markers) {
 }
 
 requireMarkers("apps/web/src/app/api/readiness/route.ts", [
-  '"009_crm_release_scope.sql"',
-  '"006_crm_release_foundation.sql"',
+  '"010_approval_execution.sql"',
+  '"007_crm_outbox_leases.sql"',
   "schema_migrations WHERE name = $1",
   "tenant_schema_migrations WHERE name = $2",
 ]);
 
 const platform = read("apps/web/src/lib/platform.ts");
-const moduleEntries = [...platform.matchAll(
+const moduleCatalogSource = read("packages/shared-types/src/modules.js");
+const moduleEntries = [...moduleCatalogSource.matchAll(
   /\{\s*key:\s*"([^"]+)"[\s\S]*?availability:\s*"([^"]+)"[\s\S]*?\}/g,
 )].map((match) => ({ key: match[1], availability: match[2] }));
 const releasedModules = moduleEntries
   .filter((entry) => entry.availability === "released")
   .map((entry) => entry.key);
 if (releasedModules.length !== 1 || releasedModules[0] !== "crm") {
-  failures.push("CRM must be the only released module in moduleCatalog.");
+  failures.push("CRM must be the only released module in ERP_MODULE_CATALOG.");
 }
 for (const marker of [
   "seedCrmFoundation",

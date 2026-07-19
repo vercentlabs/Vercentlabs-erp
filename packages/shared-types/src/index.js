@@ -25,3 +25,4 @@ export const MASTER_DATA_STATUSES = Object.freeze([
 ]);
 export * from "./crm.js";
 export * from "./billing.js";
+export * from "./modules.js";

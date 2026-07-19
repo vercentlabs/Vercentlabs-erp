@@ -44,15 +44,20 @@
     "test:landing": "corepack pnpm --filter @vercent/landing test",
     "test:api": "corepack pnpm --filter @vercent/api test",
     "test:sdk": "corepack pnpm --filter @vercent/shared-sdk test",
-    "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:sdk",
-    "verify:release": "node scripts/validation/verify-crm-release.mjs && pnpm verify:platform-foundation && pnpm verify:business-data && pnpm verify:crm && pnpm verify:billing && pnpm verify:commercial-readiness",
+    "test:packages": "corepack pnpm --filter @vercent/config --filter @vercent/document-engine --filter @vercent/localization --filter @vercent/observability --filter @vercent/reporting-engine --filter @vercent/shared-ui --filter @vercent/test-utils --filter @vercent/workflows test",
+    "test:integration": "node --test tests/integration/*.test.mjs",
+    "test:security": "node --test tests/security/*.test.mjs",
+    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:sdk && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:e2e",
+    "verify:implementation": "node scripts/validation/verify-implementation-completeness.mjs",
+    "verify:release": "node scripts/validation/verify-crm-release.mjs && corepack pnpm verify:implementation && corepack pnpm verify:platform-foundation && corepack pnpm verify:business-data && corepack pnpm verify:crm && corepack pnpm verify:billing && corepack pnpm verify:commercial-readiness",
     "validate:production-env:web": "node scripts/deployment/validate-production-env.mjs web",
     "validate:production-env:landing": "node scripts/deployment/validate-production-env.mjs landing",
     "validate:production-env:migration": "node scripts/deployment/validate-production-env.mjs migration",
     "smoke:deployment": "node scripts/deployment/smoke-deployment.mjs",
     "db:backup": "bash scripts/database/backup-postgres.sh",
     "db:restore": "bash scripts/database/restore-postgres.sh",
-    "release:gate": "pnpm test:all && pnpm verify:release && pnpm lint:landing && pnpm typecheck:landing && pnpm build:landing && pnpm lint:web && pnpm typecheck:web && pnpm build:web"
+    "release:gate": "corepack pnpm test:all && corepack pnpm verify:release && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm lint:web && corepack pnpm typecheck:web && corepack pnpm build:web"
   },
   "engines": {
     "node": ">=24 <25",

@@ -30,6 +30,7 @@
     "crm:outbox": "node scripts/deliver-crm-outbox.mjs"
   },
   "dependencies": {
+    "@vercent/config": "workspace:*",
     "dotenv": "^17.2.3",
     "next": "16.2.10",
     "nodemailer": "^9.0.3",
@@ -39,8 +40,14 @@
     "zod": "^4.1.12",
     "@vercent/api": "workspace:*",
     "@vercent/database": "workspace:*",
+    "@vercent/document-engine": "workspace:*",
+    "@vercent/localization": "workspace:*",
+    "@vercent/observability": "workspace:*",
     "@vercent/permissions": "workspace:*",
-    "@vercent/shared-types": "workspace:*"
+    "@vercent/reporting-engine": "workspace:*",
+    "@vercent/shared-types": "workspace:*",
+    "@vercent/shared-ui": "workspace:*",
+    "@vercent/workflows": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20",

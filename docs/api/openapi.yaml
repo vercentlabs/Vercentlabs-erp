@@ -1,0 +1,144 @@
+openapi: 3.1.0
+info:
+  title: Vercent ERP Web API
+  version: 0.2.0
+  description: Session-authenticated platform and released CRM API contracts.
+servers:
+  - url: https://erp.example.com/api
+paths:
+  /approvals:
+    get:
+      summary: List approval requests assigned to the current user
+      responses:
+        "200":
+          description: Approval request list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalListResponse"
+    post:
+      summary: Create a command-bound approval request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApprovalRequest"
+      responses:
+        "201":
+          description: Approval request created
+        "400":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+  /approvals/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Identifier"
+    get:
+      summary: Read an approval request
+      responses:
+        "200":
+          description: Approval request
+        "404":
+          $ref: "#/components/responses/Problem"
+    patch:
+      summary: Approve or reject a command-bound request
+      description: Uses optimistic locking and separation of duties. Approved commands execute in the same database transaction as the decision and audit record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecision"
+      responses:
+        "200":
+          description: Decision committed
+        "409":
+          $ref: "#/components/responses/Problem"
+  /crm/opportunities/{id}/stage:
+    parameters:
+      - $ref: "#/components/parameters/Identifier"
+    post:
+      summary: Move an opportunity to another active pipeline stage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [stageId]
+              properties:
+                stageId:
+                  type: string
+                  format: uuid
+                note:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Opportunity updated
+        "409":
+          $ref: "#/components/responses/Problem"
+components:
+  parameters:
+    Identifier:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateApprovalRequest:
+      type: object
+      additionalProperties: false
+      required: [commandKey, commandPayload]
+      properties:
+        commandKey:
+          type: string
+          enum: [crm.opportunity.stage_change, crm.activity.complete]
+        commandPayload:
+          type: object
+        assignedTo:
+          type: [string, "null"]
+          format: uuid
+    ApprovalDecision:
+      type: object
+      additionalProperties: false
+      required: [action, expectedVersion]
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        note:
+          type: string
+          maxLength: 1000
+        expectedVersion:
+          type: integer
+          minimum: 1
+    ApprovalListResponse:
+      type: object
+      required: [ok, requests]
+      properties:
+        ok:
+          const: true
+        requests:
+          type: array
+          items:
+            type: object
+    Problem:
+      type: object
+      required: [ok, message]
+      properties:
+        ok:
+          const: false
+        message:
+          type: string
+  responses:
+    Problem:
+      description: Request rejected
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { createLogger } from "@vercent/observability";
+
+const logger = createLogger("vercent-web");
 
 export class HttpError extends Error {
   constructor(
@@ -78,6 +81,6 @@ export function errorResponse(error: unknown) {
       errors: error.flatten().fieldErrors,
     });
   }
-  console.error(error);
+  logger.error("request_failed", { error });
   return fail("The request could not be completed.", 500);
 }

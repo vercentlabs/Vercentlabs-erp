@@ -1,3 +1,10 @@
 # Kubernetes infrastructure
 
-Kubernetes manifests, overlays, and deployment policies belong here when cluster deployment is introduced. Keep secrets outside the repository.
+The `base` kustomization deploys horizontally scalable web and landing services,
+leased one-shot workers, disruption budgets and default-deny ingress policy.
+
+Create `vercent-runtime` and `vercent-landing-runtime` secrets through the
+cluster's external-secret controller, then set immutable image digests in an
+environment overlay. Validate with `kubectl kustomize infrastructure/kubernetes/base`
+before applying. Secrets, certificates and environment-specific host names do
+not belong in this repository.

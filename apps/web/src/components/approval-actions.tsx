@@ -3,7 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-export default function ApprovalActions({ id }: { id: string }) {
+export default function ApprovalActions({
+  id,
+  expectedVersion,
+}: {
+  id: string;
+  expectedVersion: number;
+}) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -15,7 +21,7 @@ export default function ApprovalActions({ id }: { id: string }) {
       const response = await fetch(`/api/approvals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, note }),
+        body: JSON.stringify({ action, note, expectedVersion }),
       });
       const data = (await response.json()) as { ok: boolean; message?: string };
       if (!response.ok || !data.ok) {
@@ -33,7 +39,7 @@ export default function ApprovalActions({ id }: { id: string }) {
         aria-label="Decision note"
         maxLength={1000}
         onChange={(event) => setNote(event.target.value)}
-        placeholder="Optional decision note"
+        placeholder="Decision note (required when rejecting)"
         value={note}
       />
       <div className="action-row">

@@ -6,8 +6,8 @@ const read = (file) => fs.readFileSync(file, "utf8");
 
 test("readiness verifies the latest migration names using the migration ledger schema", () => {
   const source = read("src/app/api/readiness/route.ts");
-  assert.match(source, /009_crm_release_scope\.sql/);
-  assert.match(source, /006_crm_release_foundation\.sql/);
+  assert.match(source, /010_approval_execution\.sql/);
+  assert.match(source, /007_crm_outbox_leases\.sql/);
   assert.match(source, /WHERE name = \$1/);
   assert.doesNotMatch(source, /WHERE filename/);
 });
@@ -30,13 +30,13 @@ test("new organizations receive complete CRM configuration and numbering", () =>
 });
 
 test("the release scope exposes CRM and blocks roadmap modules", () => {
-  const platform = read("src/lib/platform.ts");
+  const modules = read("../../packages/shared-types/src/modules.js");
   const route = read("src/app/api/modules/[key]/route.ts");
   const migration = read(
     "../../database/control-plane/migrations/009_crm_release_scope.sql",
   );
-  assert.match(platform, /key: "crm"[\s\S]*availability: "released"/);
-  assert.match(platform, /availability: "roadmap"/);
+  assert.match(modules, /key: "crm"[\s\S]*availability: "released"/);
+  assert.match(modules, /availability: "roadmap"/);
   assert.match(route, /cannot be activated in this release/);
   assert.match(route, /CRM is the released product and cannot be disabled/);
   assert.match(migration, /modules = '\["crm"\]'::jsonb/);

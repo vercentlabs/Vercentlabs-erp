@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCrmDashboard } from "@vercent/api";
+import { formatDateTime, formatMoney } from "@vercent/localization";
 import AppIcon from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
@@ -8,12 +9,6 @@ import { tenantTransaction } from "@/lib/db";
 
 export const metadata = { title: "CRM" };
 export const dynamic = "force-dynamic";
-const money = (value: unknown) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
 export default async function CrmDashboardPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) return null;
@@ -22,6 +17,11 @@ export default async function CrmDashboardPage() {
     getCrmDashboard(client, context),
   );
   const metrics = dashboard.metrics as Record<string, unknown>;
+  const money = (value: unknown) =>
+    formatMoney(value, {
+      currency: String(metrics.currencyCode || "INR"),
+      locale: session.locale,
+    });
   return (
     <>
       <section className="page-heading">
@@ -135,10 +135,10 @@ export default async function CrmDashboardPage() {
               </div>
               <time>
                 {activity.dueAt
-                  ? new Intl.DateTimeFormat("en-IN", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(new Date(String(activity.dueAt)))
+                  ? formatDateTime(String(activity.dueAt), {
+                      timeZone: session.timezone,
+                      locale: session.locale,
+                    })
                   : "No due date"}
               </time>
             </article>

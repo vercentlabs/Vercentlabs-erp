@@ -1,19 +1,28 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import pg from "pg";
 
 import { setTenantContext } from "@vercent/database";
+import { databaseConfig } from "@vercent/config";
+import { createLogger } from "@vercent/observability";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
 dotenv.config({ quiet: true });
 
-if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
+const database = databaseConfig(process.env, { defaultPoolMaximum: 4 });
+const logger = createLogger("vercent-crm-outbox-worker");
+const workerId = randomUUID();
 
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 4,
+  connectionString: database.connectionString,
+  max: Math.min(10, database.poolMaximum),
+  idleTimeoutMillis: database.idleTimeoutMilliseconds,
+  connectionTimeoutMillis: database.connectionTimeoutMilliseconds,
+  query_timeout: database.queryTimeoutMilliseconds,
+  statement_timeout: database.statementTimeoutMilliseconds,
   application_name: "vercent-crm-outbox-worker",
 });
 const batchSize = Math.max(
@@ -23,6 +32,10 @@ const batchSize = Math.max(
 const maximumAttempts = Math.max(
   1,
   Math.min(20, Number(process.env.CRM_OUTBOX_MAX_ATTEMPTS || "5")),
+);
+const leaseSeconds = Math.max(
+  60,
+  Math.min(3600, Number(process.env.CRM_OUTBOX_LEASE_SECONDS || "300")),
 );
 const requireExplicitConsent =
   process.env.CRM_OUTBOUND_REQUIRE_EXPLICIT_CONSENT?.toLowerCase() !== "false";
@@ -155,8 +168,13 @@ async function claimEvents(organizationId) {
           FROM tenant.crm_outbox_events AS event
           WHERE event.organization_id = $1
             AND event.event_type = 'crm.communication.queued'
-            AND event.status IN ('pending', 'failed')
-            AND event.next_attempt_at <= now()
+            AND (
+              (event.status IN ('pending', 'failed') AND event.next_attempt_at <= now())
+              OR (
+                event.status = 'processing'
+                AND event.locked_at < now() - ($3 * interval '1 second')
+              )
+            )
           ORDER BY event.created_at ASC
           LIMIT $2
           FOR UPDATE SKIP LOCKED
@@ -165,13 +183,14 @@ async function claimEvents(organizationId) {
         SET status = 'processing',
             attempt_count = event.attempt_count + 1,
             locked_at = now(),
+            locked_by = $4,
             last_error = NULL,
             updated_at = now()
         FROM candidates
         WHERE event.id = candidates.id
         RETURNING event.*
       `,
-      [organizationId, batchSize],
+      [organizationId, batchSize, leaseSeconds, workerId],
     );
     return result.rows;
   });
@@ -254,6 +273,14 @@ async function messageForEvent(event) {
 
 async function completeEvent(event, message, delivery) {
   await withTenant(event.organization_id, async (client) => {
+    const lease = await client.query(
+      `SELECT 1 FROM tenant.crm_outbox_events
+        WHERE organization_id = $1 AND id = $2 AND status = 'processing'
+          AND locked_by = $3
+        FOR UPDATE`,
+      [event.organization_id, event.id, workerId],
+    );
+    if (!lease.rows[0]) throw new Error("The outbox delivery lease was lost.");
     await client.query(
       `
         UPDATE tenant.crm_communications
@@ -286,15 +313,18 @@ async function completeEvent(event, message, delivery) {
             provider_message_id = $3,
             delivery_receipt = $4::jsonb,
             locked_at = NULL,
+            locked_by = NULL,
             last_error = NULL,
             updated_at = now()
         WHERE organization_id = $1 AND id = $2 AND status = 'processing'
+          AND locked_by = $5
       `,
       [
         event.organization_id,
         event.id,
         delivery.messageId,
         JSON.stringify(delivery.receipt),
+        workerId,
       ],
     );
   });
@@ -304,24 +334,28 @@ async function failEvent(event, error) {
   const dead = Number(event.attempt_count) >= maximumAttempts;
   const message = String(error?.message || error).slice(0, 1_000);
   await withTenant(event.organization_id, async (client) => {
-    await client.query(
+    const updated = await client.query(
       `
         UPDATE tenant.crm_outbox_events
         SET status = $3,
             next_attempt_at = now() +
               (LEAST(3600, 30 * power(2, GREATEST(attempt_count - 1, 0))) * interval '1 second'),
             locked_at = NULL,
+            locked_by = NULL,
             last_error = $4,
             updated_at = now()
         WHERE organization_id = $1 AND id = $2 AND status = 'processing'
+          AND locked_by = $5
       `,
       [
         event.organization_id,
         event.id,
         dead ? "dead_letter" : "failed",
         message,
+        workerId,
       ],
     );
+    if (!updated.rowCount) return;
     await client.query(
       `
         UPDATE tenant.crm_communications
@@ -381,15 +415,12 @@ try {
     }
   }
 
-  console.log(
-    JSON.stringify({
-      service: "vercent-crm-outbox-worker",
-      delivered,
-      suppressed,
-      failed,
-      completedAt: new Date().toISOString(),
-    }),
-  );
+  logger.info("outbox_run_completed", {
+    workerId,
+    delivered,
+    suppressed,
+    failed,
+  });
 } finally {
   await pool.end();
 }

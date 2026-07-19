@@ -26,6 +26,7 @@ const tables = [
   "organization_modules",
   "workflow_definitions",
   "approval_requests",
+  "approval_decisions",
   "activities",
   "comments",
   "attachments",

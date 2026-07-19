@@ -1,4 +1,5 @@
 import AppIcon, { type AppIconName } from "@/components/app-icon";
+import { StatusBadge } from "@vercent/shared-ui";
 import { requireWorkspace } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { moduleCatalog } from "@/lib/platform";
@@ -29,8 +30,8 @@ export default async function ModulesPage() {
           </p>
         </div>
         <div className="page-heading-summary">
-          <span className="status-badge neutral">1 released · 11 roadmap</span>
-          <span className="status-badge success">{enabledCount} enabled</span>
+          <StatusBadge>1 released · 11 roadmap</StatusBadge>
+          <StatusBadge tone="success">{enabledCount} enabled</StatusBadge>
         </div>
       </section>
 

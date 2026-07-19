@@ -46,8 +46,8 @@ const config: StructuredPageConfig = {
       eyebrow: "Step 2",
       title: "Select the required modules",
       paragraphs: [
-        "Choose the modules required for your first implementation phase.",
-        "Available modules include:",
+        "Start with the released CRM scope and identify roadmap modules required for later implementation phases.",
+        "The transparent product roadmap includes:",
       ],
       bullets: [
         "Accounting",
@@ -64,7 +64,7 @@ const config: StructuredPageConfig = {
         "HR & Payroll",
       ],
       afterBullets:
-        "You can begin with a focused group of modules and add more as your organisation expands.",
+        "CRM is the current released early-access module. Every other module is planned scope until it passes its release gate.",
       outcome:
         "A practical module plan aligned with your most important workflows.",
     },

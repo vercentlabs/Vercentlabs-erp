@@ -141,6 +141,8 @@ export async function POST(request: Request) {
       userId: user.id,
       email: user.email,
       fullName: user.full_name,
+      locale: "en-IN",
+      timezone: "UTC",
       emailVerified: true,
       organizationId: user.organization_id,
       organizationName: user.organization_name,

@@ -1,4 +1,5 @@
 import { HttpError } from "@/lib/http";
+import { csvCell as reportCsvCell } from "@vercent/reporting-engine";
 
 function serialise(value: unknown) {
   if (value === null || value === undefined) return "";
@@ -8,9 +9,7 @@ function serialise(value: unknown) {
 }
 
 export function csvCell(value: unknown) {
-  let text = serialise(value);
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
+  return reportCsvCell(serialise(value));
 }
 
 export function parseCsv(input: string) {

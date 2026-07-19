@@ -24,6 +24,8 @@ export type SessionContext = {
   userId: string;
   email: string;
   fullName: string;
+  locale: string;
+  timezone: string;
   emailVerified: boolean;
   organizationId: string | null;
   organizationName: string | null;
@@ -224,6 +226,8 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     user_id: string;
     email: string;
     full_name: string;
+    locale: string;
+    timezone: string;
     email_verified_at: Date | null;
     organization_id: string | null;
     organization_name: string | null;
@@ -244,6 +248,8 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       app_user.id AS user_id,
       app_user.email,
       app_user.full_name,
+      COALESCE(preference.locale, 'en-IN') AS locale,
+      COALESCE(preference.timezone, membership.organization_timezone, 'UTC') AS timezone,
       app_user.email_verified_at,
       membership.organization_id,
       membership.organization_name,
@@ -263,6 +269,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
         organization_membership.organization_id,
         organization_membership.role,
         organization.name AS organization_name,
+        organization.timezone AS organization_timezone,
         organization_membership.created_at
       FROM organization_memberships AS organization_membership
       JOIN organizations AS organization
@@ -411,6 +418,8 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     userId: row.user_id,
     email: row.email,
     fullName: row.full_name,
+    locale: row.locale,
+    timezone: row.timezone,
     emailVerified: Boolean(row.email_verified_at),
     organizationId: row.organization_id,
     organizationName: row.organization_name,

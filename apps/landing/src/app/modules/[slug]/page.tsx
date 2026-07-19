@@ -1,6 +1,7 @@
 import { ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { isReleasedModule } from "@vercent/shared-types";
 
 import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
@@ -30,16 +31,17 @@ export default async function ModulePage({ params }: ModulePageProps) {
   const { slug } = await params;
   const item = getModule(slug);
   if (!item) notFound();
+  const released = isReleasedModule(item.slug);
 
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="ERP module"
+        eyebrow={released ? "Released early-access module" : "Roadmap module"}
         title={item.name}
         description={item.summary}
         actions={
           <Link href="/signup" className="button-primary">
-            Discuss this workflow
+            {released ? "Request CRM early access" : "Discuss the roadmap"}
             <ArrowRight aria-hidden="true" className="h-4 w-4" />
           </Link>
         }
@@ -49,7 +51,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
           <div className="grid gap-7 sm:gap-12 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Intended outcome
+                {released ? "Released outcome" : "Planned outcome"}
               </p>
               <h2 className="font-display mt-3 text-2xl font-extrabold tracking-[-0.035em] text-slate-950 sm:mt-4 sm:text-3xl">
                 {item.outcome}

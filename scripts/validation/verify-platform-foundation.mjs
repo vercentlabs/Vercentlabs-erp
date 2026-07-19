@@ -93,7 +93,7 @@ for (const marker of ["nodemailer", "SMTP_HOST", "SMTP_PASSWORD", "deliverAuthMe
 }
 if (mailer.includes("RESEND_API_KEY")) throw new Error("Legacy Resend code remains.");
 
-const platform = fs.readFileSync("apps/web/src/lib/platform.ts", "utf8");
+const platform = fs.readFileSync("packages/shared-types/src/modules.js", "utf8");
 for (const moduleKey of [
   "accounting", "procurement", "sales", "crm", "stock", "manufacturing",
   "projects", "assets", "point-of-sale", "quality", "support", "hr-payroll",

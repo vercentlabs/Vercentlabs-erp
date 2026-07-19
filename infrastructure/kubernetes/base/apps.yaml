@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: vercent
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: vercent-web }
+  template:
+    metadata:
+      labels: { app: vercent-web }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: web
+          image: ghcr.io/vercentlabs/erp-web:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 3001 }]
+          envFrom:
+            - configMapRef: { name: vercent-runtime }
+            - secretRef: { name: vercent-runtime }
+          readinessProbe:
+            httpGet: { path: /api/readiness, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 250m, memory: 384Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes: [{ name: tmp, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: vercent
+spec:
+  selector: { app: vercent-web }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing
+  namespace: vercent
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: vercent-landing }
+  template:
+    metadata:
+      labels: { app: vercent-landing }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: landing
+          image: ghcr.io/vercentlabs/erp-landing:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 3000 }]
+          envFrom:
+            - configMapRef: { name: vercent-runtime }
+            - secretRef: { name: vercent-landing-runtime }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes: [{ name: tmp, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing
+  namespace: vercent
+spec:
+  selector: { app: vercent-landing }
+  ports: [{ name: http, port: 80, targetPort: http }]

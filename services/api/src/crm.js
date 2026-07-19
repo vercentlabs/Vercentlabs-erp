@@ -2878,6 +2878,7 @@ export async function getCrmDashboard(client, context) {
     `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
   const result = await client.query(
     `SELECT
+      (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
       (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS open_leads,
       (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status = 'qualified' AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS qualified_leads,
       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS open_opportunities,
