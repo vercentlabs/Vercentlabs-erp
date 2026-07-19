@@ -66,3 +66,11 @@ test("phase three provides governed actions and durable offline mutation replay"
   assert.match(read("src/data/database.ts"), /enqueueMutation/);
   assert.match(read("src/ui/crm-list-screen.tsx"), /Mark complete/);
 });
+
+test("phase four closes the production customer-experience shell", () => {
+  assert.match(read("src/ui/app-header.tsx"), /router\.push\("\/\(app\)\/search"/);
+  assert.match(read("src/security/privacy-shield.tsx"), /authenticateAsync/);
+  assert.match(read("src/ui/app-error-boundary.tsx"), /getDerivedStateFromError/);
+  assert.match(read("eas.json"), /production/);
+  assert.match(read("STORE_RELEASE.md"), /staged rollout/);
+});

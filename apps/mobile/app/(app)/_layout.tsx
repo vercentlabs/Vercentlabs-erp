@@ -49,6 +49,8 @@ export default function AppLayout() {
       <Tabs.Screen name="pipeline" options={{ title: "Pipeline" }} />
       <Tabs.Screen name="activities" options={{ title: "Activities" }} />
       <Tabs.Screen name="more" options={{ title: "More" }} />
+      <Tabs.Screen name="search" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
     </Tabs>
   );
 }

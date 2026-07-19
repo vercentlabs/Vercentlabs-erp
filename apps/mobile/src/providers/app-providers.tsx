@@ -11,6 +11,8 @@ import {
 import { AuthProvider } from "@/auth/auth-provider";
 import { ThemeProvider } from "@/theme/theme";
 import { flushMutationQueue } from "@/data/sync";
+import { PrivacyShield } from "@/security/privacy-shield";
+import { AppErrorBoundary } from "@/ui/app-error-boundary";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(
@@ -49,7 +51,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>{children}</AuthProvider>
+        <AppErrorBoundary><AuthProvider><PrivacyShield>{children}</PrivacyShield></AuthProvider></AppErrorBoundary>
       </QueryClientProvider>
     </ThemeProvider>
   );

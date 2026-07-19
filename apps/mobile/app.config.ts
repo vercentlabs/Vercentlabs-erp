@@ -5,6 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "Vercent ERP",
   slug: "vercent-erp",
   version: "1.0.0",
+  runtimeVersion: { policy: "appVersion" },
   orientation: "default",
   userInterfaceStyle: "automatic",
   scheme: "vercent",
@@ -21,6 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.vercentlabs.erp",
     predictiveBackGestureEnabled: true,
+    permissions: ["USE_BIOMETRIC"],
   },
   plugins: [
     "expo-router",

@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
+import { router } from "expo-router";
 
 import { useAuth } from "@/auth/auth-provider";
 import { useTheme } from "@/theme/theme";
@@ -38,6 +39,7 @@ export function AppHeader({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Search"
+          onPress={() => router.push("/(app)/search")}
           style={{
             width: minimumTouchTarget,
             height: minimumTouchTarget,
@@ -58,6 +60,7 @@ export function AppHeader({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Notifications"
+          onPress={() => router.push("/(app)/notifications")}
           style={{
             width: minimumTouchTarget,
             height: minimumTouchTarget,

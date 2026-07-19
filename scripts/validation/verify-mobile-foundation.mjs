@@ -26,6 +26,14 @@ const required = [
   "apps/web/src/app/api/mobile/v1/crm/activities/[id]/complete/route.ts",
   "apps/web/src/app/api/mobile/v1/crm/opportunities/[id]/stage/route.ts",
   "apps/web/src/lib/mobile-idempotency.ts",
+  "apps/mobile/app/(app)/search.tsx",
+  "apps/mobile/app/(app)/notifications.tsx",
+  "apps/mobile/src/security/privacy-shield.tsx",
+  "apps/mobile/src/ui/app-error-boundary.tsx",
+  "apps/mobile/eas.json",
+  "apps/mobile/STORE_RELEASE.md",
+  "apps/web/src/app/api/mobile/v1/search/route.ts",
+  "apps/web/src/app/api/mobile/v1/notifications/route.ts",
 ];
 
 for (const file of required) {

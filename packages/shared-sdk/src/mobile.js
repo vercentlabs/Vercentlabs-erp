@@ -229,6 +229,15 @@ export function createMobileClient({
     moveOpportunity(id, stageId, note, idempotencyKey = requestIdFactory()) {
       return perform(`/crm/opportunities/${encodeURIComponent(id)}/stage`, { method: "POST", body: JSON.stringify({ stageId, note }) }, { idempotencyKey });
     },
+    search(query) {
+      return perform(`/search?q=${encodeURIComponent(query)}`);
+    },
+    notifications() {
+      return perform("/notifications");
+    },
+    markNotifications(input) {
+      return perform("/notifications", { method: "PATCH", body: JSON.stringify(input) });
+    },
     request(path, init, options) {
       return perform(path, init, options);
     },
