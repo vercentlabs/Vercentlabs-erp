@@ -59,3 +59,10 @@ test("phase two replaces CRM placeholders with cached live workspaces", () => {
   assert.match(database, /readCache/);
   assert.match(database, /writeCache/);
 });
+
+test("phase three provides governed actions and durable offline mutation replay", () => {
+  assert.match(read("src/features/leads/lead-capture.tsx"), /Saved offline/);
+  assert.match(read("src/data/sync.ts"), /flushMutationQueue/);
+  assert.match(read("src/data/database.ts"), /enqueueMutation/);
+  assert.match(read("src/ui/crm-list-screen.tsx"), /Mark complete/);
+});

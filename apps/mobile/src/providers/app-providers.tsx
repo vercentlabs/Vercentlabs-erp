@@ -10,6 +10,7 @@ import {
 
 import { AuthProvider } from "@/auth/auth-provider";
 import { ThemeProvider } from "@/theme/theme";
+import { flushMutationQueue } from "@/data/sync";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(
@@ -32,6 +33,7 @@ export function AppProviders({ children }: PropsWithChildren) {
     onlineManager.setEventListener((setOnline) => {
       const subscription = Network.addNetworkStateListener((state) => {
         setOnline(Boolean(state.isConnected));
+        if (state.isConnected) void flushMutationQueue();
       });
       void Network.getNetworkStateAsync().then((state) => {
         setOnline(Boolean(state.isConnected));

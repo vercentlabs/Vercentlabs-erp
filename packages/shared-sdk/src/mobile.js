@@ -218,6 +218,17 @@ export function createMobileClient({
       }
       return perform(`/crm/${resource}${search.size ? `?${search}` : ""}`);
     },
+    createCrm(resource, input, idempotencyKey = requestIdFactory()) {
+      const allowed = new Set(["leads", "opportunities", "activities"]);
+      if (!allowed.has(resource)) throw new TypeError("Unknown writable mobile CRM resource.");
+      return perform(`/crm/${resource}`, { method: "POST", body: JSON.stringify(input) }, { idempotencyKey });
+    },
+    completeActivity(id, outcome, idempotencyKey = requestIdFactory()) {
+      return perform(`/crm/activities/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({ outcome }) }, { idempotencyKey });
+    },
+    moveOpportunity(id, stageId, note, idempotencyKey = requestIdFactory()) {
+      return perform(`/crm/opportunities/${encodeURIComponent(id)}/stage`, { method: "POST", body: JSON.stringify({ stageId, note }) }, { idempotencyKey });
+    },
     request(path, init, options) {
       return perform(path, init, options);
     },

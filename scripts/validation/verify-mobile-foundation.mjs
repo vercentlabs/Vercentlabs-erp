@@ -21,6 +21,11 @@ const required = [
   "apps/mobile/src/ui/crm-states.tsx",
   "apps/web/src/app/api/mobile/v1/crm/dashboard/route.ts",
   "apps/web/src/app/api/mobile/v1/crm/[resource]/route.ts",
+  "apps/mobile/src/data/sync.ts",
+  "apps/mobile/src/features/leads/lead-capture.tsx",
+  "apps/web/src/app/api/mobile/v1/crm/activities/[id]/complete/route.ts",
+  "apps/web/src/app/api/mobile/v1/crm/opportunities/[id]/stage/route.ts",
+  "apps/web/src/lib/mobile-idempotency.ts",
 ];
 
 for (const file of required) {
@@ -55,6 +60,9 @@ for (const screen of ["index", "leads", "pipeline", "activities"]) {
 const sdk = fs.readFileSync("packages/shared-sdk/src/mobile.js", "utf8");
 assert.match(sdk, /crmDashboard/);
 assert.match(sdk, /listCrm/);
+assert.match(sdk, /createCrm/);
+assert.match(sdk, /completeActivity/);
+assert.match(sdk, /moveOpportunity/);
 
 console.log(
   `Mobile foundation verified (${required.length} required artifacts).`,

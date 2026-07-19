@@ -101,3 +101,30 @@ export async function writeCache(cacheKey: string, resource: string, payload: un
     Date.now(),
   );
 }
+
+export type QueuedMutation = { id: string; operation: string; resource: string; recordId: string | null; payload: string; idempotencyKey: string; attempts: number };
+
+export async function enqueueMutation(input: { id: string; operation: string; resource: string; recordId?: string; payload: unknown; idempotencyKey: string }) {
+  const database = await initializeDatabase();
+  const now = Date.now();
+  await database.runAsync(
+    `INSERT OR IGNORE INTO mutation_queue(id, operation, resource, record_id, payload, idempotency_key, state, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    input.id, input.operation, input.resource, input.recordId ?? null, JSON.stringify(input.payload), input.idempotencyKey, now, now,
+  );
+}
+
+export async function pendingMutations() {
+  const database = await initializeDatabase();
+  return database.getAllAsync<QueuedMutation>(`SELECT id, operation, resource, record_id AS recordId, payload, idempotency_key AS idempotencyKey, attempts FROM mutation_queue WHERE state IN ('pending','failed') ORDER BY created_at LIMIT 50`);
+}
+
+export async function resolveMutation(id: string) {
+  const database = await initializeDatabase();
+  await database.runAsync("DELETE FROM mutation_queue WHERE id = ?", id);
+}
+
+export async function failMutation(id: string, message: string) {
+  const database = await initializeDatabase();
+  await database.runAsync("UPDATE mutation_queue SET state='failed', attempts=attempts+1, last_error=?, updated_at=? WHERE id=?", message.slice(0, 500), Date.now(), id);
+}

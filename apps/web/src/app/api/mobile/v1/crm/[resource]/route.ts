@@ -1,10 +1,15 @@
-import { listCrmRecords } from "@vercent/api";
-import { requireCrmResourceView } from "@/lib/crm-api";
+import { createCrmRecord, listCrmRecords } from "@vercent/api";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
+import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
 import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError } from "@/lib/http";
+import { readJson } from "@/lib/http";
+import { crmSchemas } from "@/lib/crm-validation";
+import { audit } from "@/lib/security";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
 import { requireMobileSession } from "@/lib/mobile-session";
+import { withMobileIdempotency } from "@/lib/mobile-idempotency";
 
 const mobileResources = new Set(["leads", "opportunities", "activities", "pipeline-stages"]);
 
@@ -22,6 +27,27 @@ export async function GET(request: Request, route: { params: Promise<{ resource:
       listCrmRecords(client, context, resource, Object.fromEntries(url.searchParams.entries())),
     );
     return mobileOk(request, result);
+  } catch (error) {
+    try { rethrowCrmError(error); } catch (mapped) { return mobileError(request, mapped); }
+  }
+}
+
+export async function POST(request: Request, route: { params: Promise<{ resource: string }> }) {
+  try {
+    const session = await requireMobileSession(request);
+    const { resource } = await route.params;
+    if (!mobileResources.has(resource) || !isCrmDefinition(resource)) throw new HttpError(404, "Unknown mobile CRM resource.");
+    requireCrmManage(session, resource);
+    await requireBillingWriteAccess(session.organizationId!);
+    const input = await crmSchemas[resource].parseAsync(await readJson(request));
+    await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
+    const context = crmContext(session);
+    const response = await tenantTransaction(context.organizationId, async (client) => withMobileIdempotency(client, session, request, input, async () => {
+      const record = await createCrmRecord(client, context, resource, input);
+      await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.created`, entityType: resource, entityId: String(record.id), afterData: input, request, client });
+      return { message: "CRM record created.", record };
+    }));
+    return mobileOk(request, response, 201);
   } catch (error) {
     try { rethrowCrmError(error); } catch (mapped) { return mobileError(request, mapped); }
   }
