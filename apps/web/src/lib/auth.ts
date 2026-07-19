@@ -214,11 +214,10 @@ export async function revokeCurrentSession(reason = "logout") {
   }
 }
 
-export async function getSessionContext(): Promise<SessionContext | null> {
-  const store = await cookies();
-  const token = store.get(cookieName)?.value;
-  if (!token) return null;
-
+async function resolveSessionContext(
+  token: string,
+  sessionType: "browser" | "mobile",
+): Promise<SessionContext | null> {
   const hash = tokenHash(token);
   const rows = await query<{
     session_id: string;
@@ -357,28 +356,36 @@ export async function getSessionContext(): Promise<SessionContext | null> {
         AND assignment.user_id = app_user.id
     ) AS access_context ON true
     WHERE session.token_hash = $1
+      AND session.session_type = $2
       AND session.revoked_at IS NULL
       AND session.expires_at > now()
       AND session.idle_expires_at > now()
       AND app_user.status = 'active'
     LIMIT 1
   `,
-    [hash],
+    [hash, sessionType],
   );
 
   const row = rows[0];
   if (!row) return null;
 
-  const idleMinutes = Math.max(
-    15,
-    Number(process.env.SESSION_IDLE_MINUTES || "480"),
-  );
+  const idleMinutes =
+    sessionType === "mobile"
+      ? Math.max(
+          1_440,
+          Number(process.env.MOBILE_SESSION_IDLE_DAYS || "7") * 1_440,
+        )
+      : Math.max(15, Number(process.env.SESSION_IDLE_MINUTES || "480"));
   await query(
     `
     UPDATE sessions
     SET
       last_seen_at = now(),
-      idle_expires_at = LEAST(expires_at, now() + ($2 * interval '1 minute')),
+      idle_expires_at = CASE
+        WHEN session_type = 'mobile'
+          THEN LEAST(refresh_expires_at, now() + ($2 * interval '1 minute'))
+        ELSE LEAST(expires_at, now() + ($2 * interval '1 minute'))
+      END,
       active_organization_id = $3
     WHERE id = $1
       AND (
@@ -431,6 +438,20 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     activeBranchId: row.active_branch_id,
     branchName: row.branch_name,
   };
+}
+
+export async function getSessionContext(): Promise<SessionContext | null> {
+  const store = await cookies();
+  const token = store.get(cookieName)?.value;
+  return token ? resolveSessionContext(token, "browser") : null;
+}
+
+export async function getMobileSessionContext(
+  accessToken: string,
+): Promise<SessionContext | null> {
+  return accessToken
+    ? resolveSessionContext(accessToken, "mobile")
+    : Promise.resolve(null);
 }
 
 export async function requireUser() {

@@ -11,6 +11,7 @@ const requiredFiles = [
   ".dockerignore",
   "database/control-plane/migrations/009_crm_release_scope.sql",
   "database/control-plane/migrations/010_approval_execution.sql",
+  "database/control-plane/migrations/011_mobile_sessions.sql",
   "database/tenant/migrations/006_crm_release_foundation.sql",
   "database/tenant/migrations/007_crm_outbox_leases.sql",
   "docs/testing/manual-crm-acceptance.md",
@@ -37,7 +38,7 @@ function requireMarkers(file, markers) {
 }
 
 requireMarkers("apps/web/src/app/api/readiness/route.ts", [
-  '"010_approval_execution.sql"',
+  '"011_mobile_sessions.sql"',
   '"007_crm_outbox_leases.sql"',
   "schema_migrations WHERE name = $1",
   "tenant_schema_migrations WHERE name = $2",

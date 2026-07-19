@@ -1,0 +1,50 @@
+{
+  "name": "@vercent/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "export": "expo export --platform android --platform ios",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "doctor": "expo-doctor"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.6",
+    "@expo/vector-icons": "^15.1.1",
+    "@tanstack/react-query": "^5.101.2",
+    "@vercent/shared-sdk": "workspace:*",
+    "@vercent/shared-types": "workspace:*",
+    "expo": "~57.0.7",
+    "expo-constants": "~57.0.6",
+    "expo-crypto": "~57.0.1",
+    "expo-device": "~57.0.1",
+    "expo-font": "~57.0.1",
+    "expo-linking": "~57.0.3",
+    "expo-local-authentication": "~57.0.1",
+    "expo-network": "~57.0.1",
+    "expo-router": "~57.0.7",
+    "expo-secure-store": "~57.0.1",
+    "expo-splash-screen": "~57.0.4",
+    "expo-sqlite": "~57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "~4.5.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.25.2",
+    "react-native-worklets": "0.10.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "eslint": "^9.39.2",
+    "eslint-config-expo": "~57.0.0",
+    "expo-doctor": "^1.19.0",
+    "typescript": "^6.0.3"
+  }
+}

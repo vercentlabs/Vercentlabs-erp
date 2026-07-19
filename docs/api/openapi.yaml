@@ -1,11 +1,70 @@
 openapi: 3.1.0
 info:
-  title: Vercent ERP Web API
-  version: 0.2.0
-  description: Session-authenticated platform and released CRM API contracts.
+  title: Vercent ERP API
+  version: 0.3.0
+  description: Browser and native contracts for the released CRM platform.
 servers:
   - url: https://erp.example.com/api
 paths:
+  /mobile/v1/health:
+    get:
+      summary: Check mobile API compatibility
+      responses:
+        "200":
+          description: Mobile API is available
+  /mobile/v1/auth/login:
+    post:
+      summary: Create a device-bound mobile session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileLoginRequest"
+      responses:
+        "200":
+          description: Access and refresh tokens issued
+        "401":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+  /mobile/v1/auth/refresh:
+    post:
+      summary: Rotate a mobile access and refresh token pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: Token pair rotated
+        "401":
+          $ref: "#/components/responses/Problem"
+  /mobile/v1/auth/logout:
+    post:
+      summary: Revoke the current mobile session
+      security:
+        - mobileBearer: []
+      responses:
+        "200":
+          description: Session revoked
+  /mobile/v1/session:
+    get:
+      summary: Read the user, workspace and permission context
+      security:
+        - mobileBearer: []
+      responses:
+        "200":
+          description: Current session context
+        "401":
+          $ref: "#/components/responses/Problem"
   /approvals:
     get:
       summary: List approval requests assigned to the current user
@@ -81,6 +140,11 @@ paths:
         "409":
           $ref: "#/components/responses/Problem"
 components:
+  securitySchemes:
+    mobileBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
   parameters:
     Identifier:
       name: id
@@ -90,6 +154,34 @@ components:
         type: string
         format: uuid
   schemas:
+    MobileLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, device]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        device:
+          type: object
+          additionalProperties: false
+          required: [deviceId, platform, deviceName, appVersion]
+          properties:
+            deviceId:
+              type: string
+              format: uuid
+            platform:
+              type: string
+              enum: [android, ios]
+            deviceName:
+              type: string
+              maxLength: 120
+            appVersion:
+              type: string
+              maxLength: 40
     CreateApprovalRequest:
       type: object
       additionalProperties: false

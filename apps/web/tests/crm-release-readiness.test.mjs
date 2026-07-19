@@ -6,7 +6,7 @@ const read = (file) => fs.readFileSync(file, "utf8");
 
 test("readiness verifies the latest migration names using the migration ledger schema", () => {
   const source = read("src/app/api/readiness/route.ts");
-  assert.match(source, /010_approval_execution\.sql/);
+  assert.match(source, /011_mobile_sessions\.sql/);
   assert.match(source, /007_crm_outbox_leases\.sql/);
   assert.match(source, /WHERE name = \$1/);
   assert.doesNotMatch(source, /WHERE filename/);
@@ -26,7 +26,8 @@ test("new organizations receive complete CRM configuration and numbering", () =>
     '"crm_lead"',
     '"crm_opportunity"',
     '"crm_campaign"',
-  ]) assert.match(platform, new RegExp(marker));
+  ])
+    assert.match(platform, new RegExp(marker));
 });
 
 test("the release scope exposes CRM and blocks roadmap modules", () => {
@@ -108,5 +109,8 @@ test("runtime-role provisioning executes where pg and dotenv are declared", () =
   );
   assert.ok(webPackage.dependencies.pg);
   assert.ok(webPackage.dependencies.dotenv);
-  assert.match(read("scripts/provision-runtime-role.mjs"), /import pg from "pg"/);
+  assert.match(
+    read("scripts/provision-runtime-role.mjs"),
+    /import pg from "pg"/,
+  );
 });
