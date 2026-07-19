@@ -1,11 +1,5 @@
-import { FoundationScreen } from "@/ui/foundation-screen";
+import { CrmListScreen } from "@/ui/crm-list-screen";
 
 export default function LeadsScreen() {
-  return (
-    <FoundationScreen
-      title="Leads"
-      icon="people-outline"
-      description="Qualified lead views, fast capture, duplicate guidance and conversion are the next CRM implementation stage."
-    />
-  );
+  return <CrmListScreen resource="leads" eyebrow="Prospecting" title="Leads" titleKeys={["fullName", "companyName", "email"]} subtitleKeys={["companyName", "email", "mobile"]} icon="person-outline" />;
 }

@@ -63,3 +63,6 @@ temp/
 *.pem
 *.key
 *.crt
+
+# Expo machine-specific state
+apps/mobile/.expo/

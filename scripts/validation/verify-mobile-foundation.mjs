@@ -15,6 +15,12 @@ const required = [
   "apps/web/src/app/api/mobile/v1/session/route.ts",
   "database/control-plane/migrations/011_mobile_sessions.sql",
   "packages/shared-sdk/src/mobile.js",
+  "apps/mobile/src/api/client.ts",
+  "apps/mobile/src/data/use-crm-query.ts",
+  "apps/mobile/src/ui/crm-list-screen.tsx",
+  "apps/mobile/src/ui/crm-states.tsx",
+  "apps/web/src/app/api/mobile/v1/crm/dashboard/route.ts",
+  "apps/web/src/app/api/mobile/v1/crm/[resource]/route.ts",
 ];
 
 for (const file of required) {
@@ -40,6 +46,15 @@ const imports = required
   .join("\n");
 assert.doesNotMatch(imports, /from ["'][^"']*apps\/web/);
 assert.doesNotMatch(imports, /from ["'][^"']*services\/api/);
+
+for (const screen of ["index", "leads", "pipeline", "activities"]) {
+  const source = fs.readFileSync(`apps/mobile/app/(app)/${screen}.tsx`, "utf8");
+  assert.doesNotMatch(source, /FoundationScreen/, `${screen} is still a placeholder`);
+}
+
+const sdk = fs.readFileSync("packages/shared-sdk/src/mobile.js", "utf8");
+assert.match(sdk, /crmDashboard/);
+assert.match(sdk, /listCrm/);
 
 console.log(
   `Mobile foundation verified (${required.length} required artifacts).`,

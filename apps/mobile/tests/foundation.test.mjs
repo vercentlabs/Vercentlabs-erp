@@ -49,3 +49,13 @@ test("the app consumes only public shared contracts", () => {
   }
   assert.match(read("src/auth/auth-provider.tsx"), /@vercent\/shared-sdk/);
 });
+
+test("phase two replaces CRM placeholders with cached live workspaces", () => {
+  for (const file of ["index.tsx", "leads.tsx", "pipeline.tsx", "activities.tsx"]) {
+    const source = read(`app/(app)/${file}`);
+    assert.doesNotMatch(source, /FoundationScreen/);
+  }
+  const database = read("src/data/database.ts");
+  assert.match(database, /readCache/);
+  assert.match(database, /writeCache/);
+});

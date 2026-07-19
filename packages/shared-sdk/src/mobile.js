@@ -206,6 +206,18 @@ export function createMobileClient({
         { authenticated: false, retryAfterRefresh: false },
       );
     },
+    crmDashboard() {
+      return perform("/crm/dashboard");
+    },
+    listCrm(resource, query = {}) {
+      const allowed = new Set(["leads", "opportunities", "activities", "pipeline-stages"]);
+      if (!allowed.has(resource)) throw new TypeError("Unknown mobile CRM resource.");
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+      }
+      return perform(`/crm/${resource}${search.size ? `?${search}` : ""}`);
+    },
     request(path, init, options) {
       return perform(path, init, options);
     },

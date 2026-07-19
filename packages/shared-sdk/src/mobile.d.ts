@@ -61,6 +61,11 @@ export type MobileClient = {
   logout(): Promise<Record<string, unknown>>;
   session(): Promise<{ session: MobileSession }>;
   health(): Promise<Record<string, unknown>>;
+  crmDashboard(): Promise<{ dashboard: Record<string, unknown> }>;
+  listCrm(
+    resource: "leads" | "opportunities" | "activities" | "pipeline-stages",
+    query?: Record<string, string | number | boolean | null | undefined>,
+  ): Promise<{ rows: Array<Record<string, unknown>>; total: number }>;
   request<T = Record<string, unknown>>(
     path: string,
     init?: RequestInit,

@@ -1,129 +1,43 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
-
+import { RefreshControl, Text, View } from "react-native";
+import { mobileApi } from "@/api/client";
 import { useAuth } from "@/auth/auth-provider";
+import { useCrmQuery } from "@/data/use-crm-query";
 import { useTheme } from "@/theme/theme";
 import { AppHeader } from "@/ui/app-header";
+import { QueryState } from "@/ui/crm-states";
 import { Screen } from "@/ui/screen";
+
+function number(value: unknown) { return Number(value ?? 0).toLocaleString("en-IN"); }
 
 export default function HomeScreen() {
   const auth = useAuth();
   const { colors, radii, spacing, type } = useTheme();
+  const query = useCrmQuery("dashboard", () => mobileApi.crmDashboard());
+  const dashboard = query.data?.dashboard ?? {};
+  const metrics = (dashboard.metrics ?? {}) as Record<string, unknown>;
   const firstName = auth.session?.user.fullName.split(" ")[0] || "there";
-  return (
-    <Screen>
-      <AppHeader eyebrow="Today" title={`Good to see you, ${firstName}`} />
-      <View
-        style={{
-          padding: spacing.xl,
-          borderRadius: radii.xl,
-          backgroundColor: colors.navigation,
-          gap: spacing.xl,
-          overflow: "hidden",
-        }}
-      >
-        <View style={{ gap: spacing.xs, maxWidth: 500 }}>
-          <Text
-            style={{
-              ...type.caption,
-              color: "#A5B4FC",
-              textTransform: "uppercase",
-            }}
-          >
-            Your sales cockpit
-          </Text>
-          <Text style={{ ...type.title, color: colors.inverse }}>
-            Focus on the next best action.
-          </Text>
-          <Text style={{ ...type.body, color: "#B7C0D0" }}>
-            Live pipeline signals, customer context and today&apos;s priorities
-            will land here in the CRM experience.
-          </Text>
-        </View>
-        <View
-          style={{ flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" }}
-        >
-          {[
-            ["flash-outline", "Fast actions"],
-            ["cloud-offline-outline", "Offline ready"],
-            ["shield-checkmark-outline", "Secure by default"],
-          ].map(([icon, label]) => (
-            <View
-              key={label}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.xs,
-                backgroundColor: "#172033",
-                paddingHorizontal: spacing.sm,
-                paddingVertical: spacing.xs,
-                borderRadius: radii.full,
-              }}
-            >
-              <Ionicons
-                name={icon as keyof typeof Ionicons.glyphMap}
-                size={16}
-                color="#A5B4FC"
-              />
-              <Text style={{ ...type.caption, color: colors.inverse }}>
-                {label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-      <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-        <Text style={{ ...type.heading, color: colors.text }}>
-          Foundation status
-        </Text>
-        {[
-          ["key-outline", "Device session", "Rotating, revocable access"],
-          ["server-outline", "Mobile API", "Versioned public contract"],
-          ["lock-closed-outline", "Offline vault", "Encrypted local workspace"],
-        ].map(([icon, label, value]) => (
-          <View
-            key={label}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing.md,
-              padding: spacing.md,
-              borderRadius: radii.lg,
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: radii.md,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.primarySoft,
-              }}
-            >
-              <Ionicons
-                name={icon as keyof typeof Ionicons.glyphMap}
-                size={21}
-                color={colors.primary}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ ...type.label, color: colors.text }}>{label}</Text>
-              <Text style={{ ...type.caption, color: colors.textMuted }}>
-                {value}
-              </Text>
-            </View>
-            <Ionicons
-              name="checkmark-circle"
-              size={22}
-              color={colors.success}
-            />
-          </View>
-        ))}
-      </View>
-    </Screen>
-  );
+  const cards = [
+    ["people-outline", "Open leads", metrics.openLeads ?? metrics.leadsOpen],
+    ["trending-up-outline", "Open deals", metrics.openOpportunities ?? metrics.opportunitiesOpen],
+    ["warning-outline", "Overdue", metrics.overdueActivities],
+    ["checkmark-done-outline", "Won this month", metrics.wonThisMonth],
+  ] as const;
+  return <Screen refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => void query.refetch()} tintColor={colors.primary} />}>
+    <AppHeader eyebrow="Today" title={`Good to see you, ${firstName}`} />
+    <View style={{ padding: spacing.xl, borderRadius: radii.xl, backgroundColor: colors.navigation, gap: spacing.sm }}>
+      <Text style={{ ...type.caption, color: "#A5B4FC", textTransform: "uppercase" }}>Your sales cockpit</Text>
+      <Text style={{ ...type.title, color: colors.inverse }}>Focus on what moves revenue.</Text>
+      <Text style={{ ...type.body, color: "#B7C0D0" }}>A live, permission-aware view of your customer work—securely cached for the moments your connection drops.</Text>
+    </View>
+    <QueryState loading={query.isLoading && !query.data} error={query.error} empty={false} onRetry={() => void query.refetch()} />
+    {query.data ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.lg }}>
+      {cards.map(([icon, label, value]) => <View key={label} style={{ width: "48%", minWidth: 145, flexGrow: 1, padding: spacing.lg, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: spacing.sm }}>
+        <Ionicons name={icon} size={22} color={colors.primary} />
+        <Text style={{ ...type.title, color: colors.text }}>{number(value)}</Text>
+        <Text style={{ ...type.caption, color: colors.textMuted }}>{label}</Text>
+      </View>)}
+    </View> : null}
+    {query.isOfflineFallback ? <Text style={{ ...type.caption, color: colors.warning, marginTop: spacing.md }}>Showing your encrypted offline copy</Text> : null}
+  </Screen>;
 }

@@ -77,3 +77,27 @@ export async function purgeOfflineWorkspace() {
     DELETE FROM sync_state;
   `);
 }
+
+export async function readCache<T>(cacheKey: string): Promise<{ data: T; cachedAt: number } | null> {
+  const database = await initializeDatabase();
+  const row = await database.getFirstAsync<{ payload: string; cached_at: number }>(
+    "SELECT payload, cached_at FROM cache_entries WHERE cache_key = ?",
+    cacheKey,
+  );
+  if (!row) return null;
+  try { return { data: JSON.parse(row.payload) as T, cachedAt: row.cached_at }; }
+  catch { return null; }
+}
+
+export async function writeCache(cacheKey: string, resource: string, payload: unknown) {
+  const database = await initializeDatabase();
+  await database.runAsync(
+    `INSERT INTO cache_entries(cache_key, resource, payload, cached_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, cached_at=excluded.cached_at`,
+    cacheKey,
+    resource,
+    JSON.stringify(payload),
+    Date.now(),
+  );
+}

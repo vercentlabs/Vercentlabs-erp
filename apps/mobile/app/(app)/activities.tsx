@@ -1,11 +1,5 @@
-import { FoundationScreen } from "@/ui/foundation-screen";
+import { CrmListScreen } from "@/ui/crm-list-screen";
 
 export default function ActivitiesScreen() {
-  return (
-    <FoundationScreen
-      title="Activities"
-      icon="checkmark-circle-outline"
-      description="The daily agenda, call and meeting actions, reminders and completion flow will build on this offline-ready workspace."
-    />
-  );
+  return <CrmListScreen resource="activities" eyebrow="Daily focus" title="Activities" titleKeys={["subject", "title", "activityType"]} subtitleKeys={["dueAt", "description", "activityType"]} icon="checkmark-circle-outline" />;
 }
