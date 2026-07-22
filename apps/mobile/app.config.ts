@@ -7,6 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "1.0.0",
   runtimeVersion: { policy: "appVersion" },
   orientation: "default",
+  icon: "./assets/app-icon.png",
   userInterfaceStyle: "automatic",
   scheme: "vercent",
   platforms: ["ios", "android"],
@@ -21,6 +22,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.vercentlabs.erp",
+    adaptiveIcon: {
+      foregroundImage: "./assets/app-icon.png",
+      backgroundColor: "#FFFFFF",
+    },
     predictiveBackGestureEnabled: true,
     permissions: ["USE_BIOMETRIC"],
   },
@@ -35,6 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     ["expo-sqlite", { useSQLCipher: true, enableFTS: true }],
+    "./plugins/with-openssl-android",
     [
       "expo-local-authentication",
       {
@@ -42,10 +48,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           "Use Face ID to unlock your secure Vercent ERP workspace.",
       },
     ],
-    ["expo-splash-screen", { backgroundColor: "#0B1220" }],
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: "#0B1220",
+        image: "./assets/splash-icon.png",
+        imageWidth: 160,
+      },
+    ],
   ],
   experiments: { typedRoutes: true },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL || "",
+    webAppUrl: process.env.EXPO_PUBLIC_WEB_APP_URL || "",
   },
 });

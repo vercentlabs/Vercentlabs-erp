@@ -218,6 +218,16 @@ export function createMobileClient({
       }
       return perform(`/crm/${resource}${search.size ? `?${search}` : ""}`);
     },
+    getCrm(resource, id) {
+      const allowed = new Set(["leads", "opportunities", "activities", "pipeline-stages"]);
+      if (!allowed.has(resource)) throw new TypeError("Unknown mobile CRM resource.");
+      return perform(`/crm/${resource}/${encodeURIComponent(id)}`);
+    },
+    updateCrm(resource, id, input, idempotencyKey = requestIdFactory()) {
+      const allowed = new Set(["leads", "opportunities", "activities"]);
+      if (!allowed.has(resource)) throw new TypeError("Unknown writable mobile CRM resource.");
+      return perform(`/crm/${resource}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }, { idempotencyKey });
+    },
     createCrm(resource, input, idempotencyKey = requestIdFactory()) {
       const allowed = new Set(["leads", "opportunities", "activities"]);
       if (!allowed.has(resource)) throw new TypeError("Unknown writable mobile CRM resource.");

@@ -3,6 +3,9 @@ packages:
   - "services/*"
   - "packages/*"
 
+virtualStoreDir: .pnpm
+virtualStoreDirMaxLength: 30
+
 allowBuilds:
   sharp: true
   unrs-resolver: true

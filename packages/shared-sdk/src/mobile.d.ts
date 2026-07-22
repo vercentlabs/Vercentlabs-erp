@@ -66,6 +66,8 @@ export type MobileClient = {
     resource: "leads" | "opportunities" | "activities" | "pipeline-stages",
     query?: Record<string, string | number | boolean | null | undefined>,
   ): Promise<{ rows: Array<Record<string, unknown>>; total: number }>;
+  getCrm(resource: "leads" | "opportunities" | "activities" | "pipeline-stages", id: string): Promise<{ record: Record<string, unknown> }>;
+  updateCrm(resource: "leads" | "opportunities" | "activities", id: string, input: Record<string, unknown>, idempotencyKey?: string): Promise<{ record: Record<string, unknown>; message: string }>;
   createCrm(resource: "leads" | "opportunities" | "activities", input: Record<string, unknown>, idempotencyKey?: string): Promise<{ record: Record<string, unknown>; message: string }>;
   completeActivity(id: string, outcome?: string, idempotencyKey?: string): Promise<{ record: Record<string, unknown>; message: string }>;
   moveOpportunity(id: string, stageId: string, note?: string, idempotencyKey?: string): Promise<{ record: Record<string, unknown>; message: string }>;
