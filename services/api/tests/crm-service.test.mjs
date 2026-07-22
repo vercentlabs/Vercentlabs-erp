@@ -177,7 +177,7 @@ test("governed opportunity fields cannot be changed through generic PATCH", asyn
           organizationId: "00000000-0000-4000-8000-000000000000",
           userId: "00000000-0000-4000-8000-000000000001",
           activeCompanyId: "00000000-0000-4000-8000-000000000002",
-          activeBranchId: null,
+          activeBranchId: "00000000-0000-4000-8000-000000000003",
           allowAllCompanies: false,
         },
         "opportunities",
@@ -347,4 +347,75 @@ test("CRM rejects owners outside the active organization", async () => {
       ),
     /active members of this organization/,
   );
+});
+
+test("CRM branch access fails closed without an authorized active branch", async () => {
+  let sql = "";
+  const restricted = {
+    organizationId: "00000000-0000-4000-8000-000000000000",
+    userId: "00000000-0000-4000-8000-000000000001",
+    activeCompanyId: "00000000-0000-4000-8000-000000000002",
+    activeBranchId: null,
+    allowAllCompanies: false,
+  };
+  await listCrmRecords({ query: async (text) => ((sql = text), { rows: [] }) }, restricted, "leads");
+  assert.match(sql, /AND false/);
+  await assert.rejects(
+    () => createCrmRecord({ query: async () => assert.fail("must not query") }, restricted, "activities", { subject: "Blocked" }),
+    /allowed branch/,
+  );
+});
+
+test("CRM writes reject unauthorized branches and cross-company input", async () => {
+  const restricted = {
+    organizationId: "00000000-0000-4000-8000-000000000000",
+    userId: "00000000-0000-4000-8000-000000000001",
+    activeCompanyId: "00000000-0000-4000-8000-000000000002",
+    activeBranchId: "00000000-0000-4000-8000-000000000003",
+    allowAllCompanies: false,
+  };
+  const client = { query: async () => assert.fail("must not query") };
+  await assert.rejects(
+    () => createCrmRecord(client, restricted, "activities", { subject: "Wrong branch", branchId: "00000000-0000-4000-8000-000000000099" }),
+    /another branch/,
+  );
+  await assert.rejects(
+    () => createCrmRecord(client, restricted, "activities", { subject: "Wrong company", companyId: "00000000-0000-4000-8000-000000000098" }),
+    /another company/,
+  );
+});
+
+test("CRM administrators retain cross-company and cross-branch access", async () => {
+  let sql = "";
+  await listCrmRecords(
+    { query: async (text) => ((sql = text), { rows: [] }) },
+    {
+      organizationId: "00000000-0000-4000-8000-000000000000",
+      userId: "00000000-0000-4000-8000-000000000001",
+      activeCompanyId: null,
+      activeBranchId: null,
+      allowAllCompanies: true,
+    },
+    "leads",
+  );
+  assert.doesNotMatch(sql, /AND false/);
+  assert.doesNotMatch(sql, /record\.company_id|record\.branch_id/);
+});
+
+test("CRM company-wide resources remain available without an active branch", async () => {
+  let sql = "";
+  await listCrmRecords(
+    { query: async (text) => ((sql = text), { rows: [] }) },
+    {
+      organizationId: "00000000-0000-4000-8000-000000000000",
+      userId: "00000000-0000-4000-8000-000000000001",
+      activeCompanyId: "00000000-0000-4000-8000-000000000002",
+      activeBranchId: null,
+      allowAllCompanies: false,
+    },
+    "pipelines",
+  );
+  assert.doesNotMatch(sql, /AND false/);
+  assert.match(sql, /record\.company_id/);
+  assert.doesNotMatch(sql, /record\.branch_id/);
 });

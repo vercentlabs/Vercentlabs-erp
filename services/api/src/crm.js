@@ -1289,13 +1289,21 @@ function recordScope(definition, context, parameters, alias = "record") {
     if (!context.activeCompanyId) return " AND false";
     sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
   }
-  if (definition.fields?.branchId && context.activeBranchId) {
+  if (definition.fields?.branchId && !context.allowAllCompanies) {
+    if (!context.activeBranchId) return " AND false";
     sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
   }
   return sql;
 }
 
 function assertWritableScope(definition, context, input) {
+  if (
+    definition.companyScoped &&
+    !context.allowAllCompanies &&
+    !context.activeCompanyId
+  ) {
+    throw new CrmError(403, "Select an allowed company before maintaining CRM records.");
+  }
   if (
     definition.companyScoped &&
     !context.allowAllCompanies &&
@@ -1306,11 +1314,16 @@ function assertWritableScope(definition, context, input) {
   }
   if (
     definition.fields?.branchId &&
-    context.activeBranchId &&
-    input.branchId &&
-    input.branchId !== context.activeBranchId
+    !context.allowAllCompanies &&
+    (!context.activeBranchId ||
+      (input.branchId && input.branchId !== context.activeBranchId))
   ) {
-    throw new CrmError(403, "The CRM record belongs to another branch.");
+    throw new CrmError(
+      403,
+      context.activeBranchId
+        ? "The CRM record belongs to another branch."
+        : "Select an allowed branch before maintaining this CRM resource.",
+    );
   }
 }
 
@@ -2691,7 +2704,7 @@ export async function getCrmOptions(client, context) {
   const companyVisible = (alias, includeUnassigned = true) =>
     `($4::boolean OR ($2::uuid IS NOT NULL AND ${includeUnassigned ? `(${alias}.company_id IS NULL OR ${alias}.company_id = $2)` : `${alias}.company_id = $2`}))`;
   const branchVisible = (alias) =>
-    `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
+    `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
 
   const queryOptions = (sql, values) =>
     client.query(
@@ -2709,7 +2722,7 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const branches = await queryOptions(
-    `SELECT branch.id, branch.name, branch.company_id FROM public.branches branch WHERE branch.organization_id = $1 AND branch.status = 'active' AND ${companyVisible("branch", false)} AND ($3::uuid IS NULL OR branch.id = $3) ORDER BY branch.is_primary DESC, branch.name`,
+    `SELECT branch.id, branch.name, branch.company_id FROM public.branches branch WHERE branch.organization_id = $1 AND branch.status = 'active' AND ${companyVisible("branch", false)} AND ($4::boolean OR ($3::uuid IS NOT NULL AND branch.id = $3)) ORDER BY branch.is_primary DESC, branch.name`,
     parameters,
   );
   const currencies = await queryOptions(
@@ -2875,7 +2888,7 @@ export async function getCrmDashboard(client, context) {
   const companyVisible = (alias) =>
     `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
   const branchVisible = (alias) =>
-    `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
+    `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
   const result = await client.query(
     `SELECT
       (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
@@ -2926,7 +2939,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
   const companyVisible = (alias) =>
     `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
   const branchVisible = (alias) =>
-    `($3::uuid IS NULL OR ${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)`;
+    `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
   let sql;
   if (report === "pipeline")
     sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;

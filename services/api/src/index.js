@@ -339,13 +339,24 @@ function buildScopeClause(definition, context, parameters, alias = "t") {
     return " AND false";
   }
 
+  if (
+    (definition.branchField || definition.scope === "warehouse-company") &&
+    !context.activeBranchId
+  ) {
+    return " AND false";
+  }
+
   const companyParameter = addParameter(parameters, context.activeCompanyId);
 
   switch (definition.scope) {
     case "company-nullable":
       return ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${companyParameter})`;
-    case "company-required":
-      return ` AND ${alias}.company_id = ${companyParameter}`;
+    case "company-required": {
+      const branchClause = definition.branchField
+        ? ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`
+        : "";
+      return ` AND ${alias}.company_id = ${companyParameter}${branchClause}`;
+    }
     case "party-company":
       return ` AND EXISTS (
         SELECT 1
@@ -358,15 +369,13 @@ function buildScopeClause(definition, context, parameters, alias = "t") {
           )
       )`;
     case "warehouse-company": {
-      const branchClause = context.activeBranchId
-        ? ` AND (
+      const branchClause = ` AND (
             scoped_warehouse.branch_id IS NULL
             OR scoped_warehouse.branch_id = ${addParameter(
               parameters,
               context.activeBranchId,
             )}
-          )`
-        : "";
+          )`;
       return ` AND EXISTS (
         SELECT 1
         FROM tenant.warehouses scoped_warehouse
@@ -445,6 +454,15 @@ async function assertRelationScope(client, context, definition, input) {
 
   const scopedInput = { ...input };
 
+  if (
+    (definition.branchField || definition.scope === "warehouse-company") &&
+    !context.activeBranchId
+  ) {
+    throw new BusinessDataError(
+      403,
+      "Select an allowed branch before maintaining this resource.",
+    );
+  }
   if (definition.companyField) {
     const value = scopedInput[definition.companyField];
     if (value === null || value === undefined || value === "") {
@@ -457,16 +475,16 @@ async function assertRelationScope(client, context, definition, input) {
     }
   }
 
-  if (
-    definition.branchField &&
-    context.activeBranchId &&
-    scopedInput[definition.branchField] &&
-    String(scopedInput[definition.branchField]) !== context.activeBranchId
-  ) {
-    throw new BusinessDataError(
-      403,
-      "The record is outside the active branch context.",
-    );
+  if (definition.branchField) {
+    const value = scopedInput[definition.branchField];
+    if (value === null || value === undefined || value === "") {
+      scopedInput[definition.branchField] = context.activeBranchId;
+    } else if (String(value) !== context.activeBranchId) {
+      throw new BusinessDataError(
+        403,
+        "The record is outside the active branch context.",
+      );
+    }
   }
 
   if (definition.scope === "party-company") {
@@ -844,7 +862,9 @@ async function optionRows(client, sql, values) {
 }
 
 export async function getBusinessDataOptions(client, context) {
-  const companyScope = context.allowAllCompanies ? "" : "AND id = $2";
+  const companyScope = context.allowAllCompanies
+    ? ""
+    : "AND $2::uuid IS NOT NULL AND id = $2";
   const companyValues = context.allowAllCompanies
     ? [context.organizationId]
     : [context.organizationId, context.activeCompanyId];
@@ -896,7 +916,7 @@ export async function getBusinessDataOptions(client, context) {
         ${
           context.allowAllCompanies
             ? ""
-            : "AND (company_id IS NULL OR company_id = $2)"
+            : "AND $2::uuid IS NOT NULL AND (company_id IS NULL OR company_id = $2)"
         }
       ORDER BY display_name
     `,
@@ -945,11 +965,13 @@ export async function getBusinessDataOptions(client, context) {
       FROM tenant.warehouses
       WHERE organization_id = $1
         AND status = 'active'
-        ${context.allowAllCompanies ? "" : "AND company_id = $2"}
+        ${context.allowAllCompanies ? "" : "AND $2::uuid IS NOT NULL AND company_id = $2"}
         ${
-          context.allowAllCompanies || !context.activeBranchId
+          context.allowAllCompanies
             ? ""
-            : "AND (branch_id IS NULL OR branch_id = $3)"
+            : context.activeBranchId
+              ? "AND (branch_id IS NULL OR branch_id = $3)"
+              : "AND false"
         }
       ORDER BY name
     `,
@@ -974,12 +996,25 @@ export async function getBusinessDataOptions(client, context) {
        AND warehouse.organization_id = location.organization_id
       WHERE location.organization_id = $1
         AND location.status = 'active'
-        ${context.allowAllCompanies ? "" : "AND warehouse.company_id = $2"}
+        ${context.allowAllCompanies ? "" : "AND $2::uuid IS NOT NULL AND warehouse.company_id = $2"}
+        ${
+          context.allowAllCompanies
+            ? ""
+            : context.activeBranchId
+              ? "AND (warehouse.branch_id IS NULL OR warehouse.branch_id = $3)"
+              : "AND false"
+        }
       ORDER BY warehouse.name, location.name
     `,
     context.allowAllCompanies
       ? [context.organizationId]
-      : [context.organizationId, context.activeCompanyId],
+      : context.activeBranchId
+        ? [
+            context.organizationId,
+            context.activeCompanyId,
+            context.activeBranchId,
+          ]
+        : [context.organizationId, context.activeCompanyId],
   );
 
   const paymentTerms = await optionRows(
@@ -1014,7 +1049,7 @@ export async function getBusinessDataOptions(client, context) {
         ${
           context.allowAllCompanies
             ? ""
-            : "AND (company_id IS NULL OR company_id = $2)"
+            : "AND $2::uuid IS NOT NULL AND (company_id IS NULL OR company_id = $2)"
         }
       ORDER BY name
     `,
@@ -1056,33 +1091,46 @@ export async function getBusinessDataOverview(client, context) {
       SELECT
         (
           SELECT count(*)::int
-          FROM tenant.business_parties
-          WHERE organization_id = $1 AND status = 'active'
+          FROM tenant.business_parties party
+          WHERE party.organization_id = $1 AND party.status = 'active'
+            AND ($4::boolean OR ($2::uuid IS NOT NULL AND (party.company_id IS NULL OR party.company_id = $2)))
         ) AS parties,
         (
           SELECT count(*)::int
-          FROM tenant.contacts
-          WHERE organization_id = $1 AND status = 'active'
+          FROM tenant.contacts contact
+          WHERE contact.organization_id = $1 AND contact.status = 'active'
+            AND ($4::boolean OR ($2::uuid IS NOT NULL AND EXISTS (
+              SELECT 1
+              FROM tenant.business_parties party
+              WHERE party.organization_id = contact.organization_id
+                AND party.id = contact.party_id
+                AND (party.company_id IS NULL OR party.company_id = $2)
+            )))
         ) AS contacts,
         (
           SELECT count(*)::int
-          FROM tenant.items
-          WHERE organization_id = $1 AND status = 'active'
+          FROM tenant.items item
+          WHERE item.organization_id = $1 AND item.status = 'active'
+            AND ($4::boolean OR ($2::uuid IS NOT NULL AND (item.company_id IS NULL OR item.company_id = $2)))
         ) AS items,
         (
           SELECT count(*)::int
-          FROM tenant.warehouses
-          WHERE organization_id = $1 AND status = 'active'
+          FROM tenant.warehouses warehouse
+          WHERE warehouse.organization_id = $1 AND warehouse.status = 'active'
+            AND ($4::boolean OR ($2::uuid IS NOT NULL AND warehouse.company_id = $2))
+            AND ($4::boolean OR ($3::uuid IS NOT NULL AND (warehouse.branch_id IS NULL OR warehouse.branch_id = $3)))
         ) AS warehouses,
         (
           SELECT count(*)::int
-          FROM tenant.tax_rates
-          WHERE organization_id = $1 AND status = 'active'
+          FROM tenant.tax_rates tax_rate
+          WHERE tax_rate.organization_id = $1 AND tax_rate.status = 'active'
+            AND ($4::boolean OR ($2::uuid IS NOT NULL AND (tax_rate.company_id IS NULL OR tax_rate.company_id = $2)))
         ) AS tax_rates,
         (
           SELECT count(*)::int
-          FROM tenant.fiscal_periods
-          WHERE organization_id = $1
+          FROM tenant.fiscal_periods fiscal_period
+          WHERE fiscal_period.organization_id = $1
+            AND ($4::boolean OR ($2::uuid IS NOT NULL AND fiscal_period.company_id = $2))
         ) AS fiscal_periods,
         (
           SELECT count(*)::int
@@ -1096,7 +1144,12 @@ export async function getBusinessDataOverview(client, context) {
             AND status IN ('failed', 'completed_with_errors')
         ) AS import_issues
     `,
-    [context.organizationId],
+    [
+      context.organizationId,
+      context.activeCompanyId,
+      context.activeBranchId,
+      Boolean(context.allowAllCompanies),
+    ],
   );
 
   return camelizeRow(result.rows[0] || {});
