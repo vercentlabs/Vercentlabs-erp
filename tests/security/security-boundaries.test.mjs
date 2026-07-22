@@ -1,4 +1,14 @@
 import assert from "node:assert/strict";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 import {
@@ -31,4 +41,45 @@ test("exports, logs and attachment paths reject common data-boundary attacks", (
     fileName: "../../quote.pdf",
   });
   assert.equal(key.includes(".."), false);
+});
+
+test("source exports include reproducibility files without native build output", () => {
+  const projectRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../..",
+  );
+  const temporaryRoot = path.join(projectRoot, "tmp");
+  mkdirSync(temporaryRoot, { recursive: true });
+  const directory = mkdtempSync(
+    path.join(temporaryRoot, "vercent-source-export-"),
+  );
+  const staleDirectory = mkdtempSync(
+    path.join(projectRoot, "vercent-source-export-regression-"),
+  );
+  writeFileSync(
+    path.join(staleDirectory, "project-code.txt"),
+    "# Project source export\n\nFILE: apps/mobile/android/app/build.gradle\n",
+  );
+  const output = path.join(directory, "project-code.txt");
+  const relativeOutput = path
+    .relative(projectRoot, output)
+    .split(path.sep)
+    .join("/");
+  try {
+    const result = spawnSync(
+      "bash",
+      ["export-project-code.sh", relativeOutput],
+      { cwd: projectRoot, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const source = readFileSync(output, "utf8");
+    assert.match(source, /^FILE: apps\/web\/\.env\.example$/m);
+    assert.match(source, /^FILE: pnpm-lock\.yaml$/m);
+    assert.doesNotMatch(source, /^FILE: apps\/mobile\/android\//m);
+    assert.doesNotMatch(source, /^FILE: vercent-source-export-regression-/m);
+    assert.doesNotMatch(source, /^FILE: .*\.env\.local$/m);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+    rmSync(staleDirectory, { recursive: true, force: true });
+  }
 });

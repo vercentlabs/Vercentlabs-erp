@@ -5,7 +5,7 @@ VERCENTLABS ERP/
 ├─ apps/
 │  ├─ landing/                 # Public marketing application
 │  ├─ web/                     # Authenticated ERP application
-│  └─ mobile/                  # Future mobile workspace
+│  └─ mobile/                  # Native CRM mobile client and module shell
 ├─ services/
 │  └─ api/                     # Permanent backend service boundary
 ├─ packages/
@@ -35,6 +35,8 @@ VERCENTLABS ERP/
 
 - Marketing code belongs in `apps/landing`.
 - Authenticated ERP code and current platform Route Handlers belong in `apps/web`.
+- Native mobile routes live in `apps/mobile/src/app`; cross-cutting mobile services live in `apps/mobile/src/core`.
+- Generated `apps/mobile/android` and `apps/mobile/ios` projects are recreated from Expo configuration and config plugins.
 - New business APIs and future backend extraction belong in `services/api`.
 - Shared packages cannot import applications or services.
 - Control-plane migrations own identity and platform administration.

@@ -4,8 +4,8 @@
 
 This release contains the public website, authentication and onboarding,
 organisation administration, permissions, master-data foundation, billing
-controls and CRM. The mobile application and eleven additional ERP modules are
-roadmap items and cannot be activated.
+controls, CRM and the native CRM mobile client. Eleven additional ERP modules
+are roadmap items and cannot be activated.
 
 ## Required production services
 
@@ -46,6 +46,7 @@ Run from the exact release commit:
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm audit:dependencies
 pnpm test:all
 pnpm verify:release
 pnpm lint:landing
@@ -54,6 +55,9 @@ pnpm build:landing
 pnpm lint:web
 pnpm typecheck:web
 pnpm build:web
+pnpm lint:mobile
+pnpm typecheck:mobile
+pnpm verify:mobile
 ```
 
 Validate environment contracts in an isolated shell without printing secrets:

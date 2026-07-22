@@ -67,3 +67,5 @@ temp/
 
 # Expo machine-specific state
 apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/

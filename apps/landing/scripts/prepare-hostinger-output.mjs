@@ -1,4 +1,4 @@
-import { cp, mkdir } from "node:fs/promises";
+import { access, cp, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,9 +15,15 @@ const serverDirectory = path.join(
 );
 
 await mkdir(serverDirectory, { recursive: true });
-await cp(path.join(appDirectory, "public"), path.join(serverDirectory, "public"), {
-  recursive: true,
-});
+const publicDirectory = path.join(appDirectory, "public");
+try {
+  await access(publicDirectory);
+  await cp(publicDirectory, path.join(serverDirectory, "public"), {
+    recursive: true,
+  });
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
 await mkdir(path.join(serverDirectory, ".next"), { recursive: true });
 await cp(
   path.join(nextDirectory, "static"),

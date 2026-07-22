@@ -5,80 +5,210 @@ set -euo pipefail
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 output_arg="${1:-project-code.txt}"
 
-if [[ "$output_arg" = /* ]]; then
-  output_file="$output_arg"
-else
-  output_file="$project_root/$output_arg"
-fi
+# Keep traversal and file I/O in one Node process. This avoids hundreds of
+# process launches in Git Bash and lets Node interpret native Windows paths.
+exec node --input-type=module - "$project_root" "$output_arg" <<'NODE'
+import {
+  closeSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeSync,
+} from "node:fs";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
 
-mkdir -p "$(dirname "$output_file")"
-output_file="$(cd "$(dirname "$output_file")" && pwd)/$(basename "$output_file")"
-temp_file="${output_file}.tmp"
-trap 'rm -f "$temp_file"' EXIT
+const projectRoot = path.resolve(process.argv[2]);
+const outputArg = process.argv[3];
+const outputFile = path.isAbsolute(outputArg)
+  ? path.resolve(outputArg)
+  : path.resolve(projectRoot, outputArg);
+const tempFile = `${outputFile}.tmp`;
 
-is_source_file() {
-  local name="$1"
+const skippedDirectories = new Set([
+  ".git",
+  "node_modules",
+  ".pnpm",
+  ".turbo",
+  ".cxx",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".expo",
+  ".cache",
+  ".gradle",
+  "Pods",
+  "target",
+  "vendor",
+  "__pycache__",
+  "tmp",
+  "temp",
+]);
+const sourceExtensions = new Set([
+  ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts",
+  ".vue", ".svelte", ".astro", ".py", ".pyi", ".rb", ".php", ".java",
+  ".kt", ".kts", ".go", ".rs", ".c", ".h", ".cc", ".cpp", ".cs",
+  ".fs", ".fsx", ".swift", ".scala", ".sh", ".bash", ".zsh", ".ps1",
+  ".sql", ".graphql", ".gql", ".proto", ".html", ".htm", ".css",
+  ".scss", ".sass", ".less", ".xml", ".xsl", ".json", ".jsonc",
+  ".yaml", ".yml", ".toml", ".ini", ".conf", ".config", ".properties",
+  ".gradle", ".md", ".mdx", ".txt", ".prisma", ".tf", ".tfvars",
+]);
+const exactSourceNames = new Set([
+  ".env.example",
+  ".env.sample",
+  "Dockerfile",
+  "Containerfile",
+  "Makefile",
+  "CMakeLists.txt",
+  "Jenkinsfile",
+  "Procfile",
+]);
 
-  case "$name" in
-    Dockerfile|Dockerfile.*|Containerfile|Makefile|CMakeLists.txt|Jenkinsfile|Procfile)
-      return 0
-      ;;
-    *.js|*.jsx|*.mjs|*.cjs|*.ts|*.tsx|*.mts|*.cts|*.vue|*.svelte|*.astro|\
-    *.py|*.pyi|*.rb|*.php|*.java|*.kt|*.kts|*.go|*.rs|*.c|*.h|*.cc|*.cpp|\
-    *.cs|*.fs|*.fsx|*.swift|*.scala|*.sh|*.bash|*.zsh|*.ps1|*.sql|*.graphql|\
-    *.gql|*.proto|*.html|*.htm|*.css|*.scss|*.sass|*.less|*.xml|*.xsl|*.json|\
-    *.jsonc|*.yaml|*.yml|*.toml|*.ini|*.conf|*.config|*.properties|*.gradle|\
-    *.md|*.mdx|*.txt|*.prisma|*.tf|*.tfvars)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+const normalizeForComparison = (value) => {
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+};
+const excludedOutputs = new Set([
+  normalizeForComparison(outputFile),
+  normalizeForComparison(tempFile),
+]);
+const relativeFiles = [];
+const sourceExportMarker = Buffer.from("# Project source export");
+
+function isSourceFile(name) {
+  return (
+    exactSourceNames.has(name) ||
+    name.startsWith("Dockerfile.") ||
+    sourceExtensions.has(path.extname(name))
+  );
 }
 
-{
-  printf '# Project source export\n'
-  printf '# Root: %s\n' "$(basename "$project_root")"
-  printf '# Generated: %s\n\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-} > "$temp_file"
+function isSensitiveFile(name) {
+  if (name === ".env.example" || name === ".env.sample") return false;
+  return (
+    name === ".env" ||
+    name.startsWith(".env.") ||
+    [".pem", ".key", ".p12", ".pfx"].includes(path.extname(name))
+  );
+}
 
-file_count=0
-while IFS= read -r -d '' file; do
-  absolute_file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
-  [[ "$absolute_file" == "$output_file" || "$absolute_file" == "$temp_file" ]] && continue
+function addRelativeFile(relativePath) {
+  const normalizedPath = relativePath.replaceAll("\\", "/");
+  const segments = normalizedPath.split("/");
+  const name = segments.at(-1);
+  if (
+    !name ||
+    normalizedPath === "apps/mobile/android" ||
+    normalizedPath.startsWith("apps/mobile/android/") ||
+    segments.slice(0, -1).some((segment) => skippedDirectories.has(segment)) ||
+    isSensitiveFile(name) ||
+    !isSourceFile(name)
+  ) {
+    return;
+  }
+  const absolutePath = path.join(projectRoot, ...segments);
+  if (excludedOutputs.has(normalizeForComparison(absolutePath))) return;
+  try {
+    if (!lstatSync(absolutePath).isFile()) return;
+  } catch {
+    return;
+  }
+  relativeFiles.push(normalizedPath);
+}
 
-  relative_file="${file#./}"
-  file_name="$(basename "$file")"
+function collectGitFiles() {
+  const result = spawnSync(
+    "git",
+    [
+      "-C",
+      projectRoot,
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "-z",
+    ],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (result.error || result.status !== 0) return false;
+  for (const relativePath of result.stdout.split("\0")) {
+    if (relativePath) addRelativeFile(relativePath);
+  }
+  return true;
+}
 
-  # Keep credentials and dependency lockfiles out of the shareable code bundle.
-  case "$file_name" in
-    .env|.env.*|*.pem|*.key|*.p12|*.pfx|*.lock|package-lock.json|pnpm-lock.yaml|yarn.lock)
-      continue
-      ;;
-  esac
+function collectFiles(directory, relativeDirectory = "") {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const relativePath = relativeDirectory
+      ? `${relativeDirectory}/${entry.name}`
+      : entry.name;
+    if (entry.isDirectory()) {
+      if (
+        skippedDirectories.has(entry.name) ||
+        relativePath === "apps/mobile/android"
+      ) {
+        continue;
+      }
+      collectFiles(path.join(directory, entry.name), relativePath);
+      continue;
+    }
+    if (entry.isFile()) addRelativeFile(relativePath);
+  }
+}
 
-  is_source_file "$file_name" || continue
-  grep -Iq . "$file" || continue
+mkdirSync(path.dirname(outputFile), { recursive: true });
+rmSync(tempFile, { force: true });
 
-  printf '\n================================================================================\n' >> "$temp_file"
-  printf 'FILE: %s\n' "$relative_file" >> "$temp_file"
-  printf '================================================================================\n\n' >> "$temp_file"
-  cat "$file" >> "$temp_file"
-  printf '\n' >> "$temp_file"
-  ((file_count += 1))
-done < <(
-  cd "$project_root"
-  find . \
-    \( -type d \( \
-      -name .git -o -name node_modules -o -name .pnpm -o -name .turbo -o \
-      -name dist -o -name build -o -name coverage -o -name .next -o \
-      -name .expo -o -name .cache -o -name .gradle -o -name Pods -o \
-      -name target -o -name vendor -o -name __pycache__ \
-    \) -prune \) -o -type f -print0 | sort -z
-)
+let descriptor;
+let fileCount = 0;
+try {
+  if (!collectGitFiles()) collectFiles(projectRoot);
+  relativeFiles.sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
 
-mv -f "$temp_file" "$output_file"
-trap - EXIT
+  descriptor = openSync(tempFile, "wx");
+  writeSync(
+    descriptor,
+    `# Project source export\n# Root: ${path.basename(projectRoot)}\n` +
+      `# Generated: ${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}\n\n`,
+  );
 
-printf 'Exported %d source files to %s\n' "$file_count" "$output_file"
+  for (const relativePath of relativeFiles) {
+    const absolutePath = path.join(projectRoot, ...relativePath.split("/"));
+    const contents = readFileSync(absolutePath);
+    if (
+      contents.length === 0 ||
+      contents.includes(0) ||
+      contents.subarray(0, sourceExportMarker.length).equals(sourceExportMarker)
+    ) {
+      continue;
+    }
+    writeSync(
+      descriptor,
+      "\n================================================================================\n" +
+        `FILE: ${relativePath}\n` +
+        "================================================================================\n\n",
+    );
+    writeSync(descriptor, contents);
+    writeSync(descriptor, "\n");
+    fileCount += 1;
+  }
+  closeSync(descriptor);
+  descriptor = undefined;
+  rmSync(outputFile, { force: true });
+  renameSync(tempFile, outputFile);
+} catch (error) {
+  if (descriptor !== undefined) closeSync(descriptor);
+  rmSync(tempFile, { force: true });
+  throw error;
+}
+
+console.log(`Exported ${fileCount} source files to ${outputFile}`);
+NODE

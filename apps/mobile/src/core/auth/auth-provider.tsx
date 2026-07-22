@@ -9,12 +9,14 @@ import {
 } from "react";
 import {
   VercentApiError,
-  createMobileClient,
   type MobileSession,
 } from "@vercent/shared-sdk";
 
-import { appConfig } from "@/core/config";
-import { initializeDatabase, purgeOfflineWorkspace } from "@/core/database/database";
+import { mobileApi } from "@/core/api/client";
+import {
+  bindOfflineWorkspace,
+  purgeOfflineWorkspace,
+} from "@/core/database/database";
 import { deviceContext } from "./device";
 import { secureTokenStore } from "./token-store";
 
@@ -28,13 +30,11 @@ type AuthContextValue = AuthState & {
   signOut(): Promise<void>;
 };
 
-const client = createMobileClient({
-  baseUrl: appConfig.apiUrl,
-  tokenStore: secureTokenStore,
-  clientVersion: appConfig.version,
-});
-
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function workspaceOwner(session: MobileSession) {
+  return `${session.user.id}:${session.workspace.organizationId ?? "none"}`;
+}
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<AuthState>({
@@ -44,15 +44,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let active = true;
-    client
+    mobileApi
       .session()
       .then(async ({ session }) => {
-        await initializeDatabase();
+        await bindOfflineWorkspace(workspaceOwner(session));
         if (active) setState({ status: "signed-in", session });
       })
       .catch(async (error) => {
         if (error instanceof VercentApiError && error.status === 401) {
           await secureTokenStore.clear();
+          await purgeOfflineWorkspace().catch(() => undefined);
         }
         if (active) setState({ status: "signed-out", session: null });
       });
@@ -62,18 +63,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const result = await client.login({
+    const result = await mobileApi.login({
       email: email.trim().toLowerCase(),
       password,
       device: await deviceContext(),
     });
-    await initializeDatabase();
+    await bindOfflineWorkspace(workspaceOwner(result.session));
     setState({ status: "signed-in", session: result.session });
   }, []);
 
   const signOut = useCallback(async () => {
     try {
-      await client.logout();
+      await mobileApi.logout();
     } finally {
       await purgeOfflineWorkspace().catch(() => undefined);
       await secureTokenStore.clear();

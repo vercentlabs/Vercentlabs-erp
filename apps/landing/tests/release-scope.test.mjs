@@ -19,3 +19,9 @@ test("public pricing describes CRM and permissions rather than unreleased approv
   assert.match(pricing, /Roles, permissions and audit history/);
   assert.doesNotMatch(pricing, /Roles, approvals and audit history/);
 });
+
+test("standalone packaging supports applications without a public directory", () => {
+  const packaging = read("scripts/prepare-hostinger-output.mjs");
+  assert.match(packaging, /await access\(publicDirectory\)/);
+  assert.match(packaging, /error\?\.code !== "ENOENT"/);
+});

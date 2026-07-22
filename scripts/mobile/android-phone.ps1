@@ -82,9 +82,10 @@ try {
 
 Push-Location $repoRoot
 try {
+  & corepack pnpm --filter '@vercent/mobile' exec expo prebuild --clean --platform android --no-install
+  if ($LASTEXITCODE -ne 0) { throw "Expo prebuild failed." }
   if (-not (Test-Path "apps\mobile\android\gradlew.bat")) {
-    & corepack pnpm --filter '@vercent/mobile' exec expo prebuild --platform android --no-install
-    if ($LASTEXITCODE -ne 0) { throw "Expo prebuild failed." }
+    throw "Expo prebuild did not create the Android Gradle wrapper."
   }
 
   if (-not $SkipBuild) {

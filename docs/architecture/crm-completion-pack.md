@@ -83,5 +83,5 @@ The following capabilities are intentionally not implemented in CRM:
 
 After migrations and verification pass, CRM can be feature-frozen for the
 current ERP milestone and development can move to the Sales module. Provider
-adapters, model selection and mobile clients remain deployment integrations,
-not reasons to duplicate adjacent modules inside CRM.
+adapters, model selection and advanced offline parity remain deployment
+integrations, not reasons to duplicate adjacent modules inside CRM.

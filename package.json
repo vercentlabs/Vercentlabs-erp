@@ -57,6 +57,7 @@
     "test:security": "node --test tests/security/*.test.mjs",
     "test:e2e": "node --test tests/e2e/*.test.mjs",
     "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:sdk && corepack pnpm test:mobile && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:e2e",
+    "audit:dependencies": "corepack pnpm audit --audit-level high",
     "verify:implementation": "node scripts/validation/verify-implementation-completeness.mjs",
     "verify:release": "node scripts/validation/verify-crm-release.mjs && corepack pnpm verify:implementation && corepack pnpm verify:platform-foundation && corepack pnpm verify:mobile && corepack pnpm verify:business-data && corepack pnpm verify:crm && corepack pnpm verify:billing && corepack pnpm verify:commercial-readiness",
     "validate:production-env:web": "node scripts/deployment/validate-production-env.mjs web",
@@ -65,7 +66,7 @@
     "smoke:deployment": "node scripts/deployment/smoke-deployment.mjs",
     "db:backup": "bash scripts/database/backup-postgres.sh",
     "db:restore": "bash scripts/database/restore-postgres.sh",
-    "release:gate": "corepack pnpm test:all && corepack pnpm verify:release && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm lint:web && corepack pnpm typecheck:web && corepack pnpm build:web && corepack pnpm lint:mobile && corepack pnpm typecheck:mobile"
+    "release:gate": "corepack pnpm audit:dependencies && corepack pnpm test:all && corepack pnpm verify:release && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm lint:web && corepack pnpm typecheck:web && corepack pnpm build:web && corepack pnpm lint:mobile && corepack pnpm typecheck:mobile"
   },
   "engines": {
     "node": ">=24 <25",

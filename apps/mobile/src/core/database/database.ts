@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import * as SQLite from "expo-sqlite";
 
 const keyName = "vercent.mobile.database-key.v1";
+const workspaceOwnerScope = "workspace-owner";
 let databasePromise: ReturnType<typeof SQLite.openDatabaseAsync> | null = null;
 
 function toHex(bytes: Uint8Array) {
@@ -76,6 +77,30 @@ export async function purgeOfflineWorkspace() {
     DELETE FROM mutation_queue;
     DELETE FROM sync_state;
   `);
+}
+
+export async function bindOfflineWorkspace(owner: string) {
+  if (!owner.trim()) throw new Error("An offline workspace owner is required.");
+  const database = await initializeDatabase();
+  await database.withExclusiveTransactionAsync(async (transaction) => {
+    const current = await transaction.getFirstAsync<{ metadata: string | null }>(
+      "SELECT metadata FROM sync_state WHERE scope = ?",
+      workspaceOwnerScope,
+    );
+    if (current?.metadata === owner) return;
+    await transaction.execAsync(`
+      DELETE FROM cache_entries;
+      DELETE FROM mutation_queue;
+      DELETE FROM sync_state;
+    `);
+    await transaction.runAsync(
+      `INSERT INTO sync_state(scope, synced_at, metadata)
+       VALUES (?, ?, ?)`,
+      workspaceOwnerScope,
+      Date.now(),
+      owner,
+    );
+  });
 }
 
 export async function readCache<T>(cacheKey: string): Promise<{ data: T; cachedAt: number } | null> {

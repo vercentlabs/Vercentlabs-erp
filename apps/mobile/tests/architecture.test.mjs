@@ -61,6 +61,21 @@ test("CRM owns its native data, sync, UI, and manifest", () => {
   }
 });
 
+test("mobile sessions and offline data have one security boundary", () => {
+  const auth = read("src/core/auth/auth-provider.tsx");
+  const providers = read("src/core/providers/app-providers.tsx");
+  const database = read("src/core/database/database.ts");
+  const cacheHook = read("src/modules/crm/hooks/use-crm-query.ts");
+
+  assert.match(auth, /import \{ mobileApi \}/);
+  assert.doesNotMatch(auth, /createMobileClient/);
+  assert.match(auth, /bindOfflineWorkspace/);
+  assert.match(database, /workspace-owner/);
+  assert.match(providers, /auth\.status === "signed-in"/);
+  assert.match(cacheHook, /let active = true/);
+  assert.match(cacheHook, /cached\?\.key === key/);
+});
+
 test("application source does not import removed legacy aliases", () => {
   const forbidden = /from\s+["']@\/(?:api|auth|data|features|providers|security|theme|ui)(?:\/|["'])/;
   const visit = (directory) => {
