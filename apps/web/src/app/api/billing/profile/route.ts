@@ -3,11 +3,11 @@ import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { billingProfileSchema } from "@/lib/billing-validation";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 export async function PATCH(request: Request) {
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");

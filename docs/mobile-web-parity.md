@@ -1,41 +1,77 @@
-# Mobile and web capability parity
+# Mobile and responsive-web parity
 
-This document records the customer-facing mobile scope against the current
-backend. Mobile parity means a task-appropriate native workflow, not a compressed
-desktop screen or an embedded WebView.
+This document is the release contract between `apps/web` at its mobile
+breakpoint and `apps/mobile`. Parity means that every protected web route has a
+permission-safe native destination, the same business operation is available,
+and the shared visual language is preserved without embedding a WebView.
 
-| Capability | Web/API source | Mobile source | Status | Decision |
-| --- | --- | --- | --- | --- |
-| Authentication, refresh and logout | `apps/web/src/app/api/mobile/v1/auth` | `src/core/auth` | Complete | Device-bound access and rotating refresh tokens use one canonical API client. |
-| Organization, company and branch context | mobile session API | app header and More | Partial | Context is visible. Switching remains web-only until a mobile mutation contract exists. |
-| CRM dashboard | mobile CRM dashboard API | Home tab | Complete | Live KPIs use encrypted offline fallback. |
-| Leads | mobile CRM list, detail and mutation APIs | Leads tab and record detail | Complete | Search, filters, detail, creation and queued offline creation are supported. |
-| Opportunities and pipeline | mobile CRM list, detail and stage APIs | Pipeline tab and record detail | Complete | Users can inspect opportunities and move them through valid pipeline stages. |
-| Activities | mobile CRM list, detail and completion APIs | Activities tab and record detail | Complete | List, detail, creation, completion, search and queued writes are supported. |
-| Global search | mobile search API | Search screen | Complete | Searches leads, opportunities and activities. |
-| Notifications | mobile notifications API | Notifications screen | Complete | List and mark-all-read are supported. |
-| Permissions | mobile session and server authorization | module registry and navigation | Complete | Navigation is permission-aware and the server remains authoritative. |
-| Offline cache and mutation queue | mobile idempotency API | `src/core/database` and `src/modules/crm/data` | Partial | Supported reads and queued writes are encrypted and scoped to the signed-in workspace. Conflict-heavy editing remains online-only. |
-| Contacts, accounts, notes, timeline and attachments | web CRM APIs | — | Missing mobile API | Add scoped mobile contracts before exposing native UI. |
-| Record edit and archive | web CRM APIs | read-only native detail | Partial | Patch exists for the supported CRM resources; permission-safe field metadata and archive UX remain future work. |
-| Administration, master data, billing and audit | authenticated web routes | permission-aware More catalogue | Web only | Sensitive administration stays on web until dedicated mobile-safe APIs exist. |
-| Remaining 11 ERP modules | shared module catalog | module registry and roadmap | Architecture ready | Disabled until each module has released contracts, permissions, routes and workflows. |
+## Protected workspace
 
-## Scalable mobile boundary
+| Web capability | Native mobile capability | Status |
+| --- | --- | --- |
+| Responsive shell, drawer, search, notifications and account menu | `AppHeader`, native drawer and permission-filtered destinations | Complete |
+| Organisation, company and branch context | Header context selector backed by `/api/mobile/v1/workspace` | Complete |
+| Organisation dashboard | Hero, current context, linked metrics, quick actions, work and audit panels | Complete |
+| CRM dashboard | Eight live metrics, stage health, lead sources and next actions | Complete |
+| CRM records and configuration | Schema-driven list, status/search filters, create, edit and archive for every visible CRM definition | Complete |
+| Leads and opportunities | Native list and full detail, related history, conversion, merge and governed stage movement | Complete |
+| Activities | Native create, edit, completion and offline-safe CRM workflows | Complete |
+| CRM pipeline and reports | Native Kanban stage movement and all permission-visible reports | Complete |
+| CRM CSV exchange | Audited CSV sharing and governed 1,000-row import contract | Complete |
+| Master data overview | Partner, item, warehouse and currency metrics plus all resource groups | Complete |
+| Master data records | Search/status filtering, CSV sharing, create, edit and archive | Complete |
+| Platform settings | Structure, access and controls groups with native resource editors | Complete |
+| Users and invitations | Invite, resend, revoke, status, role and operating-scope management | Complete |
+| Roles and permissions | Create and edit custom roles with grouped permission selection | Complete |
+| Approvals | Pending/history list with optimistic-version approve and reject actions | Complete |
+| Audit log | Searchable immutable audit history | Complete |
+| Billing | Subscription summary, plans, native Razorpay checkout, verification, cancellation, profile, invoices and payments | Complete |
+| Profile and security | Profile preferences, login history, password change and session revocation | Complete |
+| Modules | Native released/roadmap capability registry | Complete |
+| Global search | Cross-module company, branch, user, CRM and master-data results | Complete |
+| Notifications | Native list, unread badge, mark-one and mark-all behavior | Complete |
 
-`src/core/modules/registry.ts` is the canonical native module registry.
-Module-owned code lives under `src/modules/<module>`. Authentication, encrypted
-storage, API access, providers, security, theme and reusable UI remain
-cross-module infrastructure under `src/core` and `src/shared`.
+The canonical route inventory lives in
+`apps/mobile/src/core/modules/web-parity.ts`. Its automated contract test scans
+every protected `apps/web/src/app/(app)/**/page.tsx` file and fails when a web
+page family lacks a mobile destination.
 
-The mobile app creates one authenticated API client so concurrent 401 responses
-share a single refresh rotation. Offline data is bound to the user and
-organization, purged when that boundary changes, and synchronized only during
-an authenticated session.
+## Authentication boundary
 
-## Next backend slice
+Login is fully native and uses device-bound access tokens with rotating refresh
+tokens. Signup, invitation acceptance, email verification and password-reset
+links use the system browser because they are email/token and CAPTCHA-bound
+flows. This is an intentional secure handoff to the same responsive web design,
+not an embedded web surface; no authentication feature is removed.
 
-Add mobile-safe contacts, accounts, notes, timeline and attachment APIs, then
-permission-safe editable field metadata and archive operations. Preserve tenant
-isolation, server authorization, idempotency and explicit conflict behavior
-before exposing each matching native workflow.
+Browser mutations keep same-origin CSRF enforcement. Native mutations require
+both a valid bearer token and the versioned `X-Vercent-Client` mobile header.
+Mobile responses are private, request-correlated and use the same tenant,
+permission, audit, billing and idempotency boundaries as web.
+
+## Design contract
+
+The native theme mirrors the responsive web surface: 16 px page gutters, white
+cards, `#E4E7EC` borders, `#F4F6FA` canvas, `#4F46E5` primary actions,
+`#101828` navigation, compact uppercase eyebrows, 32 px mobile page headings,
+44 px minimum controls and 12 px card radii. The mobile header preserves the
+same hamburger, search, notifications, identity, operating-context and page
+heading hierarchy.
+
+Native layout adapts tables into scannable record cards, desktop forms into
+full-height editors and the CRM board into horizontally scrolling 84vw columns.
+Those are interaction-appropriate equivalents of the responsive web design,
+not alternate feature sets.
+
+## Scalable native boundary
+
+`src/core/modules/registry.ts` remains the module registry. Module-owned code
+lives under `src/modules/<module>`; authentication, encrypted storage, API
+access, providers, security, theme and reusable UI stay under `src/core` and
+`src/shared`.
+
+The app owns one authenticated API client, so concurrent 401 responses share a
+single refresh rotation. Offline data is encrypted, user-and-organisation
+scoped, purged when that boundary changes and synchronized only inside an
+authenticated session. Conflict-heavy administration remains online-only and
+uses server versions instead of silently overwriting newer data.

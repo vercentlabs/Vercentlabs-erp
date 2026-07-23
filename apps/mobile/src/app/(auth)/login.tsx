@@ -1,23 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { useRef, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
 
 import { authErrorMessage, useAuth } from "@/core/auth/auth-provider";
 import { appConfig } from "@/core/config";
-import { useTheme } from "@/shared/theme/theme";
-import { minimumTouchTarget } from "@/shared/theme/tokens";
 import { BrandMark } from "@/shared/components/brand-mark";
 import { Button } from "@/shared/components/button";
 import { Screen } from "@/shared/components/screen";
 import { TextField } from "@/shared/components/text-field";
+import { useTheme } from "@/shared/theme/theme";
+import { minimumTouchTarget } from "@/shared/theme/tokens";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -43,199 +36,28 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Screen contentContainerStyle={{ padding: 0 }}>
-        <View
-          style={{
-            backgroundColor: colors.navigation,
-            paddingHorizontal: spacing.xl,
-            paddingTop: spacing.hero,
-            paddingBottom: 68,
-            minHeight: 310,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing.sm,
-            }}
-          >
-            <BrandMark />
-            <View>
-              <Text style={{ ...type.heading, color: colors.inverse }}>
-                Vercent ERP
-              </Text>
-              <Text style={{ ...type.caption, color: "#98A2B3" }}>
-                Mobile workspace
-              </Text>
-            </View>
-          </View>
-          <View style={{ marginTop: spacing.hero, gap: spacing.sm }}>
-            <Text
-              style={{ ...type.display, color: colors.inverse, maxWidth: 410 }}
-            >
-              Run your day, not your desk.
-            </Text>
-            <Text style={{ ...type.body, color: "#B7C0D0", maxWidth: 460 }}>
-              Your pipeline, priorities and customer context—securely available
-              wherever work happens.
-            </Text>
-          </View>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Screen contentContainerStyle={{ padding: spacing.md, paddingTop: 28 }}>
+        <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
+          <BrandMark size={40} />
+          <Text style={{ ...type.heading, color: colors.text }}>Vercent ERP</Text>
         </View>
-
-        <View
-          style={{
-            marginTop: -28,
-            marginHorizontal: spacing.md,
-            padding: spacing.xl,
-            borderRadius: radii.xl,
-            backgroundColor: colors.surfaceRaised,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: spacing.lg,
-            shadowColor: "#000000",
-            shadowOpacity: 0.08,
-            shadowRadius: 24,
-            shadowOffset: { width: 0, height: 10 },
-            elevation: 4,
-          }}
-        >
+        <View style={{ padding: 22, borderWidth: 1, borderColor: colors.border, borderRadius: 20, backgroundColor: colors.surface, gap: spacing.lg }}>
           <View style={{ gap: spacing.xs }}>
-            <Text
-              accessibilityRole="header"
-              style={{ ...type.title, color: colors.text }}
-            >
-              Welcome back
-            </Text>
-            <Text style={{ ...type.body, color: colors.textMuted }}>
-              Sign in with your organisation account.
-            </Text>
+            <Text style={{ color: colors.primary, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, textTransform: "uppercase" }}>Welcome back</Text>
+            <Text accessibilityRole="header" style={{ ...type.title, color: colors.text }}>Sign in to your ERP workspace</Text>
+            <Text style={{ ...type.body, color: colors.textMuted }}>Use your verified work account to continue.</Text>
           </View>
-
-          {error ? (
-            <View
-              accessibilityRole="alert"
-              style={{
-                flexDirection: "row",
-                gap: spacing.sm,
-                padding: spacing.md,
-                borderRadius: radii.md,
-                backgroundColor: colors.dangerSoft,
-              }}
-            >
-              <Ionicons
-                name="alert-circle-outline"
-                size={21}
-                color={colors.danger}
-              />
-              <Text style={{ ...type.caption, color: colors.danger, flex: 1 }}>
-                {error}
-              </Text>
-            </View>
-          ) : null}
-
-          <TextField
-            label="Work email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@company.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="username"
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-          />
-          <TextField
-            ref={passwordRef}
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter your password"
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="current-password"
-            textContentType="password"
-            returnKeyType="go"
-            onSubmitEditing={submit}
-            trailing={
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showPassword ? "Hide password" : "Show password"
-                }
-                hitSlop={8}
-                onPress={() => setShowPassword((value) => !value)}
-                style={{
-                  minWidth: minimumTouchTarget,
-                  minHeight: minimumTouchTarget,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={22}
-                  color={colors.textMuted}
-                />
-              </Pressable>
-            }
-          />
-          <Pressable
-            accessibilityRole="link"
-            onPress={() =>
-              Linking.openURL(`${appConfig.apiUrl}/forgot-password`)
-            }
-            style={{
-              minHeight: minimumTouchTarget,
-              alignSelf: "flex-end",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ ...type.label, color: colors.primary }}>
-              Forgot password?
-            </Text>
-          </Pressable>
-          <Button
-            label="Sign in securely"
-            loading={loading}
-            disabled={!email.trim() || !password}
-            onPress={submit}
-          />
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing.xs,
-            }}
-          >
-            <Ionicons
-              name="lock-closed-outline"
-              size={16}
-              color={colors.success}
-            />
-            <Text style={{ ...type.caption, color: colors.textMuted, flex: 1 }}>
-              Device-bound session with encrypted local storage.
-            </Text>
-          </View>
+          {error ? <View accessibilityRole="alert" style={{ flexDirection: "row", gap: spacing.sm, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.dangerSoft }}><Ionicons name="alert-circle-outline" size={21} color={colors.danger} /><Text style={{ ...type.caption, color: colors.danger, flex: 1 }}>{error}</Text></View> : null}
+          <TextField label="Work email" value={email} onChangeText={setEmail} placeholder="you@company.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="username" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          <TextField ref={passwordRef} label="Password" value={password} onChangeText={setPassword} placeholder="Enter your password" secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={submit} trailing={<Pressable accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"} hitSlop={8} onPress={() => setShowPassword((value) => !value)} style={{ minWidth: minimumTouchTarget, minHeight: minimumTouchTarget, alignItems: "center", justifyContent: "center" }}><Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={colors.textMuted} /></Pressable>} />
+          <Pressable accessibilityRole="link" onPress={() => Linking.openURL(`${appConfig.apiUrl}/forgot-password`)} style={{ minHeight: minimumTouchTarget, alignSelf: "flex-end", justifyContent: "center" }}><Text style={{ ...type.label, color: colors.primary }}>Forgot password?</Text></Pressable>
+          <Button label="Sign in securely" loading={loading} disabled={!email.trim() || !password} onPress={submit} />
+          <View style={{ paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}><Text style={{ ...type.body, textAlign: "center", color: colors.textMuted }}>New to Vercent ERP? <Text style={{ color: colors.primary, fontWeight: "700" }} onPress={() => Linking.openURL(`${appConfig.apiUrl}/signup`)}>Create an account</Text></Text></View>
         </View>
-        <Text
-          style={{
-            ...type.caption,
-            color: colors.textMuted,
-            textAlign: "center",
-            margin: spacing.xl,
-          }}
-        >
-          By continuing, you agree to your organisation&apos;s security and
-          acceptable-use policies.
-        </Text>
+        <Text style={{ ...type.caption, color: colors.textMuted, textAlign: "center", margin: spacing.xl }}>Protected by secure sessions, rate controls and auditable account events.</Text>
+        </View>
       </Screen>
     </KeyboardAvoidingView>
   );

@@ -74,7 +74,8 @@ export function createMobileClient({
   if (typeof fetchImpl !== "function")
     throw new TypeError("A fetch implementation is required.");
   if (!tokenStore) throw new TypeError("A mobile token store is required.");
-  const root = `${normalizeBaseUrl(baseUrl)}/api/mobile/v1`;
+  const apiRoot = `${normalizeBaseUrl(baseUrl)}/api`;
+  const root = `${apiRoot}/mobile/v1`;
   let refreshPromise = null;
 
   async function perform(path, init = {}, options = {}) {
@@ -96,7 +97,7 @@ export function createMobileClient({
     }
 
     try {
-      const response = await fetchImpl(`${root}${path}`, {
+      const response = await fetchImpl(`${options.api ? apiRoot : root}${path}`, {
         ...init,
         headers,
         signal: controller.signal,
@@ -199,6 +200,18 @@ export function createMobileClient({
     session() {
       return perform("/session");
     },
+    workspace() {
+      return perform("/workspace");
+    },
+    setWorkspaceContext(input) {
+      return perform("/workspace", {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      });
+    },
+    catalog() {
+      return perform("/catalog");
+    },
     health() {
       return perform(
         "/health",
@@ -210,8 +223,7 @@ export function createMobileClient({
       return perform("/crm/dashboard");
     },
     listCrm(resource, query = {}) {
-      const allowed = new Set(["leads", "opportunities", "activities", "pipeline-stages"]);
-      if (!allowed.has(resource)) throw new TypeError("Unknown mobile CRM resource.");
+      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
       const search = new URLSearchParams();
       for (const [key, value] of Object.entries(query)) {
         if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
@@ -219,18 +231,15 @@ export function createMobileClient({
       return perform(`/crm/${resource}${search.size ? `?${search}` : ""}`);
     },
     getCrm(resource, id) {
-      const allowed = new Set(["leads", "opportunities", "activities", "pipeline-stages"]);
-      if (!allowed.has(resource)) throw new TypeError("Unknown mobile CRM resource.");
+      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
       return perform(`/crm/${resource}/${encodeURIComponent(id)}`);
     },
     updateCrm(resource, id, input, idempotencyKey = requestIdFactory()) {
-      const allowed = new Set(["leads", "opportunities", "activities"]);
-      if (!allowed.has(resource)) throw new TypeError("Unknown writable mobile CRM resource.");
+      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
       return perform(`/crm/${resource}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }, { idempotencyKey });
     },
     createCrm(resource, input, idempotencyKey = requestIdFactory()) {
-      const allowed = new Set(["leads", "opportunities", "activities"]);
-      if (!allowed.has(resource)) throw new TypeError("Unknown writable mobile CRM resource.");
+      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
       return perform(`/crm/${resource}`, { method: "POST", body: JSON.stringify(input) }, { idempotencyKey });
     },
     completeActivity(id, outcome, idempotencyKey = requestIdFactory()) {
@@ -248,8 +257,31 @@ export function createMobileClient({
     markNotifications(input) {
       return perform("/notifications", { method: "PATCH", body: JSON.stringify(input) });
     },
+    listWorkspaceResource(area, resource, query = {}) {
+      const areas = new Set(["crm", "business-data", "settings"]);
+      if (!areas.has(area) || !/^[a-z0-9-]+$/.test(resource)) {
+        throw new TypeError("Unknown workspace resource.");
+      }
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+      }
+      return perform(`/${area}/${resource}${search.size ? `?${search}` : ""}`);
+    },
+    createWorkspaceResource(area, resource, input, idempotencyKey = requestIdFactory()) {
+      return perform(`/${area}/${resource}`, { method: "POST", body: JSON.stringify(input) }, { idempotencyKey });
+    },
+    updateWorkspaceResource(area, resource, id, input, idempotencyKey = requestIdFactory()) {
+      return perform(`/${area}/${resource}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }, { idempotencyKey });
+    },
+    archiveWorkspaceResource(area, resource, id, idempotencyKey = requestIdFactory()) {
+      return perform(`/${area}/${resource}/${encodeURIComponent(id)}`, { method: "DELETE" }, { idempotencyKey });
+    },
     request(path, init, options) {
       return perform(path, init, options);
+    },
+    apiRequest(path, init, options) {
+      return perform(path, init, { ...options, api: true });
     },
   });
 }

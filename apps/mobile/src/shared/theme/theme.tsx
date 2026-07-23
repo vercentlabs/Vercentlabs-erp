@@ -4,8 +4,6 @@ import {
   useMemo,
   type PropsWithChildren,
 } from "react";
-import { useColorScheme } from "react-native";
-
 import { palette, radii, spacing, typeScale } from "./tokens";
 
 const lightColors = {
@@ -30,21 +28,6 @@ const lightColors = {
   dangerSoft: palette.danger50,
 };
 
-const darkColors = {
-  ...lightColors,
-  canvas: palette.navy950,
-  surface: palette.navy900,
-  surfaceRaised: palette.navy800,
-  text: palette.white,
-  textSecondary: palette.slate300,
-  textMuted: "#98A2B3",
-  border: "#293449",
-  primary: "#818CF8",
-  primaryPressed: "#A5B4FC",
-  primarySoft: "#202453",
-  navigation: "#050A12",
-};
-
 type ThemeColors = { [Key in keyof typeof lightColors]: string };
 
 export type VercentTheme = {
@@ -58,16 +41,17 @@ export type VercentTheme = {
 const ThemeContext = createContext<VercentTheme | null>(null);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-  const scheme = useColorScheme();
   const value = useMemo<VercentTheme>(
     () => ({
-      dark: scheme === "dark",
-      colors: scheme === "dark" ? darkColors : lightColors,
+      // apps/web explicitly uses color-scheme: light. Keep the native shell on
+      // the same palette so screenshots and learned visual cues stay aligned.
+      dark: false,
+      colors: lightColors,
       spacing,
       radii,
       type: typeScale,
     }),
-    [scheme],
+    [],
   );
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

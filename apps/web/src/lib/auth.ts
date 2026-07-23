@@ -7,7 +7,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextResponse } from "next/server";
 
@@ -441,6 +441,10 @@ async function resolveSessionContext(
 }
 
 export async function getSessionContext(): Promise<SessionContext | null> {
+  const requestHeaders = await headers();
+  const authorization = requestHeaders.get("authorization") || "";
+  const bearer = authorization.match(/^Bearer ([A-Za-z0-9_-]{40,200})$/)?.[1];
+  if (bearer) return resolveSessionContext(bearer, "mobile");
   const store = await cookies();
   const token = store.get(cookieName)?.value;
   return token ? resolveSessionContext(token, "browser") : null;
