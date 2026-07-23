@@ -2,7 +2,7 @@ import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 import { userAccessSchema } from "@/lib/validation";
 
 export async function PATCH(
@@ -10,7 +10,7 @@ export async function PATCH(
   context: { params: Promise<{ userId: string }> },
 ) {
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");

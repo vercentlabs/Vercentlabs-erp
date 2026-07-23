@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   runtimeVersion: { policy: "appVersion" },
   orientation: "default",
   icon: "./assets/app-icon.png",
-  userInterfaceStyle: "automatic",
+  userInterfaceStyle: "light",
   scheme: "vercent",
   platforms: ["ios", "android"],
   ios: {
@@ -18,6 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       NSFaceIDUsageDescription:
         "Use Face ID to unlock your secure Vercent ERP workspace.",
+      LSApplicationQueriesSchemes: ["tez", "phonepe", "paytmmp"],
     },
   },
   android: {
@@ -29,16 +30,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: true,
     permissions: ["USE_BIOMETRIC"],
   },
+  androidStatusBar: {
+    backgroundColor: "#FFFFFF",
+    barStyle: "dark-content",
+  },
   plugins: [
     "expo-router",
     [
       "expo-secure-store",
       {
-        configureAndroidBackup: true,
+        configureAndroidBackup: false,
         faceIDPermission:
           "Use Face ID to unlock your secure Vercent ERP workspace.",
       },
     ],
+    "./plugins/with-android-stl-compat",
+    "./plugins/with-disable-android-backup",
     ["expo-sqlite", { useSQLCipher: true, enableFTS: true }],
     "./plugins/with-openssl-android",
     [
@@ -51,7 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        backgroundColor: "#0B1220",
+        backgroundColor: "#F4F6FA",
         image: "./assets/splash-icon.png",
         imageWidth: 160,
       },

@@ -8,14 +8,14 @@ import { checkoutSchema } from "@/lib/billing-validation";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { razorpayConfiguration, razorpayRequest } from "@/lib/razorpay";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 type RazorpaySubscription = { id: string; status: string; short_url?: string };
 
 export async function POST(request: Request) {
   let checkoutSessionId: string | null = null;
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");

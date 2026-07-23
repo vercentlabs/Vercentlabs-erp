@@ -18,13 +18,13 @@ export function Screen({
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
-          { padding: spacing.lg, paddingBottom: spacing.hero, flexGrow: 1 },
+          { padding: spacing.md, paddingBottom: spacing.hero, flexGrow: 1 },
           contentContainerStyle,
         ]}
         {...props}
       >
         <View
-          style={{ width: "100%", maxWidth: 720, alignSelf: "center", flex: 1 }}
+          style={{ width: "100%", maxWidth: 1520, alignSelf: "center", flex: 1 }}
         >
           {children}
         </View>

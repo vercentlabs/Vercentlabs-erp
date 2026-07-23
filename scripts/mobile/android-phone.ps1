@@ -1,7 +1,7 @@
 param(
   [string]$Serial = $env:ANDROID_SERIAL,
   [string]$ApiUrl = "http://127.0.0.1:3001",
-  [string]$WebAppUrl = "http://127.0.0.1:3000",
+  [string]$WebAppUrl = "http://127.0.0.1:3001",
   [switch]$SkipBuild
 )
 
@@ -75,9 +75,9 @@ try {
   throw "The API is not healthy at http://localhost:3001/api/health. Start it before running this command."
 }
 try {
-  Invoke-WebRequest -Uri "http://localhost:3000/login" -UseBasicParsing -TimeoutSec 5 | Out-Null
+  Invoke-WebRequest -Uri "$WebAppUrl/login" -UseBasicParsing -TimeoutSec 5 | Out-Null
 } catch {
-  throw "The web app is not reachable at http://localhost:3000. Start it before running this command."
+  throw "The authenticated web app is not reachable at $WebAppUrl. Start it before running this command."
 }
 
 Push-Location $repoRoot
@@ -115,19 +115,28 @@ try {
   & $adb -s $Serial install -r $apk
   if ($LASTEXITCODE -ne 0) { throw "APK installation failed." }
 
-  $metroRunning = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
-  if (-not $metroRunning) {
-    $logDir = Join-Path $repoRoot "tmp\mobile-run"
-    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-    Start-Process -FilePath "corepack.cmd" -ArgumentList @("pnpm", "dev:mobile") -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "metro.out.log") -RedirectStandardError (Join-Path $logDir "metro.err.log")
-
-    $deadline = (Get-Date).AddSeconds(45)
-    do {
-      Start-Sleep -Milliseconds 500
-      $metroRunning = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
-    } until ($metroRunning -or (Get-Date) -gt $deadline)
-    if (-not $metroRunning) { throw "Metro did not start within 45 seconds; inspect tmp\mobile-run." }
+  # A listener left by an older clone can serve a valid but stale JavaScript
+  # bundle. Always replace it with Metro rooted in this exact source tree and
+  # reset Metro's transform cache before launching the phone app.
+  $metroListeners = @(Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue)
+  foreach ($processId in @($metroListeners | Select-Object -ExpandProperty OwningProcess -Unique)) {
+    if ($processId) {
+      Stop-Process -Id $processId -Force -ErrorAction Stop
+      Wait-Process -Id $processId -Timeout 10 -ErrorAction SilentlyContinue
+    }
   }
+
+  $logDir = Join-Path $repoRoot "tmp\mobile-run"
+  New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+  Remove-Item (Join-Path $logDir "metro.out.log"), (Join-Path $logDir "metro.err.log") -Force -ErrorAction SilentlyContinue
+  Start-Process -FilePath "corepack.cmd" -ArgumentList @("pnpm", "--filter", "@vercent/mobile", "exec", "expo", "start", "--dev-client", "--clear", "--port", "8081") -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "metro.out.log") -RedirectStandardError (Join-Path $logDir "metro.err.log")
+
+  $deadline = (Get-Date).AddSeconds(60)
+  do {
+    Start-Sleep -Milliseconds 500
+    $metroRunning = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
+  } until ($metroRunning -or (Get-Date) -gt $deadline)
+  if (-not $metroRunning) { throw "Fresh Metro did not start within 60 seconds; inspect tmp\mobile-run." }
 
   & $adb -s $Serial shell am force-stop com.vercentlabs.erp
   & $adb -s $Serial shell am start -n com.vercentlabs.erp/.MainActivity
@@ -136,7 +145,7 @@ try {
   Write-Host "Android app installed and launched on $Serial."
   Write-Host "APK: $apk"
   Write-Host "API: $ApiUrl (ADB reverse tcp:3001)"
-  Write-Host "Web workspace: $WebAppUrl (ADB reverse tcp:3000)"
+  Write-Host "Web workspace: $WebAppUrl (ADB reverse tcp:3001)"
   Write-Host "Metro: ADB reverse tcp:8081"
 } finally {
   Pop-Location

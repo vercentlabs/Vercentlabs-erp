@@ -3,8 +3,17 @@ import * as SecureStore from "expo-secure-store";
 import * as SQLite from "expo-sqlite";
 
 const keyName = "vercent.mobile.database-key.v1";
+const databaseName = "vercent-mobile.db";
+const recoveryIdentityName = "vercent.mobile.database-recovery.v1";
+const recoveredDatabaseNamePattern = /^vercent-mobile-[a-f0-9]{16}\.db$/;
+const databaseKeyPattern = /^[a-f0-9]{64}$/;
 const workspaceOwnerScope = "workspace-owner";
 let databasePromise: ReturnType<typeof SQLite.openDatabaseAsync> | null = null;
+type DatabaseIdentity = {
+  databaseName: string;
+  key: string;
+};
+
 
 function toHex(bytes: Uint8Array) {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join(
@@ -22,46 +31,109 @@ async function databaseKey() {
   return created;
 }
 
+
+async function databaseIdentity(): Promise<DatabaseIdentity> {
+  const stored = await SecureStore.getItemAsync(recoveryIdentityName);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as Partial<DatabaseIdentity>;
+      if (
+        typeof parsed.databaseName === "string" &&
+        recoveredDatabaseNamePattern.test(parsed.databaseName) &&
+        typeof parsed.key === "string" &&
+        databaseKeyPattern.test(parsed.key)
+      ) {
+        return parsed as DatabaseIdentity;
+      }
+    } catch {
+      // Fall back to the original database identity below.
+    }
+  }
+  return { databaseName, key: await databaseKey() };
+}
+
+async function rotateDatabaseIdentity(): Promise<DatabaseIdentity> {
+  const identity: DatabaseIdentity = {
+    databaseName: `vercent-mobile-${toHex(await Crypto.getRandomBytesAsync(8))}.db`,
+    key: toHex(await Crypto.getRandomBytesAsync(32)),
+  };
+  await SecureStore.setItemAsync(recoveryIdentityName, JSON.stringify(identity), {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
+  return identity;
+}
+function isUnreadableEncryptedDatabase(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /file is not a database|SQLITE_NOTADB|error code\s*:\s*26/i.test(
+    message,
+  );
+}
+
+async function openEncryptedDatabase(identity: DatabaseIdentity) {
+  const database = await SQLite.openDatabaseAsync(identity.databaseName);
+  try {
+    await database.execAsync(`PRAGMA key = '${identity.key}';`);
+
+    // SQLCipher may not validate a legacy database until the first prepared
+    // statement. Probe it before returning a connection to callers.
+    await database.getFirstAsync<{ count: number }>(
+      "SELECT count(*) AS count FROM sqlite_master",
+    );
+
+    await database.execAsync(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA foreign_keys = ON;
+      PRAGMA cipher_memory_security = ON;
+      CREATE TABLE IF NOT EXISTS cache_entries (
+        cache_key TEXT PRIMARY KEY,
+        resource TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        server_updated_at TEXT,
+        cached_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS cache_entries_resource_idx
+        ON cache_entries(resource, cached_at DESC);
+      CREATE TABLE IF NOT EXISTS mutation_queue (
+        id TEXT PRIMARY KEY,
+        operation TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        record_id TEXT,
+        payload TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        state TEXT NOT NULL CHECK (state IN ('pending','sending','failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS sync_state (
+        scope TEXT PRIMARY KEY,
+        cursor TEXT,
+        synced_at INTEGER,
+        metadata TEXT
+      );
+    `);
+    return database;
+  } catch (error) {
+    await database.closeAsync().catch(() => undefined);
+    throw error;
+  }
+}
+
 export async function initializeDatabase() {
   if (!databasePromise) {
     databasePromise = (async () => {
-      const database = await SQLite.openDatabaseAsync("vercent-mobile.db");
-      const key = await databaseKey();
-      await database.execAsync(`PRAGMA key = '${key}';`);
-      await database.execAsync(`
-        PRAGMA journal_mode = WAL;
-        PRAGMA foreign_keys = ON;
-        PRAGMA cipher_memory_security = ON;
-        CREATE TABLE IF NOT EXISTS cache_entries (
-          cache_key TEXT PRIMARY KEY,
-          resource TEXT NOT NULL,
-          payload TEXT NOT NULL,
-          server_updated_at TEXT,
-          cached_at INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS cache_entries_resource_idx
-          ON cache_entries(resource, cached_at DESC);
-        CREATE TABLE IF NOT EXISTS mutation_queue (
-          id TEXT PRIMARY KEY,
-          operation TEXT NOT NULL,
-          resource TEXT NOT NULL,
-          record_id TEXT,
-          payload TEXT NOT NULL,
-          idempotency_key TEXT NOT NULL UNIQUE,
-          state TEXT NOT NULL CHECK (state IN ('pending','sending','failed')),
-          attempts INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS sync_state (
-          scope TEXT PRIMARY KEY,
-          cursor TEXT,
-          synced_at INTEGER,
-          metadata TEXT
-        );
-      `);
-      return database;
+      try {
+        const identity = await databaseIdentity();
+        return await openEncryptedDatabase(identity);
+      } catch (error) {
+        if (!isUnreadableEncryptedDatabase(error)) throw error;
+
+        // An unreadable encrypted cache cannot be recovered. Use a fresh path
+        // because Expo may retain the old native handle during Fast Refresh.
+        const identity = await rotateDatabaseIdentity();
+        return openEncryptedDatabase(identity);
+      }
     })().catch((error) => {
       databasePromise = null;
       throw error;
@@ -82,18 +154,20 @@ export async function purgeOfflineWorkspace() {
 export async function bindOfflineWorkspace(owner: string) {
   if (!owner.trim()) throw new Error("An offline workspace owner is required.");
   const database = await initializeDatabase();
-  await database.withExclusiveTransactionAsync(async (transaction) => {
-    const current = await transaction.getFirstAsync<{ metadata: string | null }>(
+  // SQLCipher keys are connection-local. Expo's exclusive transaction API
+  // creates a separate native connection that has not received PRAGMA key.
+  await database.withTransactionAsync(async () => {
+    const current = await database.getFirstAsync<{ metadata: string | null }>(
       "SELECT metadata FROM sync_state WHERE scope = ?",
       workspaceOwnerScope,
     );
     if (current?.metadata === owner) return;
-    await transaction.execAsync(`
+    await database.execAsync(`
       DELETE FROM cache_entries;
       DELETE FROM mutation_queue;
       DELETE FROM sync_state;
     `);
-    await transaction.runAsync(
+    await database.runAsync(
       `INSERT INTO sync_state(scope, synced_at, metadata)
        VALUES (?, ?, ?)`,
       workspaceOwnerScope,

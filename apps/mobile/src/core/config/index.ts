@@ -35,8 +35,8 @@ function webOrigin() {
   }
   if (__DEV__) {
     return Platform.OS === "android"
-      ? "http://10.0.2.2:3000"
-      : "http://localhost:3000";
+      ? "http://10.0.2.2:3001"
+      : "http://localhost:3001";
   }
   throw new Error("EXPO_PUBLIC_WEB_APP_URL is required for production builds.");
 }

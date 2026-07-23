@@ -1,9 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, Tabs } from "expo-router";
-
-import { useAuth } from "@/core/auth/auth-provider";
+import { Tabs } from "expo-router";
 import { useTheme } from "@/shared/theme/theme";
-import { LoadingScreen } from "@/shared/components/loading-screen";
 
 const icons = {
   index: ["home", "home-outline"],
@@ -15,10 +12,7 @@ const icons = {
 } as const;
 
 export default function AppLayout() {
-  const auth = useAuth();
   const { colors, type } = useTheme();
-  if (auth.status === "booting") return <LoadingScreen />;
-  if (auth.status === "signed-out") return <Redirect href="/(auth)/login" />;
   return (
     <Tabs
       initialRouteName="index"
@@ -27,11 +21,7 @@ export default function AppLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          minHeight: 72,
-          paddingTop: 8,
-          paddingBottom: 10,
+          display: "none",
         },
         tabBarLabelStyle: { ...type.caption, fontSize: 12 },
         tabBarIcon: ({ color, focused, size }) => {

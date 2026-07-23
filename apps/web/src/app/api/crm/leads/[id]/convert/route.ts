@@ -10,13 +10,13 @@ import { convertLeadSchema } from "@/lib/crm-validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 export async function POST(
   request: Request,
   route: { params: Promise<{ id: string }> },
 ) {
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);

@@ -17,16 +17,14 @@ export default function MoreScreen() {
   const renderDestination = (item: WorkspaceDestination) => (
     <Pressable
       key={item.key}
-      accessibilityRole={item.href ? "button" : undefined}
-      accessibilityLabel={`${item.label}${item.availability === "web-required" ? ", available on web" : ""}`}
-      disabled={!item.href}
-      onPress={() => item.href && router.push(item.href)}
+      accessibilityRole="button"
+      accessibilityLabel={item.label}
+      onPress={() => router.push(item.href)}
       style={{ minHeight: 56, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}
     >
-      <Ionicons name={item.icon} size={22} color={item.href ? colors.primary : colors.textMuted} />
-      <Text style={{ ...type.label, color: item.href ? colors.text : colors.textMuted, flex: 1 }}>{item.label}</Text>
-      {item.availability === "web-required" ? <Text style={{ ...type.caption, color: colors.textMuted }}>Web</Text> : null}
-      <Ionicons name={item.href ? "chevron-forward" : "lock-closed-outline"} size={17} color={colors.textMuted} />
+      <Ionicons name={item.icon} size={22} color={colors.primary} />
+      <Text style={{ ...type.label, color: colors.text, flex: 1 }}>{item.label}</Text>
+      <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />
     </Pressable>
   );
   return (
@@ -107,7 +105,7 @@ export default function MoreScreen() {
       {visibleDestinations(administrationNavigation, permissions).length ? <>
         <View style={{ height: spacing.xl }} />
         <View style={{ borderRadius: radii.xl, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ padding: spacing.lg }}><Text style={{ ...type.heading, color: colors.text }}>Administration</Text><Text style={{ ...type.caption, color: colors.textMuted }}>Sensitive setup stays on web until mobile-safe APIs are released</Text></View>
+          <View style={{ padding: spacing.lg }}><Text style={{ ...type.heading, color: colors.text }}>Administration</Text><Text style={{ ...type.caption, color: colors.textMuted }}>Native, permission-scoped workspace administration</Text></View>
           {visibleDestinations(administrationNavigation, permissions).map(renderDestination)}
         </View>
       </> : null}

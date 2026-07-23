@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/authorization";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { moduleCatalog } from "@/lib/platform";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 import { moduleStatusSchema } from "@/lib/validation";
 
 export async function PATCH(
@@ -15,7 +15,7 @@ export async function PATCH(
   context: { params: Promise<{ key: string }> },
 ) {
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await requirePermission("modules.manage");
     const { key } = await context.params;
     const moduleEntry = moduleCatalog.find((module) => module.key === key);

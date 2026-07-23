@@ -76,6 +76,31 @@ test("mobile sessions and offline data have one security boundary", () => {
   assert.match(cacheHook, /cached\?\.key === key/);
 });
 
+test("Android cannot restore encrypted SQLite without its device key", () => {
+  const config = read("app.config.ts");
+  const plugin = read("plugins/with-disable-android-backup.js");
+  const database = read("src/core/database/database.ts");
+
+  assert.match(config, /configureAndroidBackup: false/);
+  assert.match(config, /with-disable-android-backup/);
+  assert.match(plugin, /android:allowBackup.*=.*"false"/);
+  assert.match(plugin, /delete application\.\$\["android:fullBackupContent"\]/);
+  assert.match(plugin, /delete application\.\$\["android:dataExtractionRules"\]/);
+  assert.match(database, /rotateDatabaseIdentity/);
+  assert.match(database, /withTransactionAsync/);
+  assert.doesNotMatch(database, /withExclusiveTransactionAsync/);
+});
+
+test("Android native modules link the shared C++ runtime", () => {
+  const config = read("app.config.ts");
+  const plugin = read("plugins/with-android-stl-compat.js");
+
+  assert.match(config, /with-android-stl-compat/);
+  assert.match(plugin, /CMAKE_ANDROID_STL_TYPE=c\+\+_shared/);
+  assert.match(plugin, /CMAKE_CXX_STANDARD_LIBRARIES.*-lc\+\+_shared/);
+  assert.match(plugin, /expo-modules-core.*expo-sqlite.*react-native-screens.*react-native-gesture-handler.*react-native-reanimated.*react-native-worklets/s);
+});
+
 test("application source does not import removed legacy aliases", () => {
   const forbidden = /from\s+["']@\/(?:api|auth|data|features|providers|security|theme|ui)(?:\/|["'])/;
   const visit = (directory) => {

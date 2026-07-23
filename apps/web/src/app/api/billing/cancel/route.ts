@@ -4,11 +4,11 @@ import { cancelSubscriptionSchema } from "@/lib/billing-validation";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { razorpayRequest } from "@/lib/razorpay";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");

@@ -28,6 +28,8 @@ type AuthState =
 type AuthContextValue = AuthState & {
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  refreshSession(): Promise<void>;
+  applySession(session: MobileSession): Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -82,9 +84,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const applySession = useCallback(async (session: MobileSession) => {
+    await bindOfflineWorkspace(workspaceOwner(session));
+    setState({ status: "signed-in", session });
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const { session } = await mobileApi.session();
+    await applySession(session);
+  }, [applySession]);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, signIn, signOut }),
-    [state, signIn, signOut],
+    () => ({ ...state, signIn, signOut, refreshSession, applySession }),
+    [state, signIn, signOut, refreshSession, applySession],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
