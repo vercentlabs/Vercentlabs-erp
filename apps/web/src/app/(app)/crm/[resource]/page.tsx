@@ -20,10 +20,12 @@ export async function generateMetadata({
 }
 export default async function CrmResourcePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ resource: string }>;
+  searchParams: Promise<{ create?: string }>;
 }) {
-  const { resource } = await params;
+  const [{ resource }, query] = await Promise.all([params, searchParams]);
   if (
     !isCrmDefinition(resource) ||
     ["pipeline", "reports", "settings"].includes(resource)
@@ -64,6 +66,7 @@ export default async function CrmResourcePage({
         rows={JSON.parse(JSON.stringify(result.records.rows))}
         options={JSON.parse(JSON.stringify(result.options))}
         canManage={hasPermission(session, definition.permission)}
+        startCreating={query.create === "1"}
         canImport={hasPermission(session, PERMISSIONS.crmImport)}
         canExport={hasPermission(session, PERMISSIONS.crmExport)}
       />

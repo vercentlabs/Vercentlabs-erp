@@ -17,7 +17,7 @@ type NavigationItem = {
 
 const primaryNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/crm", label: "CRM", icon: "crm", permission: PERMISSIONS.crmView },
+  { href: "/crm", label: "CRM overview", icon: "crm", permission: PERMISSIONS.crmView },
   {
     href: "/master-data",
     label: "Master data",
@@ -37,6 +37,40 @@ const primaryNavigation: NavigationItem[] = [
     label: "Audit logs",
     icon: "audit",
     permission: PERMISSIONS.auditView,
+  },
+];
+
+const crmNavigation: NavigationItem[] = [
+  { href: "/crm/leads", label: "Leads", icon: "crm", permission: PERMISSIONS.crmView },
+  {
+    href: "/crm/opportunities",
+    label: "Opportunities",
+    icon: "crm",
+    permission: PERMISSIONS.crmView,
+  },
+  {
+    href: "/crm/activities",
+    label: "Activities",
+    icon: "crm",
+    permission: PERMISSIONS.crmView,
+  },
+  {
+    href: "/crm/pipeline",
+    label: "Pipeline",
+    icon: "crm",
+    permission: PERMISSIONS.crmView,
+  },
+  {
+    href: "/crm/reports",
+    label: "Reports",
+    icon: "crm",
+    permission: PERMISSIONS.crmReportsView,
+  },
+  {
+    href: "/crm/settings",
+    label: "CRM settings",
+    icon: "crm",
+    permission: PERMISSIONS.crmSettingsManage,
   },
 ];
 
@@ -123,6 +157,9 @@ export default function AppShell({
   const visiblePrimary = primaryNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
+  const visibleCrm = crmNavigation.filter(
+    (item) => !item.permission || hasPermission(session, item.permission),
+  );
   const visibleSettings = settingsNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
@@ -194,6 +231,20 @@ export default function AppShell({
             />
           ))}
 
+          {visibleCrm.length ? (
+            <>
+              <p className="nav-label">CRM</p>
+              {visibleCrm.map((item) => (
+                <NavigationLink
+                  href={item.href}
+                  icon={item.icon}
+                  key={item.href}
+                  label={item.label}
+                />
+              ))}
+            </>
+          ) : null}
+
           {visibleSettings.length ? (
             <>
               <p className="nav-label">Administration</p>
@@ -259,6 +310,20 @@ export default function AppShell({
                   mobile
                 />
               ))}
+              {visibleCrm.length ? (
+                <>
+                  <p className="nav-label">CRM</p>
+                  {visibleCrm.map((item) => (
+                    <NavigationLink
+                      href={item.href}
+                      icon={item.icon}
+                      key={item.href}
+                      label={item.label}
+                      mobile
+                    />
+                  ))}
+                </>
+              ) : null}
               {visibleSettings.length ? (
                 <>
                   <p className="nav-label">Administration</p>

@@ -30,15 +30,8 @@
     "crm:outbox": "node scripts/deliver-crm-outbox.mjs"
   },
   "dependencies": {
-    "@vercent/config": "workspace:*",
-    "dotenv": "^17.2.3",
-    "next": "16.2.10",
-    "nodemailer": "^9.0.3",
-    "pg": "^8.16.3",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "zod": "^4.1.12",
     "@vercent/api": "workspace:*",
+    "@vercent/config": "workspace:*",
     "@vercent/database": "workspace:*",
     "@vercent/document-engine": "workspace:*",
     "@vercent/localization": "workspace:*",
@@ -47,7 +40,14 @@
     "@vercent/reporting-engine": "workspace:*",
     "@vercent/shared-types": "workspace:*",
     "@vercent/shared-ui": "workspace:*",
-    "@vercent/workflows": "workspace:*"
+    "@vercent/workflows": "workspace:*",
+    "dotenv": "^17.2.3",
+    "next": "16.2.11",
+    "nodemailer": "^9.0.3",
+    "pg": "^8.16.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -56,7 +56,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.11",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3"
   }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCrmOptions, listCrmRecords } from "@vercent/api";
 import CrmPipelineBoard from "@/components/crm-pipeline-board";
@@ -32,7 +33,16 @@ export default async function PipelinePage() {
             forecasts and stage history remain synchronized.
           </p>
         </div>
-        <span className="status-badge neutral">Kanban and table views</span>
+        <div className="heading-actions">
+          {hasPermission(session, PERMISSIONS.crmOpportunitiesManage) ? (
+            <Link className="primary-button" href="/crm/opportunities?create=1">
+              Create opportunity
+            </Link>
+          ) : null}
+          <Link className="secondary-button" href="/crm/opportunities">
+            View opportunity table
+          </Link>
+        </div>
       </section>
       <CrmPipelineBoard
         stages={JSON.parse(JSON.stringify(data.options.stages))}

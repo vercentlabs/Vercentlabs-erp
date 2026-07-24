@@ -49,6 +49,7 @@ export default function CrmResourceManager({
   rows,
   options,
   canManage,
+  startCreating = false,
   canImport,
   canExport,
 }: {
@@ -56,12 +57,15 @@ export default function CrmResourceManager({
   rows: Row[];
   options: Record<string, Option[]>;
   canManage: boolean;
+  startCreating?: boolean;
   canImport: boolean;
   canExport: boolean;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [editing, setEditing] = useState<Row | null>(null);
+  const [editing, setEditing] = useState<Row | null>(() =>
+    startCreating && canManage ? {} : null,
+  );
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [pending, setPending] = useState(false);
@@ -341,7 +345,20 @@ export default function CrmResourceManager({
                   <td colSpan={definition.columns.length + 1}>
                     <div className="empty-state">
                       <strong>No matching records</strong>
-                      <p>Create the first record or adjust the filters.</p>
+                      <p>
+                        {search || status !== "all"
+                          ? "Adjust the filters to find a record."
+                          : `Create the first ${definition.singular} to begin this workflow.`}
+                      </p>
+                      {canManage && !search && status === "all" ? (
+                        <button
+                          className="primary-button"
+                          type="button"
+                          onClick={() => setEditing({})}
+                        >
+                          Add {definition.singular}
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

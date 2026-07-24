@@ -34,12 +34,18 @@ export default async function CrmDashboardPage() {
             campaigns and preserve the complete customer journey.
           </p>
         </div>
-        <div className="heading-actions">
+        <div className="heading-actions" aria-label="CRM quick actions">
+          <Link className="primary-button" href="/crm/leads?create=1">
+            Create lead
+          </Link>
+          <Link className="secondary-button" href="/crm/opportunities?create=1">
+            Create opportunity
+          </Link>
+          <Link className="secondary-button" href="/crm/activities?create=1">
+            Create activity
+          </Link>
           <Link className="secondary-button" href="/crm/pipeline">
             Open pipeline
-          </Link>
-          <Link className="primary-button" href="/crm/leads">
-            Create lead
           </Link>
         </div>
       </section>
@@ -58,14 +64,31 @@ export default async function CrmDashboardPage() {
             "conversion",
           ],
         ].map(([label, value, hint]) => (
-          <article className="metric-card" key={String(label)}>
+          <Link
+            className="metric-card"
+            href={
+              hint === "leads" || hint === "qualified"
+                ? "/crm/leads"
+                : hint === "opportunities"
+                  ? "/crm/opportunities"
+                  : hint === "pipeline" || hint === "forecast"
+                    ? "/crm/pipeline"
+                    : hint === "overdue" || hint === "today"
+                      ? "/crm/activities"
+                      : "/crm/reports"
+            }
+            key={String(label)}
+            aria-label={`Open ${String(label)}`}
+          >
             <span className="metric-icon">
               <AppIcon name="crm" size={20} />
             </span>
             <p>{String(label)}</p>
             <strong>{String(value ?? 0)}</strong>
-            <small>{String(hint)}</small>
-          </article>
+            <small>
+              {String(hint)} <span aria-hidden="true">→</span>
+            </small>
+          </Link>
         ))}
       </section>
       <div className="crm-dashboard-grid">
@@ -147,7 +170,12 @@ export default async function CrmDashboardPage() {
           {!dashboard.activities.length ? (
             <div className="empty-state">
               <strong>No pending activities</strong>
-              <p>Create a follow-up from the activities workspace.</p>
+              <p>
+                Create a task, call, meeting or follow-up for the next customer action.
+              </p>
+              <Link className="primary-button" href="/crm/activities?create=1">
+                Create activity
+              </Link>
             </div>
           ) : null}
         </div>
