@@ -77,6 +77,7 @@ export function createMobileClient({
   const apiRoot = `${normalizeBaseUrl(baseUrl)}/api`;
   const root = `${apiRoot}/mobile/v1`;
   let refreshPromise = null;
+  let authenticationFailureHandler = null;
 
   async function perform(path, init = {}, options = {}) {
     const controller = new AbortController();
@@ -116,7 +117,20 @@ export function createMobileClient({
       }
       return await parseResponse(response);
     } catch (error) {
-      if (error instanceof VercentApiError) throw error;
+      if (error instanceof VercentApiError) {
+        if (
+          error.status === 401 &&
+          options.authenticated !== false
+        ) {
+          await tokenStore.clear();
+          try {
+            await authenticationFailureHandler?.(error);
+          } catch {
+            // Authentication cleanup must never mask the original API error.
+          }
+        }
+        throw error;
+      }
       if (error?.name === "AbortError") {
         throw new VercentApiError(
           "The request timed out. Check your connection and try again.",
@@ -175,6 +189,15 @@ export function createMobileClient({
   }
 
   return Object.freeze({
+    setAuthenticationFailureHandler(handler) {
+      authenticationFailureHandler =
+        typeof handler === "function" ? handler : null;
+      return () => {
+        if (authenticationFailureHandler === handler) {
+          authenticationFailureHandler = null;
+        }
+      };
+    },
     async login(input) {
       const payload = await perform(
         "/auth/login",
@@ -205,6 +228,12 @@ export function createMobileClient({
     },
     setWorkspaceContext(input) {
       return perform("/workspace", {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      });
+    },
+    setWorkspaceOrganization(input) {
+      return perform("/workspace/organization", {
         method: "PATCH",
         body: JSON.stringify(input),
       });

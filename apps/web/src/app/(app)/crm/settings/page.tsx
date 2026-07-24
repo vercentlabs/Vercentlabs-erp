@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+
 import AppIcon from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
@@ -87,6 +89,17 @@ const groups = {
 } satisfies Record<string, ReadonlyArray<readonly [string, CrmResourceKey]>>;
 export default async function CrmSettingsPage() {
   const session = await requireWorkspace();
+  const visibleGroups = Object.entries(groups)
+    .map(
+      ([group, items]) =>
+        [
+          group,
+          items.filter(([, key]) => canViewCrmResource(session, key)),
+        ] as const,
+    )
+    .filter(([, items]) => items.length);
+  if (!visibleGroups.length) notFound();
+
   const canManage = [
     PERMISSIONS.crmSettingsManage,
     PERMISSIONS.crmAutomationManage,
@@ -117,11 +130,7 @@ export default async function CrmSettingsPage() {
           {canManage ? "Manage settings" : "Read only"}
         </span>
       </section>
-      {Object.entries(groups).map(([group, items]) => {
-        const visibleItems = items.filter(([, key]) =>
-          canViewCrmResource(session, key),
-        );
-        if (!visibleItems.length) return null;
+      {visibleGroups.map(([group, visibleItems]) => {
         return (
           <section className="settings-section" key={group}>
             <div className="section-title-row compact-heading">

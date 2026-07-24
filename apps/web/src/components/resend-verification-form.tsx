@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from "react";
 
+import { requestJson } from "@/lib/client-request";
+
 export default function ResendVerificationForm({
   defaultEmail = "",
 }: {
@@ -17,23 +19,17 @@ export default function ResendVerificationForm({
     setMessage("");
     setDevelopmentUrl("");
     const email = String(new FormData(event.currentTarget).get("email") || "");
-    try {
-      const response = await fetch("/api/auth/resend-verification", {
+    const result = await requestJson<{ developmentUrl?: string }>(
+      "/api/auth/resend-verification",
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
-      });
-      const result = (await response.json()) as {
-        message?: string;
-        developmentUrl?: string;
-      };
-      setMessage(result.message || "Request completed.");
-      setDevelopmentUrl(result.developmentUrl || "");
-    } catch {
-      setMessage("The server could not be reached.");
-    } finally {
-      setPending(false);
-    }
+      },
+    );
+    setMessage(result.message || "Request completed.");
+    setDevelopmentUrl(result.developmentUrl || "");
+    setPending(false);
   }
 
   return (

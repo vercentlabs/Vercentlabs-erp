@@ -113,6 +113,7 @@ export default function AppShell({
 }: {
   session: SessionContext;
   shellData: {
+    organizations: Array<{ id: string; name: string }>;
     companies: Array<{ id: string; name: string }>;
     branches: Array<{ id: string; company_id: string; name: string }>;
     unreadNotifications: number;
@@ -295,8 +296,15 @@ export default function AppShell({
           </form>
 
           <ContextSwitcher
+            key={[
+              session.organizationId,
+              session.activeCompanyId,
+              session.activeBranchId,
+            ].join(":")}
+            activeOrganizationId={session.organizationId as string}
             activeBranchId={session.activeBranchId}
             activeCompanyId={session.activeCompanyId}
+            organizations={shellData.organizations}
             branches={shellData.branches}
             companies={shellData.companies}
           />

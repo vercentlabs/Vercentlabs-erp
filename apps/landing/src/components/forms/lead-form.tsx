@@ -51,13 +51,17 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       message: "Submitting your request…",
     });
 
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 20_000);
+
     try {
       const response = await fetch(isSignup ? "/api/signup" : "/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
-      const result = (await response.json()) as {
+      const result = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
         message?: string;
         errors?: FieldErrors;
@@ -88,10 +92,14 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       setSubmission({
         status: "error",
         message:
-          error instanceof Error
-            ? error.message
-            : "The request could not be delivered.",
+          error instanceof DOMException && error.name === "AbortError"
+            ? "The request timed out. Check your connection and try again."
+            : error instanceof Error
+              ? error.message
+              : "The request could not be delivered.",
       });
+    } finally {
+      window.clearTimeout(timer);
     }
   }
 

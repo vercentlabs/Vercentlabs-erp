@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import AuthCard from "@/components/auth-card";
 import SignupForm from "@/components/signup-form";
+import { getSessionContext, nextPath } from "@/lib/auth";
 
 export const metadata = { title: "Create account" };
 
-export default function SignupPage() {
+export default async function SignupPage() {
+  const session = await getSessionContext();
+  if (session) redirect(nextPath(session));
   return (
     <AuthCard
       eyebrow="Create your account"

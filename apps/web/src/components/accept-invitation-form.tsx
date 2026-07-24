@@ -2,7 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import PasswordField from "@/components/password-field";
+import { requestJson } from "@/lib/client-request";
 
 export default function AcceptInvitationForm({
   token,
@@ -16,41 +18,52 @@ export default function AcceptInvitationForm({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+
     setPending(true);
     setMessage("");
     const body = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     );
     body.token = token;
-    const response = await fetch("/api/invitations/accept", {
+
+    const result = await requestJson<{
+      next?: string;
+    }>("/api/invitations/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const result = (await response.json()) as {
-      ok: boolean;
-      message?: string;
-      next?: string;
-    };
+
     setMessage(result.message || "Request completed.");
     setPending(false);
     if (result.ok && result.next) {
-      router.push(result.next);
+      router.replace(result.next);
       router.refresh();
     }
   }
+
   return (
     <form className="form-stack" onSubmit={submit}>
       <label>
         Invited email
         <input value={email} disabled />
       </label>
-      <label>
-        Full name
-        <input name="fullName" required minLength={2} maxLength={100} />
-      </label>
+      {!existingUser ? (
+        <label>
+          Full name
+          <input
+            name="fullName"
+            autoComplete="name"
+            required
+            minLength={2}
+            maxLength={100}
+          />
+        </label>
+      ) : null}
       <PasswordField
         name="password"
         label={existingUser ? "Existing account password" : "Create password"}
@@ -69,8 +82,8 @@ export default function AcceptInvitationForm({
       )}
       {existingUser ? (
         <p className="field-help">
-          Use the password for the existing account. The confirmation field is
-          not required.
+          Use the password for the existing account. Your saved profile name
+          will be kept.
         </p>
       ) : null}
       <button className="primary-button" type="submit" disabled={pending}>

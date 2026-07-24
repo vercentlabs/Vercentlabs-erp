@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
@@ -90,6 +91,10 @@ const items: Array<{
 
 export default async function SettingsPage() {
   const session = await requireWorkspace();
+  const allowedItems = items.filter((item) =>
+    hasPermission(session, item.permission),
+  );
+  if (!allowedItems.length) notFound();
 
   return (
     <>
@@ -126,11 +131,8 @@ export default async function SettingsPage() {
             </div>
           </div>
           <div className="settings-grid">
-            {items
-              .filter(
-                (item) =>
-                  item.group === group && hasPermission(session, item.permission),
-              )
+            {allowedItems
+              .filter((item) => item.group === group)
               .map((item) => (
                 <Link href={item.href} key={item.href}>
                   <span className="settings-card-icon" aria-hidden="true">

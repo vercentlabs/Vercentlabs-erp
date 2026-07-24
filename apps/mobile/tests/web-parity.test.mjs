@@ -93,7 +93,8 @@ test("mobile shell carries the responsive web design contract", () => {
   assert.match(header, /Search partners, items, companies, branches or users/);
   assert.match(header, /destinationIsActive/);
   assert.match(header, /#C7D2FE/i);
-  assert.match(header, /Select \{picker === "company"/);
+  assert.match(header, /picker === "organization"/);
+  assert.match(header, /Select\{" "\}/);
   assert.match(read("src/shared/components/brand-mark.tsx"), />\s*V\s*</);
   assert.match(read("src/app/(protected)/(tabs)/_layout.tsx"), /display: "none"/);
 });

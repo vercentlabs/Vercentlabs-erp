@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getCrmDashboard } from "@vercent/api";
 import { formatDateTime, formatMoney } from "@vercent/localization";
 import AppIcon from "@/components/app-icon";
@@ -11,7 +12,7 @@ export const metadata = { title: "CRM" };
 export const dynamic = "force-dynamic";
 export default async function CrmDashboardPage() {
   const session = await requireWorkspace();
-  if (!hasPermission(session, PERMISSIONS.crmView)) return null;
+  if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
   const context = crmContext(session);
   const dashboard = await tenantTransaction(context.organizationId, (client) =>
     getCrmDashboard(client, context),

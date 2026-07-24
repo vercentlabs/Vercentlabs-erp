@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 type ProfileFormProps = {
   fullName: string;
   locale: string;
@@ -20,7 +22,7 @@ export default function ProfileForm(props: ProfileFormProps) {
     setMessage("");
     setError("");
     startTransition(async () => {
-      const response = await fetch("/api/profile", {
+      const data = await requestJson("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -30,8 +32,7 @@ export default function ProfileForm(props: ProfileFormProps) {
           theme: formData.get("theme"),
         }),
       });
-      const data = (await response.json()) as { ok: boolean; message?: string };
-      if (!response.ok || !data.ok) {
+      if (!data.ok) {
         setError(data.message || "The profile could not be updated.");
         return;
       }

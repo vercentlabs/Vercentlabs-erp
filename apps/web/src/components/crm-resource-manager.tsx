@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmDefinition, CrmField } from "@/lib/crm";
+import { requestJson } from "@/lib/client-request";
 
 type Row = Record<string, unknown>;
 type Option = { id: string; name: string; pipelineId?: string };
@@ -102,7 +103,9 @@ export default function CrmResourceManager({
             ? form.get(field.name) === "on"
             : String(form.get(field.name) ?? "");
       const id = String(editing.id || "");
-      const response = await fetch(
+      const result = await requestJson<{
+        errors?: Record<string, string[]>;
+      }>(
         id ? `/api/crm/${definition.key}/${id}` : `/api/crm/${definition.key}`,
         {
           method: id ? "PATCH" : "POST",
@@ -110,12 +113,7 @@ export default function CrmResourceManager({
           body: JSON.stringify(body),
         },
       );
-      const result = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        errors?: Record<string, string[]>;
-      };
-      if (!response.ok || !result.ok)
+      if (!result.ok)
         throw new Error(
           Object.values(result.errors || {}).flat()[0] ||
             result.message ||
@@ -137,43 +135,43 @@ export default function CrmResourceManager({
   async function archive(id: string) {
     if (!confirm(`Archive this ${definition.singular}?`)) return;
     setPending(true);
-    const response = await fetch(`/api/crm/${definition.key}/${id}`, {
+    setMessage("");
+    const result = await requestJson(`/api/crm/${definition.key}/${id}`, {
       method: "DELETE",
     });
-    const result = (await response.json()) as {
-      ok?: boolean;
-      message?: string;
-    };
-    setMessage(
-      result.message || (response.ok ? "Archived." : "Archive failed."),
-    );
+    setMessage(result.message || (result.ok ? "Archived." : "Archive failed."));
     setPending(false);
-    if (response.ok) router.refresh();
+    if (result.ok) router.refresh();
   }
   async function complete(id: string) {
     const outcome = prompt("Outcome or completion note (optional)") || "";
     setPending(true);
-    const response = await fetch(`/api/crm/activities/${id}/complete`, {
+    setMessage("");
+    const result = await requestJson(`/api/crm/activities/${id}/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ outcome }),
     });
-    const result = (await response.json()) as { message?: string };
-    setMessage(result.message || "Activity updated.");
+    setMessage(result.message || (result.ok ? "Activity updated." : "Activity update failed."));
     setPending(false);
-    if (response.ok) router.refresh();
+    if (result.ok) router.refresh();
   }
   async function importCsv(file: File) {
     setPending(true);
-    const response = await fetch(`/api/crm/${definition.key}/import`, {
-      method: "POST",
-      headers: { "Content-Type": "text/csv" },
-      body: await file.text(),
-    });
-    const result = (await response.json()) as { message?: string };
-    setMessage(result.message || "Import completed.");
+    setMessage("");
+    const result = await requestJson(
+      `/api/crm/${definition.key}/import`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "text/csv" },
+        body: await file.text(),
+      },
+      { timeoutMs: 60_000 },
+    );
+    setMessage(result.message || (result.ok ? "Import completed." : "Import failed."));
     setPending(false);
-    if (response.ok) router.refresh();
+    if (fileRef.current) fileRef.current.value = "";
+    if (result.ok) router.refresh();
   }
 
   return (

@@ -1488,6 +1488,12 @@ legend {
   box-shadow: var(--shadow-subtle);
 }
 
+.context-switcher.has-organisation {
+  grid-template-columns:
+    auto minmax(110px, 0.9fr) 1px minmax(110px, 1fr) 1px
+    minmax(90px, 0.8fr);
+}
+
 .context-switcher-icon {
   width: 30px;
   height: 30px;
@@ -3100,6 +3106,11 @@ td small {
     grid-template-columns: auto minmax(0, 1fr) 1px minmax(0, 1fr);
   }
 
+  .context-switcher.has-organisation {
+    grid-template-columns:
+      auto minmax(0, 1fr) 1px minmax(0, 1fr) 1px minmax(0, 1fr);
+  }
+
   .topbar-actions {
     gap: 2px;
   }
@@ -3226,6 +3237,10 @@ td small {
 
   .context-switcher {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .context-switcher.has-organisation {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .topbar-avatar {

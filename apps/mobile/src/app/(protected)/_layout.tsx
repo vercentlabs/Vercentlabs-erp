@@ -7,7 +7,7 @@ export default function ProtectedLayout() {
   const auth = useAuth();
 
   if (auth.status === "booting") return <LoadingScreen />;
-  if (auth.status === "signed-out") return <Redirect href="/(auth)/login" />;
+  if (auth.status !== "signed-in") return <Redirect href="/(auth)/login" />;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

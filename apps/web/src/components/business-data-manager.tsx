@@ -3,6 +3,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 import type {
   BusinessDataDefinition,
   BusinessDataField,
@@ -167,19 +169,15 @@ export default function BusinessDataManager({
         ? `/api/business-data/${definition.key}/${id}`
         : `/api/business-data/${definition.key}`;
 
-      const response = await fetch(endpoint, {
+      const result = await requestJson<{
+        errors?: Record<string, string[] | undefined>;
+      }>(endpoint, {
         method: id ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
-      const result = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-        errors?: Record<string, string[] | undefined>;
-      };
-
-      if (!response.ok || !result.ok) {
+      if (!result.ok) {
         const firstFieldError = Object.values(result.errors || {})
           .flat()
           .find(Boolean);
@@ -216,16 +214,12 @@ export default function BusinessDataManager({
     setMessage("");
 
     try {
-      const response = await fetch(
+      const result = await requestJson(
         `/api/business-data/${definition.key}/${id}`,
         { method: "DELETE" },
       );
-      const result = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-      };
 
-      if (!response.ok || !result.ok) {
+      if (!result.ok) {
         throw new Error(result.message || "The record could not be archived.");
       }
 

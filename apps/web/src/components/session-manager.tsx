@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 export default function SessionManager({
   sessions,
   currentSessionId,
@@ -20,22 +22,25 @@ export default function SessionManager({
   const router = useRouter();
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
+
   async function action(
     actionName: "revoke" | "revoke-others",
     sessionId?: string,
   ) {
+    if (pending) return;
+
     setPending(sessionId || actionName);
     setMessage("");
-    const response = await fetch("/api/sessions", {
+    const result = await requestJson("/api/sessions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: actionName, sessionId }),
     });
-    const result = (await response.json()) as { ok: boolean; message?: string };
     setMessage(result.message || "Request completed.");
     setPending("");
     if (result.ok) router.refresh();
   }
+
   return (
     <div className="form-stack">
       <div className="card-title-row">

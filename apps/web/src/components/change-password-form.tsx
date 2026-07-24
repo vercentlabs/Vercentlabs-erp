@@ -2,35 +2,40 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import PasswordField from "@/components/password-field";
+import { requestJson } from "@/lib/client-request";
 
 export default function ChangePasswordForm() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+
     setPending(true);
     setMessage("");
-    const response = await fetch("/api/auth/change-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        Object.fromEntries(new FormData(event.currentTarget).entries()),
-      ),
-    });
-    const result = (await response.json()) as {
-      ok: boolean;
-      message?: string;
-      next?: string;
-    };
+    const result = await requestJson<{ next?: string }>(
+      "/api/auth/change-password",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          Object.fromEntries(new FormData(event.currentTarget).entries()),
+        ),
+      },
+    );
+
     setMessage(result.message || "Request completed.");
     setPending(false);
     if (result.ok && result.next) {
-      router.push(result.next);
+      router.replace(result.next);
       router.refresh();
     }
   }
+
   return (
     <form className="form-stack" onSubmit={submit}>
       <PasswordField

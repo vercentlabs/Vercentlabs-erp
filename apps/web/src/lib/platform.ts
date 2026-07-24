@@ -470,6 +470,21 @@ export async function seedOrganizationFoundation(
 
 export async function getShellData(session: SessionContext) {
   const organizationId = session.organizationId as string;
+  const organizations = await query<{ id: string; name: string }>(
+    `
+    SELECT organization.id, organization.name
+    FROM organization_memberships AS membership
+    JOIN organizations AS organization
+      ON organization.id = membership.organization_id
+     AND organization.status = 'active'
+    WHERE membership.user_id = $1
+      AND membership.status = 'active'
+    ORDER BY CASE WHEN organization.id = $2 THEN 0 ELSE 1 END,
+             organization.name,
+             organization.id
+  `,
+    [session.userId, organizationId],
+  );
   const owner =
     session.roleSlugs.includes("organization_owner") ||
     session.roleSlugs.includes("system_administrator");
@@ -507,5 +522,10 @@ export async function getShellData(session: SessionContext) {
     "SELECT count(*)::int AS count FROM notifications WHERE organization_id = $1 AND user_id = $2 AND read_at IS NULL",
     [organizationId, session.userId],
   );
-  return { companies, branches, unreadNotifications: unread[0]?.count || 0 };
+  return {
+    organizations,
+    companies,
+    branches,
+    unreadNotifications: unread[0]?.count || 0,
+  };
 }

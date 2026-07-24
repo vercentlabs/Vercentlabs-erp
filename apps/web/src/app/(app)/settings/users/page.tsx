@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import UserAdministration, {
   type UserRow,
 } from "@/components/user-administration";
@@ -8,6 +10,7 @@ import { query } from "@/lib/db";
 export const metadata = { title: "Users" };
 export default async function UsersPage() {
   const session = await requireWorkspace();
+  if (!hasPermission(session, PERMISSIONS.usersView)) notFound();
   const organizationId = session.organizationId as string;
 
   const userRows = await query<{

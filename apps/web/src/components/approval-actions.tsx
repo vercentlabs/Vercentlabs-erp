@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 export default function ApprovalActions({
   id,
   expectedVersion,
@@ -18,13 +20,12 @@ export default function ApprovalActions({
   function decide(action: "approve" | "reject") {
     setError("");
     startTransition(async () => {
-      const response = await fetch(`/api/approvals/${id}`, {
+      const data = await requestJson(`/api/approvals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, note, expectedVersion }),
       });
-      const data = (await response.json()) as { ok: boolean; message?: string };
-      if (!response.ok || !data.ok) {
+      if (!data.ok) {
         setError(data.message || "The approval could not be updated.");
         return;
       }

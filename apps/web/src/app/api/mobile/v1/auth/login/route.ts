@@ -111,6 +111,20 @@ export async function POST(request: Request) {
       throw new HttpError(401, genericFailure);
     }
 
+    if (!user.organization_id) {
+      await recordLoginEvent({
+        request,
+        email: input.email,
+        userId: user.id,
+        succeeded: false,
+        reason: "workspace_not_configured",
+      });
+      throw new HttpError(
+        409,
+        "Complete organisation setup in the web application before using the mobile app.",
+      );
+    }
+
     await query(
       `UPDATE users SET failed_login_attempts = 0, locked_until = NULL,
                         last_login_at = now(), updated_at = now()

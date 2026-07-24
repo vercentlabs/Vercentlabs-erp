@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DragEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { requestJson } from "@/lib/client-request";
 
 type Stage = {
   id: string;
@@ -54,14 +55,15 @@ export default function CrmPipelineBoard({
     setMoving(id);
     setMessage("");
     try {
-      const response = await fetch(`/api/crm/opportunities/${id}/stage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stageId, note: "Moved from CRM Kanban" }),
-      });
-      const result = (await response.json()) as { message?: string };
-      if (!response.ok)
-        throw new Error(result.message || "Stage update failed.");
+      const result = await requestJson(
+        `/api/crm/opportunities/${id}/stage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stageId, note: "Moved from CRM Kanban" }),
+        },
+      );
+      if (!result.ok) throw new Error(result.message || "Stage update failed.");
       setMessage(result.message || "Stage updated.");
       router.refresh();
     } catch (error) {

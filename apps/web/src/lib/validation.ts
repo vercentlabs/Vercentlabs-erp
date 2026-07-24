@@ -90,7 +90,7 @@ export const invitationSchema = z.object({
 
 export const acceptInvitationSchema = z.object({
   token: z.string().min(20).max(500),
-  fullName: z.string().trim().min(2).max(100),
+  fullName: z.string().trim().max(100).optional().default(""),
   password: z.string().min(1).max(128),
   confirmPassword: z.string().optional().default(""),
 });

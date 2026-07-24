@@ -47,6 +47,9 @@ export function createMemoryTokenStore(
 ): MobileTokenStore;
 
 export type MobileClient = {
+  setAuthenticationFailureHandler(
+    handler: ((error: VercentApiError) => void | Promise<void>) | null,
+  ): () => void;
   login(input: {
     email: string;
     password: string;
@@ -63,6 +66,7 @@ export type MobileClient = {
   workspace(): Promise<{
     session: MobileSession;
     shell: {
+      organizations: Array<{ id: string; name: string }>;
       companies: Array<{ id: string; name: string }>;
       branches: Array<{ id: string; company_id: string; name: string }>;
       unreadNotifications: number;
@@ -72,6 +76,17 @@ export type MobileClient = {
     message: string;
     session: MobileSession;
     shell: {
+      organizations: Array<{ id: string; name: string }>;
+      companies: Array<{ id: string; name: string }>;
+      branches: Array<{ id: string; company_id: string; name: string }>;
+      unreadNotifications: number;
+    };
+  }>;
+  setWorkspaceOrganization(input: { organizationId: string }): Promise<{
+    message: string;
+    session: MobileSession;
+    shell: {
+      organizations: Array<{ id: string; name: string }>;
       companies: Array<{ id: string; name: string }>;
       branches: Array<{ id: string; company_id: string; name: string }>;
       unreadNotifications: number;

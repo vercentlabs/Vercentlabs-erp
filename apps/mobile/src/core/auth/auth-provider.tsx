@@ -23,11 +23,13 @@ import { secureTokenStore } from "./token-store";
 type AuthState =
   | { status: "booting"; session: null }
   | { status: "signed-out"; session: null }
+  | { status: "unavailable"; session: null; message: string }
   | { status: "signed-in"; session: MobileSession };
 
 type AuthContextValue = AuthState & {
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  retrySession(): Promise<void>;
   refreshSession(): Promise<void>;
   applySession(session: MobileSession): Promise<void>;
 };
@@ -38,6 +40,28 @@ function workspaceOwner(session: MobileSession) {
   return `${session.user.id}:${session.workspace.organizationId ?? "none"}`;
 }
 
+async function loadStoredSession(): Promise<AuthState> {
+  try {
+    const { session } = await mobileApi.session();
+    await bindOfflineWorkspace(workspaceOwner(session));
+    return { status: "signed-in", session };
+  } catch (error) {
+    if (error instanceof VercentApiError && error.status === 401) {
+      await secureTokenStore.clear();
+      await purgeOfflineWorkspace().catch(() => undefined);
+      return { status: "signed-out", session: null };
+    }
+    return {
+      status: "unavailable",
+      session: null,
+      message:
+        error instanceof Error
+          ? error.message
+          : "The saved session could not be checked.",
+    };
+  }
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<AuthState>({
     status: "booting",
@@ -46,21 +70,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let active = true;
-    mobileApi
-      .session()
-      .then(async ({ session }) => {
-        await bindOfflineWorkspace(workspaceOwner(session));
-        if (active) setState({ status: "signed-in", session });
-      })
-      .catch(async (error) => {
-        if (error instanceof VercentApiError && error.status === 401) {
-          await secureTokenStore.clear();
-          await purgeOfflineWorkspace().catch(() => undefined);
-        }
-        if (active) setState({ status: "signed-out", session: null });
-      });
+    const unsubscribe = mobileApi.setAuthenticationFailureHandler(async () => {
+      await purgeOfflineWorkspace().catch(() => undefined);
+      if (active) setState({ status: "signed-out", session: null });
+    });
+
+    void loadStoredSession().then((next) => {
+      if (active) setState(next);
+    });
+
     return () => {
       active = false;
+      unsubscribe();
     };
   }, []);
 
@@ -89,14 +110,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setState({ status: "signed-in", session });
   }, []);
 
+  const retrySession = useCallback(async () => {
+    setState({ status: "booting", session: null });
+    setState(await loadStoredSession());
+  }, []);
+
   const refreshSession = useCallback(async () => {
     const { session } = await mobileApi.session();
     await applySession(session);
   }, [applySession]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, signIn, signOut, refreshSession, applySession }),
-    [state, signIn, signOut, refreshSession, applySession],
+    () => ({
+      ...state,
+      signIn,
+      signOut,
+      retrySession,
+      refreshSession,
+      applySession,
+    }),
+    [state, signIn, signOut, retrySession, refreshSession, applySession],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

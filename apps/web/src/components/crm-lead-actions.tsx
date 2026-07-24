@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { requestJson } from "@/lib/client-request";
 export default function CrmLeadActions({
   leadId,
   status,
@@ -24,15 +26,14 @@ export default function CrmLeadActions({
     if (!confirm("Convert this lead into a customer, contact and opportunity?"))
       return;
     setPending(true);
-    const response = await fetch(`/api/crm/leads/${leadId}/convert`, {
+    const result = await requestJson(`/api/crm/leads/${leadId}/convert`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ createOpportunity: true }),
     });
-    const result = (await response.json()) as { message?: string };
     setMessage(result.message || "Conversion completed.");
     setPending(false);
-    if (response.ok) router.refresh();
+    if (result.ok) router.refresh();
   }
   async function merge(targetLeadId: string) {
     if (
@@ -42,15 +43,14 @@ export default function CrmLeadActions({
     )
       return;
     setPending(true);
-    const response = await fetch(`/api/crm/leads/${leadId}/merge`, {
+    const result = await requestJson(`/api/crm/leads/${leadId}/merge`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetLeadId }),
     });
-    const result = (await response.json()) as { message?: string };
     setMessage(result.message || "Merge completed.");
     setPending(false);
-    if (response.ok) router.push(`/crm/leads/${targetLeadId}`);
+    if (result.ok) router.push(`/crm/leads/${targetLeadId}`);
   }
   return (
     <div className="crm-action-panel">

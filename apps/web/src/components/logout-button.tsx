@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import AppIcon from "@/components/app-icon";
+import { requestJson } from "@/lib/client-request";
 
 export default function LogoutButton({
   iconOnly = false,
@@ -14,10 +15,18 @@ export default function LogoutButton({
   const [pending, setPending] = useState(false);
 
   async function logout() {
+    if (pending) return;
+
     setPending(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    const result = await requestJson("/api/auth/logout", { method: "POST" });
+    if (result.ok) {
+      router.replace("/login");
+      router.refresh();
+      return;
+    }
+
+    setPending(false);
+    window.alert(result.message || "Sign out could not be completed.");
   }
 
   return (

@@ -33,6 +33,7 @@ export default async function ResourceSettingsPage({
   if (!isResourceKey(resource)) notFound();
   const session = await requireWorkspace();
   const definition = resourceDefinitions[resource];
+  if (!hasPermission(session, definition.permission)) notFound();
   const [rows, options] = await Promise.all([
     listResource(resource, session.organizationId as string),
     resourceOptions(session.organizationId as string),

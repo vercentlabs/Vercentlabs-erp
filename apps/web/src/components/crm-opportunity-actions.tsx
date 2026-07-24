@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { requestJson } from "@/lib/client-request";
 export default function CrmOpportunityActions({
   id,
   stageId,
@@ -15,7 +17,7 @@ export default function CrmOpportunityActions({
   const [message, setMessage] = useState("");
   async function move(next: string) {
     setPending(true);
-    const response = await fetch(`/api/crm/opportunities/${id}/stage`, {
+    const result = await requestJson(`/api/crm/opportunities/${id}/stage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -23,10 +25,9 @@ export default function CrmOpportunityActions({
         note: "Updated from opportunity detail",
       }),
     });
-    const result = (await response.json()) as { message?: string };
     setMessage(result.message || "Stage updated.");
     setPending(false);
-    if (response.ok) router.refresh();
+    if (result.ok) router.refresh();
   }
   return (
     <div className="crm-action-panel">

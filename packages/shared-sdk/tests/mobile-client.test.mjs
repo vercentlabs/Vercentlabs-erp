@@ -111,3 +111,32 @@ test("mobile client exposes stable actionable errors", async () => {
       error.retryable,
   );
 });
+
+
+test("invalid refresh clears tokens and notifies the application shell", async () => {
+  const tokens = createMemoryTokenStore({
+    accessToken: "expired",
+    refreshToken: "invalid-refresh",
+  });
+  const failures = [];
+  const client = createMobileClient({
+    baseUrl: "https://erp.example.com",
+    tokenStore: tokens,
+    requestIdFactory: () => "request-123",
+    fetchImpl: async (url) =>
+      url.endsWith("/auth/refresh")
+        ? jsonResponse(
+            { ok: false, message: "Sign in again.", code: "SESSION_REQUIRED" },
+            401,
+          )
+        : jsonResponse({ ok: false, message: "Expired" }, 401),
+  });
+  const unsubscribe = client.setAuthenticationFailureHandler((error) => {
+    failures.push(error.code);
+  });
+
+  await assert.rejects(() => client.session(), VercentApiError);
+  assert.equal(await tokens.getAccessToken(), null);
+  assert.deepEqual(failures, ["SESSION_REQUIRED"]);
+  unsubscribe();
+});

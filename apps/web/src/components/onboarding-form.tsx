@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import AppIcon from "@/components/app-icon";
+import { requestJson } from "@/lib/client-request";
 
 const months = Array.from({ length: 12 }, (_, index) => ({
   value: index + 1,
@@ -27,32 +28,19 @@ export default function OnboardingForm() {
 
     const body = Object.fromEntries(new FormData(formElement).entries());
 
-    try {
-      const response = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const result = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-        next?: string;
-      };
+    const result = await requestJson<{ next?: string }>("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }, { timeoutMs: 30_000 });
 
-      setMessage(result.message || "Request completed.");
-      setIsError(!result.ok);
+    setMessage(result.message || "Request completed.");
+    setIsError(!result.ok);
+    setPending(false);
 
-      if (result.ok && result.next) {
-        router.push(result.next);
-        router.refresh();
-      }
-    } catch {
-      setIsError(true);
-      setMessage(
-        "The server could not be reached. Your information was not submitted.",
-      );
-    } finally {
-      setPending(false);
+    if (result.ok && result.next) {
+      router.replace(result.next);
+      router.refresh();
     }
   }
 

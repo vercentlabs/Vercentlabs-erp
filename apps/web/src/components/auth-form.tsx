@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import PasswordField from "@/components/password-field";
+import { requestJson } from "@/lib/client-request";
 
 type Mode = "login" | "forgot" | "reset" | "verify";
 
@@ -37,28 +38,20 @@ export default function AuthForm({
       new FormData(event.currentTarget).entries(),
     );
     if (token) body.token = token;
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const result = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-        next?: string;
-        developmentUrl?: string;
-      };
-      setMessage(result.message || "Request completed.");
-      setDevelopmentUrl(result.developmentUrl || "");
-      if (result.ok && result.next) {
-        router.push(result.next);
-        router.refresh();
-      }
-    } catch {
-      setMessage("The server could not be reached.");
-    } finally {
-      setPending(false);
+    const result = await requestJson<{
+      next?: string;
+      developmentUrl?: string;
+    }>(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setMessage(result.message || "Request completed.");
+    setDevelopmentUrl(result.developmentUrl || "");
+    setPending(false);
+    if (result.ok && result.next) {
+      router.replace(result.next);
+      router.refresh();
     }
   }
 

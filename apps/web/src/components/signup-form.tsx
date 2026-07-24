@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import PasswordField from "@/components/password-field";
+import { requestJson } from "@/lib/client-request";
 
 export default function SignupForm() {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [developmentUrl, setDevelopmentUrl] = useState("");
@@ -16,24 +19,23 @@ export default function SignupForm() {
     setMessage("");
     setDevelopmentUrl("");
     const form = new FormData(formElement);
-    try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(form.entries())),
-      });
-      const result = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-        developmentUrl?: string;
-      };
-      setMessage(result.message || "Request completed.");
-      setDevelopmentUrl(result.developmentUrl || "");
-      if (result.ok) formElement.reset();
-    } catch {
-      setMessage("The server could not be reached.");
-    } finally {
-      setPending(false);
+    const result = await requestJson<{
+      developmentUrl?: string;
+      next?: string;
+    }>("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(form.entries())),
+    });
+    setMessage(result.message || "Request completed.");
+    setDevelopmentUrl(result.developmentUrl || "");
+    setPending(false);
+    if (result.ok) {
+      formElement.reset();
+      if (result.next && !result.developmentUrl) {
+        router.replace(result.next);
+        router.refresh();
+      }
     }
   }
 

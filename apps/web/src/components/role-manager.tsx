@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 export default function RoleManager({
   roles,
   permissions,
@@ -37,16 +39,16 @@ export default function RoleManager({
       description: String(form.get("description") || ""),
       permissionKeys: form.getAll("permissionKeys").map(String),
     };
-    const response = await fetch("/api/roles", {
+    const formElement = event.currentTarget;
+    const result = await requestJson("/api/roles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const result = (await response.json()) as { ok: boolean; message?: string };
     setMessage(result.message || "Request completed.");
     setPending(false);
     if (result.ok) {
-      event.currentTarget.reset();
+      formElement.reset();
       router.refresh();
     }
   }

@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 export type UserRow = {
   userId: string;
   fullName: string;
@@ -51,33 +53,34 @@ export default function UserAdministration({
 
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+
+    const formElement = event.currentTarget;
     setPending("invite");
     setMessage("");
     setDevelopmentUrl("");
-    const body = Object.fromEntries(
-      new FormData(event.currentTarget).entries(),
+    const body = Object.fromEntries(new FormData(formElement).entries());
+    const result = await requestJson<{ developmentUrl?: string }>(
+      "/api/invitations",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
     );
-    const response = await fetch("/api/invitations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const result = (await response.json()) as {
-      ok: boolean;
-      message?: string;
-      developmentUrl?: string;
-    };
     setMessage(result.message || "Request completed.");
     setDevelopmentUrl(result.developmentUrl || "");
     setPending("");
     if (result.ok) {
-      event.currentTarget.reset();
+      formElement.reset();
       router.refresh();
     }
   }
 
   async function updateUser(event: FormEvent<HTMLFormElement>, userId: string) {
     event.preventDefault();
+    if (pending) return;
+
     setPending(userId);
     setMessage("");
     const form = new FormData(event.currentTarget);
@@ -88,31 +91,30 @@ export default function UserAdministration({
       branchIds: form.getAll("branchIds").map(String),
       departmentIds: form.getAll("departmentIds").map(String),
     };
-    const response = await fetch(`/api/users/${userId}`, {
+    const result = await requestJson(`/api/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const result = (await response.json()) as { ok: boolean; message?: string };
     setMessage(result.message || "Request completed.");
     setPending("");
     if (result.ok) router.refresh();
   }
 
   async function invitationAction(id: string, action: "resend" | "revoke") {
+    if (pending) return;
+
     setPending(id + action);
     setMessage("");
     setDevelopmentUrl("");
-    const response = await fetch(`/api/invitations/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    const result = (await response.json()) as {
-      ok: boolean;
-      message?: string;
-      developmentUrl?: string;
-    };
+    const result = await requestJson<{ developmentUrl?: string }>(
+      `/api/invitations/${id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      },
+    );
     setMessage(result.message || "Request completed.");
     setDevelopmentUrl(result.developmentUrl || "");
     setPending("");

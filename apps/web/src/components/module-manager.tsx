@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 type ModuleManagerProps = {
   moduleKey: string;
   status: "registered" | "enabled" | "disabled";
@@ -21,7 +23,7 @@ export default function ModuleManager({
   function update(nextStatus: ModuleManagerProps["status"]) {
     setError("");
     startTransition(async () => {
-      const response = await fetch(
+      const data = await requestJson(
         `/api/modules/${encodeURIComponent(moduleKey)}`,
         {
           method: "PATCH",
@@ -29,8 +31,7 @@ export default function ModuleManager({
           body: JSON.stringify({ status: nextStatus }),
         },
       );
-      const data = (await response.json()) as { ok: boolean; message?: string };
-      if (!response.ok || !data.ok) {
+      if (!data.ok) {
         setError(data.message || "The module status could not be changed.");
         return;
       }

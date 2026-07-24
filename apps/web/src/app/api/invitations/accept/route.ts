@@ -92,6 +92,9 @@ export async function POST(request: Request) {
         throw new HttpError(401, invalidCredentials);
       }
     } else {
+      if (input.fullName.length < 2) {
+        throw new HttpError(400, "Enter your full name.");
+      }
       const issues = passwordPolicyIssues(input.password);
       if (issues.length) throw new HttpError(400, issues[0]);
       if (input.password !== input.confirmPassword)

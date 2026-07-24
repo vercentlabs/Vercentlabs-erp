@@ -30,7 +30,7 @@ import { useTheme } from "@/shared/theme/theme";
 import { minimumTouchTarget } from "@/shared/theme/tokens";
 import { BrandMark } from "./brand-mark";
 
-type ContextPicker = "company" | "branch" | null;
+type ContextPicker = "organization" | "company" | "branch" | null;
 
 function initials(value: string) {
   return value
@@ -86,6 +86,7 @@ export function AppHeader({
     staleTime: 30_000,
   });
   const shell = workspace.data?.shell;
+  const organizations = shell?.organizations ?? [];
   const companies = shell?.companies ?? [];
   const branches = (shell?.branches ?? []).filter(
     (branch) => branch.company_id === session?.workspace.activeCompanyId,
@@ -99,22 +100,32 @@ export function AppHeader({
   };
 
   const changeContext = async (id: string | null) => {
-    const currentCompany = session.workspace.activeCompanyId;
-    const companyId = picker === "company" ? id : currentCompany;
-    if (!companyId) return;
-    const branchId =
-      picker === "branch"
-        ? id
-        : (shell?.branches ?? []).some(
-              (branch) =>
-                branch.id === session.workspace.activeBranchId &&
-                branch.company_id === companyId,
-            )
-          ? session.workspace.activeBranchId
-          : null;
+    if (!id && picker !== "branch") return;
+
     setChangingContext(true);
     try {
-      const result = await mobileApi.setWorkspaceContext({ companyId, branchId });
+      const result =
+        picker === "organization"
+          ? await mobileApi.setWorkspaceOrganization({
+              organizationId: String(id),
+            })
+          : await mobileApi.setWorkspaceContext({
+              companyId:
+                picker === "company"
+                  ? String(id)
+                  : String(session.workspace.activeCompanyId),
+              branchId:
+                picker === "branch"
+                  ? id
+                  : (shell?.branches ?? []).some(
+                        (branch) =>
+                          branch.id === session.workspace.activeBranchId &&
+                          branch.company_id === id,
+                      )
+                    ? session.workspace.activeBranchId
+                    : null,
+            });
+
       await auth.applySession(result.session);
       queryClient.setQueryData(
         ["workspace-shell", result.session.user.id],
@@ -361,13 +372,55 @@ export function AppHeader({
           <Ionicons name="business-outline" size={18} color={colors.primary} />
         </View>
         <Pressable
+          onPress={() =>
+            organizations.length > 1 && setPicker("organization")
+          }
+          style={{ flex: 1, paddingHorizontal: spacing.xs }}
+        >
+          <Text
+            style={{
+              color: colors.textMuted,
+              fontSize: 8,
+              fontWeight: "800",
+              letterSpacing: 0.7,
+            }}
+          >
+            ORGANISATION
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.textSecondary,
+              fontSize: 11,
+              fontWeight: "700",
+            }}
+          >
+            {session.workspace.organizationName || "Not selected"}
+          </Text>
+        </Pressable>
+        <View style={{ width: 1, height: 28, backgroundColor: colors.border }} />
+        <Pressable
           onPress={() => companies.length > 1 && setPicker("company")}
           style={{ flex: 1, paddingHorizontal: spacing.xs }}
         >
-          <Text style={{ color: colors.textMuted, fontSize: 8, fontWeight: "800", letterSpacing: 0.7 }}>
+          <Text
+            style={{
+              color: colors.textMuted,
+              fontSize: 8,
+              fontWeight: "800",
+              letterSpacing: 0.7,
+            }}
+          >
             COMPANY
           </Text>
-          <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: 11, fontWeight: "700" }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.textSecondary,
+              fontSize: 11,
+              fontWeight: "700",
+            }}
+          >
             {session.workspace.companyName || "Not selected"}
           </Text>
         </Pressable>
@@ -376,10 +429,24 @@ export function AppHeader({
           onPress={() => setPicker("branch")}
           style={{ flex: 1, paddingHorizontal: spacing.xs }}
         >
-          <Text style={{ color: colors.textMuted, fontSize: 8, fontWeight: "800", letterSpacing: 0.7 }}>
+          <Text
+            style={{
+              color: colors.textMuted,
+              fontSize: 8,
+              fontWeight: "800",
+              letterSpacing: 0.7,
+            }}
+          >
             BRANCH
           </Text>
-          <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: 11, fontWeight: "700" }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.textSecondary,
+              fontSize: 11,
+              fontWeight: "700",
+            }}
+          >
             {session.workspace.branchName || "All branches"}
           </Text>
         </Pressable>
@@ -499,7 +566,12 @@ export function AppHeader({
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ ...type.heading, color: colors.text }}>
-                  Select {picker === "company" ? "company" : "branch"}
+                  Select{" "}
+                  {picker === "organization"
+                    ? "organisation"
+                    : picker === "company"
+                      ? "company"
+                      : "branch"}
                 </Text>
                 <Text style={{ ...type.caption, color: colors.textMuted }}>
                   This changes the operating scope across the workspace.
@@ -517,7 +589,12 @@ export function AppHeader({
                   <Text style={{ ...type.label, color: colors.text }}>All branches</Text>
                 </Pressable>
               ) : null}
-              {(picker === "company" ? companies : branches).map((option) => (
+              {(picker === "organization"
+                ? organizations
+                : picker === "company"
+                  ? companies
+                  : branches
+              ).map((option) => (
                 <Pressable
                   key={option.id}
                   disabled={changingContext}
@@ -525,7 +602,11 @@ export function AppHeader({
                   style={{ minHeight: 52, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}
                 >
                   <Text style={{ ...type.label, flex: 1, color: colors.text }}>{option.name}</Text>
-                  {(picker === "company" ? session.workspace.activeCompanyId : session.workspace.activeBranchId) === option.id ? (
+                  {(picker === "organization"
+                    ? session.workspace.organizationId
+                    : picker === "company"
+                      ? session.workspace.activeCompanyId
+                      : session.workspace.activeBranchId) === option.id ? (
                     <Ionicons name="checkmark-circle" size={21} color={colors.primary} />
                   ) : null}
                 </Pressable>

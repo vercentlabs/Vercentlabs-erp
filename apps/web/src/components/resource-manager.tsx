@@ -3,6 +3,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { requestJson } from "@/lib/client-request";
+
 export type FieldDefinition = {
   name: string;
   label: string;
@@ -54,12 +56,11 @@ export default function ResourceManager({
     const endpoint = id
       ? `/api/settings/${resource}/${id}`
       : `/api/settings/${resource}`;
-    const response = await fetch(endpoint, {
+    const result = await requestJson(endpoint, {
       method: id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const result = (await response.json()) as { ok: boolean; message?: string };
     setMessage(result.message || "Request completed.");
     setPending(false);
     if (result.ok) {

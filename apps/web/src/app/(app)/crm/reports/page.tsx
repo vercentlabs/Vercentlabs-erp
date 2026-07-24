@@ -1,4 +1,5 @@
 import { getCrmReport } from "@vercent/api";
+import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { crmContext } from "@/lib/crm";
@@ -26,7 +27,7 @@ const title = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
 export default async function CrmReportsPage() {
   const session = await requireWorkspace();
-  if (!hasPermission(session, PERMISSIONS.crmReportsView)) return null;
+  if (!hasPermission(session, PERMISSIONS.crmReportsView)) notFound();
   const context = crmContext(session);
   const visibleNames = names.filter((name) => canViewCrmReport(session, name));
   const reports = await tenantTransaction(
