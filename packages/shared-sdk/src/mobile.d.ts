@@ -157,6 +157,9 @@ export type MobileFieldDefinition = {
   name: string;
   label: string;
   type: "text" | "email" | "number" | "date" | "datetime-local" | "select" | "checkbox" | "textarea";
+  structuredKind?: "list" | "key-value" | "actions" | "schedule" | "value";
+  structuredOptionsKey?: string;
+  helpText?: string;
   required?: boolean;
   optionsKey?: string;
   options?: Array<{ value: string; label: string }>;

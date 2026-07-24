@@ -25,6 +25,7 @@ import { AppHeader } from "@/shared/components/app-header";
 import { Button } from "@/shared/components/button";
 import { QueryState, StatusPill } from "@/shared/components/crm-states";
 import { Screen } from "@/shared/components/screen";
+import { StructuredFieldEditor } from "@/shared/components/structured-field-editor";
 import { useTheme } from "@/shared/theme/theme";
 
 type Row = Record<string, unknown>;
@@ -51,7 +52,11 @@ function initialForm(fields: MobileFieldDefinition[], row: Row) {
       if (field.type === "checkbox") return [field.name, Boolean(value)];
       if (field.type === "date") return [field.name, dateValue(value)];
       if (field.type === "datetime-local") return [field.name, dateValue(value, true)];
-      if (value !== null && value !== undefined) return [field.name, String(value)];
+      if (value !== null && value !== undefined)
+        return [
+          field.name,
+          typeof value === "object" ? JSON.stringify(value) : String(value),
+        ];
       if (field.type === "number") {
         const sensible =
           field.name === "fiscalYearStartMonth"
@@ -70,6 +75,12 @@ function initialForm(fields: MobileFieldDefinition[], row: Row) {
 
 function visible(value: unknown, format?: string) {
   if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value))
+    return `${value.length} ${value.length === 1 ? "item" : "items"}`;
+  if (typeof value === "object") {
+    const count = Object.keys(value as Record<string, unknown>).length;
+    return `${count} ${count === 1 ? "value" : "values"} configured`;
+  }
   if (format === "boolean") return value ? "Yes" : "No";
   if (format === "currency") {
     return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value));
@@ -369,6 +380,22 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
                 (field.optionsKey
                   ? (options[field.optionsKey] || []).map((item) => ({ value: item.id, label: item.name }))
                   : []);
+              if (field.structuredKind) {
+                return (
+                  <StructuredFieldEditor
+                    key={field.name}
+                    field={field}
+                    value={form[field.name]}
+                    onChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        [field.name]: value,
+                      }))
+                    }
+                    options={options}
+                  />
+                );
+              }
               if (field.type === "checkbox") {
                 return (
                   <View key={field.name} style={{ minHeight: 52, flexDirection: "row", alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, backgroundColor: colors.surface }}>

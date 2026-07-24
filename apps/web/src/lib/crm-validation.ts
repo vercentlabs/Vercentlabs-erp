@@ -1,47 +1,7 @@
+import { getStructuredFieldConfig } from "@vercent/shared-types";
 import { z } from "zod";
 
 import { crmDefinitions, type CrmField } from "@/lib/crm";
-
-const jsonFields = new Set([
-  "customData",
-  "comparisonValue",
-  "criteria",
-  "roundRobinUserIds",
-  "allowedOrigins",
-  "requiredFields",
-  "configuration",
-  "eventTypes",
-  "filters",
-  "sort",
-  "columns",
-  "assignmentRules",
-  "objectives",
-  "risks",
-  "whiteSpace",
-  "successPlan",
-  "evidence",
-  "issues",
-  "responseOptions",
-  "response",
-  "metadata",
-  "availability",
-  "scopes",
-  "recommendedActions",
-  "actionPayload",
-  "dimensions",
-  "measures",
-  "layout",
-  "position",
-  "validation",
-  "options",
-  "defaultValue",
-  "data",
-  "requestedFields",
-  "resultData",
-  "explanation",
-  "inputSnapshot",
-  "correctedValue",
-]);
 
 function normalize(field: CrmField, value: unknown) {
   if (field.type === "checkbox") {
@@ -59,12 +19,12 @@ function normalize(field: CrmField, value: unknown) {
       throw new Error(`${field.label} must be a number.`);
     return number;
   }
-  if (jsonFields.has(field.name)) {
+  if (Boolean(field.structuredKind || getStructuredFieldConfig(field.name, field.label))) {
     if (typeof value !== "string") return value;
     try {
       return JSON.parse(value);
     } catch {
-      throw new Error(`${field.label} must contain valid JSON.`);
+      throw new Error(`${field.label} contains an invalid advanced configuration.`);
     }
   }
   return String(value).trim();
@@ -166,7 +126,7 @@ function buildCrmSchemas(requireRequiredFields: boolean) {
             }
             if (
               !empty &&
-              jsonFields.has(field.name) &&
+              Boolean(field.structuredKind || getStructuredFieldConfig(field.name, field.label)) &&
               typeof value === "string"
             ) {
               try {
@@ -175,7 +135,7 @@ function buildCrmSchemas(requireRequiredFields: boolean) {
                 context.addIssue({
                   code: "custom",
                   path: [field.name],
-                  message: `${field.label} must contain valid JSON.`,
+                  message: `${field.label} contains an invalid advanced configuration.`,
                 });
               }
             }

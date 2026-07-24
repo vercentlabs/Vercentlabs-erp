@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import StructuredFieldEditor from "@/components/structured-field-editor";
 import type { CrmDefinition, CrmField } from "@/lib/crm";
 import { requestJson } from "@/lib/client-request";
 
@@ -26,6 +27,12 @@ function rawDefault(field: CrmField, row: Row) {
 }
 function show(value: unknown, format?: string) {
   if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value))
+    return `${value.length} ${value.length === 1 ? "item" : "items"}`;
+  if (typeof value === "object") {
+    const count = Object.keys(value as Record<string, unknown>).length;
+    return `${count} ${count === 1 ? "value" : "values"} configured`;
+  }
   if (format === "currency")
     return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(
       Number(value),
@@ -388,7 +395,7 @@ export default function CrmResourceManager({
           <form className="form-stack" onSubmit={submit}>
             {definition.fields.map((field) => (
               <Field
-                key={field.name}
+                key={`${String(editing.id || "new")}:${field.name}`}
                 field={field}
                 row={editing}
                 options={options}
@@ -459,6 +466,14 @@ function Field({
           ))}
         </select>
       </label>
+    );
+  if (field.structuredKind)
+    return (
+      <StructuredFieldEditor
+        field={field}
+        initialValue={rawDefault(field, row)}
+        options={options}
+      />
     );
   if (field.type === "textarea")
     return (

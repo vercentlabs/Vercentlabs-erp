@@ -1,4 +1,5 @@
 import { CrmError } from "@vercent/api";
+import { getStructuredFieldConfig } from "@vercent/shared-types";
 import type { CrmContext, CrmResourceKey } from "@vercent/shared-types";
 
 import type { SessionContext } from "@/lib/auth";
@@ -17,6 +18,9 @@ export type CrmField = {
     | "select"
     | "checkbox"
     | "textarea";
+  structuredKind?: "list" | "key-value" | "actions" | "schedule" | "value";
+  structuredOptionsKey?: string;
+  helpText?: string;
   required?: boolean;
   optionsKey?: string;
   options?: Array<{ value: string; label: string }>;
@@ -3446,6 +3450,25 @@ function config(
     ],
   };
 }
+
+
+function applyStructuredFieldMetadata() {
+  for (const definition of Object.values(crmDefinitions)) {
+    definition.fields = definition.fields.map((field) => {
+      const structured = getStructuredFieldConfig(field.name, field.label);
+      if (!structured) return field;
+      return {
+        ...field,
+        label: structured.label,
+        structuredKind: structured.kind,
+        structuredOptionsKey: structured.optionsKey,
+        helpText: structured.helpText,
+      };
+    });
+  }
+}
+
+applyStructuredFieldMetadata();
 
 export function isCrmDefinition(value: string): value is CrmResourceKey {
   return value in crmDefinitions;
