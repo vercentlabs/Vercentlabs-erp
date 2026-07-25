@@ -1,29 +1,22 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
-
-type RevealDirection = "up" | "down" | "left" | "right" | "none";
+import { useEffect, useRef } from "react";
 
 type RevealOnScrollProps = {
   children: ReactNode;
-  delay?: number;
-  from?: RevealDirection;
-  threshold?: number;
   className?: string;
-  once?: boolean;
+  delay?: number;
+  threshold?: number;
 };
 
 export default function RevealOnScroll({
   children,
-  delay = 0,
-  from = "up",
-  threshold = 0.18,
   className = "",
-  once = true,
+  delay = 0,
+  threshold = 0.14,
 }: RevealOnScrollProps) {
   const elementRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const element = elementRef.current;
@@ -34,35 +27,28 @@ export default function RevealOnScroll({
     ).matches;
 
     if (reducedMotion || !("IntersectionObserver" in window)) {
-      const animationFrame = window.requestAnimationFrame(() => {
-        setVisible(true);
-      });
-
-      return () => window.cancelAnimationFrame(animationFrame);
+      element.dataset.revealed = "true";
+      return undefined;
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          if (once) observer.unobserve(entry.target);
-        } else if (!once) {
-          setVisible(false);
-        }
+        if (!entry.isIntersecting) return;
+        element.dataset.revealed = "true";
+        observer.unobserve(element);
       },
       { threshold },
     );
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [once, threshold]);
+  }, [threshold]);
 
   return (
     <div
       ref={elementRef}
       data-reveal=""
-      data-from={from}
-      data-visible={visible ? "true" : "false"}
+      data-revealed="false"
       className={className}
       style={{ "--reveal-delay": `${delay}ms` } as CSSProperties}
     >
