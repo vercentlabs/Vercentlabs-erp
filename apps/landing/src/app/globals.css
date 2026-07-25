@@ -3356,3 +3356,203 @@ body {
     font-size: 1rem;
   }
 }
+
+/* Landing end-to-end completion */
+.os-demo__sample-label {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--os-ink);
+  color: rgba(255, 255, 255, 0.72);
+  padding: 0.62rem 0.9rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.os-demo__icon-control,
+.os-demo__view-tools span {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid var(--os-line);
+  color: var(--os-muted);
+  padding: 0.35rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.os-demo__icon-control {
+  width: 34px;
+  padding: 0;
+}
+
+.os-demo__icon-control svg,
+.os-demo__view-tools span svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.os-approval-request__title > span[data-decision="approved"] {
+  background: var(--os-success);
+  color: white;
+}
+
+.os-approval-request__title > span[data-decision="rejected"] {
+  background: var(--os-danger);
+  color: white;
+}
+
+.os-approval-request__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.public-status-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 1.4rem !important;
+  padding-top: 1rem;
+  border-top: 1px solid var(--os-line);
+  color: var(--os-muted);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.7rem !important;
+  line-height: 1.55 !important;
+}
+
+.public-status-check > span {
+  width: 0.58rem;
+  height: 0.58rem;
+  flex: 0 0 auto;
+  margin-top: 0.22rem;
+  border: 1px solid currentColor;
+  background: var(--os-paper-strong);
+}
+
+.public-status-check[data-state="checking"] > span {
+  animation: os-status-pulse 1.2s ease-in-out infinite;
+}
+
+.public-status-check[data-state="operational"] {
+  color: var(--os-success);
+}
+
+.public-status-check[data-state="operational"] > span {
+  background: var(--os-signal);
+}
+
+.public-status-check[data-state="unavailable"] {
+  color: var(--os-danger);
+}
+
+.public-status-check[data-state="unavailable"] > span {
+  background: var(--os-danger);
+}
+
+.operator-state-page {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  background:
+    linear-gradient(90deg, var(--os-cobalt) 0 18px, transparent 18px),
+    var(--os-paper);
+  padding: clamp(1.2rem, 4vw, 4rem);
+}
+
+.operator-state-page__frame {
+  width: min(100%, 52rem);
+  border-top: 2px solid var(--os-ink);
+  border-bottom: 1px solid var(--os-line-strong);
+  padding: clamp(2rem, 6vw, 5rem) 0;
+}
+
+.operator-state-page__frame h1 {
+  max-width: 13ch;
+  margin: 1rem 0 0;
+  font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(2.7rem, 8vw, 6.8rem);
+  font-weight: 900;
+  letter-spacing: -0.065em;
+  line-height: 0.92;
+}
+
+.operator-state-page__frame > p:not(.os-eyebrow):not(.os-mono-label) {
+  max-width: 44rem;
+  margin: 1.5rem 0 0;
+  color: var(--os-muted);
+  font-size: clamp(0.95rem, 2vw, 1.08rem);
+  line-height: 1.75;
+}
+
+.operator-state-page__frame .operator-actions {
+  margin-top: 2rem;
+}
+
+.operator-state-page__code {
+  display: inline-block;
+  margin-bottom: 2rem;
+  border: 1px solid var(--os-line-strong);
+  padding: 0.45rem 0.65rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.operator-state-page__progress {
+  height: 4px;
+  margin: 2.2rem 0;
+  overflow: hidden;
+  background: var(--os-paper-strong);
+}
+
+.operator-state-page__progress span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  background: var(--os-cobalt);
+  animation: os-loading-track 1.1s var(--os-ease) infinite alternate;
+}
+
+@keyframes os-status-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes os-loading-track {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(270%);
+  }
+}
+
+@media (max-width: 720px) {
+  .os-demo__sample-label {
+    padding-inline: 0.7rem;
+    font-size: 0.56rem;
+  }
+
+  .operator-state-page {
+    align-items: start;
+    padding-top: 5rem;
+  }
+
+  .operator-state-page__frame .operator-actions,
+  .operator-state-page__frame .button-primary,
+  .operator-state-page__frame .button-secondary {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-status-check[data-state="checking"] > span,
+  .operator-state-page__progress span {
+    animation: none;
+  }
+}

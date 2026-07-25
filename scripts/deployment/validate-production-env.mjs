@@ -21,7 +21,7 @@ function requireHttps(name) {
 function requirePostgres(name) {
   try {
     const url = new URL(value(name));
-    if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error();
+    if (!["postgres:", "postgresql:"].includes(url.protocol)) throw new Error();
     if (!url.hostname || !url.pathname.slice(1)) throw new Error();
   } catch {
     failures.push(`${name} must be a valid PostgreSQL connection URL.`);
@@ -33,11 +33,13 @@ function requireHttpsOrigins(name) {
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
-  if (!origins.length) failures.push(`${name} must contain at least one origin.`);
+  if (!origins.length)
+    failures.push(`${name} must contain at least one origin.`);
   for (const origin of origins) {
     try {
       const parsed = new URL(origin);
-      if (parsed.protocol !== "https:" || parsed.origin !== origin) throw new Error();
+      if (parsed.protocol !== "https:" || parsed.origin !== origin)
+        throw new Error();
     } catch {
       failures.push(`${name} contains an invalid HTTPS origin.`);
       break;
@@ -77,14 +79,18 @@ if (target === "web") {
     Boolean(value("SMTP_PASSWORD")) &&
     Boolean(value("AUTH_EMAIL_FROM"));
   if (!webhookEmail && !smtpEmail) {
-    failures.push("Configure authenticated email delivery using webhook or SMTP.");
+    failures.push(
+      "Configure authenticated email delivery using webhook or SMTP.",
+    );
   }
 
   if (
     value("CRM_CAPTURE_PROXY_SECRET") &&
     value("CRM_CAPTURE_PROXY_SECRET").length < 32
   ) {
-    failures.push("CRM_CAPTURE_PROXY_SECRET must contain at least 32 characters.");
+    failures.push(
+      "CRM_CAPTURE_PROXY_SECRET must contain at least 32 characters.",
+    );
   }
 
   if (value("BILLING_CHECKOUT_ENABLED") === "true") {
@@ -96,7 +102,9 @@ if (target === "web") {
       requireValue(name);
     }
     if (value("RAZORPAY_MODE") !== "live") {
-      failures.push("RAZORPAY_MODE must be live when production checkout is enabled.");
+      failures.push(
+        "RAZORPAY_MODE must be live when production checkout is enabled.",
+      );
     }
   }
 } else if (target === "migration") {
@@ -110,23 +118,49 @@ if (target === "web") {
   }
 } else if (target === "landing") {
   requireHttps("NEXT_PUBLIC_SITE_URL");
-  requireHttps("NEXT_PUBLIC_ERP_APP_URL");
+  if (value("NEXT_PUBLIC_ERP_APP_URL")) {
+    requireHttps("NEXT_PUBLIC_ERP_APP_URL");
+  }
   requireValue("NEXT_PUBLIC_CONTACT_EMAIL");
   requireHttpsOrigins("FORM_ALLOWED_ORIGINS");
-  requireValue("UPSTASH_REDIS_REST_URL");
+  requireHttps("UPSTASH_REDIS_REST_URL");
   requireValue("UPSTASH_REDIS_REST_TOKEN");
   requireValue("TRUSTED_PROXY_IP_HEADER");
 
   const crmDelivery = Boolean(value("CRM_CAPTURE_URL"));
-  const genericDelivery = configuredPair("LEAD_WEBHOOK_URL", "LEAD_WEBHOOK_SECRET");
+  const genericDelivery = configuredPair(
+    "LEAD_WEBHOOK_URL",
+    "LEAD_WEBHOOK_SECRET",
+  );
+  if (value("LEAD_WEBHOOK_URL")) requireHttps("LEAD_WEBHOOK_URL");
   if (!crmDelivery && !genericDelivery) {
-    failures.push("Configure CRM_CAPTURE_URL or a signed generic lead webhook.");
+    failures.push(
+      "Configure CRM_CAPTURE_URL or a signed generic lead webhook.",
+    );
   }
   if (crmDelivery) {
     requireHttps("CRM_CAPTURE_URL");
     requireValue("CRM_CAPTURE_PROXY_SECRET", 32);
   }
-  if (value("SIGNUP_CRM_CAPTURE_URL")) requireHttps("SIGNUP_CRM_CAPTURE_URL");
+
+  for (const name of ["DEMO_CRM_CAPTURE_URL", "SIGNUP_CRM_CAPTURE_URL"]) {
+    if (value(name)) {
+      requireHttps(name);
+      requireValue("CRM_CAPTURE_PROXY_SECRET", 32);
+    }
+  }
+
+  const demoWebhookUrl =
+    value("DEMO_WEBHOOK_URL") || value("SIGNUP_WEBHOOK_URL");
+  const demoWebhookSecret =
+    value("DEMO_WEBHOOK_SECRET") || value("SIGNUP_WEBHOOK_SECRET");
+  if (Boolean(demoWebhookUrl) !== Boolean(demoWebhookSecret)) {
+    failures.push(
+      "Demo webhook URL and secret must be configured together when used.",
+    );
+  }
+  if (value("DEMO_WEBHOOK_URL")) requireHttps("DEMO_WEBHOOK_URL");
+  if (value("SIGNUP_WEBHOOK_URL")) requireHttps("SIGNUP_WEBHOOK_URL");
 } else {
   failures.push("Target must be web, landing or migration.");
 }

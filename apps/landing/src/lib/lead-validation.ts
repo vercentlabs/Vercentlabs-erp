@@ -1,4 +1,4 @@
-export type LeadKind = "contact" | "signup";
+export type LeadKind = "contact" | "demo";
 
 export const contactInterests = [
   "ERP discovery",
@@ -9,14 +9,13 @@ export const contactInterests = [
   "Other",
 ] as const;
 
-export const signupInterests = [
-  "Finance and accounting",
-  "Inventory and procurement",
-  "Sales and CRM",
-  "Manufacturing",
-  "People and payroll",
-  "Projects and services",
-  "Complete ERP platform",
+export const demoInterests = [
+  "Released CRM workflow",
+  "Permissions and operating context",
+  "Approvals and audit history",
+  "Business master data",
+  "Mobile CRM",
+  "ERP roadmap discussion",
 ] as const;
 
 export const teamSizes = [
@@ -90,9 +89,12 @@ export function validateLeadPayload(
   const errors: Record<string, string> = {};
 
   if (data.name.length < 2) errors.name = "Enter your full name.";
-  if (!validEmail(data.email))
+  if (!validEmail(data.email)) {
     errors.email = "Enter a valid work email address.";
-  if (data.company.length < 2) errors.company = "Enter your organisation name.";
+  }
+  if (data.company.length < 2) {
+    errors.company = "Enter your organisation name.";
+  }
   if (data.phone && !/^[0-9+()\-\s]{7,40}$/.test(data.phone)) {
     errors.phone = "Enter a valid phone number.";
   }
@@ -100,13 +102,12 @@ export function validateLeadPayload(
     errors.consent = "Confirm that VercentLabs may respond to this request.";
   }
 
-  const allowedInterests =
-    kind === "signup" ? signupInterests : contactInterests;
+  const allowedInterests = kind === "demo" ? demoInterests : contactInterests;
   if (!isAllowed(data.interest, allowedInterests)) {
     errors.interest = "Select a valid discussion area.";
   }
-  if (kind === "signup" && !data.interest) {
-    errors.interest = "Select the main area you want to explore.";
+  if (kind === "demo" && !data.interest) {
+    errors.interest = "Select the area you want to review.";
   }
   if (!isAllowed(data.teamSize, teamSizes)) {
     errors.teamSize = "Select a valid team size.";

@@ -5,277 +5,168 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title:
-    "How VercentLabs ERP Works | From Business Discovery to Daily Operations",
+  title: "How VercentLabs ERP Early Access Works",
   description:
-    "See how VercentLabs ERP is configured, implemented and used to connect your business processes, teams, data and reporting.",
+    "See how VercentLabs scopes, configures, validates and launches the released CRM and platform-foundation workflow.",
   path: "/how-it-works",
 });
 
 const config: StructuredPageConfig = {
   hero: {
-    eyebrow: "How VercentLabs ERP Works",
-    title: "Configure VercentLabs ERP around the way your business operates.",
+    eyebrow: "Implementation method",
+    title: "Move from operating evidence to a controlled CRM release.",
     description:
-      "VercentLabs ERP combines modular applications, shared business data, configurable workflows and role-based access. The platform is implemented around your organisation, processes and responsibilities rather than forcing every business into the same operating model.",
-    primary: { label: "Book a product walkthrough", href: "/contact" },
-    secondary: { label: "Explore workflows", href: "/workflows" },
+      "The current implementation path is intentionally narrow: understand one customer workflow, configure the organisation and permissions, migrate the required records, validate the released CRM end to end and expand only after acceptance.",
+    primary: { label: "Book a scope workshop", href: "/book-demo" },
+    secondary: { label: "Review released product", href: "/product" },
   },
   sections: [
     {
       eyebrow: "Step 1",
-      title: "Understand your business",
+      title: "Define the operating problem and acceptance boundary.",
       paragraphs: [
-        "Implementation begins by understanding how your organisation currently operates.",
-        "We document:",
+        "Document the users, companies, branches, records, handoffs, decisions, exceptions and evidence required for one customer workflow.",
       ],
       bullets: [
-        "Companies, branches and locations",
-        "Departments and responsibilities",
-        "Customers, suppliers and products",
-        "Existing applications and spreadsheets",
-        "Current workflows and approval requirements",
-        "Operational problems and process gaps",
-        "Reporting and compliance requirements",
-        "Data migration and integration requirements",
+        "Current systems and spreadsheets",
+        "Named process owner and participating roles",
+        "Organisation, company and branch boundaries",
+        "Required records, reports and audit evidence",
+        "Success criteria and explicit out-of-scope work",
       ],
       outcome:
-        "A clear implementation scope based on real business priorities.",
+        "A pilot brief that can be accepted or rejected using observable evidence.",
     },
     {
       eyebrow: "Step 2",
-      title: "Select the required modules",
+      title: "Configure the organisation and secure account lifecycle.",
       paragraphs: [
-        "Start with the released CRM scope and identify roadmap modules required for later implementation phases.",
-        "The transparent product roadmap includes:",
+        "Create the organisation, primary company, branch, user accounts, verified email path and active operating context in the secure ERP application.",
       ],
       bullets: [
-        "Accounting",
-        "Procurement",
-        "Sales",
-        "CRM",
-        "Stock",
-        "Manufacturing",
-        "Projects",
-        "Assets",
-        "Point of Sale",
-        "Quality",
-        "Support",
-        "HR & Payroll",
+        "Organisation, company and branch setup",
+        "Departments, teams and cost centres",
+        "Administrator and restricted-role users",
+        "Session, password and email-verification controls",
+        "Default numbering, CRM configuration and billing trial",
       ],
-      afterBullets:
-        "CRM is the current released early-access module. Every other module is planned scope until it passes its release gate.",
       outcome:
-        "A practical module plan aligned with your most important workflows.",
+        "A tenant-scoped workspace ready for realistic permission testing.",
     },
     {
       eyebrow: "Step 3",
-      title: "Configure your organisation",
+      title: "Prepare the business records the CRM depends on.",
       paragraphs: [
-        "VercentLabs ERP is configured around your business structure.",
-        "Configuration may include:",
+        "Clean and import only the master data and CRM records required by the pilot. Invalid rows are isolated so valid rows can continue safely.",
       ],
       bullets: [
-        "Companies and legal entities",
-        "Branches and operating locations",
-        "Warehouses and stock locations",
-        "Departments and cost centres",
-        "Financial structure",
-        "Tax and accounting rules",
-        "Roles and user permissions",
-        "Approval authorities",
-        "Numbering and document formats",
-        "Business calendars and working rules",
+        "Business partners and contacts",
+        "Users, owners and assignees",
+        "Lead sources, stages, campaigns and tags",
+        "Companies, branches and permitted operating scope",
+        "CSV trial import, validation and permission-scoped export",
       ],
       outcome:
-        "A system structure that represents the way your organisation works.",
+        "Traceable starting data without pretending that roadmap transactions exist.",
     },
     {
       eyebrow: "Step 4",
-      title: "Configure workflows and controls",
+      title: "Configure roles, permissions and supported decisions.",
       paragraphs: [
-        "Business workflows are configured around responsibilities and decision rules.",
-        "This can include:",
+        "Grant only the actions each role needs and verify denied paths as deliberately as successful ones.",
       ],
       bullets: [
-        "Automatic task assignments",
-        "Approval limits",
-        "Multi-level approvals",
-        "Notifications and reminders",
-        "Escalation rules",
-        "Exception handling",
-        "Status transitions",
-        "Document requirements",
-        "Validation rules",
-        "Audit tracking",
+        "CRM view and resource-specific manage permissions",
+        "Company and branch access",
+        "Approval-manager access",
+        "Billing visibility and checkout permissions",
+        "Supported opportunity stage-change approval",
+        "Supported activity-completion approval",
       ],
-      outcome: "Processes that are controlled, understandable and traceable.",
+      afterBullets:
+        "The current release does not claim a generic multi-level approval designer or delegated approval chains.",
+      outcome:
+        "An explicit operating boundary enforced in navigation, APIs, commands and row-level security.",
     },
     {
       eyebrow: "Step 5",
-      title: "Prepare and migrate business data",
-      paragraphs: [
-        "Existing business information is reviewed, cleaned and prepared for migration.",
-        "Data may include:",
-      ],
-      bullets: [
-        "Customers and suppliers",
-        "Products and services",
-        "Opening inventory",
-        "Chart of accounts",
-        "Outstanding receivables and payables",
-        "Employees",
-        "Assets",
-        "Projects",
-        "Historical reference information",
-      ],
+      title: "Run the released CRM workflow end to end.",
       steps: [
-        "Identify source data",
-        "Map data fields",
-        "Clean duplicate or incomplete records",
-        "Perform trial migration",
-        "Validate migrated data",
-        "Approve the final migration",
-        "Complete production cutover",
+        "Capture or import a lead",
+        "Apply ownership, source, campaign, tags and scoring",
+        "Qualify the lead and resolve duplicate evidence",
+        "Convert exactly once into partner, contact and opportunity records",
+        "Schedule activities and progress the opportunity",
+        "Request a governed command when approval is required",
+        "Decide the request with version and separation-of-duties checks",
+        "Inspect reports, notifications, audit history and mobile behaviour",
       ],
-      stepsLabel: "Migration follows a controlled process:",
-      outcome: "Reliable starting data inside VercentLabs ERP.",
+      stepsLabel: "Acceptance sequence",
+      outcome:
+        "A complete workflow with both successful and denied paths demonstrated.",
     },
     {
       eyebrow: "Step 6",
-      title: "Validate complete business scenarios",
-      paragraphs: [
-        "The system is tested using real operating scenarios.",
-        "Testing covers:",
-      ],
-      bullets: [
-        "User permissions",
-        "Approval workflows",
-        "Calculations",
-        "Documents",
-        "Reports",
-        "Module integrations",
-        "Exception handling",
-        "Accounting impact",
-        "Data migration",
-        "External integrations",
-      ],
-      outcome:
-        "Confirmed workflows before the system is used for live operations.",
-    },
-    {
-      eyebrow: "Step 7",
-      title: "Train users by responsibility",
-      paragraphs: [
-        "Users are trained according to their actual roles.",
-        "Training focuses on:",
-      ],
-      bullets: [
-        "Daily responsibilities",
-        "Required transactions",
-        "Approvals",
-        "Exception management",
-        "Dashboards",
-        "Reports",
-        "Data ownership",
-        "Support processes",
-      ],
-      outcome:
-        "Users understand what they need to do, why they need to do it and how their work affects other departments.",
-    },
-    {
-      eyebrow: "Step 8",
-      title: "Launch through a controlled go-live",
-      paragraphs: [
-        "The production system is launched through a planned cutover.",
-        "The go-live process can include:",
-      ],
-      bullets: [
-        "Final data migration",
-        "User access activation",
-        "Opening balance validation",
-        "Inventory validation",
-        "Workflow activation",
-        "Integration activation",
-        "Transaction monitoring",
-        "User assistance",
-        "Issue prioritisation",
-      ],
-      outcome: "A controlled transition from old systems to VercentLabs ERP.",
-    },
-    {
-      eyebrow: "Step 9",
-      title: "Run daily operations",
-      paragraphs: [
-        "Once live, VercentLabs ERP becomes the shared operating platform for your teams.",
-        "A typical transaction follows this pattern:",
-      ],
+      title: "Validate with real roles, devices and failure states.",
       tone: "dark",
       items: [
         {
-          title: "A business event is created",
+          title: "Tenant isolation",
           description:
-            "A lead, purchase request, sales order, support issue, production order or employee activity enters the system.",
+            "Use at least two organisations and prove that records, search, reports and commands never cross the boundary.",
         },
         {
-          title: "The responsible user receives the work",
+          title: "Permission denial",
           description:
-            "The transaction is assigned according to role, department, location or workflow.",
+            "Use a restricted user to verify hidden controls and rejected direct API mutations.",
         },
         {
-          title: "Business rules are applied",
+          title: "Web and mobile parity",
           description:
-            "The system validates data, pricing, availability, permissions and approval requirements.",
+            "Confirm supported CRM views and mutations on responsive web, Android and iOS export paths.",
         },
         {
-          title: "Approvals are completed",
+          title: "Operational failure",
           description:
-            "Required managers or authorised users review and approve the activity.",
+            "Exercise invalid input, unavailable providers, retries, rate limits and safe error messages.",
         },
         {
-          title: "Connected modules are updated",
+          title: "Release gate",
           description:
-            "The transaction updates inventory, production, projects, accounting or other related areas.",
+            "Run tests, lint, TypeScript, production builds, database checks and deployment smoke before promotion.",
         },
         {
-          title: "Management receives visibility",
+          title: "Evidence",
           description:
-            "Dashboards and reports reflect the latest operational and financial position.",
-        },
-        {
-          title: "The complete history remains available",
-          description:
-            "Users can review activities, approvals, documents, changes and transaction relationships.",
+            "Record acceptance results, known limitations, production configuration and rollback steps.",
         },
       ],
     },
     {
-      eyebrow: "Step 10",
-      title: "Improve and expand",
+      eyebrow: "Step 7",
+      title: "Launch the accepted scope and observe adoption.",
       paragraphs: [
-        "After go-live, the system can expand as the organisation grows.",
-        "You can:",
+        "Promote only the workflow that passed acceptance. Monitor data quality, permission usage, failed jobs, provider delivery and the questions users still need answered.",
       ],
-      bullets: [
-        "Add more modules",
-        "Add companies and branches",
-        "Add users and roles",
-        "Improve approval rules",
-        "Automate more activities",
-        "Add integrations",
-        "Create new reports",
-        "Introduce additional workflows",
-        "Standardise more business processes",
+      outcome:
+        "A controlled early-access release with a known support and rollback path.",
+    },
+    {
+      eyebrow: "Roadmap boundary",
+      title: "Treat every future module as a separate release programme.",
+      paragraphs: [
+        "Accounting, Procurement, Sales, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll remain roadmap scope.",
+        "They are not added to an implementation plan as available modules until each one passes its own end-to-end release gate.",
       ],
-      outcome: "An ERP platform that grows with your organisation.",
+      cta: { label: "Review the module roadmap", href: "/modules" },
     },
   ],
   finalCta: {
-    title: "See how VercentLabs ERP would work inside your organisation.",
+    title: "Bring one real workflow and test the product against it.",
     description:
-      "Walk through your current processes, responsibilities, approvals and reporting requirements with our team.",
-    primary: { label: "Book a product walkthrough", href: "/contact" },
-    secondary: { label: "Explore the product", href: "/product" },
+      "The strongest next step is a narrow scenario with named users, realistic records, explicit denials and measurable acceptance criteria.",
+    primary: { label: "Book a scope workshop", href: "/book-demo" },
+    secondary: { label: "Review CRM workflow", href: "/workflows" },
   },
 };
 

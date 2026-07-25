@@ -24,7 +24,7 @@ export const siteConfig = {
   email:
     process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "vercentlabs@gmail.com",
   locale: "en_IN",
-  themeColor: "#4f46e5",
+  themeColor: "#0c0f12",
   audience: "Manufacturers, distributors, retailers and service businesses",
 } as const;
 

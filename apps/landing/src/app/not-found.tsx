@@ -1,39 +1,44 @@
 import Link from "next/link";
-import { ArrowLeft, SearchX } from "lucide-react";
 
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
+import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
 
 export default function NotFoundPage() {
   return (
     <MarketingShell>
-      <section className="bg-white py-14 sm:py-32">
-        <PageContainer>
-          <div className="mx-auto max-w-xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-              <SearchX aria-hidden="true" className="h-7 w-7" />
-            </div>
-
-            <p className="mt-6 text-sm font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-              Error 404
+      <PageHero
+        eyebrow="404 / Route not found"
+        title="The address does not map to a public operating surface."
+        description="The page may have moved, the address may be incomplete, or the route may belong to the secure ERP application rather than the public website."
+      />
+      <OperatorBand
+        index="01"
+        eyebrow="Recovery"
+        title="Return to a known public route."
+        description="Use the product map for released scope, or the homepage for the complete public navigation."
+        tone="white"
+      >
+        <div className="operator-auth-panel">
+          <OperatorNote label="No action recorded">
+            <p>
+              A missing route does not complete a form, trial, account, payment
+              or product command.
             </p>
-
-            <h1 className="font-display mt-2 text-3xl font-extrabold tracking-[-0.04em] text-slate-950 sm:mt-3 sm:text-4xl">
-              This page could not be found.
-            </h1>
-
-            <p className="mt-5 text-base leading-8 text-slate-600">
-              The address may be incorrect, or the page may have moved while the
-              product website was being developed.
-            </p>
-
-            <Link href="/" className="button-primary mt-7">
-              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-              Return to homepage
+          </OperatorNote>
+          <div className="operator-actions">
+            <Link href="/product" className="button-primary">
+              Review released product
+            </Link>
+            <Link href="/" className="button-secondary">
+              Return home
             </Link>
           </div>
-        </PageContainer>
-      </section>
+        </div>
+      </OperatorBand>
     </MarketingShell>
   );
 }

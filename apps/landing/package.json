@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"next.config.mjs\" \"tsconfig.json\" \"README.md\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"next.config.mjs\" \"tsconfig.json\" \"README.md\"",
-    "validate": "pnpm lint && pnpm typecheck && pnpm build",
-    "test": "node --test"
+    "validate": "pnpm test && pnpm lint && pnpm typecheck && pnpm build && pnpm test:e2e",
+    "test": "node --test",
+    "test:e2e": "node scripts/verify-production-journeys.mjs",
+    "test:browser": "node scripts/verify-browser-journeys.mjs"
   },
   "dependencies": {
     "@vercent/shared-types": "workspace:*",
@@ -29,6 +31,7 @@
     "eslint-config-next": "16.2.11",
     "prettier": "^3",
     "tailwindcss": "4.1.18",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@playwright/test": "1.61.1"
   }
 }

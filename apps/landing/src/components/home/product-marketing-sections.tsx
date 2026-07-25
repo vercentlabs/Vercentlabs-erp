@@ -321,8 +321,8 @@ export default function ProductMarketingSections() {
             <div className="os-integrity__heading">
               <p className="os-eyebrow">Proof without theatre</p>
               <h2>
-                No invented customers. No fake metrics. No roadmap disguised as
-                release.
+                No customer proof is invented. Synthetic previews are labelled.
+                Roadmap stays roadmap.
               </h2>
             </div>
           </RevealOnScroll>

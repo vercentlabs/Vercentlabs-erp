@@ -13,7 +13,7 @@ export default function HomePage() {
       <AnnouncementBar />
       <Header />
 
-      <main id="main-content" className="marketing-main">
+      <main id="main-content" tabIndex={-1} className="marketing-main">
         <HeroSection />
         <ProductMarketingSections />
       </main>

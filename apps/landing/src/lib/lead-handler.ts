@@ -32,6 +32,14 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
     );
   }
 
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json(
+      { ok: false, message: "Content-Type must be application/json." },
+      415,
+    );
+  }
+
   const parsed = await readJsonBody(request);
   if (!parsed.ok) {
     return json({ ok: false, message: parsed.message }, parsed.status);
@@ -64,10 +72,15 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
   }
 
   const rateLimit = await enforceLeadRateLimit(request, kind);
+  const retryAfter = Math.max(
+    1,
+    Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
+  );
   const rateHeaders = {
     "X-RateLimit-Limit": String(rateLimit.limit),
     "X-RateLimit-Remaining": String(rateLimit.remaining),
     "X-RateLimit-Reset": String(Math.ceil(rateLimit.resetAt / 1000)),
+    ...(rateLimit.allowed ? {} : { "Retry-After": String(retryAfter) }),
   };
 
   if (!rateLimit.allowed) {
@@ -99,7 +112,10 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
   const configuredSiteUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() || siteConfig.siteUrl;
   const origin = new URL(configuredSiteUrl).origin;
-  const delivery = await deliverLead(kind, result.data, { fingerprint, origin });
+  const delivery = await deliverLead(kind, result.data, {
+    fingerprint,
+    origin,
+  });
   if (!delivery.success) {
     return json(
       {
@@ -116,8 +132,8 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
     {
       ok: true,
       message:
-        kind === "signup"
-          ? "Your design-partner application has been delivered."
+        kind === "demo"
+          ? "Your demo request has been delivered to VercentLabs."
           : "Your enquiry has been delivered to VercentLabs.",
     },
     202,

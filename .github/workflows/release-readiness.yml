@@ -43,6 +43,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @vercent/landing exec playwright install --with-deps chromium
       - run: pnpm audit:dependencies
       - run: pnpm test:all
       - run: pnpm verify:release
@@ -58,4 +59,6 @@ jobs:
       - run: pnpm db:verify:crm
       - run: pnpm db:verify:billing
       - run: pnpm lint:landing && pnpm typecheck:landing && pnpm build:landing
+      - run: pnpm test:landing:e2e
+      - run: pnpm test:landing:browser
       - run: pnpm lint:web && pnpm typecheck:web && pnpm build:web

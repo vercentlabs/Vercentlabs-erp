@@ -11,7 +11,7 @@ export default function OrganizationJsonLd() {
         alternateName: siteConfig.name,
         url: siteConfig.siteUrl,
         email: siteConfig.email,
-        logo: absoluteUrl("/brand/logo.png"),
+        logo: absoluteUrl("/icon"),
         areaServed: "IN",
       },
       {

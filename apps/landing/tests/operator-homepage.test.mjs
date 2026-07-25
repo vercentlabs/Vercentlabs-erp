@@ -31,7 +31,7 @@ test("homepage stays honest about released and roadmap scope", () => {
     /Twelve modules\. One is released\. Eleven are roadmap\./,
   );
   assert.match(sections, /isReleasedModule/);
-  assert.match(sections, /No invented customers\. No fake metrics/);
+  assert.match(sections, /Synthetic previews are labelled/);
 });
 
 test("product story is interactive and keyboard-readable", () => {
@@ -39,6 +39,10 @@ test("product story is interactive and keyboard-readable", () => {
   assert.match(demo, /role="tab"/);
   assert.match(demo, /role="tabpanel"/);
   assert.match(demo, /aria-selected/);
+  assert.match(demo, /ArrowRight/);
+  assert.match(demo, /ArrowLeft/);
+  assert.match(demo, /Illustrative workflow · synthetic data/);
+  assert.match(demo, /onDecision/);
   assert.match(demo, /Lead inbox/);
   assert.match(demo, /Pipeline/);
   assert.match(demo, /Approval trail/);

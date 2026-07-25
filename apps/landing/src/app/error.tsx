@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 type ErrorPageProps = {
   error: Error & {
@@ -17,32 +17,25 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
   }, [error]);
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center bg-white px-4 py-12 sm:min-h-[70vh] sm:px-5 sm:py-20">
-      <div className="max-w-xl text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
-          <AlertTriangle aria-hidden="true" className="h-7 w-7" />
-        </div>
-
-        <h1 className="font-display mt-4 text-3xl font-extrabold tracking-[-0.04em] text-slate-950 sm:mt-6 sm:text-4xl">
-          This page could not be displayed.
-        </h1>
-
-        <p className="mt-5 text-base leading-8 text-slate-600">
-          Try loading the page again. No product or account action should be
-          assumed to have completed until a success message is shown.
+    <main id="main-content" className="operator-state-page">
+      <div className="operator-state-page__frame">
+        <span className="operator-state-page__code">ERROR / ROUTE</span>
+        <p className="os-eyebrow">Public website state</p>
+        <h1>This route could not be displayed safely.</h1>
+        <p>
+          Retry the route. No enquiry, account, payment or product action should
+          be assumed complete until a specific success response is shown.
         </p>
-
-        <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+        <div className="operator-actions">
           <button type="button" onClick={reset} className="button-primary">
-            <RefreshCw aria-hidden="true" className="h-4 w-4" />
+            <RefreshCw aria-hidden="true" />
             Try again
           </button>
-
           <Link href="/" className="button-secondary">
             Return home
           </Link>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

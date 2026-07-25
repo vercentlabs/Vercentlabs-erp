@@ -52,6 +52,8 @@ pnpm verify:release
 pnpm lint:landing
 pnpm typecheck:landing
 pnpm build:landing
+pnpm test:landing:e2e
+pnpm test:landing:browser
 pnpm lint:web
 pnpm typecheck:web
 pnpm build:web
@@ -102,8 +104,22 @@ WEB_URL=https://app.example.com \
 node scripts/deployment/smoke-deployment.mjs
 ```
 
-6. Complete the manual real-user acceptance checklist in staging before full
-   promotion.
+To verify the deployed landing-to-CRM/webhook journey as well, use a controlled
+recipient that the team can identify and archive:
+
+```bash
+LANDING_URL=https://www.example.com \
+WEB_URL=https://app.example.com \
+SMOKE_LEAD_EMAIL=qa@example.com \
+SMOKE_LEAD_COMPANY="VercentLabs QA" \
+node scripts/deployment/smoke-deployment.mjs
+```
+
+The live form smoke must return HTTP 202 and the destination must be confirmed
+in the CRM or webhook receiver. Do not use a real prospect's email address.
+
+6. Complete both `docs/testing/manual-crm-acceptance.md` and
+   `docs/testing/manual-landing-acceptance.md` in staging before full promotion.
 
 ## Public lead delivery
 
@@ -147,7 +163,7 @@ traffic.
 
 Do not open production to real customers until:
 
-- the manual CRM acceptance checklist is complete;
+- the manual CRM and public website acceptance checklists are complete;
 - email, proxy headers, rate limiting and capture delivery are verified;
 - restricted-role and cross-tenant tests pass;
 - backup restoration has been rehearsed;

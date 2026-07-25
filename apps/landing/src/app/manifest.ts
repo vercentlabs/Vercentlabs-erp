@@ -3,17 +3,19 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "VercentLabs ERP",
-    short_name: "VercentLabs ERP",
-    description: "Connected enterprise operations by VercentLabs.",
+    short_name: "VercentLabs",
+    description:
+      "Governed CRM early access on the VercentLabs ERP platform foundation.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#4f46e5",
+    background_color: "#f2efe7",
+    theme_color: "#0c0f12",
     icons: [
       {
-        src: "/brand/logo.png",
-        sizes: "any",
+        src: "/icon",
+        sizes: "512x512",
         type: "image/png",
+        purpose: "any",
       },
     ],
   };

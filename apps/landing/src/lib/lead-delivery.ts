@@ -3,8 +3,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import type { LeadKind, LeadPayload } from "@/lib/lead-validation";
 
 type DeliveryResult =
-  | { success: true }
-  | { success: false; status: number; message: string };
+  { success: true } | { success: false; status: number; message: string };
 
 type DeliveryContext = {
   fingerprint: string;
@@ -26,14 +25,22 @@ function timeoutMilliseconds() {
     : 8000;
 }
 
+function demoValue(current: string | undefined, legacy: string | undefined) {
+  return current?.trim() || legacy?.trim() || "";
+}
+
 async function deliverToCrmCapture(
   kind: LeadKind,
   data: LeadPayload,
   context: DeliveryContext,
 ): Promise<DeliveryResult | null> {
   const captureUrl =
-    (kind === "signup" ? process.env.SIGNUP_CRM_CAPTURE_URL?.trim() : "") ||
-    process.env.CRM_CAPTURE_URL?.trim();
+    (kind === "demo"
+      ? demoValue(
+          process.env.DEMO_CRM_CAPTURE_URL,
+          process.env.SIGNUP_CRM_CAPTURE_URL,
+        )
+      : "") || process.env.CRM_CAPTURE_URL?.trim();
   if (!captureUrl) return null;
 
   const proxySecret = process.env.CRM_CAPTURE_PROXY_SECRET?.trim();
@@ -113,11 +120,16 @@ async function deliverToGenericWebhook(
   data: LeadPayload,
 ): Promise<DeliveryResult> {
   const webhookUrl =
-    (kind === "signup" ? process.env.SIGNUP_WEBHOOK_URL?.trim() : "") ||
-    process.env.LEAD_WEBHOOK_URL?.trim();
+    (kind === "demo"
+      ? demoValue(process.env.DEMO_WEBHOOK_URL, process.env.SIGNUP_WEBHOOK_URL)
+      : "") || process.env.LEAD_WEBHOOK_URL?.trim();
   const webhookSecret =
-    (kind === "signup" ? process.env.SIGNUP_WEBHOOK_SECRET : "") ||
-    process.env.LEAD_WEBHOOK_SECRET;
+    (kind === "demo"
+      ? demoValue(
+          process.env.DEMO_WEBHOOK_SECRET,
+          process.env.SIGNUP_WEBHOOK_SECRET,
+        )
+      : "") || process.env.LEAD_WEBHOOK_SECRET?.trim();
 
   if (!webhookUrl) {
     return {
@@ -138,7 +150,7 @@ async function deliverToGenericWebhook(
 
   const payload = JSON.stringify({
     id: randomUUID(),
-    event: kind === "signup" ? "design_partner.application" : "contact.enquiry",
+    event: kind === "demo" ? "demo.requested" : "contact.enquiry",
     source: "vercentlabs-landing",
     submittedAt: new Date().toISOString(),
     lead: {

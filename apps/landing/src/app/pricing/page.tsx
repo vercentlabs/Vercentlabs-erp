@@ -16,7 +16,7 @@ import { siteConfig } from "@/lib/site-config";
 export const metadata = createPageMetadata({
   title: "Vercent ERP Pricing",
   description:
-    "Choose an unlimited-user Vercent ERP plan based on companies, branches, storage and operational volume.",
+    "Review unlimited-user pricing for the released Vercent ERP CRM scope and governed platform foundation.",
   path: "/pricing",
 });
 
@@ -25,7 +25,7 @@ const plans = [
     code: "launch",
     name: "Launch",
     audience:
-      "Small businesses replacing spreadsheets with one governed workspace.",
+      "Small businesses replacing spreadsheets with one governed CRM workspace.",
     monthly: "₹3,999",
     yearly: "₹39,990 yearly",
     onboarding: "Self-guided onboarding included",
@@ -44,7 +44,7 @@ const plans = [
     code: "growth",
     name: "Growth",
     audience:
-      "Growing distribution, service and multi-location operating teams.",
+      "Growing distribution, service and multi-location commercial teams.",
     monthly: "₹9,999",
     yearly: "₹99,990 yearly",
     onboarding: "₹19,999 implementation package",
@@ -62,7 +62,7 @@ const plans = [
     code: "scale",
     name: "Scale",
     audience:
-      "Established multi-company businesses with higher operational volume.",
+      "Established multi-company businesses with higher CRM and integration volume.",
     monthly: "₹24,999",
     yearly: "₹2,49,990 yearly",
     onboarding: "₹74,999 implementation package",
@@ -78,8 +78,14 @@ const plans = [
   },
 ] as const;
 
-function signupHref() {
-  return siteConfig.appUrl ? `${siteConfig.appUrl}/signup` : "/signup";
+function trialHref(planCode: string) {
+  return siteConfig.appUrl
+    ? `${siteConfig.appUrl}/signup?plan=${encodeURIComponent(planCode)}`
+    : "/book-demo";
+}
+
+function trialLabel() {
+  return siteConfig.appUrl ? "Start 14-day trial" : "Request early access";
 }
 
 export default function PricingPage() {
@@ -88,14 +94,14 @@ export default function PricingPage() {
       <PageHero
         eyebrow="Commercial model"
         title="Price the operating capacity. Not every person who needs the truth."
-        description="Every standard plan includes unlimited users. Commercial limits follow companies, branches, storage, integrations and automation volume so adoption is not punished."
+        description="Every standard plan includes unlimited users. Published pricing applies to the released CRM and platform-foundation scope; the eleven roadmap modules are not included as shipped capability."
       />
 
       <OperatorBand
         index="01"
         eyebrow="Plans"
         title="Three operating envelopes. One transparent model."
-        description="A 14-day Launch-capacity trial is available. There is no free-forever production plan. Prices exclude applicable taxes, third-party usage and dedicated infrastructure."
+        description="A 14-day Launch-capacity trial begins only inside the configured secure ERP application. Until account registration is publicly available, the same action requests an early-access review instead."
         tone="white"
       >
         <div className="operator-price-grid">
@@ -126,16 +132,23 @@ export default function PricingPage() {
                 ))}
               </ul>
               <Link
-                href={signupHref()}
+                href={trialHref(plan.code)}
                 className={
                   plan.featured ? "button-primary" : "button-secondary"
                 }
               >
-                Start 14-day trial
+                {trialLabel()}
               </Link>
             </article>
           ))}
         </div>
+        <OperatorNote label="Release and tax boundary">
+          <p>
+            Prices exclude applicable taxes, third-party usage and dedicated
+            infrastructure. Roadmap modules are quoted only after they pass
+            their own release gate.
+          </p>
+        </OperatorNote>
         <OperatorNote label="Enterprise">
           <p>
             Custom scope starts from ₹60,000 per month, with implementation from
@@ -173,12 +186,12 @@ export default function PricingPage() {
       <OperatorFinalCta
         eyebrow="Commercial conversation"
         title="Choose the right operating envelope before rollout."
-        description="Share your companies, branches, users, migration volume and workflow scope. We will respond with a grounded recommendation."
+        description="Share your companies, branches, users, migration volume and released CRM workflow scope. We will respond with a grounded recommendation."
         primary={{
           label: "Discuss implementation",
           href: `mailto:${siteConfig.email}?subject=Vercent ERP pricing and implementation discussion`,
         }}
-        secondary={{ label: "Review product", href: "/product" }}
+        secondary={{ label: "Review released product", href: "/product" }}
       />
     </MarketingShell>
   );

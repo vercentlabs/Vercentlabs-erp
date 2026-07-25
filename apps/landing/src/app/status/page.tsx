@@ -8,12 +8,13 @@ import {
   OperatorGrid,
   OperatorNote,
 } from "@/components/marketing/operator-page";
+import PublicStatusCheck from "@/components/marketing/public-status-check";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
   title: "VercentLabs ERP Status",
   description:
-    "Review the operational status of VercentLabs ERP services and the public website.",
+    "Review the live public website health check and the stated VercentLabs ERP release status.",
   path: "/status",
 });
 
@@ -22,46 +23,49 @@ export default function StatusPage() {
     <MarketingShell>
       <PageHero
         eyebrow="Service status"
-        title="Publish the actual development state. Not invented uptime."
-        description="This page distinguishes the public website, active product development and any future production customer service commitments."
+        title="Separate live health from product and service commitments."
+        description="The public website can report its own current response. Product development state and any future customer service commitment remain separate facts."
       />
       <OperatorBand
         index="01"
         eyebrow="Current state"
         title="Three surfaces. Three different commitments."
-        description="Operational status must remain specific enough to be useful and narrow enough to be true."
+        description="Operational status is useful only when it says exactly what was checked."
         tone="white"
       >
         <OperatorGrid columns={3}>
           <OperatorCard
             index="01"
             icon={Activity}
-            title="Public landing application"
-            description="Product, module, industry, company and contact routes are available."
+            title="Public landing deployment"
+            description="The indicator below calls this deployment's no-cache health endpoint from your browser."
             status="released"
-            meta="Operational"
-          />
+            meta="Live same-origin check"
+          >
+            <PublicStatusCheck />
+          </OperatorCard>
           <OperatorCard
             index="02"
             icon={Wrench}
             title="VercentLabs ERP product"
-            description="Platform, CRM, mobile, database and release-hardening work is active."
+            description="Platform foundation and CRM are in controlled early access. Eleven modules remain roadmap."
             status="foundation"
-            meta="Active development"
+            meta="Active early access"
           />
           <OperatorCard
             index="03"
             icon={Clock}
             title="Production customer service"
-            description="No public production uptime or service-level commitment is currently claimed."
+            description="No public uptime percentage or contractual service-level commitment is claimed here."
             status="roadmap"
-            meta="Not publicly launched"
+            meta="Agreement-specific"
           />
         </OperatorGrid>
         <OperatorNote label="Contract boundary">
           <p>
-            This is a public development summary, not a contractual
-            service-level dashboard.
+            A successful public health response does not prove database
+            readiness, provider delivery, customer tenancy or contracted SLA
+            performance.
           </p>
         </OperatorNote>
       </OperatorBand>

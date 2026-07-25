@@ -13,10 +13,12 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   UsersRound,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { type KeyboardEvent, useRef, useState } from "react";
 
 type DemoView = "inbox" | "pipeline" | "approval";
+type ApprovalDecision = "pending" | "approved" | "rejected";
 
 const views: { id: DemoView; label: string; number: string }[] = [
   { id: "inbox", label: "Lead inbox", number: "01" },
@@ -38,9 +40,49 @@ const stages = [
 
 export default function OperatingSystemDemo() {
   const [view, setView] = useState<DemoView>("inbox");
+  const [approvalDecision, setApprovalDecision] =
+    useState<ApprovalDecision>("pending");
+  const tabRefs = useRef<Record<DemoView, HTMLButtonElement | null>>({
+    inbox: null,
+    pipeline: null,
+    approval: null,
+  });
+
+  function selectTab(next: DemoView, focus = false) {
+    setView(next);
+    if (focus) {
+      window.requestAnimationFrame(() => tabRefs.current[next]?.focus());
+    }
+  }
+
+  function handleTabKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let nextIndex = index;
+
+    if (event.key === "ArrowRight") {
+      nextIndex = (index + 1) % views.length;
+    } else if (event.key === "ArrowLeft") {
+      nextIndex = (index - 1 + views.length) % views.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = views.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    selectTab(views[nextIndex].id, true);
+  }
 
   return (
     <div className="os-demo" aria-label="Interactive VercentLabs CRM preview">
+      <div className="os-demo__sample-label">
+        Illustrative workflow · synthetic data · not customer proof
+      </div>
+
       <div className="os-demo__topbar">
         <div className="os-demo__window-meta">
           <span className="os-demo__mark" aria-hidden="true">
@@ -52,13 +94,15 @@ export default function OperatingSystemDemo() {
           </div>
         </div>
         <div className="os-demo__topbar-actions">
-          <button type="button" aria-label="Search preview">
-            <Search aria-hidden="true" />
-          </button>
-          <span className="os-demo__live">
-            <i aria-hidden="true" /> Live control
+          <span className="os-demo__icon-control" aria-hidden="true">
+            <Search />
           </span>
-          <span className="os-demo__avatar">AC</span>
+          <span className="os-demo__live">
+            <i aria-hidden="true" /> Preview state
+          </span>
+          <span className="os-demo__avatar" aria-label="Illustrative user">
+            AC
+          </span>
         </div>
       </div>
 
@@ -92,16 +136,16 @@ export default function OperatingSystemDemo() {
         <div className="os-demo__workspace">
           <div className="os-demo__view-header">
             <div>
-              <span className="os-mono-label">Command view / 2026</span>
+              <span className="os-mono-label">Illustrative command view</span>
               <h2>Customer operations</h2>
             </div>
-            <div className="os-demo__view-tools">
-              <button type="button">
-                <Filter aria-hidden="true" /> Filter
-              </button>
-              <button type="button">
-                <SlidersHorizontal aria-hidden="true" /> View
-              </button>
+            <div className="os-demo__view-tools" aria-hidden="true">
+              <span>
+                <Filter /> Filter
+              </span>
+              <span>
+                <SlidersHorizontal /> View
+              </span>
             </div>
           </div>
 
@@ -110,9 +154,12 @@ export default function OperatingSystemDemo() {
             role="tablist"
             aria-label="Preview views"
           >
-            {views.map((item) => (
+            {views.map((item, index) => (
               <button
                 key={item.id}
+                ref={(element) => {
+                  tabRefs.current[item.id] = element;
+                }}
                 id={`demo-tab-${item.id}`}
                 type="button"
                 role="tab"
@@ -120,7 +167,8 @@ export default function OperatingSystemDemo() {
                 aria-controls={`demo-panel-${item.id}`}
                 tabIndex={view === item.id ? 0 : -1}
                 className={view === item.id ? "is-active" : undefined}
-                onClick={() => setView(item.id)}
+                onClick={() => selectTab(item.id)}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
               >
                 <span>{item.number}</span>
                 {item.label}
@@ -131,7 +179,12 @@ export default function OperatingSystemDemo() {
           <div className="os-demo__panel-wrap">
             {view === "inbox" ? <LeadInbox /> : null}
             {view === "pipeline" ? <Pipeline /> : null}
-            {view === "approval" ? <ApprovalTrail /> : null}
+            {view === "approval" ? (
+              <ApprovalTrail
+                decision={approvalDecision}
+                onDecision={setApprovalDecision}
+              />
+            ) : null}
           </div>
         </div>
       </div>
@@ -151,17 +204,17 @@ function LeadInbox() {
         <div>
           <span>Open leads</span>
           <strong>24</strong>
-          <small>+6 this week</small>
+          <small>synthetic preview</small>
         </div>
         <div>
           <span>Qualified</span>
           <strong>11</strong>
-          <small>46% conversion</small>
+          <small>illustrative state</small>
         </div>
         <div>
           <span>Follow-ups due</span>
           <strong>07</strong>
-          <small>2 need attention</small>
+          <small>sample workload</small>
         </div>
       </div>
 
@@ -208,7 +261,7 @@ function Pipeline() {
               <b>{stage.count}</b>
             </header>
             <div className={index === 2 ? "is-selected" : undefined}>
-              <span className="os-mono-label">OPP-00{index + 7}</span>
+              <span className="os-mono-label">SAMPLE-00{index + 7}</span>
               <h3>
                 {index === 0
                   ? "Arka Components"
@@ -229,7 +282,7 @@ function Pipeline() {
               </footer>
             </div>
             <div>
-              <span className="os-mono-label">NEXT</span>
+              <span className="os-mono-label">SYNTHETIC</span>
               <h3>
                 {index === 0
                   ? "Kite Services"
@@ -250,7 +303,20 @@ function Pipeline() {
   );
 }
 
-function ApprovalTrail() {
+function ApprovalTrail({
+  decision,
+  onDecision,
+}: {
+  decision: ApprovalDecision;
+  onDecision: (decision: ApprovalDecision) => void;
+}) {
+  const statusLabel =
+    decision === "pending"
+      ? "Pending"
+      : decision === "approved"
+        ? "Approved"
+        : "Rejected";
+
   return (
     <section
       id="demo-panel-approval"
@@ -260,22 +326,22 @@ function ApprovalTrail() {
     >
       <div className="os-approval-layout">
         <div className="os-approval-request">
-          <span className="os-mono-label">REQUEST / AR-0921</span>
+          <span className="os-mono-label">SAMPLE REQUEST / AR-0921</span>
           <div className="os-approval-request__title">
             <div>
               <h3>Move opportunity to Decision</h3>
-              <p>Nova Industrial · ₹18.4L</p>
+              <p>Nova Industrial · ₹18.4L · synthetic record</p>
             </div>
-            <span>Pending</span>
+            <span data-decision={decision}>{statusLabel}</span>
           </div>
           <dl>
             <div>
               <dt>Requested by</dt>
-              <dd>Priya Shah</dd>
+              <dd>Illustrative revenue user</dd>
             </div>
             <div>
-              <dt>Policy</dt>
-              <dd>High-value stage gate</dd>
+              <dt>Command</dt>
+              <dd>CRM opportunity stage change</dd>
             </div>
             <div>
               <dt>Operating context</dt>
@@ -283,14 +349,24 @@ function ApprovalTrail() {
             </div>
           </dl>
           <div className="os-approval-request__actions">
-            <button type="button">Reject</button>
-            <button type="button">
-              <Check aria-hidden="true" /> Approve command
+            <button
+              type="button"
+              disabled={decision !== "pending"}
+              onClick={() => onDecision("rejected")}
+            >
+              <X aria-hidden="true" /> Reject preview
+            </button>
+            <button
+              type="button"
+              disabled={decision !== "pending"}
+              onClick={() => onDecision("approved")}
+            >
+              <Check aria-hidden="true" /> Approve preview
             </button>
           </div>
         </div>
 
-        <ol className="os-audit-trail">
+        <ol className="os-audit-trail" aria-live="polite">
           <li>
             <span>
               <FileCheck2 aria-hidden="true" />
@@ -314,8 +390,18 @@ function ApprovalTrail() {
               <Clock3 aria-hidden="true" />
             </span>
             <div>
-              <strong>Decision waiting</strong>
-              <small>Assigned to revenue lead</small>
+              <strong>
+                {decision === "pending"
+                  ? "Decision waiting"
+                  : decision === "approved"
+                    ? "Command approved"
+                    : "Command rejected"}
+              </strong>
+              <small>
+                {decision === "pending"
+                  ? "Assigned to revenue lead"
+                  : "Illustrative decision recorded"}
+              </small>
             </div>
           </li>
         </ol>

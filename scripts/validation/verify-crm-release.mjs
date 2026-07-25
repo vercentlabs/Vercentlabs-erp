@@ -15,7 +15,12 @@ const requiredFiles = [
   "database/tenant/migrations/006_crm_release_foundation.sql",
   "database/tenant/migrations/007_crm_outbox_leases.sql",
   "docs/testing/manual-crm-acceptance.md",
+  "docs/testing/manual-landing-acceptance.md",
   "docs/deployment/crm-production-runbook.md",
+  "apps/landing/scripts/verify-production-journeys.mjs",
+  "apps/landing/scripts/verify-browser-journeys.mjs",
+  "apps/landing/src/app/api/demo/route.ts",
+  "apps/landing/src/app/request-received/page.tsx",
   "infrastructure/docker/Dockerfile.web",
   "infrastructure/docker/Dockerfile.landing",
   "infrastructure/docker/Dockerfile.migration",
@@ -121,6 +126,38 @@ requireMarkers("apps/landing/src/lib/lead-security.ts", [
   "TRUSTED_PROXY_IP_HEADER",
   "leadFingerprint",
   "isIP",
+]);
+requireMarkers("apps/landing/scripts/verify-production-journeys.mjs", [
+  "internalLinks",
+  "signed CRM delivery",
+  "invalidContentType",
+  "honeypot",
+  "retry-after",
+]);
+requireMarkers("apps/landing/scripts/verify-browser-journeys.mjs", [
+  "assertNoHorizontalOverflow",
+  "Skip to main content",
+  "Approve preview",
+  "fillContactForm",
+  "fillDemoForm",
+  'reducedMotion: "reduce"',
+]);
+requireMarkers("apps/landing/src/app/api/demo/route.ts", [
+  'handleLeadRequest(request, "demo")',
+]);
+requireMarkers("apps/landing/src/app/request-received/page.tsx", [
+  "No trial, account or implementation commitment",
+]);
+requireMarkers("scripts/deployment/smoke-deployment.mjs", [
+  "SMOKE_LEAD_EMAIL",
+  "/api/contact",
+  "Landing security header missing",
+  "Live landing delivery accepted",
+]);
+requireMarkers("package.json", [
+  '"test:landing:e2e"',
+  '"test:landing:browser"',
+  "build:landing && corepack pnpm test:landing:e2e && corepack pnpm test:landing:browser",
 ]);
 
 const controlMigration = read(

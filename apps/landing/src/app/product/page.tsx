@@ -5,220 +5,108 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Product | Platform Foundation and CRM Preview",
+  title: "VercentLabs ERP Product | Released CRM and Platform Foundation",
   description:
-    "Review the implemented platform foundation and CRM early access, plus the planned roadmap for additional ERP operations.",
+    "Review the released VercentLabs platform foundation and CRM early-access scope, with eleven future ERP modules clearly separated as roadmap.",
   path: "/product",
 });
 
 const config: StructuredPageConfig = {
   hero: {
-    eyebrow: "VercentLabs ERP",
-    title: "Build connected operations on a governed ERP foundation.",
+    eyebrow: "Current product boundary",
+    title: "A governed operating foundation with CRM released end to end.",
     description:
-      "VercentLabs ERP currently provides a governed platform foundation and CRM early access. The wider finance, procurement, inventory, production, project and people roadmap is being developed through phased design-partner validation.",
-    primary: { label: "Book a personalised demo", href: "/contact" },
-    secondary: { label: "Explore the module roadmap", href: "/modules" },
+      "VercentLabs ERP currently delivers identity, organisation context, permissions, governed business data, approvals, audit history, billing controls and CRM across web and mobile. Eleven operational modules remain explicit roadmap scope.",
+    primary: { label: "Book a released-scope demo", href: "/book-demo" },
+    secondary: { label: "Inspect all released features", href: "/features" },
   },
   sections: [
     {
-      eyebrow: "Connected operations",
-      title: "One platform. One source of business truth.",
+      eyebrow: "Released CRM",
+      title: "Run the customer lifecycle from capture to governed decision.",
       paragraphs: [
-        "When departments operate through separate applications and spreadsheets, information becomes duplicated, decisions slow down and management loses visibility.",
-        "VercentLabs ERP brings your people, processes and business data together. Every department works from shared records while maintaining the permissions, responsibilities and workflows required for its role.",
+        "The released module supports staff entry, signed public capture, import, assignment, scoring, qualification, conversion, opportunity progression, activities, campaigns, reports and privacy records.",
+        "Supported opportunity stage changes and activity completion can be requested through transactional approvals with permission checks, separation of duties and immutable decision history.",
       ],
-      items: [
-        {
-          title: "Connected business data",
-          description:
-            "Maintain consistent records for customers, suppliers, products, employees, locations, accounts, assets and transactions.",
-        },
-        {
-          title: "End-to-end operations",
-          description:
-            "Connect every stage of a business process instead of managing isolated departmental activities.",
-        },
-        {
-          title: "Role-based experience",
-          description:
-            "Give every user a focused workspace based on their responsibilities, department, company and location.",
-        },
-        {
-          title: "Real-time visibility",
-          description:
-            "Monitor transactions, approvals, workloads, exceptions and performance from live dashboards and reports.",
-        },
+      bullets: [
+        "Lead capture, duplicate controls and deterministic scoring",
+        "Lead conversion into partner, contact and opportunity records",
+        "Opportunity pipeline, forecasting and stage history",
+        "Tasks, calls, meetings and follow-up ownership",
+        "Campaigns, sequences and consent-aware outbound processing",
+        "CRM dashboards, reports, mobile workflows and offline-safe mutations",
       ],
+      outcome:
+        "A complete early-access CRM workflow that can be tested with real roles, records, denials and acceptance criteria.",
     },
     {
-      eyebrow: "Complete business management",
-      title: "Planned module roadmap for phased business management",
-      items: [
-        {
-          title: "Accounting",
-          description:
-            "Manage receivables, payables, journals, taxes, budgets, bank reconciliation, financial periods and business reporting.",
-        },
-        {
-          title: "Procurement",
-          description:
-            "Control purchase requests, quotations, supplier selection, approvals, purchase orders, receipts and supplier invoices.",
-        },
-        {
-          title: "Sales",
-          description:
-            "Create quotations, manage pricing, confirm sales orders, coordinate fulfilment, process returns and monitor sales performance.",
-        },
-        {
-          title: "CRM",
-          description:
-            "Capture leads, manage opportunities, schedule follow-ups, record customer interactions and improve pipeline visibility.",
-        },
-        {
-          title: "Stock",
-          description:
-            "Track inventory across warehouses and locations with receipts, deliveries, transfers, batches, serial numbers and replenishment.",
-        },
-        {
-          title: "Manufacturing",
-          description:
-            "Manage bills of materials, production orders, work centres, operations, material consumption, finished goods and manufacturing costs.",
-        },
-        {
-          title: "Projects",
-          description:
-            "Plan projects, organise tasks, assign resources, record time and expenses, manage budgets and track profitability.",
-        },
-        {
-          title: "Assets",
-          description:
-            "Maintain asset records, locations, ownership, depreciation, maintenance, transfers and disposal history.",
-        },
-        {
-          title: "Point of Sale",
-          description:
-            "Process retail transactions, payments, discounts, returns, shifts and inventory updates through a fast sales interface.",
-        },
-        {
-          title: "Quality",
-          description:
-            "Define quality checkpoints, perform inspections, record results, manage non-conformances and track corrective actions.",
-        },
-        {
-          title: "Support",
-          description:
-            "Manage customer requests, priorities, assignments, communication, service targets and complete resolution history.",
-        },
-        {
-          title: "HR & Payroll",
-          description:
-            "Manage employee information, attendance, leave, payroll, reimbursements and employee lifecycle activities.",
-        },
-      ],
-      cta: { label: "View all modules", href: "/modules" },
-    },
-    {
-      eyebrow: "Consistent platform",
-      title: "Shared capabilities across every module",
+      eyebrow: "Implemented foundation",
+      title:
+        "Keep identity, context and evidence consistent underneath the module.",
       tone: "dark",
       items: [
         {
-          title: "Workflow automation",
+          title: "Account lifecycle",
           description:
-            "Automate assignments, approvals, notifications, escalations and recurring business activities.",
+            "Registration, verified email, sessions, password recovery and protected authentication flows live in the secure ERP application.",
         },
         {
-          title: "Permissions and access control",
+          title: "Organisation context",
           description:
-            "Control access by role, company, department, branch, warehouse, location and responsibility.",
+            "Companies, branches, departments, teams, cost centres and active operating context constrain application behaviour.",
         },
         {
-          title: "Approval management",
+          title: "Permission enforcement",
           description:
-            "Create approval rules for purchases, payments, quotations, discounts, expenses and other sensitive actions.",
+            "Navigation, APIs, commands and PostgreSQL row-level security enforce role, organisation, company and branch boundaries.",
         },
         {
-          title: "Audit history",
+          title: "Governed master data",
           description:
-            "Track important changes, approvals, users, dates and transaction history.",
+            "Business partners, contacts, items, warehouses, currencies, terms and tax setup provide shared records for current and future modules.",
         },
         {
-          title: "Documents and attachments",
+          title: "Audit and approvals",
           description:
-            "Store quotations, invoices, contracts, receipts and supporting files with their related business records.",
+            "Security events, business changes and supported CRM decisions retain traceable user, version and command evidence.",
         },
         {
-          title: "Dashboards and reporting",
+          title: "Commercial controls",
           description:
-            "Give teams and management relevant operational and financial insights.",
-        },
-        {
-          title: "Notifications and tasks",
-          description:
-            "Keep users informed about pending actions, deadlines, shortages, exceptions and approvals.",
-        },
-        {
-          title: "APIs and integrations",
-          description:
-            "Connect VercentLabs ERP with approved banking, payment, commerce, logistics, communication and business applications.",
+            "Organisation-level trials, entitlements, usage and Razorpay integration remain gated by production configuration.",
         },
       ],
     },
     {
-      eyebrow: "Organisation structure",
-      title: "Designed for complex business structures",
-      paragraphs: ["Manage operations across:"],
-      bullets: [
-        "Multiple companies",
-        "Branch offices",
-        "Warehouses",
-        "Manufacturing plants",
-        "Retail locations",
-        "Departments",
-        "Cost centres",
-        "Project teams",
-        "Shared-service teams",
-      ],
-    },
-    {
-      eyebrow: "Complete workflows",
-      title: "Connect every department through complete workflows",
+      eyebrow: "Roadmap — not released",
+      title:
+        "Eleven modules are visible product direction, not current functionality.",
       paragraphs: [
-        "VercentLabs ERP connects modules through real business processes such as:",
+        "Accounting, Procurement, Sales, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll cannot be activated in the current release.",
+        "Each module will become available only after its records, permissions, workflows, approvals, reporting, migrations, web experience, mobile scope and acceptance evidence are complete.",
       ],
-      bullets: [
-        "Lead to cash",
-        "Procure to pay",
-        "Plan to produce",
-        "Inventory to fulfilment",
-        "Project to profit",
-        "Hire to payroll",
-        "Issue to resolution",
-        "Asset acquisition to disposal",
-      ],
-      cta: {
-        label: "Explore VercentLabs ERP workflows",
-        href: "/workflows",
-      },
+      cta: { label: "Review the transparent module map", href: "/modules" },
     },
     {
-      eyebrow: "Phased implementation",
-      title: "Start with what your business needs",
-      paragraphs: [
-        "Implement the modules and workflows that solve your highest-priority problems first. Expand the platform as your teams, locations and business processes grow.",
+      eyebrow: "Evaluation method",
+      title: "Test a real operating scenario—not a feature slideshow.",
+      bullets: [
+        "Use at least two organisations to prove tenant isolation",
+        "Use administrator and restricted roles to prove permission denials",
+        "Import realistic records and inspect row-level recovery",
+        "Run lead qualification, conversion and opportunity progression",
+        "Request and decide a supported approval command",
+        "Inspect reports, audit history and mobile permission behaviour",
       ],
+      cta: { label: "Review implementation approach", href: "/how-it-works" },
     },
   ],
   finalCta: {
-    title: "Bring every core operation into one connected ERP.",
+    title: "Evaluate what exists today before discussing what comes next.",
     description:
-      "See how VercentLabs ERP can support your business structure, workflows, approvals, reporting and growth requirements.",
-    primary: { label: "Book a personalised demo", href: "/contact" },
-    secondary: {
-      label: "See how VercentLabs ERP works",
-      href: "/how-it-works",
-    },
+      "Bring one customer workflow, the real users, operating boundaries and measurable acceptance criteria. The demo will stay inside released scope.",
+    primary: { label: "Book a released-scope demo", href: "/book-demo" },
+    secondary: { label: "Open the module roadmap", href: "/modules" },
   },
 };
 

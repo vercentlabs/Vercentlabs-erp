@@ -46,7 +46,7 @@ export default function BookDemoPage() {
             />
           </div>
           <div>
-            <LeadForm mode="signup" />
+            <LeadForm mode="demo" />
           </div>
         </div>
         <OperatorNote label="Scope">

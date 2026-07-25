@@ -6,12 +6,12 @@ import { type FormEvent, useRef, useState } from "react";
 
 import {
   contactInterests,
-  signupInterests,
+  demoInterests,
   teamSizes,
 } from "@/lib/lead-validation";
 import { siteConfig } from "@/lib/site-config";
 
-type LeadFormMode = "contact" | "signup";
+type LeadFormMode = "contact" | "demo";
 type FieldErrors = Record<string, string>;
 
 type SubmissionState = {
@@ -26,7 +26,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
   });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const startedAt = useRef(0);
-  const isSignup = mode === "signup";
+  const isDemo = mode === "demo";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,7 +55,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
     const timer = window.setTimeout(() => controller.abort(), 20_000);
 
     try {
-      const response = await fetch(isSignup ? "/api/signup" : "/api/contact", {
+      const response = await fetch(isDemo ? "/api/demo" : "/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -81,11 +81,9 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       form.reset();
       startedAt.current = Date.now();
 
-      if (isSignup) {
+      if (isDemo) {
         window.setTimeout(() => {
-          window.location.assign(
-            "/signup/verify?email=" + encodeURIComponent(payload.email),
-          );
+          window.location.assign("/request-received?kind=demo");
         }, 700);
       }
     } catch (error) {
@@ -147,14 +145,14 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         />
 
         <SelectField
-          label={isSignup ? "Main area of interest" : "Discussion area"}
+          label={isDemo ? "Area to review" : "Discussion area"}
           name="interest"
-          required={isSignup}
-          options={isSignup ? signupInterests : contactInterests}
+          required={isDemo}
+          options={isDemo ? demoInterests : contactInterests}
           error={fieldErrors.interest}
         />
 
-        {isSignup ? (
+        {isDemo ? (
           <SelectField
             label="Approximate team size"
             name="teamSize"
@@ -169,22 +167,22 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
           htmlFor="message"
           className="text-xs font-bold text-slate-800 sm:text-sm"
         >
-          {isSignup
-            ? "What should the ERP solve first?"
+          {isDemo
+            ? "What should the walkthrough prove?"
             : "Business problem or requirement"}
         </label>
         <textarea
           id="message"
           name="message"
           rows={4}
-          required={!isSignup}
+          required={!isDemo}
           maxLength={2000}
           aria-invalid={Boolean(fieldErrors.message)}
           aria-describedby={fieldErrors.message ? "message-error" : undefined}
           className="form-control mt-1.5 sm:mt-2"
           placeholder={
-            isSignup
-              ? "Share the current systems, workflow, users and result you want to achieve."
+            isDemo
+              ? "Share the current workflow, users, controls and result you want to review."
               : "Describe the current process, systems, users and the problem you want to solve."
           }
         />
@@ -211,6 +209,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
           type="checkbox"
           required
           className="operator-lead-form__checkbox"
+          aria-describedby="consent-error"
         />
         <span>
           I agree that VercentLabs may use these details to assess and respond
@@ -240,12 +239,17 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         )}
         {submission.status === "submitting"
           ? "Submitting…"
-          : isSignup
-            ? "Apply for design partnership"
+          : isDemo
+            ? "Request focused demo"
             : "Send enquiry"}
       </button>
 
-      <div aria-live="polite" className="mt-3 min-h-5 sm:mt-4 sm:min-h-6">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="mt-3 min-h-5 sm:mt-4 sm:min-h-6"
+      >
         {submission.message ? (
           <p
             className={
@@ -375,7 +379,7 @@ function SelectField({
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="mt-1.5 text-xs font-semibold text-rose-700">
+    <p id={id} className="mt-1 text-xs font-semibold text-rose-700">
       {message}
     </p>
   ) : null;

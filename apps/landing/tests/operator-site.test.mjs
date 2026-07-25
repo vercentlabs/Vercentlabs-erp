@@ -28,7 +28,7 @@ const redesignedRoutes = [
   "app/privacy/page.tsx",
   "app/product/page.tsx",
   "app/security/page.tsx",
-  "app/signup/verify/page.tsx",
+  "app/request-received/page.tsx",
   "app/status/page.tsx",
   "app/terms/page.tsx",
   "app/workflows/page.tsx",
@@ -70,4 +70,9 @@ test("released, foundation and roadmap states remain explicit", () => {
   assert.match(detail, /cannot be activated in the current release/);
   assert.match(pricing, /CRM and business master data/);
   assert.match(pricing, /Roles, permissions and audit history/);
+});
+
+test("legacy verification route redirects to the truthful request receipt", () => {
+  const legacy = read("app/signup/verify/page.tsx");
+  assert.match(legacy, /redirect\("\/request-received"\)/);
 });

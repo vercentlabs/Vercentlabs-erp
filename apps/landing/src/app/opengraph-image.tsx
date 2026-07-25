@@ -1,7 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt =
-  "VercentLabs ERP — Connected ERP for growing Indian businesses";
+export const alt = "VercentLabs ERP — Run the work. Keep the truth.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -14,104 +13,96 @@ export default function OpenGraphImage() {
         height: "100%",
         position: "relative",
         overflow: "hidden",
-        background:
-          "linear-gradient(135deg, #f8fafc 0%, #eef2ff 55%, #ecfeff 100%)",
-        color: "#0f172a",
+        background: "#f2efe7",
+        color: "#0c0f12",
         fontFamily: "Arial, sans-serif",
       }}
     >
       <div
         style={{
-          display: "flex",
           position: "absolute",
-          width: 460,
-          height: 460,
-          borderRadius: 999,
-          left: -120,
-          top: -160,
-          background: "rgba(79,70,229,0.18)",
+          left: 0,
+          top: 0,
+          width: 34,
+          height: "100%",
+          display: "flex",
+          background: "#4353ff",
         }}
       />
       <div
         style={{
-          display: "flex",
           position: "absolute",
-          width: 380,
-          height: 380,
-          borderRadius: 999,
-          right: -80,
-          bottom: -140,
-          background: "rgba(13,148,136,0.16)",
+          right: 54,
+          top: 54,
+          width: 34,
+          height: 34,
+          display: "flex",
+          background: "#d9ff43",
+          border: "2px solid #0c0f12",
         }}
       />
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          padding: "72px 84px",
-          position: "relative",
           width: "100%",
+          padding: "64px 78px 56px 94px",
         }}
       >
         <div
           style={{
             display: "flex",
-            fontSize: 30,
-            fontWeight: 800,
-            letterSpacing: -1,
+            alignItems: "baseline",
+            fontSize: 28,
+            fontWeight: 900,
+            letterSpacing: -1.8,
           }}
         >
-          <span style={{ color: "#0f3b73" }}>VercentLabs</span>
-          <span style={{ color: "#0284c7" }}>labs</span>
+          <span>VERCENT</span>
+          <span style={{ fontWeight: 500, marginLeft: 4 }}>LABS</span>
         </div>
+
         <div
           style={{
             display: "flex",
-            marginTop: 48,
             maxWidth: 980,
-            fontSize: 68,
-            lineHeight: 1.08,
-            letterSpacing: -4,
-            fontWeight: 800,
+            marginTop: 76,
+            fontSize: 78,
+            lineHeight: 0.98,
+            letterSpacing: -5,
+            fontWeight: 900,
           }}
         >
-          Connected ERP for growing Indian businesses.
+          Run the work. Keep the truth.
         </div>
+
         <div
           style={{
             display: "flex",
-            marginTop: 28,
-            maxWidth: 900,
-            fontSize: 26,
-            lineHeight: 1.45,
-            color: "#475569",
+            maxWidth: 920,
+            marginTop: 30,
+            fontSize: 25,
+            lineHeight: 1.4,
+            color: "#353a3f",
           }}
         >
-          Finance, inventory, sales and operations on one controlled platform.
+          Released CRM early access on a governed ERP platform foundation.
         </div>
-        <div style={{ display: "flex", marginTop: 40, gap: 12 }}>
-          {[
-            "1 released CRM module",
-            "5 end-to-end workflows",
-            "Phased implementation",
-          ].map((item) => (
-            <div
-              key={item}
-              style={{
-                display: "flex",
-                border: "1px solid rgba(79,70,229,0.18)",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.82)",
-                padding: "10px 18px",
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#4338ca",
-              }}
-            >
-              {item}
-            </div>
-          ))}
+
+        <div
+          style={{
+            display: "flex",
+            marginTop: "auto",
+            borderTop: "2px solid #0c0f12",
+            paddingTop: 22,
+            gap: 34,
+            fontSize: 18,
+            fontWeight: 700,
+          }}
+        >
+          <span>01 / CRM released</span>
+          <span>Platform controls implemented</span>
+          <span>11 roadmap modules</span>
         </div>
       </div>
     </div>,

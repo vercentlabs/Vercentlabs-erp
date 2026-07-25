@@ -44,6 +44,7 @@
     "db:provision:runtime-role": "corepack pnpm --filter @vercent/web exec node scripts/provision-runtime-role.mjs",
     "crm:outbox": "corepack pnpm --filter @vercent/web crm:outbox",
     "test:landing": "corepack pnpm --filter @vercent/landing test",
+    "test:landing:e2e": "corepack pnpm --filter @vercent/landing test:e2e",
     "test:api": "corepack pnpm --filter @vercent/api test",
     "test:sdk": "corepack pnpm --filter @vercent/shared-sdk test",
     "test:mobile": "corepack pnpm --filter @vercent/mobile test",
@@ -66,7 +67,8 @@
     "smoke:deployment": "node scripts/deployment/smoke-deployment.mjs",
     "db:backup": "bash scripts/database/backup-postgres.sh",
     "db:restore": "bash scripts/database/restore-postgres.sh",
-    "release:gate": "corepack pnpm audit:dependencies && corepack pnpm test:all && corepack pnpm verify:release && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm lint:web && corepack pnpm typecheck:web && corepack pnpm build:web && corepack pnpm lint:mobile && corepack pnpm typecheck:mobile"
+    "release:gate": "corepack pnpm audit:dependencies && corepack pnpm test:all && corepack pnpm verify:release && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm test:landing:e2e && corepack pnpm test:landing:browser && corepack pnpm lint:web && corepack pnpm typecheck:web && corepack pnpm build:web && corepack pnpm lint:mobile && corepack pnpm typecheck:mobile",
+    "test:landing:browser": "corepack pnpm --filter @vercent/landing test:browser"
   },
   "engines": {
     "node": ">=24 <25",
