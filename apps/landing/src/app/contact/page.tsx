@@ -1,16 +1,17 @@
-import { createPageMetadata } from "@/lib/metadata";
-import { Mail, MapPin, MessageSquare } from "lucide-react";
-
 import LeadForm from "@/components/forms/lead-form";
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
+import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "Book a VercentLabs ERP Demo",
+  title: "Contact VercentLabs",
   description:
-    "Book a personalised VercentLabs ERP demo based on your modules, workflows, locations and current systems.",
+    "Discuss a CRM pilot, ERP roadmap problem, implementation partnership or VercentLabs product question.",
   path: "/contact",
 });
 
@@ -18,58 +19,58 @@ export default function ContactPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Contact"
-        title="Start with the business problem, not a generic software demonstration."
-        description="Share the current systems, operating process, organisation context and the outcome you are trying to achieve."
+        eyebrow="Start a grounded conversation"
+        title="Tell us what the operation is trying to control."
+        description="Share the current systems, users, handoffs, data ownership and outcome you need. A useful conversation begins with the operating problem—not a generic software demo."
       />
 
-      <section className="bg-slate-50 py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[0.72fr_1.28fr]">
-            <div className="space-y-4">
-              <ContactCard
-                icon={Mail}
-                title="Email"
-                description={siteConfig.email}
-              />
-
-              <ContactCard
-                icon={MapPin}
-                title="Operating context"
-                description="VercentLabs LLP is building from India for organisations that need connected enterprise operations."
-              />
-
-              <ContactCard
-                icon={MessageSquare}
-                title="Useful enquiry"
-                description="Include current systems, process owners, pain points, users, locations and implementation timing."
-              />
-            </div>
-
+      <OperatorBand
+        index="01"
+        eyebrow="Contact"
+        title="One form. Enough context to prepare properly."
+        description="Use this for product evaluation, CRM early access, roadmap discovery, implementation or partnership discussions."
+        tone="white"
+      >
+        <div className="operator-form-layout">
+          <div className="operator-form-layout__context">
+            <h2>What helps us respond well.</h2>
+            <p>
+              Describe the business structure, current workflow, users involved,
+              tools being replaced, control concerns and desired timeline.
+            </p>
+            <dl className="operator-form-layout__meta">
+              <div>
+                <dt>Email</dt>
+                <dd>
+                  <a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a>
+                </dd>
+              </div>
+              <div>
+                <dt>Headquarters</dt>
+                <dd>India</dd>
+              </div>
+              <div>
+                <dt>Best fit</dt>
+                <dd>CRM pilot · ERP roadmap · implementation</dd>
+              </div>
+              <div>
+                <dt>Response</dt>
+                <dd>Business-day review</dd>
+              </div>
+            </dl>
+          </div>
+          <div>
             <LeadForm mode="contact" />
           </div>
-        </PageContainer>
-      </section>
+        </div>
+        <OperatorNote label="No theatre">
+          <p>
+            We do not use fake customer logos, invented metrics or generic
+            discovery scripts. The conversation will stay within released scope
+            and clearly labelled roadmap direction.
+          </p>
+        </OperatorNote>
+      </OperatorBand>
     </MarketingShell>
-  );
-}
-
-type ContactCardProps = {
-  icon: typeof Mail;
-  title: string;
-  description: string;
-};
-
-function ContactCard({ icon: Icon, title, description }: ContactCardProps) {
-  return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-5">
-      <Icon aria-hidden="true" className="h-6 w-6 text-indigo-600" />
-
-      <h2 className="font-display mt-4 text-lg font-extrabold text-slate-950">
-        {title}
-      </h2>
-
-      <p className="mt-2 text-sm leading-7 text-slate-600">{description}</p>
-    </article>
   );
 }

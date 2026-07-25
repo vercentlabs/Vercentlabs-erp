@@ -1,117 +1,82 @@
-import { createPageMetadata } from "@/lib/metadata";
-import Link from "next/link";
-import {
-  ArrowRight,
-  BookOpen,
-  HelpCircle,
-  Mail,
-  ShieldCheck,
-} from "lucide-react";
+import { BookOpen, LifeBuoy, Mail, ShieldCheck } from "lucide-react";
 
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
+import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Help",
+  title: "VercentLabs Help",
   description:
-    "Find product, implementation, security, module and contact guidance for VercentLabs ERP.",
+    "Find product, implementation, security and account guidance for VercentLabs ERP.",
   path: "/help",
 });
-
-const topics = [
-  {
-    icon: BookOpen,
-    title: "Product understanding",
-    description:
-      "Review modules, workflows, industries and the platform architecture.",
-    href: "/features",
-    label: "Explore the product",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Security questions",
-    description: "Review the current security and governance principles.",
-    href: "/security",
-    label: "Security approach",
-  },
-  {
-    icon: HelpCircle,
-    title: "Implementation questions",
-    description:
-      "Understand discovery, validation, migration and phased adoption.",
-    href: "/how-it-works",
-    label: "Implementation approach",
-  },
-];
 
 export default function HelpPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Help centre"
-        title="Find the right product or implementation information."
-        description="Formal product documentation and customer support service levels will be published when the production platform is ready. Current enquiries are handled directly by VercentLabs."
+        title="Find the right path without searching through marketing copy."
+        description="Public guidance is organised around product scope, implementation, security and direct support. Production customer documentation will expand with the service."
       />
-
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-4 md:grid-cols-3">
-            {topics.map((topic) => {
-              const Icon = topic.icon;
-
-              return (
-                <article
-                  key={topic.title}
-                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="h-6 w-6 text-indigo-600"
-                  />
-
-                  <h2 className="font-display mt-4 text-xl font-extrabold text-slate-950">
-                    {topic.title}
-                  </h2>
-
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {topic.description}
-                  </p>
-
-                  <Link
-                    href={topic.href}
-                    className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-indigo-600"
-                  >
-                    {topic.label}
-                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="mt-7 rounded-2xl bg-slate-950 p-4 text-white sm:mt-10 sm:rounded-3xl sm:p-10">
-            <Mail aria-hidden="true" className="h-8 w-8 text-indigo-300" />
-
-            <h2 className="font-display mt-3.5 text-2xl font-extrabold sm:mt-5 sm:text-3xl">
-              Need a direct answer?
-            </h2>
-
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-              Share the product, implementation, partnership or technical
-              question with enough context for the team to respond usefully.
-            </p>
-
-            <a
-              href={"mailto:" + siteConfig.email}
-              className="button-primary mt-6"
-            >
-              Email {siteConfig.email}
-            </a>
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorBand
+        index="01"
+        eyebrow="Guidance"
+        title="Start with the question you are trying to resolve."
+        description="Each path leads to current public information rather than an invented documentation library."
+        tone="white"
+      >
+        <OperatorGrid columns={4}>
+          <OperatorCard
+            index="01"
+            icon={BookOpen}
+            title="Product scope"
+            description="Released CRM, shared platform foundation and roadmap module status."
+            href="/product"
+          />
+          <OperatorCard
+            index="02"
+            icon={LifeBuoy}
+            title="Implementation"
+            description="Discovery, pilot, acceptance and rollout expectations."
+            href="/how-it-works"
+          />
+          <OperatorCard
+            index="03"
+            icon={ShieldCheck}
+            title="Security"
+            description="Identity, permissions, tenant boundaries and audit controls."
+            href="/security"
+          />
+          <OperatorCard
+            index="04"
+            icon={Mail}
+            title="Direct support"
+            description={`Send product or account questions to ${siteConfig.email}.`}
+            href={`mailto:${siteConfig.email}`}
+          />
+        </OperatorGrid>
+        <OperatorNote label="Early access">
+          <p>
+            Support channels and service levels depend on the customer agreement
+            and current release stage.
+          </p>
+        </OperatorNote>
+      </OperatorBand>
+      <OperatorFinalCta
+        eyebrow="Still blocked"
+        title="Send the exact question and operating context."
+        description="Include the page, workflow, account state and result you expected so the team can respond usefully."
+        primary={{ label: "Contact VercentLabs", href: "/contact" }}
+      />
     </MarketingShell>
   );
 }

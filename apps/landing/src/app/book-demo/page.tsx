@@ -1,79 +1,61 @@
-import { createPageMetadata } from "@/lib/metadata";
-import { Building2, Check, Users } from "lucide-react";
-
 import LeadForm from "@/components/forms/lead-form";
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorList,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
+import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "Apply for the VercentLabs ERP Design Partner Programme",
+  title: "Book a VercentLabs ERP Demo",
   description:
-    "Share your organisation, priority workflow and current operating problem for a VercentLabs ERP design-partner review.",
+    "Request a focused walkthrough of released CRM workflows, permissions, approvals, audit history and the wider ERP roadmap.",
   path: "/book-demo",
-  noIndex: true,
 });
 
-const expectations = [
-  "This is an early-access request, not instant account creation",
-  "VercentLabs will review the organisation and priority workflow",
-  "Suitable requests may begin with discovery before a pilot",
-  "No production availability or implementation date is promised by this form",
-];
-
-export default function SignupPage() {
+export default function BookDemoPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Early access"
-        title="Request a product, pilot or design-partner discussion."
-        description="VercentLabs ERP is under active development. Early-access requests are reviewed for fit, process clarity and implementation readiness."
+        eyebrow="Product walkthrough"
+        title="See the released workflow. Challenge the control model."
+        description="The walkthrough is built around your operating scenario and the current CRM release—not a rehearsed tour of roadmap screens."
       />
 
-      <section className="bg-slate-50 py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[0.72fr_1.28fr]">
-            <div>
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:rounded-3xl sm:p-7">
-                <Building2
-                  aria-hidden="true"
-                  className="h-8 w-8 text-indigo-600"
-                />
-
-                <h2 className="font-display mt-5 text-2xl font-extrabold text-slate-950">
-                  Start with a real workflow.
-                </h2>
-
-                <p className="mt-4 text-sm leading-7 text-slate-600">
-                  Useful requests identify the current systems, process owners,
-                  users, locations, pain points and desired outcome.
-                </p>
-              </div>
-
-              <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 sm:mt-4 sm:rounded-3xl sm:p-7">
-                <Users aria-hidden="true" className="h-7 w-7 text-teal-700" />
-
-                <ul className="mt-5 space-y-3">
-                  {expectations.map((expectation) => (
-                    <li
-                      key={expectation}
-                      className="flex items-start gap-3 text-sm leading-7 text-slate-600"
-                    >
-                      <Check
-                        aria-hidden="true"
-                        className="mt-1 h-4 w-4 shrink-0 text-emerald-600"
-                      />
-                      {expectation}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
+      <OperatorBand
+        index="01"
+        eyebrow="Demo brief"
+        title="Give the session a real job to do."
+        description="A useful demo should answer whether the product can represent your data, ownership, handoffs and governed decisions."
+        tone="white"
+      >
+        <div className="operator-form-layout">
+          <div className="operator-form-layout__context">
+            <h2>What we can cover.</h2>
+            <OperatorList
+              items={[
+                "Lead and contact capture",
+                "Opportunity pipeline",
+                "Activities and ownership",
+                "Permissions and branch context",
+                "Approval requests",
+                "Audit history and reporting",
+              ]}
+            />
+          </div>
+          <div>
             <LeadForm mode="signup" />
           </div>
-        </PageContainer>
-      </section>
+        </div>
+        <OperatorNote label="Scope">
+          <p>
+            CRM is the released early-access module. The other eleven modules
+            are shown only as roadmap context.
+          </p>
+        </OperatorNote>
+      </OperatorBand>
     </MarketingShell>
   );
 }

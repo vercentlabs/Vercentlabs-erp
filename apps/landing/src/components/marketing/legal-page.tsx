@@ -2,6 +2,7 @@ import PageContainer from "@/components/layout/page-container";
 
 import MarketingShell from "./marketing-shell";
 import PageHero from "./page-hero";
+import { OperatorBand, OperatorNote } from "./operator-page";
 
 export type LegalSection = {
   title: string;
@@ -28,55 +29,59 @@ export default function LegalPage({
     <MarketingShell>
       <PageHero eyebrow={eyebrow} title={title} description={description} />
 
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="mx-auto max-w-3xl">
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900 sm:rounded-2xl sm:p-4 sm:text-sm sm:leading-7">
-              Last updated: {updated}. This document should be reviewed by
-              qualified legal counsel before the platform begins processing
-              production customer data.
-            </p>
+      <OperatorBand
+        index="01"
+        eyebrow="Document"
+        title="Read the operating terms in a usable structure."
+        description={`Last updated ${updated}. Production use should be reviewed against the signed commercial and data-processing agreements.`}
+        tone="white"
+      >
+        <OperatorNote label="Review notice">
+          <p>
+            This public baseline should be reviewed by qualified legal counsel
+            before the platform processes production customer data.
+          </p>
+        </OperatorNote>
 
-            <div className="mt-7 space-y-7 sm:mt-10 sm:space-y-10">
-              {sections.map((section) => (
-                <section key={section.title} className="scroll-mt-28">
-                  <h2 className="font-display text-xl font-extrabold text-slate-950 sm:text-2xl">
-                    {section.title}
-                  </h2>
+        <PageContainer width="wide" className="!px-0">
+          <div className="operator-legal">
+            <nav
+              className="operator-legal__toc"
+              aria-label={`${title} sections`}
+            >
+              {sections.map((section, index) => (
+                <a key={section.title} href={`#legal-${index + 1}`}>
+                  {section.title}
+                </a>
+              ))}
+            </nav>
 
-                  <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
+            <div className="operator-legal__content">
+              {sections.map((section, index) => (
+                <section
+                  id={`legal-${index + 1}`}
+                  key={section.title}
+                  className="operator-legal__section scroll-mt-32"
+                >
+                  <h2>{section.title}</h2>
+                  <div>
                     {section.paragraphs.map((paragraph) => (
-                      <p
-                        key={paragraph}
-                        className="text-xs leading-6 text-slate-600 sm:text-sm sm:leading-7"
-                      >
-                        {paragraph}
-                      </p>
+                      <p key={paragraph}>{paragraph}</p>
                     ))}
+                    {section.bullets ? (
+                      <ul className="operator-list">
+                        {section.bullets.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
-
-                  {section.bullets ? (
-                    <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-3">
-                      {section.bullets.map((item) => (
-                        <li
-                          key={item}
-                          className="flex gap-2 text-xs leading-6 text-slate-600 sm:gap-3 sm:text-sm sm:leading-7"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-600"
-                          />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
                 </section>
               ))}
             </div>
           </div>
         </PageContainer>
-      </section>
+      </OperatorBand>
     </MarketingShell>
   );
 }

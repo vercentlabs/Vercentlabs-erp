@@ -1,110 +1,117 @@
-import { ArrowRight, Database, Eye, KeyRound, ShieldCheck } from "lucide-react";
-import Link from "next/link";
+import { Database, Eye, KeyRound, ShieldCheck } from "lucide-react";
 
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorList,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "ERP Security and Governance",
+  title: "Security and Governance | VercentLabs ERP",
   description:
-    "Review the security architecture priorities for VercentLabs ERP, including tenant isolation, role-based access, auditability and secure delivery.",
+    "Review the identity, permission, organisation, audit and transactional controls implemented across VercentLabs ERP.",
   path: "/security",
 });
 
 const foundations = [
   {
-    icon: Database,
-    title: "Tenant and organisation boundaries",
-    description:
-      "Keep customer, company and location data inside explicit application and database scopes.",
-  },
-  {
     icon: KeyRound,
-    title: "Least-privilege access",
+    title: "Identity and session control",
     description:
-      "Grant users and integrations only the roles, records and actions required for their responsibilities.",
-  },
-  {
-    icon: Eye,
-    title: "Traceable business activity",
-    description:
-      "Preserve meaningful approval, administrative and transaction history for review and investigation.",
+      "Verified accounts, session lifecycle controls, mobile token rotation and explicit organisation context.",
   },
   {
     icon: ShieldCheck,
-    title: "Secure delivery lifecycle",
+    title: "Role and permission boundaries",
     description:
-      "Use reviewed changes, dependency controls, environment separation, backups and incident procedures before production operation.",
+      "Navigation, records and actions respond to the active user permission set rather than visual convention alone.",
   },
-];
+  {
+    icon: Database,
+    title: "Tenant and branch isolation",
+    description:
+      "Organisation, company and branch scope is enforced in service and database access paths.",
+  },
+  {
+    icon: Eye,
+    title: "Audit and decision evidence",
+    description:
+      "Important changes preserve actor, time, context, request and governed decision history.",
+  },
+] as const;
 
 export default function SecurityPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Security and governance"
-        title="Build control into the ERP architecture—not around it later."
-        description="VercentLabs ERP is being designed around tenant isolation, least privilege, approval authority, traceability and secure operational practices. Specific assurances will be published only after implementation and verification."
-        actions={
-          <Link href="/contact" className="button-primary">
-            Discuss security requirements
-            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-          </Link>
-        }
+        title="Control is part of the product model. Not a badge beside the footer."
+        description="VercentLabs is designed around tenant boundaries, explicit permissions, transactional commands and traceable operating evidence."
       />
 
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {foundations.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article
-                  key={item.title}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6"
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="h-6 w-6 text-indigo-600"
-                  />
-                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
-                    {item.title}
-                  </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {item.description}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
+      <OperatorBand
+        index="01"
+        eyebrow="Control foundation"
+        title="The system should know who can see, change and approve each record."
+        description="Security starts with product behaviour and data boundaries before provider certifications or procurement documentation."
+        tone="white"
+      >
+        <OperatorGrid columns={2}>
+          {foundations.map((item, index) => (
+            <OperatorCard
+              key={item.title}
+              index={String(index + 1).padStart(2, "0")}
+              icon={item.icon}
+              title={item.title}
+              description={item.description}
+              status="foundation"
+            />
+          ))}
+        </OperatorGrid>
+      </OperatorBand>
 
-          <div className="mt-7 grid gap-5 rounded-2xl bg-slate-950 p-4 text-white sm:mt-10 sm:gap-8 sm:rounded-3xl sm:p-10 lg:grid-cols-2">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-300">
-                Evidence before assurance
-              </p>
-              <h2 className="font-display mt-2 text-2xl font-extrabold sm:mt-3 sm:text-3xl">
-                Security claims must follow verification.
-              </h2>
-            </div>
-            <div className="space-y-4 text-sm leading-7 text-slate-300">
-              <p>
-                Architecture descriptions explain the intended control model;
-                they are not a substitute for production testing, operating
-                evidence or a signed customer agreement.
-              </p>
-              <p>
-                Before processing production customer data, VercentLabs must
-                complete environment hardening, access reviews, backup and
-                recovery testing, logging, vulnerability management and
-                incident-response preparation.
-              </p>
-            </div>
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorBand
+        index="02"
+        eyebrow="Operational controls"
+        title="Fail closed. Preserve context. Leave evidence."
+        description="The release verifier and database contracts test the controls expected from the current CRM scope."
+        tone="ink"
+      >
+        <OperatorList
+          items={[
+            "Organisation-scoped data access",
+            "Company and branch validation",
+            "Permission-gated navigation and mutations",
+            "Transactional approval execution",
+            "Immutable consent evidence",
+            "Audit-ready record histories",
+            "Signed public CRM capture",
+            "Retryable leased outbox delivery",
+            "Billing entitlement enforcement",
+          ]}
+        />
+        <OperatorNote label="Important">
+          <p>
+            Production security also depends on deployment configuration,
+            secrets management, monitoring, backup, incident response and
+            contractual operating procedures.
+          </p>
+        </OperatorNote>
+      </OperatorBand>
+
+      <OperatorFinalCta
+        eyebrow="Security review"
+        title="Evaluate the controls against your actual operating risk."
+        description="Share your organisation structure, sensitive data, access model, approval boundaries and deployment requirements."
+        primary={{ label: "Request a security discussion", href: "/contact" }}
+        secondary={{ label: "Read privacy policy", href: "/privacy" }}
+      />
     </MarketingShell>
   );
 }

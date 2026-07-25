@@ -1,16 +1,13 @@
-import {
-  ArrowRight,
-  Building2,
-  Check,
-  ClipboardCheck,
-  Search,
-  Users,
-} from "lucide-react";
-import Link from "next/link";
-
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorList,
+  OperatorSteps,
+} from "@/components/marketing/operator-page";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
@@ -20,117 +17,83 @@ export const metadata = createPageMetadata({
   path: "/customers",
 });
 
-const stages = [
-  {
-    icon: Search,
-    title: "Fit review",
-    description:
-      "Confirm the organisation, process owners, current systems and a clearly owned operating problem.",
-  },
-  {
-    icon: Users,
-    title: "Workflow discovery",
-    description:
-      "Map users, decisions, handoffs, controls, exceptions, reports and data sources.",
-  },
-  {
-    icon: ClipboardCheck,
-    title: "Scenario validation",
-    description:
-      "Review realistic process scenarios and validate terminology, roles and expected outcomes.",
-  },
-  {
-    icon: Building2,
-    title: "Pilot decision",
-    description:
-      "Agree whether a controlled pilot, implementation partnership or later follow-up is appropriate.",
-  },
-];
-
-const fitSignals = [
-  "A growing manufacturer, distributor or service business in India",
-  "Important workflows split across spreadsheets or disconnected applications",
-  "A named process owner who can explain decisions and exceptions",
-  "Willingness to validate realistic scenarios and implementation priorities",
-  "A practical first scope rather than an immediate whole-company replacement",
-];
-
 export default function CustomersPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Design partner programme"
-        title="Shape the ERP workflows your business will depend on."
-        description="Selected organisations work directly with VercentLabs to turn real operating problems into validated workflows, controls and a practical first implementation scope."
-        actions={
-          <Link href="/signup" className="button-primary">
-            Apply for the programme
-            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-          </Link>
-        }
+        title="Shape the workflows your operating team will actually depend on."
+        description="Selected organisations work with VercentLabs to convert a real operating problem into validated records, controls, scenarios and a practical first scope."
       />
 
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-4 lg:grid-cols-4">
-            {stages.map((stage, index) => {
-              const Icon = stage.icon;
-              return (
-                <article
-                  key={stage.title}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <Icon
-                      aria-hidden="true"
-                      className="h-6 w-6 text-indigo-600"
-                    />
-                    <span className="text-xs font-extrabold text-slate-400">
-                      0{index + 1}
-                    </span>
-                  </div>
-                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
-                    {stage.title}
-                  </h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {stage.description}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
+      <OperatorBand
+        index="01"
+        eyebrow="Programme"
+        title="Discovery before deployment."
+        description="A design partnership is not a discounted whole-company implementation. It is a disciplined way to validate one important workflow."
+        tone="white"
+      >
+        <OperatorSteps
+          items={[
+            "Fit review",
+            "Workflow discovery",
+            "Scenario validation",
+            "Pilot decision",
+          ]}
+        />
+      </OperatorBand>
 
-          <div className="mt-7 grid gap-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-teal-50 p-4 sm:mt-10 sm:gap-8 sm:rounded-3xl sm:p-10 lg:grid-cols-2">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-600">
-                Good programme fit
-              </p>
-              <h2 className="font-display mt-2 text-2xl font-extrabold text-slate-950 sm:mt-3 sm:text-3xl">
-                Start with a real operating constraint.
-              </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                The strongest applications describe a specific process, the
-                people involved, the current tools and the business consequence
-                of leaving it fragmented.
-              </p>
-            </div>
-            <ul className="space-y-3">
-              {fitSignals.map((signal) => (
-                <li
-                  key={signal}
-                  className="flex items-start gap-3 rounded-2xl bg-white/85 p-4 text-sm font-semibold leading-6 text-slate-700"
-                >
-                  <Check
-                    aria-hidden="true"
-                    className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
-                  />
-                  {signal}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorBand
+        index="02"
+        eyebrow="Good fit"
+        title="The organisation can explain the problem and own the decision."
+        description="Strong pilots have a named process owner, realistic records and a narrow outcome that can be evaluated."
+        tone="ink"
+      >
+        <OperatorList
+          items={[
+            "Growing manufacturer, distributor or service business in India",
+            "Important workflow split across spreadsheets or disconnected tools",
+            "Named owner who understands decisions and exceptions",
+            "Willingness to validate realistic scenarios",
+            "Practical first scope instead of immediate total replacement",
+            "Ability to involve real end users in acceptance",
+          ]}
+        />
+      </OperatorBand>
+
+      <OperatorBand
+        index="03"
+        eyebrow="What you receive"
+        title="A clearer operating model—even before the software decision."
+        description="The work produces evidence that supports product fit, implementation scope and adoption planning."
+      >
+        <OperatorGrid columns={3}>
+          <OperatorCard
+            index="01"
+            title="Workflow map"
+            description="Actors, handoffs, decisions, exceptions and source records."
+          />
+          <OperatorCard
+            index="02"
+            title="Control model"
+            description="Permissions, approval boundaries, audit evidence and ownership."
+          />
+          <OperatorCard
+            index="03"
+            title="Pilot decision"
+            description="Explicit acceptance criteria, risks and next-step recommendation."
+          />
+        </OperatorGrid>
+      </OperatorBand>
+
+      <OperatorFinalCta
+        eyebrow="Apply"
+        title="Bring one workflow worth fixing properly."
+        description="Share the business, process owner, current tools and the operational result you need."
+        primary={{ label: "Apply as a design partner", href: "/contact" }}
+        secondary={{ label: "Review implementation", href: "/how-it-works" }}
+      />
     </MarketingShell>
   );
 }

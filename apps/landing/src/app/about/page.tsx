@@ -1,9 +1,13 @@
-import { createPageMetadata } from "@/lib/metadata";
-import { Check } from "lucide-react";
-
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorList,
+} from "@/components/marketing/operator-page";
+import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
   title: "About VercentLabs",
@@ -19,56 +23,63 @@ const principles = [
   "Build modularly without creating disconnected products",
   "Publish only claims that can be supported with evidence",
   "Learn with real implementation partners and business users",
-];
+] as const;
 
 export default function AboutPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="About VercentLabs"
-        title="Building an enterprise operating platform with Indian business reality in mind."
-        description="VercentLabs LLP is developing VercentLabs ERP to help organisations replace disconnected operations with governed, connected and understandable business workflows."
+        title="Build software that makes operations easier to read, control and improve."
+        description="VercentLabs LLP is developing a governed enterprise operating platform around Indian business reality, phased implementation and evidence-led product decisions."
       />
 
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-7 sm:gap-12 lg:grid-cols-2">
-            <div>
-              <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Mission
-              </p>
+      <OperatorBand
+        index="01"
+        eyebrow="Mission"
+        title="Turn disconnected work into one understandable operating system."
+        description="The long-term product direction connects commercial operations, finance, supply chain, production, people, projects and reporting without hiding today’s release boundary."
+        tone="white"
+      >
+        <OperatorGrid columns={3}>
+          <OperatorCard
+            index="01"
+            title="Current product"
+            description="Released CRM early access with identity, permissions, approvals, audit history, billing controls and mobile workflows."
+            status="released"
+          />
+          <OperatorCard
+            index="02"
+            title="Shared foundation"
+            description="Organisation context, governed data, access control and platform contracts designed to support future modules."
+            status="foundation"
+          />
+          <OperatorCard
+            index="03"
+            title="Product roadmap"
+            description="Eleven additional ERP modules developed through process evidence and controlled expansion."
+            status="roadmap"
+          />
+        </OperatorGrid>
+      </OperatorBand>
 
-              <h2 className="font-display mt-3 text-2xl font-extrabold tracking-[-0.035em] text-slate-950 sm:mt-4 sm:text-3xl">
-                Make enterprise operations easier to understand, control and
-                improve.
-              </h2>
+      <OperatorBand
+        index="02"
+        eyebrow="Working principles"
+        title="Conviction without invention."
+        description="A serious software company earns trust by making hard product choices and stating the truth clearly."
+        tone="ink"
+      >
+        <OperatorList items={principles} />
+      </OperatorBand>
 
-              <p className="mt-5 leading-8 text-slate-600">
-                The product direction connects finance, commercial operations,
-                supply chain, production, people, projects and reporting through
-                one modular platform.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {principles.map((principle) => (
-                <div
-                  key={principle}
-                  className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:gap-3 sm:rounded-2xl sm:p-5"
-                >
-                  <Check
-                    aria-hidden="true"
-                    className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
-                  />
-                  <p className="text-sm font-semibold leading-7 text-slate-700">
-                    {principle}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorFinalCta
+        eyebrow="Work with us"
+        title="Bring a real operating problem into the product process."
+        description="We are interested in design partners, implementation specialists and builders who care about complete workflows and accountable systems."
+        primary={{ label: "Start a conversation", href: "/contact" }}
+        secondary={{ label: "Explore careers", href: "/careers" }}
+      />
     </MarketingShell>
   );
 }

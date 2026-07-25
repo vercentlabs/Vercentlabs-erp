@@ -12,7 +12,10 @@ type MarketingShellProps = {
 
 export default function MarketingShell({ children }: MarketingShellProps) {
   return (
-    <div className="min-h-screen bg-white pb-16 text-slate-950 sm:pb-20 md:pb-0">
+    <div className="os-site-shell">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <AnnouncementBar />
       <Header />
 

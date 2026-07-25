@@ -109,7 +109,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
       onFocusCapture={() => {
         if (startedAt.current === 0) startedAt.current = Date.now();
       }}
-      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-8"
+      className="operator-lead-form"
     >
       <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-5">
         <Field
@@ -205,20 +205,17 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         />
       </div>
 
-      <label className="mt-4 flex items-start gap-2.5 text-xs leading-5 text-slate-600 sm:mt-5 sm:gap-3 sm:text-sm sm:leading-6">
+      <label className="operator-lead-form__consent">
         <input
           name="consent"
           type="checkbox"
           required
-          className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          className="operator-lead-form__checkbox"
         />
         <span>
           I agree that VercentLabs may use these details to assess and respond
           to this request. Review the{" "}
-          <Link
-            href="/privacy"
-            className="font-bold text-indigo-600 hover:text-indigo-800"
-          >
+          <Link href="/privacy" className="operator-inline-link">
             privacy policy
           </Link>
           .
@@ -269,7 +266,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
             href={
               "mailto:" + siteConfig.email + "?subject=VercentLabs ERP enquiry"
             }
-            className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-600 sm:mt-3 sm:gap-2 sm:text-sm"
+            className="operator-inline-link operator-inline-link--mail"
           >
             <Mail aria-hidden="true" className="h-4 w-4" />
             Email {siteConfig.email}

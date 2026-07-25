@@ -1,80 +1,75 @@
-import type { Metadata } from "next";
-import { ArrowRight, Boxes } from "lucide-react";
-import Link from "next/link";
 import { isReleasedModule } from "@vercent/shared-types";
 
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
 import { erpModules } from "@/content/erp";
+import { createPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "ERP Module Roadmap",
+export const metadata = createPageMetadata({
+  title: "VercentLabs ERP Module System",
   description:
-    "Explore the VercentLabs ERP module roadmap. CRM and the shared platform foundation are available for controlled early access; other modules are planned for phased design-partner delivery.",
-  alternates: {
-    canonical: "/modules",
-  },
-};
+    "Review the released CRM module and the eleven clearly labelled roadmap modules in the VercentLabs ERP system.",
+  path: "/modules",
+});
 
 export default function ModulesPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="Modular enterprise platform"
-        title="A transparent roadmap on one connected foundation."
-        description="CRM and the shared platform foundation are the only released early-access scope. The remaining modules below are roadmap items and are not represented as available product features."
-        actions={
-          <Link href="/contact" className="button-primary w-full sm:w-auto">
-            Discuss the roadmap
-            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-          </Link>
-        }
+        eyebrow="System map"
+        title="Twelve modules. One released. Eleven stated without theatre."
+        description="CRM is the released early-access operating module. The remaining modules are roadmap scope built on the same identity, permission, audit and master-data foundation."
       />
 
-      <section className="bg-white py-7 sm:py-20 lg:py-24">
-        <PageContainer>
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
-            {erpModules.map((erpModule) => (
-              <Link
-                key={erpModule.slug}
-                href={"/modules/" + erpModule.slug}
-                className="group min-w-0 rounded-xl border border-slate-200 bg-white p-3 transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 sm:rounded-2xl sm:p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11 sm:rounded-2xl">
-                    <Boxes
-                      aria-hidden="true"
-                      className="h-4 w-4 sm:h-5 sm:w-5"
-                    />
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-600 sm:text-[10px]">
-                    {isReleasedModule(erpModule.slug) ? "Released" : "Roadmap"}
-                  </span>
-                </div>
+      <OperatorBand
+        index="01"
+        eyebrow="Release map"
+        title="The roadmap is visible. The release boundary is explicit."
+        description="Every module page carries its current status so buyers can distinguish usable scope from future product direction."
+        tone="white"
+      >
+        <OperatorGrid columns={4}>
+          {erpModules.map((module, index) => {
+            const released = isReleasedModule(module.slug);
+            return (
+              <OperatorCard
+                key={module.slug}
+                index={String(index + 1).padStart(2, "0")}
+                title={module.name}
+                description={module.summary}
+                status={released ? "released" : "roadmap"}
+                meta={released ? "Released early access" : "Roadmap module"}
+                href={`/modules/${module.slug}`}
+              />
+            );
+          })}
+        </OperatorGrid>
+        <OperatorNote label="Foundation">
+          <p>
+            Identity, organisation context, permissions, audit history, billing
+            controls and governed master data are shared platform concerns—not
+            separate module promises.
+          </p>
+        </OperatorNote>
+      </OperatorBand>
 
-                <h2 className="font-display mt-3 text-sm font-extrabold text-slate-950 sm:mt-6 sm:text-xl">
-                  {erpModule.name}
-                </h2>
-
-                <p className="mt-1.5 line-clamp-4 text-[11px] leading-5 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7">
-                  {erpModule.summary}
-                </p>
-
-                <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 sm:mt-6 sm:gap-2 sm:text-sm">
-                  {isReleasedModule(erpModule.slug)
-                    ? "Review released scope"
-                    : "Review roadmap"}
-                  <ArrowRight
-                    aria-hidden="true"
-                    className="h-4 w-4 transition group-hover:translate-x-1"
-                  />
-                </span>
-              </Link>
-            ))}
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorFinalCta
+        eyebrow="Scope discussion"
+        title="Start with the released workflow. Expand only after evidence."
+        description="Use CRM early access to validate data ownership, permissions, operating handoffs and adoption before broader ERP rollout."
+        primary={{ label: "Book a scope session", href: "/contact" }}
+        secondary={{
+          label: "See implementation approach",
+          href: "/how-it-works",
+        }}
+      />
     </MarketingShell>
   );
 }

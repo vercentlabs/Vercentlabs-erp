@@ -1,15 +1,20 @@
-import { createPageMetadata } from "@/lib/metadata";
 import {
-  ArrowRight,
   BriefcaseBusiness,
   Building2,
   GraduationCap,
   UsersRound,
 } from "lucide-react";
 
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorNote,
+} from "@/components/marketing/operator-page";
+import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
@@ -19,94 +24,78 @@ export const metadata = createPageMetadata({
   path: "/partner",
 });
 
-const partnerTypes = [
+const types = [
   {
     icon: BriefcaseBusiness,
-    title: "ERP implementation professionals",
+    title: "Implementation professionals",
     description:
-      "Bring process discovery, configuration, migration, training and adoption experience.",
+      "Process discovery, configuration, migration, training and adoption experience.",
   },
   {
     icon: Building2,
     title: "Industry specialists",
-    description:
-      "Help validate workflows, terminology, controls and reporting requirements.",
+    description: "Real terminology, controls, reports and exception knowledge.",
   },
   {
     icon: UsersRound,
     title: "Pilot organisations",
     description:
-      "Collaborate around carefully selected operating problems and realistic user scenarios.",
+      "Carefully selected operating problems and realistic user scenarios.",
   },
   {
     icon: GraduationCap,
     title: "Learning and talent partners",
     description:
-      "Create structured opportunities for developers and functional learners to grow through real product work.",
+      "Structured opportunities for developers and functional learners.",
   },
-];
+] as const;
 
 export default function PartnerPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Partner ecosystem"
-        title="Build the product with people who understand real ERP implementation."
+        title="Build the product with people who understand the operation."
         description="VercentLabs is interested in grounded partnerships that improve product quality, industry understanding and implementation capability."
       />
-
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-3 sm:gap-5 md:grid-cols-2">
-            {partnerTypes.map((partner) => {
-              const Icon = partner.icon;
-
-              return (
-                <article
-                  key={partner.title}
-                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-7"
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="h-7 w-7 text-indigo-600"
-                  />
-
-                  <h2 className="font-display mt-5 text-xl font-extrabold text-slate-950">
-                    {partner.title}
-                  </h2>
-
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {partner.description}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="mt-7 rounded-2xl bg-slate-950 p-5 text-white sm:mt-10 sm:rounded-3xl sm:p-12">
-            <h2 className="font-display text-2xl font-extrabold sm:text-3xl">
-              Start with a direct conversation.
-            </h2>
-
-            <p className="mt-4 max-w-2xl leading-8 text-slate-300">
-              Share the relevant experience, market, organisation, customer
-              problem or partnership idea.
-            </p>
-
-            <a
-              href={
-                "mailto:" +
-                siteConfig.email +
-                "?subject=VercentLabs partnership discussion"
-              }
-              className="button-primary mt-7"
-            >
-              Discuss a partnership
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </a>
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorBand
+        index="01"
+        eyebrow="Partner types"
+        title="Expertise should change the product—not decorate the partner page."
+        description="The strongest partnerships bring process evidence, delivery capability or a real operating environment."
+        tone="white"
+      >
+        <OperatorGrid columns={4}>
+          {types.map((item, index) => (
+            <OperatorCard
+              key={item.title}
+              index={String(index + 1).padStart(2, "0")}
+              icon={item.icon}
+              title={item.title}
+              description={item.description}
+            />
+          ))}
+        </OperatorGrid>
+        <OperatorNote label="Expectation">
+          <p>
+            Partnership discussions should define contribution, ownership,
+            confidentiality, commercial boundaries and measurable outcomes.
+          </p>
+        </OperatorNote>
+      </OperatorBand>
+      <OperatorFinalCta
+        eyebrow="Partner discussion"
+        title="Start with the capability you can bring."
+        description="Share the market, operating experience, implementation strength or learning model that makes the partnership useful."
+        primary={{
+          label: "Email a partnership brief",
+          href: `mailto:${siteConfig.email}?subject=VercentLabs partnership discussion`,
+        }}
+        secondary={{
+          label: "See design partner programme",
+          href: "/customers",
+        }}
+      />
     </MarketingShell>
   );
 }

@@ -1,103 +1,88 @@
-import { createPageMetadata } from "@/lib/metadata";
-import { ArrowRight, Briefcase, Code2, Settings, Users } from "lucide-react";
+import { Code2, Settings, Users } from "lucide-react";
 
-import PageContainer from "@/components/layout/page-container";
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
+import {
+  OperatorBand,
+  OperatorCard,
+  OperatorFinalCta,
+  OperatorGrid,
+  OperatorList,
+} from "@/components/marketing/operator-page";
+import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "Careers at VercentLabs",
   description:
-    "Explore product engineering, ERP implementation and business operations careers at VercentLabs.",
+    "Explore product, engineering and implementation opportunities at VercentLabs.",
   path: "/careers",
 });
-
-const areas = [
-  {
-    icon: Code2,
-    title: "Product engineering",
-    description:
-      "Frontend, backend, platform, data and quality engineering for a multi-tenant ERP product.",
-  },
-  {
-    icon: Settings,
-    title: "ERP implementation",
-    description:
-      "Process discovery, configuration, migration, testing, training and business adoption.",
-  },
-  {
-    icon: Users,
-    title: "Product and industry learning",
-    description:
-      "Research real operating problems and translate them into understandable product workflows.",
-  },
-];
 
 export default function CareersPage() {
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Careers"
-        title="Learn by helping build a serious enterprise product."
-        description="VercentLabs is building its product and implementation capability carefully. Formal openings will be published only when a defined role, responsibility and selection process is ready."
+        title="Build systems that people can understand under real operating pressure."
+        description="VercentLabs is interested in builders who care about complete workflows, explicit constraints and the difference between a demo and a dependable product."
       />
-
-      <section className="bg-white py-9 sm:py-16">
-        <PageContainer>
-          <div className="grid gap-4 md:grid-cols-3">
-            {areas.map((area) => {
-              const Icon = area.icon;
-
-              return (
-                <article
-                  key={area.title}
-                  className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-6"
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="h-6 w-6 text-indigo-600"
-                  />
-
-                  <h2 className="font-display mt-4 text-xl font-extrabold text-slate-950">
-                    {area.title}
-                  </h2>
-
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {area.description}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="mt-7 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:mt-10 sm:rounded-3xl sm:p-10">
-            <Briefcase aria-hidden="true" className="h-8 w-8 text-indigo-600" />
-
-            <h2 className="font-display mt-3.5 text-2xl font-extrabold text-slate-950 sm:mt-5 sm:text-3xl">
-              No formal vacancy is currently published.
-            </h2>
-
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">
-              Experienced ERP professionals, product builders and committed
-              learners may still share a concise introduction, relevant work and
-              the area where they can contribute.
-            </p>
-
-            <a
-              href={
-                "mailto:" +
-                siteConfig.email +
-                "?subject=VercentLabs career introduction"
-              }
-              className="button-primary mt-6"
-            >
-              Send an introduction
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </a>
-          </div>
-        </PageContainer>
-      </section>
+      <OperatorBand
+        index="01"
+        eyebrow="Work areas"
+        title="The product needs more than feature delivery."
+        description="Enterprise software is shaped by product thinking, engineering discipline, implementation understanding and user evidence."
+        tone="white"
+      >
+        <OperatorGrid columns={3}>
+          <OperatorCard
+            index="01"
+            icon={Code2}
+            title="Product engineering"
+            description="Web, mobile, API, data, platform, quality and secure delivery."
+          />
+          <OperatorCard
+            index="02"
+            icon={Settings}
+            title="ERP implementation"
+            description="Process discovery, configuration, migration, testing and adoption."
+          />
+          <OperatorCard
+            index="03"
+            icon={Users}
+            title="Product and customer learning"
+            description="Research, workflow validation, content, support and market understanding."
+          />
+        </OperatorGrid>
+      </OperatorBand>
+      <OperatorBand
+        index="02"
+        eyebrow="How we work"
+        title="Evidence before ego."
+        description="The team should be willing to inspect the system, state uncertainty and improve the operating model."
+        tone="ink"
+      >
+        <OperatorList
+          items={[
+            "Read the workflow before changing the interface",
+            "Test the full path instead of isolated components",
+            "Keep release claims aligned with real capability",
+            "Prefer maintainable systems over clever fragments",
+            "Write decisions and acceptance criteria",
+            "Learn from users without copying their current inefficiencies",
+          ]}
+        />
+      </OperatorBand>
+      <OperatorFinalCta
+        eyebrow="Introduce yourself"
+        title="Show the work and the thinking behind it."
+        description="Share relevant projects, decisions, failures, learning and the role you want to grow into."
+        primary={{
+          label: "Email your profile",
+          href: `mailto:${siteConfig.email}?subject=VercentLabs career introduction`,
+        }}
+        secondary={{ label: "Learn about VercentLabs", href: "/about" }}
+      />
     </MarketingShell>
   );
 }
