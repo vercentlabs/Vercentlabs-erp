@@ -3313,3 +3313,46 @@ body {
   font-size: 0.82rem;
   text-decoration: none;
 }
+
+/* VercentLabs editorial text wordmark */
+.os-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.18em;
+  color: inherit;
+  font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.os-wordmark span:nth-child(2) {
+  font-weight: 500;
+  letter-spacing: -0.045em;
+}
+
+.os-wordmark i {
+  width: 0.34rem;
+  height: 0.34rem;
+  align-self: flex-start;
+  margin-top: 0.02rem;
+  background: var(--os-signal);
+}
+
+.os-wordmark--header {
+  color: var(--os-ink);
+}
+
+.os-wordmark--footer {
+  color: var(--os-white);
+  font-size: 1.3rem;
+}
+
+@media (max-width: 720px) {
+  .os-wordmark--header {
+    font-size: 1rem;
+  }
+}

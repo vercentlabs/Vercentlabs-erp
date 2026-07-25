@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import BrandLogo from "@/components/ui/brand-logo";
 import { siteConfig } from "@/lib/site-config";
 
 const footerGroups = [
@@ -57,7 +56,14 @@ export default function SiteFooter() {
       <div className="os-footer__grid">
         <div className="os-footer__brand">
           <Link href="/" aria-label="VercentLabs home">
-            <BrandLogo variant="footer" className="os-footer__logo" />
+            <span
+              className="os-wordmark os-wordmark--footer"
+              aria-hidden="true"
+            >
+              <span>VERCENT</span>
+              <span>LABS</span>
+              <i />
+            </span>
           </Link>
           <p>
             Governed customer operations today. A transparent ERP module roadmap

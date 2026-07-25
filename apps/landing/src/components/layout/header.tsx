@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import BrandLogo from "@/components/ui/brand-logo";
 import { getSignInHref } from "@/lib/site-config";
 
 import PageContainer from "./page-container";
@@ -55,7 +54,14 @@ export default function Header() {
             className="os-header__brand"
             onClick={() => setMenuOpen(false)}
           >
-            <BrandLogo className="os-header__logo" priority />
+            <span
+              className="os-wordmark os-wordmark--header"
+              aria-hidden="true"
+            >
+              <span>VERCENT</span>
+              <span>LABS</span>
+              <i />
+            </span>
           </Link>
 
           <nav className="os-header__nav" aria-label="Primary navigation">
