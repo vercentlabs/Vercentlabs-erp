@@ -31,10 +31,23 @@ for (const name of packages) {
   }
 }
 
+const approvalCollectionRoute = fs.readFileSync(
+  path.join(root, "apps/web/src/app/api/approvals/route.ts"),
+  "utf8",
+);
 const approvalRoute = fs.readFileSync(
   path.join(root, "apps/web/src/app/api/approvals/[id]/route.ts"),
   "utf8",
 );
+for (const marker of [
+  "assertSameOriginOrMobile",
+  "getApprovalCommand",
+  "approval.requested",
+]) {
+  if (!approvalCollectionRoute.includes(marker)) {
+    failures.push(`Approval initiation is missing ${marker}.`);
+  }
+}
 for (const marker of [
   "assertSeparationOfDuties",
   "expectedVersion",
@@ -52,7 +65,8 @@ const worker = fs.readFileSync(
   "utf8",
 );
 for (const marker of ["locked_by", "CRM_OUTBOX_LEASE_SECONDS", "SKIP LOCKED"]) {
-  if (!worker.includes(marker)) failures.push(`Outbox recovery is missing ${marker}.`);
+  if (!worker.includes(marker))
+    failures.push(`Outbox recovery is missing ${marker}.`);
 }
 
 if (failures.length) {
@@ -61,5 +75,5 @@ if (failures.length) {
 }
 
 console.log(
-  `Implementation verified: ${packages.length} shared packages, transactional approvals and leased CRM outbox delivery.`,
+  `Implementation verified: ${packages.length} shared packages, end-to-end transactional approvals and leased CRM outbox delivery.`,
 );

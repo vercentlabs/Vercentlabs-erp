@@ -60,8 +60,15 @@ const sourceExtensions = new Set([
   ".gradle", ".md", ".mdx", ".txt", ".prisma", ".tf", ".tfvars",
 ]);
 const exactSourceNames = new Set([
+  ".dockerignore",
+  ".editorconfig",
   ".env.example",
   ".env.sample",
+  ".eslintignore",
+  ".gitattributes",
+  ".gitignore",
+  ".npmrc",
+  ".prettierignore",
   "Dockerfile",
   "Containerfile",
   "Makefile",

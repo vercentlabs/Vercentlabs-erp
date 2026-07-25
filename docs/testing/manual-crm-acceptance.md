@@ -107,7 +107,21 @@ not require or create a demo user, demo company or sample business records.
    references are rejected.
 8. Review forecast, pipeline and stale-opportunity reports.
 
-## 8. Campaigns, communications and automation
+## 8. Governed approvals
+
+1. As a CRM manager, choose a different opportunity stage and request approval
+   instead of moving it immediately.
+2. Confirm the request appears in the approval centre for another user with
+   `approvals.manage`, and that the requester cannot approve their own request.
+3. Approve with the expected version and confirm the opportunity moves exactly
+   once inside the same transaction as the immutable decision record and audit
+   event.
+4. Repeat with an activity-completion request and confirm rejection requires a
+   note while leaving the activity unchanged.
+5. Repeat from the native client and confirm the same tenant, permission, billing,
+   version and separation-of-duties boundaries apply.
+
+## 9. Campaigns, communications and automation
 
 1. Create a campaign and confirm its campaign number.
 2. Create a sequence or workflow using only the capabilities shown as released.
@@ -120,7 +134,7 @@ not require or create a demo user, demo company or sample business records.
    unless a real provider adapter and credentials have separately passed an
    acceptance test.
 
-## 9. Public website to CRM
+## 10. Public website to CRM
 
 1. In CRM settings, create a public capture form and copy its public URL/key.
 2. Configure the landing application's `CRM_CAPTURE_URL` and use the same
@@ -133,7 +147,7 @@ not require or create a demo user, demo company or sample business records.
 6. Confirm direct public capture still uses the real client fingerprint and the
    trusted landing proxy uses only a verified signed fingerprint.
 
-## 10. Search, reports and privacy
+## 11. Search, reports and privacy
 
 1. Search for a lead, opportunity, business party and item.
 2. Repeat as a restricted user and confirm results obey CRM, master-data,
@@ -143,7 +157,7 @@ not require or create a demo user, demo company or sample business records.
 4. Export CRM resources and inspect encoding, delimiters and access control.
 5. Exercise privacy/consent records and verify sensitive actions are audited.
 
-## 11. Billing and release scope
+## 12. Billing and release scope
 
 1. Confirm CRM is the only enabled business module.
 2. Confirm all eleven future modules are visibly marked as roadmap and cannot be
@@ -153,7 +167,7 @@ not require or create a demo user, demo company or sample business records.
    webhook replay, invoice/tax handling, cancellation, refund, failed-payment
    recovery and customer support procedures have passed separately.
 
-## 12. Isolation and destructive tests
+## 13. Isolation and destructive tests
 
 1. Create a second test organisation through the normal product flow.
 2. Create recognisable records in both organisations.

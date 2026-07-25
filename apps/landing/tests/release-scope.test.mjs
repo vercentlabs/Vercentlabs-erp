@@ -25,3 +25,13 @@ test("standalone packaging supports applications without a public directory", ()
   assert.match(packaging, /await access\(publicDirectory\)/);
   assert.match(packaging, /error\?\.code !== "ENOENT"/);
 });
+
+test("feature marketing contains only released platform and CRM claims", () => {
+  const features = read("src/app/features/page.tsx");
+  assert.match(features, /Released early-access scope/);
+  assert.match(features, /Governed approvals/);
+  assert.match(features, /Eleven modules remain future scope/);
+  assert.doesNotMatch(features, /Multi-level approvals/);
+  assert.doesNotMatch(features, /Delegate approvals/);
+  assert.doesNotMatch(features, /closed or controlled accounting periods/);
+});

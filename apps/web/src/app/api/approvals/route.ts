@@ -11,7 +11,7 @@ import {
 import { requireBillingWriteAccess } from "@/lib/billing";
 import { query, transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 const createApprovalSchema = z.object({
   commandKey: z.string().trim().min(3).max(120),
@@ -45,7 +45,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
+    assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     await requireBillingWriteAccess(session.organizationId);
@@ -64,7 +64,10 @@ export async function POST(request: Request) {
           [session.organizationId, input.assignedTo],
         );
         if (!assignee.rows[0]) {
-          throw new HttpError(400, "The selected approver is not active in this organisation.");
+          throw new HttpError(
+            400,
+            "The selected approver is not active in this organisation.",
+          );
         }
       }
 

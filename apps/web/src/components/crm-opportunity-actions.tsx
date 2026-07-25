@@ -1,8 +1,10 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/lib/client-request";
+
 export default function CrmOpportunityActions({
   id,
   stageId,
@@ -13,30 +15,68 @@ export default function CrmOpportunityActions({
   stages: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
+  const [selectedStageId, setSelectedStageId] = useState(stageId);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-  async function move(next: string) {
+
+  async function run(action: "move" | "approval") {
+    if (!selectedStageId || selectedStageId === stageId) return;
     setPending(true);
-    const result = await requestJson(`/api/crm/opportunities/${id}/stage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        stageId: next,
-        note: "Updated from opportunity detail",
-      }),
-    });
-    setMessage(result.message || "Stage updated.");
-    setPending(false);
-    if (result.ok) router.refresh();
+    setMessage("");
+    try {
+      const result =
+        action === "move"
+          ? await requestJson(`/api/crm/opportunities/${id}/stage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                stageId: selectedStageId,
+                note: "Updated from opportunity detail",
+              }),
+            })
+          : await requestJson("/api/approvals", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                commandKey: "crm.opportunity.stage_change",
+                commandPayload: {
+                  opportunityId: id,
+                  stageId: selectedStageId,
+                  note: "Requested from opportunity detail",
+                },
+              }),
+            });
+      if (!result.ok) {
+        throw new Error(result.message || "The action could not be completed.");
+      }
+      setMessage(
+        result.message ||
+          (action === "move"
+            ? "Stage updated."
+            : "Stage-change approval requested."),
+      );
+      if (action === "move") router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "The action could not be completed.",
+      );
+    } finally {
+      setPending(false);
+    }
   }
+
+  const unchanged = !selectedStageId || selectedStageId === stageId;
+
   return (
     <div className="crm-action-panel">
       <label>
-        Move to stage
+        Target stage
         <select
-          value={stageId}
+          value={selectedStageId}
           disabled={pending}
-          onChange={(event) => void move(event.target.value)}
+          onChange={(event) => setSelectedStageId(event.target.value)}
         >
           {stages.map((stage) => (
             <option key={stage.id} value={stage.id}>
@@ -45,6 +85,27 @@ export default function CrmOpportunityActions({
           ))}
         </select>
       </label>
+      <div className="form-row">
+        <button
+          className="primary-button"
+          type="button"
+          disabled={pending || unchanged}
+          onClick={() => void run("move")}
+        >
+          Move now
+        </button>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={pending || unchanged}
+          onClick={() => void run("approval")}
+        >
+          Request approval
+        </button>
+      </div>
+      <p className="field-help">
+        Use approval when another authorised user must review the stage change.
+      </p>
       {message ? (
         <p className="notice" role="status">
           {message}

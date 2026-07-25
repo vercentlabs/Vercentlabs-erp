@@ -98,11 +98,14 @@ export function createMobileClient({
     }
 
     try {
-      const response = await fetchImpl(`${options.api ? apiRoot : root}${path}`, {
-        ...init,
-        headers,
-        signal: controller.signal,
-      });
+      const response = await fetchImpl(
+        `${options.api ? apiRoot : root}${path}`,
+        {
+          ...init,
+          headers,
+          signal: controller.signal,
+        },
+      );
       if (
         response.status === 401 &&
         options.authenticated !== false &&
@@ -118,10 +121,7 @@ export function createMobileClient({
       return await parseResponse(response);
     } catch (error) {
       if (error instanceof VercentApiError) {
-        if (
-          error.status === 401 &&
-          options.authenticated !== false
-        ) {
+        if (error.status === 401 && options.authenticated !== false) {
           await tokenStore.clear();
           try {
             await authenticationFailureHandler?.(error);
@@ -252,30 +252,69 @@ export function createMobileClient({
       return perform("/crm/dashboard");
     },
     listCrm(resource, query = {}) {
-      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
+      if (!resource || !/^[a-z0-9-]+$/.test(resource))
+        throw new TypeError("Unknown CRM resource.");
       const search = new URLSearchParams();
       for (const [key, value] of Object.entries(query)) {
-        if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+        if (value !== undefined && value !== null && value !== "")
+          search.set(key, String(value));
       }
       return perform(`/crm/${resource}${search.size ? `?${search}` : ""}`);
     },
     getCrm(resource, id) {
-      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
+      if (!resource || !/^[a-z0-9-]+$/.test(resource))
+        throw new TypeError("Unknown CRM resource.");
       return perform(`/crm/${resource}/${encodeURIComponent(id)}`);
     },
     updateCrm(resource, id, input, idempotencyKey = requestIdFactory()) {
-      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
-      return perform(`/crm/${resource}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }, { idempotencyKey });
+      if (!resource || !/^[a-z0-9-]+$/.test(resource))
+        throw new TypeError("Unknown CRM resource.");
+      return perform(
+        `/crm/${resource}/${encodeURIComponent(id)}`,
+        { method: "PATCH", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
     },
     createCrm(resource, input, idempotencyKey = requestIdFactory()) {
-      if (!resource || !/^[a-z0-9-]+$/.test(resource)) throw new TypeError("Unknown CRM resource.");
-      return perform(`/crm/${resource}`, { method: "POST", body: JSON.stringify(input) }, { idempotencyKey });
+      if (!resource || !/^[a-z0-9-]+$/.test(resource))
+        throw new TypeError("Unknown CRM resource.");
+      return perform(
+        `/crm/${resource}`,
+        { method: "POST", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
     },
     completeActivity(id, outcome, idempotencyKey = requestIdFactory()) {
-      return perform(`/crm/activities/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({ outcome }) }, { idempotencyKey });
+      return perform(
+        `/crm/activities/${encodeURIComponent(id)}/complete`,
+        { method: "POST", body: JSON.stringify({ outcome }) },
+        { idempotencyKey },
+      );
     },
     moveOpportunity(id, stageId, note, idempotencyKey = requestIdFactory()) {
-      return perform(`/crm/opportunities/${encodeURIComponent(id)}/stage`, { method: "POST", body: JSON.stringify({ stageId, note }) }, { idempotencyKey });
+      return perform(
+        `/crm/opportunities/${encodeURIComponent(id)}/stage`,
+        { method: "POST", body: JSON.stringify({ stageId, note }) },
+        { idempotencyKey },
+      );
+    },
+    createApprovalRequest(
+      commandKey,
+      commandPayload,
+      assignedTo = null,
+      idempotencyKey = requestIdFactory(),
+    ) {
+      if (!/^[a-z][a-z0-9_.-]{2,120}$/.test(String(commandKey || ""))) {
+        throw new TypeError("A valid approval command is required.");
+      }
+      return perform(
+        "/approvals",
+        {
+          method: "POST",
+          body: JSON.stringify({ commandKey, commandPayload, assignedTo }),
+        },
+        { api: true, idempotencyKey },
+      );
     },
     search(query) {
       return perform(`/search?q=${encodeURIComponent(query)}`);
@@ -284,7 +323,10 @@ export function createMobileClient({
       return perform("/notifications");
     },
     markNotifications(input) {
-      return perform("/notifications", { method: "PATCH", body: JSON.stringify(input) });
+      return perform("/notifications", {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      });
     },
     listWorkspaceResource(area, resource, query = {}) {
       const areas = new Set(["crm", "business-data", "settings"]);
@@ -293,18 +335,47 @@ export function createMobileClient({
       }
       const search = new URLSearchParams();
       for (const [key, value] of Object.entries(query)) {
-        if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+        if (value !== undefined && value !== null && value !== "")
+          search.set(key, String(value));
       }
       return perform(`/${area}/${resource}${search.size ? `?${search}` : ""}`);
     },
-    createWorkspaceResource(area, resource, input, idempotencyKey = requestIdFactory()) {
-      return perform(`/${area}/${resource}`, { method: "POST", body: JSON.stringify(input) }, { idempotencyKey });
+    createWorkspaceResource(
+      area,
+      resource,
+      input,
+      idempotencyKey = requestIdFactory(),
+    ) {
+      return perform(
+        `/${area}/${resource}`,
+        { method: "POST", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
     },
-    updateWorkspaceResource(area, resource, id, input, idempotencyKey = requestIdFactory()) {
-      return perform(`/${area}/${resource}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }, { idempotencyKey });
+    updateWorkspaceResource(
+      area,
+      resource,
+      id,
+      input,
+      idempotencyKey = requestIdFactory(),
+    ) {
+      return perform(
+        `/${area}/${resource}/${encodeURIComponent(id)}`,
+        { method: "PATCH", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
     },
-    archiveWorkspaceResource(area, resource, id, idempotencyKey = requestIdFactory()) {
-      return perform(`/${area}/${resource}/${encodeURIComponent(id)}`, { method: "DELETE" }, { idempotencyKey });
+    archiveWorkspaceResource(
+      area,
+      resource,
+      id,
+      idempotencyKey = requestIdFactory(),
+    ) {
+      return perform(
+        `/${area}/${resource}/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+        { idempotencyKey },
+      );
     },
     request(path, init, options) {
       return perform(path, init, options);

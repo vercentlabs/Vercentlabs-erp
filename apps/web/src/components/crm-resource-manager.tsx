@@ -163,9 +163,33 @@ export default function CrmResourceManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ outcome }),
     });
-    setMessage(result.message || (result.ok ? "Activity updated." : "Activity update failed."));
+    setMessage(
+      result.message ||
+        (result.ok ? "Activity updated." : "Activity update failed."),
+    );
     setPending(false);
     if (result.ok) router.refresh();
+  }
+  async function requestCompletionApproval(id: string) {
+    const outcome =
+      prompt("Proposed outcome or completion note (optional)") || "";
+    setPending(true);
+    setMessage("");
+    const result = await requestJson("/api/approvals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commandKey: "crm.activity.complete",
+        commandPayload: { activityId: id, outcome },
+      }),
+    });
+    setMessage(
+      result.message ||
+        (result.ok
+          ? "Activity completion approval requested."
+          : "Approval request failed."),
+    );
+    setPending(false);
   }
   async function importCsv(file: File) {
     setPending(true);
@@ -179,7 +203,9 @@ export default function CrmResourceManager({
       },
       { timeoutMs: 60_000 },
     );
-    setMessage(result.message || (result.ok ? "Import completed." : "Import failed."));
+    setMessage(
+      result.message || (result.ok ? "Import completed." : "Import failed."),
+    );
     setPending(false);
     if (fileRef.current) fileRef.current.value = "";
     if (result.ok) router.refresh();
@@ -315,15 +341,29 @@ export default function CrmResourceManager({
                           Open
                         </Link>
                       ) : null}
-                      {definition.key === "activities" &&
+                      {canManage &&
+                      definition.key === "activities" &&
                       row.status !== "completed" ? (
-                        <button
-                          className="link-button"
-                          type="button"
-                          onClick={() => void complete(String(row.id))}
-                        >
-                          Complete
-                        </button>
+                        <>
+                          <button
+                            className="link-button"
+                            type="button"
+                            disabled={pending}
+                            onClick={() => void complete(String(row.id))}
+                          >
+                            Complete
+                          </button>
+                          <button
+                            className="link-button"
+                            type="button"
+                            disabled={pending}
+                            onClick={() =>
+                              void requestCompletionApproval(String(row.id))
+                            }
+                          >
+                            Request approval
+                          </button>
+                        </>
                       ) : null}
                       {canManage ? (
                         <>

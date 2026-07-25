@@ -33,7 +33,8 @@ for (const file of requiredFiles) {
 function requireMarkers(file, markers) {
   const source = read(file);
   for (const marker of markers) {
-    if (!source.includes(marker)) failures.push(`${file} is missing: ${marker}`);
+    if (!source.includes(marker))
+      failures.push(`${file} is missing: ${marker}`);
   }
 }
 
@@ -46,9 +47,11 @@ requireMarkers("apps/web/src/app/api/readiness/route.ts", [
 
 const platform = read("apps/web/src/lib/platform.ts");
 const moduleCatalogSource = read("packages/shared-types/src/modules.js");
-const moduleEntries = [...moduleCatalogSource.matchAll(
-  /\{\s*key:\s*"([^"]+)"[\s\S]*?availability:\s*"([^"]+)"[\s\S]*?\}/g,
-)].map((match) => ({ key: match[1], availability: match[2] }));
+const moduleEntries = [
+  ...moduleCatalogSource.matchAll(
+    /\{\s*key:\s*"([^"]+)"[\s\S]*?availability:\s*"([^"]+)"[\s\S]*?\}/g,
+  ),
+].map((match) => ({ key: match[1], availability: match[2] }));
 const releasedModules = moduleEntries
   .filter((entry) => entry.availability === "released")
   .map((entry) => entry.key);
@@ -63,7 +66,8 @@ for (const marker of [
   '"crm_activity"',
   "await seedCrmFoundation(client, input)",
 ]) {
-  if (!platform.includes(marker)) failures.push(`CRM onboarding foundation missing: ${marker}`);
+  if (!platform.includes(marker))
+    failures.push(`CRM onboarding foundation missing: ${marker}`);
 }
 
 requireMarkers("apps/web/src/app/api/modules/[key]/route.ts", [
@@ -123,7 +127,9 @@ const controlMigration = read(
   "database/control-plane/migrations/009_crm_release_scope.sql",
 );
 if (!controlMigration.includes("modules = '[\"crm\"]'::jsonb")) {
-  failures.push("Billing plans are not constrained to the released CRM module.");
+  failures.push(
+    "Billing plans are not constrained to the released CRM module.",
+  );
 }
 if (!controlMigration.includes("modules_snapshot = '[\"crm\"]'::jsonb")) {
   failures.push("Subscription module snapshots are not constrained to CRM.");
@@ -139,7 +145,6 @@ requireMarkers("apps/web/scripts/verify-crm-database.mjs", [
   '"crm_campaign"',
   '"crm_activity"',
 ]);
-
 
 requireMarkers("apps/web/src/lib/security.ts", [
   "client?: PoolClient",
@@ -168,8 +173,13 @@ requireMarkers("apps/landing/src/components/home/hero-section.tsx", [
   'value: "11"',
 ]);
 const publicHero = read("apps/landing/src/components/home/hero-section.tsx");
-if (publicHero.includes("Run every core operation") || publicHero.includes('value: "12"')) {
-  failures.push("The public hero still presents roadmap modules as released capability.");
+if (
+  publicHero.includes("Run every core operation") ||
+  publicHero.includes('value: "12"')
+) {
+  failures.push(
+    "The public hero still presents roadmap modules as released capability.",
+  );
 }
 
 requireMarkers("package.json", [
@@ -192,8 +202,34 @@ requireMarkers("infrastructure/docker/compose.production.example.yml", [
 ]);
 
 const shell = read("apps/web/src/components/app-shell.tsx");
-if (shell.includes('href: "/approvals"')) {
-  failures.push("The unreleased approvals page remains in primary navigation.");
+for (const marker of ['href: "/approvals"', "PERMISSIONS.approvalsManage"]) {
+  if (!shell.includes(marker)) {
+    failures.push(
+      `The released approval centre is missing navigation marker ${marker}.`,
+    );
+  }
+}
+const opportunityActions = read(
+  "apps/web/src/components/crm-opportunity-actions.tsx",
+);
+const resourceManager = read(
+  "apps/web/src/components/crm-resource-manager.tsx",
+);
+for (const marker of [
+  'commandKey: "crm.opportunity.stage_change"',
+  'requestJson("/api/approvals"',
+]) {
+  if (!opportunityActions.includes(marker)) {
+    failures.push(`Opportunity approval initiation is missing ${marker}.`);
+  }
+}
+for (const marker of [
+  'commandKey: "crm.activity.complete"',
+  "requestCompletionApproval",
+]) {
+  if (!resourceManager.includes(marker)) {
+    failures.push(`Activity approval initiation is missing ${marker}.`);
+  }
 }
 
 const roadmapModuleKeys = [
@@ -223,12 +259,15 @@ const forbiddenAutomationPatterns = [
 ];
 const automationFiles = [
   ...fs.readdirSync(path.join(root, "scripts"), { recursive: true }),
-].filter((entry) => typeof entry === "string" && /\.(?:mjs|js|sh)$/.test(entry));
+].filter(
+  (entry) => typeof entry === "string" && /\.(?:mjs|js|sh)$/.test(entry),
+);
 for (const relative of automationFiles) {
   const file = path.join("scripts", relative);
   const source = read(file);
   for (const pattern of forbiddenAutomationPatterns) {
-    if (pattern.test(source)) failures.push(`Automatic demo-data behavior found in ${file}.`);
+    if (pattern.test(source))
+      failures.push(`Automatic demo-data behavior found in ${file}.`);
   }
 }
 

@@ -17,7 +17,12 @@ type NavigationItem = {
 
 const primaryNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/crm", label: "CRM overview", icon: "crm", permission: PERMISSIONS.crmView },
+  {
+    href: "/crm",
+    label: "CRM overview",
+    icon: "crm",
+    permission: PERMISSIONS.crmView,
+  },
   {
     href: "/master-data",
     label: "Master data",
@@ -26,6 +31,12 @@ const primaryNavigation: NavigationItem[] = [
   },
   { href: "/modules", label: "Modules", icon: "modules" },
   { href: "/notifications", label: "Notifications", icon: "notifications" },
+  {
+    href: "/approvals",
+    label: "Approvals",
+    icon: "approvals",
+    permission: PERMISSIONS.approvalsManage,
+  },
   {
     href: "/billing",
     label: "Billing",
@@ -41,7 +52,12 @@ const primaryNavigation: NavigationItem[] = [
 ];
 
 const crmNavigation: NavigationItem[] = [
-  { href: "/crm/leads", label: "Leads", icon: "crm", permission: PERMISSIONS.crmView },
+  {
+    href: "/crm/leads",
+    label: "Leads",
+    icon: "crm",
+    permission: PERMISSIONS.crmView,
+  },
   {
     href: "/crm/opportunities",
     label: "Opportunities",
