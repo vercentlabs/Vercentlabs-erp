@@ -30,7 +30,7 @@ test("native authentication is bearer-bound and does not weaken browser CSRF", (
 
 test("all mobile API responses are private and versioned", () => {
   const source = read("src/lib/mobile-http.ts");
-  assert.match(source, /X-Vercent-API-Version/);
+  assert.match(source, /X-Vercentlabs-API-Version/);
   assert.match(source, /private, no-store/);
   assert.match(source, /X-Request-ID/);
 });

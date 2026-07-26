@@ -72,9 +72,9 @@ const mockServer = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/capture") {
       const body = await requestBody(request);
-      const timestamp = request.headers["x-vercent-capture-timestamp"];
-      const fingerprint = request.headers["x-vercent-capture-fingerprint"];
-      const signature = request.headers["x-vercent-capture-signature"];
+      const timestamp = request.headers["x-vercentlabs-capture-timestamp"];
+      const fingerprint = request.headers["x-vercentlabs-capture-fingerprint"];
+      const signature = request.headers["x-vercentlabs-capture-signature"];
 
       assert.equal(typeof timestamp, "string");
       assert.equal(typeof fingerprint, "string");
@@ -241,7 +241,7 @@ async function fillContactForm(page) {
   await page.waitForTimeout(900);
   await page.getByRole("button", { name: "Send enquiry" }).click();
   await page
-    .getByText("Your enquiry has been delivered to VercentLabs.")
+    .getByText("Your enquiry has been delivered to Vercentlabs.")
     .waitFor();
 }
 
@@ -259,7 +259,7 @@ async function fillDemoForm(page) {
   await page.getByRole("button", { name: "Request focused demo" }).click();
   await page.waitForURL(/\/request-received\?kind=demo$/, { timeout: 10_000 });
   await page
-    .getByRole("heading", { name: /context is with the VercentLabs team/i })
+    .getByRole("heading", { name: /context is with the Vercentlabs team/i })
     .waitFor();
 }
 

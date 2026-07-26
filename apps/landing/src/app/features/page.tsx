@@ -6,9 +6,9 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Features | Platform Foundation and CRM",
+  title: "Vercentlabs ERP Features | Platform Foundation and CRM",
   description:
-    "Explore the released VercentLabs ERP platform foundation and CRM capabilities, with eleven additional ERP modules clearly separated as roadmap scope.",
+    "Explore the released Vercentlabs ERP platform foundation and CRM capabilities, with eleven additional ERP modules clearly separated as roadmap scope.",
   path: "/features",
 });
 

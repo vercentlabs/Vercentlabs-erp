@@ -4,7 +4,7 @@ import * as Device from "expo-device";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const installationKey = "vercent.mobile.installation-id.v1";
+const installationKey = "vercentlabs.mobile.installation-id.v1";
 
 async function installationId() {
   const stored = await SecureStore.getItemAsync(installationKey);
@@ -18,7 +18,7 @@ async function installationId() {
 
 export async function deviceContext() {
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
-    throw new Error("Vercent ERP Mobile supports iOS and Android devices.");
+    throw new Error("Vercentlabs ERP Mobile supports iOS and Android devices.");
   }
   return {
     deviceId: await installationId(),

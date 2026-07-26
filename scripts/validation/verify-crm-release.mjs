@@ -112,15 +112,15 @@ requireMarkers("services/api/src/crm.js", [
 
 requireMarkers("apps/landing/src/lib/lead-delivery.ts", [
   "CRM_CAPTURE_PROXY_SECRET",
-  "X-Vercent-Capture-Timestamp",
-  "X-Vercent-Capture-Fingerprint",
-  "X-Vercent-Capture-Signature",
+  "X-Vercentlabs-Capture-Timestamp",
+  "X-Vercentlabs-Capture-Fingerprint",
+  "X-Vercentlabs-Capture-Signature",
 ]);
 requireMarkers("apps/web/src/app/api/crm/public/capture/[key]/route.ts", [
   "CRM_CAPTURE_PROXY_SECRET",
-  "x-vercent-capture-timestamp",
-  "x-vercent-capture-fingerprint",
-  "x-vercent-capture-signature",
+  "x-vercentlabs-capture-timestamp",
+  "x-vercentlabs-capture-fingerprint",
+  "x-vercentlabs-capture-signature",
 ]);
 requireMarkers("apps/landing/src/lib/lead-security.ts", [
   "TRUSTED_PROXY_IP_HEADER",
@@ -220,7 +220,7 @@ if (
 }
 
 requireMarkers("package.json", [
-  '"db:provision:runtime-role": "corepack pnpm --filter @vercent/web',
+  '"db:provision:runtime-role": "corepack pnpm --filter @vercentlabs/web',
 ]);
 requireMarkers("apps/web/scripts/provision-runtime-role.mjs", [
   'import dotenv from "dotenv"',
@@ -289,7 +289,7 @@ for (const key of roadmapModuleKeys) {
 }
 
 const forbiddenAutomationPatterns = [
-  /demo\.vercent\.example\.test/i,
+  /demo\.vercentlabs\.example\.test/i,
   /seed[-_: ]demo/i,
   /reset[-_: ]demo/i,
   /create[-_: ]demo[-_: ](?:user|company|tenant)/i,

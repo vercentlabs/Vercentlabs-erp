@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  VercentApiError,
+  VercentlabsApiError,
   createMemoryTokenStore,
   createMobileClient,
 } from "../src/mobile.js";
@@ -105,7 +105,7 @@ test("mobile client exposes stable actionable errors", async () => {
   await assert.rejects(
     () => client.health(),
     (error) =>
-      error instanceof VercentApiError &&
+      error instanceof VercentlabsApiError &&
       error.status === 429 &&
       error.code === "RATE_LIMITED" &&
       error.retryable,
@@ -135,7 +135,7 @@ test("invalid refresh clears tokens and notifies the application shell", async (
     failures.push(error.code);
   });
 
-  await assert.rejects(() => client.session(), VercentApiError);
+  await assert.rejects(() => client.session(), VercentlabsApiError);
   assert.equal(await tokens.getAccessToken(), null);
   assert.deepEqual(failures, ["SESSION_REQUIRED"]);
   unsubscribe();

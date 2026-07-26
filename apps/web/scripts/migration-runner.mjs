@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const NON_TRANSACTIONAL_MARKER = "-- vercent:migration nontransactional";
+const NON_TRANSACTIONAL_MARKER = "-- vercentlabs:migration nontransactional";
 
 export function migrationChecksum(sql) {
   return crypto.createHash("sha256").update(sql).digest("hex");

@@ -57,9 +57,9 @@ await transporter.verify();
 const result = await transporter.sendMail({
   from: process.env.AUTH_EMAIL_FROM,
   to: process.env.TEST_EMAIL || process.env.SMTP_USER,
-  subject: "Vercent ERP email delivery test",
-  text: "Your Vercent ERP authentication email service is working.",
-  html: "<h2>Vercent ERP</h2><p>Your authentication email service is working.</p>",
+  subject: "Vercentlabs ERP email delivery test",
+  text: "Your Vercentlabs ERP authentication email service is working.",
+  html: "<h2>Vercentlabs ERP</h2><p>Your authentication email service is working.</p>",
 });
 
 console.log("SUCCESS: SMTP authentication and delivery verified.");

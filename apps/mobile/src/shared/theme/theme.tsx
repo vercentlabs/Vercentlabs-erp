@@ -30,7 +30,7 @@ const lightColors = {
 
 type ThemeColors = { [Key in keyof typeof lightColors]: string };
 
-export type VercentTheme = {
+export type VercentlabsTheme = {
   dark: boolean;
   colors: ThemeColors;
   spacing: typeof spacing;
@@ -38,10 +38,10 @@ export type VercentTheme = {
   type: typeof typeScale;
 };
 
-const ThemeContext = createContext<VercentTheme | null>(null);
+const ThemeContext = createContext<VercentlabsTheme | null>(null);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-  const value = useMemo<VercentTheme>(
+  const value = useMemo<VercentlabsTheme>(
     () => ({
       // apps/web explicitly uses color-scheme: light. Keep the native shell on
       // the same palette so screenshots and learned visual cues stay aligned.

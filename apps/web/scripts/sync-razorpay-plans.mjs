@@ -3,7 +3,7 @@ import path from "node:path";
 import dotenv from "dotenv";
 import pg from "pg";
 
-import { assertPlanEconomics, buildRazorpayPlanPayload } from "@vercent/api";
+import { assertPlanEconomics, buildRazorpayPlanPayload } from "@vercentlabs/api";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
 dotenv.config({ quiet: true });
@@ -93,7 +93,7 @@ try {
       buildRazorpayPlanPayload({
         id: row.id,
         planCode: row.plan_code,
-        name: `Vercent ERP ${row.name}`,
+        name: `Vercentlabs ERP ${row.name}`,
         description: row.description,
         billingPeriod: row.billing_period,
         amountPaise: Number(row.amount_paise),

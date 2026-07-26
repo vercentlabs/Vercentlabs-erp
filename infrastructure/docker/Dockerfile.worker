@@ -25,11 +25,11 @@ COPY packages packages
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/apps/web
-RUN addgroup -S vercent && adduser -S vercent -G vercent
-COPY --from=dependencies --chown=vercent:vercent /app/node_modules /app/node_modules
-COPY --from=dependencies --chown=vercent:vercent /app/apps/web/node_modules /app/apps/web/node_modules
-COPY --from=dependencies --chown=vercent:vercent /app/apps/web/scripts /app/apps/web/scripts
-COPY --from=dependencies --chown=vercent:vercent /app/services /app/services
-COPY --from=dependencies --chown=vercent:vercent /app/packages /app/packages
-USER vercent
+RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs
+COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/node_modules /app/node_modules
+COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/apps/web/node_modules /app/apps/web/node_modules
+COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/apps/web/scripts /app/apps/web/scripts
+COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/services /app/services
+COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/packages /app/packages
+USER vercentlabs
 CMD ["node", "scripts/process-crm-jobs.mjs"]

@@ -3,8 +3,8 @@ import {
   completeCrmActivity,
   moveOpportunityStage,
   rejectQuotationApproval,
-} from "@vercent/api";
-import { createCommandRegistry } from "@vercent/workflows";
+} from "@vercentlabs/api";
+import { createCommandRegistry } from "@vercentlabs/workflows";
 import type { PoolClient } from "pg";
 import { z } from "zod";
 

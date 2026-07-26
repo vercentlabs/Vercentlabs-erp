@@ -519,7 +519,7 @@ export function AppHeader({
               >
                 <BrandMark size={40} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ ...type.label, color: colors.text }}>Vercent ERP</Text>
+                  <Text style={{ ...type.label, color: colors.text }}>Vercentlabs ERP</Text>
                   <Text numberOfLines={1} style={{ ...type.caption, color: colors.textMuted }}>
                     {session.workspace.organizationName}
                   </Text>

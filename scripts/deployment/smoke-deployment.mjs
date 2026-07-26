@@ -58,8 +58,8 @@ async function checkLandingPage(pathname) {
     throw new Error(`${url} did not return HTML.`);
   }
   const html = await response.text();
-  if (!/VercentLabs/i.test(html)) {
-    throw new Error(`${url} omitted the VercentLabs product identity.`);
+  if (!/Vercentlabs/i.test(html)) {
+    throw new Error(`${url} omitted the Vercentlabs product identity.`);
   }
   if (/Application error: a client-side exception/i.test(html)) {
     throw new Error(`${url} contains a client-side application failure.`);
@@ -72,8 +72,8 @@ await checkJson(
   "vercentlabs-landing",
   "operational",
 );
-await checkJson(`${webUrl}/api/health`, "vercent-erp-web", "alive");
-await checkJson(`${webUrl}/api/readiness`, "vercent-erp-web", "ready");
+await checkJson(`${webUrl}/api/health`, "vercentlabs-erp-web", "alive");
+await checkJson(`${webUrl}/api/readiness`, "vercentlabs-erp-web", "ready");
 
 const landingRoutes = [
   "/",
@@ -124,13 +124,13 @@ if (smokeEmail) {
       Accept: "application/json",
       "Content-Type": "application/json",
       Origin: new URL(landingUrl).origin,
-      "User-Agent": "VercentLabs-Production-Smoke/1.0",
+      "User-Agent": "Vercentlabs-Production-Smoke/1.0",
     },
     body: JSON.stringify({
       name: "Production Smoke Check",
       email: smokeEmail,
       company: String(
-        process.env.SMOKE_LEAD_COMPANY || "VercentLabs QA",
+        process.env.SMOKE_LEAD_COMPANY || "Vercentlabs QA",
       ).trim(),
       phone: "",
       interest: "Product pilot",

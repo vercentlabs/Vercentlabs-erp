@@ -40,13 +40,13 @@ export default function AuthCard({
           <Link
             href="/"
             className="brand-mark inverse"
-            aria-label="Vercent ERP home"
+            aria-label="Vercentlabs ERP home"
           >
             <span className="brand-symbol" aria-hidden="true">
               V
             </span>
             <span className="brand-wordmark">
-              <strong>Vercent</strong>
+              <strong>Vercentlabs</strong>
               <small>Enterprise resource planning</small>
             </span>
           </Link>
@@ -86,7 +86,7 @@ export default function AuthCard({
         </div>
 
         <div className="auth-footnote">
-          <span>VercentLabs LLP</span>
+          <span>Vercentlabs LLP</span>
           <span aria-hidden="true">•</span>
           <span>Enterprise software platform</span>
         </div>
@@ -98,7 +98,7 @@ export default function AuthCard({
             <span className="brand-symbol" aria-hidden="true">
               V
             </span>
-            <strong>Vercent ERP</strong>
+            <strong>Vercentlabs ERP</strong>
           </div>
           <div className="auth-card">
             <div className="auth-card-heading">

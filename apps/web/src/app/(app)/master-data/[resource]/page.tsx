@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getBusinessDataOptions, listBusinessDataRecords } from "@vercent/api";
+import { getBusinessDataOptions, listBusinessDataRecords } from "@vercentlabs/api";
 
 import BusinessDataManager from "@/components/business-data-manager";
 import { requireWorkspace } from "@/lib/auth";

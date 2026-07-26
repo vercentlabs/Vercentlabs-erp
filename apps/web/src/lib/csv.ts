@@ -1,5 +1,5 @@
 import { HttpError } from "@/lib/http";
-import { csvCell as reportCsvCell } from "@vercent/reporting-engine";
+import { csvCell as reportCsvCell } from "@vercentlabs/reporting-engine";
 
 function serialise(value: unknown) {
   if (value === null || value === undefined) return "";

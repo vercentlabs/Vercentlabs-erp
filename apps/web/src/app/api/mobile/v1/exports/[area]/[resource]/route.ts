@@ -1,4 +1,4 @@
-import { listBusinessDataRecords, listCrmRecords } from "@vercent/api";
+import { listBusinessDataRecords, listCrmRecords } from "@vercentlabs/api";
 
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import {
@@ -47,7 +47,7 @@ export async function GET(
       );
       rows = result.rows;
       columns = businessDataDefinitions[resource].columns.map((column) => column.key);
-      filename = `vercent-${resource}-${new Date().toISOString().slice(0, 10)}.csv`;
+      filename = `vercentlabs-${resource}-${new Date().toISOString().slice(0, 10)}.csv`;
     } else {
       throw new HttpError(404, "Unknown export area.");
     }

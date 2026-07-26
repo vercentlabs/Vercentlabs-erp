@@ -1,6 +1,6 @@
 # Billing Module
 
-The Billing module supports non-seat-based SaaS subscriptions for Vercent ERP.
+The Billing module supports non-seat-based SaaS subscriptions for Vercentlabs ERP.
 
 ## Plans
 

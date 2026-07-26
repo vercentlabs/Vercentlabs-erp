@@ -84,9 +84,9 @@ async function deliverToCrmCapture(
       headers: {
         "Content-Type": "application/json",
         Origin: context.origin,
-        "X-Vercent-Capture-Timestamp": timestamp,
-        "X-Vercent-Capture-Fingerprint": context.fingerprint,
-        "X-Vercent-Capture-Signature": signature,
+        "X-Vercentlabs-Capture-Timestamp": timestamp,
+        "X-Vercentlabs-Capture-Fingerprint": context.fingerprint,
+        "X-Vercentlabs-Capture-Signature": signature,
       },
       body: payload,
       cache: "no-store",
@@ -175,8 +175,8 @@ async function deliverToGenericWebhook(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Vercent-Event": kind,
-        ...(signature ? { "X-Vercent-Signature": signature } : {}),
+        "X-Vercentlabs-Event": kind,
+        ...(signature ? { "X-Vercentlabs-Signature": signature } : {}),
       },
       body: payload,
       cache: "no-store",

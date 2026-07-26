@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This phase extends the existing Vercent ERP CRM from lead and opportunity execution into governed enterprise revenue operations. It keeps the CRM inside the tenant database, preserves organisation/company/branch isolation, and uses provider-neutral contracts for later communication and AI integrations.
+This phase extends the existing Vercentlabs ERP CRM from lead and opportunity execution into governed enterprise revenue operations. It keeps the CRM inside the tenant database, preserves organisation/company/branch isolation, and uses provider-neutral contracts for later communication and AI integrations.
 
 ## Capabilities delivered
 

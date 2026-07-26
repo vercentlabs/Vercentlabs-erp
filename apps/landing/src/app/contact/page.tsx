@@ -9,9 +9,9 @@ import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "Contact VercentLabs",
+  title: "Contact Vercentlabs",
   description:
-    "Discuss a CRM pilot, ERP roadmap problem, implementation partnership or VercentLabs product question.",
+    "Discuss a CRM pilot, ERP roadmap problem, implementation partnership or Vercentlabs product question.",
   path: "/contact",
 });
 

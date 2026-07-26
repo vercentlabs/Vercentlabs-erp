@@ -1,4 +1,4 @@
-import { getCrmDashboard } from "@vercent/api";
+import { getCrmDashboard } from "@vercentlabs/api";
 import { requireCrmView } from "@/lib/crm-api";
 import { crmContext, rethrowCrmError } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";

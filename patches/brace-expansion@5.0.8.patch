@@ -6,7 +6,7 @@ index be9df86be09c7655787a65c55ae6da01858894c3..09bb2e3dc3c8ab8618e7b37f81a28a02
      return acc;
  }
  //# sourceMappingURL=index.js.map
-+// VERCENT_CJS_CALLABLE_COMPATIBILITY
++// VERCENTLABS_CJS_CALLABLE_COMPATIBILITY
 +;(() => {
 +  const current = module.exports
 +  const expand = current && current.expand

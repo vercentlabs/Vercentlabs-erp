@@ -1,4 +1,4 @@
-import { moveOpportunityStage } from "@vercent/api";
+import { moveOpportunityStage } from "@vercentlabs/api";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { assertCrmIdentifier } from "@/lib/crm-api";
 import { crmContext, rethrowCrmError } from "@/lib/crm";

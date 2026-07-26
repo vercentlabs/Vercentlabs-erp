@@ -77,9 +77,9 @@ const mockServer = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/capture") {
       const body = await requestBody(request);
-      const timestamp = request.headers["x-vercent-capture-timestamp"];
-      const fingerprint = request.headers["x-vercent-capture-fingerprint"];
-      const signature = request.headers["x-vercent-capture-signature"];
+      const timestamp = request.headers["x-vercentlabs-capture-timestamp"];
+      const fingerprint = request.headers["x-vercentlabs-capture-fingerprint"];
+      const signature = request.headers["x-vercentlabs-capture-signature"];
 
       assert.equal(typeof timestamp, "string");
       assert.equal(typeof fingerprint, "string");
@@ -129,7 +129,7 @@ const landing = spawn(process.execPath, [standaloneServer], {
     FORM_ALLOWED_ORIGINS: landingOrigin,
     UPSTASH_REDIS_REST_URL: mockOrigin,
     UPSTASH_REDIS_REST_TOKEN: "landing-e2e-token",
-    TRUSTED_PROXY_IP_HEADER: "x-vercent-test-client-ip",
+    TRUSTED_PROXY_IP_HEADER: "x-vercentlabs-test-client-ip",
     TRUSTED_PROXY_CLIENT_INDEX: "0",
     CRM_CAPTURE_URL: `${mockOrigin}/capture`,
     DEMO_CRM_CAPTURE_URL: `${mockOrigin}/capture`,
@@ -246,7 +246,7 @@ async function assertPage(route) {
   const contentType = response.headers.get("content-type") || "";
   assert.match(contentType, /text\/html/);
   const html = await response.text();
-  assert.match(html, /VercentLabs/i, `${route} omitted the product identity`);
+  assert.match(html, /Vercentlabs/i, `${route} omitted the product identity`);
   assert.doesNotMatch(html, /Application error: a client-side exception/i);
   return { response, html };
 }
@@ -273,7 +273,7 @@ async function submit(pathname, payload, options = {}) {
     headers: {
       "Content-Type": options.contentType || "application/json",
       Origin: options.origin || landingOrigin,
-      "x-vercent-test-client-ip": options.ip || "203.0.113.10",
+      "x-vercentlabs-test-client-ip": options.ip || "203.0.113.10",
     },
     body:
       (options.contentType || "application/json") === "application/json"
@@ -465,7 +465,7 @@ try {
     headers: {
       "Content-Type": "application/json",
       Origin: landingOrigin,
-      "x-vercent-test-client-ip": "203.0.113.19",
+      "x-vercentlabs-test-client-ip": "203.0.113.19",
     },
     body: JSON.stringify({ payload: "x".repeat(50_100) }),
   });

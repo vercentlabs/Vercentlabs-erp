@@ -11,7 +11,7 @@ import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "Request received",
-  description: "Your VercentLabs request has been delivered for review.",
+  description: "Your Vercentlabs request has been delivered for review.",
   path: "/request-received",
   noIndex: true,
 });
@@ -21,7 +21,7 @@ export default function RequestReceivedPage() {
     <MarketingShell>
       <PageHero
         eyebrow="Request delivered"
-        title="The context is with the VercentLabs team."
+        title="The context is with the Vercentlabs team."
         description="A team member will review the operating problem and reply through the work email you submitted. No trial, account or implementation commitment is created by this form alone."
       />
 
@@ -35,7 +35,7 @@ export default function RequestReceivedPage() {
         <div className="operator-auth-panel">
           <OperatorNote label="Expected response">
             <p>
-              VercentLabs reviews requests on business days. Include additional
+              Vercentlabs reviews requests on business days. Include additional
               context by emailing {siteConfig.email}.
             </p>
           </OperatorNote>

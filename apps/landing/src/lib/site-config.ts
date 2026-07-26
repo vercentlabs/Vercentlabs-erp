@@ -13,12 +13,12 @@ function normalizeUrl(value: string | undefined, fallback = "") {
 const siteUrl = normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL, defaultSiteUrl);
 
 export const siteConfig = {
-  name: "VercentLabs",
-  companyName: "VercentLabs LLP",
-  productName: "VercentLabs ERP",
-  title: "VercentLabs ERP | Platform Foundation and CRM Early Access",
+  name: "Vercentlabs",
+  companyName: "Vercentlabs LLP",
+  productName: "Vercentlabs ERP",
+  title: "Vercentlabs ERP | Platform Foundation and CRM Early Access",
   description:
-    "Explore the VercentLabs ERP platform foundation and CRM early access. Additional operational modules are planned for phased design-partner development.",
+    "Explore the Vercentlabs ERP platform foundation and CRM early access. Additional operational modules are planned for phased design-partner development.",
   siteUrl,
   appUrl: normalizeUrl(process.env.NEXT_PUBLIC_ERP_APP_URL),
   email:

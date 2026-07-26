@@ -85,7 +85,7 @@ export default function Header() {
           <div className="os-header__inner">
             <Link
               href="/"
-              aria-label="VercentLabs home"
+              aria-label="Vercentlabs home"
               className="os-header__brand"
               onClick={closeMenu}
             >
@@ -93,7 +93,7 @@ export default function Header() {
                 className="os-wordmark os-wordmark--header"
                 aria-hidden="true"
               >
-                <span>VERCENT</span>
+                <span>VERCENTLABS</span>
                 <span>LABS</span>
                 <i />
               </span>

@@ -13,7 +13,7 @@ import { createPageMetadata } from "@/lib/metadata";
 export const metadata = createPageMetadata({
   title: "ERP Approach Comparison",
   description:
-    "Compare spreadsheets, accounting-only tools, traditional legacy ERP and the connected modular VercentLabs approach.",
+    "Compare spreadsheets, accounting-only tools, traditional legacy ERP and the connected modular Vercentlabs approach.",
   path: "/comparison",
 });
 
@@ -37,7 +37,7 @@ const approaches = [
     fit: "Large established transformation programmes",
   },
   {
-    title: "VercentLabs approach",
+    title: "Vercentlabs approach",
     description:
       "Shared platform controls, released CRM early access and phased module expansion around complete workflows.",
     fit: "Growing organisations needing connected operations",
@@ -102,7 +102,7 @@ export default function ComparisonPage() {
 
       <OperatorBand
         index="03"
-        eyebrow="VercentLabs position"
+        eyebrow="Vercentlabs position"
         title="Start narrow. Preserve the shared system. Expand with evidence."
         description="The current product is released CRM early access on a governed platform foundation. Eleven additional modules remain explicit roadmap scope."
       >

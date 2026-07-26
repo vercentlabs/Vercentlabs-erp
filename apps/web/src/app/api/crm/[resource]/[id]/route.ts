@@ -2,7 +2,7 @@ import {
   incrementBillingUsage,
   requireBillingWriteAccess,
 } from "@/lib/billing";
-import { archiveCrmRecord, getCrmRecord, updateCrmRecord } from "@vercent/api";
+import { archiveCrmRecord, getCrmRecord, updateCrmRecord } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import {
   assertCrmIdentifier,

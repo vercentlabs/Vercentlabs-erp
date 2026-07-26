@@ -2,7 +2,7 @@
 
 ## Principle
 
-Vercent ERP does not charge for each user. It charges for the operating capacity and service responsibility that create real cost: companies, branches, storage, API volume, automation, outbound communication, AI consumption, infrastructure, implementation and support.
+Vercentlabs ERP does not charge for each user. It charges for the operating capacity and service responsibility that create real cost: companies, branches, storage, API volume, automation, outbound communication, AI consumption, infrastructure, implementation and support.
 
 ## Margin guard
 

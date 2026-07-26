@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import type { Ionicons } from "@expo/vector-icons";
-import { ERP_MODULE_CATALOG } from "@vercent/shared-types";
+import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 export type MobileModule = {
   key: string;

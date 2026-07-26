@@ -20,8 +20,8 @@ test("landing delivery maps its form to the strict CRM capture contract", () => 
 test("landing capture preserves a visitor fingerprint with a signed request", () => {
   const delivery = read("src/lib/lead-delivery.ts");
   const security = read("src/lib/lead-security.ts");
-  assert.match(delivery, /X-Vercent-Capture-Fingerprint/);
-  assert.match(delivery, /X-Vercent-Capture-Signature/);
+  assert.match(delivery, /X-Vercentlabs-Capture-Fingerprint/);
+  assert.match(delivery, /X-Vercentlabs-Capture-Signature/);
   assert.match(delivery, /createHmac/);
   assert.match(security, /TRUSTED_PROXY_IP_HEADER/);
   assert.match(security, /leadFingerprint/);

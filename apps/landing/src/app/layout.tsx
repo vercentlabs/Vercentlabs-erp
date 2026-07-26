@@ -8,12 +8,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
   title: {
-    default: "VercentLabs ERP | One connected system for business operations",
-    template: "%s | VercentLabs ERP",
+    default: "Vercentlabs ERP | One connected system for business operations",
+    template: "%s | Vercentlabs ERP",
   },
   description:
-    "Explore the VercentLabs ERP platform foundation and CRM early access, with additional operational modules planned for phased delivery.",
-  applicationName: "VercentLabs ERP",
+    "Explore the Vercentlabs ERP platform foundation and CRM early access, with additional operational modules planned for phased delivery.",
+  applicationName: "Vercentlabs ERP",
   alternates: {
     canonical: "/",
   },
@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     "manufacturing ERP",
     "distribution ERP",
     "Indian business ERP",
-    "VercentLabs ERP",
+    "Vercentlabs ERP",
   ],
   openGraph: {
     type: "website",
     locale: siteConfig.locale,
     siteName: siteConfig.name,
-    title: "VercentLabs ERP | Platform foundation and CRM early access",
+    title: "Vercentlabs ERP | Platform foundation and CRM early access",
     description:
       "A governed ERP platform foundation and CRM early access, with a clearly labelled roadmap for additional modules.",
     url: siteConfig.siteUrl,
@@ -38,13 +38,13 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "VercentLabs ERP connected business platform",
+        alt: "Vercentlabs ERP connected business platform",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "VercentLabs ERP | Platform foundation and CRM early access",
+    title: "Vercentlabs ERP | Platform foundation and CRM early access",
     description:
       "A governed ERP platform foundation and CRM early access, with a clearly labelled roadmap for additional modules.",
     images: ["/opengraph-image"],

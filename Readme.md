@@ -1,6 +1,6 @@
-# VercentLabs ERP
+# Vercentlabs ERP
 
-VercentLabs ERP is a pnpm monorepo containing the public landing site, the authenticated ERP web application, shared packages, API services, database migrations and deployment infrastructure.
+Vercentlabs ERP is a pnpm monorepo containing the public landing site, the authenticated ERP web application, shared packages, API services, database migrations and deployment infrastructure.
 
 ## Current release scope
 

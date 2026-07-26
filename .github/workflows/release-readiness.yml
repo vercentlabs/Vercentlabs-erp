@@ -15,21 +15,21 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: vercent
-          POSTGRES_PASSWORD: vercent_ci_password
-          POSTGRES_DB: vercent_control
+          POSTGRES_USER: vercentlabs
+          POSTGRES_PASSWORD: vercentlabs_ci_password
+          POSTGRES_DB: vercentlabs_control
         ports: ["5433:5432"]
         options: >-
-          --health-cmd "pg_isready -U vercent -d vercent_control"
+          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
       APP_URL: http://localhost:3001
-      DATABASE_URL: postgresql://vercent:vercent_ci_password@localhost:5433/vercent_control
-      MIGRATION_DATABASE_URL: postgresql://vercent:vercent_ci_password@localhost:5433/vercent_control
-      APP_DATABASE_ROLE: vercent_app_ci
-      APP_DATABASE_PASSWORD: vercent_ci_runtime_password_2026
+      DATABASE_URL: postgresql://vercentlabs:vercentlabs_ci_password@localhost:5433/vercentlabs_control
+      MIGRATION_DATABASE_URL: postgresql://vercentlabs:vercentlabs_ci_password@localhost:5433/vercentlabs_control
+      APP_DATABASE_ROLE: vercentlabs_app_ci
+      APP_DATABASE_PASSWORD: vercentlabs_ci_runtime_password_2026
       FORM_ALLOWED_ORIGINS: http://localhost:3001
       BILLING_CHECKOUT_ENABLED: "false"
       BILLING_ENFORCEMENT_MODE: observe
@@ -43,7 +43,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @vercent/landing exec playwright install --with-deps chromium
+      - run: pnpm --filter @vercentlabs/landing exec playwright install --with-deps chromium
       - run: pnpm audit:dependencies
       - run: pnpm test:all
       - run: pnpm verify:release
@@ -52,7 +52,7 @@ jobs:
       - run: pnpm db:provision:runtime-role
       - name: Switch verification to the restricted runtime role
         run: |
-          echo "DATABASE_URL=postgresql://vercent_app_ci:vercent_ci_runtime_password_2026@localhost:5433/vercent_control" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=postgresql://vercentlabs_app_ci:vercentlabs_ci_runtime_password_2026@localhost:5433/vercentlabs_control" >> "$GITHUB_ENV"
           echo "ENFORCE_RESTRICTED_DB_ROLE=true" >> "$GITHUB_ENV"
       - run: pnpm db:verify:control
       - run: pnpm db:verify:tenant

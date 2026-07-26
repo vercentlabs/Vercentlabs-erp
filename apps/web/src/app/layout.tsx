@@ -6,9 +6,9 @@ import "./crm-extension.css";
 import "./billing-extension.css";
 
 export const metadata: Metadata = {
-  title: { default: "Vercent ERP", template: "%s | Vercent ERP" },
+  title: { default: "Vercentlabs ERP", template: "%s | Vercentlabs ERP" },
   description:
-    "Secure Vercent ERP workspace for organisations, companies and teams.",
+    "Secure Vercentlabs ERP workspace for organisations, companies and teams.",
   robots: { index: false, follow: false },
 };
 

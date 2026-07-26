@@ -5,7 +5,7 @@ import AppIcon from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { canViewCrmResource } from "@/lib/crm-api";
-import type { CrmResourceKey } from "@vercent/shared-types";
+import type { CrmResourceKey } from "@vercentlabs/shared-types";
 export const metadata = { title: "CRM settings" };
 const groups = {
   "Pipeline and classification": [

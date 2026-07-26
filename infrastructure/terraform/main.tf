@@ -2,7 +2,7 @@ resource "kubernetes_namespace_v1" "erp" {
   metadata {
     name = var.namespace
     labels = {
-      "app.kubernetes.io/part-of"    = "vercent-erp"
+      "app.kubernetes.io/part-of"    = "vercentlabs-erp"
       "app.kubernetes.io/managed-by" = "terraform"
       "vercentlabs.com/environment"  = var.environment
     }
@@ -11,7 +11,7 @@ resource "kubernetes_namespace_v1" "erp" {
 
 resource "kubernetes_resource_quota_v1" "erp" {
   metadata {
-    name      = "vercent-namespace-quota"
+    name      = "vercentlabs-namespace-quota"
     namespace = kubernetes_namespace_v1.erp.metadata[0].name
   }
   spec {
@@ -27,7 +27,7 @@ resource "kubernetes_resource_quota_v1" "erp" {
 
 resource "kubernetes_limit_range_v1" "erp" {
   metadata {
-    name      = "vercent-container-defaults"
+    name      = "vercentlabs-container-defaults"
     namespace = kubernetes_namespace_v1.erp.metadata[0].name
   }
   spec {

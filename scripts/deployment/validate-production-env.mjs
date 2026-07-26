@@ -1,4 +1,4 @@
-const target = process.argv[2] || process.env.VERCENT_ENV_TARGET || "web";
+const target = process.argv[2] || process.env.VERCENTLABS_ENV_TARGET || "web";
 const failures = [];
 
 function value(name) {

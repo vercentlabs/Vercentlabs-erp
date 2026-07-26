@@ -10,7 +10,7 @@ export function PrivacyShield({ children }: PropsWithChildren) {
   async function unlock() {
     const available = await LocalAuthentication.hasHardwareAsync() && await LocalAuthentication.isEnrolledAsync();
     if (!available) { setLocked(false); return; }
-    const result = await LocalAuthentication.authenticateAsync({ promptMessage: "Unlock Vercent ERP", cancelLabel: "Stay locked", disableDeviceFallback: false });
+    const result = await LocalAuthentication.authenticateAsync({ promptMessage: "Unlock Vercentlabs ERP", cancelLabel: "Stay locked", disableDeviceFallback: false });
     if (result.success) setLocked(false);
   }
   useEffect(() => {

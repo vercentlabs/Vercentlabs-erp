@@ -9,7 +9,7 @@ import {
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "Book a VercentLabs ERP Demo",
+  title: "Book a Vercentlabs ERP Demo",
   description:
     "Request a focused walkthrough of released CRM workflows, permissions, approvals, audit history and the wider ERP roadmap.",
   path: "/book-demo",

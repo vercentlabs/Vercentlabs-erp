@@ -1,4 +1,4 @@
-import { createCrmRecord } from "@vercent/api";
+import { createCrmRecord } from "@vercentlabs/api";
 
 import {
   incrementBillingUsage,

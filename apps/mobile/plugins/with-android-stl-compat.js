@@ -65,7 +65,7 @@ function patchDependency(projectRoot, dependency) {
     dependency.cmake || "CMakeLists.txt",
   );
   const cmakeSource = fs.readFileSync(cmakePath, "utf8");
-  const marker = "# Vercent Android STL compatibility.";
+  const marker = "# Vercentlabs Android STL compatibility.";
   const linkLine = `target_link_libraries(${dependency.target}${dependency.linkScope ? ` ${dependency.linkScope}` : ""} c++_shared)`;
   const markerPattern = new RegExp(
     `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\r?\\ntarget_link_libraries\\([^\\r\\n]+\\)`,
@@ -102,7 +102,7 @@ function patchReactNativeAppRuntime(projectRoot) {
     "CMakeLists.txt",
   );
   const source = fs.readFileSync(cmakePath, "utf8");
-  const marker = "# Vercent app and autolinked C++ runtime compatibility.";
+  const marker = "# Vercentlabs app and autolinked C++ runtime compatibility.";
   if (source.includes(marker)) return;
   const includeLine =
     "include(${REACT_ANDROID_DIR}/cmake-utils/ReactNative-application.cmake)";

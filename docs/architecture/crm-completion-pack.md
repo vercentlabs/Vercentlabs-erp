@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This pack closes the remaining CRM-owned capability gaps before VercentLabs
+This pack closes the remaining CRM-owned capability gaps before Vercentlabs
 starts the Sales module. It extends the existing lead, opportunity, activity,
 campaign, sequence, forecasting, account-planning, privacy and data-quality
 foundation. It does not copy capabilities that properly belong to another ERP

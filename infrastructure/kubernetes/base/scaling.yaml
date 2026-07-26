@@ -2,7 +2,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: web
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: web }
   minReplicas: 2
@@ -20,7 +20,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: landing
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: landing }
   minReplicas: 2
@@ -35,18 +35,18 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: web
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   minAvailable: 1
   selector:
-    matchLabels: { app: vercent-web }
+    matchLabels: { app: vercentlabs-web }
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: landing
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   minAvailable: 1
   selector:
-    matchLabels: { app: vercent-landing }
+    matchLabels: { app: vercentlabs-landing }

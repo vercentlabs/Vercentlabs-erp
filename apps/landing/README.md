@@ -1,6 +1,6 @@
-# Vercent ERP Landing Application
+# Vercentlabs ERP Landing Application
 
-Production public website for Vercent ERP, built with Next.js App Router,
+Production public website for Vercentlabs ERP, built with Next.js App Router,
 TypeScript and Tailwind CSS.
 
 ## Local development
@@ -57,7 +57,7 @@ types, validation, honeypot behaviour and rate limiting.
 It checks responsive overflow at five viewport widths, mobile focus containment,
 skip navigation, keyboard tabs, interactive approval preview, reduced-motion
 behaviour and both public form journeys. Install the browser once with
-`pnpm --filter @vercent/landing exec playwright install chromium`.
+`pnpm --filter @vercentlabs/landing exec playwright install chromium`.
 
 A release is ready only after tests, lint, TypeScript, production build,
 production API and browser-journey verification, repository release verification and deployed

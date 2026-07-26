@@ -45,7 +45,7 @@ flows. This is an intentional secure handoff to the same responsive web design,
 not an embedded web surface; no authentication feature is removed.
 
 Browser mutations keep same-origin CSRF enforcement. Native mutations require
-both a valid bearer token and the versioned `X-Vercent-Client` mobile header.
+both a valid bearer token and the versioned `X-Vercentlabs-Client` mobile header.
 Mobile responses are private, request-correlated and use the same tenant,
 permission, audit, billing and idempotency boundaries as web.
 

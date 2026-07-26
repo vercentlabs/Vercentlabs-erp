@@ -1,6 +1,6 @@
 # CRM
 
-Vercent CRM owns enquiry capture, relationship history, follow-up execution,
+Vercentlabs CRM owns enquiry capture, relationship history, follow-up execution,
 qualification, opportunity pipelines, campaigns, sequences, forecasting,
 account planning, buying committees, partner selling, field visits, governed
 engagement, conversation intelligence, analytics, customization, privacy, data

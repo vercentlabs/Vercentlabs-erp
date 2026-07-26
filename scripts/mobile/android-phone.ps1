@@ -92,7 +92,7 @@ Push-Location $repoRoot
 try {
   $apk = $null
   if ($Rebuild) {
-    & corepack pnpm --filter '@vercent/mobile' exec expo prebuild --clean --platform android --no-install
+    & corepack pnpm --filter '@vercentlabs/mobile' exec expo prebuild --clean --platform android --no-install
     if ($LASTEXITCODE -ne 0) { throw "Expo prebuild failed." }
     if (-not (Test-Path "apps\mobile\android\gradlew.bat")) {
       throw "Expo prebuild did not create the Android Gradle wrapper."
@@ -122,7 +122,7 @@ try {
   } else {
     $installedPackage = @(& $adb -s $Serial shell pm path com.vercentlabs.erp 2>$null)
     if (-not ($installedPackage -match '^package:')) {
-      throw "Vercent ERP is not installed. Build it once from C:\ve with: npm run phone:android -- -Rebuild"
+      throw "Vercentlabs ERP is not installed. Build it once from C:\ve with: npm run phone:android -- -Rebuild"
     }
   }
 
@@ -144,7 +144,7 @@ try {
   $logDir = Join-Path $repoRoot "tmp\mobile-run"
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
   Remove-Item (Join-Path $logDir "metro.out.log"), (Join-Path $logDir "metro.err.log") -Force -ErrorAction SilentlyContinue
-  Start-Process -FilePath "corepack.cmd" -ArgumentList @("pnpm", "--filter", "@vercent/mobile", "exec", "expo", "start", "--dev-client", "--clear", "--port", "8081") -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "metro.out.log") -RedirectStandardError (Join-Path $logDir "metro.err.log")
+  Start-Process -FilePath "corepack.cmd" -ArgumentList @("pnpm", "--filter", "@vercentlabs/mobile", "exec", "expo", "start", "--dev-client", "--clear", "--port", "8081") -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "metro.out.log") -RedirectStandardError (Join-Path $logDir "metro.err.log")
 
   $deadline = (Get-Date).AddSeconds(60)
   do {

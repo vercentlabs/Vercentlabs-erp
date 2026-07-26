@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getBusinessDataOverview } from "@vercent/api";
+import { getBusinessDataOverview } from "@vercentlabs/api";
 
 import AppIcon from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";

@@ -1,4 +1,4 @@
-import { isReleasedModule } from "@vercent/shared-types";
+import { isReleasedModule } from "@vercentlabs/shared-types";
 
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
@@ -13,9 +13,9 @@ import { erpModules } from "@/content/erp";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Module System",
+  title: "Vercentlabs ERP Module System",
   description:
-    "Review the released CRM module and the eleven clearly labelled roadmap modules in the VercentLabs ERP system.",
+    "Review the released CRM module and the eleven clearly labelled roadmap modules in the Vercentlabs ERP system.",
   path: "/modules",
 });
 

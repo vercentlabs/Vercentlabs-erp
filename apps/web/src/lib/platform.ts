@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { seedBusinessDataFoundation } from "@vercent/api";
-import { setTenantContext } from "@vercent/database";
-import { ALL_PERMISSIONS } from "@vercent/permissions";
-import { ERP_MODULE_CATALOG } from "@vercent/shared-types";
+import { seedBusinessDataFoundation } from "@vercentlabs/api";
+import { setTenantContext } from "@vercentlabs/database";
+import { ALL_PERMISSIONS } from "@vercentlabs/permissions";
+import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import type { PoolClient } from "pg";
 
 import type { SessionContext } from "@/lib/auth";

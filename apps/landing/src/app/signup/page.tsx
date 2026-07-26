@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata: Metadata = {
-  title: "Create your VercentLabs ERP account",
-  description: "Continue to the secure VercentLabs ERP account registration.",
+  title: "Create your Vercentlabs ERP account",
+  description: "Continue to the secure Vercentlabs ERP account registration.",
   robots: {
     index: false,
     follow: false,

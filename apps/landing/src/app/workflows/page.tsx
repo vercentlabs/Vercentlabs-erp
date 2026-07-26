@@ -5,7 +5,7 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Workflows | Released CRM and Roadmap",
+  title: "Vercentlabs ERP Workflows | Released CRM and Roadmap",
   description:
     "Review the released CRM workflow and the clearly labelled future ERP workflow roadmap.",
   path: "/workflows",
@@ -17,7 +17,7 @@ const config: StructuredPageConfig = {
     title:
       "One customer workflow is released. The broader operating map is roadmap.",
     description:
-      "VercentLabs currently connects lead capture, qualification, conversion, opportunity progression, activities, supported approvals, reporting and mobile CRM. Cross-module finance, supply-chain, production, project, asset, retail, quality, support and people workflows are not yet released.",
+      "Vercentlabs currently connects lead capture, qualification, conversion, opportunity progression, activities, supported approvals, reporting and mobile CRM. Cross-module finance, supply-chain, production, project, asset, retail, quality, support and people workflows are not yet released.",
     primary: { label: "Book a CRM workflow demo", href: "/book-demo" },
     secondary: { label: "Review released features", href: "/features" },
   },

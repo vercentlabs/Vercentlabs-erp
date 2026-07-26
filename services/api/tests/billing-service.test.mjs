@@ -24,7 +24,7 @@ test("Razorpay plan payload does not multiply by users", () => {
   const payload = buildRazorpayPlanPayload({
     id: "price",
     planCode: "launch",
-    name: "Vercent ERP Launch",
+    name: "Vercentlabs ERP Launch",
     description: "Launch",
     billingPeriod: "monthly",
     amountPaise: 399900,

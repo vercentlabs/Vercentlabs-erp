@@ -21,7 +21,7 @@ export default async function LoginPage({
       description="Use your verified work account to continue."
       footer={
         <p>
-          New to Vercent ERP? <Link href="/signup">Create an account</Link>
+          New to Vercentlabs ERP? <Link href="/signup">Create an account</Link>
         </p>
       }
     >

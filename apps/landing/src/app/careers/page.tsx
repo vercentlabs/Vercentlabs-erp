@@ -13,9 +13,9 @@ import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "Careers at VercentLabs",
+  title: "Careers at Vercentlabs",
   description:
-    "Explore product, engineering and implementation opportunities at VercentLabs.",
+    "Explore product, engineering and implementation opportunities at Vercentlabs.",
   path: "/careers",
 });
 
@@ -25,7 +25,7 @@ export default function CareersPage() {
       <PageHero
         eyebrow="Careers"
         title="Build systems that people can understand under real operating pressure."
-        description="VercentLabs is interested in builders who care about complete workflows, explicit constraints and the difference between a demo and a dependable product."
+        description="Vercentlabs is interested in builders who care about complete workflows, explicit constraints and the difference between a demo and a dependable product."
       />
       <OperatorBand
         index="01"
@@ -79,9 +79,9 @@ export default function CareersPage() {
         description="Share relevant projects, decisions, failures, learning and the role you want to grow into."
         primary={{
           label: "Email your profile",
-          href: `mailto:${siteConfig.email}?subject=VercentLabs career introduction`,
+          href: `mailto:${siteConfig.email}?subject=Vercentlabs career introduction`,
         }}
-        secondary={{ label: "Learn about VercentLabs", href: "/about" }}
+        secondary={{ label: "Learn about Vercentlabs", href: "/about" }}
       />
     </MarketingShell>
   );

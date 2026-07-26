@@ -12,9 +12,9 @@ import PublicStatusCheck from "@/components/marketing/public-status-check";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Status",
+  title: "Vercentlabs ERP Status",
   description:
-    "Review the live public website health check and the stated VercentLabs ERP release status.",
+    "Review the live public website health check and the stated Vercentlabs ERP release status.",
   path: "/status",
 });
 
@@ -47,7 +47,7 @@ export default function StatusPage() {
           <OperatorCard
             index="02"
             icon={Wrench}
-            title="VercentLabs ERP product"
+            title="Vercentlabs ERP product"
             description="Platform foundation and CRM are in controlled early access. Eleven modules remain roadmap."
             status="foundation"
             meta="Active early access"

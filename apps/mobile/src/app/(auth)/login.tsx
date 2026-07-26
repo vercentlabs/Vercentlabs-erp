@@ -42,7 +42,7 @@ export default function LoginScreen() {
         <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
           <BrandMark size={40} />
-          <Text style={{ ...type.heading, color: colors.text }}>Vercent ERP</Text>
+          <Text style={{ ...type.heading, color: colors.text }}>Vercentlabs ERP</Text>
         </View>
         <View style={{ padding: 22, borderWidth: 1, borderColor: colors.border, borderRadius: 20, backgroundColor: colors.surface, gap: spacing.lg }}>
           <View style={{ gap: spacing.xs }}>
@@ -56,7 +56,7 @@ export default function LoginScreen() {
           <TextField ref={passwordRef} label="Password" value={password} onChangeText={setPassword} placeholder="Enter your password" secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={submit} trailing={<Pressable accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"} hitSlop={8} onPress={() => setShowPassword((value) => !value)} style={{ minWidth: minimumTouchTarget, minHeight: minimumTouchTarget, alignItems: "center", justifyContent: "center" }}><Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={colors.textMuted} /></Pressable>} />
           <Pressable accessibilityRole="link" onPress={() => Linking.openURL(`${appConfig.webAppUrl}/forgot-password`)} style={{ minHeight: minimumTouchTarget, alignSelf: "flex-end", justifyContent: "center" }}><Text style={{ ...type.label, color: colors.primary }}>Forgot password?</Text></Pressable>
           <Button label="Sign in securely" loading={loading} disabled={!email.trim() || !password} onPress={submit} />
-          <View style={{ paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}><Text style={{ ...type.body, textAlign: "center", color: colors.textMuted }}>New to Vercent ERP? <Text style={{ color: colors.primary, fontWeight: "700" }} onPress={() => Linking.openURL(`${appConfig.webAppUrl}/signup`)}>Create an account</Text></Text></View>
+          <View style={{ paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}><Text style={{ ...type.body, textAlign: "center", color: colors.textMuted }}>New to Vercentlabs ERP? <Text style={{ color: colors.primary, fontWeight: "700" }} onPress={() => Linking.openURL(`${appConfig.webAppUrl}/signup`)}>Create an account</Text></Text></View>
         </View>
         <Text style={{ ...type.caption, color: colors.textMuted, textAlign: "center", margin: spacing.xl }}>Protected by secure sessions, rate controls and auditable account events.</Text>
         </View>

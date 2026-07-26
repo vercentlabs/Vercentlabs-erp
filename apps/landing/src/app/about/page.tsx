@@ -10,9 +10,9 @@ import {
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "About VercentLabs",
+  title: "About Vercentlabs",
   description:
-    "Learn how VercentLabs is building a governed ERP foundation and CRM early access through phased design-partner delivery.",
+    "Learn how Vercentlabs is building a governed ERP foundation and CRM early access through phased design-partner delivery.",
   path: "/about",
 });
 
@@ -29,9 +29,9 @@ export default function AboutPage() {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow="About VercentLabs"
+        eyebrow="About Vercentlabs"
         title="Build software that makes operations easier to read, control and improve."
-        description="VercentLabs LLP is developing a governed enterprise operating platform around Indian business reality, phased implementation and evidence-led product decisions."
+        description="Vercentlabs LLP is developing a governed enterprise operating platform around Indian business reality, phased implementation and evidence-led product decisions."
       />
 
       <OperatorBand

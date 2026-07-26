@@ -143,7 +143,7 @@ export async function enforceLeadRateLimit(
     };
   }
 
-  const key = `vercent:landing:${bucket}:${identity}`;
+  const key = `vercentlabs:landing:${bucket}:${identity}`;
   const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, "");
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 

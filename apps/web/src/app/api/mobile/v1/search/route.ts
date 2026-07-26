@@ -1,4 +1,4 @@
-import { listBusinessDataRecords, listCrmRecords } from "@vercent/api";
+import { listBusinessDataRecords, listCrmRecords } from "@vercentlabs/api";
 
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { businessDataContext } from "@/lib/business-data";

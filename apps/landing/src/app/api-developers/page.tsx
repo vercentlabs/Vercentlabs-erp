@@ -13,9 +13,9 @@ import {
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP API and Integrations",
+  title: "Vercentlabs ERP API and Integrations",
   description:
-    "Explore versioned APIs, webhooks and governed integrations for VercentLabs ERP.",
+    "Explore versioned APIs, webhooks and governed integrations for Vercentlabs ERP.",
   path: "/api-developers",
 });
 

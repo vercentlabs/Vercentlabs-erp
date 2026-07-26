@@ -1,12 +1,12 @@
 import type { PoolClient } from "pg";
 
-import { hasWriteAccess } from "@vercent/api";
+import { hasWriteAccess } from "@vercentlabs/api";
 import type {
   BillingPlanLimits,
   BillingPlanPrice,
   BillingSummary,
   BillingUsageMetric,
-} from "@vercent/shared-types";
+} from "@vercentlabs/shared-types";
 
 import { query, transaction } from "@/lib/db";
 import { HttpError } from "@/lib/http";

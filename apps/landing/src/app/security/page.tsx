@@ -13,9 +13,9 @@ import {
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "Security and Governance | VercentLabs ERP",
+  title: "Security and Governance | Vercentlabs ERP",
   description:
-    "Review the identity, permission, organisation, audit and transactional controls implemented across VercentLabs ERP.",
+    "Review the identity, permission, organisation, audit and transactional controls implemented across Vercentlabs ERP.",
   path: "/security",
 });
 
@@ -52,7 +52,7 @@ export default function SecurityPage() {
       <PageHero
         eyebrow="Security and governance"
         title="Control is part of the product model. Not a badge beside the footer."
-        description="VercentLabs is designed around tenant boundaries, explicit permissions, transactional commands and traceable operating evidence."
+        description="Vercentlabs is designed around tenant boundaries, explicit permissions, transactional commands and traceable operating evidence."
       />
 
       <OperatorBand

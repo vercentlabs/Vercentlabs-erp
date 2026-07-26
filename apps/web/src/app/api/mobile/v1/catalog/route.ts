@@ -1,4 +1,4 @@
-import { getBusinessDataOverview } from "@vercent/api";
+import { getBusinessDataOverview } from "@vercentlabs/api";
 
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import {

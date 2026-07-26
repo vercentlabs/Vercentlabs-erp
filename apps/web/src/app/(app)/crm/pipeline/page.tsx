@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmOptions, listCrmRecords } from "@vercent/api";
+import { getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 import CrmPipelineBoard from "@/components/crm-pipeline-board";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";

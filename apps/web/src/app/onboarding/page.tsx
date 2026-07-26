@@ -40,7 +40,7 @@ export default async function OnboardingPage() {
             V
           </span>
           <span className="brand-wordmark">
-            <strong>Vercent</strong>
+            <strong>Vercentlabs</strong>
             <small>ERP workspace setup</small>
           </span>
         </div>

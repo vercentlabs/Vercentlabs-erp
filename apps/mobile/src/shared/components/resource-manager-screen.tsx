@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   MobileFieldDefinition,
   MobileResourceDefinition,
-} from "@vercent/shared-sdk";
+} from "@vercentlabs/shared-sdk";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {

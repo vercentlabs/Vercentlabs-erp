@@ -33,7 +33,7 @@ export default function HeroSection() {
 
             <div className="os-hero__intro">
               <p>
-                VercentLabs ERP gives customer work one accountable operating
+                Vercentlabs ERP gives customer work one accountable operating
                 record—from first signal to governed decision—without hiding
                 roadmap software behind marketing language.
               </p>

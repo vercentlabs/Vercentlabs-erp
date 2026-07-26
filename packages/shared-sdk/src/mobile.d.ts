@@ -34,7 +34,7 @@ export type MobileSession = {
 
 export type MobileAuthResponse = MobileTokens & { session: MobileSession };
 
-export class VercentApiError extends Error {
+export class VercentlabsApiError extends Error {
   status: number;
   code: string;
   requestId: string | null;
@@ -48,7 +48,7 @@ export function createMemoryTokenStore(
 
 export type MobileClient = {
   setAuthenticationFailureHandler(
-    handler: ((error: VercentApiError) => void | Promise<void>) | null,
+    handler: ((error: VercentlabsApiError) => void | Promise<void>) | null,
   ): () => void;
   login(input: {
     email: string;

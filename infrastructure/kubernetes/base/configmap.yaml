@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vercent-runtime
-  namespace: vercent
+  name: vercentlabs-runtime
+  namespace: vercentlabs
 data:
   NODE_ENV: production
   DATABASE_POOL_MAX: "12"

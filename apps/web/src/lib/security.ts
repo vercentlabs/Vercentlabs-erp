@@ -77,7 +77,7 @@ export function assertSameOrigin(request: Request) {
 
 export function assertSameOriginOrMobile(request: Request) {
   const authorization = request.headers.get("authorization") || "";
-  const mobileClient = request.headers.get("x-vercent-client") || "";
+  const mobileClient = request.headers.get("x-vercentlabs-client") || "";
   if (
     /^Bearer [A-Za-z0-9_-]{40,200}$/.test(authorization) &&
     /^mobile\/[A-Za-z0-9._-]+$/.test(mobileClient)

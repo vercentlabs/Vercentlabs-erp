@@ -16,22 +16,22 @@ type EmailContent = {
 
 const emailContent: Record<AuthMessageInput["type"], EmailContent> = {
   "verify-email": {
-    subject: "Verify your Vercent ERP account",
+    subject: "Verify your Vercentlabs ERP account",
     heading: "Verify your email address",
     introduction:
-      "Confirm your email address to activate your Vercent ERP account.",
+      "Confirm your email address to activate your Vercentlabs ERP account.",
     actionLabel: "Verify email",
   },
   "reset-password": {
-    subject: "Reset your Vercent ERP password",
+    subject: "Reset your Vercentlabs ERP password",
     heading: "Reset your password",
     introduction: "Use the secure link below to choose a new password.",
     actionLabel: "Reset password",
   },
   "organization-invitation": {
-    subject: "You have been invited to Vercent ERP",
+    subject: "You have been invited to Vercentlabs ERP",
     heading: "Join your organisation",
-    introduction: "You have been invited to collaborate in Vercent ERP.",
+    introduction: "You have been invited to collaborate in Vercentlabs ERP.",
     actionLabel: "Accept invitation",
   },
 };
@@ -130,7 +130,7 @@ function createEmail(input: AuthMessageInput) {
     "",
     "This security link may expire and should not be shared.",
     "",
-    "VercentLabs LLP",
+    "Vercentlabs LLP",
   ].join("\n");
 
   const organizationHtml = input.organizationName
@@ -171,7 +171,7 @@ function createEmail(input: AuthMessageInput) {
                     <p
                       style="margin:0 0 20px;color:#4f46e5;font-size:13px;font-weight:700;letter-spacing:1.5px"
                     >
-                      VERCENT ERP
+                      VERCENTLABS ERP
                     </p>
 
                     <h1
@@ -218,7 +218,7 @@ function createEmail(input: AuthMessageInput) {
                       style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6"
                     >
                       This security link should not be
-                      shared. VercentLabs LLP · Enterprise
+                      shared. Vercentlabs LLP · Enterprise
                       software platform
                     </p>
                   </td>
@@ -281,7 +281,7 @@ async function deliverWithWebhook(input: AuthMessageInput) {
         : {}),
     },
     body: JSON.stringify({
-      source: "vercent-erp-web",
+      source: "vercentlabs-erp-web",
       sentAt: new Date().toISOString(),
       ...input,
     }),

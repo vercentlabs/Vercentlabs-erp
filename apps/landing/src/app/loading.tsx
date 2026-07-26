@@ -9,7 +9,7 @@ export default function Loading() {
     >
       <div className="operator-state-page__frame">
         <span className="os-wordmark os-wordmark--header" aria-hidden="true">
-          <span>VERCENT</span>
+          <span>VERCENTLABS</span>
           <span>LABS</span>
           <i />
         </span>

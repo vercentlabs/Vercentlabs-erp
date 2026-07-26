@@ -29,7 +29,7 @@ export async function GET() {
     }
 
     return ok({
-      service: "vercent-erp-web",
+      service: "vercentlabs-erp-web",
       status: "ready",
       timestamp: new Date().toISOString(),
     });

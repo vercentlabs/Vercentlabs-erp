@@ -1,4 +1,4 @@
-# Vercent ERP CRM Module
+# Vercentlabs ERP CRM Module
 
 The CRM module is a tenant-isolated customer-lifecycle capability built on the platform and Business Data foundations. It follows the permanent modular-monolith boundaries: canonical SQL in `database`, domain services in `services/api`, framework-neutral contracts in `packages`, and authenticated presentation plus current route adapters in `apps/web`.
 

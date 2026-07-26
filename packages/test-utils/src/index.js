@@ -9,5 +9,5 @@ export function createQueryRecorder(responses = []) {
 }
 
 export function productionGuard(environment = process.env) {
-  if (environment.NODE_ENV === "production" || environment.VERCENT_ENV_TARGET === "production") throw new Error("Test utility execution is forbidden in production.");
+  if (environment.NODE_ENV === "production" || environment.VERCENTLABS_ENV_TARGET === "production") throw new Error("Test utility execution is forbidden in production.");
 }

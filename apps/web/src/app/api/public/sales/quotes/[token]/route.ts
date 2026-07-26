@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { recordPublicQuoteDecision, resolvePublicQuoteToken } from "@vercent/api";
+import { recordPublicQuoteDecision, resolvePublicQuoteToken } from "@vercentlabs/api";
 import { query, tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { clientIp } from "@/lib/security";

@@ -1,5 +1,5 @@
-import { getCrmReport } from "@vercent/api";
-import { rowsToCsv } from "@vercent/reporting-engine";
+import { getCrmReport } from "@vercentlabs/api";
+import { rowsToCsv } from "@vercentlabs/reporting-engine";
 import { getSessionContext } from "@/lib/auth";
 import { crmContext, rethrowCrmError } from "@/lib/crm";
 import { requireCrmReportView } from "@/lib/crm-api";

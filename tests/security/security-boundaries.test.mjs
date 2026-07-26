@@ -51,10 +51,10 @@ test("source exports include reproducibility files without native build output",
   const temporaryRoot = path.join(projectRoot, "tmp");
   mkdirSync(temporaryRoot, { recursive: true });
   const directory = mkdtempSync(
-    path.join(temporaryRoot, "vercent-source-export-"),
+    path.join(temporaryRoot, "vercentlabs-source-export-"),
   );
   const staleDirectory = mkdtempSync(
-    path.join(projectRoot, "vercent-source-export-regression-"),
+    path.join(projectRoot, "vercentlabs-source-export-regression-"),
   );
   writeFileSync(
     path.join(staleDirectory, "project-code.txt"),
@@ -76,7 +76,7 @@ test("source exports include reproducibility files without native build output",
     assert.match(source, /^FILE: apps\/web\/\.env\.example$/m);
     assert.match(source, /^FILE: pnpm-lock\.yaml$/m);
     assert.doesNotMatch(source, /^FILE: apps\/mobile\/android\//m);
-    assert.doesNotMatch(source, /^FILE: vercent-source-export-regression-/m);
+    assert.doesNotMatch(source, /^FILE: vercentlabs-source-export-regression-/m);
     assert.doesNotMatch(source, /^FILE: .*\.env\.local$/m);
   } finally {
     rmSync(directory, { recursive: true, force: true });

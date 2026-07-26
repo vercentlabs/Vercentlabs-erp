@@ -51,9 +51,9 @@ export function buildRazorpayPlanPayload(price) {
       currency: price.currency || "INR",
     },
     notes: {
-      vercent_plan_code: price.planCode,
-      vercent_price_id: price.id,
-      vercent_price_version: String(price.version || 1),
+      vercentlabs_plan_code: price.planCode,
+      vercentlabs_price_id: price.id,
+      vercentlabs_price_version: String(price.version || 1),
     },
   };
 }
@@ -72,10 +72,10 @@ export function buildRazorpaySubscriptionPayload(input) {
     quantity: 1,
     customer_notify: true,
     notes: {
-      vercent_organization_id: input.organizationId,
-      vercent_plan_code: input.planCode,
-      vercent_plan_price_id: input.planPriceId,
-      vercent_checkout_session_id: input.checkoutSessionId,
+      vercentlabs_organization_id: input.organizationId,
+      vercentlabs_plan_code: input.planCode,
+      vercentlabs_plan_price_id: input.planPriceId,
+      vercentlabs_checkout_session_id: input.checkoutSessionId,
     },
   };
   if (Number(input.onboardingFeePaise) > 0) {

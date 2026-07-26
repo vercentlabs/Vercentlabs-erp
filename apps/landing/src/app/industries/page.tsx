@@ -11,9 +11,9 @@ import { industries } from "@/content/erp";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "Industries | VercentLabs ERP",
+  title: "Industries | Vercentlabs ERP",
   description:
-    "See how VercentLabs ERP is being shaped around manufacturing, distribution, retail, services and multi-company operating contexts.",
+    "See how Vercentlabs ERP is being shaped around manufacturing, distribution, retail, services and multi-company operating contexts.",
   path: "/industries",
 });
 
@@ -23,7 +23,7 @@ export default function IndustriesPage() {
       <PageHero
         eyebrow="Operating contexts"
         title="Industry language changes. Control, ownership and evidence do not."
-        description="VercentLabs maps the same governed operating foundation to different business contexts without pretending that one generic workflow fits every organisation."
+        description="Vercentlabs maps the same governed operating foundation to different business contexts without pretending that one generic workflow fits every organisation."
       />
 
       <OperatorBand

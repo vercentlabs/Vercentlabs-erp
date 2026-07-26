@@ -1,5 +1,5 @@
-import { BusinessDataError, type BusinessDataContext } from "@vercent/api";
-import type { BusinessDataResourceKey } from "@vercent/shared-types";
+import { BusinessDataError, type BusinessDataContext } from "@vercentlabs/api";
+import type { BusinessDataResourceKey } from "@vercentlabs/shared-types";
 
 import type { SessionContext } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/authorization";

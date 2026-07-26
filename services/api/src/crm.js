@@ -1,4 +1,4 @@
-import { CRM_RESOURCE_KEYS } from "@vercent/shared-types";
+import { CRM_RESOURCE_KEYS } from "@vercentlabs/shared-types";
 
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 

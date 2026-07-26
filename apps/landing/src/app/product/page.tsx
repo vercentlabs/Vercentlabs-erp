@@ -5,9 +5,9 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Product | Released CRM and Platform Foundation",
+  title: "Vercentlabs ERP Product | Released CRM and Platform Foundation",
   description:
-    "Review the released VercentLabs platform foundation and CRM early-access scope, with eleven future ERP modules clearly separated as roadmap.",
+    "Review the released Vercentlabs platform foundation and CRM early-access scope, with eleven future ERP modules clearly separated as roadmap.",
   path: "/product",
 });
 
@@ -16,7 +16,7 @@ const config: StructuredPageConfig = {
     eyebrow: "Current product boundary",
     title: "A governed operating foundation with CRM released end to end.",
     description:
-      "VercentLabs ERP currently delivers identity, organisation context, permissions, governed business data, approvals, audit history, billing controls and CRM across web and mobile. Eleven operational modules remain explicit roadmap scope.",
+      "Vercentlabs ERP currently delivers identity, organisation context, permissions, governed business data, approvals, audit history, billing controls and CRM across web and mobile. Eleven operational modules remain explicit roadmap scope.",
     primary: { label: "Book a released-scope demo", href: "/book-demo" },
     secondary: { label: "Inspect all released features", href: "/features" },
   },

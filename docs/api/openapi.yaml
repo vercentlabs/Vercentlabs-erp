@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Vercent ERP API
+  title: Vercentlabs ERP API
   version: 0.3.0
   description: Browser and native contracts for the released CRM platform.
 servers:

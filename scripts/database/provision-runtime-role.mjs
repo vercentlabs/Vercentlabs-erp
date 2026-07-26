@@ -6,7 +6,7 @@ const result = spawnSync(
   [
     "pnpm",
     "--filter",
-    "@vercent/web",
+    "@vercentlabs/web",
     "exec",
     "node",
     "scripts/provision-runtime-role.mjs",

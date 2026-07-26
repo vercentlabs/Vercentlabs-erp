@@ -7,7 +7,7 @@ import {
   structuredValueSummary,
   type StructuredFieldConfig,
   type StructuredFieldKind,
-} from "@vercent/shared-types";
+} from "@vercentlabs/shared-types";
 import { useRef, useState } from "react";
 
 import type { CrmField } from "@/lib/crm";

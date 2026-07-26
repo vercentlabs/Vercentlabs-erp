@@ -7,7 +7,7 @@ import {
   assertApprovalDecision,
   assertSeparationOfDuties,
   WorkflowConflictError,
-} from "@vercent/workflows";
+} from "@vercentlabs/workflows";
 
 test("approval decisions require a version and separation of duties", () => {
   assert.throws(

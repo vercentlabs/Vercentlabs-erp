@@ -18,9 +18,9 @@ import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs Partner Programme",
+  title: "Vercentlabs Partner Programme",
   description:
-    "Explore implementation, industry, integration and delivery partnership opportunities with VercentLabs.",
+    "Explore implementation, industry, integration and delivery partnership opportunities with Vercentlabs.",
   path: "/partner",
 });
 
@@ -56,7 +56,7 @@ export default function PartnerPage() {
       <PageHero
         eyebrow="Partner ecosystem"
         title="Build the product with people who understand the operation."
-        description="VercentLabs is interested in grounded partnerships that improve product quality, industry understanding and implementation capability."
+        description="Vercentlabs is interested in grounded partnerships that improve product quality, industry understanding and implementation capability."
       />
       <OperatorBand
         index="01"
@@ -89,7 +89,7 @@ export default function PartnerPage() {
         description="Share the market, operating experience, implementation strength or learning model that makes the partnership useful."
         primary={{
           label: "Email a partnership brief",
-          href: `mailto:${siteConfig.email}?subject=VercentLabs partnership discussion`,
+          href: `mailto:${siteConfig.email}?subject=Vercentlabs partnership discussion`,
         }}
         secondary={{
           label: "See design partner programme",

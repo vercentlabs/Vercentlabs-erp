@@ -14,9 +14,9 @@ import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "Vercent ERP Pricing",
+  title: "Vercentlabs ERP Pricing",
   description:
-    "Review unlimited-user pricing for the released Vercent ERP CRM scope and governed platform foundation.",
+    "Review unlimited-user pricing for the released Vercentlabs ERP CRM scope and governed platform foundation.",
   path: "/pricing",
 });
 
@@ -189,7 +189,7 @@ export default function PricingPage() {
         description="Share your companies, branches, users, migration volume and released CRM workflow scope. We will respond with a grounded recommendation."
         primary={{
           label: "Discuss implementation",
-          href: `mailto:${siteConfig.email}?subject=Vercent ERP pricing and implementation discussion`,
+          href: `mailto:${siteConfig.email}?subject=Vercentlabs ERP pricing and implementation discussion`,
         }}
         secondary={{ label: "Review released product", href: "/product" }}
       />

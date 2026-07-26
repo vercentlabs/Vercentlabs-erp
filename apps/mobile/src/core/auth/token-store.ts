@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
-import type { MobileTokenStore, MobileTokens } from "@vercent/shared-sdk";
+import type { MobileTokenStore, MobileTokens } from "@vercentlabs/shared-sdk";
 
-const tokenKey = "vercent.mobile.tokens.v1";
+const tokenKey = "vercentlabs.mobile.tokens.v1";
 
 async function readTokens(): Promise<MobileTokens | null> {
   const value = await SecureStore.getItemAsync(tokenKey);

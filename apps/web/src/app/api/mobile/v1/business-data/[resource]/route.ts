@@ -2,7 +2,7 @@ import {
   createBusinessDataRecord,
   getBusinessDataOptions,
   listBusinessDataRecords,
-} from "@vercent/api";
+} from "@vercentlabs/api";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import {

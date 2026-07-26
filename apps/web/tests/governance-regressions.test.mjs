@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ALL_PERMISSIONS } from "@vercent/permissions";
+import { ALL_PERMISSIONS } from "@vercentlabs/permissions";
 
 const appRoot = new URL("../", import.meta.url);
 

@@ -1,4 +1,4 @@
-# Vercent ERP Project Structure
+# Vercentlabs ERP Project Structure
 
 ```text
 VERCENTLABS ERP/

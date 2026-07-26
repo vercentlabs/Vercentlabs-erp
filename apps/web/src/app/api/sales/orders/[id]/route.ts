@@ -1,4 +1,4 @@
-import { getSalesOrder } from "@vercent/api";
+import { getSalesOrder } from "@vercentlabs/api";
 import { errorResponse, ok } from "@/lib/http";
 import { rethrowSalesError } from "@/lib/sales";
 import { salesSession, tenantTransaction } from "@/lib/sales-route";

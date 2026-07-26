@@ -111,7 +111,7 @@ recipient that the team can identify and archive:
 LANDING_URL=https://www.example.com \
 WEB_URL=https://app.example.com \
 SMOKE_LEAD_EMAIL=qa@example.com \
-SMOKE_LEAD_COMPANY="VercentLabs QA" \
+SMOKE_LEAD_COMPANY="Vercentlabs QA" \
 node scripts/deployment/smoke-deployment.mjs
 ```
 

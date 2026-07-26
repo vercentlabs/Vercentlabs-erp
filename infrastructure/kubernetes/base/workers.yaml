@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: crm-jobs
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   schedule: "* * * * *"
   concurrencyPolicy: Forbid
@@ -19,8 +19,8 @@ spec:
               image: ghcr.io/vercentlabs/erp-worker:latest
               command: [node, scripts/process-crm-jobs.mjs]
               envFrom:
-                - configMapRef: { name: vercent-runtime }
-                - secretRef: { name: vercent-runtime }
+                - configMapRef: { name: vercentlabs-runtime }
+                - secretRef: { name: vercentlabs-runtime }
               resources:
                 requests: { cpu: 100m, memory: 192Mi }
                 limits: { cpu: 500m, memory: 512Mi }
@@ -33,7 +33,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: crm-outbox
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   schedule: "* * * * *"
   concurrencyPolicy: Forbid
@@ -50,8 +50,8 @@ spec:
               image: ghcr.io/vercentlabs/erp-worker:latest
               command: [node, scripts/deliver-crm-outbox.mjs]
               envFrom:
-                - configMapRef: { name: vercent-runtime }
-                - secretRef: { name: vercent-runtime }
+                - configMapRef: { name: vercentlabs-runtime }
+                - secretRef: { name: vercentlabs-runtime }
               resources:
                 requests: { cpu: 100m, memory: 192Mi }
                 limits: { cpu: 500m, memory: 512Mi }
@@ -64,7 +64,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: billing-reconcile
-  namespace: vercent
+  namespace: vercentlabs
 spec:
   schedule: "17 * * * *"
   concurrencyPolicy: Forbid
@@ -81,8 +81,8 @@ spec:
               image: ghcr.io/vercentlabs/erp-worker:latest
               command: [node, scripts/reconcile-razorpay-billing.mjs]
               envFrom:
-                - configMapRef: { name: vercent-runtime }
-                - secretRef: { name: vercent-runtime }
+                - configMapRef: { name: vercentlabs-runtime }
+                - secretRef: { name: vercentlabs-runtime }
               resources:
                 requests: { cpu: 100m, memory: 192Mi }
                 limits: { cpu: 500m, memory: 512Mi }

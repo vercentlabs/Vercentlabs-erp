@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { BusinessDataResourceKey } from "@vercent/shared-types";
+import type { BusinessDataResourceKey } from "@vercentlabs/shared-types";
 
 const uuid = z.string().uuid();
 const status = z.enum(["active", "inactive"]);

@@ -99,7 +99,7 @@ export function validateLeadPayload(
     errors.phone = "Enter a valid phone number.";
   }
   if (!data.consent) {
-    errors.consent = "Confirm that VercentLabs may respond to this request.";
+    errors.consent = "Confirm that Vercentlabs may respond to this request.";
   }
 
   const allowedInterests = kind === "demo" ? demoInterests : contactInterests;

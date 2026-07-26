@@ -12,7 +12,7 @@ pnpm db:migrate:tenant
 Transactional migrations execute the SQL and migration-ledger insertion in one transaction. A rare non-transactional migration must include the explicit marker:
 
 ```sql
--- vercent:migration nontransactional
+-- vercentlabs:migration nontransactional
 ```
 
 Before production migration, create a verified backup and rehearse restoration in a separate environment. Do not edit an already deployed migration; add a new forward migration.

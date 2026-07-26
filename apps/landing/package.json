@@ -1,5 +1,5 @@
 {
-  "name": "@vercent/landing",
+  "name": "@vercentlabs/landing",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -16,7 +16,7 @@
     "test:browser": "node scripts/verify-browser-journeys.mjs"
   },
   "dependencies": {
-    "@vercent/shared-types": "workspace:*",
+    "@vercentlabs/shared-types": "workspace:*",
     "lucide-react": "^1.24.0",
     "next": "16.2.11",
     "react": "19.2.3",

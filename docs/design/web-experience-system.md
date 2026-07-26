@@ -1,8 +1,8 @@
-# Vercent ERP Web Experience System
+# Vercentlabs ERP Web Experience System
 
 ## Product character
 
-Vercent ERP uses **quiet confidence**: structured, calm and trustworthy rather than decorative. The visual system is designed for repeated daily use by operators, managers, administrators and auditors.
+Vercentlabs ERP uses **quiet confidence**: structured, calm and trustworthy rather than decorative. The visual system is designed for repeated daily use by operators, managers, administrators and auditors.
 
 ## Core principles
 

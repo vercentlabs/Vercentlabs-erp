@@ -11,10 +11,10 @@ function requestId() {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
-export class VercentApiError extends Error {
+export class VercentlabsApiError extends Error {
   constructor(message, options = {}) {
     super(message);
-    this.name = "VercentApiError";
+    this.name = "VercentlabsApiError";
     this.status = options.status || 0;
     this.code = options.code || "REQUEST_FAILED";
     this.requestId = options.requestId || null;
@@ -35,7 +35,7 @@ async function parseResponse(response) {
       payload && typeof payload === "object" && payload.message
         ? String(payload.message)
         : `Request failed with status ${response.status}.`;
-    throw new VercentApiError(message, {
+    throw new VercentlabsApiError(message, {
       status: response.status,
       code: payload?.code || "REQUEST_FAILED",
       requestId: response.headers?.get?.("x-request-id") || payload?.requestId,
@@ -84,7 +84,7 @@ export function createMobileClient({
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const headers = new Headers(init.headers || {});
     headers.set("Accept", "application/json");
-    headers.set("X-Vercent-Client", `mobile/${clientVersion}`);
+    headers.set("X-Vercentlabs-Client", `mobile/${clientVersion}`);
     headers.set("X-Request-ID", options.requestId || requestIdFactory());
     if (init.body && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
@@ -120,7 +120,7 @@ export function createMobileClient({
       }
       return await parseResponse(response);
     } catch (error) {
-      if (error instanceof VercentApiError) {
+      if (error instanceof VercentlabsApiError) {
         if (error.status === 401 && options.authenticated !== false) {
           await tokenStore.clear();
           try {
@@ -132,7 +132,7 @@ export function createMobileClient({
         throw error;
       }
       if (error?.name === "AbortError") {
-        throw new VercentApiError(
+        throw new VercentlabsApiError(
           "The request timed out. Check your connection and try again.",
           {
             code: "REQUEST_TIMEOUT",
@@ -140,7 +140,7 @@ export function createMobileClient({
           },
         );
       }
-      throw new VercentApiError("The server could not be reached.", {
+      throw new VercentlabsApiError("The server could not be reached.", {
         code: "NETWORK_ERROR",
         retryable: true,
         details: error instanceof Error ? { cause: error.message } : null,
@@ -156,7 +156,7 @@ export function createMobileClient({
         const refreshToken = await tokenStore.getRefreshToken();
         if (!refreshToken) {
           await tokenStore.clear();
-          throw new VercentApiError("Sign in to continue.", {
+          throw new VercentlabsApiError("Sign in to continue.", {
             status: 401,
             code: "SESSION_REQUIRED",
             retryable: false,
@@ -176,7 +176,7 @@ export function createMobileClient({
           });
           return payload;
         } catch (error) {
-          if (error instanceof VercentApiError && error.status === 401) {
+          if (error instanceof VercentlabsApiError && error.status === 401) {
             await tokenStore.clear();
           }
           throw error;

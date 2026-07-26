@@ -23,7 +23,7 @@ try {
       "../../database/control-plane/migrations",
     ),
     tableName: "schema_migrations",
-    lockName: "vercent-control-plane-migrations",
+    lockName: "vercentlabs-control-plane-migrations",
     label: "Control-plane",
   });
 } finally {

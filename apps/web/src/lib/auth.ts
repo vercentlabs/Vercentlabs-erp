@@ -15,7 +15,7 @@ import { query } from "@/lib/db";
 import { clientIp } from "@/lib/security";
 
 const scrypt = promisify(scryptCallback);
-const cookieName = process.env.SESSION_COOKIE_NAME || "vercent_session";
+const cookieName = process.env.SESSION_COOKIE_NAME || "vercentlabs_session";
 const dummyPasswordHash =
   "scrypt$3f6d7a91c2e4b5d60718293a4b5c6d7e$e78bc2155bbb458a223654263afbeef216218ad55fc88b54324bbd96d96bbf618faa72c8b71fd17d2d50dc818e454ee849fa6bfb26d129a34cd7c9cb9f5cfd80";
 

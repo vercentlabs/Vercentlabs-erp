@@ -78,7 +78,7 @@ export default function OperatingSystemDemo() {
   }
 
   return (
-    <div className="os-demo" aria-label="Interactive VercentLabs CRM preview">
+    <div className="os-demo" aria-label="Interactive Vercentlabs CRM preview">
       <div className="os-demo__sample-label">
         Illustrative workflow · synthetic data · not customer proof
       </div>
@@ -89,7 +89,7 @@ export default function OperatingSystemDemo() {
             V
           </span>
           <div>
-            <strong>VercentLabs / Revenue operations</strong>
+            <strong>Vercentlabs / Revenue operations</strong>
             <span>North company · Pune branch</span>
           </div>
         </div>

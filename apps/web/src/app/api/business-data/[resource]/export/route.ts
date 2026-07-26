@@ -1,4 +1,4 @@
-import { listBusinessDataRecords } from "@vercent/api";
+import { listBusinessDataRecords } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
@@ -64,7 +64,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="vercent-${resource}-${new Date()
+        "Content-Disposition": `attachment; filename="vercentlabs-${resource}-${new Date()
           .toISOString()
           .slice(0, 10)}.csv"`,
         "Cache-Control": "private, no-store",

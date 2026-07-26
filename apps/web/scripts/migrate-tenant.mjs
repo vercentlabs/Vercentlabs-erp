@@ -20,7 +20,7 @@ try {
     pool,
     directory: path.resolve(process.cwd(), "../../database/tenant/migrations"),
     tableName: "tenant_schema_migrations",
-    lockName: "vercent-tenant-migrations",
+    lockName: "vercentlabs-tenant-migrations",
     label: "Tenant",
   });
 } finally {

@@ -1,4 +1,4 @@
-import { BUSINESS_DATA_RESOURCE_KEYS } from "@vercent/shared-types";
+import { BUSINESS_DATA_RESOURCE_KEYS } from "@vercentlabs/shared-types";
 
 const resourceSet = new Set(BUSINESS_DATA_RESOURCE_KEYS);
 

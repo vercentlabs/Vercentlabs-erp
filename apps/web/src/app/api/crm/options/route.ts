@@ -1,4 +1,4 @@
-import { getCrmOptions } from "@vercent/api";
+import { getCrmOptions } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requireCrmView } from "@/lib/crm-api";
 import { crmContext, rethrowCrmError } from "@/lib/crm";

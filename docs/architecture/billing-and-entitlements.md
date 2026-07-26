@@ -17,7 +17,7 @@
 4. Webhook event identifiers are idempotent and provider event time prevents older subscription events from overwriting newer state.
 5. The organisation in the session selects the checkout price and owns every recorded provider identifier.
 6. Client-supplied amount, plan or entitlement values are never trusted.
-7. Provider payment credentials are never stored by Vercent ERP.
+7. Provider payment credentials are never stored by Vercentlabs ERP.
 
 ## Commercial safety
 
@@ -39,4 +39,4 @@ Production must not enable `enforce` until Razorpay webhooks, reconciliation, cu
 - Webhook secret rotation can retain the previous secret temporarily so delayed retries remain verifiable.
 - Failed webhook processing is recorded and can be retried; duplicate or concurrently delivered events are claimed idempotently.
 - Self-service plan changes are blocked while an active recurring subscription exists until proration and provider cancellation are implemented safely. Billing support must perform a controlled change.
-- Razorpay collection records do not replace VercentLabs' responsibility to issue legally appropriate tax documents. Live collection should begin only after GST, invoice numbering, refund and accounting procedures are reviewed.
+- Razorpay collection records do not replace Vercentlabs' responsibility to issue legally appropriate tax documents. Live collection should begin only after GST, invoice numbering, refund and accounting procedures are reviewed.

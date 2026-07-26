@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import type { BillingPlanPrice, BillingSummary } from "@vercent/shared-types";
+import type { BillingPlanPrice, BillingSummary } from "@vercentlabs/shared-types";
 
 import AppIcon from "@/components/app-icon";
 

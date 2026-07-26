@@ -1,6 +1,6 @@
-# Vercent ERP Mobile
+# Vercentlabs ERP Mobile
 
-The native Vercent ERP workspace for Android and iOS. It mirrors the protected
+The native Vercentlabs ERP workspace for Android and iOS. It mirrors the protected
 responsive-web experience across the organisation dashboard, CRM, master data,
 administration, approvals, billing, audit, profile and security. It is built
 with Expo SDK 57, Expo Router, strict TypeScript and the versioned

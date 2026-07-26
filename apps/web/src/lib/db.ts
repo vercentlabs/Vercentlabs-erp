@@ -1,10 +1,10 @@
-import { setTenantContext } from "@vercent/database";
-import { databaseConfig } from "@vercent/config";
+import { setTenantContext } from "@vercentlabs/database";
+import { databaseConfig } from "@vercentlabs/config";
 import { Pool, PoolClient, QueryResultRow } from "pg";
 
 declare global {
-  var __vercentPool: Pool | undefined;
-  var __vercentDbRoleVerification: Promise<void> | undefined;
+  var __vercentlabsPool: Pool | undefined;
+  var __vercentlabsDbRoleVerification: Promise<void> | undefined;
 }
 
 function createPool() {
@@ -16,7 +16,7 @@ function createPool() {
     idleTimeoutMillis: config.idleTimeoutMilliseconds,
     connectionTimeoutMillis: config.connectionTimeoutMilliseconds,
     query_timeout: config.queryTimeoutMilliseconds,
-    application_name: "vercent-web-runtime",
+    application_name: "vercentlabs-web-runtime",
     statement_timeout: config.statementTimeoutMilliseconds,
     ssl:
       process.env.NODE_ENV === "production" &&
@@ -27,8 +27,8 @@ function createPool() {
 }
 
 export function getPool() {
-  if (!global.__vercentPool) global.__vercentPool = createPool();
-  return global.__vercentPool;
+  if (!global.__vercentlabsPool) global.__vercentlabsPool = createPool();
+  return global.__vercentlabsPool;
 }
 
 async function verifyRuntimeRole() {
@@ -77,13 +77,13 @@ async function verifyRuntimeRole() {
 }
 
 async function ensureRuntimeRole() {
-  if (!global.__vercentDbRoleVerification) {
-    global.__vercentDbRoleVerification = verifyRuntimeRole().catch((error) => {
-      global.__vercentDbRoleVerification = undefined;
+  if (!global.__vercentlabsDbRoleVerification) {
+    global.__vercentlabsDbRoleVerification = verifyRuntimeRole().catch((error) => {
+      global.__vercentlabsDbRoleVerification = undefined;
       throw error;
     });
   }
-  await global.__vercentDbRoleVerification;
+  await global.__vercentlabsDbRoleVerification;
 }
 
 export async function query<T extends QueryResultRow>(

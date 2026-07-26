@@ -7,7 +7,7 @@ import {
   CORE_PERMISSIONS,
   CRM_PERMISSIONS,
   SALES_PERMISSIONS,
-} from "@vercent/permissions";
+} from "@vercentlabs/permissions";
 
 export const PERMISSIONS = {
   ...CORE_PERMISSIONS,

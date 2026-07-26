@@ -105,7 +105,7 @@ test("runtime-role provisioning executes where pg and dotenv are declared", () =
   const webPackage = JSON.parse(read("package.json"));
   assert.match(
     rootPackage.scripts["db:provision:runtime-role"],
-    /--filter @vercent\/web/,
+    /--filter @vercentlabs\/web/,
   );
   assert.ok(webPackage.dependencies.pg);
   assert.ok(webPackage.dependencies.dotenv);

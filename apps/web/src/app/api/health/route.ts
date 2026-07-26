@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 export function GET() {
   return ok({
-    service: "vercent-erp-web",
+    service: "vercentlabs-erp-web",
     status: "alive",
     timestamp: new Date().toISOString(),
   });

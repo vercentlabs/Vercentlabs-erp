@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmDashboard } from "@vercent/api";
-import { formatDateTime, formatMoney } from "@vercent/localization";
+import { getCrmDashboard } from "@vercentlabs/api";
+import { formatDateTime, formatMoney } from "@vercentlabs/localization";
 import AppIcon from "@/components/app-icon";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";

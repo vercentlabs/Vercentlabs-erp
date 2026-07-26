@@ -2,7 +2,7 @@ import type {
   CrmContext,
   CrmListRequest,
   CrmResourceKey,
-} from "@vercent/shared-types";
+} from "@vercentlabs/shared-types";
 type QueryClient = {
   query(
     text: string,

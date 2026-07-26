@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { findCrmDuplicates, getCrmRecord } from "@vercent/api";
+import { findCrmDuplicates, getCrmRecord } from "@vercentlabs/api";
 import CrmLeadActions from "@/components/crm-lead-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";

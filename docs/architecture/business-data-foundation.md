@@ -63,7 +63,7 @@ Authenticated web routes live at:
 ```
 
 Route Handlers authenticate, authorize, validate and audit. Reusable SQL and
-scope enforcement stay in `@vercent/api`.
+scope enforcement stay in `@vercentlabs/api`.
 
 ## Next module dependency
 

@@ -5,9 +5,9 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "How VercentLabs ERP Early Access Works",
+  title: "How Vercentlabs ERP Early Access Works",
   description:
-    "See how VercentLabs scopes, configures, validates and launches the released CRM and platform-foundation workflow.",
+    "See how Vercentlabs scopes, configures, validates and launches the released CRM and platform-foundation workflow.",
   path: "/how-it-works",
 });
 

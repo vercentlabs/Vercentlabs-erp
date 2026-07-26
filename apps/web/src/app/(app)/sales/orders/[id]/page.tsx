@@ -1,4 +1,4 @@
-import { getSalesOrder } from "@vercent/api";
+import { getSalesOrder } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
 import SalesDocumentActions from "@/components/sales-document-actions";

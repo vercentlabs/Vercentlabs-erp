@@ -1,4 +1,4 @@
-import type { BusinessDataResourceKey } from "@vercent/shared-types";
+import type { BusinessDataResourceKey } from "@vercentlabs/shared-types";
 
 export type QueryClient = {
   query(

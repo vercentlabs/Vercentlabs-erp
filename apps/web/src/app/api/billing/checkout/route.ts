@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { buildRazorpaySubscriptionPayload } from "@vercent/api";
+import { buildRazorpaySubscriptionPayload } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
       checkoutSessionId,
       keyId: config.keyId,
       providerSubscriptionId: providerSubscription.id,
-      name: "VercentLabs ERP",
+      name: "Vercentlabs ERP",
       description: `${price.plan_name} · ${price.billing_period}`,
       prefill: { name: session.fullName, email: session.email },
     });

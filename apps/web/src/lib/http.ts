@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { createLogger } from "@vercent/observability";
+import { createLogger } from "@vercentlabs/observability";
 
-const logger = createLogger("vercent-web");
+const logger = createLogger("vercentlabs-web");
 
 export class HttpError extends Error {
   constructor(

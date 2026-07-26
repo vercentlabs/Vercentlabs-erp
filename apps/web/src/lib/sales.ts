@@ -1,6 +1,6 @@
 import type { SessionContext } from "@/lib/auth";
 import { HttpError } from "@/lib/http";
-import { SalesError } from "@vercent/api";
+import { SalesError } from "@vercentlabs/api";
 
 export function salesContext(session: SessionContext) {
   return {

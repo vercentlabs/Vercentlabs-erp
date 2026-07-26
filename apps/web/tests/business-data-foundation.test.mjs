@@ -80,7 +80,7 @@ test("business APIs remain in the service boundary", () => {
 
   assert.match(service, /createBusinessDataRecord/);
   assert.match(service, /organization_id/);
-  assert.match(route, /@vercent\/api/);
+  assert.match(route, /@vercentlabs\/api/);
   assert.match(route, /requirePermissionFromSession/);
   assert.match(route, /tenantTransaction/);
 });

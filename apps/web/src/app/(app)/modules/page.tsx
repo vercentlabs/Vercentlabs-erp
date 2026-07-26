@@ -1,5 +1,5 @@
 import AppIcon, { type AppIconName } from "@/components/app-icon";
-import { StatusBadge } from "@vercent/shared-ui";
+import { StatusBadge } from "@vercentlabs/shared-ui";
 import { requireWorkspace } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { moduleCatalog } from "@/lib/platform";

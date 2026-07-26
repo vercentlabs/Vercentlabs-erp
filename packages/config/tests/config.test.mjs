@@ -3,7 +3,7 @@ import test from "node:test";
 import { ConfigurationError, databaseConfig, originList } from "../src/index.js";
 
 test("database configuration validates and bounds pool controls", () => {
-  const config = databaseConfig({ DATABASE_URL: "postgresql://user:pass@localhost:5432/vercent", DATABASE_POOL_MAX: "24" });
+  const config = databaseConfig({ DATABASE_URL: "postgresql://user:pass@localhost:5432/vercentlabs", DATABASE_POOL_MAX: "24" });
   assert.equal(config.poolMaximum, 24);
   assert.throws(() => databaseConfig({ DATABASE_URL: "https://example.com" }), ConfigurationError);
 });

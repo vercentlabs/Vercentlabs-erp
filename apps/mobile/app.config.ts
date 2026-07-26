@@ -2,14 +2,14 @@ import type { ExpoConfig, ConfigContext } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Vercent ERP",
-  slug: "vercent-erp",
+  name: "Vercentlabs ERP",
+  slug: "vercentlabs-erp",
   version: "1.0.0",
   runtimeVersion: { policy: "appVersion" },
   orientation: "default",
   icon: "./assets/app-icon.png",
   userInterfaceStyle: "light",
-  scheme: "vercent",
+  scheme: "vercentlabs",
   platforms: ["ios", "android"],
   ios: {
     bundleIdentifier: "com.vercentlabs.erp",
@@ -17,7 +17,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     config: { usesNonExemptEncryption: false },
     infoPlist: {
       NSFaceIDUsageDescription:
-        "Use Face ID to unlock your secure Vercent ERP workspace.",
+        "Use Face ID to unlock your secure Vercentlabs ERP workspace.",
       LSApplicationQueriesSchemes: ["tez", "phonepe", "paytmmp"],
     },
   },
@@ -41,7 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         configureAndroidBackup: false,
         faceIDPermission:
-          "Use Face ID to unlock your secure Vercent ERP workspace.",
+          "Use Face ID to unlock your secure Vercentlabs ERP workspace.",
       },
     ],
     "./plugins/with-android-stl-compat",
@@ -52,7 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-local-authentication",
       {
         faceIDPermission:
-          "Use Face ID to unlock your secure Vercent ERP workspace.",
+          "Use Face ID to unlock your secure Vercentlabs ERP workspace.",
       },
     ],
     [

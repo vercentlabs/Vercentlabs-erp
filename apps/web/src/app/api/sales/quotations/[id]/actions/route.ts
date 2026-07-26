@@ -1,4 +1,4 @@
-import { convertQuotationToOrder, recordPublicQuoteDecision, sendQuotation, submitQuotation } from "@vercent/api";
+import { convertQuotationToOrder, recordPublicQuoteDecision, sendQuotation, submitQuotation } from "@vercentlabs/api";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { assertSameOrigin, audit } from "@/lib/security";
 import { rethrowSalesError } from "@/lib/sales";

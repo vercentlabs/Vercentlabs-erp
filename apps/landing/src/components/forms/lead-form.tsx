@@ -212,7 +212,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
           aria-describedby="consent-error"
         />
         <span>
-          I agree that VercentLabs may use these details to assess and respond
+          I agree that Vercentlabs may use these details to assess and respond
           to this request. Review the{" "}
           <Link href="/privacy" className="operator-inline-link">
             privacy policy
@@ -268,7 +268,7 @@ export default function LeadForm({ mode }: { mode: LeadFormMode }) {
         {submission.status === "error" ? (
           <a
             href={
-              "mailto:" + siteConfig.email + "?subject=VercentLabs ERP enquiry"
+              "mailto:" + siteConfig.email + "?subject=Vercentlabs ERP enquiry"
             }
             className="operator-inline-link operator-inline-link--mail"
           >

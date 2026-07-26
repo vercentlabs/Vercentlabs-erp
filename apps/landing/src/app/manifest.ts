@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "VercentLabs ERP",
-    short_name: "VercentLabs",
+    name: "Vercentlabs ERP",
+    short_name: "Vercentlabs",
     description:
-      "Governed CRM early access on the VercentLabs ERP platform foundation.",
+      "Governed CRM early access on the Vercentlabs ERP platform foundation.",
     start_url: "/",
     display: "standalone",
     background_color: "#f2efe7",

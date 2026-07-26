@@ -13,7 +13,7 @@ import { createPageMetadata } from "@/lib/metadata";
 export const metadata = createPageMetadata({
   title: "ERP Design Partner Programme",
   description:
-    "Apply to work with VercentLabs on real ERP workflows, validation and phased implementation for a growing Indian business.",
+    "Apply to work with Vercentlabs on real ERP workflows, validation and phased implementation for a growing Indian business.",
   path: "/customers",
 });
 
@@ -23,7 +23,7 @@ export default function CustomersPage() {
       <PageHero
         eyebrow="Design partner programme"
         title="Shape the workflows your operating team will actually depend on."
-        description="Selected organisations work with VercentLabs to convert a real operating problem into validated records, controls, scenarios and a practical first scope."
+        description="Selected organisations work with Vercentlabs to convert a real operating problem into validated records, controls, scenarios and a practical first scope."
       />
 
       <OperatorBand

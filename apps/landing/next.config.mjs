@@ -68,7 +68,7 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  transpilePackages: ["@vercent/shared-types"],
+  transpilePackages: ["@vercentlabs/shared-types"],
   images: {
     formats: ["image/avif", "image/webp"],
   },

@@ -69,7 +69,7 @@ const packageJson = JSON.parse(
   fs.readFileSync("apps/mobile/package.json", "utf8"),
 );
 assert.match(packageJson.dependencies.expo, /^~57\./);
-assert.equal(packageJson.dependencies["@vercent/shared-sdk"], "workspace:*");
+assert.equal(packageJson.dependencies["@vercentlabs/shared-sdk"], "workspace:*");
 assert.ok(packageJson.scripts.typecheck);
 assert.ok(packageJson.scripts.lint);
 assert.ok(packageJson.scripts.test);

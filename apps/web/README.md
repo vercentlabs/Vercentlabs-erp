@@ -1,4 +1,4 @@
-# Vercent ERP Web Application
+# Vercentlabs ERP Web Application
 
 The authenticated platform foundation includes secure account lifecycle management, organisation onboarding, multi-company and branch context, departments, teams, cost centres, role-based permissions, user access administration, sessions, notifications, approvals, audit logs, numbering series and a registry for the 12 ERP modules.
 

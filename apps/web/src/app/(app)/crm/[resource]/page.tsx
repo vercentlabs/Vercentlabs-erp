@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCrmOptions, listCrmRecords } from "@vercent/api";
+import { getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 import CrmResourceManager from "@/components/crm-resource-manager";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";

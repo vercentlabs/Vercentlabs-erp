@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { mapProviderSubscriptionStatus } from "@vercent/api";
+import { mapProviderSubscriptionStatus } from "@vercentlabs/api";
 
 import { replaceOrganizationSubscription } from "@/lib/billing";
 import { query, transaction } from "@/lib/db";

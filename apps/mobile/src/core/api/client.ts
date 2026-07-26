@@ -1,4 +1,4 @@
-import { createMobileClient } from "@vercent/shared-sdk";
+import { createMobileClient } from "@vercentlabs/shared-sdk";
 import { secureTokenStore } from "@/core/auth/token-store";
 import { appConfig } from "@/core/config";
 

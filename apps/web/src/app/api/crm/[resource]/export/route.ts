@@ -1,4 +1,4 @@
-import { listCrmRecords } from "@vercent/api";
+import { listCrmRecords } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";

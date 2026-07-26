@@ -2,7 +2,7 @@ import type {
   BusinessDataListResponse,
   BusinessDataMutationResponse,
   BusinessDataResourceKey,
-} from "@vercent/shared-types";
+} from "@vercentlabs/shared-types";
 
 export type BusinessDataClient = {
   list<T = Record<string, unknown>>(

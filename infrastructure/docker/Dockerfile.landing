@@ -24,10 +24,10 @@ RUN pnpm build:landing
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
-RUN addgroup -S vercent && adduser -S vercent -G vercent
-COPY --from=build --chown=vercent:vercent /app/apps/landing/.next/standalone ./
-COPY --from=build --chown=vercent:vercent /app/apps/landing/.next/static ./apps/landing/.next/static
-COPY --from=build --chown=vercent:vercent /app/apps/landing/public ./apps/landing/public
-USER vercent
+RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs
+COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/landing/.next/standalone ./
+COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/landing/.next/static ./apps/landing/.next/static
+COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/landing/public ./apps/landing/public
+USER vercentlabs
 EXPOSE 3000
 CMD ["node", "apps/landing/server.js"]

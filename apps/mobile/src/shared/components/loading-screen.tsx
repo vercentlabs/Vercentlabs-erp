@@ -18,7 +18,7 @@ export function LoadingScreen() {
       <View style={{ alignItems: "center", gap: spacing.lg }}>
         <BrandMark size={56} />
         <Text style={{ ...type.heading, color: colors.inverse }}>
-          Vercent ERP
+          Vercentlabs ERP
         </Text>
         <ActivityIndicator
           color={colors.inverse}

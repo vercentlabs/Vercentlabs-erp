@@ -5,9 +5,9 @@ import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs Privacy Policy",
+  title: "Vercentlabs Privacy Policy",
   description:
-    "Review how VercentLabs handles website, workspace, billing and payment-related personal information.",
+    "Review how Vercentlabs handles website, workspace, billing and payment-related personal information.",
   path: "/privacy",
 });
 
@@ -15,7 +15,7 @@ const sections: LegalSection[] = [
   {
     title: "1. Scope",
     paragraphs: [
-      "This policy covers personal information handled through the VercentLabs website, enquiries, trials, authenticated ERP workspaces, support and subscription billing.",
+      "This policy covers personal information handled through the Vercentlabs website, enquiries, trials, authenticated ERP workspaces, support and subscription billing.",
       "A customer organisation controls the business data it enters into the ERP. A production agreement should identify controller, processor and sub-processor responsibilities for that deployment.",
     ],
   },
@@ -23,7 +23,7 @@ const sections: LegalSection[] = [
     title: "2. Information collected",
     paragraphs: [
       "We may collect account identity, contact details, organisation information, access logs, security events, support communications, product usage, billing profile, GSTIN, invoice details and subscription status.",
-      "Payment credentials are entered into the payment provider's checkout. VercentLabs stores provider identifiers, payment status, amounts, fees, tax and invoice metadata needed for reconciliation, but should not store full card, bank or UPI credentials.",
+      "Payment credentials are entered into the payment provider's checkout. Vercentlabs stores provider identifiers, payment status, amounts, fees, tax and invoice metadata needed for reconciliation, but should not store full card, bank or UPI credentials.",
     ],
   },
   {
@@ -43,7 +43,7 @@ const sections: LegalSection[] = [
   {
     title: "5. Security and access",
     paragraphs: [
-      "VercentLabs uses role-based access, organisation scoping, session controls, audit records and technical safeguards designed to protect information. No service can guarantee absolute security.",
+      "Vercentlabs uses role-based access, organisation scoping, session controls, audit records and technical safeguards designed to protect information. No service can guarantee absolute security.",
       "Customers are responsible for configuring access, protecting credentials, reviewing authorised users and promptly reporting suspected compromise.",
     ],
   },

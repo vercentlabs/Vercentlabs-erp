@@ -5,9 +5,9 @@ import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Terms",
+  title: "Vercentlabs ERP Terms",
   description:
-    "Review website, trial, subscription, billing and acceptable-use terms for VercentLabs ERP.",
+    "Review website, trial, subscription, billing and acceptable-use terms for Vercentlabs ERP.",
   path: "/terms",
 });
 
@@ -15,7 +15,7 @@ const sections: LegalSection[] = [
   {
     title: "1. Scope and agreement",
     paragraphs: [
-      "These terms govern use of the VercentLabs public website, trial workspaces and paid ERP subscriptions. A signed order form, implementation statement of work, data-processing agreement or service-level agreement may add or replace terms for a specific customer.",
+      "These terms govern use of the Vercentlabs public website, trial workspaces and paid ERP subscriptions. A signed order form, implementation statement of work, data-processing agreement or service-level agreement may add or replace terms for a specific customer.",
       "Marketing descriptions explain the intended product and may include developing capabilities. Only capabilities confirmed in the applicable order form or product documentation are contractual commitments.",
     ],
   },
@@ -31,7 +31,7 @@ const sections: LegalSection[] = [
     paragraphs: [
       "Standard plans include unlimited users but are limited by the subscribed operating capacity, such as companies, branches, storage, API requests, automation actions, outbound messages or other published entitlements.",
       "Taxes, implementation, migration, custom development, premium support, third-party provider charges, dedicated infrastructure, high-volume communication and AI consumption may be charged separately.",
-      "VercentLabs may introduce fair-use limits or paid overages to protect service reliability and prevent one workspace from imposing unreasonable cost on other customers. Material commercial changes apply prospectively with reasonable notice unless required for security, law or provider changes.",
+      "Vercentlabs may introduce fair-use limits or paid overages to protect service reliability and prevent one workspace from imposing unreasonable cost on other customers. Material commercial changes apply prospectively with reasonable notice unless required for security, law or provider changes.",
     ],
   },
   {
@@ -45,7 +45,7 @@ const sections: LegalSection[] = [
   {
     title: "5. Customer data and acceptable use",
     paragraphs: [
-      "The customer retains ownership of its business data and grants VercentLabs the limited rights needed to host, secure, process, back up and support the service.",
+      "The customer retains ownership of its business data and grants Vercentlabs the limited rights needed to host, secure, process, back up and support the service.",
       "The service must not be used for unlawful activity, unauthorised access, malware, abusive messaging, infringement, fraudulent transactions, excessive automated load or processing prohibited data without an appropriate written agreement.",
     ],
   },
@@ -53,20 +53,20 @@ const sections: LegalSection[] = [
     title: "6. Availability, support and changes",
     paragraphs: [
       "Unless a separate service-level agreement applies, the service is provided on a commercially reasonable, as-available basis. Maintenance, security response, provider outages and product improvements may affect availability.",
-      "VercentLabs may update features, interfaces and limits while preserving paid value in a commercially reasonable manner. Beta or preview capabilities may change or be withdrawn.",
+      "Vercentlabs may update features, interfaces and limits while preserving paid value in a commercially reasonable manner. Beta or preview capabilities may change or be withdrawn.",
     ],
   },
   {
     title: "7. Suspension and termination",
     paragraphs: [
-      "VercentLabs may suspend access for overdue payment, security risk, unlawful use, material breach or activity that threatens the service. Where practical, notice and an opportunity to cure will be provided.",
+      "Vercentlabs may suspend access for overdue payment, security risk, unlawful use, material breach or activity that threatens the service. Where practical, notice and an opportunity to cure will be provided.",
       "After termination, data export and deletion are governed by the applicable agreement, retention policy and legal obligations. Customers should export required records before access ends.",
     ],
   },
   {
     title: "8. Warranty and liability",
     paragraphs: [
-      "VercentLabs does not provide legal, tax, accounting or regulatory advice. Customers remain responsible for business decisions, statutory filings, configuration review and verification of generated records.",
+      "Vercentlabs does not provide legal, tax, accounting or regulatory advice. Customers remain responsible for business decisions, statutory filings, configuration review and verification of generated records.",
       "Liability limits, indemnities, warranties and dispute terms for production customers should be defined in the signed commercial agreement and reviewed by qualified legal counsel.",
     ],
   },
@@ -83,7 +83,7 @@ export default function TermsPage() {
     <LegalPage
       eyebrow="Legal"
       title="Terms for trials, subscriptions and ERP use"
-      description="These terms describe the baseline commercial and acceptable-use rules for VercentLabs ERP."
+      description="These terms describe the baseline commercial and acceptable-use rules for Vercentlabs ERP."
       updated="16 July 2026"
       sections={sections}
     />

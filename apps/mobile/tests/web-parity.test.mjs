@@ -47,7 +47,7 @@ test("native parity APIs preserve bearer auth and browser CSRF boundaries", () =
   const security = fs.readFileSync(path.join(repositoryRoot, "apps/web/src/lib/security.ts"), "utf8");
   const auth = fs.readFileSync(path.join(repositoryRoot, "apps/web/src/lib/auth.ts"), "utf8");
   assert.match(security, /assertSameOriginOrMobile/);
-  assert.match(security, /x-vercent-client/);
+  assert.match(security, /x-vercentlabs-client/);
   assert.match(auth, /resolveSessionContext\(bearer, "mobile"\)/);
   for (const endpoint of [
     "workspace/route.ts",

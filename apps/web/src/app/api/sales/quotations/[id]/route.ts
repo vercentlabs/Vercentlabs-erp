@@ -1,4 +1,4 @@
-import { getQuotation, reviseQuotation } from "@vercent/api";
+import { getQuotation, reviseQuotation } from "@vercentlabs/api";
 import { errorResponse, ok, readJson } from "@/lib/http";
 import { assertSameOrigin, audit } from "@/lib/security";
 import { rethrowSalesError } from "@/lib/sales";

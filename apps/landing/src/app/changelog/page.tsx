@@ -9,9 +9,9 @@ import {
 import { createPageMetadata } from "@/lib/metadata";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs ERP Product Progress",
+  title: "Vercentlabs ERP Product Progress",
   description:
-    "Follow meaningful public milestones across the VercentLabs ERP platform, product experience and design-partner readiness.",
+    "Follow meaningful public milestones across the Vercentlabs ERP platform, product experience and design-partner readiness.",
   path: "/changelog",
 });
 

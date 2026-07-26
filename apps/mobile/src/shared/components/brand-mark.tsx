@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 export function BrandMark({ size = 44 }: { size?: number }) {
   return (
     <View
-      accessibilityLabel="Vercent ERP"
+      accessibilityLabel="Vercentlabs ERP"
       accessible
       style={{
         width: size,

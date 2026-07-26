@@ -1,4 +1,4 @@
-import { getCrmReport } from "@vercent/api";
+import { getCrmReport } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";

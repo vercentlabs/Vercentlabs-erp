@@ -6,7 +6,7 @@ import {
   completeImportJob,
   createBusinessDataRecord,
   createImportJob,
-} from "@vercent/api";
+} from "@vercentlabs/api";
 
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";

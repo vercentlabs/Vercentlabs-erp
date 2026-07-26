@@ -1,4 +1,4 @@
-import type { CrmResourceKey } from "@vercent/shared-types";
+import type { CrmResourceKey } from "@vercentlabs/shared-types";
 import type { SessionContext } from "@/lib/auth";
 import { crmDefinitions } from "@/lib/crm";
 import {

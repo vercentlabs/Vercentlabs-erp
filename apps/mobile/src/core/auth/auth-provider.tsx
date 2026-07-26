@@ -8,9 +8,9 @@ import {
   type PropsWithChildren,
 } from "react";
 import {
-  VercentApiError,
+  VercentlabsApiError,
   type MobileSession,
-} from "@vercent/shared-sdk";
+} from "@vercentlabs/shared-sdk";
 
 import { mobileApi } from "@/core/api/client";
 import {
@@ -46,7 +46,7 @@ async function loadStoredSession(): Promise<AuthState> {
     await bindOfflineWorkspace(workspaceOwner(session));
     return { status: "signed-in", session };
   } catch (error) {
-    if (error instanceof VercentApiError && error.status === 401) {
+    if (error instanceof VercentlabsApiError && error.status === 401) {
       await secureTokenStore.clear();
       await purgeOfflineWorkspace().catch(() => undefined);
       return { status: "signed-out", session: null };
@@ -141,6 +141,6 @@ export function useAuth() {
 }
 
 export function authErrorMessage(error: unknown) {
-  if (error instanceof VercentApiError) return error.message;
+  if (error instanceof VercentlabsApiError) return error.message;
   return "We could not sign you in. Check your connection and try again.";
 }

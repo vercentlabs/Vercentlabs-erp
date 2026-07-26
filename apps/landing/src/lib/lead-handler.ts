@@ -133,8 +133,8 @@ export async function handleLeadRequest(request: Request, kind: LeadKind) {
       ok: true,
       message:
         kind === "demo"
-          ? "Your demo request has been delivered to VercentLabs."
-          : "Your enquiry has been delivered to VercentLabs.",
+          ? "Your demo request has been delivered to Vercentlabs."
+          : "Your enquiry has been delivered to Vercentlabs.",
     },
     202,
     rateHeaders,

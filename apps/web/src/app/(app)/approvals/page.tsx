@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/authorization";
 import { query } from "@/lib/db";
-import { formatDateTime } from "@vercent/localization";
+import { formatDateTime } from "@vercentlabs/localization";
 import ApprovalActions from "@/components/approval-actions";
 
 export const metadata = { title: "Approvals" };

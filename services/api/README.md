@@ -1,4 +1,4 @@
-# Vercent ERP API
+# Vercentlabs ERP API
 
 Business-domain service boundary.
 

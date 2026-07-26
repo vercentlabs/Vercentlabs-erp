@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-import { captureCrmLead } from "@vercent/api";
+import { captureCrmLead } from "@vercentlabs/api";
 
 import {
   incrementBillingUsage,
@@ -22,10 +22,10 @@ function safeHexEqual(left: string, right: string) {
 }
 
 function verifiedProxyFingerprint(request: Request, rawBody: string) {
-  const timestamp = request.headers.get("x-vercent-capture-timestamp") || "";
+  const timestamp = request.headers.get("x-vercentlabs-capture-timestamp") || "";
   const fingerprint =
-    request.headers.get("x-vercent-capture-fingerprint") || "";
-  const signature = request.headers.get("x-vercent-capture-signature") || "";
+    request.headers.get("x-vercentlabs-capture-fingerprint") || "";
+  const signature = request.headers.get("x-vercentlabs-capture-signature") || "";
   if (!timestamp && !fingerprint && !signature) return null;
 
   const secret = process.env.CRM_CAPTURE_PROXY_SECRET?.trim();

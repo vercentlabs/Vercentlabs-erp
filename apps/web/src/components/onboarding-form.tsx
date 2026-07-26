@@ -63,7 +63,7 @@ export default function OnboardingForm() {
             <input
               autoComplete="organization"
               name="organizationName"
-              placeholder="VercentLabs"
+              placeholder="Vercentlabs"
               required
               minLength={2}
               maxLength={120}
@@ -78,7 +78,7 @@ export default function OnboardingForm() {
             <input
               autoComplete="organization"
               name="legalCompanyName"
-              placeholder="VercentLabs LLP"
+              placeholder="Vercentlabs LLP"
               required
               minLength={2}
               maxLength={160}

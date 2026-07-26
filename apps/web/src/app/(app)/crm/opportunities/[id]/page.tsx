@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmOptions, getCrmRecord } from "@vercent/api";
+import { getCrmOptions, getCrmRecord } from "@vercentlabs/api";
 import CrmOpportunityActions from "@/components/crm-opportunity-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";

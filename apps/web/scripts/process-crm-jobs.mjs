@@ -3,7 +3,7 @@ import path from "node:path";
 import dotenv from "dotenv";
 import pg from "pg";
 
-import { setTenantContext } from "@vercent/database";
+import { setTenantContext } from "@vercentlabs/database";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
 dotenv.config({ quiet: true });

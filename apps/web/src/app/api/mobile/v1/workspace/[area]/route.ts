@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getCrmDashboard, getCrmReport } from "@vercent/api";
+import { getCrmDashboard, getCrmReport } from "@vercentlabs/api";
 
 import { hasPermission, PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
 import {

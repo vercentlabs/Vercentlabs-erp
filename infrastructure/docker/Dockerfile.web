@@ -24,9 +24,9 @@ RUN pnpm build:web
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0
 WORKDIR /app
-RUN addgroup -S vercent && adduser -S vercent -G vercent
-COPY --from=build --chown=vercent:vercent /app/apps/web/.next/standalone ./
-COPY --from=build --chown=vercent:vercent /app/apps/web/.next/static ./apps/web/.next/static
-USER vercent
+RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs
+COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/web/.next/standalone ./
+COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/web/.next/static ./apps/web/.next/static
+USER vercentlabs
 EXPOSE 3001
 CMD ["node", "apps/web/server.js"]

@@ -11,7 +11,7 @@ function requestId(request: Request) {
 
 function decorate(response: NextResponse, id: string) {
   response.headers.set("X-Request-ID", id);
-  response.headers.set("X-Vercent-API-Version", "mobile-v1");
+  response.headers.set("X-Vercentlabs-API-Version", "mobile-v1");
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

@@ -11,7 +11,7 @@ command -v pg_restore >/dev/null || { echo "pg_restore is required." >&2; exit 1
 
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-OUTPUT="${1:-$BACKUP_DIR/vercent-control-$STAMP.dump}"
+OUTPUT="${1:-$BACKUP_DIR/vercentlabs-control-$STAMP.dump}"
 mkdir -p "$(dirname "$OUTPUT")"
 umask 077
 pg_dump --dbname="$DATABASE_URL" --format=custom --no-owner --no-privileges --file="$OUTPUT"

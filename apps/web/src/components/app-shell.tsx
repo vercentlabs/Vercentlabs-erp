@@ -210,13 +210,13 @@ export default function AppShell({
           <Link
             href="/dashboard"
             className="brand-mark inverse"
-            aria-label="Vercent ERP dashboard"
+            aria-label="Vercentlabs ERP dashboard"
           >
             <span className="brand-symbol" aria-hidden="true">
               V
             </span>
             <span className="brand-wordmark">
-              <strong>Vercent</strong>
+              <strong>Vercentlabs</strong>
               <small>ERP workspace</small>
             </span>
           </Link>
@@ -333,7 +333,7 @@ export default function AppShell({
                   V
                 </span>
                 <div>
-                  <strong>Vercent ERP</strong>
+                  <strong>Vercentlabs ERP</strong>
                   <small>{session.organizationName}</small>
                 </div>
               </div>

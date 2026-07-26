@@ -2,10 +2,10 @@ import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as SQLite from "expo-sqlite";
 
-const keyName = "vercent.mobile.database-key.v1";
-const databaseName = "vercent-mobile.db";
-const recoveryIdentityName = "vercent.mobile.database-recovery.v1";
-const recoveredDatabaseNamePattern = /^vercent-mobile-[a-f0-9]{16}\.db$/;
+const keyName = "vercentlabs.mobile.database-key.v1";
+const databaseName = "vercentlabs-mobile.db";
+const recoveryIdentityName = "vercentlabs.mobile.database-recovery.v1";
+const recoveredDatabaseNamePattern = /^vercentlabs-mobile-[a-f0-9]{16}\.db$/;
 const databaseKeyPattern = /^[a-f0-9]{64}$/;
 const workspaceOwnerScope = "workspace-owner";
 let databasePromise: ReturnType<typeof SQLite.openDatabaseAsync> | null = null;
@@ -54,7 +54,7 @@ async function databaseIdentity(): Promise<DatabaseIdentity> {
 
 async function rotateDatabaseIdentity(): Promise<DatabaseIdentity> {
   const identity: DatabaseIdentity = {
-    databaseName: `vercent-mobile-${toHex(await Crypto.getRandomBytesAsync(8))}.db`,
+    databaseName: `vercentlabs-mobile-${toHex(await Crypto.getRandomBytesAsync(8))}.db`,
     key: toHex(await Crypto.getRandomBytesAsync(32)),
   };
   await SecureStore.setItemAsync(recoveryIdentityName, JSON.stringify(identity), {

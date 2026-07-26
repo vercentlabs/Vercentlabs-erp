@@ -6,8 +6,8 @@ import {
   structuredValueSummary,
   type StructuredFieldConfig,
   type StructuredFieldKind,
-} from "@vercent/shared-types";
-import type { MobileFieldDefinition } from "@vercent/shared-sdk";
+} from "@vercentlabs/shared-types";
+import type { MobileFieldDefinition } from "@vercentlabs/shared-sdk";
 import { useRef, useState } from "react";
 import {
   Modal,

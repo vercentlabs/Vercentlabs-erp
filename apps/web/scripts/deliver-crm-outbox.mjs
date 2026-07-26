@@ -5,15 +5,15 @@ import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import pg from "pg";
 
-import { setTenantContext } from "@vercent/database";
-import { databaseConfig } from "@vercent/config";
-import { createLogger } from "@vercent/observability";
+import { setTenantContext } from "@vercentlabs/database";
+import { databaseConfig } from "@vercentlabs/config";
+import { createLogger } from "@vercentlabs/observability";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
 dotenv.config({ quiet: true });
 
 const database = databaseConfig(process.env, { defaultPoolMaximum: 4 });
-const logger = createLogger("vercent-crm-outbox-worker");
+const logger = createLogger("vercentlabs-crm-outbox-worker");
 const workerId = randomUUID();
 
 const pool = new pg.Pool({
@@ -23,7 +23,7 @@ const pool = new pg.Pool({
   connectionTimeoutMillis: database.connectionTimeoutMilliseconds,
   query_timeout: database.queryTimeoutMilliseconds,
   statement_timeout: database.statementTimeoutMilliseconds,
-  application_name: "vercent-crm-outbox-worker",
+  application_name: "vercentlabs-crm-outbox-worker",
 });
 const batchSize = Math.max(
   1,
@@ -91,7 +91,7 @@ async function deliverEmail(message) {
           : {}),
       },
       body: JSON.stringify({
-        source: "vercent-crm-outbox",
+        source: "vercentlabs-crm-outbox",
         eventId: message.eventId,
         to: message.to,
         subject: message.subject,
@@ -128,9 +128,9 @@ async function deliverEmail(message) {
   const receipt = await transporter.sendMail({
     from: smtp.from,
     to: message.to,
-    subject: message.subject || "Vercent CRM message",
+    subject: message.subject || "Vercentlabs CRM message",
     text: message.body || "",
-    headers: { "X-Vercent-Outbox-Id": message.eventId },
+    headers: { "X-Vercentlabs-Outbox-Id": message.eventId },
   });
   return {
     provider: "smtp",

@@ -1,9 +1,9 @@
-import { setTenantContext } from "@vercent/database";
+import { setTenantContext } from "@vercentlabs/database";
 import {
   assertApprovalDecision,
   assertSeparationOfDuties,
   WorkflowConflictError,
-} from "@vercent/workflows";
+} from "@vercentlabs/workflows";
 import { z } from "zod";
 
 import { getApprovalCommand } from "@/lib/approval-commands";

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSalesDashboard, listQuotations, listSalesOrders } from "@vercent/api";
+import { getSalesDashboard, listQuotations, listSalesOrders } from "@vercentlabs/api";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";

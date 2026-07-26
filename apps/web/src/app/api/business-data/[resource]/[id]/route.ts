@@ -5,7 +5,7 @@ import {
 import {
   archiveBusinessDataRecord,
   updateBusinessDataRecord,
-} from "@vercent/api";
+} from "@vercentlabs/api";
 
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession } from "@/lib/authorization";

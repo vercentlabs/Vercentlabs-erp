@@ -1,6 +1,6 @@
-import { CrmError } from "@vercent/api";
-import { getStructuredFieldConfig } from "@vercent/shared-types";
-import type { CrmContext, CrmResourceKey } from "@vercent/shared-types";
+import { CrmError } from "@vercentlabs/api";
+import { getStructuredFieldConfig } from "@vercentlabs/shared-types";
+import type { CrmContext, CrmResourceKey } from "@vercentlabs/shared-types";
 
 import type { SessionContext } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/authorization";

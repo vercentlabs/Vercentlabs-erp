@@ -1,4 +1,4 @@
-import { isReleasedModule } from "@vercent/shared-types";
+import { isReleasedModule } from "@vercentlabs/shared-types";
 import { notFound } from "next/navigation";
 
 import MarketingShell from "@/components/marketing/marketing-shell";

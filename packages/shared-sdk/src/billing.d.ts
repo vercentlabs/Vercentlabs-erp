@@ -1,4 +1,4 @@
-import type { BillingPlanPrice, BillingSummary } from "@vercent/shared-types";
+import type { BillingPlanPrice, BillingSummary } from "@vercentlabs/shared-types";
 
 export interface BillingCheckoutResult {
   checkoutSessionId: string;

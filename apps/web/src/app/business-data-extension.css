@@ -1,4 +1,4 @@
-/* Vercent ERP business-data foundation */
+/* Vercentlabs ERP business-data foundation */
 .business-data-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);

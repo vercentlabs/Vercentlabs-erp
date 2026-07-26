@@ -1,4 +1,4 @@
-# Vercent ERP mobile release
+# Vercentlabs ERP mobile release
 
 Production builds require `EXPO_PUBLIC_API_URL` to reference the canonical HTTPS API origin. Android package and iOS bundle identifiers are `com.vercentlabs.erp`.
 

@@ -1,4 +1,4 @@
-import { getStructuredFieldConfig } from "@vercent/shared-types";
+import { getStructuredFieldConfig } from "@vercentlabs/shared-types";
 import { z } from "zod";
 
 import { crmDefinitions, type CrmField } from "@/lib/crm";

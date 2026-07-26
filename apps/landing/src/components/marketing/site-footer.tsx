@@ -49,18 +49,18 @@ export default function SiteFooter() {
   return (
     <footer className="os-footer">
       <div className="os-footer__statement">
-        <span>VercentLabs ERP</span>
+        <span>Vercentlabs ERP</span>
         <strong>Operations deserve software with a point of view.</strong>
       </div>
 
       <div className="os-footer__grid">
         <div className="os-footer__brand">
-          <Link href="/" aria-label="VercentLabs home">
+          <Link href="/" aria-label="Vercentlabs home">
             <span
               className="os-wordmark os-wordmark--footer"
               aria-hidden="true"
             >
-              <span>VERCENT</span>
+              <span>VERCENTLABS</span>
               <span>LABS</span>
               <i />
             </span>

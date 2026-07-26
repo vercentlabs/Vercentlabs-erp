@@ -8,7 +8,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import Link from "next/link";
-import { isReleasedModule } from "@vercent/shared-types";
+import { isReleasedModule } from "@vercentlabs/shared-types";
 
 import PageContainer from "@/components/layout/page-container";
 import RevealOnScroll from "@/components/ui/reveal-on-scroll";

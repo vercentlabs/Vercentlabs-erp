@@ -23,6 +23,6 @@ COPY database database
 COPY packages packages
 COPY services services
 COPY scripts/database scripts/database
-RUN addgroup -S vercent && adduser -S vercent -G vercent && chown -R vercent:vercent /app
-USER vercent
+RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs && chown -R vercentlabs:vercentlabs /app
+USER vercentlabs
 CMD ["sh", "-ec", "pnpm db:migrate:control && pnpm db:migrate:tenant && pnpm db:provision:runtime-role"]

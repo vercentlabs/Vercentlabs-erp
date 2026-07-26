@@ -13,9 +13,9 @@ import { createPageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "VercentLabs Help",
+  title: "Vercentlabs Help",
   description:
-    "Find product, implementation, security and account guidance for VercentLabs ERP.",
+    "Find product, implementation, security and account guidance for Vercentlabs ERP.",
   path: "/help",
 });
 
@@ -75,7 +75,7 @@ export default function HelpPage() {
         eyebrow="Still blocked"
         title="Send the exact question and operating context."
         description="Include the page, workflow, account state and result you expected so the team can respond usefully."
-        primary={{ label: "Contact VercentLabs", href: "/contact" }}
+        primary={{ label: "Contact Vercentlabs", href: "/contact" }}
       />
     </MarketingShell>
   );

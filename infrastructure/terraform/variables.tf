@@ -1,7 +1,7 @@
 variable "namespace" {
   description = "Kubernetes namespace reserved for the ERP workloads."
   type        = string
-  default     = "vercent"
+  default     = "vercentlabs"
   validation {
     condition     = can(regex("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", var.namespace))
     error_message = "namespace must be a valid Kubernetes DNS label."

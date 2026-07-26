@@ -1,5 +1,5 @@
-import { archiveCrmRecord, findCrmDuplicates, getCrmRecord, updateCrmRecord } from "@vercent/api";
-import type { CrmResourceKey } from "@vercent/shared-types";
+import { archiveCrmRecord, findCrmDuplicates, getCrmRecord, updateCrmRecord } from "@vercentlabs/api";
+import type { CrmResourceKey } from "@vercentlabs/shared-types";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { assertCrmIdentifier, requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
 import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";

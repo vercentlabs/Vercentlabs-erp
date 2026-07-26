@@ -1,4 +1,4 @@
-import { previewSalesDocument } from "@vercent/api";
+import { previewSalesDocument } from "@vercentlabs/api";
 import { errorResponse, ok, readJson } from "@/lib/http";
 import { assertSameOrigin } from "@/lib/security";
 import { rethrowSalesError } from "@/lib/sales";

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { MobileResourceDefinition } from "@vercent/shared-sdk";
+import type { MobileResourceDefinition } from "@vercentlabs/shared-sdk";
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 

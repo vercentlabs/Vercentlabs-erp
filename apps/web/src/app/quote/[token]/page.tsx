@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { resolvePublicQuoteToken } from "@vercent/api";
+import { resolvePublicQuoteToken } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
 import PublicQuoteDecision from "@/components/public-quote-decision";
@@ -66,7 +66,7 @@ export default async function PublicQuotePage({
   return (
     <main className="public-quote-shell">
       <header>
-        <strong>Vercent ERP</strong>
+        <strong>Vercentlabs ERP</strong>
         <span>Secure quotation</span>
       </header>
 

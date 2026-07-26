@@ -1,4 +1,4 @@
-import { createCrmRecord, getCrmOptions, listCrmRecords } from "@vercent/api";
+import { createCrmRecord, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
 import { crmContext, crmDefinitions, isCrmDefinition, rethrowCrmError } from "@/lib/crm";

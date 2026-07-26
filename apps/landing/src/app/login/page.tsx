@@ -10,9 +10,9 @@ import { createPageMetadata } from "@/lib/metadata";
 import { getSignInHref, siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
-  title: "Sign In to VercentLabs ERP",
+  title: "Sign In to Vercentlabs ERP",
   description:
-    "Open the configured VercentLabs ERP application or request access to the design-partner programme.",
+    "Open the configured Vercentlabs ERP application or request access to the design-partner programme.",
   path: "/login",
   noIndex: true,
 });
@@ -57,7 +57,7 @@ export default function LoginPage() {
               rel="noreferrer"
               className="button-primary"
             >
-              Open VercentLabs ERP
+              Open Vercentlabs ERP
             </a>
           ) : (
             <Link href="/contact" className="button-primary">

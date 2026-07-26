@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { CRM_PERMISSIONS } from "@vercent/permissions";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import dotenv from "dotenv";
 import pg from "pg";
 

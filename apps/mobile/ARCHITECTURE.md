@@ -1,4 +1,4 @@
-# Vercent ERP mobile architecture
+# Vercentlabs ERP mobile architecture
 
 The application is a native Expo/React Native client. It does not use a WebView as feature parity.
 
