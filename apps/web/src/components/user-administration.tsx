@@ -5,6 +5,17 @@ import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/lib/client-request";
 
+const dateFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeZone: "Asia/Kolkata",
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Kolkata",
+});
+
 export type UserRow = {
   userId: string;
   fullName: string;
@@ -205,7 +216,9 @@ export default function UserAdministration({
                 </span>
                 <span>
                   {user.lastLoginAt
-                    ? `Last login ${new Date(user.lastLoginAt).toLocaleString()}`
+                    ? `Last login ${dateTimeFormatter.format(
+                        new Date(user.lastLoginAt),
+                      )}`
                     : "No login recorded"}
                 </span>
               </div>
@@ -327,7 +340,7 @@ export default function UserAdministration({
                 <tr key={invite.id}>
                   <td>{invite.email}</td>
                   <td>{invite.roleName}</td>
-                  <td>{new Date(invite.expiresAt).toLocaleDateString()}</td>
+                  <td>{dateFormatter.format(new Date(invite.expiresAt))}</td>
                   <td>
                     {invite.acceptedAt
                       ? "Accepted"

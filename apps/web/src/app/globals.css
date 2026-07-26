@@ -1050,6 +1050,10 @@ legend {
   gap: 16px;
 }
 
+.form-grid > label {
+  align-self: start;
+}
+
 .form-grid.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

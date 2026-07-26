@@ -101,8 +101,13 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
       { name: "companyName", label: "Company / organisation", type: "text" },
       { name: "jobTitle", label: "Job title", type: "text" },
       { name: "email", label: "Email", type: "email" },
-      { name: "mobile", label: "Mobile", type: "text" },
-      { name: "phone", label: "Phone", type: "text" },
+      {
+        name: "mobile",
+        label: "Mobile number",
+        type: "text",
+        required: true,
+      },
+      { name: "phone", label: "Alternate number", type: "text" },
       {
         name: "sourceId",
         label: "Source",
