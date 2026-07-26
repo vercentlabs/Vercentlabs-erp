@@ -8,7 +8,7 @@ with Expo SDK 57, Expo Router, strict TypeScript and the versioned
 
 ## Local setup
 
-1. Use Node 24 and pnpm 11.13.0.
+1. Use Node 24 and pnpm 11.17.0.
 2. Copy `.env.example` to `.env.local` and set the public API origin.
 3. Run `pnpm dev:mobile` from the repository root.
 4. Use a development build for encrypted SQLite, Face ID, Razorpay and other
