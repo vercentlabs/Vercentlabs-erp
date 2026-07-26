@@ -115,14 +115,13 @@ export async function PATCH(
       }
 
       let commandResult: unknown = null;
+      const payload = command.validate(approval.command_payload);
+      await setTenantContext(client, session.organizationId);
       if (decision.decision === "approved") {
         requirePermissionFromSession(session, command.permission);
-        const payload = command.validate(approval.command_payload);
-        await setTenantContext(client, session.organizationId);
-        commandResult = await command.execute(
-          { client, session },
-          payload,
-        );
+        commandResult = await command.execute({ client, session }, payload);
+      } else if (command.reject) {
+        commandResult = await command.reject({ client, session }, payload);
       }
 
       const updated = await client.query<{

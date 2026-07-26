@@ -18,6 +18,12 @@ type NavigationItem = {
 const primaryNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   {
+    href: "/sales",
+    label: "Sales overview",
+    icon: "sales",
+    permission: PERMISSIONS.salesView,
+  },
+  {
     href: "/crm",
     label: "CRM overview",
     icon: "crm",
@@ -49,6 +55,14 @@ const primaryNavigation: NavigationItem[] = [
     icon: "audit",
     permission: PERMISSIONS.auditView,
   },
+];
+
+
+const salesNavigation: NavigationItem[] = [
+  { href: "/sales/quotations", label: "Quotations", icon: "sales", permission: PERMISSIONS.salesView },
+  { href: "/sales/orders", label: "Sales orders", icon: "sales", permission: PERMISSIONS.salesView },
+  { href: "/sales/reports", label: "Sales reports", icon: "sales", permission: PERMISSIONS.salesReportsView },
+  { href: "/sales/settings", label: "Sales settings", icon: "sales", permission: PERMISSIONS.salesSettingsManage },
 ];
 
 const crmNavigation: NavigationItem[] = [
@@ -173,6 +187,9 @@ export default function AppShell({
   const visiblePrimary = primaryNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
+  const visibleSales = salesNavigation.filter(
+    (item) => !item.permission || hasPermission(session, item.permission),
+  );
   const visibleCrm = crmNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
@@ -246,6 +263,15 @@ export default function AppShell({
               label={item.label}
             />
           ))}
+
+          {visibleSales.length ? (
+            <>
+              <p className="nav-label">Sales</p>
+              {visibleSales.map((item) => (
+                <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} />
+              ))}
+            </>
+          ) : null}
 
           {visibleCrm.length ? (
             <>
@@ -326,6 +352,14 @@ export default function AppShell({
                   mobile
                 />
               ))}
+              {visibleSales.length ? (
+                <>
+                  <p className="nav-label">Sales</p>
+                  {visibleSales.map((item) => (
+                    <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} mobile />
+                  ))}
+                </>
+              ) : null}
               {visibleCrm.length ? (
                 <>
                   <p className="nav-label">CRM</p>

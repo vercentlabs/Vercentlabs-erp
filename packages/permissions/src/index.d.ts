@@ -35,3 +35,4 @@ export const CORE_PERMISSIONS: Readonly<{
   profileManage: "profile.manage";
   sessionsManage: "sessions.manage";
 }>;
+export * from "./sales.js";

@@ -103,3 +103,4 @@ export function seedBusinessDataFoundation(
 ): Promise<void>;
 export * from "./crm.js";
 export * from "./billing.js";
+export * from "./sales.js";

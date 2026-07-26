@@ -1,6 +1,8 @@
 import {
+  approveQuotation,
   completeCrmActivity,
   moveOpportunityStage,
+  rejectQuotationApproval,
 } from "@vercent/api";
 import { createCommandRegistry } from "@vercent/workflows";
 import type { PoolClient } from "pg";
@@ -26,10 +28,57 @@ export type ApprovalCommand = {
     context: CommandContext,
     payload: Record<string, unknown>,
   ): Promise<unknown>;
+  reject?(
+    context: CommandContext,
+    payload: Record<string, unknown>,
+  ): Promise<unknown>;
 };
 
 const uuid = z.string().uuid();
+
+const salesContext = (session: WorkspaceSessionContext) => ({
+  organizationId: session.organizationId,
+  userId: session.userId,
+  activeCompanyId: session.activeCompanyId,
+  activeBranchId: session.activeBranchId,
+  allowAllCompanies: session.roleSlugs.some((role) =>
+    [
+      "organization_owner",
+      "system_administrator",
+      "company_administrator",
+    ].includes(role),
+  ),
+  permissions: session.permissions,
+  roleSlugs: session.roleSlugs,
+});
+
 const definitions: ApprovalCommand[] = [
+  {
+    key: "sales.quotation.approve",
+    permission: PERMISSIONS.salesQuotationApprove,
+    entityType: "sales_quotation",
+    entityId: (payload) => String(payload.quotationId),
+    title: (payload) =>
+      `Approve Sales quotation ${String(payload.quotationId)}`,
+    validate: (payload) =>
+      z
+        .object({ quotationId: uuid, quotationVersionId: uuid })
+        .strict()
+        .parse(payload),
+    execute: ({ client, session }, payload) =>
+      approveQuotation(
+        client,
+        salesContext(session),
+        String(payload.quotationId),
+        String(payload.quotationVersionId),
+      ),
+    reject: ({ client, session }, payload) =>
+      rejectQuotationApproval(
+        client,
+        salesContext(session),
+        String(payload.quotationId),
+      ),
+  },
   {
     key: "crm.opportunity.stage_change",
     permission: PERMISSIONS.crmOpportunitiesManage,

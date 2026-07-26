@@ -82,6 +82,31 @@ const crmEmployeePermissions = [
   "crm.field-sales.manage",
 ];
 
+const salesRepresentativePermissions = [
+  "sales.view",
+  "sales.quotation.create",
+  "sales.quotation.send",
+  "sales.order.create",
+  "sales.fulfillment.request",
+  "sales.invoice.request",
+  "sales.reports.view",
+];
+
+const salesManagerPermissions = [
+  ...salesRepresentativePermissions,
+  "sales.quotation.approve",
+  "sales.quotation.accept_on_behalf",
+  "sales.order.confirm",
+  "sales.order.approve",
+  "sales.order.amend",
+  "sales.order.hold",
+  "sales.order.cancel",
+  "sales.price.override",
+  "sales.margin.view",
+  "sales.reports.view",
+  "sales.settings.manage",
+];
+
 function permissionsForRole(slug: string) {
   if (["organization_owner", "system_administrator"].includes(slug)) {
     return allPermissions;
@@ -107,6 +132,13 @@ function permissionsForRole(slug: string) {
       "billing.manage",
       "billing.checkout",
       "billing.audit",
+      "sales.view",
+      "sales.quotation.approve",
+      "sales.order.approve",
+      "sales.invoice.request",
+      "sales.margin.view",
+      "sales.credit.override",
+      "sales.reports.view",
     ];
   }
 
@@ -118,6 +150,7 @@ function permissionsForRole(slug: string) {
       "parties.manage",
       ...crmSalesPermissions,
       ...crmSalesManagerPermissions,
+      ...salesManagerPermissions,
     ];
   }
 
@@ -160,6 +193,7 @@ function permissionsForRole(slug: string) {
       "crm.export",
       "crm.reports.view",
       ...crmEmployeePermissions,
+      ...salesRepresentativePermissions,
     ];
   }
 
@@ -174,6 +208,9 @@ function permissionsForRole(slug: string) {
       "crm.privacy.manage",
       "billing.view",
       "billing.audit",
+      "sales.view",
+      "sales.margin.view",
+      "sales.reports.view",
     ];
   }
 

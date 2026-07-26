@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCrmOptions, getCrmRecord } from "@vercent/api";
 import CrmOpportunityActions from "@/components/crm-opportunity-actions";
@@ -82,6 +83,11 @@ export default async function OpportunityDetailPage({
           {nice(String(record.status))} · {String(record.probability)}%
         </span>
       </section>
+      <div className="page-heading-actions">
+        {hasPermission(session, PERMISSIONS.salesQuotationCreate) && record.partyId ? (
+          <Link className="primary-button" href={`/sales/quotations/new?opportunityId=${id}`}>Create quotation</Link>
+        ) : null}
+      </div>
       {hasPermission(session, PERMISSIONS.crmOpportunitiesManage) ? (
         <CrmOpportunityActions
           id={id}

@@ -1,0 +1,20 @@
+export declare const SALES_PERMISSIONS: Readonly<{
+  view: "sales.view";
+  quotationCreate: "sales.quotation.create";
+  quotationSend: "sales.quotation.send";
+  quotationApprove: "sales.quotation.approve";
+  quotationAcceptOnBehalf: "sales.quotation.accept_on_behalf";
+  orderCreate: "sales.order.create";
+  orderConfirm: "sales.order.confirm";
+  orderApprove: "sales.order.approve";
+  orderAmend: "sales.order.amend";
+  orderHold: "sales.order.hold";
+  orderCancel: "sales.order.cancel";
+  fulfillmentRequest: "sales.fulfillment.request";
+  invoiceRequest: "sales.invoice.request";
+  priceOverride: "sales.price.override";
+  marginView: "sales.margin.view";
+  creditOverride: "sales.credit.override";
+  reportsView: "sales.reports.view";
+  settingsManage: "sales.settings.manage";
+}>;
