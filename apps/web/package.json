@@ -27,7 +27,9 @@
     "verify:billing-database": "node scripts/verify-billing-database.mjs",
     "billing:sync-plans": "node scripts/sync-razorpay-plans.mjs",
     "billing:reconcile": "node scripts/reconcile-razorpay-billing.mjs",
-    "crm:outbox": "node scripts/deliver-crm-outbox.mjs"
+    "crm:outbox": "node scripts/deliver-crm-outbox.mjs",
+    "verify:accounting": "node scripts/verify-accounting.mjs",
+    "verify:accounting-database": "node scripts/verify-accounting-database.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

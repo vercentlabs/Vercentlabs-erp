@@ -1,7 +1,17 @@
 import {
+  approveBudget,
+  approveCustomerInvoice,
+  approveJournalEntry,
+  approveVendorBill,
+  approveVendorPayment,
   approveQuotation,
   completeCrmActivity,
   moveOpportunityStage,
+  rejectBudgetApproval,
+  rejectCustomerInvoiceApproval,
+  rejectJournalApproval,
+  rejectVendorBillApproval,
+  rejectVendorPaymentApproval,
   rejectQuotationApproval,
 } from "@vercentlabs/api";
 import { createCommandRegistry } from "@vercentlabs/workflows";
@@ -11,6 +21,7 @@ import { z } from "zod";
 import type { WorkspaceSessionContext } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/authorization";
 import { crmContext } from "@/lib/crm";
+import { accountingContext } from "@/lib/accounting";
 
 type CommandContext = {
   client: PoolClient;
@@ -53,6 +64,56 @@ const salesContext = (session: WorkspaceSessionContext) => ({
 });
 
 const definitions: ApprovalCommand[] = [
+  {
+    key: "accounting.budget.approve",
+    permission: PERMISSIONS.accountingBudgetManage,
+    entityType: "accounting_budget",
+    entityId: (payload) => String(payload.budgetId),
+    title: (payload) => `Approve accounting budget ${String(payload.budgetId)}`,
+    validate: (payload) => z.object({ budgetId: uuid }).strict().parse(payload),
+    execute: ({ client, session }, payload) => approveBudget(client, accountingContext(session), String(payload.budgetId)),
+    reject: ({ client, session }, payload) => rejectBudgetApproval(client, accountingContext(session), String(payload.budgetId)),
+  },
+  {
+    key: "accounting.customer_invoice.approve",
+    permission: PERMISSIONS.accountingReceivablesApprove,
+    entityType: "accounting_customer_invoice",
+    entityId: (payload) => String(payload.documentId),
+    title: (payload) => `Approve customer invoice ${String(payload.documentId)}`,
+    validate: (payload) => z.object({ documentId: uuid, contentHash: z.string().min(32).max(128) }).strict().parse(payload),
+    execute: ({ client, session }, payload) => approveCustomerInvoice(client, accountingContext(session), String(payload.documentId), String(payload.contentHash)),
+    reject: ({ client, session }, payload) => rejectCustomerInvoiceApproval(client, accountingContext(session), String(payload.documentId)),
+  },
+  {
+    key: "accounting.vendor_bill.approve",
+    permission: PERMISSIONS.accountingPayablesApprove,
+    entityType: "accounting_vendor_bill",
+    entityId: (payload) => String(payload.documentId),
+    title: (payload) => `Approve vendor bill ${String(payload.documentId)}`,
+    validate: (payload) => z.object({ documentId: uuid, contentHash: z.string().min(32).max(128) }).strict().parse(payload),
+    execute: ({ client, session }, payload) => approveVendorBill(client, accountingContext(session), String(payload.documentId), String(payload.contentHash)),
+    reject: ({ client, session }, payload) => rejectVendorBillApproval(client, accountingContext(session), String(payload.documentId)),
+  },
+  {
+    key: "accounting.vendor_payment.approve",
+    permission: PERMISSIONS.accountingPaymentsApprove,
+    entityType: "accounting_vendor_payment",
+    entityId: (payload) => String(payload.documentId),
+    title: (payload) => `Approve vendor payment ${String(payload.documentId)}`,
+    validate: (payload) => z.object({ documentId: uuid, contentHash: z.string().min(32).max(128) }).strict().parse(payload),
+    execute: ({ client, session }, payload) => approveVendorPayment(client, accountingContext(session), String(payload.documentId), String(payload.contentHash)),
+    reject: ({ client, session }, payload) => rejectVendorPaymentApproval(client, accountingContext(session), String(payload.documentId)),
+  },
+  {
+    key: "accounting.journal.approve",
+    permission: PERMISSIONS.accountingJournalApprove,
+    entityType: "accounting_journal_entry",
+    entityId: (payload) => String(payload.journalEntryId),
+    title: (payload) => `Approve accounting journal ${String(payload.journalEntryId)}`,
+    validate: (payload) => z.object({ journalEntryId: uuid, contentHash: z.string().min(32).max(128) }).strict().parse(payload),
+    execute: ({ client, session }, payload) => approveJournalEntry(client, accountingContext(session), String(payload.journalEntryId), String(payload.contentHash)),
+    reject: ({ client, session }, payload) => rejectJournalApproval(client, accountingContext(session), String(payload.journalEntryId)),
+  },
   {
     key: "sales.quotation.approve",
     permission: PERMISSIONS.salesQuotationApprove,

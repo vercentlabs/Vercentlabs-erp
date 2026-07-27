@@ -4,11 +4,11 @@ import test from "node:test";
 
 const read = (file) => fs.readFileSync(file, "utf8");
 
-test("public hero markets the released CRM scope without claiming roadmap modules", () => {
+test("public hero markets the released CRM, Sales and Accounting scope", () => {
   const hero = read("src/components/home/hero-section.tsx");
-  assert.match(hero, /Released CRM early access/);
-  assert.match(hero, /Roadmap modules/);
-  assert.match(hero, /value: "11"/);
+  assert.match(hero, /Released CRM, Sales & Accounting/);
+  assert.match(hero, /label: "Released modules", value: "3"/);
+  assert.match(hero, /label: "Roadmap modules", value: "9"/);
   assert.doesNotMatch(hero, /Run every core operation/);
   assert.doesNotMatch(hero, /value: "12"/);
 });
@@ -26,12 +26,13 @@ test("standalone packaging supports applications without a public directory", ()
   assert.match(packaging, /error\?\.code !== "ENOENT"/);
 });
 
-test("feature marketing contains only released platform and CRM claims", () => {
+test("feature marketing reflects the released CRM, Sales and Accounting scope", () => {
   const features = read("src/app/features/page.tsx");
   assert.match(features, /Released early-access scope/);
   assert.match(features, /Governed approvals/);
-  assert.match(features, /Eleven modules remain future scope/);
-  assert.doesNotMatch(features, /Multi-level approvals/);
-  assert.doesNotMatch(features, /Delegate approvals/);
-  assert.doesNotMatch(features, /closed or controlled accounting periods/);
+  assert.match(features, /Sales order-to-cash/);
+  assert.match(features, /Accounting and financial control/);
+  assert.match(features, /Nine modules remain future scope/);
+  assert.doesNotMatch(features, /Eleven modules remain future scope/);
+  assert.doesNotMatch(features, /Run every core operation/);
 });

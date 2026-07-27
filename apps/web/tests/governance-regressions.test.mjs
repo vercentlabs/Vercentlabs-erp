@@ -21,22 +21,19 @@ function filesBelow(directory, name) {
 }
 
 test("the shared permission registry covers every migrated permission", () => {
-  const migrations = [
-    "database/control-plane/migrations/001_auth_and_onboarding.sql",
-    "database/control-plane/migrations/002_platform_foundation.sql",
-    "database/control-plane/migrations/003_business_data_permissions.sql",
-    "database/control-plane/migrations/004_crm_permissions.sql",
-    "database/control-plane/migrations/005_billing_and_razorpay.sql",
-    "database/control-plane/migrations/006_crm_enterprise_permissions.sql",
-    "database/control-plane/migrations/008_crm_completion_permissions.sql",
-  ]
-    .map((path) => read("../../" + path))
+  const migrationDirectory = fileURLToPath(
+    new URL("../../database/control-plane/migrations/", appRoot),
+  );
+  const migrations = readdirSync(migrationDirectory)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => readFileSync(join(migrationDirectory, name), "utf8"))
     .join("\n");
 
   const migratedPermissions = new Set(
     [
       ...migrations.matchAll(
-        /'([a-z][a-z0-9_.-]+\.(?:view|manage|import|export|checkout|audit))'/g,
+        /\(\s*'([a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*)'\s*,/g,
       ),
     ].map((match) => match[1]),
   );

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { seedBusinessDataFoundation } from "@vercentlabs/api";
+import { initializeAccountingCompany, seedBusinessDataFoundation } from "@vercentlabs/api";
 import { setTenantContext } from "@vercentlabs/database";
 import { ALL_PERMISSIONS } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
@@ -139,6 +139,31 @@ function permissionsForRole(slug: string) {
       "sales.margin.view",
       "sales.credit.override",
       "sales.reports.view",
+      "accounting.view",
+      "accounting.journal.create",
+      "accounting.journal.submit",
+      "accounting.journal.approve",
+      "accounting.journal.post",
+      "accounting.journal.reverse",
+      "accounting.receivables.manage",
+      "accounting.receipts.manage",
+      "accounting.collections.manage",
+      "accounting.payables.manage",
+      "accounting.payments.manage",
+      "accounting.bank.manage",
+      "accounting.bank.reconcile",
+      "accounting.period.manage",
+      "accounting.close.manage",
+      "accounting.budget.manage",
+      "accounting.tax.manage",
+      "accounting.fx.manage",
+      "accounting.intercompany.manage",
+      "accounting.assets.manage",
+      "accounting.recurring.manage",
+      "accounting.consolidation.manage",
+      "accounting.reports.view",
+      "accounting.settings.manage",
+      "accounting.audit.view",
     ];
   }
 
@@ -211,6 +236,9 @@ function permissionsForRole(slug: string) {
       "sales.view",
       "sales.margin.view",
       "sales.reports.view",
+      "accounting.view",
+      "accounting.reports.view",
+      "accounting.audit.view",
     ];
   }
 
@@ -473,6 +501,19 @@ export async function seedOrganizationFoundation(
     ["item", "ITM-"],
     ["warehouse", "WH-"],
     ["price_list", "PL-"],
+    ["journal_entry", "JE-"],
+    ["customer_invoice", "INV-"],
+    ["customer_credit_note", "CN-"],
+    ["customer_receipt", "RCT-"],
+    ["vendor_bill", "BILL-"],
+    ["vendor_credit_note", "VCN-"],
+    ["vendor_payment", "PAY-"],
+    ["bank_statement", "BST-"],
+    ["accounting_close_run", "CLS-"],
+    ["accounting_revaluation_run", "FXR-"],
+    ["fixed_asset", "FA-"],
+    ["accounting_tax_return", "TAX-"],
+    ["accounting_consolidation_run", "CON-"],
     ["crm_lead", "LEAD-"],
     ["crm_opportunity", "OPP-"],
     ["crm_campaign", "CMP-"],
@@ -487,6 +528,11 @@ export async function seedOrganizationFoundation(
   await setTenantContext(client, input.organizationId);
   await seedBusinessDataFoundation(client, {
     organizationId: input.organizationId,
+    userId: input.ownerUserId,
+  });
+  await initializeAccountingCompany(client, {
+    organizationId: input.organizationId,
+    companyId: input.companyId,
     userId: input.ownerUserId,
   });
   await seedCrmFoundation(client, input);

@@ -1,3 +1,4 @@
+export * from "./accounting.js";
 export const BUSINESS_DATA_RESOURCE_KEYS: readonly [
   "parties",
   "contacts",

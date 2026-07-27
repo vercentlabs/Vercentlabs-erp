@@ -1,3 +1,4 @@
+import { ACCOUNTING_PERMISSIONS } from "./accounting.js";
 import { BILLING_PERMISSIONS } from "./billing.js";
 import { CRM_PERMISSIONS } from "./crm.js";
 import { SALES_PERMISSIONS } from "./sales.js";
@@ -35,6 +36,7 @@ export const ALL_PERMISSIONS = Object.freeze([
   ...Object.values(CORE_PERMISSIONS),
   ...Object.values(BUSINESS_DATA_PERMISSIONS),
   ...Object.values(CRM_PERMISSIONS),
+  ...Object.values(ACCOUNTING_PERMISSIONS),
   ...Object.values(SALES_PERMISSIONS),
   ...Object.values(BILLING_PERMISSIONS),
 ]);
@@ -42,6 +44,7 @@ export const ALL_PERMISSIONS = Object.freeze([
 export function buildPermissionKey({ scope = "tenant", resource, action }) {
   return `${scope}:${resource}:${action}`;
 }
+export * from "./accounting.js";
 export * from "./crm.js";
 export * from "./sales.js";
 export * from "./billing.js";

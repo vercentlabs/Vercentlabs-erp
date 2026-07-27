@@ -1,0 +1,8 @@
+import { getAccountingOptions } from "@vercentlabs/api";
+import SubledgerDocumentEditor from "@/components/accounting/subledger-document-editor";
+import { requireWorkspace } from "@/lib/auth";
+import { hasPermission,PERMISSIONS } from "@/lib/authorization";
+import { accountingContext } from "@/lib/accounting";
+import { tenantTransaction } from "@/lib/db";
+export const dynamic="force-dynamic";type Option={id:string;code?:string;name?:string;display_name?:string;party_type?:string;currency_code?:string;ledger_id?:string;account_class?:string;is_group?:boolean};
+export default async function NewReceivablePage(){const session=await requireWorkspace();if(!hasPermission(session,PERMISSIONS.accountingReceivablesManage))return <section className="panel"><h1>Receivables permission required</h1></section>;if(!session.activeCompanyId)return <section className="panel"><h1>Select a company first</h1></section>;const context=accountingContext(session);const data=await tenantTransaction(context.organizationId,(client)=>getAccountingOptions(client,context,session.activeCompanyId)) as unknown as {company:{id:string;base_currency:string};parties:Option[];ledgers:Option[];accounts:Option[]};return <><section className="page-heading"><div><p className="eyebrow">Accounts receivable</p><h1>New customer invoice</h1><p>Create a draft invoice. Posting will create the receivable, revenue and output-tax journal.</p></div></section><SubledgerDocumentEditor kind="receivable" companyId={data.company.id} baseCurrency={data.company.base_currency} parties={data.parties} ledgers={data.ledgers} accounts={data.accounts}/></>}

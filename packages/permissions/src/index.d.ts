@@ -1,3 +1,4 @@
+export * from "./accounting.js";
 export const BUSINESS_DATA_PERMISSIONS: Readonly<{
   view: "business_data.view";
   partiesManage: "parties.manage";

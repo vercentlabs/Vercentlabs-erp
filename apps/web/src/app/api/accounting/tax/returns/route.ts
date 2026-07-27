@@ -1,0 +1,15 @@
+import { createTaxReturn, listTaxReturns } from "@vercentlabs/api";
+import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
+import { rethrowAccountingError } from "@/lib/accounting";
+import { taxReturnSchema } from "@/lib/accounting-validation";
+import { errorResponse, ok, readJson } from "@/lib/http";
+import { assertSameOrigin } from "@/lib/security";
+
+export async function GET(request: Request) {
+  try { const { context } = await accountingSession(); const filters = Object.fromEntries(new URL(request.url).searchParams.entries()); return ok({ returns: await tenantTransaction(context.organizationId, (client) => listTaxReturns(client, context, filters)) }); }
+  catch (error) { try { rethrowAccountingError(error); } catch (mapped) { return errorResponse(mapped); } }
+}
+export async function POST(request: Request) {
+  try { assertSameOrigin(request); const { context } = await accountingSession(true); const input = taxReturnSchema.parse(await readJson(request)); return ok({ taxReturn: await tenantTransaction(context.organizationId, (client) => createTaxReturn(client, context, input)) }, 201); }
+  catch (error) { try { rethrowAccountingError(error); } catch (mapped) { return errorResponse(mapped); } }
+}

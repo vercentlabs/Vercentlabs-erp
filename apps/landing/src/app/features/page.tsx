@@ -6,9 +6,9 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "Vercentlabs ERP Features | Platform Foundation and CRM",
+  title: "Vercentlabs ERP Features | CRM, Sales and Accounting",
   description:
-    "Explore the released Vercentlabs ERP platform foundation and CRM capabilities, with eleven additional ERP modules clearly separated as roadmap scope.",
+    "Explore the released Vercentlabs ERP CRM, Sales and Accounting capabilities, with nine additional ERP modules clearly separated as roadmap scope.",
   path: "/features",
 });
 
@@ -18,10 +18,10 @@ const items = (entries: Array<[string, string]>): ContentItem[] =>
 const config: StructuredPageConfig = {
   hero: {
     eyebrow: "Released early-access scope",
-    title: "A governed platform foundation with complete CRM workflows.",
+    title: "Governed CRM, Sales and Accounting workflows on one ERP foundation.",
     description:
-      "The current release covers authentication, organisation administration, permissions, shared master data, auditability, billing controls, governed approvals and CRM. The remaining eleven ERP modules are roadmap items and cannot be activated in this release.",
-    primary: { label: "Book a CRM walkthrough", href: "/contact" },
+      "The current release covers authentication, organisation administration, permissions, shared master data, auditability, billing controls, governed approvals, CRM, Sales and Accounting. The remaining nine ERP modules are roadmap items and cannot be activated in this release.",
+    primary: { label: "Book an ERP walkthrough", href: "/contact" },
     secondary: { label: "Review the module roadmap", href: "/modules" },
   },
   sections: [
@@ -68,7 +68,7 @@ const config: StructuredPageConfig = {
         ],
         [
           "Warehouse and finance setup",
-          "Prepare warehouses, currencies, payment terms and tax configuration without presenting unreleased inventory or accounting transactions.",
+          "Prepare warehouses, currencies, payment terms and tax configuration while keeping roadmap inventory transactions clearly separated.",
         ],
         [
           "Governed import and export",
@@ -114,6 +114,45 @@ const config: StructuredPageConfig = {
       ]),
     },
     {
+      title: "Sales order-to-cash",
+      items: items([
+        [
+          "Versioned quotations",
+          "Create governed quotations from CRM opportunities with deterministic pricing, tax traces, approvals, secure customer decisions and immutable revisions.",
+        ],
+        [
+          "Sales orders",
+          "Convert accepted quotations exactly once, confirm commercial terms, track schedules, holds, amendments, fulfilment status and billing readiness.",
+        ],
+        [
+          "Inventory and accounting handoffs",
+          "Send durable idempotent fulfilment and invoice requests without posting stock or ledgers from the Sales boundary.",
+        ],
+      ]),
+    },
+    {
+      title: "Accounting and financial control",
+      tone: "dark",
+      items: items([
+        [
+          "General ledger and periods",
+          "Maintain a configurable chart of accounts, balanced journals, immutable postings, reversals, dimensions and governed fiscal-period close controls.",
+        ],
+        [
+          "Receivables and payables",
+          "Post customer invoices from Sales handoffs, manage supplier bills, receipts, payments, allocations, matching, aging and statements.",
+        ],
+        [
+          "Banking, tax and assets",
+          "Reconcile statements, calculate GST components, operate compliance queues, depreciate assets and preserve complete accounting evidence.",
+        ],
+        [
+          "Planning and reporting",
+          "Run budgets, forecasts, revaluations, intercompany and consolidation workflows with trial balance, P&L, balance sheet and cash-flow reporting.",
+        ],
+      ]),
+    },
+    {
       title: "Visibility, mobile and commercial controls",
       items: items([
         [
@@ -144,19 +183,19 @@ const config: StructuredPageConfig = {
     },
     {
       eyebrow: "Clearly separated roadmap",
-      title: "Eleven modules remain future scope.",
+      title: "Nine modules remain future scope.",
       paragraphs: [
-        "Accounting, Procurement, Sales, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll are registered as roadmap modules only.",
+        "Procurement, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll are registered as roadmap modules only.",
         "They cannot be enabled through the current UI or API. Each will be released later only after its records, workflows, approvals, reporting, permissions, tests and migration path are complete end to end.",
       ],
     },
   ],
   finalCta: {
     title:
-      "Evaluate the released CRM and platform foundation against a real workflow.",
+      "Evaluate the released CRM, Sales and Accounting workflows end to end.",
     description:
-      "Use a complete lead-to-opportunity scenario, real roles, permission denials, imports, reports and approval decisions rather than evaluating isolated screens.",
-    primary: { label: "Book a CRM walkthrough", href: "/contact" },
+      "Use a complete lead-to-opportunity, quotation-to-order and invoice-to-ledger scenario with real roles, permission denials, reports and approval decisions.",
+    primary: { label: "Book an ERP walkthrough", href: "/contact" },
     secondary: { label: "Explore the module roadmap", href: "/modules" },
   },
 };

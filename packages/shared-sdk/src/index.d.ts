@@ -42,3 +42,5 @@ export function createBusinessDataClient(options?: {
 export * from "./crm.js";
 export * from "./billing.js";
 export * from "./mobile.js";
+
+export * from "./accounting.js";

@@ -6,8 +6,8 @@ const read = (file) => fs.readFileSync(file, "utf8");
 
 test("readiness verifies the latest migration names using the migration ledger schema", () => {
   const source = read("src/app/api/readiness/route.ts");
-  assert.match(source, /011_mobile_sessions\.sql/);
-  assert.match(source, /007_crm_outbox_leases\.sql/);
+  assert.match(source, /013_accounting_module_release\.sql/);
+  assert.match(source, /011_accounting_integrity_and_compliance\.sql/);
   assert.match(source, /WHERE name = \$1/);
   assert.doesNotMatch(source, /WHERE filename/);
 });
@@ -30,17 +30,30 @@ test("new organizations receive complete CRM configuration and numbering", () =>
     assert.match(platform, new RegExp(marker));
 });
 
-test("the release scope exposes CRM and blocks roadmap modules", () => {
+test("the release scope exposes CRM, Sales and Accounting and blocks roadmap modules", () => {
   const modules = read("../../packages/shared-types/src/modules.js");
   const route = read("src/app/api/modules/[key]/route.ts");
-  const migration = read(
+  const crmMigration = read(
     "../../database/control-plane/migrations/009_crm_release_scope.sql",
   );
-  assert.match(modules, /key: "crm"[\s\S]*availability: "released"/);
+  const salesMigration = read(
+    "../../database/control-plane/migrations/012_sales_module_release.sql",
+  );
+  const accountingMigration = read(
+    "../../database/control-plane/migrations/013_accounting_module_release.sql",
+  );
+  for (const key of ["crm", "sales", "accounting"]) {
+    assert.match(
+      modules,
+      new RegExp(`key: "${key}"[\\s\\S]*?availability: "released"`),
+    );
+  }
   assert.match(modules, /availability: "roadmap"/);
   assert.match(route, /cannot be activated in this release/);
-  assert.match(route, /CRM is the released product and cannot be disabled/);
-  assert.match(migration, /modules = '\["crm"\]'::jsonb/);
+  assert.match(route, /Core released modules cannot be disabled/);
+  assert.match(crmMigration, /modules = '\["crm"\]'::jsonb/);
+  assert.match(salesMigration, /UNION ALL SELECT 'sales'/);
+  assert.match(accountingMigration, /UNION ALL SELECT 'accounting'/);
 });
 
 test("CRM imports recover each invalid database row with savepoints", () => {

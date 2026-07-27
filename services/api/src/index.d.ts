@@ -104,3 +104,5 @@ export function seedBusinessDataFoundation(
 export * from "./crm.js";
 export * from "./billing.js";
 export * from "./sales.js";
+
+export * from "./accounting.js";

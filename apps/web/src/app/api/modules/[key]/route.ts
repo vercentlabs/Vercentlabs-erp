@@ -28,8 +28,8 @@ export async function PATCH(
         `${moduleEntry.name} is on the roadmap and cannot be activated in this release.`,
       );
     }
-    if (key === "crm" && input.status !== "enabled") {
-      throw new HttpError(409, "CRM is the released product and cannot be disabled.");
+    if (["crm", "sales", "accounting"].includes(key) && input.status !== "enabled") {
+      throw new HttpError(409, "Core released modules cannot be disabled.");
     }
 
     await requireBillingWriteAccess(session.organizationId);
@@ -58,7 +58,7 @@ export async function PATCH(
       afterData: { status: "enabled" },
       request,
     });
-    return ok({ message: "CRM is enabled." });
+    return ok({ message: `${moduleEntry.name} is enabled.` });
   } catch (error) {
     return errorResponse(error);
   }

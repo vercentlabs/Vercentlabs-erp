@@ -1,0 +1,54 @@
+export declare const ACCOUNTING_JOURNAL_STATUSES: readonly string[];
+export declare const ACCOUNTING_INVOICE_STATUSES: readonly string[];
+export declare const ACCOUNTING_PAYMENT_STATUSES: readonly string[];
+export declare const ACCOUNTING_REPORT_KEYS: readonly string[];
+export declare const ACCOUNTING_COMMAND_KEYS: Readonly<{
+  approveJournal: "accounting.journal.approve";
+  approveBudget: "accounting.budget.approve";
+  approveCustomerInvoice: "accounting.customer_invoice.approve";
+  approveVendorBill: "accounting.vendor_bill.approve";
+  approveVendorPayment: "accounting.vendor_payment.approve";
+}>;
+export type AccountingJournalLineInput = {
+  accountId: string;
+  partyId?: string | null;
+  branchId?: string | null;
+  departmentId?: string | null;
+  costCenterId?: string | null;
+  description?: string | null;
+  debit?: string | number;
+  credit?: string | number;
+  currencyCode?: string | null;
+  exchangeRate?: string | number;
+  dueDate?: string | null;
+  referenceType?: string | null;
+  referenceId?: string | null;
+};
+export type AccountingJournalInput = {
+  companyId: string;
+  branchId?: string | null;
+  ledgerId?: string | null;
+  journalId: string;
+  entryDate?: string;
+  accountingDate: string;
+  documentDate?: string | null;
+  entryType?: string;
+  reference?: string | null;
+  description: string;
+  currencyCode?: string | null;
+  exchangeRate?: string | number;
+  lines: AccountingJournalLineInput[];
+};
+export type AccountingInvoiceLineInput = {
+  itemId?: string | null;
+  description: string;
+  quantity?: string | number;
+  unitPrice?: string | number;
+  discountAmount?: string | number;
+  taxAmount?: string | number;
+  accountId?: string | null;
+  taxAccountId?: string | null;
+  branchId?: string | null;
+  departmentId?: string | null;
+  costCenterId?: string | null;
+};

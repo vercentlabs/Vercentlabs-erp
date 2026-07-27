@@ -18,6 +18,12 @@ type NavigationItem = {
 const primaryNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   {
+    href: "/accounting",
+    label: "Accounting overview",
+    icon: "accounting",
+    permission: PERMISSIONS.accountingView,
+  },
+  {
     href: "/sales",
     label: "Sales overview",
     icon: "sales",
@@ -57,6 +63,20 @@ const primaryNavigation: NavigationItem[] = [
   },
 ];
 
+
+const accountingNavigation: NavigationItem[] = [
+  { href: "/accounting/journals", label: "Journal entries", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/receivables", label: "Receivables", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/payables", label: "Payables", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/banking", label: "Banking", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/assets", label: "Fixed assets", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/planning", label: "Planning & automation", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/tax", label: "Tax", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/operations", label: "Advanced operations", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/close", label: "Period close", icon: "accounting", permission: PERMISSIONS.accountingView },
+  { href: "/accounting/reports", label: "Financial reports", icon: "accounting", permission: PERMISSIONS.accountingReportsView },
+  { href: "/accounting/settings", label: "Accounting settings", icon: "accounting", permission: PERMISSIONS.accountingSettingsManage },
+];
 
 const salesNavigation: NavigationItem[] = [
   { href: "/sales/quotations", label: "Quotations", icon: "sales", permission: PERMISSIONS.salesView },
@@ -187,6 +207,9 @@ export default function AppShell({
   const visiblePrimary = primaryNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
+  const visibleAccounting = accountingNavigation.filter(
+    (item) => !item.permission || hasPermission(session, item.permission),
+  );
   const visibleSales = salesNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
@@ -263,6 +286,15 @@ export default function AppShell({
               label={item.label}
             />
           ))}
+
+          {visibleAccounting.length ? (
+            <>
+              <p className="nav-label">Accounting</p>
+              {visibleAccounting.map((item) => (
+                <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} />
+              ))}
+            </>
+          ) : null}
 
           {visibleSales.length ? (
             <>
@@ -352,6 +384,14 @@ export default function AppShell({
                   mobile
                 />
               ))}
+              {visibleAccounting.length ? (
+                <>
+                  <p className="nav-label">Accounting</p>
+                  {visibleAccounting.map((item) => (
+                    <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} mobile />
+                  ))}
+                </>
+              ) : null}
               {visibleSales.length ? (
                 <>
                   <p className="nav-label">Sales</p>

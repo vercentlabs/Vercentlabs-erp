@@ -1526,3 +1526,5 @@ export async function seedBusinessDataFoundation(client, context) {
 export * from "./crm.js";
 export * from "./billing.js";
 export * from "./sales/index.js";
+
+export * from "./accounting/index.js";

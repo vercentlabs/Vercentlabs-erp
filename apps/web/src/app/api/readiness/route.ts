@@ -3,8 +3,8 @@ import { errorResponse, HttpError, ok } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 
-const EXPECTED_CONTROL_MIGRATION = "011_mobile_sessions.sql";
-const EXPECTED_TENANT_MIGRATION = "007_crm_outbox_leases.sql";
+const EXPECTED_CONTROL_MIGRATION = "013_accounting_module_release.sql";
+const EXPECTED_TENANT_MIGRATION = "011_accounting_integrity_and_compliance.sql";
 
 export async function GET() {
   try {

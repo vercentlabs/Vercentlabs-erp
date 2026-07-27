@@ -285,6 +285,9 @@ importers:
 
   services/api:
     dependencies:
+      '@vercentlabs/permissions':
+        specifier: workspace:*
+        version: link:../../packages/permissions
       '@vercentlabs/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types

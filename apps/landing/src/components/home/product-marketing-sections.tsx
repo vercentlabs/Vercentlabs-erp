@@ -182,7 +182,7 @@ export default function ProductMarketingSections() {
           <RevealOnScroll>
             <div className="os-section-heading-row">
               <div>
-                <p className="os-eyebrow">Released CRM capability</p>
+                <p className="os-eyebrow">Released CRM, Sales & Accounting</p>
                 <h2>Enough surface area to run real customer work.</h2>
               </div>
               <p>
@@ -216,7 +216,7 @@ export default function ProductMarketingSections() {
             <div className="os-system-map__heading">
               <div>
                 <p className="os-eyebrow">The system map</p>
-                <h2>Twelve modules. One is released. Eleven are roadmap.</h2>
+                <h2>Twelve modules. Three are released. Nine are roadmap.</h2>
               </div>
               <Link href="/modules" className="os-text-link">
                 Open module roadmap <ArrowRight aria-hidden="true" />

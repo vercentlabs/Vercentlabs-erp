@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { initializeAccountingCompany } from "@vercentlabs/api";
+import { setTenantContext } from "@vercentlabs/database";
 import type { PoolClient } from "pg";
 
 import { query, transaction } from "@/lib/db";
@@ -364,6 +366,12 @@ export async function createResource(
           ],
         );
         await grantNewScope(client, organizationId, actorUserId, "company", id);
+        await setTenantContext(client, organizationId);
+        await initializeAccountingCompany(client, {
+          organizationId,
+          companyId: id,
+          userId: actorUserId,
+        });
         break;
       case "branches":
         await client.query(
