@@ -245,6 +245,33 @@ export function WorkspacePage({ area }: { area: string }) {
         </View>
       );
     }
+    if (area === "procurement") {
+      const dashboard = (data.dashboard || {}) as Row;
+      const metrics: [string, unknown, keyof typeof Ionicons.glyphMap][] = [
+        ["Pending requisitions", dashboard.pending_requisitions, "document-text-outline"],
+        ["Active sourcing", dashboard.active_sourcing, "git-compare-outline"],
+        ["Open purchase orders", dashboard.open_orders, "cart-outline"],
+        ["Pending receipts", dashboard.pending_receipts, "download-outline"],
+        ["Matching exceptions", dashboard.match_exceptions, "warning-outline"],
+        ["Supplier risks", dashboard.supplier_risks, "shield-outline"],
+      ];
+      return (
+        <View style={{ gap: spacing.xl }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+            {metrics.map(([label, value, icon]) => (
+              <Metric key={label} label={label} value={value || 0} icon={icon} />
+            ))}
+          </View>
+          <Panel>
+            <Text style={{ ...type.heading, color: colors.text }}>Enterprise Procurement</Text>
+            <Text style={{ ...type.body, color: colors.textMuted }}>
+              Mobile provides a secure operational summary. Complex sourcing comparisons,
+              contract amendments and bulk line editing remain available in the responsive web workspace.
+            </Text>
+          </Panel>
+        </View>
+      );
+    }
     if (area === "crm") {
       const dashboard = (data.dashboard || {}) as Row;
       const metrics = (dashboard.metrics || {}) as Row;

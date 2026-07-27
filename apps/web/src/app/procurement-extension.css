@@ -1,0 +1,1 @@
+.procurement-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin-bottom:1rem}.procurement-grid .metric-card{min-height:7rem}.procurement-grid strong{font-size:1.05rem}@media(max-width:900px){.procurement-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.procurement-grid{grid-template-columns:1fr}}

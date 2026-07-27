@@ -18,6 +18,12 @@ type NavigationItem = {
 const primaryNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   {
+    href: "/procurement",
+    label: "Procurement overview",
+    icon: "procurement",
+    permission: PERMISSIONS.procurementView,
+  },
+  {
     href: "/accounting",
     label: "Accounting overview",
     icon: "accounting",
@@ -63,6 +69,18 @@ const primaryNavigation: NavigationItem[] = [
   },
 ];
 
+
+const procurementNavigation: NavigationItem[] = [
+  { href: "/procurement/requisitions", label: "Requisitions", icon: "procurement", permission: PERMISSIONS.procurementView },
+  { href: "/procurement/sourcing", label: "Sourcing", icon: "procurement", permission: PERMISSIONS.procurementView },
+  { href: "/procurement/suppliers", label: "Suppliers", icon: "procurement", permission: PERMISSIONS.procurementSuppliersView },
+  { href: "/procurement/contracts", label: "Agreements", icon: "procurement", permission: PERMISSIONS.procurementView },
+  { href: "/procurement/orders", label: "Purchase orders", icon: "procurement", permission: PERMISSIONS.procurementView },
+  { href: "/procurement/receipts", label: "Receipts", icon: "procurement", permission: PERMISSIONS.procurementView },
+  { href: "/procurement/matching", label: "Matching", icon: "procurement", permission: PERMISSIONS.procurementView },
+  { href: "/procurement/reports", label: "Reports", icon: "procurement", permission: PERMISSIONS.procurementReportsView },
+  { href: "/procurement/settings", label: "Settings", icon: "procurement", permission: PERMISSIONS.procurementSettingsManage },
+];
 
 const accountingNavigation: NavigationItem[] = [
   { href: "/accounting/journals", label: "Journal entries", icon: "accounting", permission: PERMISSIONS.accountingView },
@@ -207,6 +225,9 @@ export default function AppShell({
   const visiblePrimary = primaryNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
+  const visibleProcurement = procurementNavigation.filter(
+    (item) => !item.permission || hasPermission(session, item.permission),
+  );
   const visibleAccounting = accountingNavigation.filter(
     (item) => !item.permission || hasPermission(session, item.permission),
   );
@@ -286,6 +307,15 @@ export default function AppShell({
               label={item.label}
             />
           ))}
+
+          {visibleProcurement.length ? (
+            <>
+              <p className="nav-label">Procurement</p>
+              {visibleProcurement.map((item) => (
+                <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} />
+              ))}
+            </>
+          ) : null}
 
           {visibleAccounting.length ? (
             <>
@@ -384,6 +414,14 @@ export default function AppShell({
                   mobile
                 />
               ))}
+              {visibleProcurement.length ? (
+                <>
+                  <p className="nav-label">Procurement</p>
+                  {visibleProcurement.map((item) => (
+                    <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} mobile />
+                  ))}
+                </>
+              ) : null}
               {visibleAccounting.length ? (
                 <>
                   <p className="nav-label">Accounting</p>

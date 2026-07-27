@@ -182,9 +182,16 @@ function permissionsForRole(slug: string) {
   if (slug === "purchase_manager") {
     return [
       ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-      "parties.manage",
+      "approvals.manage","business_data.view","parties.manage","items.manage","finance_setup.manage",
+      "procurement.view","procurement.settings.manage","procurement.suppliers.view","procurement.suppliers.manage",
+      "procurement.suppliers.qualify","procurement.catalog.manage","procurement.requisition.create",
+      "procurement.requisition.manage","procurement.requisition.approve","procurement.sourcing.manage",
+      "procurement.sourcing.evaluate","procurement.sourcing.award","procurement.contracts.manage",
+      "procurement.contracts.approve","procurement.po.create","procurement.po.manage","procurement.po.approve",
+      "procurement.po.dispatch","procurement.po.amend","procurement.po.cancel","procurement.receipts.manage",
+      "procurement.receipts.approve","procurement.inspection.manage","procurement.returns.manage",
+      "procurement.matching.manage","procurement.matching.override","procurement.supplier_portal.manage",
+      "procurement.reports.view","procurement.audit.view"
     ];
   }
 

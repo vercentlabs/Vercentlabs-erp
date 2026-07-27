@@ -28,7 +28,7 @@ export async function PATCH(
         `${moduleEntry.name} is on the roadmap and cannot be activated in this release.`,
       );
     }
-    if (["crm", "sales", "accounting"].includes(key) && input.status !== "enabled") {
+    if (["crm", "sales", "accounting", "procurement"].includes(key) && input.status !== "enabled") {
       throw new HttpError(409, "Core released modules cannot be disabled.");
     }
 

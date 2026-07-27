@@ -106,3 +106,5 @@ export * from "./billing.js";
 export * from "./sales.js";
 
 export * from "./accounting.js";
+
+export * from "./procurement.js";

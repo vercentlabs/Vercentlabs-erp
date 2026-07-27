@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getCrmDashboard, getCrmReport } from "@vercentlabs/api";
+import { getCrmDashboard, getCrmReport, getProcurementDashboard } from "@vercentlabs/api";
 
 import { hasPermission, PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
 import {
@@ -17,11 +17,13 @@ import { HttpError, readJson } from "@/lib/http";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
 import { requireMobileSession } from "@/lib/mobile-session";
 import { moduleCatalog } from "@/lib/platform";
+import { procurementContext } from "@/lib/procurement";
 import { audit, enforceRateLimit } from "@/lib/security";
 import { changePasswordSchema, profileSchema, sessionActionSchema } from "@/lib/validation";
 
 const copy = {
   dashboard: ["ERP workspace", "Workspace dashboard", "Review what needs attention and maintain the organisation foundation."],
+  procurement: ["Source-to-pay", "Procurement workspace", "Review suppliers, requisitions, sourcing, purchase orders, receipts and matching exceptions."],
   crm: ["Customer relationship management", "Turn every enquiry into accountable revenue", "Capture leads, plan follow-ups, manage opportunities, attribute campaigns and preserve the complete customer journey."],
   approvals: ["Approval centre", "Decisions requiring attention", "Review governed requests with separation of duties and immutable decision history."],
   "audit-logs": ["Governance", "Immutable audit log", "Review authentication, access, configuration and organisation events."],
@@ -46,7 +48,13 @@ export async function GET(
     const organizationId = session.organizationId;
     let data: Record<string, unknown>;
 
-    if (area === "crm") {
+    if (area === "procurement") {
+      requirePermissionFromSession(session, PERMISSIONS.procurementView);
+      const context = procurementContext(session);
+      data = await tenantTransaction(context.organizationId, async (client) => ({
+        dashboard: await getProcurementDashboard(client, context),
+      }));
+    } else if (area === "crm") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
       const context = crmContext(session);
       data = await tenantTransaction(context.organizationId, async (client) => ({

@@ -60,7 +60,7 @@
     "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:sdk && corepack pnpm test:mobile && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:e2e",
     "audit:dependencies": "corepack pnpm audit --audit-level high",
     "verify:implementation": "node scripts/validation/verify-implementation-completeness.mjs",
-    "verify:release": "node scripts/validation/verify-product-release.mjs && corepack pnpm verify:implementation && corepack pnpm verify:platform-foundation && corepack pnpm verify:mobile && corepack pnpm verify:business-data && corepack pnpm verify:crm && corepack pnpm verify:accounting && corepack pnpm verify:billing && corepack pnpm verify:commercial-readiness",
+    "verify:release": "node scripts/validation/verify-product-release.mjs && corepack pnpm verify:implementation && corepack pnpm verify:platform-foundation && corepack pnpm verify:mobile && corepack pnpm verify:business-data && corepack pnpm verify:crm && corepack pnpm verify:accounting && corepack pnpm verify:procurement && corepack pnpm verify:billing && corepack pnpm verify:commercial-readiness",
     "validate:production-env:web": "node scripts/deployment/validate-production-env.mjs web",
     "validate:production-env:landing": "node scripts/deployment/validate-production-env.mjs landing",
     "validate:production-env:migration": "node scripts/deployment/validate-production-env.mjs migration",
@@ -71,7 +71,9 @@
     "test:landing:browser": "corepack pnpm --filter @vercentlabs/landing test:browser",
     "verify:accounting": "corepack pnpm --filter @vercentlabs/web verify:accounting && corepack pnpm --filter @vercentlabs/api test && corepack pnpm --filter @vercentlabs/shared-sdk test",
     "db:verify:accounting": "corepack pnpm --filter @vercentlabs/web verify:accounting-database",
-    "verify:product-release": "node scripts/validation/verify-product-release.mjs"
+    "verify:product-release": "node scripts/validation/verify-product-release.mjs",
+    "verify:procurement": "corepack pnpm --filter @vercentlabs/web verify:procurement && corepack pnpm --filter @vercentlabs/api test && corepack pnpm --filter @vercentlabs/shared-sdk test",
+    "db:verify:procurement": "corepack pnpm --filter @vercentlabs/web verify:procurement-database"
   },
   "engines": {
     "node": ">=24 <25",

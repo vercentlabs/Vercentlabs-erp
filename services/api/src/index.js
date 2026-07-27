@@ -1528,3 +1528,5 @@ export * from "./billing.js";
 export * from "./sales/index.js";
 
 export * from "./accounting/index.js";
+
+export * from "./procurement/index.js";

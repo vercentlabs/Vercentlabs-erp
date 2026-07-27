@@ -14,12 +14,14 @@ const requiredFiles = [
   "database/control-plane/migrations/011_mobile_sessions.sql",
   "database/control-plane/migrations/012_sales_module_release.sql",
   "database/control-plane/migrations/013_accounting_module_release.sql",
+  "database/control-plane/migrations/014_procurement_module_release.sql",
   "database/tenant/migrations/006_crm_release_foundation.sql",
   "database/tenant/migrations/007_crm_outbox_leases.sql",
   "database/tenant/migrations/008_sales_module.sql",
   "database/tenant/migrations/009_accounting_module.sql",
   "database/tenant/migrations/010_accounting_advanced.sql",
   "database/tenant/migrations/011_accounting_integrity_and_compliance.sql",
+  "database/tenant/migrations/012_procurement_module.sql",
   "docs/architecture/accounting-module.md",
   "docs/runbooks/accounting-operations.md",
   "docs/checklists/accounting-release-checklist.md",
@@ -53,8 +55,8 @@ function requireMarkers(file, markers) {
 }
 
 requireMarkers("apps/web/src/app/api/readiness/route.ts", [
-  '"013_accounting_module_release.sql"',
-  '"011_accounting_integrity_and_compliance.sql"',
+  '"014_procurement_module_release.sql"',
+  '"012_procurement_module.sql"',
   "schema_migrations WHERE name = $1",
   "tenant_schema_migrations WHERE name = $2",
 ]);
@@ -69,7 +71,7 @@ const moduleEntries = [
 const releasedModules = moduleEntries
   .filter((entry) => entry.availability === "released")
   .map((entry) => entry.key);
-const expectedReleasedModules = ["accounting", "crm", "sales"];
+const expectedReleasedModules = ["accounting", "crm", "procurement", "sales"];
 if (JSON.stringify([...releasedModules].sort()) !== JSON.stringify(expectedReleasedModules)) {
   failures.push(`Released module catalog must be ${expectedReleasedModules.join(", ")}.`);
 }
@@ -172,11 +174,12 @@ requireMarkers("package.json", [
 ]);
 
 const controlMigration = read(
-  "database/control-plane/migrations/013_accounting_module_release.sql",
+  "database/control-plane/migrations/014_procurement_module_release.sql",
 );
 for (const marker of [
   "UNION ALL SELECT 'accounting'",
   "UNION ALL SELECT 'crm'",
+  "UNION ALL SELECT 'procurement'",
   "UNION ALL SELECT 'sales'",
   "modules_snapshot",
 ]) {
@@ -252,9 +255,9 @@ requireMarkers("apps/web/src/app/api/onboarding/route.ts", [
 ]);
 
 requireMarkers("apps/landing/src/components/home/hero-section.tsx", [
-  "Released CRM, Sales & Accounting",
+  "Released CRM, Sales, Accounting & Procurement",
   "Roadmap modules",
-  'value: "9"',
+  'value: "8"',
 ]);
 const publicHero = read("apps/landing/src/components/home/hero-section.tsx");
 if (
@@ -320,8 +323,8 @@ const roadmapModuleKeys = moduleEntries
   .filter((entry) => entry.availability === "roadmap")
   .map((entry) => entry.key)
   .sort();
-if (roadmapModuleKeys.length !== 9) {
-  failures.push(`Expected 9 roadmap modules, found ${roadmapModuleKeys.length}.`);
+if (roadmapModuleKeys.length !== 8) {
+  failures.push(`Expected 8 roadmap modules, found ${roadmapModuleKeys.length}.`);
 }
 
 const forbiddenAutomationPatterns = [

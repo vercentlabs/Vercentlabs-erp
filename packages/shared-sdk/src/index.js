@@ -112,3 +112,5 @@ export * from "./billing.js";
 export * from "./mobile.js";
 
 export * from "./accounting.js";
+
+export * from "./procurement.js";

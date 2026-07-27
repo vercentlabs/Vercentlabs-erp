@@ -6,8 +6,8 @@ const read = (file) => fs.readFileSync(file, "utf8");
 
 test("readiness verifies the latest migration names using the migration ledger schema", () => {
   const source = read("src/app/api/readiness/route.ts");
-  assert.match(source, /013_accounting_module_release\.sql/);
-  assert.match(source, /011_accounting_integrity_and_compliance\.sql/);
+  assert.match(source, /014_procurement_module_release\.sql/);
+  assert.match(source, /012_procurement_module\.sql/);
   assert.match(source, /WHERE name = \$1/);
   assert.doesNotMatch(source, /WHERE filename/);
 });
@@ -30,7 +30,7 @@ test("new organizations receive complete CRM configuration and numbering", () =>
     assert.match(platform, new RegExp(marker));
 });
 
-test("the release scope exposes CRM, Sales and Accounting and blocks roadmap modules", () => {
+test("the release scope exposes CRM, Sales, Accounting and Procurement and blocks roadmap modules", () => {
   const modules = read("../../packages/shared-types/src/modules.js");
   const route = read("src/app/api/modules/[key]/route.ts");
   const crmMigration = read(
@@ -42,7 +42,10 @@ test("the release scope exposes CRM, Sales and Accounting and blocks roadmap mod
   const accountingMigration = read(
     "../../database/control-plane/migrations/013_accounting_module_release.sql",
   );
-  for (const key of ["crm", "sales", "accounting"]) {
+  const procurementMigration = read(
+    "../../database/control-plane/migrations/014_procurement_module_release.sql",
+  );
+  for (const key of ["crm", "sales", "accounting", "procurement"]) {
     assert.match(
       modules,
       new RegExp(`key: "${key}"[\\s\\S]*?availability: "released"`),
@@ -54,6 +57,7 @@ test("the release scope exposes CRM, Sales and Accounting and blocks roadmap mod
   assert.match(crmMigration, /modules = '\["crm"\]'::jsonb/);
   assert.match(salesMigration, /UNION ALL SELECT 'sales'/);
   assert.match(accountingMigration, /UNION ALL SELECT 'accounting'/);
+  assert.match(procurementMigration, /UNION ALL SELECT 'procurement'/);
 });
 
 test("CRM imports recover each invalid database row with savepoints", () => {

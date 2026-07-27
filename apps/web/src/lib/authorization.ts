@@ -8,6 +8,7 @@ import {
   CORE_PERMISSIONS,
   CRM_PERMISSIONS,
   SALES_PERMISSIONS,
+  PROCUREMENT_PERMISSIONS,
 } from "@vercentlabs/permissions";
 
 export const PERMISSIONS = {
@@ -87,6 +88,20 @@ export const PERMISSIONS = {
   accountingReportsView: ACCOUNTING_PERMISSIONS.reportsView,
   accountingSettingsManage: ACCOUNTING_PERMISSIONS.settingsManage,
   accountingAuditView: ACCOUNTING_PERMISSIONS.auditView,
+  procurementView: PROCUREMENT_PERMISSIONS.view,
+  procurementSettingsManage: PROCUREMENT_PERMISSIONS.settingsManage,
+  procurementSuppliersView: PROCUREMENT_PERMISSIONS.suppliersView,
+  procurementSuppliersManage: PROCUREMENT_PERMISSIONS.suppliersManage,
+  procurementRequisitionCreate: PROCUREMENT_PERMISSIONS.requisitionCreate,
+  procurementRequisitionApprove: PROCUREMENT_PERMISSIONS.requisitionApprove,
+  procurementSourcingManage: PROCUREMENT_PERMISSIONS.sourcingManage,
+  procurementSourcingAward: PROCUREMENT_PERMISSIONS.sourcingAward,
+  procurementContractsManage: PROCUREMENT_PERMISSIONS.contractsManage,
+  procurementPoCreate: PROCUREMENT_PERMISSIONS.poCreate,
+  procurementPoApprove: PROCUREMENT_PERMISSIONS.poApprove,
+  procurementReceiptsManage: PROCUREMENT_PERMISSIONS.receiptsManage,
+  procurementMatchingManage: PROCUREMENT_PERMISSIONS.matchingManage,
+  procurementReportsView: PROCUREMENT_PERMISSIONS.reportsView,
   billingView: BILLING_PERMISSIONS.view,
   billingManage: BILLING_PERMISSIONS.manage,
   billingCheckout: BILLING_PERMISSIONS.checkout,

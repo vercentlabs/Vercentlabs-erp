@@ -6,8 +6,8 @@ import PageContainer from "@/components/layout/page-container";
 import RevealOnScroll from "@/components/ui/reveal-on-scroll";
 
 const proofMetrics = [
-  { label: "Released modules", value: "3" },
-  { label: "Roadmap modules", value: "9" },
+  { label: "Released modules", value: "4" },
+  { label: "Roadmap modules", value: "8" },
   { label: "Control layer", value: "Shared" },
 ] as const;
 
@@ -24,7 +24,7 @@ export default function HeroSection() {
         <RevealOnScroll>
           <div className="os-hero__headline-grid">
             <div>
-              <p className="os-eyebrow">Released CRM, Sales & Accounting</p>
+              <p className="os-eyebrow">Released CRM, Sales, Accounting & Procurement</p>
               <h1 id="os-hero-title">
                 <span>Run the work.</span>
                 <span>Keep the truth.</span>

@@ -4,11 +4,11 @@ import test from "node:test";
 
 const read = (file) => fs.readFileSync(file, "utf8");
 
-test("public hero markets the released CRM, Sales and Accounting scope", () => {
+test("public hero markets the released CRM, Sales, Accounting and Procurement scope", () => {
   const hero = read("src/components/home/hero-section.tsx");
-  assert.match(hero, /Released CRM, Sales & Accounting/);
-  assert.match(hero, /label: "Released modules", value: "3"/);
-  assert.match(hero, /label: "Roadmap modules", value: "9"/);
+  assert.match(hero, /Released CRM, Sales, Accounting & Procurement/);
+  assert.match(hero, /label: "Released modules", value: "4"/);
+  assert.match(hero, /label: "Roadmap modules", value: "8"/);
   assert.doesNotMatch(hero, /Run every core operation/);
   assert.doesNotMatch(hero, /value: "12"/);
 });
@@ -26,7 +26,7 @@ test("standalone packaging supports applications without a public directory", ()
   assert.match(packaging, /error\?\.code !== "ENOENT"/);
 });
 
-test("feature marketing reflects the released CRM, Sales and Accounting scope", () => {
+test("feature marketing reflects the released CRM, Sales, Accounting and Procurement scope", () => {
   const features = read("src/app/features/page.tsx");
   assert.match(features, /Released early-access scope/);
   assert.match(features, /Governed approvals/);

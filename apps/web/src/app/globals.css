@@ -1,5 +1,6 @@
 @import "./accounting-extension.css";
 @import "./sales-extension.css";
+@import "./procurement-extension.css";
 :root {
   color-scheme: light;
 

@@ -24,9 +24,9 @@ test("homepage uses the operating-system editorial composition", () => {
 });
 
 test("homepage stays honest about released and roadmap scope", () => {
-  assert.match(hero, /Released CRM, Sales & Accounting/);
-  assert.match(hero, /label: "Released modules", value: "3"/);
-  assert.match(hero, /label: "Roadmap modules", value: "9"/);
+  assert.match(hero, /Released CRM, Sales, Accounting & Procurement/);
+  assert.match(hero, /label: "Released modules", value: "4"/);
+  assert.match(hero, /label: "Roadmap modules", value: "8"/);
   assert.match(
     sections,
     /Twelve modules\. Three are released\. Nine are roadmap\./,

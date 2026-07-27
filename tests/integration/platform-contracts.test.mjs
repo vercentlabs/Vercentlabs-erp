@@ -11,7 +11,7 @@ test("module, workflow and reporting contracts compose without app internals", a
     ERP_MODULE_CATALOG.filter((module) => module.availability === "released").map(
       (module) => module.key,
     ),
-    ["accounting", "sales", "crm"],
+    ["accounting", "procurement", "sales", "crm"],
   );
 
   const registry = createCommandRegistry([

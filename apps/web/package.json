@@ -29,7 +29,9 @@
     "billing:reconcile": "node scripts/reconcile-razorpay-billing.mjs",
     "crm:outbox": "node scripts/deliver-crm-outbox.mjs",
     "verify:accounting": "node scripts/verify-accounting.mjs",
-    "verify:accounting-database": "node scripts/verify-accounting-database.mjs"
+    "verify:accounting-database": "node scripts/verify-accounting-database.mjs",
+    "verify:procurement": "node scripts/verify-procurement.mjs",
+    "verify:procurement-database": "node scripts/verify-procurement-database.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

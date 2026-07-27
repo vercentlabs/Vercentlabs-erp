@@ -37,3 +37,5 @@ export const CORE_PERMISSIONS: Readonly<{
   sessionsManage: "sessions.manage";
 }>;
 export * from "./sales.js";
+
+export * from "./procurement.js";

@@ -41,3 +41,5 @@ export * from "./billing.js";
 export * from "./modules.js";
 export * from "./structured-fields.js";
 export * from "./sales.js";
+
+export * from "./procurement.js";
