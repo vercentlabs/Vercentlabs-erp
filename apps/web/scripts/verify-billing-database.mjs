@@ -5,8 +5,9 @@ import pg from "pg";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
 dotenv.config({ quiet: true });
-if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const databaseUrl = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("MIGRATION_DATABASE_URL or DATABASE_URL is required.");
+const pool = new pg.Pool({ connectionString: databaseUrl });
 const tables = [
   "billing_plans",
   "billing_plan_prices",

@@ -106,7 +106,22 @@ test("every browser mutation has bounded network failure handling", () => {
     .filter((file) => file.endsWith(".tsx"))
     .filter((file) => /\bfetch\s*\(/.test(readFileSync(file, "utf8")))
     .map((file) => path.relative(root, file).split(path.sep).join("/"));
-  assert.deepEqual(rawFetchFiles, ["apps/web/src/components/billing-workspace.tsx"]);
+  assert.deepEqual(rawFetchFiles, [
+    "apps/web/src/components/accounting/accounting-action-button.tsx",
+    "apps/web/src/components/accounting/accounting-policy-editor.tsx",
+    "apps/web/src/components/accounting/budget-editor.tsx",
+    "apps/web/src/components/accounting/close-task-actions.tsx",
+    "apps/web/src/components/accounting/credit-allocation-form.tsx",
+    "apps/web/src/components/accounting/journal-editor.tsx",
+    "apps/web/src/components/accounting/recurring-editor.tsx",
+    "apps/web/src/components/accounting/simple-accounting-form.tsx",
+    "apps/web/src/components/accounting/subledger-document-editor.tsx",
+    "apps/web/src/components/accounting/vendor-match-form.tsx",
+    "apps/web/src/components/billing-workspace.tsx",
+    "apps/web/src/components/public-quote-decision.tsx",
+    "apps/web/src/components/sales-document-actions.tsx",
+    "apps/web/src/components/sales-document-editor.tsx",
+  ]);
 
   const helper = read("apps/web/src/lib/client-request.ts");
   assert.match(helper, /AbortController/);

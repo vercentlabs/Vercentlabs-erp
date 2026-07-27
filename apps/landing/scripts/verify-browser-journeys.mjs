@@ -378,6 +378,13 @@ try {
   });
   const reducedPage = await reducedContext.newPage();
   await reducedPage.goto(landingOrigin, { waitUntil: "networkidle" });
+  await reducedPage.waitForFunction(
+    () =>
+      document.querySelectorAll('[data-reveal][data-revealed="false"]')
+        .length === 0,
+    undefined,
+    { timeout: 15_000 },
+  );
   const hiddenReveals = await reducedPage
     .locator('[data-reveal][data-revealed="false"]')
     .count();
