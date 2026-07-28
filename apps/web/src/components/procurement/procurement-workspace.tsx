@@ -363,7 +363,7 @@ export function ProcurementResourceWorkspace({
         .then((result) => {
           if (cancelled) return;
           if (!result.ok) {
-            setMessage(result.message);
+            setMessage(result.message ?? String());
             return;
           }
           setMessage("");
@@ -375,7 +375,7 @@ export function ProcurementResourceWorkspace({
         .then((result) => {
           if (cancelled) return;
           if (!result.ok) {
-            setMessage(result.message);
+            setMessage(result.message ?? String());
             return;
           }
           setMessage("");
