@@ -4,6 +4,7 @@ import "./globals.css";
 import "./business-data-extension.css";
 import "./crm-extension.css";
 import "./billing-extension.css";
+import "./operator-workbench.css";
 
 export const metadata: Metadata = {
   title: { default: "Vercentlabs ERP", template: "%s | Vercentlabs ERP" },
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light",
-  themeColor: "#0b1220",
+  themeColor: "#17191f",
   width: "device-width",
   initialScale: 1,
 };

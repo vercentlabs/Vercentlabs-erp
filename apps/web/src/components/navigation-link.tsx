@@ -11,27 +11,32 @@ export default function NavigationLink({
   icon,
   badge,
   mobile = false,
+  nested = false,
+  exact = false,
 }: {
   href: string;
   label: string;
   icon: AppIconName;
   badge?: number;
   mobile?: boolean;
+  nested?: boolean;
+  exact?: boolean;
 }) {
   const pathname = usePathname();
-  const active =
-    href === "/dashboard"
+  const active = exact
+    ? pathname === href
+    : href === "/dashboard"
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <Link
       aria-current={active ? "page" : undefined}
-      className={`nav-link${active ? " active" : ""}${mobile ? " mobile" : ""}`}
+      className={`nav-link${active ? " active" : ""}${mobile ? " mobile" : ""}${nested ? " nested" : ""}`}
       href={href}
     >
       <span className="nav-link-icon" aria-hidden="true">
-        <AppIcon name={icon} size={19} />
+        <AppIcon name={icon} size={nested ? 17 : 19} />
       </span>
       <span className="nav-link-label">{label}</span>
       {badge ? (

@@ -5,49 +5,270 @@ import Breadcrumbs from "@/components/breadcrumbs";
 import ContextSwitcher from "@/components/context-switcher";
 import LogoutButton from "@/components/logout-button";
 import NavigationLink from "@/components/navigation-link";
+import NavigationSection, {
+  type NavigationSectionItem,
+} from "@/components/navigation-section";
+import WorkspaceSearch from "@/components/workspace-search";
 import type { SessionContext } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 
-type NavigationItem = {
-  href: string;
-  label: string;
-  icon: AppIconName;
+type NavigationItem = NavigationSectionItem & {
   permission?: string;
 };
 
-const primaryNavigation: NavigationItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  {
-    href: "/procurement",
-    label: "Procurement overview",
-    icon: "procurement",
-    permission: PERMISSIONS.procurementView,
-  },
-  {
-    href: "/accounting",
-    label: "Accounting overview",
-    icon: "accounting",
-    permission: PERMISSIONS.accountingView,
-  },
-  {
-    href: "/sales",
-    label: "Sales overview",
-    icon: "sales",
-    permission: PERMISSIONS.salesView,
-  },
-  {
-    href: "/crm",
-    label: "CRM overview",
-    icon: "crm",
-    permission: PERMISSIONS.crmView,
-  },
+type NavigationGroup = {
+  label: string;
+  icon: AppIconName;
+  items: NavigationItem[];
+};
+
+const workspaceNavigation: NavigationItem[] = [
+  { href: "/dashboard", label: "Home", icon: "dashboard", exact: true },
   {
     href: "/master-data",
     label: "Master data",
     icon: "modules",
     permission: PERMISSIONS.businessDataView,
   },
-  { href: "/modules", label: "Modules", icon: "modules" },
+  { href: "/modules", label: "All modules", icon: "modules" },
+];
+
+const moduleNavigation: NavigationGroup[] = [
+  {
+    label: "CRM",
+    icon: "crm",
+    items: [
+      {
+        href: "/crm",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.crmView,
+      },
+      {
+        href: "/crm/leads",
+        label: "Leads",
+        icon: "crm",
+        permission: PERMISSIONS.crmView,
+      },
+      {
+        href: "/crm/opportunities",
+        label: "Opportunities",
+        icon: "sales",
+        permission: PERMISSIONS.crmView,
+      },
+      {
+        href: "/crm/activities",
+        label: "Activities",
+        icon: "approvals",
+        permission: PERMISSIONS.crmView,
+      },
+      {
+        href: "/crm/pipeline",
+        label: "Pipeline",
+        icon: "sales",
+        permission: PERMISSIONS.crmView,
+      },
+      {
+        href: "/crm/reports",
+        label: "Reports",
+        icon: "audit",
+        permission: PERMISSIONS.crmReportsView,
+      },
+      {
+        href: "/crm/settings",
+        label: "Settings",
+        icon: "settings",
+        permission: PERMISSIONS.crmSettingsManage,
+      },
+    ],
+  },
+  {
+    label: "Sales",
+    icon: "sales",
+    items: [
+      {
+        href: "/sales",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.salesView,
+      },
+      {
+        href: "/sales/quotations",
+        label: "Quotations",
+        icon: "sales",
+        permission: PERMISSIONS.salesView,
+      },
+      {
+        href: "/sales/orders",
+        label: "Sales orders",
+        icon: "sales",
+        permission: PERMISSIONS.salesView,
+      },
+      {
+        href: "/sales/reports",
+        label: "Reports",
+        icon: "audit",
+        permission: PERMISSIONS.salesReportsView,
+      },
+      {
+        href: "/sales/settings",
+        label: "Settings",
+        icon: "settings",
+        permission: PERMISSIONS.salesSettingsManage,
+      },
+    ],
+  },
+  {
+    label: "Procurement",
+    icon: "procurement",
+    items: [
+      {
+        href: "/procurement",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/requisitions",
+        label: "Requisitions",
+        icon: "procurement",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/sourcing",
+        label: "Sourcing",
+        icon: "procurement",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/suppliers",
+        label: "Suppliers",
+        icon: "companies",
+        permission: PERMISSIONS.procurementSuppliersView,
+      },
+      {
+        href: "/procurement/contracts",
+        label: "Agreements",
+        icon: "audit",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/orders",
+        label: "Purchase orders",
+        icon: "procurement",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/receipts",
+        label: "Receipts",
+        icon: "check",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/matching",
+        label: "Matching",
+        icon: "approvals",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
+        href: "/procurement/reports",
+        label: "Reports",
+        icon: "audit",
+        permission: PERMISSIONS.procurementReportsView,
+      },
+      {
+        href: "/procurement/settings",
+        label: "Settings",
+        icon: "settings",
+        permission: PERMISSIONS.procurementSettingsManage,
+      },
+    ],
+  },
+  {
+    label: "Accounting",
+    icon: "accounting",
+    items: [
+      {
+        href: "/accounting",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/journals",
+        label: "Journal entries",
+        icon: "accounting",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/receivables",
+        label: "Receivables",
+        icon: "sales",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/payables",
+        label: "Payables",
+        icon: "procurement",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/banking",
+        label: "Banking",
+        icon: "billing",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/assets",
+        label: "Fixed assets",
+        icon: "assets",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/planning",
+        label: "Planning",
+        icon: "projects",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/tax",
+        label: "Tax",
+        icon: "audit",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/operations",
+        label: "Operations",
+        icon: "settings",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/close",
+        label: "Period close",
+        icon: "check",
+        permission: PERMISSIONS.accountingView,
+      },
+      {
+        href: "/accounting/reports",
+        label: "Reports",
+        icon: "audit",
+        permission: PERMISSIONS.accountingReportsView,
+      },
+      {
+        href: "/accounting/settings",
+        label: "Settings",
+        icon: "settings",
+        permission: PERMISSIONS.accountingSettingsManage,
+      },
+    ],
+  },
+];
+
+const workNavigation: NavigationItem[] = [
   { href: "/notifications", label: "Notifications", icon: "notifications" },
   {
     href: "/approvals",
@@ -55,6 +276,9 @@ const primaryNavigation: NavigationItem[] = [
     icon: "approvals",
     permission: PERMISSIONS.approvalsManage,
   },
+];
+
+const governanceNavigation: NavigationItem[] = [
   {
     href: "/billing",
     label: "Billing",
@@ -69,80 +293,8 @@ const primaryNavigation: NavigationItem[] = [
   },
 ];
 
-
-const procurementNavigation: NavigationItem[] = [
-  { href: "/procurement/requisitions", label: "Requisitions", icon: "procurement", permission: PERMISSIONS.procurementView },
-  { href: "/procurement/sourcing", label: "Sourcing", icon: "procurement", permission: PERMISSIONS.procurementView },
-  { href: "/procurement/suppliers", label: "Suppliers", icon: "procurement", permission: PERMISSIONS.procurementSuppliersView },
-  { href: "/procurement/contracts", label: "Agreements", icon: "procurement", permission: PERMISSIONS.procurementView },
-  { href: "/procurement/orders", label: "Purchase orders", icon: "procurement", permission: PERMISSIONS.procurementView },
-  { href: "/procurement/receipts", label: "Receipts", icon: "procurement", permission: PERMISSIONS.procurementView },
-  { href: "/procurement/matching", label: "Matching", icon: "procurement", permission: PERMISSIONS.procurementView },
-  { href: "/procurement/reports", label: "Reports", icon: "procurement", permission: PERMISSIONS.procurementReportsView },
-  { href: "/procurement/settings", label: "Settings", icon: "procurement", permission: PERMISSIONS.procurementSettingsManage },
-];
-
-const accountingNavigation: NavigationItem[] = [
-  { href: "/accounting/journals", label: "Journal entries", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/receivables", label: "Receivables", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/payables", label: "Payables", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/banking", label: "Banking", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/assets", label: "Fixed assets", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/planning", label: "Planning & automation", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/tax", label: "Tax", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/operations", label: "Advanced operations", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/close", label: "Period close", icon: "accounting", permission: PERMISSIONS.accountingView },
-  { href: "/accounting/reports", label: "Financial reports", icon: "accounting", permission: PERMISSIONS.accountingReportsView },
-  { href: "/accounting/settings", label: "Accounting settings", icon: "accounting", permission: PERMISSIONS.accountingSettingsManage },
-];
-
-const salesNavigation: NavigationItem[] = [
-  { href: "/sales/quotations", label: "Quotations", icon: "sales", permission: PERMISSIONS.salesView },
-  { href: "/sales/orders", label: "Sales orders", icon: "sales", permission: PERMISSIONS.salesView },
-  { href: "/sales/reports", label: "Sales reports", icon: "sales", permission: PERMISSIONS.salesReportsView },
-  { href: "/sales/settings", label: "Sales settings", icon: "sales", permission: PERMISSIONS.salesSettingsManage },
-];
-
-const crmNavigation: NavigationItem[] = [
-  {
-    href: "/crm/leads",
-    label: "Leads",
-    icon: "crm",
-    permission: PERMISSIONS.crmView,
-  },
-  {
-    href: "/crm/opportunities",
-    label: "Opportunities",
-    icon: "crm",
-    permission: PERMISSIONS.crmView,
-  },
-  {
-    href: "/crm/activities",
-    label: "Activities",
-    icon: "crm",
-    permission: PERMISSIONS.crmView,
-  },
-  {
-    href: "/crm/pipeline",
-    label: "Pipeline",
-    icon: "crm",
-    permission: PERMISSIONS.crmView,
-  },
-  {
-    href: "/crm/reports",
-    label: "Reports",
-    icon: "crm",
-    permission: PERMISSIONS.crmReportsView,
-  },
-  {
-    href: "/crm/settings",
-    label: "CRM settings",
-    icon: "crm",
-    permission: PERMISSIONS.crmSettingsManage,
-  },
-];
-
 const settingsNavigation: NavigationItem[] = [
+  { href: "/settings", label: "Overview", icon: "dashboard", exact: true },
   {
     href: "/settings/organization",
     label: "Organisation",
@@ -208,6 +360,36 @@ function initials(name: string) {
     .join("");
 }
 
+function visibleItems(session: SessionContext, items: NavigationItem[]) {
+  return items.filter(
+    (item) => !item.permission || hasPermission(session, item.permission),
+  );
+}
+
+function NavigationCollection({
+  items,
+  unreadNotifications,
+  mobile = false,
+}: {
+  items: NavigationItem[];
+  unreadNotifications: number;
+  mobile?: boolean;
+}) {
+  return items.map((item) => (
+    <NavigationLink
+      badge={
+        item.href === "/notifications" ? unreadNotifications : item.badge
+      }
+      exact={item.exact}
+      href={item.href}
+      icon={item.icon}
+      key={item.href}
+      label={item.label}
+      mobile={mobile}
+    />
+  ));
+}
+
 export default function AppShell({
   session,
   shellData,
@@ -222,26 +404,65 @@ export default function AppShell({
   };
   children: React.ReactNode;
 }) {
-  const visiblePrimary = primaryNavigation.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
-  const visibleProcurement = procurementNavigation.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
-  const visibleAccounting = accountingNavigation.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
-  const visibleSales = salesNavigation.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
-  const visibleCrm = crmNavigation.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
-  const visibleSettings = settingsNavigation.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
+  const visibleWorkspace = visibleItems(session, workspaceNavigation);
+  const visibleModules = moduleNavigation
+    .map((group) => ({ ...group, items: visibleItems(session, group.items) }))
+    .filter((group) => group.items.length > 0);
+  const visibleWork = visibleItems(session, workNavigation);
+  const visibleGovernance = visibleItems(session, governanceNavigation);
+  const visibleSettings = visibleItems(session, settingsNavigation);
   const role =
     session.roleSlugs[0]?.replaceAll("_", " ") || session.membershipRole;
+
+  const navigation = (mobile = false) => (
+    <>
+      <p className="nav-label">Workspace</p>
+      <NavigationCollection
+        items={visibleWorkspace}
+        mobile={mobile}
+        unreadNotifications={shellData.unreadNotifications}
+      />
+
+      {visibleModules.length ? <p className="nav-label">Modules</p> : null}
+      {visibleModules.map((group) => (
+        <NavigationSection
+          icon={group.icon}
+          items={group.items}
+          key={group.label}
+          label={group.label}
+          mobile={mobile}
+        />
+      ))}
+
+      {visibleWork.length ? <p className="nav-label">My work</p> : null}
+      <NavigationCollection
+        items={visibleWork}
+        mobile={mobile}
+        unreadNotifications={shellData.unreadNotifications}
+      />
+
+      {visibleGovernance.length ? (
+        <p className="nav-label">Governance</p>
+      ) : null}
+      <NavigationCollection
+        items={visibleGovernance}
+        mobile={mobile}
+        unreadNotifications={shellData.unreadNotifications}
+      />
+
+      {visibleSettings.length ? (
+        <>
+          <p className="nav-label">Administration</p>
+          <NavigationSection
+            icon="settings"
+            items={visibleSettings}
+            label="Workspace settings"
+            mobile={mobile}
+          />
+        </>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="workspace-shell">
@@ -261,7 +482,7 @@ export default function AppShell({
             </span>
             <span className="brand-wordmark">
               <strong>Vercentlabs</strong>
-              <small>ERP workspace</small>
+              <small>Enterprise workspace</small>
             </span>
           </Link>
           <span className="environment-badge">Secure</span>
@@ -273,10 +494,10 @@ export default function AppShell({
         >
           <div className="workspace-context-heading">
             <span className="workspace-context-icon" aria-hidden="true">
-              <AppIcon name="organisation" size={18} />
+              <AppIcon name="organisation" size={17} />
             </span>
             <div>
-              <p>Organisation</p>
+              <p>Operating context</p>
               <strong>{session.organizationName}</strong>
             </div>
           </div>
@@ -292,77 +513,7 @@ export default function AppShell({
           </dl>
         </section>
 
-        <nav className="sidebar-navigation">
-          <p className="nav-label">Workspace</p>
-          {visiblePrimary.map((item) => (
-            <NavigationLink
-              badge={
-                item.href === "/notifications"
-                  ? shellData.unreadNotifications
-                  : undefined
-              }
-              href={item.href}
-              icon={item.icon}
-              key={item.href}
-              label={item.label}
-            />
-          ))}
-
-          {visibleProcurement.length ? (
-            <>
-              <p className="nav-label">Procurement</p>
-              {visibleProcurement.map((item) => (
-                <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} />
-              ))}
-            </>
-          ) : null}
-
-          {visibleAccounting.length ? (
-            <>
-              <p className="nav-label">Accounting</p>
-              {visibleAccounting.map((item) => (
-                <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} />
-              ))}
-            </>
-          ) : null}
-
-          {visibleSales.length ? (
-            <>
-              <p className="nav-label">Sales</p>
-              {visibleSales.map((item) => (
-                <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} />
-              ))}
-            </>
-          ) : null}
-
-          {visibleCrm.length ? (
-            <>
-              <p className="nav-label">CRM</p>
-              {visibleCrm.map((item) => (
-                <NavigationLink
-                  href={item.href}
-                  icon={item.icon}
-                  key={item.href}
-                  label={item.label}
-                />
-              ))}
-            </>
-          ) : null}
-
-          {visibleSettings.length ? (
-            <>
-              <p className="nav-label">Administration</p>
-              {visibleSettings.map((item) => (
-                <NavigationLink
-                  href={item.href}
-                  icon={item.icon}
-                  key={item.href}
-                  label={item.label}
-                />
-              ))}
-            </>
-          ) : null}
-        </nav>
+        <nav className="sidebar-navigation">{navigation()}</nav>
 
         <div className="sidebar-user">
           <Link className="sidebar-profile" href="/profile">
@@ -399,94 +550,13 @@ export default function AppShell({
                   <small>{session.organizationName}</small>
                 </div>
               </div>
-              <p className="nav-label">Workspace</p>
-              {visiblePrimary.map((item) => (
-                <NavigationLink
-                  badge={
-                    item.href === "/notifications"
-                      ? shellData.unreadNotifications
-                      : undefined
-                  }
-                  href={item.href}
-                  icon={item.icon}
-                  key={item.href}
-                  label={item.label}
-                  mobile
-                />
-              ))}
-              {visibleProcurement.length ? (
-                <>
-                  <p className="nav-label">Procurement</p>
-                  {visibleProcurement.map((item) => (
-                    <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} mobile />
-                  ))}
-                </>
-              ) : null}
-              {visibleAccounting.length ? (
-                <>
-                  <p className="nav-label">Accounting</p>
-                  {visibleAccounting.map((item) => (
-                    <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} mobile />
-                  ))}
-                </>
-              ) : null}
-              {visibleSales.length ? (
-                <>
-                  <p className="nav-label">Sales</p>
-                  {visibleSales.map((item) => (
-                    <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} mobile />
-                  ))}
-                </>
-              ) : null}
-              {visibleCrm.length ? (
-                <>
-                  <p className="nav-label">CRM</p>
-                  {visibleCrm.map((item) => (
-                    <NavigationLink
-                      href={item.href}
-                      icon={item.icon}
-                      key={item.href}
-                      label={item.label}
-                      mobile
-                    />
-                  ))}
-                </>
-              ) : null}
-              {visibleSettings.length ? (
-                <>
-                  <p className="nav-label">Administration</p>
-                  {visibleSettings.map((item) => (
-                    <NavigationLink
-                      href={item.href}
-                      icon={item.icon}
-                      key={item.href}
-                      label={item.label}
-                      mobile
-                    />
-                  ))}
-                </>
-              ) : null}
+              <nav aria-label="Mobile workspace navigation">
+                {navigation(true)}
+              </nav>
             </div>
           </details>
 
-          <form action="/search" className="global-search" role="search">
-            <label className="sr-only" htmlFor="global-search">
-              Search workspace
-            </label>
-            <span className="global-search-icon" aria-hidden="true">
-              <AppIcon name="search" size={19} />
-            </span>
-            <input
-              autoComplete="off"
-              id="global-search"
-              name="q"
-              placeholder="Search partners, items, companies, branches or users"
-              type="search"
-            />
-            <span className="search-scope" aria-hidden="true">
-              Workspace
-            </span>
-          </form>
+          <WorkspaceSearch />
 
           <ContextSwitcher
             key={[
@@ -509,7 +579,7 @@ export default function AppShell({
               title="Notifications"
               aria-label={`${shellData.unreadNotifications} unread notifications`}
             >
-              <AppIcon name="notifications" size={20} />
+              <AppIcon name="notifications" size={19} />
               {shellData.unreadNotifications ? (
                 <span className="topbar-count">
                   {shellData.unreadNotifications > 99
@@ -519,19 +589,25 @@ export default function AppShell({
               ) : null}
             </Link>
             <Link
-              className="topbar-icon-button"
+              className="topbar-icon-button topbar-security"
               href="/security"
               title="Security"
               aria-label="Security settings"
             >
-              <AppIcon name="security" size={20} />
+              <AppIcon name="security" size={19} />
             </Link>
             <Link
-              className="topbar-avatar"
+              className="topbar-profile"
               href="/profile"
               aria-label="Open your profile"
             >
-              {initials(session.fullName)}
+              <span className="topbar-avatar" aria-hidden="true">
+                {initials(session.fullName)}
+              </span>
+              <span className="topbar-profile-copy">
+                <strong>{session.fullName}</strong>
+                <small>{role}</small>
+              </span>
             </Link>
           </nav>
         </header>
