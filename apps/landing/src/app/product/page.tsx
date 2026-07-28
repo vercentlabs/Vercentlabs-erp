@@ -5,18 +5,18 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "Vercentlabs ERP Product | Released CRM and Platform Foundation",
+  title: "Vercentlabs ERP Product | Four Released Business Modules",
   description:
-    "Review the released Vercentlabs platform foundation and CRM early-access scope, with eleven future ERP modules clearly separated as roadmap.",
+    "Review the released Vercentlabs CRM, Sales, Accounting and Procurement scope, with eight future ERP modules clearly separated as roadmap.",
   path: "/product",
 });
 
 const config: StructuredPageConfig = {
   hero: {
     eyebrow: "Current product boundary",
-    title: "A governed operating foundation with CRM released end to end.",
+    title: "Four governed business modules on one operating foundation.",
     description:
-      "Vercentlabs ERP currently delivers identity, organisation context, permissions, governed business data, approvals, audit history, billing controls and CRM across web and mobile. Eleven operational modules remain explicit roadmap scope.",
+      "Vercentlabs ERP currently delivers identity, organisation context, permissions, governed business data, approvals, audit history and billing controls with CRM, Sales, Accounting and Procurement released end to end. Eight operational modules remain explicit roadmap scope.",
     primary: { label: "Book a released-scope demo", href: "/book-demo" },
     secondary: { label: "Inspect all released features", href: "/features" },
   },
@@ -25,35 +25,51 @@ const config: StructuredPageConfig = {
       eyebrow: "Released CRM",
       title: "Run the customer lifecycle from capture to governed decision.",
       paragraphs: [
-        "The released module supports staff entry, signed public capture, import, assignment, scoring, qualification, conversion, opportunity progression, activities, campaigns, reports and privacy records.",
-        "Supported opportunity stage changes and activity completion can be requested through transactional approvals with permission checks, separation of duties and immutable decision history.",
+        "Capture, qualify, assign and convert leads; manage opportunities, activities, campaigns, consent, reports and the native CRM client.",
+        "Supported opportunity stage changes and activity completion can move through transactional approvals with permission checks, separation of duties and immutable decision history.",
       ],
       bullets: [
         "Lead capture, duplicate controls and deterministic scoring",
         "Lead conversion into partner, contact and opportunity records",
         "Opportunity pipeline, forecasting and stage history",
-        "Tasks, calls, meetings and follow-up ownership",
-        "Campaigns, sequences and consent-aware outbound processing",
-        "CRM dashboards, reports, mobile workflows and offline-safe mutations",
+        "Activities, campaigns, privacy controls and provider-safe outbox delivery",
+        "Dashboards, exports, mobile workflows and offline-safe mutations",
       ],
-      outcome:
-        "A complete early-access CRM workflow that can be tested with real roles, records, denials and acceptance criteria.",
+    },
+    {
+      eyebrow: "Released Sales",
+      title: "Control quotation-to-order and downstream handoffs.",
+      paragraphs: [
+        "Create versioned quotations with pricing, tax, margin and approval evidence; collect secure customer decisions; convert accepted quotations exactly once into governed sales orders.",
+        "Confirm, hold, amend and cancel orders while preserving schedules, fulfilment requests, invoice requests, version history and idempotent handoffs.",
+      ],
+    },
+    {
+      eyebrow: "Released Accounting",
+      title: "Operate the ledger, subledgers, banking, tax and close.",
+      tone: "dark",
+      paragraphs: [
+        "Maintain chart of accounts, journals, receivables, payables, payments, allocations, banking, GST, assets, accruals, recurring entries, budgets, forecasts, foreign-exchange revaluation, intercompany and consolidation controls.",
+        "Run governed period close and financial reports with balanced posting, immutable evidence, reversals, dimensions and restricted database access.",
+      ],
+    },
+    {
+      eyebrow: "Released Procurement",
+      title: "Run source-to-pay controls from supplier through matching.",
+      paragraphs: [
+        "Manage supplier onboarding and qualification, requisitions, sourcing events, bid evaluation and award, agreements, purchase orders, amendments, receipts, services, returns and invoice matching.",
+        "Apply two-, three- or four-way matching, tolerance policies, exception records, separation of duties, supplier performance reporting, audit events and retryable integration outbox delivery.",
+      ],
     },
     {
       eyebrow: "Implemented foundation",
-      title:
-        "Keep identity, context and evidence consistent underneath the module.",
+      title: "Keep identity, context and evidence consistent underneath every module.",
       tone: "dark",
       items: [
         {
-          title: "Account lifecycle",
+          title: "Account and organisation lifecycle",
           description:
-            "Registration, verified email, sessions, password recovery and protected authentication flows live in the secure ERP application.",
-        },
-        {
-          title: "Organisation context",
-          description:
-            "Companies, branches, departments, teams, cost centres and active operating context constrain application behaviour.",
+            "Registration, verified email, sessions, recovery, companies, branches, teams, cost centres and active operating context are governed centrally.",
         },
         {
           title: "Permission enforcement",
@@ -63,48 +79,34 @@ const config: StructuredPageConfig = {
         {
           title: "Governed master data",
           description:
-            "Business partners, contacts, items, warehouses, currencies, terms and tax setup provide shared records for current and future modules.",
+            "Business partners, contacts, items, warehouses, currencies, payment terms and tax setup provide shared records for released modules.",
         },
         {
-          title: "Audit and approvals",
+          title: "Audit, approvals and notifications",
           description:
-            "Security events, business changes and supported CRM decisions retain traceable user, version and command evidence.",
+            "Security events, business changes, decisions and role-scoped notifications retain traceable user, version and command evidence.",
         },
         {
-          title: "Commercial controls",
+          title: "Commercial and operational controls",
           description:
-            "Organisation-level trials, entitlements, usage and Razorpay integration remain gated by production configuration.",
+            "Organisation-level trials, entitlements, usage, billing, provider credentials, retries and release gates fail closed until configured.",
         },
       ],
     },
     {
       eyebrow: "Roadmap — not released",
-      title:
-        "Eleven modules are visible product direction, not current functionality.",
+      title: "Eight modules remain visible product direction, not current functionality.",
       paragraphs: [
-        "Accounting, Procurement, Sales, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll cannot be activated in the current release.",
-        "Each module will become available only after its records, permissions, workflows, approvals, reporting, migrations, web experience, mobile scope and acceptance evidence are complete.",
+        "Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll cannot be activated in the current release.",
+        "Each module will become available only after its records, permissions, workflows, approvals, reporting, migrations, web experience, required mobile scope and acceptance evidence are complete.",
       ],
       cta: { label: "Review the transparent module map", href: "/modules" },
     },
-    {
-      eyebrow: "Evaluation method",
-      title: "Test a real operating scenario—not a feature slideshow.",
-      bullets: [
-        "Use at least two organisations to prove tenant isolation",
-        "Use administrator and restricted roles to prove permission denials",
-        "Import realistic records and inspect row-level recovery",
-        "Run lead qualification, conversion and opportunity progression",
-        "Request and decide a supported approval command",
-        "Inspect reports, audit history and mobile permission behaviour",
-      ],
-      cta: { label: "Review implementation approach", href: "/how-it-works" },
-    },
   ],
   finalCta: {
-    title: "Evaluate what exists today before discussing what comes next.",
+    title: "Evaluate the released workflows with real operating evidence.",
     description:
-      "Bring one customer workflow, the real users, operating boundaries and measurable acceptance criteria. The demo will stay inside released scope.",
+      "Bring real users, records, permission boundaries, exceptions and measurable acceptance criteria. The demo will stay inside released scope.",
     primary: { label: "Book a released-scope demo", href: "/book-demo" },
     secondary: { label: "Open the module roadmap", href: "/modules" },
   },

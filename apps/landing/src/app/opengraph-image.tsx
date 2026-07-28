@@ -86,7 +86,7 @@ export default function OpenGraphImage() {
             color: "#353a3f",
           }}
         >
-          Released CRM early access on a governed ERP platform foundation.
+          Released CRM, Sales, Accounting and Procurement on a governed ERP foundation.
         </div>
 
         <div
@@ -100,9 +100,9 @@ export default function OpenGraphImage() {
             fontWeight: 700,
           }}
         >
-          <span>01 / CRM released</span>
+          <span>04 / modules released</span>
           <span>Platform controls implemented</span>
-          <span>11 roadmap modules</span>
+          <span>08 roadmap modules</span>
         </div>
       </div>
     </div>,

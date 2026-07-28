@@ -17,6 +17,10 @@ export default async function ModulesPage() {
   );
   const status = new Map(rows.map((row) => [row.module_key, row.status]));
   const enabledCount = rows.filter((row) => row.status === "enabled").length;
+  const releasedCount = moduleCatalog.filter(
+    (module) => module.availability === "released",
+  ).length;
+  const roadmapCount = moduleCatalog.length - releasedCount;
 
   return (
     <>
@@ -30,7 +34,7 @@ export default async function ModulesPage() {
           </p>
         </div>
         <div className="page-heading-summary">
-          <StatusBadge>1 released · 11 roadmap</StatusBadge>
+          <StatusBadge>{releasedCount} released · {roadmapCount} roadmap</StatusBadge>
           <StatusBadge tone="success">{enabledCount} enabled</StatusBadge>
         </div>
       </section>

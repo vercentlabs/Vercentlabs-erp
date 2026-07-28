@@ -4,7 +4,7 @@ Vercentlabs ERP is a pnpm monorepo containing the public landing site, the authe
 
 ## Current release scope
 
-The current release is the platform foundation plus CRM: authentication, onboarding, organisation administration, permissions, governed master data, billing controls, CRM workflows and a native CRM mobile client. Eleven additional ERP modules remain roadmap items and cannot be activated in this release.
+The current release is the governed platform foundation plus four business modules: CRM, Sales, Accounting and Procurement. It includes authentication, onboarding, organisation administration, permissions, governed master data, billing controls, approvals, auditability, web workflows and the native CRM mobile client. Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll remain roadmap items and cannot be activated in this release.
 
 ## Getting started
 
@@ -36,6 +36,7 @@ The public website runs on `http://localhost:3000` and the authenticated applica
 ## Release and testing
 
 - [Project boundaries](PROJECT_STRUCTURE.md)
+- [Enterprise module completion boundary](docs/architecture/enterprise-module-completion.md)
 - [Manual real-user CRM acceptance](docs/testing/manual-crm-acceptance.md)
 - [CRM production runbook](docs/deployment/crm-production-runbook.md)
 - [Migration operations](docs/operations/migrations.md)

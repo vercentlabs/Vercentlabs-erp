@@ -250,3 +250,160 @@ export async function getSalesDashboard(client,context){requirePermission(contex
 export async function getSalesReport(client,context,key){requirePermission(context,"sales.reports.view");if(key==="margin")requirePermission(context,"sales.margin.view");const allowed=new Set(["quotation-conversion","order-intake","expiring-quotations","pending-approvals","active-holds","fulfillment","billing-readiness","customer-performance","margin"]);if(!allowed.has(key))throw new SalesError(404,"Unknown Sales report.");const queries={"quotation-conversion":`SELECT date_trunc('month',created_at) AS period,count(*) AS quotations,count(*) FILTER (WHERE lifecycle_status IN ('accepted','converted')) AS accepted FROM tenant.sales_quotations WHERE organization_id=$1 GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,"order-intake":`SELECT date_trunc('month',sales_order.order_date) AS period,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,"expiring-quotations":`SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,"pending-approvals":`SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,"active-holds":`SELECT hold.id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1 AND hold.status='active' ORDER BY hold.placed_at`,"fulfillment":`SELECT sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,"billing-readiness":`SELECT sales_order_number,billing_status,payment_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status IN ('ready','partially_invoiced','blocked') ORDER BY updated_at DESC`,"customer-performance":`SELECT version.customer_snapshot->>'displayName' AS customer,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY base_total DESC NULLS LAST LIMIT 100`,"margin":`SELECT sales_order.sales_order_number,version.customer_snapshot->>'displayName' AS customer,version.base_currency_total,version.cost_total,version.margin_amount,version.margin_percent FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 ORDER BY sales_order.order_date DESC LIMIT 500`};return (await client.query(queries[key],[context.organizationId])).rows;}
 
 export async function getSalesOptions(client,context,opportunityId=null){requirePermission(context,"sales.view");const [companies,branches,parties,contacts,addresses,items,uoms,warehouses,priceLists,paymentTerms,currencies,users,opportunities]=await Promise.all([client.query(`SELECT id,name,legal_name,base_currency FROM public.companies WHERE organization_id=$1 ORDER BY is_primary DESC,name`,[context.organizationId]),client.query(`SELECT id,company_id,name,code FROM public.branches WHERE organization_id=$1 ORDER BY is_primary DESC,name`,[context.organizationId]),client.query(`SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY display_name`,[context.organizationId]),client.query(`SELECT id,party_id,first_name,last_name,email,mobile,is_primary FROM tenant.contacts WHERE organization_id=$1 AND status='active' ORDER BY is_primary DESC,first_name`,[context.organizationId]),client.query(`SELECT id,party_id,address_type,line1,city,state,state_code,postal_code,is_primary FROM tenant.addresses WHERE organization_id=$1 AND status='active' ORDER BY is_primary DESC,city`,[context.organizationId]),client.query(`SELECT id,company_id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name`,[context.organizationId]),client.query(`SELECT id,code,name,decimal_places FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY category,name`,[context.organizationId]),client.query(`SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' ORDER BY name`,[context.organizationId]),client.query(`SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' ORDER BY name`,[context.organizationId]),client.query(`SELECT id,code,name,default_due_days FROM tenant.payment_terms WHERE organization_id=$1 AND status='active' ORDER BY default_due_days,name`,[context.organizationId]),client.query(`SELECT code,name,symbol,decimal_places,is_base FROM tenant.currencies WHERE organization_id=$1 AND status='active' ORDER BY is_base DESC,code`,[context.organizationId]),client.query(`SELECT users.id,users.full_name FROM public.organization_memberships membership JOIN public.users users ON users.id=membership.user_id WHERE membership.organization_id=$1 AND membership.status='active' AND users.status='active' ORDER BY users.full_name`,[context.organizationId]),client.query(`SELECT id,company_id,branch_id,party_id,contact_id,owner_user_id,name,amount,currency_code,expected_close_date FROM tenant.crm_opportunities WHERE organization_id=$1 AND status='open' ${opportunityId?"AND id=$2":""} ORDER BY updated_at DESC LIMIT 200`,opportunityId?[context.organizationId,opportunityId]:[context.organizationId])]);let opportunityItems=[];if(opportunityId)opportunityItems=(await client.query(`SELECT opportunity_item.item_id,opportunity_item.price_list_id,opportunity_item.description,opportunity_item.quantity,opportunity_item.unit_price,opportunity_item.discount_percent,item.uom_id FROM tenant.crm_opportunity_items opportunity_item JOIN tenant.items item ON item.id=opportunity_item.item_id WHERE opportunity_item.organization_id=$1 AND opportunity_item.opportunity_id=$2 ORDER BY opportunity_item.created_at`,[context.organizationId,opportunityId])).rows;return {companies:companies.rows,branches:branches.rows,parties:parties.rows,contacts:contacts.rows,addresses:addresses.rows,items:items.rows,uoms:uoms.rows,warehouses:warehouses.rows,priceLists:priceLists.rows,paymentTerms:paymentTerms.rows,currencies:currencies.rows,users:users.rows,opportunities:opportunities.rows,opportunityItems};}
+
+export async function amendSalesOrder(client, context, id, input) {
+  requirePermission(context, "sales.order.amend");
+  const order = await lockOrder(client, context, id);
+  if (!["confirmed", "on_hold"].includes(order.lifecycle_status)) {
+    throw new SalesError(409, "Only a confirmed or held order can be amended.");
+  }
+  const reason = text(input.amendmentReason, 1000);
+  if (!reason) throw new SalesError(400, "An amendment reason is required.");
+  const consumed = await client.query(
+    `SELECT COALESCE(sum(progress.fulfilled_quantity+progress.invoiced_quantity+progress.returned_quantity),0) AS consumed
+       FROM tenant.sales_order_line_progress progress
+       JOIN tenant.sales_order_lines line ON line.id=progress.sales_order_line_id
+      WHERE line.organization_id=$1 AND line.sales_order_version_id=$2`,
+    [context.organizationId, order.current_version_id],
+  );
+  if (decimal(consumed.rows[0]?.consumed || 0) > 0n) {
+    throw new SalesError(409, "An order with fulfilment, invoicing or return activity cannot be commercially amended. Use a controlled cancellation or downstream adjustment.");
+  }
+  const preview = await previewSalesDocument(client, context, input, { order: true });
+  if (preview.master.companyId !== order.company_id || preview.master.partyId !== order.party_id) {
+    throw new SalesError(409, "An amendment cannot change the order company or customer.");
+  }
+  const current = (await client.query(
+    `SELECT version_number,currency_code FROM tenant.sales_order_versions WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, order.current_version_id],
+  )).rows[0];
+  if (!current) throw new SalesError(404, "Current sales-order version was not found.");
+  if (current.currency_code !== preview.master.currencyCode) {
+    throw new SalesError(409, "An amendment cannot change the order currency.");
+  }
+  const contentHash = sha256(stable({ input, preview: { lines: preview.lines, charges: preview.charges, totals: preview.totals } }));
+  const versionResult = await client.query(
+    `INSERT INTO tenant.sales_order_versions (
+       organization_id,sales_order_id,version_number,amendment_reason,currency_code,base_currency_code,
+       exchange_rate,price_list_id,payment_term_id,billing_address_id,shipping_address_id,
+       customer_snapshot,contact_snapshot,billing_address_snapshot,shipping_address_snapshot,payment_term_snapshot,
+       customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,
+       internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,
+       rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,
+       pricing_trace,tax_trace,content_hash,created_by
+     ) VALUES (
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16::jsonb,
+       $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38::jsonb,$39::jsonb,$40,$41
+     ) RETURNING *`,
+    [context.organizationId, order.id, Number(current.version_number)+1, reason,
+      preview.master.currencyCode, preview.master.baseCurrencyCode, asDatabaseDecimal(preview.master.exchangeRate),
+      preview.master.priceList?.id||null, preview.master.paymentTerm?.id||null,
+      preview.master.billing.id, preview.master.shipping.id,
+      JSON.stringify(preview.snapshots.customer), JSON.stringify(preview.snapshots.contact),
+      JSON.stringify(preview.snapshots.billingAddress), JSON.stringify(preview.snapshots.shippingAddress),
+      JSON.stringify(preview.snapshots.paymentTerm), text(input.customerPoNumber,120),
+      date(input.customerPoDate,"Customer PO date"), input.priority||"normal", text(input.deliveryTerms),
+      text(input.shippingMethod), text(input.incoterm,40), text(input.placeOfSupply,80), input.supplyType||"domestic",
+      text(input.internalNotes,10000), text(input.customerNotes,10000), text(input.termsAndConditions,20000),
+      preview.totals.subtotal, preview.totals.discountTotal, preview.totals.chargeTotal, preview.totals.taxTotal,
+      preview.totals.roundingAdjustment, preview.totals.grandTotal, preview.totals.baseCurrencyTotal,
+      preview.totals.costTotal, preview.totals.marginAmount, preview.totals.marginPercent,
+      JSON.stringify(preview.pricingTrace), JSON.stringify(preview.taxTrace), contentHash, context.userId],
+  );
+  const version = versionResult.rows[0];
+  for (const line of preview.lines) {
+    const inserted = await client.query(
+      `INSERT INTO tenant.sales_order_lines (
+        organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,
+        item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,
+        base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,
+        tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,tax_group_id,
+        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31::jsonb,$32::jsonb,$33) RETURNING id`,
+      [context.organizationId,version.id,line.sourceQuotationLineId||null,line.sequence,line.itemId,line.uomId,line.warehouseId,
+       line.itemCodeSnapshot,line.itemNameSnapshot,line.descriptionSnapshot,line.hsnSacSnapshot,line.uomSnapshot,line.quantity,
+       line.baseQuantity,line.conversionFactor,line.listUnitPrice,line.unitPrice,line.discountPercent,line.discountAmount,
+       line.netAmount,line.taxAmount,line.lineTotal,line.standardCost,line.costAmount,line.marginAmount,line.marginPercent,
+       line.taxCategoryId,line.taxGroupId,line.requestedDeliveryDate,line.requestedDeliveryDate,
+       JSON.stringify(line.pricingTrace),JSON.stringify(line.taxTrace),context.userId],
+    );
+    await client.query(
+      `INSERT INTO tenant.sales_order_line_progress (organization_id,sales_order_line_id,confirmed_quantity,updated_by)
+       VALUES ($1,$2,$3,$4)`,
+      [context.organizationId, inserted.rows[0].id, line.quantity, context.userId],
+    );
+    await client.query(
+      `INSERT INTO tenant.sales_order_schedules (organization_id,sales_order_line_id,sequence,requested_date,promised_date,quantity,updated_by)
+       VALUES ($1,$2,1,$3,$3,$4,$5)`,
+      [context.organizationId, inserted.rows[0].id, line.requestedDeliveryDate, line.quantity, context.userId],
+    );
+  }
+  await client.query(
+    `INSERT INTO tenant.sales_order_amendments (organization_id,sales_order_id,from_version_id,to_version_id,reason,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [context.organizationId, order.id, order.current_version_id, version.id, reason, context.userId],
+  );
+  await client.query(
+    `UPDATE tenant.sales_orders SET current_version_id=$1,approval_status='approved',updated_by=$2,updated_at=now()
+      WHERE organization_id=$3 AND id=$4`,
+    [version.id, context.userId, context.organizationId, order.id],
+  );
+  await event(client, context, "sales_order", order.id, "sales_order.amended", order.lifecycle_status, order.lifecycle_status, { fromVersionId: order.current_version_id, toVersionId: version.id, reason });
+  return getSalesOrder(client, context, order.id);
+}
+
+export async function completeFulfillmentRequest(client, context, requestId, input = {}) {
+  requirePermission(context, "sales.fulfillment.request");
+  const request = (await client.query(
+    `SELECT request.*,sales_order.lifecycle_status,sales_order.fulfillment_status
+       FROM tenant.sales_fulfillment_requests request
+       JOIN tenant.sales_orders sales_order ON sales_order.id=request.sales_order_id
+      WHERE request.organization_id=$1 AND request.id=$2 FOR UPDATE`,
+    [context.organizationId, uuid(requestId, "Fulfilment request")],
+  )).rows[0];
+  if (!request) throw new SalesError(404, "Fulfilment request not found.");
+  if (request.status === "completed") return getSalesOrder(client, context, request.sales_order_id);
+  if (!new Set(["pending","processing","failed"]).has(request.status)) {
+    throw new SalesError(409, `A ${request.status} fulfilment request cannot be completed.`);
+  }
+  if (!Array.isArray(input.lines) || !input.lines.length) throw new SalesError(400, "At least one fulfilled line is required.");
+  for (const [index, lineInput] of input.lines.entries()) {
+    const lineId = uuid(lineInput.salesOrderLineId, `Line ${index+1}`);
+    const fulfilled = positiveAmount(lineInput.fulfilledQuantity, `Line ${index+1} fulfilled quantity`);
+    const line = (await client.query(
+      `SELECT progress.*,line.quantity,line.sales_order_version_id
+         FROM tenant.sales_order_line_progress progress
+         JOIN tenant.sales_order_lines line ON line.id=progress.sales_order_line_id
+        WHERE progress.organization_id=$1 AND progress.sales_order_line_id=$2 AND line.sales_order_version_id=$3 FOR UPDATE`,
+      [context.organizationId, lineId, request.sales_order_version_id],
+    )).rows[0];
+    if (!line) throw new SalesError(404, `Sales-order line ${index+1} was not found in the requested version.`);
+    const next = decimal(line.fulfilled_quantity) + fulfilled;
+    const maximum = decimal(line.confirmed_quantity) - decimal(line.cancelled_quantity) - decimal(line.returned_quantity);
+    if (next > maximum) throw new SalesError(409, `Line ${index+1} fulfilment exceeds the remaining confirmed quantity.`);
+    await client.query(
+      `UPDATE tenant.sales_order_line_progress SET fulfilled_quantity=$3,updated_by=$4,updated_at=now()
+        WHERE organization_id=$1 AND sales_order_line_id=$2`,
+      [context.organizationId, lineId, asDatabaseDecimal(next), context.userId],
+    );
+  }
+  const totals = (await client.query(
+    `SELECT bool_and(progress.fulfilled_quantity >= progress.confirmed_quantity-progress.cancelled_quantity) AS complete,
+            bool_or(progress.fulfilled_quantity > 0) AS any_fulfilled
+       FROM tenant.sales_order_line_progress progress
+       JOIN tenant.sales_order_lines line ON line.id=progress.sales_order_line_id
+      WHERE line.organization_id=$1 AND line.sales_order_version_id=$2`,
+    [context.organizationId, request.sales_order_version_id],
+  )).rows[0];
+  const fulfillmentStatus = totals?.complete ? "completed" : totals?.any_fulfilled ? "partially_fulfilled" : "not_started";
+  await client.query(
+    `UPDATE tenant.sales_fulfillment_requests SET status='completed',completed_at=now(),last_error=NULL WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, request.id],
+  );
+  await client.query(
+    `UPDATE tenant.sales_orders SET fulfillment_status=$3,updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, request.sales_order_id, fulfillmentStatus, context.userId],
+  );
+  await event(client, context, "sales_order", request.sales_order_id, "sales_order.fulfillment_completed", request.fulfillment_status, fulfillmentStatus, { requestId: request.id, externalReference: text(input.externalReference,200) });
+  return getSalesOrder(client, context, request.sales_order_id);
+}

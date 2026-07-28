@@ -18,7 +18,7 @@ export default function HeroSection() {
         <div className="os-hero__status-row">
           <span>ERP / customer operations</span>
           <span>Built in India</span>
-          <span>Release 01 / CRM</span>
+          <span>Release 04 / ERP core</span>
         </div>
 
         <RevealOnScroll>

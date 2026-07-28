@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Vercentlabs ERP API
-  version: 0.3.0
-  description: Browser and native contracts for the released CRM platform.
+  version: 0.4.0
+  description: Browser and native contracts for the released CRM, Sales, Accounting and Procurement platform.
 servers:
   - url: https://erp.example.com/api
 paths:
@@ -139,6 +139,102 @@ paths:
           description: Opportunity updated
         "409":
           $ref: "#/components/responses/Problem"
+  /procurement/resources/{resource}:
+    parameters:
+      - name: resource
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: List a permission-scoped Procurement resource
+      responses:
+        "200":
+          description: Resource rows and total count
+    post:
+      summary: Create a governed Procurement record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Procurement record created
+        "409":
+          $ref: "#/components/responses/Problem"
+  /procurement/resources/{resource}/{id}:
+    parameters:
+      - name: resource
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/Identifier"
+    get:
+      summary: Read a Procurement record with child evidence
+      responses:
+        "200":
+          description: Procurement record
+    patch:
+      summary: Update a draft or otherwise editable Procurement record
+      responses:
+        "200":
+          description: Procurement record updated
+  /procurement/matching/run:
+    post:
+      summary: Run two-way, three-way or four-way supplier-invoice matching
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcurementMatchRequest"
+      responses:
+        "201":
+          description: Match record and optional exception created
+        "409":
+          $ref: "#/components/responses/Problem"
+  /accounting/payables/procurement-matches/{id}/import:
+    parameters:
+      - $ref: "#/components/parameters/Identifier"
+    post:
+      summary: Create an idempotent draft vendor bill from a matched Procurement invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcurementVendorBillImport"
+      responses:
+        "201":
+          description: Vendor bill created or the existing imported bill returned
+        "409":
+          $ref: "#/components/responses/Problem"
+  /sales/orders/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/Identifier"
+    post:
+      summary: Execute a governed sales-order action, amendment or fulfilment completion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [confirm, hold, release_hold, cancel, amend, complete_fulfillment]
+      responses:
+        "200":
+          description: Updated sales order
+        "409":
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     mobileBearer:
@@ -154,6 +250,92 @@ components:
         type: string
         format: uuid
   schemas:
+    ProcurementLine:
+      type: object
+      additionalProperties: true
+      required: [description, quantity, unitPrice]
+      properties:
+        purchaseOrderLineId:
+          type: string
+          format: uuid
+        itemId:
+          type: string
+          format: uuid
+        uomId:
+          type: string
+          format: uuid
+        description:
+          type: string
+          maxLength: 1000
+        quantity:
+          oneOf:
+            - type: string
+            - type: number
+        unitPrice:
+          oneOf:
+            - type: string
+            - type: number
+        taxAmount:
+          oneOf:
+            - type: string
+            - type: number
+    ProcurementMatchRequest:
+      type: object
+      additionalProperties: false
+      required: [purchaseOrderId, invoiceNumber, invoiceLines]
+      properties:
+        purchaseOrderId:
+          type: string
+          format: uuid
+        sourceGoodsReceiptId:
+          type: string
+          format: uuid
+        invoiceNumber:
+          type: string
+          maxLength: 100
+        matchMode:
+          type: string
+          enum: [two-way, three-way, four-way]
+          default: three-way
+        tolerancePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        invoiceLines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ProcurementLine"
+    ProcurementVendorBillImport:
+      type: object
+      additionalProperties: false
+      properties:
+        partyId:
+          type: string
+          format: uuid
+        sourceGoodsReceiptId:
+          type: string
+          format: uuid
+        billDate:
+          type: string
+          format: date
+        accountingDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+          minLength: 3
+          maxLength: 3
+        exchangeRate:
+          oneOf:
+            - type: string
+            - type: number
+        notes:
+          type: string
+          maxLength: 2000
     MobileLoginRequest:
       type: object
       additionalProperties: false

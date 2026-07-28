@@ -5,46 +5,89 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "Vercentlabs ERP Workflows | Released CRM and Roadmap",
+  title: "Vercentlabs ERP Workflows | Released Business Flows and Roadmap",
   description:
-    "Review the released CRM workflow and the clearly labelled future ERP workflow roadmap.",
+    "Review released CRM, quotation-to-order, source-to-pay and accounting workflows alongside the clearly labelled ERP roadmap.",
   path: "/workflows",
 });
 
 const config: StructuredPageConfig = {
   hero: {
     eyebrow: "Workflow release map",
-    title:
-      "One customer workflow is released. The broader operating map is roadmap.",
+    title: "Four business modules are released as connected, governed workflows.",
     description:
-      "Vercentlabs currently connects lead capture, qualification, conversion, opportunity progression, activities, supported approvals, reporting and mobile CRM. Cross-module finance, supply-chain, production, project, asset, retail, quality, support and people workflows are not yet released.",
-    primary: { label: "Book a CRM workflow demo", href: "/book-demo" },
+      "Vercentlabs currently connects CRM, Sales, Procurement and Accounting on one permission, approval, audit and master-data foundation. Stock-dependent execution remains an explicit boundary until the Stock module is released.",
+    primary: { label: "Book an ERP workflow demo", href: "/book-demo" },
     secondary: { label: "Review released features", href: "/features" },
   },
   sections: [
     {
       eyebrow: "Released workflow",
       title: "Lead to governed opportunity.",
-      connectedModules: "Released CRM plus shared platform foundation",
-      paragraphs: [
-        "Move a customer enquiry through qualification and conversion while preserving ownership, operating context, permissions and audit evidence.",
-      ],
+      connectedModules: "CRM plus shared platform foundation",
       steps: [
         "Capture through staff entry, signed public form or governed CSV import",
         "Assign source, campaign, tags, owner and deterministic score",
         "Review duplicates, consent and qualification evidence",
-        "Convert exactly once into business partner, contact and opportunity",
+        "Convert exactly once into partner, contact and opportunity",
         "Plan activities and progress the opportunity pipeline",
-        "Request a supported stage-change or activity-completion command",
-        "Approve or reject with version checks and separation of duties",
-        "Review dashboards, reports, notifications, history and mobile state",
+        "Use supported approvals, reports, history and mobile CRM",
+      ],
+      outcome: "A complete CRM journey with real roles, records and denials.",
+    },
+    {
+      eyebrow: "Released workflow",
+      title: "Opportunity to accepted quotation and governed sales order.",
+      connectedModules: "CRM, Sales and Accounting handoff contracts",
+      steps: [
+        "Create a versioned quotation from an opportunity or customer",
+        "Resolve deterministic price, discount, tax and margin evidence",
+        "Approve when commercial policy requires it",
+        "Send a secure customer decision link",
+        "Accept or reject without exposing internal controls",
+        "Convert the accepted quotation exactly once into a sales order",
+        "Confirm, hold, amend or cancel with immutable version history",
+        "Issue idempotent fulfilment and invoice requests",
       ],
       outcome:
-        "A complete released CRM journey that can be tested with real roles and records.",
+        "A controlled quotation-to-order flow with durable downstream handoffs; warehouse execution remains Stock roadmap scope.",
+    },
+    {
+      eyebrow: "Released workflow",
+      title: "Requirement to supplier commitment and invoice match.",
+      connectedModules: "Procurement and Accounting handoff contracts",
+      steps: [
+        "Qualify suppliers and preserve compliance evidence",
+        "Create, submit and approve purchase requisitions",
+        "Invite bids, evaluate responses and award sourcing events",
+        "Create and approve agreements or purchase orders",
+        "Dispatch and amend orders with version controls",
+        "Record goods, service or return evidence",
+        "Run two-, three- or four-way invoice matching",
+        "Route tolerance failures into explicit exceptions and audit history",
+      ],
+      outcome:
+        "A governed source-to-pay control flow through matching; physical stock movement remains Stock roadmap scope.",
+    },
+    {
+      eyebrow: "Released workflow",
+      title: "Subledger document to ledger, settlement and close.",
+      connectedModules: "Accounting with Sales and Procurement source references",
+      steps: [
+        "Create receivable or payable documents with source evidence",
+        "Validate accounting periods, dimensions, currency and tax",
+        "Post balanced immutable journal entries",
+        "Allocate receipts or payments and manage aging",
+        "Reconcile bank statements and investigate exceptions",
+        "Run accruals, recurring entries, depreciation and FX revaluation",
+        "Complete governed period-close tasks",
+        "Produce trial balance, P&L, balance sheet and cash-flow reports",
+      ],
+      outcome: "A traceable record-to-report workflow with controlled reversals and close evidence.",
     },
     {
       eyebrow: "Implemented supporting flows",
-      title: "The platform controls around the CRM are also released.",
+      title: "The platform controls around every released module are also implemented.",
       tone: "dark",
       items: [
         {
@@ -65,59 +108,27 @@ const config: StructuredPageConfig = {
         {
           title: "Request to decision",
           description:
-            "Supported CRM commands move through transactional approval and immutable decision history.",
+            "Supported commands move through transactional approval and immutable decision history.",
         },
         {
           title: "Trial to entitlement",
           description:
-            "Organisation-level billing state controls released module and write access without seat multiplication.",
+            "Organisation-level billing state controls released modules and write access without seat multiplication.",
         },
         {
           title: "Event to delivery",
           description:
-            "Consent-aware outbox processing retries provider work and fails closed when credentials are unavailable.",
+            "Retryable outboxes preserve idempotency and fail closed when provider credentials are unavailable.",
         },
       ],
     },
     {
       eyebrow: "Roadmap — not released",
-      title: "Lead to cash beyond CRM.",
+      title: "Operational flows that still require future modules.",
       connectedModules:
-        "Sales, Stock, Projects, Accounting and other roadmap modules",
+        "Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll",
       paragraphs: [
-        "Quotation, sales order, fulfilment, invoicing, payment and financial posting remain future scope.",
-      ],
-      outcome:
-        "This workflow is product direction only and cannot be completed in the current release.",
-    },
-    {
-      eyebrow: "Roadmap — not released",
-      title: "Procure to pay.",
-      connectedModules: "Procurement, Stock, Quality, Assets and Accounting",
-      paragraphs: [
-        "Purchase requests, supplier quotations, purchase orders, receipts, matching and payment remain future scope.",
-      ],
-      outcome:
-        "This workflow is product direction only and cannot be completed in the current release.",
-    },
-    {
-      eyebrow: "Roadmap — not released",
-      title: "Plan to produce and inventory to fulfilment.",
-      connectedModules:
-        "Sales, Stock, Procurement, Manufacturing, Quality, Assets and Accounting",
-      paragraphs: [
-        "Demand planning, material requirements, production orders, quality inspections, warehouse execution and costing remain future scope.",
-      ],
-      outcome:
-        "These workflows are product direction only and cannot be completed in the current release.",
-    },
-    {
-      eyebrow: "Roadmap — not released",
-      title: "Project, people, service, asset and retail lifecycles.",
-      connectedModules:
-        "Projects, HR & Payroll, Support, Assets, Point of Sale and Accounting",
-      paragraphs: [
-        "Project-to-profit, hire-to-pay, issue-to-resolution, asset lifecycle and point-of-sale accounting remain future scope.",
+        "Inventory reservation, warehouse picking, dispatch, valuation, manufacturing execution, project delivery, asset operations, retail checkout, quality execution, support case management and people/payroll workflows remain future scope.",
       ],
       outcome:
         "These workflows are product direction only and cannot be completed in the current release.",
@@ -137,10 +148,10 @@ const config: StructuredPageConfig = {
     },
   ],
   finalCta: {
-    title: "Challenge the released CRM workflow with your real operating case.",
+    title: "Challenge the released workflows with your real operating case.",
     description:
       "Bring the roles, records, handoffs, exceptions and evidence required. Roadmap workflows will remain labelled as roadmap during the session.",
-    primary: { label: "Book a CRM workflow demo", href: "/book-demo" },
+    primary: { label: "Book an ERP workflow demo", href: "/book-demo" },
     secondary: { label: "See implementation method", href: "/how-it-works" },
   },
 };

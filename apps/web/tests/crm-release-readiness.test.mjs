@@ -7,7 +7,7 @@ const read = (file) => fs.readFileSync(file, "utf8");
 test("readiness verifies the latest migration names using the migration ledger schema", () => {
   const source = read("src/app/api/readiness/route.ts");
   assert.match(source, /014_procurement_module_release\.sql/);
-  assert.match(source, /012_procurement_module\.sql/);
+  assert.match(source, /013_procurement_enterprise_completion\.sql/);
   assert.match(source, /WHERE name = \$1/);
   assert.doesNotMatch(source, /WHERE filename/);
 });

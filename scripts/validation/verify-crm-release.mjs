@@ -44,8 +44,9 @@ function requireMarkers(file, markers) {
 }
 
 requireMarkers("apps/web/src/app/api/readiness/route.ts", [
-  '"011_mobile_sessions.sql"',
-  '"007_crm_outbox_leases.sql"',
+  '"014_procurement_module_release.sql"',
+  '"013_procurement_enterprise_completion.sql"',
+  '"011_accounting_integrity_and_compliance.sql"',
   "schema_migrations WHERE name = $1",
   "tenant_schema_migrations WHERE name = $2",
 ]);
@@ -60,8 +61,13 @@ const moduleEntries = [
 const releasedModules = moduleEntries
   .filter((entry) => entry.availability === "released")
   .map((entry) => entry.key);
-if (releasedModules.length !== 1 || releasedModules[0] !== "crm") {
-  failures.push("CRM must be the only released module in ERP_MODULE_CATALOG.");
+for (const key of ["crm", "sales", "accounting", "procurement"]) {
+  if (!releasedModules.includes(key)) {
+    failures.push(`Released ERP module missing from catalog: ${key}.`);
+  }
+}
+if (releasedModules.length !== 4) {
+  failures.push(`ERP_MODULE_CATALOG must expose exactly 4 released modules, found ${releasedModules.length}.`);
 }
 for (const marker of [
   "seedCrmFoundation",
@@ -78,7 +84,7 @@ for (const marker of [
 requireMarkers("apps/web/src/app/api/modules/[key]/route.ts", [
   'moduleEntry.availability !== "released"',
   "cannot be activated in this release",
-  "CRM is the released product and cannot be disabled",
+  "Core released modules cannot be disabled",
   "assertModuleEntitlement",
 ]);
 
@@ -165,11 +171,11 @@ const controlMigration = read(
 );
 if (!controlMigration.includes("modules = '[\"crm\"]'::jsonb")) {
   failures.push(
-    "Billing plans are not constrained to the released CRM module.",
+    "Historical CRM release migration no longer constrains its original billing scope.",
   );
 }
 if (!controlMigration.includes("modules_snapshot = '[\"crm\"]'::jsonb")) {
-  failures.push("Subscription module snapshots are not constrained to CRM.");
+  failures.push("Historical CRM release migration no longer constrains its original subscription scope.");
 }
 
 requireMarkers("apps/web/scripts/verify-crm-database.mjs", [
@@ -205,9 +211,10 @@ requireMarkers("apps/web/src/app/api/onboarding/route.ts", [
 ]);
 
 requireMarkers("apps/landing/src/components/home/hero-section.tsx", [
-  "Released CRM early access",
+  "Released CRM, Sales, Accounting & Procurement",
   "Roadmap modules",
-  'value: "11"',
+  'value: "4"',
+  'value: "8"',
 ]);
 const publicHero = read("apps/landing/src/components/home/hero-section.tsx");
 if (
@@ -269,23 +276,14 @@ for (const marker of [
   }
 }
 
-const roadmapModuleKeys = [
-  "accounting",
-  "procurement",
-  "sales",
-  "stock",
-  "manufacturing",
-  "projects",
-  "assets",
-  "point-of-sale",
-  "quality",
-  "support",
-  "hr-payroll",
-];
-for (const key of roadmapModuleKeys) {
-  if (!controlMigration.includes(`('${key}',`)) {
-    failures.push(`Roadmap module scope is missing ${key}.`);
-  }
+const roadmapModuleKeys = moduleEntries
+  .filter((entry) => entry.availability === "roadmap")
+  .map((entry) => entry.key);
+if (roadmapModuleKeys.length !== 8) {
+  failures.push(`ERP_MODULE_CATALOG must expose exactly 8 roadmap modules, found ${roadmapModuleKeys.length}.`);
+}
+for (const key of ["stock", "manufacturing", "projects", "assets", "point-of-sale", "quality", "support", "hr-payroll"]) {
+  if (!roadmapModuleKeys.includes(key)) failures.push(`Roadmap module missing from catalog: ${key}.`);
 }
 
 const forbiddenAutomationPatterns = [
@@ -317,5 +315,5 @@ if (failures.length) {
 }
 
 console.log(
-  `CRM release scope verified: 1 released module, ${roadmapModuleKeys.length} roadmap modules, mandatory CRM foundations and production controls.`,
+  `CRM release scope verified inside the 4-module ERP release, with ${roadmapModuleKeys.length} roadmap modules and mandatory CRM production controls.`,
 );

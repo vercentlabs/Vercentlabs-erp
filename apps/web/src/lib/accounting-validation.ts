@@ -109,6 +109,22 @@ export const vendorBillSchema = z.object({
   lines: z.array(commercialLineSchema).min(1),
 }).strict();
 
+export const procurementVendorBillImportSchema = z.object({
+  partyId: uuid.nullish(),
+  sourceGoodsReceiptId: uuid.nullish(),
+  branchId: uuid.nullish(),
+  ledgerId: uuid.nullish(),
+  supplierInvoiceDate: z.string().date().nullish(),
+  billDate: z.string().date().optional(),
+  accountingDate: z.string().date().optional(),
+  dueDate: z.string().date().nullish(),
+  currencyCode: z.string().length(3).optional(),
+  exchangeRate: amount.optional(),
+  chargeTotal: amount.optional(),
+  roundingAdjustment: amount.optional(),
+  notes: z.string().max(2000).nullish(),
+}).strict();
+
 export const accountingActionSchema = z.object({
   action: z.string().min(1).max(50),
   assignedTo: uuid.nullish(),

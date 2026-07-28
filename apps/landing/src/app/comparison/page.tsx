@@ -39,7 +39,7 @@ const approaches = [
   {
     title: "Vercentlabs approach",
     description:
-      "Shared platform controls, released CRM early access and phased module expansion around complete workflows.",
+      "Shared platform controls, four released business modules and phased expansion around complete workflows.",
     fit: "Growing organisations needing connected operations",
   },
 ] as const;
@@ -104,7 +104,7 @@ export default function ComparisonPage() {
         index="03"
         eyebrow="Vercentlabs position"
         title="Start narrow. Preserve the shared system. Expand with evidence."
-        description="The current product is released CRM early access on a governed platform foundation. Eleven additional modules remain explicit roadmap scope."
+        description="The current product releases CRM, Sales, Accounting and Procurement on a governed platform foundation. Eight additional modules remain explicit roadmap scope."
       >
         <OperatorGrid columns={3}>
           <OperatorCard
@@ -122,7 +122,7 @@ export default function ComparisonPage() {
           <OperatorCard
             index="03"
             title="Roadmap"
-            description="Finance, procurement, sales, stock, manufacturing, projects, assets, POS, quality, support and HR/payroll."
+            description="Stock, manufacturing, projects, assets, POS, quality, support and HR/payroll."
             status="roadmap"
           />
         </OperatorGrid>

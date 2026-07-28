@@ -37,3 +37,46 @@ test("accounting contracts expose financial reports and governed permissions", (
   assert.equal(ACCOUNTING_PERMISSIONS.paymentsApprove, "accounting.payments.approve");
   assert.equal(ACCOUNTING_PERMISSIONS.consolidationManage, "accounting.consolidation.manage");
 });
+
+import { importProcurementMatchAsVendorBill } from "../src/accounting/payables.js";
+
+test("Procurement matches cannot enter payables without Accounting permission", async () => {
+  let queried = false;
+  const client = { query: async () => { queried = true; return { rows: [] }; } };
+  await assert.rejects(
+    importProcurementMatchAsVendorBill(
+      client,
+      { organizationId: "11111111-1111-4111-8111-111111111111", userId: "22222222-2222-4222-8222-222222222222", permissions: [], roleSlugs: [] },
+      "33333333-3333-4333-8333-333333333333",
+      {},
+    ),
+    /permission/i,
+  );
+  assert.equal(queried, false);
+});
+
+test("Procurement match exceptions cannot create vendor bills", async () => {
+  const client = {
+    query: async () => ({
+      rows: [{
+        id: "33333333-3333-4333-8333-333333333333",
+        status: "exception",
+        data: {},
+      }],
+    }),
+  };
+  await assert.rejects(
+    importProcurementMatchAsVendorBill(
+      client,
+      {
+        organizationId: "11111111-1111-4111-8111-111111111111",
+        userId: "22222222-2222-4222-8222-222222222222",
+        permissions: [ACCOUNTING_PERMISSIONS.payablesManage],
+        roleSlugs: [],
+      },
+      "33333333-3333-4333-8333-333333333333",
+      {},
+    ),
+    /Resolve the Procurement matching exception/,
+  );
+});

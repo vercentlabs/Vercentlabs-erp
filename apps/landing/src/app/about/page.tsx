@@ -45,7 +45,7 @@ export default function AboutPage() {
           <OperatorCard
             index="01"
             title="Current product"
-            description="Released CRM early access with identity, permissions, approvals, audit history, billing controls and mobile workflows."
+            description="Released CRM, Sales, Accounting and Procurement with identity, permissions, approvals, audit history and billing controls."
             status="released"
           />
           <OperatorCard
@@ -57,7 +57,7 @@ export default function AboutPage() {
           <OperatorCard
             index="03"
             title="Product roadmap"
-            description="Eleven additional ERP modules developed through process evidence and controlled expansion."
+            description="Eight additional ERP modules developed through process evidence and controlled expansion."
             status="roadmap"
           />
         </OperatorGrid>

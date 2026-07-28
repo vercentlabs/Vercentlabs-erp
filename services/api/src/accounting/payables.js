@@ -246,6 +246,149 @@ export async function postVendorBill(client, context, idValue) {
   return getVendorBill(client, context, id);
 }
 
+
+export async function importProcurementMatchAsVendorBill(
+  client,
+  context,
+  matchingRecordIdValue,
+  input = {},
+) {
+  requirePermission(context, ACCOUNTING_PERMISSIONS.payablesManage);
+  const matchingRecordId = uuid(matchingRecordIdValue, "Procurement matching record");
+  const result = await client.query(
+    `SELECT matching.*,purchase_order.branch_id AS purchase_order_branch_id,
+            purchase_order.data AS purchase_order_data,
+            supplier.id AS supplier_id,supplier.data AS supplier_data
+       FROM tenant.procurement_matching_records matching
+       JOIN tenant.procurement_purchase_orders purchase_order
+         ON purchase_order.organization_id=matching.organization_id
+        AND purchase_order.id=matching.parent_id
+       LEFT JOIN tenant.procurement_suppliers supplier
+         ON supplier.organization_id=purchase_order.organization_id
+        AND supplier.id=NULLIF(purchase_order.data->>'supplierId','')::uuid
+      WHERE matching.organization_id=$1 AND matching.id=$2
+      FOR UPDATE OF matching`,
+    [context.organizationId, matchingRecordId],
+  );
+  const match = result.rows[0];
+  if (!match) throw new AccountingError(404, "Procurement matching record not found.");
+  if (match.status !== "matched") {
+    throw new AccountingError(
+      409,
+      "Resolve the Procurement matching exception before creating a vendor bill.",
+      "ACCOUNTING_PROCUREMENT_MATCH_REQUIRED",
+    );
+  }
+
+  const matchingData = match.data && typeof match.data === "object" ? match.data : {};
+  if (matchingData.accountingVendorBillId) {
+    return getVendorBill(client, context, matchingData.accountingVendorBillId);
+  }
+  const purchaseOrderData =
+    match.purchase_order_data && typeof match.purchase_order_data === "object"
+      ? match.purchase_order_data
+      : {};
+  const supplierData =
+    match.supplier_data && typeof match.supplier_data === "object"
+      ? match.supplier_data
+      : {};
+  const partyId = input.partyId || supplierData.partyId;
+  if (!partyId) {
+    throw new AccountingError(
+      409,
+      "Link the Procurement supplier to an Accounting business partner before creating the vendor bill.",
+      "ACCOUNTING_SUPPLIER_PARTY_REQUIRED",
+    );
+  }
+  const invoiceLines = Array.isArray(matchingData.invoiceLines)
+    ? matchingData.invoiceLines
+    : [];
+  if (!invoiceLines.length) {
+    throw new AccountingError(
+      409,
+      "The Procurement matching record has no invoice lines to import.",
+      "ACCOUNTING_PROCUREMENT_LINES_REQUIRED",
+    );
+  }
+
+  let sourceGoodsReceiptId = input.sourceGoodsReceiptId || matchingData.sourceGoodsReceiptId || null;
+  if (!sourceGoodsReceiptId) {
+    const receipt = await client.query(
+      `SELECT id FROM tenant.procurement_receipts
+        WHERE organization_id=$1 AND company_id=$2
+          AND data->>'purchaseOrderId'=$3 AND status='approved'
+        ORDER BY updated_at DESC LIMIT 1`,
+      [context.organizationId, match.company_id, String(match.parent_id)],
+    );
+    sourceGoodsReceiptId = receipt.rows[0]?.id || null;
+  }
+
+  const bill = await createVendorBill(client, context, {
+    companyId: match.company_id,
+    branchId: input.branchId || match.purchase_order_branch_id || matchingData.branchId || null,
+    ledgerId: input.ledgerId || null,
+    partyId,
+    sourcePurchaseOrderId: match.parent_id,
+    sourceGoodsReceiptId,
+    supplierInvoiceNumber: matchingData.invoiceNumber,
+    supplierInvoiceDate: input.supplierInvoiceDate || null,
+    billDate: input.billDate || input.supplierInvoiceDate,
+    accountingDate: input.accountingDate,
+    dueDate: input.dueDate || null,
+    currencyCode:
+      input.currencyCode || matchingData.currencyCode || purchaseOrderData.currencyCode,
+    exchangeRate: input.exchangeRate,
+    chargeTotal: input.chargeTotal || 0,
+    roundingAdjustment: input.roundingAdjustment || 0,
+    matchingStatus: "matched",
+    notes:
+      input.notes ||
+      `Imported from Procurement match ${matchingRecordId} for purchase order ${match.parent_id}.`,
+    lines: invoiceLines.map((line) => ({
+      itemId: line.itemId || null,
+      uomId: line.uomId || null,
+      description: line.description,
+      quantity: line.quantity || 1,
+      unitPrice: line.unitPrice,
+      discountAmount: line.discountAmount || 0,
+      taxAmount: line.taxAmount || 0,
+      withholdingAmount: line.withholdingAmount || 0,
+      accountId: line.accountId || null,
+      taxAccountId: line.taxAccountId || null,
+      withholdingAccountId: line.withholdingAccountId || null,
+      branchId: line.branchId || match.purchase_order_branch_id || null,
+      departmentId: line.departmentId || null,
+      costCenterId: line.costCenterId || null,
+      hsnSacCode: line.hsnSacCode || null,
+      taxDetails: Array.isArray(line.taxDetails) ? line.taxDetails : [],
+    })),
+  });
+  const billId = bill?.bill?.id || bill?.id;
+  if (!billId) {
+    throw new AccountingError(500, "The imported vendor bill did not return an identifier.");
+  }
+  await client.query(
+    `UPDATE tenant.procurement_matching_records
+        SET data=jsonb_set(
+              jsonb_set(data,'{accountingVendorBillId}',to_jsonb($3::text),true),
+              '{accountingImportedAt}',to_jsonb(now()::text),true
+            ),updated_at=now()
+      WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, matchingRecordId, billId],
+  );
+  await event(
+    client,
+    context,
+    "procurement_matching_record",
+    matchingRecordId,
+    "accounting.vendor_bill.imported_from_procurement",
+    "matched",
+    "imported",
+    { vendorBillId: billId, purchaseOrderId: match.parent_id },
+  );
+  return bill;
+}
+
 export async function createVendorPayment(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.paymentsManage);
   const company = await loadCompany(client, context, input.companyId);

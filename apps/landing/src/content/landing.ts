@@ -157,7 +157,7 @@ export const integrityPoints = [
     icon: ShieldCheck,
     title: "Roadmap means not shipped",
     description:
-      "Eleven modules remain visible future scope, not disguised product claims.",
+      "Eight modules remain visible future scope, not disguised product claims.",
   },
   {
     icon: TimerReset,

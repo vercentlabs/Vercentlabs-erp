@@ -33,6 +33,7 @@ export function allocateCustomerReceipt(client: QueryClient, context: Accounting
 export function listVendorBills(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function getVendorBill(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function createVendorBill(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
+export function importProcurementMatchAsVendorBill(client: QueryClient, context: AccountingContext, matchingRecordId: string, input?: AccountingRecord): Promise<AccountingRecord>;
 export function submitVendorBill(client: QueryClient, context: AccountingContext, id: string, assignedTo?: string | null): Promise<AccountingRecord>;
 export function approveVendorBill(client: QueryClient, context: AccountingContext, id: string, contentHash: string): Promise<AccountingRecord>;
 export function rejectVendorBillApproval(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;

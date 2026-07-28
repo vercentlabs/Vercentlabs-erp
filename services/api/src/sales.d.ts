@@ -16,6 +16,8 @@ export function createSalesOrder(client: SalesQueryClient, context: SalesContext
 export function convertQuotationToOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
 export function listSalesOrders(client: SalesQueryClient, context: SalesContext, filters?: Record<string, any>): Promise<any[]>;
 export function getSalesOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
+export function amendSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
+export function completeFulfillmentRequest(client: SalesQueryClient, context: SalesContext, requestId: string, input?: Record<string, any>): Promise<any>;
 export function confirmSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, options?: Record<string, any>): Promise<any>;
 export function placeOrderHold(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
 export function releaseOrderHold(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;

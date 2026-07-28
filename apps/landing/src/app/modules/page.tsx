@@ -15,7 +15,7 @@ import { createPageMetadata } from "@/lib/metadata";
 export const metadata = createPageMetadata({
   title: "Vercentlabs ERP Module System",
   description:
-    "Review the released CRM module and the eleven clearly labelled roadmap modules in the Vercentlabs ERP system.",
+    "Review the four released ERP modules and eight clearly labelled roadmap modules in the Vercentlabs ERP system.",
   path: "/modules",
 });
 
@@ -24,8 +24,8 @@ export default function ModulesPage() {
     <MarketingShell>
       <PageHero
         eyebrow="System map"
-        title="Twelve modules. One released. Eleven stated without theatre."
-        description="CRM is the released early-access operating module. The remaining modules are roadmap scope built on the same identity, permission, audit and master-data foundation."
+        title="Twelve modules. Four released. Eight stated without theatre."
+        description="CRM, Sales, Accounting and Procurement are the released early-access operating modules. The remaining eight modules are roadmap scope built on the same identity, permission, audit and master-data foundation."
       />
 
       <OperatorBand
@@ -62,8 +62,8 @@ export default function ModulesPage() {
 
       <OperatorFinalCta
         eyebrow="Scope discussion"
-        title="Start with the released workflow. Expand only after evidence."
-        description="Use CRM early access to validate data ownership, permissions, operating handoffs and adoption before broader ERP rollout."
+        title="Start with the released operating core. Expand only after evidence."
+        description="Use the released CRM-to-cash and source-to-pay core to validate data ownership, permissions, accounting handoffs and adoption before broader ERP rollout."
         primary={{ label: "Book a scope session", href: "/contact" }}
         secondary={{
           label: "See implementation approach",

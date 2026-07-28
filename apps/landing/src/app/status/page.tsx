@@ -48,7 +48,7 @@ export default function StatusPage() {
             index="02"
             icon={Wrench}
             title="Vercentlabs ERP product"
-            description="Platform foundation and CRM are in controlled early access. Eleven modules remain roadmap."
+            description="Platform foundation, CRM, Sales, Accounting and Procurement are in controlled early access. Eight modules remain roadmap."
             status="foundation"
             meta="Active early access"
           />

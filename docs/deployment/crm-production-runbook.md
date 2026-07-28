@@ -4,8 +4,9 @@
 
 This release contains the public website, authentication and onboarding,
 organisation administration, permissions, master-data foundation, billing
-controls, CRM and the native CRM mobile client. Eleven additional ERP modules
-are roadmap items and cannot be activated.
+controls, CRM, Sales, Accounting, Procurement and the native CRM mobile client.
+Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR &
+Payroll are roadmap items and cannot be activated.
 
 ## Required production services
 

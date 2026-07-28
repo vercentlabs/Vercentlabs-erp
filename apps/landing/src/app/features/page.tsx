@@ -6,9 +6,9 @@ import StructuredContentPage, {
 } from "@/components/marketing/structured-content-page";
 
 export const metadata = createPageMetadata({
-  title: "Vercentlabs ERP Features | CRM, Sales and Accounting",
+  title: "Vercentlabs ERP Features | CRM, Sales, Accounting and Procurement",
   description:
-    "Explore the released Vercentlabs ERP CRM, Sales and Accounting capabilities, with nine additional ERP modules clearly separated as roadmap scope.",
+    "Explore the released Vercentlabs ERP CRM, Sales, Accounting and Procurement capabilities, with eight additional ERP modules clearly separated as roadmap scope.",
   path: "/features",
 });
 
@@ -18,9 +18,9 @@ const items = (entries: Array<[string, string]>): ContentItem[] =>
 const config: StructuredPageConfig = {
   hero: {
     eyebrow: "Released early-access scope",
-    title: "Governed CRM, Sales and Accounting workflows on one ERP foundation.",
+    title: "Governed CRM, Sales, Accounting and Procurement workflows on one ERP foundation.",
     description:
-      "The current release covers authentication, organisation administration, permissions, shared master data, auditability, billing controls, governed approvals, CRM, Sales and Accounting. The remaining nine ERP modules are roadmap items and cannot be activated in this release.",
+      "The current release covers authentication, organisation administration, permissions, shared master data, auditability, billing controls, governed approvals, CRM, Sales, Accounting and Procurement. The remaining eight ERP modules are roadmap items and cannot be activated in this release.",
     primary: { label: "Book an ERP walkthrough", href: "/contact" },
     secondary: { label: "Review the module roadmap", href: "/modules" },
   },
@@ -153,11 +153,36 @@ const config: StructuredPageConfig = {
       ]),
     },
     {
+      title: "Procurement source-to-pay",
+      items: items([
+        [
+          "Supplier governance",
+          "Onboard, qualify, suspend and assess suppliers with compliance evidence, category scope, contacts, sites and performance scorecards.",
+        ],
+        [
+          "Requisitions and sourcing",
+          "Create, submit and approve requisitions; invite bids; evaluate commercial and non-commercial criteria; and award suppliers with separation-of-duties controls.",
+        ],
+        [
+          "Agreements and purchase orders",
+          "Maintain agreements, create and approve purchase orders, manage schedules, dispatch, amendments, versions, cancellations and supplier commitments.",
+        ],
+        [
+          "Receiving and matching",
+          "Record goods, services and returns, control quantities, and run two-, three- or four-way matching with tolerance policies and explicit exceptions.",
+        ],
+        [
+          "Spend and supplier reporting",
+          "Review spend, purchase-order status, supplier delivery, matching exceptions, audit events and retryable integration delivery.",
+        ],
+      ]),
+    },
+    {
       title: "Visibility, mobile and commercial controls",
       items: items([
         [
-          "CRM dashboards and reports",
-          "Review tenant-scoped pipeline, conversion, source, activity, forecast, campaign, privacy and advanced CRM reports.",
+          "Operational dashboards and reports",
+          "Review tenant-scoped CRM, Sales, Accounting and Procurement dashboards, operational reports, exceptions, audit trails and exports.",
         ],
         [
           "Privacy and data quality",
@@ -183,18 +208,18 @@ const config: StructuredPageConfig = {
     },
     {
       eyebrow: "Clearly separated roadmap",
-      title: "Nine modules remain future scope.",
+      title: "Eight modules remain future scope.",
       paragraphs: [
-        "Procurement, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll are registered as roadmap modules only.",
+        "Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll are registered as roadmap modules only.",
         "They cannot be enabled through the current UI or API. Each will be released later only after its records, workflows, approvals, reporting, permissions, tests and migration path are complete end to end.",
       ],
     },
   ],
   finalCta: {
     title:
-      "Evaluate the released CRM, Sales and Accounting workflows end to end.",
+      "Evaluate the released CRM, Sales, Accounting and Procurement workflows end to end.",
     description:
-      "Use a complete lead-to-opportunity, quotation-to-order and invoice-to-ledger scenario with real roles, permission denials, reports and approval decisions.",
+      "Use complete lead-to-opportunity, quotation-to-order, source-to-match and invoice-to-ledger scenarios with real roles, permission denials, reports and approval decisions.",
     primary: { label: "Book an ERP walkthrough", href: "/contact" },
     secondary: { label: "Explore the module roadmap", href: "/modules" },
   },

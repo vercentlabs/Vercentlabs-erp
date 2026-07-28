@@ -31,7 +31,9 @@
     "verify:accounting": "node scripts/verify-accounting.mjs",
     "verify:accounting-database": "node scripts/verify-accounting-database.mjs",
     "verify:procurement": "node scripts/verify-procurement.mjs",
-    "verify:procurement-database": "node scripts/verify-procurement-database.mjs"
+    "verify:procurement-database": "node scripts/verify-procurement-database.mjs",
+    "verify:sales": "node scripts/verify-sales.mjs",
+    "verify:sales-database": "node scripts/verify-sales-database.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

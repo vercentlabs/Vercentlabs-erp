@@ -40,12 +40,12 @@ test("public product, implementation and workflow copy stays inside release scop
     assert.match(source, /current|released/i);
   }
 
-  assert.match(product, /Eleven operational modules remain explicit roadmap/);
+  assert.match(product, /Eight operational modules remain explicit roadmap/);
   assert.match(
     implementation,
     /does not claim a generic multi-level approval designer/,
   );
-  assert.match(workflows, /One customer workflow is released/);
+  assert.match(workflows, /Four business modules are released/);
   assert.match(workflows, /cannot be completed in the current release/);
   assert.doesNotMatch(implementation, /Connected modules are updated/);
   assert.doesNotMatch(
@@ -78,7 +78,7 @@ test("metadata, status and error surfaces use the current operator identity", ()
   assert.match(manifest, /src: "\/icon"/);
   assert.match(icon, /VL/);
   assert.match(openGraph, /Run the work\. Keep the truth\./);
-  assert.match(openGraph, /11 roadmap modules/);
+  assert.match(openGraph, /08 roadmap modules/);
   assert.match(loading, /operator-state-page/);
   assert.match(error, /operator-state-page/);
   assert.match(notFound, /OperatorBand/);

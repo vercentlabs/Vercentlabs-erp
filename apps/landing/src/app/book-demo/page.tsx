@@ -11,7 +11,7 @@ import { createPageMetadata } from "@/lib/metadata";
 export const metadata = createPageMetadata({
   title: "Book a Vercentlabs ERP Demo",
   description:
-    "Request a focused walkthrough of released CRM workflows, permissions, approvals, audit history and the wider ERP roadmap.",
+    "Request a focused walkthrough of released CRM, Sales, Accounting and Procurement workflows, permissions, approvals, audit history and the wider ERP roadmap.",
   path: "/book-demo",
 });
 
@@ -21,7 +21,7 @@ export default function BookDemoPage() {
       <PageHero
         eyebrow="Product walkthrough"
         title="See the released workflow. Challenge the control model."
-        description="The walkthrough is built around your operating scenario and the current CRM release—not a rehearsed tour of roadmap screens."
+        description="The walkthrough is built around your operating scenario and the current four-module release—not a rehearsed tour of roadmap screens."
       />
 
       <OperatorBand
@@ -51,7 +51,7 @@ export default function BookDemoPage() {
         </div>
         <OperatorNote label="Scope">
           <p>
-            CRM is the released early-access module. The other eleven modules
+            CRM, Sales, Accounting and Procurement are released early-access modules. The other eight modules
             are shown only as roadmap context.
           </p>
         </OperatorNote>

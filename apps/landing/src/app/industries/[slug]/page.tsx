@@ -58,7 +58,7 @@ export default async function IndustryPage({ params }: IndustryPageProps) {
         index="02"
         eyebrow="Capability direction"
         title="Translate the context into controlled product behaviour."
-        description="Capabilities remain subject to the current release boundary: CRM is released; broader ERP modules remain roadmap scope."
+        description="Capabilities remain subject to the current release boundary: CRM, Sales, Accounting and Procurement are released; the other eight ERP modules remain roadmap scope."
       >
         <OperatorGrid columns={2}>
           {item.capabilities.map((capability, index) => (

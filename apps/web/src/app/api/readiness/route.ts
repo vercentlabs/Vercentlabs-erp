@@ -4,7 +4,7 @@ import { errorResponse, HttpError, ok } from "@/lib/http";
 export const dynamic = "force-dynamic";
 
 const EXPECTED_CONTROL_MIGRATION = "014_procurement_module_release.sql";
-const EXPECTED_TENANT_MIGRATION = "012_procurement_module.sql";
+const EXPECTED_TENANT_MIGRATION = "013_procurement_enterprise_completion.sql";
 const REQUIRED_ACCOUNTING_TENANT_MIGRATION =
   "011_accounting_integrity_and_compliance.sql";
 

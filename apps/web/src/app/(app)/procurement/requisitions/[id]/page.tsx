@@ -1,1 +1,11 @@
-import {requireWorkspace} from "@/lib/auth";export default async function Page({params}:{params:Promise<{id:string}>}){await requireWorkspace();const{id}=await params;return <><section className="page-heading"><div><p className="eyebrow">Procurement document</p><h1>Requisitions detail</h1><p>Document {id} with governed lifecycle, approvals, history and cross-module handoffs.</p></div></section><section className="panel"><h2>Lifecycle and evidence</h2><p>Review line details, supplier context, approvals, versions, exceptions and audit history.</p></section></>;}
+import { ProcurementResourceWorkspace } from "@/components/procurement/procurement-workspace";
+import { requireWorkspace } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+
+export const dynamic = "force-dynamic";
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const session = await requireWorkspace();
+  if (!hasPermission(session, PERMISSIONS.procurementView)) return <section className="panel"><h1>Procurement access required</h1></section>;
+  const { id } = await params;
+  return <ProcurementResourceWorkspace resource="requisitions" mode="detail" recordId={id} />;
+}

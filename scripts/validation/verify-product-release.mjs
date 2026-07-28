@@ -22,7 +22,11 @@ const requiredFiles = [
   "database/tenant/migrations/010_accounting_advanced.sql",
   "database/tenant/migrations/011_accounting_integrity_and_compliance.sql",
   "database/tenant/migrations/012_procurement_module.sql",
+  "database/tenant/migrations/013_procurement_enterprise_completion.sql",
+  "apps/web/scripts/verify-sales.mjs",
+  "apps/web/scripts/verify-sales-database.mjs",
   "docs/architecture/accounting-module.md",
+  "docs/architecture/enterprise-module-completion.md",
   "docs/runbooks/accounting-operations.md",
   "docs/checklists/accounting-release-checklist.md",
   "docs/testing/manual-crm-acceptance.md",
@@ -56,7 +60,7 @@ function requireMarkers(file, markers) {
 
 requireMarkers("apps/web/src/app/api/readiness/route.ts", [
   '"014_procurement_module_release.sql"',
-  '"012_procurement_module.sql"',
+  '"013_procurement_enterprise_completion.sql"',
   "schema_migrations WHERE name = $1",
   "tenant_schema_migrations WHERE name = $2",
 ]);
@@ -168,6 +172,8 @@ requireMarkers("scripts/deployment/smoke-deployment.mjs", [
   "Live landing delivery accepted",
 ]);
 requireMarkers("package.json", [
+  '"verify:sales"',
+  '"db:verify:sales"',
   '"test:landing:e2e"',
   '"test:landing:browser"',
   "build:landing && corepack pnpm test:landing:e2e && corepack pnpm test:landing:browser",
@@ -200,6 +206,18 @@ requireMarkers("apps/web/scripts/verify-crm-database.mjs", [
 ]);
 
 
+requireMarkers("apps/web/scripts/verify-sales-database.mjs", [
+  "requiredTables",
+  "relforcerowsecurity",
+  "pg_policy",
+  "sales_order_amendments",
+]);
+requireMarkers("apps/web/scripts/verify-sales.mjs", [
+  "amendSalesOrder",
+  "completeFulfillmentRequest",
+  "createInvoiceFromSalesRequest",
+]);
+
 requireMarkers("apps/web/scripts/verify-accounting-database.mjs", [
   "requiredTables",
   "relforcerowsecurity",
@@ -213,6 +231,21 @@ requireMarkers("apps/web/scripts/verify-accounting-database.mjs", [
   "accounting_compliance_requests",
   "accounting_cash_forecast_scenarios",
 ]);
+requireMarkers("services/api/src/accounting/payables.js", [
+  "importProcurementMatchAsVendorBill",
+  "procurement_matching_records",
+  "accounting.vendor_bill.imported_from_procurement",
+]);
+requireMarkers("apps/web/src/app/api/accounting/payables/procurement-matches/[id]/import/route.ts", [
+  "importProcurementMatchAsVendorBill",
+  "procurementVendorBillImportSchema",
+  "tenantTransaction",
+]);
+requireMarkers("services/api/src/procurement/index.js", [
+  "invoiceLines,",
+  "procurement.vendor-bill.ready",
+]);
+
 requireMarkers("apps/web/scripts/verify-accounting.mjs", [
   "accounting_journal_entries",
   "accounting_vendor_bill_matches",
@@ -221,6 +254,13 @@ requireMarkers("apps/web/scripts/verify-accounting.mjs", [
   "DOUBLE_ENTRY",
   "initializeAccountingCompany",
   "getPeriodCloseBlockers",
+]);
+
+requireMarkers("apps/web/scripts/verify-procurement.mjs", [
+  "runProcurementMatch",
+  "awardSourcingEvent",
+  "updateProcurementRecord",
+  "procurement_document_links",
 ]);
 
 requireMarkers("apps/web/src/lib/security.ts", [

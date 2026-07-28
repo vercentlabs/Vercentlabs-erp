@@ -45,7 +45,7 @@ not require or create a demo user, demo company or sample business records.
 2. Confirm the dashboard opens in the correct organisation, company and branch
    context.
 3. Confirm the following mandatory configuration exists without manual SQL:
-   - CRM enabled and the eleven roadmap modules unavailable;
+   - CRM, Sales, Accounting and Procurement enabled, with the eight roadmap modules unavailable;
    - a standard pipeline with usable open, won and lost stages;
    - lead sources, lost reasons, tags and CRM settings;
    - a primary sales team;
@@ -159,10 +159,10 @@ not require or create a demo user, demo company or sample business records.
 
 ## 12. Billing and release scope
 
-1. Confirm CRM is the only enabled business module.
-2. Confirm all eleven future modules are visibly marked as roadmap and cannot be
+1. Confirm CRM, Sales, Accounting and Procurement are the enabled business modules.
+2. Confirm all eight future modules are visibly marked as roadmap and cannot be
    enabled through either UI or API, including by an owner.
-3. Review plan summaries and confirm they promise only CRM/platform capability.
+3. Review plan summaries and confirm they promise only the four released modules and shared platform capabilities.
 4. Keep checkout disabled unless test-mode checkout, signature verification,
    webhook replay, invoice/tax handling, cancellation, refund, failed-payment
    recovery and customer support procedures have passed separately.

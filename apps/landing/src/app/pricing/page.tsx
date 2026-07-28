@@ -94,7 +94,7 @@ export default function PricingPage() {
       <PageHero
         eyebrow="Commercial model"
         title="Price the operating capacity. Not every person who needs the truth."
-        description="Every standard plan includes unlimited users. Published pricing applies to the released CRM and platform-foundation scope; the eleven roadmap modules are not included as shipped capability."
+        description="Every standard plan includes unlimited users. Published pricing applies to the released CRM, Sales, Accounting, Procurement and platform-foundation scope; the eight roadmap modules are not included as shipped capability."
       />
 
       <OperatorBand

@@ -7,8 +7,8 @@ deployment URL, browser versions, tester and evidence links.
 ## Release truth
 
 - The homepage, product, features, workflows, modules, pricing and demo pages
-  state that CRM is the released early-access module and eleven modules are
-  roadmap.
+  state that CRM, Sales, Accounting and Procurement are released early-access
+  modules and eight modules are roadmap.
 - Synthetic product data is visibly labelled and is not presented as customer
   proof, usage analytics or commercial performance.
 - Pricing shows **Start 14-day trial** only when the secure ERP application URL

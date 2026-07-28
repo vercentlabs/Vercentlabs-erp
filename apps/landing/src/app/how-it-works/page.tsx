@@ -7,16 +7,16 @@ import StructuredContentPage, {
 export const metadata = createPageMetadata({
   title: "How Vercentlabs ERP Early Access Works",
   description:
-    "See how Vercentlabs scopes, configures, validates and launches the released CRM and platform-foundation workflow.",
+    "See how Vercentlabs scopes, configures, validates and launches released CRM, Sales, Accounting and Procurement workflows.",
   path: "/how-it-works",
 });
 
 const config: StructuredPageConfig = {
   hero: {
     eyebrow: "Implementation method",
-    title: "Move from operating evidence to a controlled CRM release.",
+    title: "Move from operating evidence to a controlled ERP release.",
     description:
-      "The current implementation path is intentionally narrow: understand one customer workflow, configure the organisation and permissions, migrate the required records, validate the released CRM end to end and expand only after acceptance.",
+      "The implementation path is evidence-led: select a released workflow, configure organisation and permissions, migrate the required records, validate CRM, Sales, Accounting or Procurement end to end and expand only after acceptance.",
     primary: { label: "Book a scope workshop", href: "/book-demo" },
     secondary: { label: "Review released product", href: "/product" },
   },
@@ -55,14 +55,14 @@ const config: StructuredPageConfig = {
     },
     {
       eyebrow: "Step 3",
-      title: "Prepare the business records the CRM depends on.",
+      title: "Prepare the business records the released workflow depends on.",
       paragraphs: [
-        "Clean and import only the master data and CRM records required by the pilot. Invalid rows are isolated so valid rows can continue safely.",
+        "Clean and import only the master data and transaction-opening records required by the pilot. Invalid rows are isolated so valid rows can continue safely.",
       ],
       bullets: [
         "Business partners and contacts",
         "Users, owners and assignees",
-        "Lead sources, stages, campaigns and tags",
+        "CRM stages, price and tax setup, supplier controls and accounting dimensions",
         "Companies, branches and permitted operating scope",
         "CSV trial import, validation and permission-scoped export",
       ],
@@ -76,12 +76,12 @@ const config: StructuredPageConfig = {
         "Grant only the actions each role needs and verify denied paths as deliberately as successful ones.",
       ],
       bullets: [
-        "CRM view and resource-specific manage permissions",
+        "Module view, resource-specific manage and report permissions",
         "Company and branch access",
         "Approval-manager access",
         "Billing visibility and checkout permissions",
-        "Supported opportunity stage-change approval",
-        "Supported activity-completion approval",
+        "Supported CRM, Sales, Accounting and Procurement approvals",
+        "Separation-of-duties and version-controlled decisions",
       ],
       afterBullets:
         "The current release does not claim a generic multi-level approval designer or delegated approval chains.",
@@ -90,13 +90,13 @@ const config: StructuredPageConfig = {
     },
     {
       eyebrow: "Step 5",
-      title: "Run the released CRM workflow end to end.",
+      title: "Run the selected released workflow end to end.",
       steps: [
-        "Capture or import a lead",
-        "Apply ownership, source, campaign, tags and scoring",
-        "Qualify the lead and resolve duplicate evidence",
-        "Convert exactly once into partner, contact and opportunity records",
-        "Schedule activities and progress the opportunity",
+        "Create or import the workflow opening record",
+        "Apply ownership, operating scope, commercial or financial policy",
+        "Validate duplicates, references, approval rules and supporting evidence",
+        "Progress records through idempotent, version-controlled commands",
+        "Complete the CRM, quotation, sourcing, order, matching or posting sequence",
         "Request a governed command when approval is required",
         "Decide the request with version and separation-of-duties checks",
         "Inspect reports, notifications, audit history and mobile behaviour",
@@ -123,7 +123,7 @@ const config: StructuredPageConfig = {
         {
           title: "Web and mobile parity",
           description:
-            "Confirm supported CRM views and mutations on responsive web, Android and iOS export paths.",
+            "Confirm released web workflows and supported CRM mobile views and mutations on Android and iOS export paths.",
         },
         {
           title: "Operational failure",
@@ -155,7 +155,7 @@ const config: StructuredPageConfig = {
       eyebrow: "Roadmap boundary",
       title: "Treat every future module as a separate release programme.",
       paragraphs: [
-        "Accounting, Procurement, Sales, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll remain roadmap scope.",
+        "Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support and HR & Payroll remain roadmap scope.",
         "They are not added to an implementation plan as available modules until each one passes its own end-to-end release gate.",
       ],
       cta: { label: "Review the module roadmap", href: "/modules" },
@@ -166,7 +166,7 @@ const config: StructuredPageConfig = {
     description:
       "The strongest next step is a narrow scenario with named users, realistic records, explicit denials and measurable acceptance criteria.",
     primary: { label: "Book a scope workshop", href: "/book-demo" },
-    secondary: { label: "Review CRM workflow", href: "/workflows" },
+    secondary: { label: "Review released workflows", href: "/workflows" },
   },
 };
 

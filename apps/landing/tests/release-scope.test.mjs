@@ -32,7 +32,8 @@ test("feature marketing reflects the released CRM, Sales, Accounting and Procure
   assert.match(features, /Governed approvals/);
   assert.match(features, /Sales order-to-cash/);
   assert.match(features, /Accounting and financial control/);
-  assert.match(features, /Nine modules remain future scope/);
-  assert.doesNotMatch(features, /Eleven modules remain future scope/);
+  assert.match(features, /Procurement source-to-pay/);
+  assert.match(features, /Eight modules remain future scope/);
+  assert.doesNotMatch(features, /Nine modules remain future scope/);
   assert.doesNotMatch(features, /Run every core operation/);
 });

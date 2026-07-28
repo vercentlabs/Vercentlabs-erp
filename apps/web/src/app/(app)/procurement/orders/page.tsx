@@ -1,1 +1,10 @@
-import Link from "next/link";import { requireWorkspace } from "@/lib/auth";import { hasPermission,PERMISSIONS } from "@/lib/authorization";export const dynamic="force-dynamic";export default async function Page(){const session=await requireWorkspace();if(!hasPermission(session,PERMISSIONS.procurementView))return <section className="panel"><h1>Procurement access required</h1></section>;return <><section className="page-heading"><div><p className="eyebrow">Source-to-pay</p><h1>Purchase orders</h1><p>Create, approve, dispatch, acknowledge and amend supplier commitments.</p></div></section><section className="procurement-grid">{["Supplier governance","Controlled sourcing","Contract compliance","PO lifecycle","Receiving evidence","Accounting match"].map(item=><article className="metric-card" key={item}><span>{item}</span><strong>Governed</strong></article>)}</section><section className="panel"><h2>Enterprise controls</h2><p>This workspace is connected to approvals, audit evidence, Accounting handoffs, tenant row-level security and provider-neutral outbox delivery.</p></section></>;}
+import { ProcurementResourceWorkspace } from "@/components/procurement/procurement-workspace";
+import { requireWorkspace } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+
+export const dynamic = "force-dynamic";
+export default async function Page() {
+  const session = await requireWorkspace();
+  if (!hasPermission(session, PERMISSIONS.procurementView)) return <section className="panel"><h1>Procurement access required</h1></section>;
+  return <ProcurementResourceWorkspace resource="purchase-orders" />;
+}

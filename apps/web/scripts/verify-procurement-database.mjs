@@ -10,16 +10,19 @@ dotenv.config({ quiet: true });
 const databaseUrl = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("MIGRATION_DATABASE_URL or DATABASE_URL is required.");
 
-const migration = fs.readFileSync(path.resolve(process.cwd(), "../../database/tenant/migrations/012_procurement_module.sql"), "utf8");
+const baseMigration = fs.readFileSync(path.resolve(process.cwd(), "../../database/tenant/migrations/012_procurement_module.sql"), "utf8");
+const completionMigration = fs.readFileSync(path.resolve(process.cwd(), "../../database/tenant/migrations/013_procurement_enterprise_completion.sql"), "utf8");
+const migration = `${baseMigration}\n${completionMigration}`;
 const requiredTables = [...new Set([...migration.matchAll(/CREATE TABLE IF NOT EXISTS tenant\.(procurement_[a-z0-9_]+)/gi)].map((match) => match[1]))].sort();
-if (requiredTables.length < 30) throw new Error("Procurement table contract is incomplete.");
+if (requiredTables.length < 31) throw new Error("Procurement table contract is incomplete.");
 const requiredNumbering = ["purchase_requisition", "sourcing_event", "procurement_agreement", "purchase_order", "advance_shipping_notice", "goods_receipt", "service_entry", "return_to_vendor", "procurement_match_exception"];
 const expectedPermissions = Object.values(PROCUREMENT_PERMISSIONS).sort();
 
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 try {
-  const applied = await pool.query("SELECT name FROM tenant_schema_migrations WHERE name=$1", ["012_procurement_module.sql"]);
-  if (!applied.rows[0]) throw new Error("Latest Procurement tenant migration is not applied.");
+  const applied = await pool.query("SELECT name FROM tenant_schema_migrations WHERE name=ANY($1::text[])", [["012_procurement_module.sql", "013_procurement_enterprise_completion.sql"]]);
+  const appliedSet = new Set(applied.rows.map((row) => row.name));
+  for (const name of ["012_procurement_module.sql", "013_procurement_enterprise_completion.sql"]) if (!appliedSet.has(name)) throw new Error(`Procurement tenant migration ${name} is not applied.`);
 
   const tables = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='tenant' AND table_name=ANY($1::text[])`, [requiredTables]);
   const tableSet = new Set(tables.rows.map((row) => row.table_name));
