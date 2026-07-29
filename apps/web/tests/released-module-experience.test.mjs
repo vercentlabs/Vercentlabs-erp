@@ -42,6 +42,16 @@ test("released modules share one final enterprise experience layer", () => {
 test("each released module has a workflow-led dashboard", () => {
   assert.match(crm, /module-workbench crm-workbench/);
   assert.match(crm, /Pipeline health/);
+  assert.match(crm, /workflow-launchpad/);
+  assert.match(styles, /\.workflow-launchpad > a/);
+  assert.match(styles, /\.workflow-step-number/);
+  assert.match(styles, /\.empty-state,/);
+  assert.match(styles, /\.module-empty-state/);
+  assert.doesNotMatch(styles, /\.module-empty-state \{[^}]*min-height: 170px/);
+  assert.match(styles, /\/\* Shared form alignment \*\//);
+  assert.match(styles, /height: 42px/);
+  assert.match(styles, /\.checkbox-row/);
+  assert.match(styles, /\.checkbox-row \+ \.checkbox-row/);
   assert.match(sales, /module-workbench sales-workbench/);
   assert.match(sales, /process-rail/);
   assert.match(accounting, /module-workbench accounting-workbench/);

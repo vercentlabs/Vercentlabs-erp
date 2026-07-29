@@ -470,6 +470,102 @@
   font-size: 12px;
 }
 
+.workflow-launchpad {
+  align-self: start;
+}
+
+.workflow-launchpad > a {
+  position: relative;
+  display: grid;
+  min-height: 76px;
+  grid-template-columns: 34px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, var(--module-accent-soft), transparent 34%),
+    #fff;
+  color: var(--color-ink);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.workflow-launchpad > a:hover {
+  border-color: color-mix(in srgb, var(--module-accent) 36%, var(--color-line));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--module-accent) 10%, transparent);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.workflow-launchpad > a:focus-visible {
+  outline: 2px solid var(--module-accent);
+  outline-offset: 2px;
+}
+
+.workflow-launchpad > a > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.workflow-launchpad strong {
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.workflow-launchpad small {
+  display: block;
+  color: var(--color-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.workflow-launchpad > a > span:last-child {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--module-accent) 18%, var(--color-line));
+  border-radius: 50%;
+  background: #fff;
+  color: var(--module-accent-ink);
+  font-size: 14px;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.workflow-launchpad > a:hover > span:last-child {
+  background: var(--module-accent);
+  color: #fff;
+  transform: translateX(2px);
+}
+
+.workflow-step-number {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--module-accent) 25%, white);
+  border-radius: 9px;
+  background: var(--module-accent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--module-accent) 18%, transparent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
 .stage-health-list,
 .source-performance-list,
 .document-feed,
@@ -824,12 +920,217 @@
 .accounting-section-heading { padding-bottom: 12px; border-bottom: 1px solid var(--color-line); }
 .accounting-totals { border: 1px solid var(--color-line); border-radius: 9px; background: var(--color-surface-subtle); }
 
-/* Empty and status states */
-.module-empty-state { display: grid; min-height: 170px; place-items: center; align-content: center; gap: 6px; padding: 24px; color: var(--color-muted); text-align: center; }
-.module-empty-state.compact { min-height: 105px; }
-.module-empty-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 9px; background: var(--module-accent-soft); color: var(--module-accent); }
-.module-empty-state strong { color: var(--color-ink); }
-.module-empty-state p { max-width: 420px; margin: 0; font-size: 11px; }
+/* Shared form alignment */
+:where(
+  .form-grid,
+  .form-stack,
+  .inline-form,
+  .business-data-form,
+  .billing-profile-form,
+  .accounting-form-grid,
+  .enterprise-form-grid,
+  .crm-action-panel
+) {
+  align-items: start;
+  gap: 14px 16px;
+}
+
+:where(
+  .form-grid,
+  .form-stack,
+  .inline-form,
+  .business-data-form,
+  .billing-profile-form,
+  .accounting-form-grid,
+  .enterprise-form-grid,
+  .crm-action-panel
+) label:not(.checkbox-row) {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 6px;
+  margin: 0;
+  line-height: 1.35;
+}
+
+:where(
+  .form-grid,
+  .form-stack,
+  .inline-form,
+  .business-data-form,
+  .billing-profile-form,
+  .accounting-form-grid,
+  .enterprise-form-grid,
+  .crm-action-panel,
+  .crm-filter-row
+) :is(input:not([type="checkbox"]):not([type="radio"]), select) {
+  height: 42px;
+  min-height: 42px;
+  padding-block: 0;
+  line-height: 1.2;
+}
+
+:where(
+  .form-grid,
+  .form-stack,
+  .inline-form,
+  .business-data-form,
+  .billing-profile-form,
+  .accounting-form-grid,
+  .enterprise-form-grid,
+  .crm-action-panel
+) textarea {
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+.checkbox-row {
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.checkbox-row > input:is([type="checkbox"], [type="radio"]) {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+}
+
+:where(.form-stack, .business-data-form, .crm-editor) > .checkbox-row {
+  min-height: 30px;
+  padding-block: 2px;
+}
+
+:where(.form-stack, .business-data-form, .crm-editor) > .checkbox-row + .checkbox-row {
+  margin-top: -6px;
+}
+
+:where(
+  .form-actions,
+  .business-data-form-actions,
+  .page-heading-actions,
+  .module-hero-actions,
+  .match-result-actions
+) {
+  align-items: center;
+  gap: 8px;
+}
+
+:where(.form-actions, .business-data-form-actions) > :is(button, a) {
+  min-height: 38px;
+}
+/* Shared empty states */
+.empty-state,
+.module-empty-state {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 0;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: stretch;
+  gap: 3px 14px;
+  padding: 18px;
+  border: 1px solid var(--module-panel-border);
+  border-radius: 12px;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--module-accent-soft) 68%, white), #fff 58%),
+    #fff;
+  box-shadow: none;
+  color: var(--color-muted);
+  text-align: left;
+}
+
+.empty-state:not(:has(> .empty-state-icon))::before,
+.module-empty-state:not(:has(> .module-empty-icon))::before {
+  width: 40px;
+  height: 40px;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  border: 1px solid color-mix(in srgb, var(--module-accent) 18%, white);
+  border-radius: 11px;
+  background:
+    radial-gradient(circle, var(--module-accent) 0 3px, transparent 4px),
+    var(--module-accent-soft);
+  content: "";
+}
+
+.empty-state-icon,
+.module-empty-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--module-accent) 18%, white);
+  border-radius: 11px;
+  background: var(--module-accent-soft);
+  color: var(--module-accent);
+}
+
+.empty-state > strong,
+.module-empty-state > strong {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.empty-state > p,
+.module-empty-state > p {
+  max-width: 620px;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.empty-state > p:first-child:last-child,
+.module-empty-state > p:first-child:last-child {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.empty-state > :is(a, button),
+.module-empty-state > :is(a, button) {
+  min-height: 36px;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding-inline: 13px;
+  border-radius: 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.empty-state.compact,
+.module-empty-state.compact {
+  min-height: 0;
+  padding: 14px;
+}
+
+.empty-state.compact::before,
+.empty-state.compact > .empty-state-icon,
+.module-empty-state.compact::before,
+.module-empty-state.compact > .module-empty-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
 .status-badge { min-height: 24px; padding: 0 8px; border: 1px solid var(--color-line); border-radius: 999px; background: #f7f8fa; color: var(--color-ink-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.025em; text-transform: uppercase; }
 .status-draft,
 .status-neutral { background: #f4f5f7; color: #59616c; }
@@ -910,6 +1211,26 @@
   .attention-strip > div { border-right: 0; border-bottom: 1px solid var(--color-line); }
   .attention-strip > :last-child { border-bottom: 0; }
   .workflow-overview-grid { grid-template-columns: 1fr; }
+  .workflow-launchpad > a {
+    min-height: 68px;
+    grid-template-columns: 30px minmax(0, 1fr) 26px;
+    gap: 10px;
+    padding: 10px;
+  }
+  .workflow-step-number { width: 30px; height: 30px; border-radius: 8px; }
+  .workflow-launchpad > a > span:last-child { width: 26px; height: 26px; }
+  .empty-state,
+  .module-empty-state {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 15px;
+  }
+  .empty-state > :is(a, button),
+  .module-empty-state > :is(a, button) {
+    width: fit-content;
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 7px;
+  }
   .process-rail { grid-template-columns: 1fr; }
   .process-rail > a,
   .process-rail > div { min-height: 74px; border-right: 0; border-bottom: 1px solid var(--color-line); }
@@ -973,7 +1294,9 @@
   .module-metric-card,
   .module-context-tabs a,
   .enterprise-record-row,
-  .crm-opportunity-card {
+  .crm-opportunity-card,
+  .workflow-launchpad > a,
+  .workflow-launchpad > a > span:last-child {
     transition: none !important;
     transform: none !important;
   }
