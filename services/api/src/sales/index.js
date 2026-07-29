@@ -237,7 +237,142 @@ export async function convertQuotationToOrder(client,context,id){requirePermissi
 
 export async function listSalesOrders(client,context,filters={}){requirePermission(context,"sales.view");const values=[context.organizationId];let where="";if(filters.status&&filters.status!=="all"){values.push(filters.status);where+=` AND sales_order.lifecycle_status=$${values.length}`;}if(filters.search){values.push(`%${String(filters.search).trim()}%`);where+=` AND (sales_order.sales_order_number ILIKE $${values.length} OR version.customer_snapshot->>'displayName' ILIKE $${values.length})`;}if(!context.allowAllCompanies&&context.activeCompanyId){values.push(context.activeCompanyId);where+=` AND sales_order.company_id=$${values.length}`;}const result=await client.query(`SELECT sales_order.id,sales_order.sales_order_number,sales_order.lifecycle_status,sales_order.approval_status,sales_order.credit_status,sales_order.fulfillment_status,sales_order.billing_status,sales_order.order_date,sales_order.requested_delivery_date,sales_order.updated_at,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${where} ORDER BY sales_order.updated_at DESC LIMIT 200`,values);return result.rows.map((row)=>redactMargin(row,context));}
 export async function getSalesOrder(client,context,id){requirePermission(context,"sales.view");const result=await client.query(`SELECT sales_order.*,version.*,sales_order.id AS sales_order_id,sales_order.created_at AS order_created_at,sales_order.updated_at AS order_updated_at FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.id=$2`,[context.organizationId,uuid(id,"Sales order")]);const order=result.rows[0];if(!order)throw new SalesError(404,"Sales order not found.");const lines=await client.query(`SELECT line.*,progress.confirmed_quantity,progress.reserved_quantity,progress.fulfilled_quantity,progress.invoiced_quantity,progress.returned_quantity,progress.cancelled_quantity,(line.quantity-progress.fulfilled_quantity-progress.cancelled_quantity) AS remaining_to_fulfill,(line.quantity-progress.invoiced_quantity-progress.cancelled_quantity) AS remaining_to_invoice FROM tenant.sales_order_lines line JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id WHERE line.organization_id=$1 AND line.sales_order_version_id=$2 ORDER BY line.sequence`,[context.organizationId,order.current_version_id]);const holds=await client.query(`SELECT * FROM tenant.sales_order_holds WHERE organization_id=$1 AND sales_order_id=$2 ORDER BY placed_at DESC`,[context.organizationId,id]);const fulfillment=await client.query(`SELECT id,request_number,status,retry_count,last_error,requested_at,completed_at FROM tenant.sales_fulfillment_requests WHERE organization_id=$1 AND sales_order_id=$2 ORDER BY requested_at DESC`,[context.organizationId,id]);const invoices=await client.query(`SELECT id,request_number,quantity_basis,status,retry_count,last_error,requested_at,completed_at FROM tenant.sales_invoice_requests WHERE organization_id=$1 AND sales_order_id=$2 ORDER BY requested_at DESC`,[context.organizationId,id]);const events=await client.query(`SELECT * FROM tenant.sales_document_events WHERE organization_id=$1 AND entity_type='sales_order' AND entity_id=$2 ORDER BY occurred_at DESC`,[context.organizationId,id]);return redactMargin({order,lines:lines.rows,holds:holds.rows,fulfillmentRequests:fulfillment.rows,invoiceRequests:invoices.rows,events:events.rows},context);}
-export async function confirmSalesOrder(client,context,id,options={}){requirePermission(context,"sales.order.confirm");const order=await lockOrder(client,context,id);if(!["draft","pending_approval"].includes(order.lifecycle_status))throw new SalesError(409,"Only a draft or approved order can be confirmed.");const version=(await client.query(`SELECT grand_total,base_currency_total FROM tenant.sales_order_versions WHERE organization_id=$1 AND id=$2`,[context.organizationId,order.current_version_id])).rows[0];const party=(await client.query(`SELECT credit_limit FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,[context.organizationId,order.party_id])).rows[0];const exposure=(await client.query(`SELECT COALESCE(sum(version.base_currency_total),0) AS exposure FROM tenant.sales_orders active_order JOIN tenant.sales_order_versions version ON version.id=active_order.current_version_id WHERE active_order.organization_id=$1 AND active_order.party_id=$2 AND active_order.id<>$3 AND active_order.lifecycle_status IN ('confirmed','on_hold') AND active_order.billing_status<>'fully_invoiced'`,[context.organizationId,order.party_id,id])).rows[0];const creditLimit=decimal(party.credit_limit||0),totalExposure=add(exposure.exposure||0,version.base_currency_total||0);let creditStatus="passed";if(creditLimit>0n&&totalExposure>creditLimit)creditStatus="blocked";if(creditStatus==="blocked"){if(!options.overrideCredit)throw new SalesError(409,"Customer credit limit is exceeded. A finance override is required.","SALES_CREDIT_BLOCK");requirePermission(context,"sales.credit.override");if(!text(options.creditOverrideReason,1000))throw new SalesError(400,"A credit override reason is required.");creditStatus="overridden";}await client.query(`UPDATE tenant.sales_orders SET lifecycle_status='confirmed',approval_status=CASE WHEN approval_status='pending' THEN 'approved' ELSE approval_status END,credit_status=$1,fulfillment_status='not_started',billing_status='ready',confirmed_at=now(),updated_by=$2,updated_at=now() WHERE organization_id=$3 AND id=$4`,[creditStatus,context.userId,context.organizationId,id]);await client.query(`UPDATE tenant.sales_order_line_progress progress SET confirmed_quantity=line.quantity,updated_by=$1,updated_at=now() FROM tenant.sales_order_lines line WHERE progress.sales_order_line_id=line.id AND line.organization_id=$2 AND line.sales_order_version_id=$3`,[context.userId,context.organizationId,order.current_version_id]);await event(client,context,"sales_order",id,"sales_order.confirmed",order.lifecycle_status,"confirmed",{creditStatus,creditExposure:asDatabaseDecimal(totalExposure),creditOverrideReason:text(options.creditOverrideReason,1000)});if(order.source_opportunity_id){await client.query(`UPDATE tenant.crm_opportunities opportunity SET status='won',actual_close_date=current_date,updated_by=$1,updated_at=now() WHERE opportunity.organization_id=$2 AND opportunity.id=$3 AND opportunity.status='open'`,[context.userId,context.organizationId,order.source_opportunity_id]);}return {orderId:id,status:"confirmed",creditStatus};}
+export async function submitSalesOrder(client, context, id, assignedTo = null) {
+  requirePermission(context, "sales.order.create");
+  const order = await lockOrder(client, context, id);
+  if (order.lifecycle_status !== "draft") throw new SalesError(409, "Only draft orders can be submitted.");
+  const version = (await client.query(
+    `SELECT grand_total FROM tenant.sales_order_versions WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, order.current_version_id],
+  )).rows[0];
+  const settings = (await client.query(
+    `SELECT order_approval_amount FROM tenant.sales_settings WHERE organization_id=$1`,
+    [context.organizationId],
+  )).rows[0] || {};
+  const approvalRequired = decimal(settings.order_approval_amount || 0) > 0n &&
+    decimal(version.grand_total || 0) >= decimal(settings.order_approval_amount || 0);
+  if (!approvalRequired) {
+    await client.query(
+      `UPDATE tenant.sales_orders
+          SET lifecycle_status='approved',approval_status='not_required',updated_by=$1,updated_at=now()
+        WHERE organization_id=$2 AND id=$3 AND lifecycle_status='draft'`,
+      [context.userId, context.organizationId, id],
+    );
+    await event(client, context, "sales_order", id, "sales_order.approved_automatically", "draft", "approved", { versionId: order.current_version_id });
+    return { approvalRequired: false, orderId: id, orderVersionId: order.current_version_id };
+  }
+  const approvalId = cryptoRandomUuid();
+  await client.query(
+    `INSERT INTO public.approval_requests
+      (id,organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload)
+     VALUES ($1,$2,'sales_order',$3,$4,'pending',$5,$6,'sales.order.approve',$7::jsonb)`,
+    [approvalId, context.organizationId, id, `Approve sales order ${order.sales_order_number}`, context.userId, assignedTo || null,
+      JSON.stringify({ orderId: id, orderVersionId: order.current_version_id })],
+  );
+  await client.query(
+    `UPDATE tenant.sales_orders
+        SET lifecycle_status='pending_approval',approval_status='pending',updated_by=$1,updated_at=now()
+      WHERE organization_id=$2 AND id=$3 AND lifecycle_status='draft'`,
+    [context.userId, context.organizationId, id],
+  );
+  await event(client, context, "sales_order", id, "sales_order.submitted", "draft", "pending_approval", { approvalId, versionId: order.current_version_id });
+  return { approvalRequired: true, approvalId, orderId: id, orderVersionId: order.current_version_id };
+}
+
+export async function approveSalesOrder(client, context, orderId, orderVersionId) {
+  requirePermission(context, "sales.order.approve");
+  const order = await lockOrder(client, context, orderId);
+  if (order.current_version_id !== orderVersionId) throw new SalesError(409, "The sales order was amended after approval was requested.");
+  if (order.lifecycle_status !== "pending_approval") throw new SalesError(409, "The sales order is not awaiting approval.");
+  await client.query(
+    `UPDATE tenant.sales_orders
+        SET lifecycle_status='approved',approval_status='approved',updated_by=$1,updated_at=now()
+      WHERE organization_id=$2 AND id=$3 AND lifecycle_status='pending_approval' AND current_version_id=$4`,
+    [context.userId, context.organizationId, orderId, orderVersionId],
+  );
+  await event(client, context, "sales_order", orderId, "sales_order.approved", "pending_approval", "approved", { versionId: orderVersionId });
+  return { orderId, orderVersionId, status: "approved" };
+}
+
+export async function rejectSalesOrderApproval(client, context, orderId) {
+  const order = await lockOrder(client, context, orderId);
+  if (order.lifecycle_status !== "pending_approval") return;
+  await client.query(
+    `UPDATE tenant.sales_orders
+        SET lifecycle_status='draft',approval_status='rejected',updated_by=$1,updated_at=now()
+      WHERE organization_id=$2 AND id=$3 AND lifecycle_status='pending_approval'`,
+    [context.userId, context.organizationId, orderId],
+  );
+  await event(client, context, "sales_order", orderId, "sales_order.approval_rejected", "pending_approval", "draft", { versionId: order.current_version_id });
+}
+
+export async function confirmSalesOrder(client, context, id, options = {}) {
+  requirePermission(context, "sales.order.confirm");
+  let order = await lockOrder(client, context, id);
+  if (order.lifecycle_status === "draft") {
+    const submission = await submitSalesOrder(client, context, id, options.assignedTo || null);
+    if (submission.approvalRequired) throw new SalesError(409, "This order requires approval before confirmation.", "SALES_ORDER_APPROVAL_REQUIRED");
+    order = await lockOrder(client, context, id);
+  }
+  if (order.lifecycle_status === "pending_approval") throw new SalesError(409, "This order is awaiting approval.", "SALES_ORDER_APPROVAL_REQUIRED");
+  if (order.lifecycle_status !== "approved") throw new SalesError(409, "Only an approved order can be confirmed.");
+  const version = (await client.query(
+    `SELECT grand_total,base_currency_total FROM tenant.sales_order_versions WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, order.current_version_id],
+  )).rows[0];
+  const party = (await client.query(
+    `SELECT credit_limit FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, order.party_id],
+  )).rows[0];
+  const exposure = (await client.query(
+    `SELECT COALESCE(sum(version.base_currency_total),0) AS exposure
+       FROM tenant.sales_orders active_order
+       JOIN tenant.sales_order_versions version ON version.id=active_order.current_version_id
+      WHERE active_order.organization_id=$1 AND active_order.party_id=$2 AND active_order.id<>$3
+        AND active_order.lifecycle_status IN ('confirmed','on_hold')
+        AND active_order.billing_status<>'fully_invoiced'`,
+    [context.organizationId, order.party_id, id],
+  )).rows[0];
+  const creditLimit = decimal(party.credit_limit || 0);
+  const totalExposure = add(exposure.exposure || 0, version.base_currency_total || 0);
+  let creditStatus = "passed";
+  if (creditLimit > 0n && totalExposure > creditLimit) creditStatus = "blocked";
+  if (creditStatus === "blocked") {
+    if (!options.overrideCredit) throw new SalesError(409, "Customer credit limit is exceeded. A finance override is required.", "SALES_CREDIT_BLOCK");
+    requirePermission(context, "sales.credit.override");
+    if (!text(options.creditOverrideReason, 1000)) throw new SalesError(400, "A credit override reason is required.");
+    creditStatus = "overridden";
+  }
+  const confirmed = await client.query(
+    `UPDATE tenant.sales_orders
+        SET lifecycle_status='confirmed',credit_status=$1,fulfillment_status='not_started',billing_status='ready',
+            confirmed_at=now(),updated_by=$2,updated_at=now()
+      WHERE organization_id=$3 AND id=$4 AND lifecycle_status='approved' AND current_version_id=$5
+      RETURNING id`,
+    [creditStatus, context.userId, context.organizationId, id, order.current_version_id],
+  );
+  if (!confirmed.rows[0]) throw new SalesError(409, "The order changed before it could be confirmed.", "SALES_ORDER_VERSION_CONFLICT");
+  await client.query(
+    `UPDATE tenant.sales_order_line_progress progress SET confirmed_quantity=line.quantity,updated_by=$1,updated_at=now()
+       FROM tenant.sales_order_lines line
+      WHERE progress.sales_order_line_id=line.id AND line.organization_id=$2 AND line.sales_order_version_id=$3`,
+    [context.userId, context.organizationId, order.current_version_id],
+  );
+  await event(client, context, "sales_order", id, "sales_order.confirmed", "approved", "confirmed", {
+    creditStatus,
+    creditExposure: asDatabaseDecimal(totalExposure),
+    creditOverrideReason: text(options.creditOverrideReason, 1000),
+  });
+  if (order.source_opportunity_id) {
+    await client.query(
+      `UPDATE tenant.crm_opportunities opportunity SET status='won',actual_close_date=current_date,updated_by=$1,updated_at=now()
+        WHERE opportunity.organization_id=$2 AND opportunity.id=$3 AND opportunity.status='open'`,
+      [context.userId, context.organizationId, order.source_opportunity_id],
+    );
+  }
+  return { orderId: id, status: "confirmed", creditStatus };
+}
+
 export async function placeOrderHold(client,context,id,input){requirePermission(context,"sales.order.hold");const order=await lockOrder(client,context,id);if(!["confirmed","on_hold"].includes(order.lifecycle_status))throw new SalesError(409,"Only confirmed orders can be placed on hold.");const reason=text(input.reason,2000);if(!reason)throw new SalesError(400,"A hold reason is required.");const result=await client.query(`INSERT INTO tenant.sales_order_holds (organization_id,sales_order_id,hold_type,reason,placed_by) VALUES ($1,$2,$3,$4,$5) RETURNING id`,[context.organizationId,id,input.holdType||"other",reason,context.userId]);await client.query(`UPDATE tenant.sales_orders SET lifecycle_status='on_hold',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,[context.userId,context.organizationId,id]);await event(client,context,"sales_order",id,"sales_order.hold_placed",order.lifecycle_status,"on_hold",{holdId:result.rows[0].id,holdType:input.holdType||"other",reason});return result.rows[0];}
 export async function releaseOrderHold(client,context,id,input){requirePermission(context,"sales.order.hold");const order=await lockOrder(client,context,id);const holdId=uuid(input.holdId,"Hold");const updated=await client.query(`UPDATE tenant.sales_order_holds SET status='released',released_by=$1,released_at=now(),release_note=$2 WHERE organization_id=$3 AND sales_order_id=$4 AND id=$5 AND status='active' RETURNING id`,[context.userId,text(input.note,2000),context.organizationId,id,holdId]);if(!updated.rows[0])throw new SalesError(404,"Active hold not found.");const remaining=await client.query(`SELECT 1 FROM tenant.sales_order_holds WHERE organization_id=$1 AND sales_order_id=$2 AND status='active' LIMIT 1`,[context.organizationId,id]);if(!remaining.rows[0])await client.query(`UPDATE tenant.sales_orders SET lifecycle_status='confirmed',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,[context.userId,context.organizationId,id]);await event(client,context,"sales_order",id,"sales_order.hold_released","on_hold",remaining.rows[0]?"on_hold":"confirmed",{holdId,note:text(input.note,2000)});return {holdId};}
 export async function cancelSalesOrder(client,context,id,reason){requirePermission(context,"sales.order.cancel");const order=await lockOrder(client,context,id);if(["cancelled","closed"].includes(order.lifecycle_status))throw new SalesError(409,"This order is already closed.");const progress=await client.query(`SELECT COALESCE(sum(progress.fulfilled_quantity),0) AS fulfilled,COALESCE(sum(progress.invoiced_quantity),0) AS invoiced FROM tenant.sales_order_lines line JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id WHERE line.organization_id=$1 AND line.sales_order_version_id=$2`,[context.organizationId,order.current_version_id]);if(decimal(progress.rows[0].fulfilled)>0n||decimal(progress.rows[0].invoiced)>0n)throw new SalesError(409,"Orders with fulfilment or invoicing activity cannot be cancelled directly.");const note=text(reason,2000);if(!note)throw new SalesError(400,"A cancellation reason is required.");await client.query(`UPDATE tenant.sales_orders SET lifecycle_status='cancelled',fulfillment_status='cancelled',billing_status='blocked',cancelled_at=now(),updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,[context.userId,context.organizationId,id]);await event(client,context,"sales_order",id,"sales_order.cancelled",order.lifecycle_status,"cancelled",{reason:note});return {orderId:id,status:"cancelled"};}

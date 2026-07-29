@@ -5,7 +5,7 @@ import { buildRazorpaySubscriptionPayload } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { checkoutSchema } from "@/lib/billing-validation";
-import { query } from "@/lib/db";
+import { query, transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { razorpayConfiguration, razorpayRequest } from "@/lib/razorpay";
 import { assertSameOriginOrMobile, audit } from "@/lib/security";
@@ -93,27 +93,39 @@ export async function POST(request: Request) {
     }
 
     checkoutSessionId = randomUUID();
-    await query(
-      `
-        UPDATE billing_checkout_sessions SET status = 'superseded'
-        WHERE organization_id = $1 AND status = 'created'
-      `,
-      [session.organizationId],
-    );
-    await query(
-      `
-        INSERT INTO billing_checkout_sessions (
+    await transaction(async (client) => {
+      await client.query(
+        `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+        [`billing-checkout:${session.organizationId}`],
+      );
+      await client.query(
+        `UPDATE billing_checkout_sessions
+            SET status = 'expired', updated_at = now()
+          WHERE organization_id = $1 AND status = 'created' AND expires_at <= now()`,
+        [session.organizationId],
+      );
+      const active = await client.query<{ id: string }>(
+        `SELECT id FROM billing_checkout_sessions
+          WHERE organization_id = $1 AND status = 'created' AND expires_at > now()
+          ORDER BY created_at DESC LIMIT 1`,
+        [session.organizationId],
+      );
+      if (active.rows[0]) {
+        throw new HttpError(409, "A billing checkout is already in progress for this organisation.");
+      }
+      await client.query(
+        `INSERT INTO billing_checkout_sessions (
           id, organization_id, plan_price_id, status, initiated_by, metadata
-        ) VALUES ($1, $2, $3, 'created', $4, $5::jsonb)
-      `,
-      [
-        checkoutSessionId,
-        session.organizationId,
-        price.id,
-        session.userId,
-        JSON.stringify({ mode: razorpayConfiguration().mode }),
-      ],
-    );
+        ) VALUES ($1, $2, $3, 'created', $4, $5::jsonb)`,
+        [
+          checkoutSessionId,
+          session.organizationId,
+          price.id,
+          session.userId,
+          JSON.stringify({ mode: razorpayConfiguration().mode }),
+        ],
+      );
+    });
 
     const providerSubscription = await razorpayRequest<RazorpaySubscription>(
       "/subscriptions",

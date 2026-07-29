@@ -4,8 +4,10 @@ import {
   requireBillingWriteAccess,
 } from "@/lib/billing";
 import { requirePermissionFromSession } from "@/lib/authorization";
+import { transaction } from "@/lib/db";
 import { HttpError, readJson } from "@/lib/http";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
+import { withMobileIdempotency } from "@/lib/mobile-idempotency";
 import { requireMobileSession } from "@/lib/mobile-session";
 import {
   createResource,
@@ -62,21 +64,28 @@ export async function POST(
       await readJson(request),
     ) as Record<string, unknown>;
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
-    const created = await createResource(
-      resource,
-      session.organizationId!,
-      session.userId,
-      input,
+    const created = await transaction(async (client) =>
+      withMobileIdempotency(client, session, request, input, async () => {
+        const record = await createResource(
+          resource,
+          session.organizationId!,
+          session.userId,
+          input,
+          client,
+        );
+        await audit({
+          organizationId: session.organizationId!,
+          actorUserId: session.userId,
+          eventType: `${resource}.created`,
+          entityType: resource,
+          entityId: record.id,
+          afterData: input,
+          request,
+          client,
+        });
+        return record;
+      }),
     );
-    await audit({
-      organizationId: session.organizationId!,
-      actorUserId: session.userId,
-      eventType: `${resource}.created`,
-      entityType: resource,
-      entityId: created.id,
-      afterData: input,
-      request,
-    });
     return mobileOk(request, { message: "Record created.", id: created.id }, 201);
   } catch (error) {
     return mobileError(request, error);

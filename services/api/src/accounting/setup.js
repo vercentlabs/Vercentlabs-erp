@@ -2,6 +2,7 @@ import {
   ACCOUNTING_PERMISSIONS,
   AccountingError,
   currency,
+  event,
   loadCompany,
   optionalUuid,
   requirePermission,
@@ -43,6 +44,13 @@ export async function getAccountingSettings(client, context, companyIdValue = nu
   return { company, settings: settings.rows[0] || null, ledgers: ledgers.rows, mappings: mappings.rows, dimensions: dimensions.rows, dimensionValues: dimensionValues.rows };
 }
 
+function strictBoolean(value, label) {
+  if (typeof value !== "boolean") {
+    throw new AccountingError(400, `${label} must be true or false.`);
+  }
+  return value;
+}
+
 export async function updateAccountingSettings(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.settingsManage);
   const allowed = [
@@ -69,7 +77,7 @@ export async function updateAccountingSettings(client, context, input) {
     ["vendorPaymentApprovalRequired", "vendor_payment_approval_required"],
   ]) {
     if (!(key in input)) continue;
-    values.push(Boolean(input[key]));
+    values.push(strictBoolean(input[key], key));
     columns.push(`${column}=$${values.length}`);
   }
   for (const [key, column, label] of [
@@ -84,10 +92,29 @@ export async function updateAccountingSettings(client, context, input) {
     values.push(String(threshold)); columns.push(`${column}=$${values.length}`);
   }
   if (!columns.length) throw new AccountingError(400, "No accounting settings were supplied.");
+  const before = await client.query(
+    `SELECT * FROM tenant.accounting_settings WHERE organization_id=$1 AND company_id=$2 FOR UPDATE`,
+    values.slice(0, 2),
+  );
+  if (!before.rows[0]) throw new AccountingError(409, "Accounting settings have not been initialized.");
   values.push(context.userId);
   const result = await client.query(`UPDATE tenant.accounting_settings SET ${columns.join(",")},updated_by=$${values.length},updated_at=now() WHERE organization_id=$1 AND company_id=$2 RETURNING *`, values);
-  if (!result.rows[0]) throw new AccountingError(409, "Accounting settings have not been initialized.");
-  return result.rows[0];
+  const updated = result.rows[0];
+  await event(
+    client,
+    context,
+    "accounting_settings",
+    values[1],
+    "accounting.settings.updated",
+    null,
+    null,
+    {
+      changedFields: columns.map((column) => column.split("=")[0]),
+      before: before.rows[0],
+      after: updated,
+    },
+  );
+  return updated;
 }
 
 export async function createAccountingAccount(client, context, input) {

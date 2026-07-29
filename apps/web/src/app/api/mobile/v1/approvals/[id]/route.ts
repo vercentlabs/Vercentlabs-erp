@@ -13,6 +13,7 @@ import { rethrowCrmError } from "@/lib/crm";
 import { transaction } from "@/lib/db";
 import { HttpError, readJson } from "@/lib/http";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
+import { withMobileIdempotency } from "@/lib/mobile-idempotency";
 import { requireMobileSession } from "@/lib/mobile-session";
 import { audit } from "@/lib/security";
 import { approvalDecisionSchema } from "@/lib/validation";
@@ -40,7 +41,8 @@ export async function PATCH(
       await requireBillingWriteAccess(session.organizationId);
     }
 
-    const completed = await transaction(async (client) => {
+    const completed = await transaction(async (client) =>
+      withMobileIdempotency(client, session, request, input, async () => {
       const result = await client.query<{
         id: string;
         title: string;
@@ -112,7 +114,8 @@ export async function PATCH(
         client,
       });
       return updated.rows[0];
-    });
+      }),
+    );
     return mobileOk(request, { message: `Approval request ${decision.decision}.`, request: completed });
   } catch (error) {
     if (error instanceof WorkflowConflictError || error instanceof TypeError || error instanceof RangeError) {

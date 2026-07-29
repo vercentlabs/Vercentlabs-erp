@@ -15,6 +15,21 @@ function numberDate(value: unknown) {
   return seconds > 0 ? new Date(seconds * 1000) : null;
 }
 
+function boundedIntegerEnvironment(
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new HttpError(500, `${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return parsed;
+}
+
 type JsonMap = Record<string, unknown>;
 
 function asMap(value: unknown): JsonMap {
@@ -34,9 +49,11 @@ export async function POST(request: Request) {
   let eventRowId: string | null = null;
 
   try {
-    const maximumBytes = Math.max(
+    const maximumBytes = boundedIntegerEnvironment(
+      "RAZORPAY_WEBHOOK_MAX_BYTES",
+      262_144,
       1_024,
-      Number(process.env.RAZORPAY_WEBHOOK_MAX_BYTES || "262144"),
+      10_485_760,
     );
     const rawBytes = await readRequestBytes(request, maximumBytes);
     const rawBody = new TextDecoder("utf-8", { fatal: true }).decode(rawBytes);
@@ -58,9 +75,17 @@ export async function POST(request: Request) {
       request.headers.get("x-razorpay-event-id") ||
       createHash("sha256").update(rawBody).digest("hex");
     const providerCreatedAt = numberDate(event.created_at);
-    const maximumAgeSeconds = Math.max(
+    const maximumAgeSeconds = boundedIntegerEnvironment(
+      "RAZORPAY_WEBHOOK_MAX_AGE_SECONDS",
+      86_400,
       60,
-      Number(process.env.RAZORPAY_WEBHOOK_MAX_AGE_SECONDS || "86400"),
+      604_800,
+    );
+    const leaseSeconds = boundedIntegerEnvironment(
+      "RAZORPAY_WEBHOOK_LEASE_SECONDS",
+      300,
+      30,
+      3_600,
     );
     if (
       providerCreatedAt &&
@@ -140,11 +165,23 @@ export async function POST(request: Request) {
     const claimed = await query<{ id: string }>(
       `
         UPDATE billing_webhook_events
-        SET processing_status = 'processing', processing_error = NULL
-        WHERE id = $1 AND processing_status IN ('received', 'failed')
+        SET processing_status = 'processing',
+          processing_error = NULL,
+          processing_started_at = now(),
+          processing_lease_expires_at = now() + ($2 * interval '1 second'),
+          processing_attempts = processing_attempts + 1
+        WHERE id = $1
+          AND (
+            processing_status IN ('received', 'failed')
+            OR (
+              processing_status = 'processing'
+              AND processing_lease_expires_at IS NOT NULL
+              AND processing_lease_expires_at <= now()
+            )
+          )
         RETURNING id
       `,
-      [eventRowId],
+      [eventRowId, leaseSeconds],
     );
     if (!claimed[0]) return ok({ duplicate: true, processing: true });
 
@@ -153,7 +190,8 @@ export async function POST(request: Request) {
         `
           UPDATE billing_webhook_events
           SET processing_status = 'ignored', processed_at = now(),
-            processing_error = 'subscription_identifier_missing'
+            processing_error = 'subscription_identifier_missing',
+            processing_lease_expires_at = NULL
           WHERE id = $1
         `,
         [eventRowId],
@@ -176,6 +214,13 @@ export async function POST(request: Request) {
     let subscription = subscriptions[0];
 
     if (!subscription) {
+      const subscriptionNotes = asMap(subscriptionEntity?.notes);
+      const checkoutSessionId = subscriptionNotes.vercentlabs_checkout_session_id
+        ? String(subscriptionNotes.vercentlabs_checkout_session_id)
+        : null;
+      const organizationIdFromNotes = subscriptionNotes.vercentlabs_organization_id
+        ? String(subscriptionNotes.vercentlabs_organization_id)
+        : null;
       const checkoutRows = await query<{
         id: string;
         organization_id: string;
@@ -185,15 +230,28 @@ export async function POST(request: Request) {
           SELECT id, organization_id, plan_price_id
           FROM billing_checkout_sessions
           WHERE provider = 'razorpay'
-            AND provider_subscription_id = $1
             AND status IN ('created', 'authorised')
+            AND (
+              provider_subscription_id = $1
+              OR (
+                $2::uuid IS NOT NULL
+                AND id = $2::uuid
+                AND ($3::uuid IS NULL OR organization_id = $3::uuid)
+              )
+            )
           ORDER BY created_at DESC
           LIMIT 1
         `,
-        [providerSubscriptionId],
+        [providerSubscriptionId, checkoutSessionId, organizationIdFromNotes],
       );
       const checkout = checkoutRows[0];
       if (checkout) {
+        await query(
+          `UPDATE billing_checkout_sessions
+             SET provider_subscription_id = COALESCE(provider_subscription_id, $2)
+           WHERE id = $1 AND organization_id = $3`,
+          [checkout.id, providerSubscriptionId, checkout.organization_id],
+        );
         const local = await replaceOrganizationSubscription({
           organizationId: checkout.organization_id,
           planPriceId: checkout.plan_price_id,
@@ -212,13 +270,14 @@ export async function POST(request: Request) {
       await query(
         `
           UPDATE billing_webhook_events
-          SET processing_status = 'ignored', processed_at = now(),
-            processing_error = 'subscription_not_found'
+          SET processing_status = 'failed', processed_at = NULL,
+            processing_error = 'subscription_not_found',
+            processing_lease_expires_at = NULL
           WHERE id = $1
         `,
         [eventRowId],
       );
-      return ok({ ignored: true });
+      throw new HttpError(503, "The subscription is not linked locally yet. Retry this webhook.");
     }
 
     await transaction(async (client) => {
@@ -390,7 +449,7 @@ export async function POST(request: Request) {
         `
           UPDATE billing_webhook_events
           SET processing_status = 'processed', processed_at = now(),
-            processing_error = NULL
+            processing_error = NULL, processing_lease_expires_at = NULL
           WHERE id = $1
         `,
         [eventRowId],
@@ -403,7 +462,8 @@ export async function POST(request: Request) {
       await query(
         `
           UPDATE billing_webhook_events
-          SET processing_status = 'failed', processing_error = $2
+          SET processing_status = 'failed', processing_error = $2,
+            processing_lease_expires_at = NULL
           WHERE id = $1 AND processing_status = 'processing'
         `,
         [

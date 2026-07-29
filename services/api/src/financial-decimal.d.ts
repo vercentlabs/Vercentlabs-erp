@@ -1,0 +1,16 @@
+export declare function decimal(value: unknown): bigint;
+export declare function add(...values: unknown[]): bigint;
+export declare function sub(left: unknown, right: unknown): bigint;
+export declare function mul(left: unknown, right: unknown): bigint;
+export declare function div(left: unknown, right: unknown): bigint;
+export declare function percent(value: unknown, rate: unknown): bigint;
+export declare function abs(value: unknown): bigint;
+export declare function max(left: unknown, right: unknown): bigint;
+export declare function min(left: unknown, right: unknown): bigint;
+export declare function roundMoney(value: unknown, decimalPlaces?: number): bigint;
+export declare function formatDecimal(value: unknown, decimalPlaces?: number): string;
+export declare function format(value: unknown, decimalPlaces?: number): string;
+export declare function asDatabaseDecimal(value: unknown): string;
+export declare function allocate(total: unknown, weights: unknown[]): bigint[];
+export declare const MONEY_SCALE: bigint;
+export declare const MONEY_SCALE_DIGITS: number;

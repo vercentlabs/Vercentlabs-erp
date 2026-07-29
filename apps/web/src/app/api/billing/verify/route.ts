@@ -21,9 +21,10 @@ export async function POST(request: Request) {
       plan_price_id: string;
       provider_subscription_id: string;
       status: string;
+      expires_at: Date;
     }>(
       `
-        SELECT id, subscription_id, plan_price_id, provider_subscription_id, status
+        SELECT id, subscription_id, plan_price_id, provider_subscription_id, status, expires_at
         FROM billing_checkout_sessions
         WHERE id = $1 AND organization_id = $2
       `,
@@ -32,6 +33,12 @@ export async function POST(request: Request) {
     const checkout = rows[0];
     if (!checkout)
       throw new HttpError(404, "Billing checkout session was not found.");
+    if (checkout.status !== "created") {
+      throw new HttpError(409, "This billing checkout is no longer current and cannot be verified.");
+    }
+    if (new Date(checkout.expires_at).getTime() <= Date.now()) {
+      throw new HttpError(410, "This billing checkout has expired. Start a new checkout.");
+    }
     if (checkout.provider_subscription_id !== input.razorpay_subscription_id) {
       throw new HttpError(
         400,
@@ -52,10 +59,17 @@ export async function POST(request: Request) {
     });
 
     await transaction(async (client) => {
-      await client.query(
-        `UPDATE billing_checkout_sessions SET status = 'authorised' WHERE id = $1`,
-        [checkout.id],
+      const claimed = await client.query(
+        `UPDATE billing_checkout_sessions
+            SET status = 'authorised', updated_at = now()
+          WHERE id = $1 AND organization_id = $2 AND status = 'created'
+            AND expires_at > now() AND provider_subscription_id = $3
+          RETURNING id`,
+        [checkout.id, session.organizationId, checkout.provider_subscription_id],
       );
+      if (!claimed.rows[0]) {
+        throw new HttpError(409, "This billing checkout changed before verification completed.");
+      }
       await client.query(
         `
           UPDATE organization_subscriptions

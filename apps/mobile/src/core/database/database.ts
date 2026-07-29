@@ -69,6 +69,18 @@ function isUnreadableEncryptedDatabase(error: unknown) {
   );
 }
 
+async function ensureColumn(
+  database: Awaited<ReturnType<typeof SQLite.openDatabaseAsync>>,
+  table: string,
+  column: string,
+  definition: string,
+) {
+  const columns = await database.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (!columns.some((entry) => entry.name === column)) {
+    await database.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 async function openEncryptedDatabase(identity: DatabaseIdentity) {
   const database = await SQLite.openDatabaseAsync(identity.databaseName);
   try {
@@ -113,6 +125,11 @@ async function openEncryptedDatabase(identity: DatabaseIdentity) {
         metadata TEXT
       );
     `);
+    await ensureColumn(database, "mutation_queue", "next_attempt_at", "INTEGER");
+    await ensureColumn(database, "mutation_queue", "last_http_status", "INTEGER");
+    await database.runAsync(
+      "UPDATE mutation_queue SET next_attempt_at = COALESCE(next_attempt_at, created_at) WHERE next_attempt_at IS NULL AND attempts < 5",
+    );
     return database;
   } catch (error) {
     await database.closeAsync().catch(() => undefined);
@@ -201,21 +218,43 @@ export async function writeCache(cacheKey: string, resource: string, payload: un
   );
 }
 
-export type QueuedMutation = { id: string; operation: string; resource: string; recordId: string | null; payload: string; idempotencyKey: string; attempts: number };
+export type QueuedMutation = { id: string; operation: string; resource: string; recordId: string | null; payload: string; idempotencyKey: string; attempts: number; nextAttemptAt: number | null };
 
 export async function enqueueMutation(input: { id: string; operation: string; resource: string; recordId?: string; payload: unknown; idempotencyKey: string }) {
   const database = await initializeDatabase();
   const now = Date.now();
   await database.runAsync(
-    `INSERT OR IGNORE INTO mutation_queue(id, operation, resource, record_id, payload, idempotency_key, state, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    input.id, input.operation, input.resource, input.recordId ?? null, JSON.stringify(input.payload), input.idempotencyKey, now, now,
+    `INSERT OR IGNORE INTO mutation_queue(id, operation, resource, record_id, payload, idempotency_key, state, created_at, updated_at, next_attempt_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    input.id, input.operation, input.resource, input.recordId ?? null, JSON.stringify(input.payload), input.idempotencyKey, now, now, now,
   );
 }
 
 export async function pendingMutations() {
   const database = await initializeDatabase();
-  return database.getAllAsync<QueuedMutation>(`SELECT id, operation, resource, record_id AS recordId, payload, idempotency_key AS idempotencyKey, attempts FROM mutation_queue WHERE state IN ('pending','failed') ORDER BY created_at LIMIT 50`);
+  const now = Date.now();
+  return database.getAllAsync<QueuedMutation>(
+    `SELECT id, operation, resource, record_id AS recordId, payload,
+      idempotency_key AS idempotencyKey, attempts, next_attempt_at AS nextAttemptAt
+     FROM mutation_queue
+     WHERE attempts < 5
+       AND (
+         (state IN ('pending','failed') AND COALESCE(next_attempt_at, 0) <= ?)
+         OR (state='sending' AND updated_at <= ?)
+       )
+     ORDER BY created_at LIMIT 50`,
+    now,
+    now - 5 * 60 * 1000,
+  );
+}
+
+export async function markMutationSending(id: string) {
+  const database = await initializeDatabase();
+  await database.runAsync(
+    "UPDATE mutation_queue SET state='sending', updated_at=? WHERE id=?",
+    Date.now(),
+    id,
+  );
 }
 
 export async function resolveMutation(id: string) {
@@ -223,7 +262,29 @@ export async function resolveMutation(id: string) {
   await database.runAsync("DELETE FROM mutation_queue WHERE id = ?", id);
 }
 
-export async function failMutation(id: string, message: string) {
+export async function failMutation(
+  id: string,
+  message: string,
+  options: { retryable?: boolean; httpStatus?: number } = {},
+) {
   const database = await initializeDatabase();
-  await database.runAsync("UPDATE mutation_queue SET state='failed', attempts=attempts+1, last_error=?, updated_at=? WHERE id=?", message.slice(0, 500), Date.now(), id);
+  const row = await database.getFirstAsync<{ attempts: number }>(
+    "SELECT attempts FROM mutation_queue WHERE id=?",
+    id,
+  );
+  if (!row) return;
+  const attempts = row.attempts + 1;
+  const retryable = options.retryable !== false && attempts < 5;
+  const delay = retryable ? Math.min(60 * 60 * 1000, 2 ** attempts * 5_000) : null;
+  const now = Date.now();
+  await database.runAsync(
+    `UPDATE mutation_queue SET state='failed', attempts=?, last_error=?,
+       last_http_status=?, next_attempt_at=?, updated_at=? WHERE id=?`,
+    retryable ? attempts : 5,
+    message.slice(0, 500),
+    options.httpStatus ?? null,
+    delay === null ? null : now + delay,
+    now,
+    id,
+  );
 }

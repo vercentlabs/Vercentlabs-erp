@@ -18,6 +18,9 @@ export function listSalesOrders(client: SalesQueryClient, context: SalesContext,
 export function getSalesOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
 export function amendSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
 export function completeFulfillmentRequest(client: SalesQueryClient, context: SalesContext, requestId: string, input?: Record<string, any>): Promise<any>;
+export function submitSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, assignedTo?: string | null): Promise<any>;
+export function approveSalesOrder(client: SalesQueryClient, context: SalesContext, orderId: string, orderVersionId: string): Promise<any>;
+export function rejectSalesOrderApproval(client: SalesQueryClient, context: SalesContext, orderId: string): Promise<void>;
 export function confirmSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, options?: Record<string, any>): Promise<any>;
 export function placeOrderHold(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
 export function releaseOrderHold(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;

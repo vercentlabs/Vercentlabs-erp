@@ -344,10 +344,11 @@ export async function createResource(
   organizationId: string,
   actorUserId: string,
   input: Record<string, unknown>,
+  clientOverride?: PoolClient,
 ) {
   if (resource === "organization")
     throw new HttpError(405, "The organisation already exists.");
-  return transaction(async (client) => {
+  const create = async (client: PoolClient) => {
     const id = randomUUID();
     switch (resource) {
       case "companies":
@@ -446,7 +447,8 @@ export async function createResource(
         break;
     }
     return { id };
-  });
+  };
+  return clientOverride ? create(clientOverride) : transaction(create);
 }
 
 export async function updateResource(

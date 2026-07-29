@@ -20,6 +20,26 @@ const nonNegativeMoney = z.coerce
   .finite()
   .min(0)
   .max(999_999_999_999_999);
+
+function booleanInput(defaultValue: boolean) {
+  return z
+    .preprocess((value) => {
+      if (value === undefined || value === null || value === "") return undefined;
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") {
+        if (value === 1) return true;
+        if (value === 0) return false;
+        return value;
+      }
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (["true", "1", "yes", "y", "on"].includes(normalized)) return true;
+        if (["false", "0", "no", "n", "off"].includes(normalized)) return false;
+      }
+      return value;
+    }, z.boolean())
+    .default(defaultValue);
+}
 const optionalUuid = z.preprocess(
   (value) => (value === "" || value === undefined ? null : value),
   uuid.nullable(),
@@ -83,7 +103,7 @@ const contactSchema = z.object({
   email: optionalEmail,
   phone: z.string().trim().max(30).optional().default(""),
   mobile: z.string().trim().max(30).optional().default(""),
-  isPrimary: z.coerce.boolean().default(false),
+  isPrimary: booleanInput(false),
   status: companyStatus,
 });
 
@@ -113,7 +133,7 @@ const addressSchema = z.object({
     .or(z.literal(""))
     .optional()
     .default(""),
-  isPrimary: z.coerce.boolean().default(false),
+  isPrimary: booleanInput(false),
   status: companyStatus,
 });
 
@@ -131,7 +151,7 @@ const uomSchema = z.object({
     "other",
   ]),
   decimalPlaces: z.coerce.number().int().min(0).max(6).default(3),
-  isBase: z.coerce.boolean().default(false),
+  isBase: booleanInput(false),
   status: companyStatus,
 });
 
@@ -153,8 +173,8 @@ const itemSchema = z.object({
   uomId: uuid,
   hsnSacCode: z.string().trim().max(20).optional().default(""),
   barcode: z.string().trim().max(80).optional().default(""),
-  trackInventory: z.coerce.boolean().default(true),
-  allowNegativeStock: z.coerce.boolean().default(false),
+  trackInventory: booleanInput(true),
+  allowNegativeStock: booleanInput(false),
   valuationMethod: z
     .enum(["moving_average", "fifo", "standard"])
     .default("moving_average"),
@@ -218,7 +238,7 @@ const warehouseSchema = z.object({
     "returns",
     "virtual",
   ]),
-  allowNegativeStock: z.coerce.boolean().default(false),
+  allowNegativeStock: booleanInput(false),
   status: companyStatus,
 });
 
@@ -256,7 +276,7 @@ const priceListObject = z.object({
   name: z.string().trim().min(2).max(120),
   priceListType: z.enum(["sales", "purchase"]),
   currencyCode,
-  taxInclusive: z.coerce.boolean().default(false),
+  taxInclusive: booleanInput(false),
   validFrom: optionalDate,
   validTo: optionalDate,
   status: companyStatus,
@@ -293,7 +313,7 @@ const currencySchema = z.object({
   name: z.string().trim().min(2).max(120),
   symbol: z.string().trim().max(12).optional().default(""),
   decimalPlaces: z.coerce.number().int().min(0).max(6).default(2),
-  isBase: z.coerce.boolean().default(false),
+  isBase: booleanInput(false),
   status: companyStatus,
 });
 

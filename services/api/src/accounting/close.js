@@ -106,13 +106,15 @@ export async function updateFiscalPeriodStatus(client, context, idValue, input) 
   const period = result.rows[0];
   if (!period) throw new AccountingError(404, "Fiscal period not found.");
   const status = String(input.status || "");
-  if (!["open","soft_closed","closed","locked"].includes(status)) throw new AccountingError(400, "Fiscal period status is invalid.");
-  if (period.status === "locked" && status !== "locked") throw new AccountingError(409, "A locked period can only be reopened through a governed close run.");
-  if (status === "closed" || status === "locked") {
-    const blockers = await periodBlockers(client, context, period.company_id, period);
-    if (blockers.length) throw new AccountingError(409, `The period has ${blockers.length} unresolved close blocker categories: ${blockers.map((blocker) => blocker.message).join("; ")}.`);
+  if (!["open", "soft_closed"].includes(status)) {
+    throw new AccountingError(409, "Closed and locked periods can only be produced by a completed governed close run.");
   }
-  const updated = await client.query(`UPDATE tenant.fiscal_periods SET status=$3,soft_closed_at=CASE WHEN $3='soft_closed' THEN now() ELSE soft_closed_at END,soft_closed_by=CASE WHEN $3='soft_closed' THEN $4 ELSE soft_closed_by END,locked_at=CASE WHEN $3='locked' THEN now() ELSE locked_at END,locked_by=CASE WHEN $3='locked' THEN $4 ELSE locked_by END,close_note=$5 WHERE organization_id=$1 AND id=$2 RETURNING *`, [context.organizationId, id, status, context.userId, text(input.note, 1000) || null]);
+  if (["closed", "locked"].includes(period.status)) {
+    throw new AccountingError(409, "A closed or locked period cannot be reopened through the ordinary period endpoint.");
+  }
+  const updated = await client.query(`UPDATE tenant.fiscal_periods SET status=$3,soft_closed_at=CASE WHEN $3='soft_closed' THEN now() ELSE NULL END,soft_closed_by=CASE WHEN $3='soft_closed' THEN $4 ELSE NULL END,close_note=$5 WHERE organization_id=$1 AND id=$2 AND status=$6 RETURNING *`, [context.organizationId, id, status, context.userId, text(input.note, 1000) || null, period.status]);
+  if (!updated.rows[0]) throw new AccountingError(409, "The fiscal period changed before the update was applied.");
+  await event(client, context, "fiscal_period", id, "accounting.period.status_changed", period.status, status, { note: text(input.note, 1000) || null });
   return updated.rows[0];
 }
 
@@ -156,8 +158,18 @@ export async function updateCloseTask(client, context, runIdValue, taskIdValue, 
   const runId = uuid(runIdValue, "Close run"); const taskId = uuid(taskIdValue, "Close task");
   const status = String(input.status || "");
   if (!["pending","in_progress","completed","waived","blocked"].includes(status)) throw new AccountingError(400, "Close task status is invalid.");
-  const result = await client.query(`UPDATE tenant.accounting_close_tasks SET status=$4,note=$5,evidence=$6::jsonb,completed_at=CASE WHEN $4 IN ('completed','waived') THEN now() ELSE NULL END,completed_by=CASE WHEN $4 IN ('completed','waived') THEN $7 ELSE NULL END WHERE organization_id=$1 AND close_run_id=$2 AND id=$3 RETURNING *`, [context.organizationId, runId, taskId, status, text(input.note, 1000) || null, JSON.stringify(input.evidence && typeof input.evidence === "object" ? input.evidence : {}), context.userId]);
-  if (!result.rows[0]) throw new AccountingError(404, "Close task not found.");
+  const note = text(input.note, 1000) || null;
+  const evidence = input.evidence && typeof input.evidence === "object" && !Array.isArray(input.evidence) ? input.evidence : {};
+  if (status === "waived") {
+    requirePermission(context, ACCOUNTING_PERMISSIONS.closeWaive);
+    if (!note) throw new AccountingError(400, "A waiver reason is required.");
+    if (!Object.keys(evidence).length) throw new AccountingError(400, "Waiver evidence is required.");
+  }
+  const current = await client.query(`SELECT * FROM tenant.accounting_close_tasks WHERE organization_id=$1 AND close_run_id=$2 AND id=$3 FOR UPDATE`, [context.organizationId, runId, taskId]);
+  if (!current.rows[0]) throw new AccountingError(404, "Close task not found.");
+  const result = await client.query(`UPDATE tenant.accounting_close_tasks SET status=$4,note=$5,evidence=$6::jsonb,completed_at=CASE WHEN $4 IN ('completed','waived') THEN now() ELSE NULL END,completed_by=CASE WHEN $4 IN ('completed','waived') THEN $7 ELSE NULL END WHERE organization_id=$1 AND close_run_id=$2 AND id=$3 AND status=$8 RETURNING *`, [context.organizationId, runId, taskId, status, note, JSON.stringify(evidence), context.userId, current.rows[0].status]);
+  if (!result.rows[0]) throw new AccountingError(409, "The close task changed before the update was applied.");
+  await event(client, context, "close_task", taskId, status === "waived" ? "accounting.close.task_waived" : "accounting.close.task_updated", current.rows[0].status, status, { runId, note, evidence });
   const totals = await client.query(`SELECT count(*)::int AS total,count(*) FILTER (WHERE status IN ('completed','waived'))::int AS completed,count(*) FILTER (WHERE status='blocked')::int AS blocked FROM tenant.accounting_close_tasks WHERE organization_id=$1 AND close_run_id=$2`, [context.organizationId, runId]);
   const summary = totals.rows[0];
   const percent = Number(summary.total) ? (Number(summary.completed) / Number(summary.total)) * 100 : 0;

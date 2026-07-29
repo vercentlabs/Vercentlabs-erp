@@ -5,6 +5,7 @@ import {
   approveVendorBill,
   approveVendorPayment,
   approveQuotation,
+  approveSalesOrder,
   completeCrmActivity,
   moveOpportunityStage,
   rejectBudgetApproval,
@@ -13,6 +14,7 @@ import {
   rejectVendorBillApproval,
   rejectVendorPaymentApproval,
   rejectQuotationApproval,
+  rejectSalesOrderApproval,
 } from "@vercentlabs/api";
 import { createCommandRegistry } from "@vercentlabs/workflows";
 import type { PoolClient } from "pg";
@@ -138,6 +140,31 @@ const definitions: ApprovalCommand[] = [
         client,
         salesContext(session),
         String(payload.quotationId),
+      ),
+  },
+  {
+    key: "sales.order.approve",
+    permission: PERMISSIONS.salesOrderApprove,
+    entityType: "sales_order",
+    entityId: (payload) => String(payload.orderId),
+    title: (payload) => `Approve Sales order ${String(payload.orderId)}`,
+    validate: (payload) =>
+      z
+        .object({ orderId: uuid, orderVersionId: uuid })
+        .strict()
+        .parse(payload),
+    execute: ({ client, session }, payload) =>
+      approveSalesOrder(
+        client,
+        salesContext(session),
+        String(payload.orderId),
+        String(payload.orderVersionId),
+      ),
+    reject: ({ client, session }, payload) =>
+      rejectSalesOrderApproval(
+        client,
+        salesContext(session),
+        String(payload.orderId),
       ),
   },
   {

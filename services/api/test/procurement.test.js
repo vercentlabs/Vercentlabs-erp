@@ -162,6 +162,7 @@ test("self approval is rejected before a purchase order changes", async () => {
       "purchase-orders",
       RECORD,
       "approve",
+      { expectedVersion: 1 },
     ),
     (error) =>
       error instanceof ProcurementError &&
@@ -200,6 +201,9 @@ test("three-way matching creates a governed exception for quantity variance", as
             },
           ],
         };
+      }
+      if (text.includes("FROM tenant.procurement_policies")) {
+        return { rows: [] };
       }
       if (text.includes("FROM tenant.procurement_purchase_order_lines")) {
         return {

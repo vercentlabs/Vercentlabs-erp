@@ -17,6 +17,7 @@ export const ACCOUNTING_PERMISSIONS = Object.freeze({
   bankReconcile: "accounting.bank.reconcile",
   periodManage: "accounting.period.manage",
   closeManage: "accounting.close.manage",
+  closeWaive: "accounting.close.waive",
   budgetManage: "accounting.budget.manage",
   taxManage: "accounting.tax.manage",
   fxManage: "accounting.fx.manage",

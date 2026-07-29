@@ -12,26 +12,33 @@ export class ProcurementError extends Error {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DOCUMENT_STATES = new Set([
-  "draft",
-  "submitted",
-  "pending_approval",
-  "approved",
-  "rejected",
-  "active",
-  "dispatched",
-  "acknowledged",
-  "partially_received",
-  "received",
-  "closed",
-  "cancelled",
-  "blocked",
-  "suspended",
-  "qualified",
-  "open",
-  "resolved",
-  "overridden",
-  "reversed",
+const INITIAL_DOCUMENT_STATUS = Object.freeze({
+  suppliers: "draft",
+  categories: "active",
+  catalogs: "draft",
+  requisitions: "draft",
+  "sourcing-events": "draft",
+  agreements: "draft",
+  "purchase-orders": "draft",
+  receipts: "draft",
+  "service-entries": "draft",
+  returns: "draft",
+  "match-exceptions": "open",
+});
+
+const INTERNAL_INPUT_FIELDS = new Set([
+  "status",
+  "approvalStatus",
+  "allowLifecycleEdit",
+  "createdAt",
+  "createdBy",
+  "updatedAt",
+  "updatedBy",
+  "version",
+  "contentHash",
+  "lastAction",
+  "expectedVersion",
+  "action",
 ]);
 
 const CHILDREN = Object.freeze({
@@ -316,6 +323,20 @@ function object(value, label = "Payload") {
   return { ...value };
 }
 
+function externalPayload(value) {
+  const payload = object(value);
+  for (const key of INTERNAL_INPUT_FIELDS) delete payload[key];
+  return payload;
+}
+
+function expectedVersion(value) {
+  const version = Number(value);
+  if (!Number.isInteger(version) || version <= 0) {
+    throw new ProcurementError(400, "Expected version is required for this Procurement mutation.", "PROCUREMENT_EXPECTED_VERSION_REQUIRED");
+  }
+  return version;
+}
+
 function array(value, label, { required = false } = {}) {
   const result = value == null ? [] : value;
   if (!Array.isArray(result)) {
@@ -404,7 +425,7 @@ function calculateTotals(lines) {
 }
 
 function normalizeDocument(resource, input, context) {
-  const value = object(input);
+  const value = externalPayload(input);
   const companyId = value.companyId || context.activeCompanyId;
   if (!companyId) {
     throw new ProcurementError(409, "Select an active company.", "PROCUREMENT_COMPANY_REQUIRED");
@@ -508,7 +529,7 @@ function normalizeDocument(resource, input, context) {
 }
 
 function normalizeChild(resource, input, context) {
-  const value = object(input);
+  const value = externalPayload(input);
   const config = configFor(resource);
   const companyId = value.companyId || context.activeCompanyId || null;
   if (companyId) ensureCompanyAccess(context, id(companyId, "Company"));
@@ -519,7 +540,7 @@ function normalizeChild(resource, input, context) {
     ...value,
     companyId: companyId ? id(companyId, "Company") : null,
     parentId: value.parentId ? id(value.parentId, "Parent record") : null,
-    status: text(value.status || "active", "Status", { required: true, max: 40 }),
+    status: "active",
   };
 }
 
@@ -776,10 +797,7 @@ export async function createProcurementRecord(client, context, resource, input) 
 
   let payload = normalizeDocument(resource, input, context);
   payload = await ensureNumber(client, context, resource, payload);
-  const status = text(input.status || "draft", "Status", { required: true, max: 40 });
-  if (!DOCUMENT_STATES.has(status)) {
-    throw new ProcurementError(400, "Unsupported Procurement status.");
-  }
+  const status = INITIAL_DOCUMENT_STATUS[resource] || "draft";
   const idempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
   if (idempotencyKey) {
     const existing = await client.query(
@@ -838,10 +856,11 @@ export async function updateProcurementRecord(client, context, resource, recordI
     );
     return { ...(result.rows[0].data || {}), ...result.rows[0] };
   }
-  if (!["draft", "rejected"].includes(current.status) && !input.allowLifecycleEdit) {
-    throw new ProcurementError(409, "Only draft or rejected documents can be edited. Use a lifecycle action for approved records.", "PROCUREMENT_EDIT_LOCKED");
+  if (!["draft", "rejected"].includes(current.status)) {
+    throw new ProcurementError(409, "Only draft or rejected documents can be edited. Use a governed amendment or lifecycle action for approved records.", "PROCUREMENT_EDIT_LOCKED");
   }
-  if (input.expectedVersion && Number(input.expectedVersion) !== Number(current.version)) {
+  const version = expectedVersion(input.expectedVersion);
+  if (version !== Number(current.version)) {
     throw new ProcurementError(409, "This document changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
   }
   let payload = normalizeDocument(resource, { ...(current.data || {}), ...input, companyId: current.company_id, branchId: current.branch_id }, context);
@@ -851,7 +870,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
       UPDATE tenant.${config.table}
       SET company_id=$3,branch_id=$4,search_text=$5,data=$6::jsonb,content_hash=$7,
           version=version+1,updated_by=$8,updated_at=now()
-      WHERE organization_id=$1 AND id=$2
+      WHERE organization_id=$1 AND id=$2 AND version=$9 AND status IN ('draft','rejected')
       RETURNING *
     `,
     [
@@ -863,9 +882,13 @@ export async function updateProcurementRecord(client, context, resource, recordI
       JSON.stringify(payload),
       contentHash(payload),
       context.userId,
+      version,
     ],
   );
   const record = result.rows[0];
+  if (!record) {
+    throw new ProcurementError(409, "This document changed or is no longer editable. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
+  }
   await replaceChildren(client, context, resource, record, payload);
   await event(client, context, record, resource, "updated", { version: record.version });
   await outbox(client, context, record, `procurement.${resource}.updated`, { recordId: record.id, version: record.version });
@@ -996,7 +1019,8 @@ export async function transitionProcurementRecord(client, context, resource, rec
   if (!includesState(transition[0], current.status)) {
     throw new ProcurementError(409, `Cannot ${action} a ${current.status} record.`, "PROCUREMENT_INVALID_TRANSITION");
   }
-  if (input.expectedVersion && Number(input.expectedVersion) !== Number(current.version)) {
+  const version = expectedVersion(input.expectedVersion);
+  if (version !== Number(current.version)) {
     throw new ProcurementError(409, "This document changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
   }
   if (["approve", "qualify"].includes(action) && current.created_by === context.userId) {
@@ -1011,13 +1035,13 @@ export async function transitionProcurementRecord(client, context, resource, rec
       UPDATE tenant.${config.table}
       SET status=$3,version=version+1,updated_by=$4,updated_at=now(),
           data=jsonb_set(data,'{lastAction}',to_jsonb($5::text),true)
-      WHERE organization_id=$1 AND id=$2
+      WHERE organization_id=$1 AND id=$2 AND status=$6 AND version=$7
       RETURNING *
     `,
-    [context.organizationId, id(recordId), transition[1], context.userId, action],
+    [context.organizationId, id(recordId), transition[1], context.userId, action, current.status, version],
   );
   const record = result.rows[0];
-  if (!record) throw new ProcurementError(404, "Procurement record not found.");
+  if (!record) throw new ProcurementError(409, "This document changed before the action was applied. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
   if (resource === "receipts" && action === "approve") await applyReceiptToOrder(client, context, record, 1);
   if (resource === "receipts" && action === "reverse") await applyReceiptToOrder(client, context, record, -1);
   await event(client, context, record, resource, action, input);
@@ -1032,6 +1056,10 @@ export async function transitionProcurementRecord(client, context, resource, rec
 export async function amendPurchaseOrder(client, context, recordId, input = {}) {
   permission(context, "procurement.po.amend");
   const current = await getProcurementRecord(client, context, "purchase-orders", recordId);
+  const version = expectedVersion(input.expectedVersion);
+  if (version !== Number(current.version)) {
+    throw new ProcurementError(409, "This purchase order changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
+  }
   if (!["approved", "dispatched", "acknowledged", "partially_received"].includes(current.status)) {
     throw new ProcurementError(409, `Cannot amend a ${current.status} purchase order.`, "PROCUREMENT_INVALID_TRANSITION");
   }
@@ -1056,7 +1084,7 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
       UPDATE tenant.procurement_purchase_orders
       SET data=$3::jsonb,search_text=$4,content_hash=$5,version=version+1,
           status='approved',updated_by=$6,updated_at=now()
-      WHERE organization_id=$1 AND id=$2
+      WHERE organization_id=$1 AND id=$2 AND version=$7 AND status=$8
       RETURNING *
     `,
     [
@@ -1066,9 +1094,12 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
       searchText(configFor("purchase-orders"), merged, "purchase-orders"),
       contentHash(merged),
       context.userId,
+      version,
+      current.status,
     ],
   );
   const record = result.rows[0];
+  if (!record) throw new ProcurementError(409, "This purchase order changed before the amendment was applied.", "PROCUREMENT_VERSION_CONFLICT");
   await replaceChildren(client, context, "purchase-orders", record, merged);
   await event(client, context, record, "purchase-orders", "amended", amendment);
   await outbox(client, context, record, "procurement.purchase-orders.amended", amendment);
@@ -1078,6 +1109,10 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
 export async function awardSourcingEvent(client, context, recordId, input = {}) {
   permission(context, "procurement.sourcing.award");
   const source = await getProcurementRecord(client, context, "sourcing-events", recordId);
+  const version = expectedVersion(input.expectedVersion);
+  if (version !== Number(source.version)) {
+    throw new ProcurementError(409, "This sourcing event changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
+  }
   if (!["active", "closed"].includes(source.status)) {
     throw new ProcurementError(409, `Cannot award a ${source.status} sourcing event.`, "PROCUREMENT_INVALID_TRANSITION");
   }
@@ -1120,9 +1155,10 @@ export async function awardSourcingEvent(client, context, recordId, input = {}) 
       UPDATE tenant.procurement_sourcing_events
       SET status='closed',data=jsonb_set(data,'{award}',$3::jsonb,true),
           version=version+1,updated_by=$4,updated_at=now()
-      WHERE organization_id=$1 AND id=$2
+      WHERE organization_id=$1 AND id=$2 AND version=$5 AND status=$6
+      RETURNING id
     `,
-    [context.organizationId, source.id, JSON.stringify(award), context.userId],
+    [context.organizationId, source.id, JSON.stringify(award), context.userId, version, source.status],
   );
   await event(client, context, source, "sourcing-events", "awarded", award);
   await outbox(client, context, source, "procurement.sourcing-events.awarded", award);
@@ -1131,6 +1167,21 @@ export async function awardSourcingEvent(client, context, recordId, input = {}) 
 
 function lineKey(line) {
   return String(line.purchaseOrderLineId || line.id || line.itemId || line.description || "");
+}
+
+async function matchingTolerancePolicy(client, context, companyId) {
+  const result = await client.query(
+    `SELECT data FROM tenant.procurement_policies
+      WHERE organization_id=$1 AND (company_id=$2 OR company_id IS NULL)
+        AND status='active' AND data->>'policyType'='matching_tolerance'
+      ORDER BY company_id IS NOT NULL DESC,updated_at DESC LIMIT 1`,
+    [context.organizationId, companyId],
+  );
+  const configured = Number(result.rows[0]?.data?.tolerancePercent ?? 0);
+  if (!Number.isFinite(configured) || configured < 0 || configured > 100) {
+    throw new ProcurementError(409, "The configured Procurement matching tolerance is invalid.", "PROCUREMENT_MATCH_POLICY_INVALID");
+  }
+  return configured;
 }
 
 export async function runProcurementMatch(client, context, input) {
@@ -1144,10 +1195,19 @@ export async function runProcurementMatch(client, context, input) {
   if (!new Set(["two-way", "three-way", "four-way"]).has(matchMode)) {
     throw new ProcurementError(400, "Match mode must be two-way, three-way or four-way.");
   }
-  const tolerancePercent = Number(value.tolerancePercent ?? 0);
-  if (!Number.isFinite(tolerancePercent) || tolerancePercent < 0 || tolerancePercent > 100) {
+  const policyTolerancePercent = await matchingTolerancePolicy(client, context, purchaseOrder.company_id);
+  const requestedTolerancePercent = value.tolerancePercent == null
+    ? policyTolerancePercent
+    : Number(value.tolerancePercent);
+  if (!Number.isFinite(requestedTolerancePercent) || requestedTolerancePercent < 0 || requestedTolerancePercent > 100) {
     throw new ProcurementError(400, "Tolerance percent must be between 0 and 100.");
   }
+  const toleranceOverridden = requestedTolerancePercent !== policyTolerancePercent;
+  if (toleranceOverridden) {
+    permission(context, "procurement.matching.override");
+    text(value.overrideReason, "Tolerance override reason", { required: true, max: 1000 });
+  }
+  const tolerancePercent = requestedTolerancePercent;
   const orderLines = purchaseOrder.lines || [];
   const issues = [];
   let invoiceTotal = 0n;
@@ -1194,6 +1254,9 @@ export async function runProcurementMatch(client, context, input) {
       : null,
     matchMode,
     tolerancePercent,
+    policyTolerancePercent,
+    toleranceOverridden,
+    toleranceOverrideReason: toleranceOverridden ? text(value.overrideReason, "Tolerance override reason", { max: 1000 }) : null,
     status,
     invoiceTotal: format(invoiceTotal, 2),
     orderMatchedTotal: format(orderMatchedTotal, 2),
@@ -1222,7 +1285,6 @@ export async function runProcurementMatch(client, context, input) {
       varianceAmount: format(varianceAmount < 0n ? -varianceAmount : varianceAmount, 2),
       issues,
       matchingRecords: [{ matchingRecordId: matchResult.rows[0].id, ...matchingRecord }],
-      status: "open",
     });
     await client.query(
       `UPDATE tenant.procurement_match_exceptions SET status='open' WHERE organization_id=$1 AND id=$2`,

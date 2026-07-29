@@ -9,7 +9,7 @@ import {
 import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
 import { rethrowAccountingError } from "@/lib/accounting";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { assertSameOrigin, audit } from "@/lib/security";
 
 export async function GET(request: Request) {
   try {
@@ -29,9 +29,26 @@ export async function PATCH(request: Request) {
     assertSameOrigin(request);
     const { context } = await accountingSession(true);
     const input = await readJson(request) as Record<string, unknown>;
-    const settings = await tenantTransaction(context.organizationId, (client) =>
-      updateAccountingSettings(client, context, input),
-    );
+    const settings = await tenantTransaction(context.organizationId, async (client) => {
+      const companyId = String(input.companyId || context.activeCompanyId || "");
+      const before = await client.query(
+        `SELECT * FROM tenant.accounting_settings WHERE organization_id=$1 AND company_id=$2`,
+        [context.organizationId, companyId],
+      );
+      const updated = await updateAccountingSettings(client, context, input);
+      await audit({
+        organizationId: context.organizationId,
+        actorUserId: context.userId,
+        eventType: "accounting.settings.updated",
+        entityType: "accounting_settings",
+        entityId: companyId,
+        beforeData: before.rows[0] || null,
+        afterData: updated,
+        request,
+        client,
+      });
+      return updated;
+    });
     return ok({ settings });
   } catch (error) {
     try { rethrowAccountingError(error); } catch (mapped) { return errorResponse(mapped); }

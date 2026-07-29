@@ -7,6 +7,7 @@ import {
   createInvoiceRequest,
   placeOrderHold,
   releaseOrderHold,
+  submitSalesOrder,
 } from "@vercentlabs/api";
 
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
@@ -26,7 +27,8 @@ export async function POST(
     const input = salesActionSchema.parse(await readJson(request));
     const result = await tenantTransaction(context.organizationId, async (client) => {
       let value;
-      if (input.action === "confirm") value = await confirmSalesOrder(client, context, id, input);
+      if (input.action === "submit") value = await submitSalesOrder(client, context, id, input.assignedTo);
+      else if (input.action === "confirm") value = await confirmSalesOrder(client, context, id, input);
       else if (input.action === "hold") value = await placeOrderHold(client, context, id, input);
       else if (input.action === "release_hold") value = await releaseOrderHold(client, context, id, input);
       else if (input.action === "cancel") value = await cancelSalesOrder(client, context, id, input.reason || "");

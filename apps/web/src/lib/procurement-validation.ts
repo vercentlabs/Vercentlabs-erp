@@ -7,6 +7,32 @@ const decimal = z.union([z.string(), z.number()]).refine(
   "Use a positive number with up to six decimal places.",
 );
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
+
+const internalFields = new Set([
+  "status",
+  "approvalStatus",
+  "allowLifecycleEdit",
+  "createdAt",
+  "createdBy",
+  "updatedAt",
+  "updatedBy",
+  "version",
+  "contentHash",
+  "lastAction",
+]);
+
+function rejectInternalFields(value: Record<string, unknown>, context: z.RefinementCtx) {
+  for (const key of Object.keys(value)) {
+    if (internalFields.has(key)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} is controlled by the Procurement lifecycle and cannot be supplied by clients.`,
+      });
+    }
+  }
+}
+
 const lineSchema = z
   .object({
     id: optionalUuid,
@@ -32,9 +58,9 @@ const common = z
     branchId: optionalUuid,
     currencyCode: z.string().trim().length(3).default("INR"),
     idempotencyKey: z.string().trim().max(200).optional(),
-    status: z.string().trim().max(40).optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine(rejectInternalFields);
 
 const documentSchemas = {
   suppliers: common.extend({
@@ -121,17 +147,19 @@ const childSchema = z
   .object({
     companyId: optionalUuid,
     parentId: optionalUuid,
-    status: z.string().trim().min(1).max(40).default("active"),
   })
   .passthrough()
+  .superRefine(rejectInternalFields)
   .refine((value) => Object.keys(value).length > 0, "Provide Procurement data.");
 
 export const procurementCreateSchema = z
   .record(z.string(), z.unknown())
+  .superRefine(rejectInternalFields)
   .refine((value) => Object.keys(value).length > 0, "Provide Procurement data.");
 
 export const procurementUpdateSchema = z
   .record(z.string(), z.unknown())
+  .superRefine(rejectInternalFields)
   .refine((value) => Object.keys(value).length > 0, "Provide at least one field to update.");
 
 export function parseProcurementCreate(resource: string, value: unknown) {
@@ -140,7 +168,12 @@ export function parseProcurementCreate(resource: string, value: unknown) {
 
 export function parseProcurementUpdate(resource: string, value: unknown) {
   const schema = getDocumentSchema(resource);
-  return (schema ? schema.partial() : childSchema.partial()).parse(value);
+  if (!schema) return childSchema.partial().parse(value);
+  return schema
+    .partial()
+    .extend({ expectedVersion: z.coerce.number().int().positive() })
+    .superRefine(rejectInternalFields)
+    .parse(value);
 }
 
 export const procurementActionSchema = z
@@ -165,9 +198,10 @@ export const procurementActionSchema = z
       "award",
     ]),
     reason: z.string().trim().max(1000).optional(),
-    expectedVersion: z.coerce.number().int().positive().optional(),
+    expectedVersion: z.coerce.number().int().positive(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine(rejectInternalFields);
 
 export const procurementMatchSchema = z
   .object({
@@ -176,7 +210,8 @@ export const procurementMatchSchema = z
     sourceGoodsReceiptId: optionalUuid,
     invoiceNumber: z.string().trim().min(1).max(100),
     matchMode: z.enum(["two-way", "three-way", "four-way"]).default("three-way"),
-    tolerancePercent: z.coerce.number().min(0).max(100).default(0),
+    tolerancePercent: z.coerce.number().min(0).max(100).optional(),
+    overrideReason: z.string().trim().min(1).max(1000).optional(),
     invoiceLines: z.array(lineSchema).min(1),
   })
   .passthrough();

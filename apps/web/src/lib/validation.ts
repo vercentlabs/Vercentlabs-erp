@@ -12,6 +12,26 @@ const code = z
   .transform((value) => value.toUpperCase());
 const status = z.enum(["active", "inactive"]);
 
+function booleanInput(defaultValue: boolean) {
+  return z
+    .preprocess((value) => {
+      if (value === undefined || value === null || value === "") return undefined;
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") {
+        if (value === 1) return true;
+        if (value === 0) return false;
+        return value;
+      }
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (["true", "1", "yes", "y", "on"].includes(normalized)) return true;
+        if (["false", "0", "no", "n", "off"].includes(normalized)) return false;
+      }
+      return value;
+    }, z.boolean())
+    .default(defaultValue);
+}
+
 function passwordsMatch<
   T extends { password: string; confirmPassword: string },
 >(value: T, context: z.RefinementCtx) {
@@ -179,7 +199,7 @@ export const numberingSeriesSchema = z.object({
   prefix: z.string().trim().min(1).max(24),
   nextNumber: z.coerce.number().int().positive(),
   padding: z.coerce.number().int().min(1).max(12),
-  fiscalYearReset: z.coerce.boolean().default(false),
+  fiscalYearReset: booleanInput(false),
   status: status.default("active"),
 });
 

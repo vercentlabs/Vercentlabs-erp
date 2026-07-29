@@ -76,7 +76,8 @@
     "db:verify:procurement": "corepack pnpm --filter @vercentlabs/web verify:procurement-database",
     "verify:sales": "corepack pnpm --filter @vercentlabs/web verify:sales && corepack pnpm --filter @vercentlabs/api test && corepack pnpm --filter @vercentlabs/shared-sdk test",
     "db:verify:sales": "corepack pnpm --filter @vercentlabs/web verify:sales-database",
-    "verify:enterprise": "node scripts/validation/verify-enterprise-completion.mjs"
+    "verify:enterprise": "node scripts/validation/verify-enterprise-completion.mjs",
+    "verify:four-module-plan": "node scripts/implementation/verify-four-module-register.mjs"
   },
   "engines": {
     "node": ">=24 <25",
