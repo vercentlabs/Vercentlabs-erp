@@ -4,6 +4,7 @@ import AppIcon, { type AppIconName } from "@/components/app-icon";
 import Breadcrumbs from "@/components/breadcrumbs";
 import ContextSwitcher from "@/components/context-switcher";
 import LogoutButton from "@/components/logout-button";
+import ModuleContextBar from "@/components/module-context-bar";
 import NavigationLink from "@/components/navigation-link";
 import NavigationSection, {
   type NavigationSectionItem,
@@ -612,6 +613,17 @@ export default function AppShell({
           </nav>
         </header>
 
+        <ModuleContextBar
+          modules={visibleModules.map((group) => ({
+            label: group.label,
+            icon: group.icon,
+            items: group.items.map(({ href, label, exact }) => ({
+              href,
+              label,
+              exact,
+            })),
+          }))}
+        />
         <div className="breadcrumb-row">
           <Breadcrumbs />
         </div>
