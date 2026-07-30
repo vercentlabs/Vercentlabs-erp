@@ -1024,114 +1024,47 @@
 :where(.form-actions, .business-data-form-actions) > :is(button, a) {
   min-height: 38px;
 }
-/* Shared empty states */
-.empty-state,
-.module-empty-state {
-  position: relative;
+/* Empty and status states */
+.module-empty-state { display: grid; min-height: 170px; place-items: center; align-content: center; gap: 6px; padding: 24px; color: var(--color-muted); text-align: center; }
+.module-empty-state.compact { min-height: 105px; }
+.module-empty-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 9px; background: var(--module-accent-soft); color: var(--module-accent); }
+.module-empty-state strong { color: var(--color-ink); }
+.module-empty-state p { max-width: 420px; margin: 0; font-size: 11px; }
+
+/* Empty-state spacing only; visual treatment remains inherited. */
+.empty-state:not(.compact) {
   display: grid;
-  width: 100%;
-  min-height: 0;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  justify-items: stretch;
-  gap: 3px 14px;
-  padding: 18px;
-  border: 1px solid var(--module-panel-border);
-  border-radius: 12px;
-  background:
-    linear-gradient(100deg, color-mix(in srgb, var(--module-accent-soft) 68%, white), #fff 58%),
-    #fff;
-  box-shadow: none;
-  color: var(--color-muted);
-  text-align: left;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  padding: 22px;
 }
 
-.empty-state:not(:has(> .empty-state-icon))::before,
-.module-empty-state:not(:has(> .module-empty-icon))::before {
-  width: 40px;
-  height: 40px;
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  border: 1px solid color-mix(in srgb, var(--module-accent) 18%, white);
-  border-radius: 11px;
-  background:
-    radial-gradient(circle, var(--module-accent) 0 3px, transparent 4px),
-    var(--module-accent-soft);
-  content: "";
-}
-
-.empty-state-icon,
-.module-empty-icon {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--module-accent) 18%, white);
-  border-radius: 11px;
-  background: var(--module-accent-soft);
-  color: var(--module-accent);
-}
-
-.empty-state > strong,
-.module-empty-state > strong {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: end;
-  color: var(--color-ink);
-  font-size: 13px;
-  font-weight: 750;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
-}
-
-.empty-state > p,
-.module-empty-state > p {
-  max-width: 620px;
-  grid-column: 2;
-  grid-row: 2;
-  align-self: start;
+.empty-state:not(.compact) > p {
   margin: 0;
-  color: var(--color-muted);
-  font-size: 11px;
-  line-height: 1.45;
 }
 
-.empty-state > p:first-child:last-child,
-.module-empty-state > p:first-child:last-child {
-  grid-row: 1 / span 2;
-  align-self: center;
+.empty-state:not(.compact) > :is(button, a) {
+  min-height: 40px;
+  margin-top: 6px;
+  padding-inline: 14px;
 }
 
-.empty-state > :is(a, button),
-.module-empty-state > :is(a, button) {
-  min-height: 36px;
-  grid-column: 3;
-  grid-row: 1 / span 2;
-  align-self: center;
-  padding-inline: 13px;
-  border-radius: 8px;
-  font-size: 11px;
-  white-space: nowrap;
+.module-empty-state {
+  min-height: 136px;
+  gap: 5px;
+  padding: 20px;
 }
 
-.empty-state.compact,
 .module-empty-state.compact {
-  min-height: 0;
-  padding: 14px;
+  min-height: 92px;
+  padding: 16px;
 }
 
-.empty-state.compact::before,
-.empty-state.compact > .empty-state-icon,
-.module-empty-state.compact::before,
-.module-empty-state.compact > .module-empty-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-}
-.status-badge { min-height: 24px; padding: 0 8px; border: 1px solid var(--color-line); border-radius: 999px; background: #f7f8fa; color: var(--color-ink-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.025em; text-transform: uppercase; }
+.module-empty-state > :is(button, a) {
+  min-height: 38px;
+  margin-top: 5px;
+}.status-badge { min-height: 24px; padding: 0 8px; border: 1px solid var(--color-line); border-radius: 999px; background: #f7f8fa; color: var(--color-ink-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.025em; text-transform: uppercase; }
 .status-draft,
 .status-neutral { background: #f4f5f7; color: #59616c; }
 .status-active,
@@ -1219,18 +1152,7 @@
   }
   .workflow-step-number { width: 30px; height: 30px; border-radius: 8px; }
   .workflow-launchpad > a > span:last-child { width: 26px; height: 26px; }
-  .empty-state,
-  .module-empty-state {
-    grid-template-columns: 36px minmax(0, 1fr);
-    padding: 15px;
-  }
-  .empty-state > :is(a, button),
-  .module-empty-state > :is(a, button) {
-    width: fit-content;
-    grid-column: 2;
-    grid-row: 3;
-    margin-top: 7px;
-  }
+
   .process-rail { grid-template-columns: 1fr; }
   .process-rail > a,
   .process-rail > div { min-height: 74px; border-right: 0; border-bottom: 1px solid var(--color-line); }
