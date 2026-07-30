@@ -35,6 +35,10 @@ export async function POST(
           id,
           input.stageId,
           input.note,
+          {
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            expectedStageId: input.expectedStageId,
+          },
         );
         await audit({
           organizationId: context.organizationId,

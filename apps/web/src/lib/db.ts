@@ -43,13 +43,23 @@ async function verifyRuntimeRole() {
     role_name: string;
     is_superuser: boolean;
     bypasses_rls: boolean;
-    owns_tables: boolean;
+    inherits_roles: boolean;
+    can_create_database: boolean;
+    can_create_roles: boolean;
+    can_replicate: boolean;
+    owns_relations: boolean;
+    can_create_schema_objects: boolean;
+    has_dangerous_membership: boolean;
   }>(
     `
       SELECT
         current_user AS role_name,
         role.rolsuper AS is_superuser,
         role.rolbypassrls AS bypasses_rls,
+        role.rolinherit AS inherits_roles,
+        role.rolcreatedb AS can_create_database,
+        role.rolcreaterole AS can_create_roles,
+        role.rolreplication AS can_replicate,
         EXISTS (
           SELECT 1
           FROM pg_class AS relation
@@ -57,8 +67,27 @@ async function verifyRuntimeRole() {
             ON namespace.oid = relation.relnamespace
           WHERE relation.relowner = role.oid
             AND namespace.nspname IN ('public', 'tenant')
-            AND relation.relkind IN ('r', 'p')
-        ) AS owns_tables
+            AND relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        ) AS owns_relations,
+        EXISTS (
+          SELECT 1
+          FROM pg_namespace AS namespace
+          WHERE namespace.nspname IN ('public', 'tenant')
+            AND has_schema_privilege(current_user, namespace.oid, 'CREATE')
+        ) AS can_create_schema_objects,
+        EXISTS (
+          SELECT 1
+          FROM pg_auth_members AS membership
+          JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
+          WHERE membership.member = role.oid
+            AND (
+              granted_role.rolsuper
+              OR granted_role.rolbypassrls
+              OR granted_role.rolcreatedb
+              OR granted_role.rolcreaterole
+              OR granted_role.rolreplication
+            )
+        ) AS has_dangerous_membership
       FROM pg_roles AS role
       WHERE role.rolname = current_user
     `,
@@ -68,10 +97,16 @@ async function verifyRuntimeRole() {
     !current ||
     current.is_superuser ||
     current.bypasses_rls ||
-    current.owns_tables
+    current.inherits_roles ||
+    current.can_create_database ||
+    current.can_create_roles ||
+    current.can_replicate ||
+    current.owns_relations ||
+    current.can_create_schema_objects ||
+    current.has_dangerous_membership
   ) {
     throw new Error(
-      "DATABASE_URL must use a restricted NOSUPERUSER, NOBYPASSRLS, non-owner runtime role.",
+      "DATABASE_URL must use a restricted NOINHERIT, NOSUPERUSER, NOBYPASSRLS, non-owner runtime role without CREATE privileges or privileged role memberships.",
     );
   }
 }

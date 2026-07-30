@@ -53,6 +53,13 @@ export async function razorpayRequest<T>(
       `RAZORPAY_MODE=${config.mode} does not match the configured ${config.detectedMode} key.`,
     );
   }
+  const timeoutRaw = Number(process.env.RAZORPAY_REQUEST_TIMEOUT_MS || 15_000);
+  if (!Number.isInteger(timeoutRaw) || timeoutRaw < 1_000 || timeoutRaw > 120_000) {
+    throw new HttpError(
+      500,
+      "RAZORPAY_REQUEST_TIMEOUT_MS must be an integer between 1000 and 120000.",
+    );
+  }
   const response = await fetch(`${API_BASE}${path}`, {
     method: options.method || "GET",
     headers: {
@@ -61,6 +68,7 @@ export async function razorpayRequest<T>(
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     cache: "no-store",
+    signal: AbortSignal.timeout(timeoutRaw),
   });
   const payload = (await response.json().catch(() => ({}))) as T & {
     error?: { description?: string; reason?: string };

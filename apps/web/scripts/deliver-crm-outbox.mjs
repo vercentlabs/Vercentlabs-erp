@@ -16,6 +16,14 @@ const database = databaseConfig(process.env, { defaultPoolMaximum: 4 });
 const logger = createLogger("vercentlabs-crm-outbox-worker");
 const workerId = randomUUID();
 
+function integerEnvironment(name, fallback, minimum, maximum) {
+  const parsed = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return parsed;
+}
+
 const pool = new pg.Pool({
   connectionString: database.connectionString,
   max: Math.min(10, database.poolMaximum),
@@ -25,17 +33,24 @@ const pool = new pg.Pool({
   statement_timeout: database.statementTimeoutMilliseconds,
   application_name: "vercentlabs-crm-outbox-worker",
 });
-const batchSize = Math.max(
+const batchSize = integerEnvironment("CRM_OUTBOX_BATCH_SIZE", 25, 1, 100);
+const maximumAttempts = integerEnvironment(
+  "CRM_OUTBOX_MAX_ATTEMPTS",
+  5,
   1,
-  Math.min(100, Number(process.env.CRM_OUTBOX_BATCH_SIZE || "25")),
+  20,
 );
-const maximumAttempts = Math.max(
-  1,
-  Math.min(20, Number(process.env.CRM_OUTBOX_MAX_ATTEMPTS || "5")),
-);
-const leaseSeconds = Math.max(
+const leaseSeconds = integerEnvironment(
+  "CRM_OUTBOX_LEASE_SECONDS",
+  300,
   60,
-  Math.min(3600, Number(process.env.CRM_OUTBOX_LEASE_SECONDS || "300")),
+  3_600,
+);
+const emailTimeoutMs = integerEnvironment(
+  "CRM_EMAIL_TIMEOUT_MS",
+  10_000,
+  1_000,
+  120_000,
 );
 const requireExplicitConsent =
   process.env.CRM_OUTBOUND_REQUIRE_EXPLICIT_CONSENT?.toLowerCase() !== "false";
@@ -56,7 +71,12 @@ function smtpConfiguration() {
     user,
     password,
     from,
-    port: Number(process.env.CRM_SMTP_PORT || process.env.SMTP_PORT || "465"),
+    port: integerEnvironment(
+      process.env.CRM_SMTP_PORT ? "CRM_SMTP_PORT" : "SMTP_PORT",
+      465,
+      1,
+      65_535,
+    ),
     secure:
       (
         process.env.CRM_SMTP_SECURE ||
@@ -98,7 +118,7 @@ async function deliverEmail(message) {
         text: message.body,
       }),
       signal: AbortSignal.timeout(
-        Math.max(1_000, Number(process.env.CRM_EMAIL_TIMEOUT_MS || "10000")),
+        emailTimeoutMs,
       ),
     });
     if (!response.ok) {

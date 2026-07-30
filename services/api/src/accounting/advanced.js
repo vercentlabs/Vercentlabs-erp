@@ -16,6 +16,7 @@ import {
   optionalUuid,
   requirePermission,
   requiredText,
+  strictBoolean,
   text,
   uuid,
   validateBranch,
@@ -76,7 +77,7 @@ export async function createRecurringTemplate(client, context, input) {
     [context.organizationId, company.id, ledger.id, journalId, requiredText(input.code, "Template code", 50),
       requiredText(input.name, "Template name", 200), frequency, Math.max(1, Number(input.intervalCount || 1)),
       isoDate(input.nextRunDate, "Next run date"), input.endDate ? isoDate(input.endDate, "End date") : null,
-      Boolean(input.autoPost), requiredText(input.description, "Description", 1000),
+      strictBoolean(input.autoPost, "Auto post", { defaultValue: false }), requiredText(input.description, "Description", 1000),
       currency(input.currencyCode || company.base_currency), context.userId],
   );
   for (const line of lines) {

@@ -6,17 +6,20 @@ metadata:
 spec:
   schedule: "* * * * *"
   concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 3600
       backoffLimit: 2
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: worker
-              image: ghcr.io/vercentlabs/erp-worker:latest
+              image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
               command: [node, scripts/process-crm-jobs.mjs]
               envFrom:
                 - configMapRef: { name: vercentlabs-runtime }
@@ -37,17 +40,20 @@ metadata:
 spec:
   schedule: "* * * * *"
   concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 3600
       backoffLimit: 2
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: worker
-              image: ghcr.io/vercentlabs/erp-worker:latest
+              image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
               command: [node, scripts/deliver-crm-outbox.mjs]
               envFrom:
                 - configMapRef: { name: vercentlabs-runtime }
@@ -68,18 +74,56 @@ metadata:
 spec:
   schedule: "17 * * * *"
   concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 3600
       backoffLimit: 2
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: worker
-              image: ghcr.io/vercentlabs/erp-worker:latest
+              image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
               command: [node, scripts/reconcile-razorpay-billing.mjs]
+              envFrom:
+                - configMapRef: { name: vercentlabs-runtime }
+                - secretRef: { name: vercentlabs-runtime }
+              resources:
+                requests: { cpu: 100m, memory: 192Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: billing-webhook-retry
+  namespace: vercentlabs
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 180
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: worker
+              image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              command: [node, scripts/retry-razorpay-webhooks.mjs]
               envFrom:
                 - configMapRef: { name: vercentlabs-runtime }
                 - secretRef: { name: vercentlabs-runtime }

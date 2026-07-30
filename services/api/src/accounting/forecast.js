@@ -33,6 +33,16 @@ export async function createCashForecastScenario(client, context, input) {
       startDate, endDate, currency(input.currencyCode || company.base_currency), input.includeOpenReceivables !== false,
       input.includeOpenPayables !== false, input.includeRecurring !== false, context.userId],
   );
+  await event(
+    client,
+    context,
+    "cash_forecast",
+    result.rows[0].id,
+    "accounting.cash_forecast.created",
+    null,
+    "draft",
+    { code: result.rows[0].code },
+  );
   return result.rows[0];
 }
 

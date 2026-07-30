@@ -12,13 +12,23 @@ import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 type RazorpaySubscription = { id: string; status: string; short_url?: string };
 
+const LIVE_CHECKOUT_STATES = [
+  "provider_creating",
+  "provider_link_pending",
+  "provider_recovery_pending",
+  "verifying",
+  "created",
+] as const;
+
 export async function POST(request: Request) {
   let checkoutSessionId: string | null = null;
+  let providerSubscriptionId: string | null = null;
   try {
     assertSameOriginOrMobile(request);
     const session = await getSessionContext();
-    if (!session?.organizationId)
+    if (!session?.organizationId) {
       throw new HttpError(401, "Sign in to an organisation workspace.");
+    }
     requirePermissionFromSession(session, PERMISSIONS.billingCheckout);
     const initialConfig = razorpayConfiguration();
     if (!initialConfig.checkoutEnabled) {
@@ -27,6 +37,7 @@ export async function POST(request: Request) {
         "Online subscription checkout is not enabled for this environment.",
       );
     }
+
     const { planPriceId } = checkoutSchema.parse(await readJson(request));
     const priceRows = await query<{
       id: string;
@@ -52,8 +63,7 @@ export async function POST(request: Request) {
       [planPriceId],
     );
     const price = priceRows[0];
-    if (!price)
-      throw new HttpError(404, "The selected plan price is unavailable.");
+    if (!price) throw new HttpError(404, "The selected plan price is unavailable.");
 
     const currentRows = await query<{
       plan_price_id: string;
@@ -101,28 +111,38 @@ export async function POST(request: Request) {
       await client.query(
         `UPDATE billing_checkout_sessions
             SET status = 'expired', updated_at = now()
-          WHERE organization_id = $1 AND status = 'created' AND expires_at <= now()`,
-        [session.organizationId],
+          WHERE organization_id = $1
+            AND status = ANY($2::text[])
+            AND expires_at <= now()`,
+        [session.organizationId, LIVE_CHECKOUT_STATES],
       );
       const active = await client.query<{ id: string }>(
-        `SELECT id FROM billing_checkout_sessions
-          WHERE organization_id = $1 AND status = 'created' AND expires_at > now()
-          ORDER BY created_at DESC LIMIT 1`,
-        [session.organizationId],
+        `SELECT id
+           FROM billing_checkout_sessions
+          WHERE organization_id = $1
+            AND status = ANY($2::text[])
+            AND expires_at > now()
+          ORDER BY created_at DESC
+          LIMIT 1
+          FOR UPDATE`,
+        [session.organizationId, LIVE_CHECKOUT_STATES],
       );
       if (active.rows[0]) {
-        throw new HttpError(409, "A billing checkout is already in progress for this organisation.");
+        throw new HttpError(
+          409,
+          "A billing checkout is already in progress for this organisation.",
+        );
       }
       await client.query(
         `INSERT INTO billing_checkout_sessions (
           id, organization_id, plan_price_id, status, initiated_by, metadata
-        ) VALUES ($1, $2, $3, 'created', $4, $5::jsonb)`,
+        ) VALUES ($1, $2, $3, 'provider_creating', $4, $5::jsonb)`,
         [
           checkoutSessionId,
           session.organizationId,
           price.id,
           session.userId,
-          JSON.stringify({ mode: razorpayConfiguration().mode }),
+          JSON.stringify({ mode: initialConfig.mode }),
         ],
       );
     });
@@ -144,15 +164,28 @@ export async function POST(request: Request) {
         }),
       },
     );
+    providerSubscriptionId = providerSubscription.id;
 
-    await query(
+    const linked = await query<{ id: string }>(
       `
         UPDATE billing_checkout_sessions
-        SET provider_subscription_id = $2
+        SET provider_subscription_id = $2,
+          status = 'provider_link_pending',
+          provider_created_at = COALESCE(provider_created_at, now()),
+          last_error = NULL,
+          updated_at = now()
         WHERE id = $1 AND organization_id = $3
+          AND status = 'provider_creating'
+        RETURNING id
       `,
       [checkoutSessionId, providerSubscription.id, session.organizationId],
     );
+    if (!linked[0]) {
+      throw new HttpError(
+        409,
+        "The local checkout changed after Razorpay created the subscription. Recovery has been scheduled.",
+      );
+    }
 
     const config = razorpayConfiguration();
     await audit({
@@ -179,9 +212,31 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (checkoutSessionId) {
+      const message =
+        error instanceof Error ? error.message.slice(0, 1000) : "unknown_error";
       await query(
-        "UPDATE billing_checkout_sessions SET status = 'failed' WHERE id = $1",
-        [checkoutSessionId],
+        `
+          UPDATE billing_checkout_sessions
+          SET status = CASE
+                WHEN $2::text IS NOT NULL THEN 'provider_recovery_pending'
+                ELSE 'failed_before_provider'
+              END,
+              provider_subscription_id = COALESCE(provider_subscription_id, $2),
+              provider_created_at = CASE
+                WHEN $2::text IS NOT NULL THEN COALESCE(provider_created_at, now())
+                ELSE provider_created_at
+              END,
+              recovery_attempts = recovery_attempts + 1,
+              next_recovery_at = CASE
+                WHEN $2::text IS NOT NULL THEN now() + interval '1 minute'
+                ELSE NULL
+              END,
+              last_error = $3,
+              updated_at = now()
+          WHERE id = $1
+            AND status NOT IN ('authorised', 'expired', 'superseded', 'cancelled')
+        `,
+        [checkoutSessionId, providerSubscriptionId, message],
       ).catch(() => undefined);
     }
     return errorResponse(error);

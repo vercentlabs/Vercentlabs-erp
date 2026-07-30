@@ -78,7 +78,11 @@ export function CrmListScreen({
     const id = String(row.id);
     const idempotencyKey = Crypto.randomUUID();
     try {
-      await mobileApi.completeActivity(id, undefined, idempotencyKey);
+      await mobileApi.completeActivity(id, undefined, idempotencyKey, {
+        expectedUpdatedAt:
+          typeof row.updatedAt === "string" ? row.updatedAt : undefined,
+        expectedStatus: typeof row.status === "string" ? row.status : undefined,
+      });
       await query.refetch();
     } catch (error) {
       if ((error as { retryable?: boolean }).retryable !== false) {
@@ -87,7 +91,12 @@ export function CrmListScreen({
           operation: "complete",
           resource: "activities",
           recordId: id,
-          payload: {},
+          payload: {
+            expectedUpdatedAt:
+              typeof row.updatedAt === "string" ? row.updatedAt : undefined,
+            expectedStatus:
+              typeof row.status === "string" ? row.status : undefined,
+          },
           idempotencyKey,
         });
       }

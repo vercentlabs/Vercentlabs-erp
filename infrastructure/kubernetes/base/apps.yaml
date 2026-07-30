@@ -16,7 +16,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: web
-          image: ghcr.io/vercentlabs/erp-web:latest
+          image: ghcr.io/vercentlabs/erp-web@sha256:0000000000000000000000000000000000000000000000000000000000000000
           imagePullPolicy: IfNotPresent
           ports: [{ name: http, containerPort: 3001 }]
           envFrom:
@@ -67,7 +67,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: landing
-          image: ghcr.io/vercentlabs/erp-landing:latest
+          image: ghcr.io/vercentlabs/erp-landing@sha256:0000000000000000000000000000000000000000000000000000000000000000
           imagePullPolicy: IfNotPresent
           ports: [{ name: http, containerPort: 3000 }]
           envFrom:

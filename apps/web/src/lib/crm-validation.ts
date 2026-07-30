@@ -276,9 +276,13 @@ export const mergeLeadSchema = z.object({ targetLeadId: z.string().uuid() });
 export const moveStageSchema = z.object({
   stageId: z.string().uuid(),
   note: z.string().trim().max(1000).nullable().optional(),
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+  expectedStageId: z.string().uuid().nullable().optional(),
 });
 export const completeActivitySchema = z.object({
   outcome: z.string().trim().max(4000).nullable().optional(),
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+  expectedStatus: z.string().trim().min(1).max(40).optional(),
 });
 export const duplicateSchema = z.object({
   email: z.string().email().nullable().optional(),

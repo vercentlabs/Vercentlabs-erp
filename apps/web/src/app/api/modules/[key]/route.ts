@@ -3,7 +3,7 @@ import {
   incrementBillingUsage,
   requireBillingWriteAccess,
 } from "@/lib/billing";
-import { requirePermission } from "@/lib/authorization";
+import { requireApiPermission } from "@/lib/authorization";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { moduleCatalog } from "@/lib/platform";
@@ -16,7 +16,7 @@ export async function PATCH(
 ) {
   try {
     assertSameOriginOrMobile(request);
-    const session = await requirePermission("modules.manage");
+    const session = await requireApiPermission("modules.manage");
     const { key } = await context.params;
     const moduleEntry = moduleCatalog.find((module) => module.key === key);
     if (!moduleEntry) throw new HttpError(404, "Module not found.");

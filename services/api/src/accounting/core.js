@@ -28,6 +28,22 @@ export function uuid(value, label = "Record") {
 }
 export function optionalUuid(value, label) { return value ? uuid(value, label) : null; }
 export function text(value, limit = 500) { return String(value ?? "").trim().slice(0, limit); }
+export function strictBoolean(value, label, options = {}) {
+  if (value === undefined || value === null || value === "") {
+    if ("defaultValue" in options) return Boolean(options.defaultValue);
+    throw new AccountingError(400, `${label} must be true or false.`);
+  }
+  if (value === true || value === false) return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  if (value === 1) return true;
+  if (value === 0) return false;
+  throw new AccountingError(400, `${label} must be true or false.`);
+}
+
 export function requiredText(value, label, limit = 500) {
   const result = text(value, limit);
   if (!result) throw new AccountingError(400, `${label} is required.`);

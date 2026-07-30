@@ -62,14 +62,38 @@ export async function POST(request: Request) {
     const input = await readJson(request) as Record<string, unknown>;
     if (typeof input.requiredForClasses === "string") input.requiredForClasses = input.requiredForClasses.split(",").map((value) => value.trim()).filter(Boolean);
     const action = String(input.action || "");
-    const result = await tenantTransaction(context.organizationId, (client) => {
+    const result = await tenantTransaction(context.organizationId, async (client) => {
+      let created: unknown;
       switch (action) {
-        case "create_account": return createAccountingAccount(client, context, input);
-        case "map_account": return upsertAccountMapping(client, context, input);
-        case "create_dimension": return createAccountingDimension(client, context, input);
-        case "create_dimension_value": return createAccountingDimensionValue(client, context, input);
-        default: return Promise.reject(new HttpError(400, "Unsupported accounting settings action."));
+        case "create_account":
+          created = await createAccountingAccount(client, context, input);
+          break;
+        case "map_account":
+          created = await upsertAccountMapping(client, context, input);
+          break;
+        case "create_dimension":
+          created = await createAccountingDimension(client, context, input);
+          break;
+        case "create_dimension_value":
+          created = await createAccountingDimensionValue(client, context, input);
+          break;
+        default:
+          throw new HttpError(400, "Unsupported accounting settings action.");
       }
+      const entity = created && typeof created === "object"
+        ? created as Record<string, unknown>
+        : {};
+      await audit({
+        organizationId: context.organizationId,
+        actorUserId: context.userId,
+        eventType: `accounting.settings.${action}`,
+        entityType: action,
+        entityId: typeof entity.id === "string" ? entity.id : null,
+        afterData: created,
+        request,
+        client,
+      });
+      return created;
     });
     return ok({ result }, 201);
   } catch (error) {

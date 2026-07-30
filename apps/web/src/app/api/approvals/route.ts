@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getApprovalCommand } from "@/lib/approval-commands";
 import { getSessionContext } from "@/lib/auth";
 import {
-  requirePermission,
+  requireApiPermission,
   requirePermissionFromSession,
 } from "@/lib/authorization";
 import { requireBillingWriteAccess } from "@/lib/billing";
@@ -21,7 +21,7 @@ const createApprovalSchema = z.object({
 
 export async function GET() {
   try {
-    const session = await requirePermission("approvals.manage");
+    const session = await requireApiPermission("approvals.manage");
     const requests = await query(
       `SELECT approval.id, approval.title, approval.entity_type,
               approval.entity_id, approval.command_key, approval.status,

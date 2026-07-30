@@ -202,7 +202,13 @@ test("three-way matching creates a governed exception for quantity variance", as
           ],
         };
       }
+      if (text.includes("FROM tenant.procurement_suppliers")) {
+        return { rows: [{ id: SUPPLIER, company_id: COMPANY, status: "active", data: {} }] };
+      }
       if (text.includes("FROM tenant.procurement_policies")) {
+        return { rows: [] };
+      }
+      if (text.includes("FROM tenant.procurement_invoice_matches")) {
         return { rows: [] };
       }
       if (text.includes("FROM tenant.procurement_purchase_order_lines")) {
@@ -227,6 +233,9 @@ test("three-way matching creates a governed exception for quantity variance", as
       }
       if (text.includes("INSERT INTO tenant.procurement_matching_records")) {
         return { rows: [{ id: "99999999-9999-4999-8999-999999999999", status: "exception" }] };
+      }
+      if (text.includes("INSERT INTO tenant.procurement_invoice_matches")) {
+        return { rows: [{ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }] };
       }
       if (text.includes("UPDATE public.numbering_series")) {
         return { rows: [{ prefix: "PME-", number: 1, padding: 6 }] };

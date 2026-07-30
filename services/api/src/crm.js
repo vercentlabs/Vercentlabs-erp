@@ -2299,6 +2299,7 @@ export async function moveOpportunityStage(
   opportunityId,
   stageId,
   note = null,
+  expectations = {},
 ) {
   const opportunityParameters = [context.organizationId, opportunityId];
   const opportunityResult = await client.query(
@@ -2307,6 +2308,27 @@ export async function moveOpportunityStage(
   );
   const opportunity = opportunityResult.rows[0];
   if (!opportunity) throw new CrmError(404, "Opportunity not found.");
+  if (
+    expectations.expectedUpdatedAt &&
+    new Date(opportunity.updated_at).toISOString() !==
+      new Date(expectations.expectedUpdatedAt).toISOString()
+  ) {
+    throw new CrmError(
+      409,
+      "This opportunity changed while it was offline. Refresh it before moving the stage.",
+      "CRM_STALE_WRITE",
+    );
+  }
+  if (
+    expectations.expectedStageId &&
+    opportunity.stage_id !== expectations.expectedStageId
+  ) {
+    throw new CrmError(
+      409,
+      "This opportunity is already in a different stage. Refresh it before continuing.",
+      "CRM_STAGE_CONFLICT",
+    );
+  }
   const stageResult = await client.query(
     `SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND id = $2 AND pipeline_id = $3 AND status = 'active'`,
     [context.organizationId, stageId, opportunity.pipeline_id],
@@ -2402,18 +2424,54 @@ export async function completeCrmActivity(
   context,
   activityId,
   outcome = null,
+  expectations = {},
 ) {
-  const parameters = [
-    outcome,
-    context.userId,
-    context.organizationId,
-    activityId,
-  ];
-  const result = await client.query(
-    `UPDATE tenant.crm_activities record SET status = 'completed', completed_at = now(), outcome = COALESCE($1, outcome), updated_by = $2, updated_at = now() WHERE record.organization_id = $3 AND record.id = $4${recordScope(resources.activities, context, parameters)} RETURNING record.*`,
+  const parameters = [context.organizationId, activityId];
+  const currentResult = await client.query(
+    `SELECT record.*
+       FROM tenant.crm_activities record
+      WHERE record.organization_id = $1 AND record.id = $2${recordScope(resources.activities, context, parameters)}
+      FOR UPDATE`,
     parameters,
   );
-  if (!result.rows[0]) throw new CrmError(404, "Activity not found.");
+  const current = currentResult.rows[0];
+  if (!current) throw new CrmError(404, "Activity not found.");
+  if (
+    expectations.expectedUpdatedAt &&
+    new Date(current.updated_at).toISOString() !==
+      new Date(expectations.expectedUpdatedAt).toISOString()
+  ) {
+    throw new CrmError(
+      409,
+      "This activity changed while it was offline. Refresh it before completing it.",
+      "CRM_STALE_WRITE",
+    );
+  }
+  if (
+    expectations.expectedStatus &&
+    current.status !== expectations.expectedStatus
+  ) {
+    throw new CrmError(
+      409,
+      "This activity is no longer in the expected status. Refresh it before continuing.",
+      "CRM_ACTIVITY_CONFLICT",
+    );
+  }
+  if (current.status === "completed") {
+    throw new CrmError(409, "This activity has already been completed.", "CRM_ACTIVITY_COMPLETED");
+  }
+
+  const result = await client.query(
+    `UPDATE tenant.crm_activities
+        SET status = 'completed', completed_at = now(),
+            outcome = COALESCE($1, outcome), updated_by = $2, updated_at = now()
+      WHERE organization_id = $3 AND id = $4 AND status <> 'completed'
+      RETURNING *`,
+    [outcome, context.userId, context.organizationId, activityId],
+  );
+  if (!result.rows[0]) {
+    throw new CrmError(409, "This activity changed. Refresh it and try again.", "CRM_ACTIVITY_CONFLICT");
+  }
   const activity = camelizeRow(result.rows[0]);
   if (activity.entityType === "lead" && activity.entityId)
     await client.query(

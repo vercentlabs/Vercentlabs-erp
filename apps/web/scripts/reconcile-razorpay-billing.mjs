@@ -27,6 +27,10 @@ if (detectedMode && detectedMode !== configuredMode) {
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const auth = `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
+const timeoutMs = Number(process.env.RAZORPAY_REQUEST_TIMEOUT_MS || 15_000);
+if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 120_000) {
+  throw new Error("RAZORPAY_REQUEST_TIMEOUT_MS must be an integer between 1000 and 120000.");
+}
 
 try {
   const subscriptions = await pool.query(`
@@ -38,7 +42,11 @@ try {
   for (const local of subscriptions.rows) {
     const response = await fetch(
       `https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(local.provider_subscription_id)}`,
-      { headers: { Authorization: auth }, cache: "no-store" },
+      {
+        headers: { Authorization: auth },
+        cache: "no-store",
+        signal: AbortSignal.timeout(timeoutMs),
+      },
     );
     const provider = await response.json().catch(() => ({}));
     if (!response.ok) {

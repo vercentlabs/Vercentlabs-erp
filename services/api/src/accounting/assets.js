@@ -561,7 +561,7 @@ export async function impairAsset(client, context, assetIdValue, input) {
 export async function changeAssetSuspension(client, context, assetIdValue, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.assetsManage);
   const asset = await lockAsset(client, context, assetIdValue);
-  const suspend = Boolean(input.suspend);
+  const suspend = strictBoolean(input.suspend, "Suspend");
   const expected = suspend ? "in_service" : "suspended";
   const next = suspend ? "suspended" : "in_service";
   if (asset.status !== expected) throw new AccountingError(409, `Asset must be ${expected.replace("_", " ")} before this action.`);

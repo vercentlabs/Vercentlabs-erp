@@ -21,7 +21,7 @@ export async function POST(request: Request, route: { params: Promise<{ id: stri
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
     const context = crmContext(session);
     const response = await tenantTransaction(context.organizationId, async (client) => withMobileIdempotency(client, session, request, input, async () => {
-      const record = await moveOpportunityStage(client, context, id, input.stageId, input.note);
+      const record = await moveOpportunityStage(client, context, id, input.stageId, input.note, { expectedUpdatedAt: input.expectedUpdatedAt, expectedStageId: input.expectedStageId });
       await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: "crm.opportunity.stage_changed", entityType: "opportunity", entityId: id, afterData: record, request, client });
       return { message: "Opportunity stage updated.", record };
     }));

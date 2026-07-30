@@ -355,34 +355,44 @@ export async function assertModuleEntitlement(
 export async function assertOrganizationLimit(
   organizationId: string,
   limitKey: "companies" | "branches",
+  clientOverride?: PoolClient,
 ) {
   const summary = await requireBillingWriteAccess(organizationId);
-  const table = limitKey === "companies" ? "companies" : "branches";
-  const rows = await query<{ count: number }>(
-    `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1 AND status = 'active'`,
-    [organizationId],
-  );
-  const current = rows[0]?.count || 0;
   const maximum = Number(summary.limits[limitKey] || 0);
-  if (
-    maximum > 0 &&
-    current >= maximum &&
-    summary.enforcementMode === "enforce"
-  ) {
-    throw new HttpError(
-      402,
-      `The ${summary.planName} plan includes ${maximum} ${limitKey}. Upgrade the subscription before adding another.`,
+  if (maximum <= 0 || summary.enforcementMode !== "enforce") return;
+
+  const check = async (client: PoolClient) => {
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",
+      [organizationId, `billing-limit:${limitKey}`],
     );
-  }
+    const table = limitKey === "companies" ? "companies" : "branches";
+    const result = await client.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1 AND status = 'active'`,
+      [organizationId],
+    );
+    const current = result.rows[0]?.count || 0;
+    if (current >= maximum) {
+      throw new HttpError(
+        402,
+        `The ${summary.planName} plan includes ${maximum} ${limitKey}. Upgrade the subscription before adding another.`,
+      );
+    }
+  };
+
+  if (clientOverride) return check(clientOverride);
+  return transaction(check);
 }
 
-export async function replaceOrganizationSubscription(input: {
-  organizationId: string;
-  planPriceId: string;
-  providerSubscriptionId: string;
-  checkoutSessionId: string;
-}) {
-  return transaction(async (client) => {
+export async function replaceOrganizationSubscriptionWithClient(
+  client: PoolClient,
+  input: {
+    organizationId: string;
+    planPriceId: string;
+    providerSubscriptionId: string;
+    checkoutSessionId: string;
+  },
+) {
     const price = await client.query<{
       billing_period: BillingSummary["billingPeriod"];
       amount_paise: string | number;
@@ -466,5 +476,15 @@ export async function replaceOrganizationSubscription(input: {
       ],
     );
     return result.rows[0];
-  });
+}
+
+export async function replaceOrganizationSubscription(input: {
+  organizationId: string;
+  planPriceId: string;
+  providerSubscriptionId: string;
+  checkoutSessionId: string;
+}) {
+  return transaction((client) =>
+    replaceOrganizationSubscriptionWithClient(client, input),
+  );
 }

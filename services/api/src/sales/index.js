@@ -316,6 +316,10 @@ export async function confirmSalesOrder(client, context, id, options = {}) {
   }
   if (order.lifecycle_status === "pending_approval") throw new SalesError(409, "This order is awaiting approval.", "SALES_ORDER_APPROVAL_REQUIRED");
   if (order.lifecycle_status !== "approved") throw new SalesError(409, "Only an approved order can be confirmed.");
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [`sales-credit:${context.organizationId}:${order.party_id}`],
+  );
   const version = (await client.query(
     `SELECT grand_total,base_currency_total FROM tenant.sales_order_versions WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, order.current_version_id],
@@ -473,18 +477,191 @@ export async function amendSalesOrder(client, context, id, input) {
       [context.organizationId, inserted.rows[0].id, line.requestedDeliveryDate, line.quantity, context.userId],
     );
   }
-  await client.query(
+  const amendment = (await client.query(
     `INSERT INTO tenant.sales_order_amendments (organization_id,sales_order_id,from_version_id,to_version_id,reason,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id`,
     [context.organizationId, order.id, order.current_version_id, version.id, reason, context.userId],
+  )).rows[0];
+  const approvalId = cryptoRandomUuid();
+  await client.query(
+    `INSERT INTO public.approval_requests (
+       id,organization_id,entity_type,entity_id,title,status,requested_by,
+       command_key,command_payload
+     ) VALUES (
+       $1,$2,'sales_order_amendment',$3,$4,'pending',$5,
+       'sales.order.amendment.approve',$6::jsonb
+     )`,
+    [
+      approvalId,
+      context.organizationId,
+      order.id,
+      `Approve amendment to sales order ${order.sales_order_number}`,
+      context.userId,
+      JSON.stringify({
+        orderId: order.id,
+        orderVersionId: version.id,
+        previousVersionId: order.current_version_id,
+        resumeStatus: order.lifecycle_status,
+      }),
+    ],
   );
   await client.query(
-    `UPDATE tenant.sales_orders SET current_version_id=$1,approval_status='approved',updated_by=$2,updated_at=now()
-      WHERE organization_id=$3 AND id=$4`,
-    [version.id, context.userId, context.organizationId, order.id],
+    `UPDATE tenant.sales_order_amendments
+        SET approval_request_id=$1
+      WHERE organization_id=$2 AND id=$3`,
+    [approvalId, context.organizationId, amendment.id],
   );
-  await event(client, context, "sales_order", order.id, "sales_order.amended", order.lifecycle_status, order.lifecycle_status, { fromVersionId: order.current_version_id, toVersionId: version.id, reason });
+  const updated = await client.query(
+    `UPDATE tenant.sales_orders
+        SET current_version_id=$1,lifecycle_status='pending_approval',
+            approval_status='pending',updated_by=$2,updated_at=now()
+      WHERE organization_id=$3 AND id=$4
+        AND current_version_id=$5
+        AND lifecycle_status=$6
+      RETURNING id`,
+    [
+      version.id,
+      context.userId,
+      context.organizationId,
+      order.id,
+      order.current_version_id,
+      order.lifecycle_status,
+    ],
+  );
+  if (!updated.rows[0]) {
+    throw new SalesError(
+      409,
+      "The order changed before the amendment approval was requested.",
+      "SALES_ORDER_VERSION_CONFLICT",
+    );
+  }
+  await event(
+    client,
+    context,
+    "sales_order",
+    order.id,
+    "sales_order.amendment_submitted",
+    order.lifecycle_status,
+    "pending_approval",
+    {
+      approvalId,
+      fromVersionId: order.current_version_id,
+      toVersionId: version.id,
+      reason,
+      resumeStatus: order.lifecycle_status,
+    },
+  );
   return getSalesOrder(client, context, order.id);
+}
+
+export async function approveSalesOrderAmendment(
+  client,
+  context,
+  orderId,
+  orderVersionId,
+  previousVersionId,
+  resumeStatus,
+) {
+  requirePermission(context, "sales.order.approve");
+  const order = await lockOrder(client, context, orderId);
+  if (
+    order.lifecycle_status !== "pending_approval" ||
+    order.approval_status !== "pending"
+  ) {
+    throw new SalesError(409, "This order amendment is not awaiting approval.");
+  }
+  if (order.current_version_id !== orderVersionId) {
+    throw new SalesError(
+      409,
+      "The order amendment changed after approval was requested.",
+      "SALES_ORDER_VERSION_CONFLICT",
+    );
+  }
+  if (!["confirmed", "on_hold"].includes(resumeStatus)) {
+    throw new SalesError(400, "The amendment resume status is invalid.");
+  }
+  const amendment = await client.query(
+    `SELECT id FROM tenant.sales_order_amendments
+      WHERE organization_id=$1 AND sales_order_id=$2
+        AND from_version_id=$3 AND to_version_id=$4`,
+    [context.organizationId, orderId, previousVersionId, orderVersionId],
+  );
+  if (!amendment.rows[0]) {
+    throw new SalesError(409, "The amendment lineage could not be verified.");
+  }
+  await client.query(
+    `UPDATE tenant.sales_orders
+        SET lifecycle_status=$3,approval_status='approved',
+            updated_by=$4,updated_at=now()
+      WHERE organization_id=$1 AND id=$2
+        AND lifecycle_status='pending_approval'
+        AND current_version_id=$5`,
+    [context.organizationId, orderId, resumeStatus, context.userId, orderVersionId],
+  );
+  await event(
+    client,
+    context,
+    "sales_order",
+    orderId,
+    "sales_order.amendment_approved",
+    "pending_approval",
+    resumeStatus,
+    { orderVersionId, previousVersionId },
+  );
+  return { orderId, orderVersionId, status: resumeStatus };
+}
+
+export async function rejectSalesOrderAmendment(
+  client,
+  context,
+  orderId,
+  orderVersionId,
+  previousVersionId,
+  resumeStatus,
+) {
+  requirePermission(context, "sales.order.approve");
+  const order = await lockOrder(client, context, orderId);
+  if (
+    order.lifecycle_status !== "pending_approval" ||
+    order.current_version_id !== orderVersionId
+  ) {
+    throw new SalesError(409, "This order amendment is no longer current.");
+  }
+  if (!["confirmed", "on_hold"].includes(resumeStatus)) {
+    throw new SalesError(400, "The amendment resume status is invalid.");
+  }
+  const restored = await client.query(
+    `UPDATE tenant.sales_orders
+        SET current_version_id=$3,lifecycle_status=$4,
+            approval_status='rejected',updated_by=$5,updated_at=now()
+      WHERE organization_id=$1 AND id=$2
+        AND current_version_id=$6
+        AND lifecycle_status='pending_approval'
+      RETURNING id`,
+    [
+      context.organizationId,
+      orderId,
+      previousVersionId,
+      resumeStatus,
+      context.userId,
+      orderVersionId,
+    ],
+  );
+  if (!restored.rows[0]) {
+    throw new SalesError(409, "The order changed before the amendment was rejected.");
+  }
+  await event(
+    client,
+    context,
+    "sales_order",
+    orderId,
+    "sales_order.amendment_rejected",
+    "pending_approval",
+    resumeStatus,
+    { orderVersionId, previousVersionId },
+  );
+  return { orderId, orderVersionId, status: resumeStatus };
 }
 
 export async function completeFulfillmentRequest(client, context, requestId, input = {}) {

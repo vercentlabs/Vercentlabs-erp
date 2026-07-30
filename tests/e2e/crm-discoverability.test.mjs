@@ -8,8 +8,8 @@ test("CRM dashboard exposes complete creation journeys", () => {
   const dashboard = read("apps/web/src/app/(app)/crm/page.tsx");
   for (const marker of [
     "Create lead",
-    "Create opportunity",
-    "Create activity",
+    "New opportunity",
+    "Schedule activity",
     "/crm/leads?create=1",
     "/crm/opportunities?create=1",
     "/crm/activities?create=1",
@@ -18,9 +18,11 @@ test("CRM dashboard exposes complete creation journeys", () => {
 
 test("CRM metrics navigate to the relevant workspace", () => {
   const dashboard = read("apps/web/src/app/(app)/crm/page.tsx");
-  assert.match(dashboard, /aria-label={`Open \${String\(label\)}`}/);
-  assert.ok(dashboard.includes('hint === "opportunities"'));
-  assert.ok(dashboard.includes('hint === "overdue"'));
+  assert.ok(dashboard.includes("primaryMetrics.map"));
+  assert.ok(dashboard.includes("href={metric.href}"));
+  for (const route of ["/crm/pipeline", "/crm/reports", "/crm/leads"]) {
+    assert.ok(dashboard.includes(route), route);
+  }
 });
 
 test("desktop and mobile web navigation expose released CRM workspaces", () => {
@@ -33,7 +35,9 @@ test("desktop and mobile web navigation expose released CRM workspaces", () => {
     "/crm/reports",
     "/crm/settings",
   ]) assert.ok(shell.includes(route), route);
-  assert.ok(shell.includes("visibleCrm"));
+  assert.ok(shell.includes("const visibleModules = moduleNavigation"));
+  assert.ok(shell.includes("visibleModules.map"));
+  assert.ok(shell.includes("navigation(true)"));
 });
 
 test("create query is passed into the generic CRM editor", () => {

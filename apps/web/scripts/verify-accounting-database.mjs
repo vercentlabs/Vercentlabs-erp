@@ -68,9 +68,9 @@ const client = await pool.connect();
 try {
   const applied = await client.query(
     "SELECT name FROM tenant_schema_migrations WHERE name=$1",
-    ["011_accounting_integrity_and_compliance.sql"],
+    ["015_accounting_close_integrity.sql"],
   );
-  if (!applied.rows[0]) throw new Error("Latest Accounting tenant migration is not applied.");
+  if (!applied.rows[0]) throw new Error("Latest Accounting close-integrity migration is not applied.");
 
   const tables = await client.query(
     `SELECT table_name FROM information_schema.tables
@@ -113,6 +113,24 @@ try {
   const indexSet = new Set(indexRows.rows.map((row) => row.indexname));
   const missingIndexes = requiredIndexes.filter((name) => !indexSet.has(name));
   if (missingIndexes.length) throw new Error(`Accounting idempotency indexes are missing: ${missingIndexes.join(", ")}`);
+
+  const closeColumns = await client.query(`
+    SELECT table_name,column_name FROM information_schema.columns
+     WHERE table_schema='tenant' AND (table_name,column_name) IN (
+       ('accounting_close_runs','version'),
+       ('accounting_close_tasks','version'),
+       ('accounting_close_tasks','depends_on_task_ids'),
+       ('accounting_close_tasks','waived_at'),
+       ('accounting_close_tasks','waived_by'),
+       ('accounting_close_tasks','waiver_reason')
+     )
+  `);
+  if (closeColumns.rowCount !== 6) throw new Error("Accounting close version/dependency columns are incomplete.");
+  const activeCloseIndex = await client.query(`
+    SELECT 1 FROM pg_indexes
+     WHERE schemaname='tenant' AND indexname='accounting_close_one_active_run_uidx'
+  `);
+  if (!activeCloseIndex.rows[0]) throw new Error("Accounting active close-run uniqueness is missing.");
 
   const journalConstraint = await client.query(
     `SELECT pg_get_constraintdef(constraint_row.oid) AS definition

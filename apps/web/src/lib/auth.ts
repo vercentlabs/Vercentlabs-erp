@@ -74,14 +74,30 @@ export function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function boundedInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
+  const parsed = Number(value ?? fallback);
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : fallback;
+}
+
 function sessionDurations() {
-  const absoluteDays = Math.max(
+  const absoluteDays = boundedInteger(
+    process.env.SESSION_ABSOLUTE_DAYS,
+    30,
     1,
-    Number(process.env.SESSION_ABSOLUTE_DAYS || "30"),
+    365,
   );
-  const idleMinutes = Math.max(
+  const idleMinutes = boundedInteger(
+    process.env.SESSION_IDLE_MINUTES,
+    480,
     15,
-    Number(process.env.SESSION_IDLE_MINUTES || "480"),
+    43_200,
   );
   const expiresAt = new Date(Date.now() + absoluteDays * 86_400_000);
   const idleExpiresAt = new Date(

@@ -21,8 +21,13 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = loginSchema.parse(await readJson(request));
-    await enforceRateLimit("login-ip:" + clientIp(request), 20, 900);
-    await enforceRateLimit("login-email:" + input.email, 10, 900);
+    const ipAddress = clientIp(request);
+    await enforceRateLimit("login-ip:" + ipAddress, 20, 900);
+    await enforceRateLimit(
+      `login-credential:${ipAddress}:${input.email}`,
+      10,
+      900,
+    );
 
     const rows = await query<{
       id: string;
@@ -97,18 +102,14 @@ export async function POST(request: Request) {
       }
 
       if (user && !passwordValid && !locked) {
+        // Record the signal for monitoring, but do not allow an unauthenticated
+        // attacker to globally lock a known employee account. Abuse is bounded
+        // by the IP and credential-pair rate limits above.
         await query(
-          `
-          UPDATE users SET
-            failed_login_attempts = failed_login_attempts + 1,
-            locked_until = CASE
-              WHEN failed_login_attempts + 1 >= 5
-              THEN now() + interval '15 minutes'
-              ELSE locked_until
-            END,
-            updated_at = now()
-          WHERE id = $1
-        `,
+          `UPDATE users
+              SET failed_login_attempts = LEAST(failed_login_attempts + 1, 1000000),
+                  updated_at = now()
+            WHERE id = $1`,
           [user.id],
         );
       }

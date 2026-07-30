@@ -23,6 +23,12 @@ try {
   const tableSet = new Set(tables.rows.map((row) => row.table_name));
   const missingTables = requiredTables.filter((name) => !tableSet.has(name));
   if (missingTables.length) throw new Error(`Missing Sales tables: ${missingTables.join(", ")}`);
+  const amendmentColumn = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='tenant' AND table_name='sales_order_amendments'
+       AND column_name='approval_request_id'
+  `);
+  if (!amendmentColumn.rows[0]) throw new Error("Sales amendment approval linkage is missing.");
   const security = await pool.query(`SELECT relation.relname,relation.relrowsecurity,relation.relforcerowsecurity,
     EXISTS (SELECT 1 FROM pg_policy policy WHERE policy.polrelid=relation.oid) AS has_policy
     FROM pg_class relation JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace

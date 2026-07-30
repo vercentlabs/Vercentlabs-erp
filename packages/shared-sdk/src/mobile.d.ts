@@ -124,12 +124,14 @@ export type MobileClient = {
     id: string,
     outcome?: string,
     idempotencyKey?: string,
+    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
   ): Promise<{ record: Record<string, unknown>; message: string }>;
   moveOpportunity(
     id: string,
     stageId: string,
     note?: string,
     idempotencyKey?: string,
+    expectations?: { expectedUpdatedAt?: string; expectedStageId?: string | null },
   ): Promise<{ record: Record<string, unknown>; message: string }>;
   createApprovalRequest(
     commandKey: string,

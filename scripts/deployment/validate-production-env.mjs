@@ -18,6 +18,18 @@ function requireHttps(name) {
   }
 }
 
+function requireInteger(name, minimum, maximum, options = {}) {
+  const raw = value(name);
+  if (!raw) {
+    if (options.required) failures.push(`${name} is required.`);
+    return;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    failures.push(`${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+}
+
 function requirePostgres(name) {
   try {
     const url = new URL(value(name));
@@ -67,6 +79,19 @@ if (target === "web") {
     failures.push("ENFORCE_RESTRICTED_DB_ROLE must be true.");
   }
   requireValue("SESSION_COOKIE_NAME");
+  requireInteger("SESSION_ABSOLUTE_DAYS", 1, 365);
+  requireInteger("SESSION_IDLE_MINUTES", 15, 43_200);
+  requireInteger("MOBILE_ACCESS_TOKEN_MINUTES", 5, 60);
+  requireInteger("MOBILE_REFRESH_TOKEN_DAYS", 1, 90);
+  requireInteger("MOBILE_SESSION_IDLE_DAYS", 1, 90);
+  requireInteger("SMTP_PORT", 1, 65_535);
+  requireInteger("CRM_SMTP_PORT", 1, 65_535);
+  requireInteger("CRM_EMAIL_TIMEOUT_MS", 1_000, 120_000);
+  requireInteger("CRM_OUTBOX_BATCH_SIZE", 1, 100);
+  requireInteger("CRM_OUTBOX_MAX_ATTEMPTS", 1, 20);
+  requireInteger("CRM_OUTBOX_LEASE_SECONDS", 60, 3_600);
+  requireInteger("RAZORPAY_REQUEST_TIMEOUT_MS", 1_000, 120_000);
+  requireInteger("RAZORPAY_WEBHOOK_MAX_ATTEMPTS", 1, 50);
   requireHttpsOrigins("FORM_ALLOWED_ORIGINS");
   requireValue("TRUSTED_PROXY_IP_HEADER");
 

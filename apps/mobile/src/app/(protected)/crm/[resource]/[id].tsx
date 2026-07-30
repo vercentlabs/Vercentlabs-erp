@@ -109,6 +109,12 @@ export default function RecordDetailScreen() {
         stageId,
         undefined,
         Crypto.randomUUID(),
+        {
+          expectedUpdatedAt:
+            typeof record?.updatedAt === "string" ? record.updatedAt : undefined,
+          expectedStageId:
+            typeof record?.stageId === "string" ? record.stageId : undefined,
+        },
       );
       await query.refetch();
       setMessage("Pipeline stage updated.");
@@ -151,6 +157,12 @@ export default function RecordDetailScreen() {
         params.id,
         undefined,
         Crypto.randomUUID(),
+        {
+          expectedUpdatedAt:
+            typeof record?.updatedAt === "string" ? record.updatedAt : undefined,
+          expectedStatus:
+            typeof record?.status === "string" ? record.status : undefined,
+        },
       );
       await query.refetch();
       setMessage("Activity completed.");

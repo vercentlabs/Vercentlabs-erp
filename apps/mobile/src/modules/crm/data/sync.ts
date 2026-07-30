@@ -34,6 +34,16 @@ export function flushMutationQueue() {
             item.recordId,
             String(payload.outcome ?? ""),
             item.idempotencyKey,
+            {
+              expectedUpdatedAt:
+                typeof payload.expectedUpdatedAt === "string"
+                  ? payload.expectedUpdatedAt
+                  : undefined,
+              expectedStatus:
+                typeof payload.expectedStatus === "string"
+                  ? payload.expectedStatus
+                  : undefined,
+            },
           );
         } else if (item.operation === "stage" && item.recordId) {
           await mobileApi.moveOpportunity(
@@ -41,6 +51,16 @@ export function flushMutationQueue() {
             String(payload.stageId),
             String(payload.note ?? ""),
             item.idempotencyKey,
+            {
+              expectedUpdatedAt:
+                typeof payload.expectedUpdatedAt === "string"
+                  ? payload.expectedUpdatedAt
+                  : undefined,
+              expectedStageId:
+                typeof payload.expectedStageId === "string"
+                  ? payload.expectedStageId
+                  : undefined,
+            },
           );
         } else {
           const unsupported = new Error(

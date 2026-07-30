@@ -1,5 +1,5 @@
-import type { SessionContext } from "@/lib/auth";
-import { requireWorkspace } from "@/lib/auth";
+import type { SessionContext, WorkspaceSessionContext } from "@/lib/auth";
+import { getSessionContext, requireWorkspace } from "@/lib/auth";
 import { HttpError } from "@/lib/http";
 import {
   ACCOUNTING_PERMISSIONS,
@@ -123,6 +123,26 @@ export async function requirePermission(permission: string) {
       "You do not have permission to perform this action.",
     );
   return session;
+}
+
+export async function requireApiPermission(
+  permission: string,
+): Promise<WorkspaceSessionContext> {
+  const session = await getSessionContext();
+  if (!session) throw new HttpError(401, "Authentication is required.");
+  if (!session.emailVerified) {
+    throw new HttpError(403, "Verify your email before using this workspace.");
+  }
+  if (!session.organizationId) {
+    throw new HttpError(409, "Complete organisation onboarding first.");
+  }
+  if (!hasPermission(session, permission)) {
+    throw new HttpError(
+      403,
+      "You do not have permission to perform this action.",
+    );
+  }
+  return session as WorkspaceSessionContext;
 }
 
 export function requirePermissionFromSession(

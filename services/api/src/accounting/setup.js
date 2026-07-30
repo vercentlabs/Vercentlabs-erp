@@ -7,6 +7,7 @@ import {
   optionalUuid,
   requirePermission,
   requiredText,
+  strictBoolean,
   text,
   uuid,
 } from "./core.js";
@@ -44,12 +45,6 @@ export async function getAccountingSettings(client, context, companyIdValue = nu
   return { company, settings: settings.rows[0] || null, ledgers: ledgers.rows, mappings: mappings.rows, dimensions: dimensions.rows, dimensionValues: dimensionValues.rows };
 }
 
-function strictBoolean(value, label) {
-  if (typeof value !== "boolean") {
-    throw new AccountingError(400, `${label} must be true or false.`);
-  }
-  return value;
-}
 
 export async function updateAccountingSettings(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.settingsManage);
@@ -128,7 +123,7 @@ export async function createAccountingAccount(client, context, input) {
   const accountType = String(input.accountType || "");
   const allowedTypes = ["group","bank","cash","receivable","payable","inventory","fixed_asset","accumulated_depreciation","tax_input","tax_output","revenue","other_income","cogs","expense","other_expense","equity","retained_earnings","current_asset","non_current_asset","current_liability","non_current_liability","suspense","rounding","fx_gain","fx_loss","intercompany","statistical"];
   if (!allowedTypes.includes(accountType)) throw new AccountingError(400, "Account type is invalid.");
-  const result = await client.query(`INSERT INTO tenant.accounting_accounts (organization_id,company_id,ledger_id,parent_id,code,name,account_class,account_type,normal_balance,is_group,allow_manual_posting,reconciliation_required,currency_code,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'active',$14,$14) RETURNING *`, [context.organizationId, company.id, ledgerId, optionalUuid(input.parentId, "Parent account"), requiredText(input.code, "Account code", 50), requiredText(input.name, "Account name", 200), accountClass, accountType, input.normalBalance === "credit" ? "credit" : "debit", Boolean(input.isGroup), input.allowManualPosting !== false, Boolean(input.reconciliationRequired), input.currencyCode ? currency(input.currencyCode) : null, context.userId]);
+  const result = await client.query(`INSERT INTO tenant.accounting_accounts (organization_id,company_id,ledger_id,parent_id,code,name,account_class,account_type,normal_balance,is_group,allow_manual_posting,reconciliation_required,currency_code,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'active',$14,$14) RETURNING *`, [context.organizationId, company.id, ledgerId, optionalUuid(input.parentId, "Parent account"), requiredText(input.code, "Account code", 50), requiredText(input.name, "Account name", 200), accountClass, accountType, input.normalBalance === "credit" ? "credit" : "debit", strictBoolean(input.isGroup, "Is group", { defaultValue: false }), strictBoolean(input.allowManualPosting, "Allow manual posting", { defaultValue: true }), strictBoolean(input.reconciliationRequired, "Reconciliation required", { defaultValue: false }), input.currencyCode ? currency(input.currencyCode) : null, context.userId]);
   return result.rows[0];
 }
 
@@ -161,7 +156,7 @@ export async function createAccountingDimension(client, context, input) {
      VALUES ($1,$2,$3,$4,$5,$6::text[],$7,'active',$8,$8) RETURNING *`,
     [context.organizationId, company.id, requiredText(input.code, "Dimension code", 50),
       requiredText(input.name, "Dimension name", 200), sourceType, requiredForClasses,
-      Boolean(input.balancingDimension), context.userId],
+      strictBoolean(input.balancingDimension, "Balancing dimension", { defaultValue: false }), context.userId],
   );
   return result.rows[0];
 }

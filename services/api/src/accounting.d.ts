@@ -61,7 +61,7 @@ export function createCloseRun(client: QueryClient, context: AccountingContext, 
 export function listCloseRuns(client: QueryClient, context: AccountingContext): Promise<AccountingRecord[]>;
 export function getCloseRun(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function updateCloseTask(client: QueryClient, context: AccountingContext, runId: string, taskId: string, input: AccountingRecord): Promise<AccountingRecord>;
-export function completeCloseRun(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
+export function completeCloseRun(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
 export function getAccountingReport(client: QueryClient, context: AccountingContext, reportKey: string, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function listAssetCategories(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function createAssetCategory(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;

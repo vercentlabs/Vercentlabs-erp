@@ -544,6 +544,211 @@ function normalizeChild(resource, input, context) {
   };
 }
 
+
+const DOCUMENT_REFERENCE_COLUMNS = Object.freeze({
+  agreements: {
+    supplierId: ["supplier_id", "procurement_suppliers"],
+    sourceEventId: ["source_event_id", "procurement_sourcing_events"],
+    selectedBidId: ["selected_bid_id", "procurement_sourcing_bids"],
+  },
+  "purchase-orders": {
+    supplierId: ["supplier_id", "procurement_suppliers"],
+    agreementId: ["agreement_id", "procurement_agreements"],
+    requisitionId: ["requisition_id", "procurement_requisitions"],
+    sourceEventId: ["source_event_id", "procurement_sourcing_events"],
+    selectedBidId: ["selected_bid_id", "procurement_sourcing_bids"],
+  },
+  receipts: {
+    purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
+    supplierId: ["supplier_id", "procurement_suppliers"],
+  },
+  "service-entries": {
+    purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
+    supplierId: ["supplier_id", "procurement_suppliers"],
+  },
+  returns: {
+    receiptId: ["receipt_id", "procurement_receipts"],
+    purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
+    supplierId: ["supplier_id", "procurement_suppliers"],
+  },
+  "match-exceptions": {
+    purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
+    supplierId: ["supplier_id", "procurement_suppliers"],
+  },
+});
+
+const CHILD_PARENT_EDITABLE_STATES = Object.freeze({
+  "supplier-sites": ["draft", "submitted", "qualified", "active", "suspended"],
+  "supplier-qualifications": ["draft", "submitted", "qualified", "active", "suspended"],
+  "supplier-certifications": ["draft", "submitted", "qualified", "active", "suspended"],
+  "supplier-scorecards": ["qualified", "active", "suspended", "blocked"],
+  "catalog-items": ["draft"],
+  "requisition-lines": ["draft", "rejected"],
+  "requisition-distributions": ["draft", "rejected"],
+  "sourcing-invitations": ["draft", "submitted", "approved", "active"],
+  "sourcing-bids": ["active"],
+  "sourcing-evaluations": ["active", "closed"],
+  "agreement-lines": ["draft", "rejected"],
+  "purchase-order-lines": ["draft", "rejected"],
+  "purchase-order-schedules": ["draft", "rejected", "approved", "dispatched", "acknowledged", "partially_received"],
+  "advance-shipping-notices": ["dispatched", "acknowledged", "partially_received"],
+  "receipt-lines": ["draft", "rejected"],
+  "service-entry-lines": ["draft", "rejected"],
+  "return-lines": ["draft", "rejected"],
+  "matching-records": ["open", "resolved", "overridden"],
+});
+
+async function loadReference(client, context, table, referenceId, companyId, label, options = {}) {
+  const result = await client.query(
+    `SELECT id,company_id,status,data FROM tenant.${table}
+      WHERE organization_id=$1 AND id=$2 AND company_id=$3`,
+    [context.organizationId, id(referenceId, label), companyId],
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new ProcurementError(
+      409,
+      `${label} does not exist in the selected company.`,
+      "PROCUREMENT_REFERENCE_INVALID",
+    );
+  }
+  if (options.allowedStatuses && !options.allowedStatuses.includes(row.status)) {
+    throw new ProcurementError(
+      409,
+      `${label} is not in an eligible lifecycle state.`,
+      "PROCUREMENT_REFERENCE_STATE",
+    );
+  }
+  return { ...(row.data || {}), ...row };
+}
+
+async function validateDocumentReferences(client, context, resource, payload) {
+  const references = {};
+  const companyId = id(payload.companyId, "Company");
+  const configured = DOCUMENT_REFERENCE_COLUMNS[resource] || {};
+  for (const [payloadKey, [column, table]] of Object.entries(configured)) {
+    if (!payload[payloadKey]) continue;
+    const row = await loadReference(
+      client,
+      context,
+      table,
+      payload[payloadKey],
+      companyId,
+      payloadKey,
+      {
+        allowedStatuses:
+          payloadKey === "supplierId"
+            ? ["qualified", "active"]
+            : payloadKey === "purchaseOrderId"
+              ? ["approved", "dispatched", "acknowledged", "partially_received", "received"]
+              : undefined,
+      },
+    );
+    references[column] = row.id;
+  }
+
+  if (resource === "receipts" || resource === "service-entries") {
+    const order = await loadReference(
+      client,
+      context,
+      "procurement_purchase_orders",
+      payload.purchaseOrderId,
+      companyId,
+      "Purchase order",
+      {
+        allowedStatuses: ["approved", "dispatched", "acknowledged", "partially_received", "received"],
+      },
+    );
+    references.purchase_order_id = order.id;
+    references.supplier_id = order.supplier_id || order.supplierId || null;
+    payload.supplierId = references.supplier_id;
+  }
+  if (resource === "returns") {
+    const receipt = await loadReference(
+      client,
+      context,
+      "procurement_receipts",
+      payload.receiptId,
+      companyId,
+      "Receipt",
+      { allowedStatuses: ["approved", "received", "reversed"] },
+    );
+    references.receipt_id = receipt.id;
+    references.purchase_order_id = receipt.purchase_order_id || receipt.purchaseOrderId || null;
+    references.supplier_id = receipt.supplier_id || receipt.supplierId || null;
+    payload.purchaseOrderId = references.purchase_order_id;
+    payload.supplierId = references.supplier_id;
+  }
+  if (resource === "match-exceptions" && payload.purchaseOrderId) {
+    const order = await loadReference(
+      client,
+      context,
+      "procurement_purchase_orders",
+      payload.purchaseOrderId,
+      companyId,
+      "Purchase order",
+    );
+    references.purchase_order_id = order.id;
+    references.supplier_id = order.supplier_id || order.supplierId || null;
+    payload.supplierId = references.supplier_id;
+  }
+  return references;
+}
+
+async function persistDocumentReferences(client, resource, recordId, references, payload) {
+  const configured = DOCUMENT_REFERENCE_COLUMNS[resource] || {};
+  const assignments = [];
+  const values = [recordId];
+  const seen = new Set();
+  for (const [column, value] of Object.entries(references)) {
+    if (seen.has(column)) continue;
+    seen.add(column);
+    values.push(value || null);
+    assignments.push(`${column}=$${values.length}`);
+  }
+  if (resource === "match-exceptions") {
+    values.push(payload.invoiceNumber || null);
+    assignments.push(`invoice_number=$${values.length}`);
+  }
+  if (!assignments.length) return;
+  await client.query(
+    `UPDATE tenant.${configFor(resource).table}
+        SET ${assignments.join(",")}
+      WHERE id=$1`,
+    values,
+  );
+}
+
+async function validateChildParent(client, context, resource, payload, options = {}) {
+  const config = configFor(resource);
+  if (!config.parentResource) return null;
+  const parentConfig = configFor(config.parentResource);
+  const parentId = id(payload.parentId, "Parent record");
+  const result = await client.query(
+    `SELECT id,company_id,status FROM tenant.${parentConfig.table}
+      WHERE organization_id=$1 AND id=$2
+      ${options.lock ? "FOR UPDATE" : ""}`,
+    [context.organizationId, parentId],
+  );
+  const parent = result.rows[0];
+  if (!parent) {
+    throw new ProcurementError(404, "The parent Procurement record was not found.");
+  }
+  if (payload.companyId && parent.company_id && payload.companyId !== parent.company_id) {
+    throw new ProcurementError(409, "The child and parent must belong to the same company.");
+  }
+  const allowed = CHILD_PARENT_EDITABLE_STATES[resource];
+  if (allowed && !allowed.includes(parent.status)) {
+    throw new ProcurementError(
+      409,
+      `A ${resource} record cannot be changed while its parent is ${parent.status}.`,
+      "PROCUREMENT_PARENT_LIFECYCLE_LOCK",
+    );
+  }
+  payload.companyId = parent.company_id;
+  return parent;
+}
+
 function searchText(config, payload, resource) {
   const candidates = [
     ...(config.titleFields || []).map((field) => payload[field]),
@@ -599,24 +804,101 @@ async function ensureNumber(client, context, resource, payload) {
   return { ...payload, [rule[2]]: await nextNumber(client, context, rule[0], rule[1]) };
 }
 
+
+function childReferenceValues(table, child) {
+  if (table === "procurement_purchase_order_lines") {
+    return {
+      item_id: child.itemId || null,
+      uom_id: child.uomId || null,
+      warehouse_id: child.warehouseId || null,
+      requisition_line_id: child.requisitionLineId || null,
+      received_quantity: child.receivedQuantity || "0",
+      invoiced_quantity: child.invoicedQuantity || "0",
+    };
+  }
+  if (table === "procurement_receipt_lines") {
+    return {
+      purchase_order_line_id: child.purchaseOrderLineId || null,
+      item_id: child.itemId || null,
+      uom_id: child.uomId || null,
+      warehouse_id: child.warehouseId || null,
+      accepted_quantity: child.acceptedQuantity || child.quantity || "0",
+      rejected_quantity: child.rejectedQuantity || "0",
+    };
+  }
+  if (table === "procurement_service_entry_lines") {
+    return {
+      purchase_order_line_id: child.purchaseOrderLineId || null,
+      item_id: child.itemId || null,
+      uom_id: child.uomId || null,
+    };
+  }
+  if (table === "procurement_return_lines") {
+    return {
+      receipt_line_id: child.receiptLineId || null,
+      purchase_order_line_id: child.purchaseOrderLineId || null,
+      item_id: child.itemId || null,
+      uom_id: child.uomId || null,
+    };
+  }
+  return {};
+}
+
+async function insertChildRow(client, context, table, record, child, status = "active") {
+  const normalized = childReferenceValues(table, child);
+  const columns = Object.keys(normalized);
+  const values = [
+    context.organizationId,
+    record.company_id,
+    record.id,
+    status,
+    JSON.stringify(child),
+    contentHash(child),
+    context.userId,
+    child.idempotencyKey || null,
+    ...Object.values(normalized),
+  ];
+  const columnSql = columns.length ? `,${columns.join(",")}` : "";
+  const placeholderSql = columns.length
+    ? `,${columns.map((_, index) => `$${9 + index}`).join(",")}`
+    : "";
+  const result = await client.query(
+    `INSERT INTO tenant.${table}(
+      organization_id,company_id,parent_id,status,data,content_hash,updated_by,idempotency_key${columnSql},
+      created_at,updated_at
+    ) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8${placeholderSql},now(),now())
+    ON CONFLICT DO NOTHING
+    RETURNING *`,
+    values,
+  );
+  return result.rows[0] || null;
+}
+
+async function persistChildReferences(client, table, recordId, payload) {
+  const normalized = childReferenceValues(table, payload);
+  const entries = Object.entries(normalized);
+  if (!entries.length) return;
+  const values = [recordId, ...entries.map(([, value]) => value || null)];
+  await client.query(
+    `UPDATE tenant.${table}
+        SET ${entries.map(([column], index) => `${column}=$${index + 2}`).join(",")}
+      WHERE id=$1`,
+    values,
+  );
+}
+
 async function insertChildren(client, context, resource, record, payload) {
   for (const [inputKey, table] of CHILDREN[resource] || []) {
     const entries = Array.isArray(payload[inputKey]) ? payload[inputKey] : [];
     for (const entry of entries) {
       const child = object(entry, inputKey);
-      await client.query(
-        `
-          INSERT INTO tenant.${table}(
-            organization_id,company_id,parent_id,status,data,created_at,updated_at
-          ) VALUES($1,$2,$3,$4,$5::jsonb,now(),now())
-        `,
-        [
-          context.organizationId,
-          record.company_id,
-          record.id,
-          text(child.status || "active", "Child status", { required: true, max: 40 }),
-          JSON.stringify(child),
-        ],
+      await insertChildRow(
+        client,
+        context,
+        table,
+        record,
+        child,
+        "active",
       );
     }
   }
@@ -638,7 +920,7 @@ async function hydrateChildren(client, context, resource, record) {
   for (const [inputKey, table] of CHILDREN[resource] || []) {
     const result = await client.query(
       `
-        SELECT id,status,data,created_at,updated_at
+        SELECT id,status,version,data,created_at,updated_at
         FROM tenant.${table}
         WHERE organization_id=$1 AND parent_id=$2
         ORDER BY created_at,id
@@ -648,6 +930,7 @@ async function hydrateChildren(client, context, resource, record) {
     hydrated[inputKey] = result.rows.map((row) => ({
       id: row.id,
       status: row.status,
+      version: row.version,
       ...(row.data || {}),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -775,43 +1058,45 @@ export async function createProcurementRecord(client, context, resource, input) 
 
   if (config.kind === "child") {
     const payload = normalizeChild(resource, input, context);
-    const result = await client.query(
-      `
-        INSERT INTO tenant.${config.table}(
-          organization_id,company_id,parent_id,status,data,created_at,updated_at
-        ) VALUES($1,$2,$3,$4,$5::jsonb,now(),now())
-        RETURNING *
-      `,
-      [
-        context.organizationId,
-        payload.companyId,
-        payload.parentId,
-        payload.status,
-        JSON.stringify(payload),
-      ],
+    const parent = await validateChildParent(client, context, resource, payload, { lock: true });
+    const childIdempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
+    payload.idempotencyKey = childIdempotencyKey || null;
+    let row = await insertChildRow(
+      client,
+      context,
+      config.table,
+      { id: payload.parentId, company_id: parent?.company_id || payload.companyId },
+      payload,
+      "active",
     );
-    const record = { ...(result.rows[0].data || {}), ...result.rows[0] };
-    await event(client, context, record, resource, "created", { contentHash: contentHash(payload) });
+    if (!row && childIdempotencyKey) {
+      const existing = await client.query(
+        `SELECT * FROM tenant.${config.table}
+          WHERE organization_id=$1 AND parent_id=$2 AND idempotency_key=$3`,
+        [context.organizationId, payload.parentId, childIdempotencyKey],
+      );
+      row = existing.rows[0];
+      if (row) return { ...(row.data || {}), ...row };
+    }
+    if (!row) throw new ProcurementError(409, "The child record could not be created.");
+    const record = { ...(row.data || {}), ...row };
+    await event(client, context, record, resource, "created", { contentHash: record.content_hash });
+    await outbox(client, context, record, `procurement.${resource}.created`, { recordId: record.id });
     return record;
   }
 
   let payload = normalizeDocument(resource, input, context);
   payload = await ensureNumber(client, context, resource, payload);
+  const references = await validateDocumentReferences(client, context, resource, payload);
   const status = INITIAL_DOCUMENT_STATUS[resource] || "draft";
   const idempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
-  if (idempotencyKey) {
-    const existing = await client.query(
-      `SELECT * FROM tenant.${config.table} WHERE organization_id=$1 AND data->>'idempotencyKey'=$2 LIMIT 1`,
-      [context.organizationId, idempotencyKey],
-    );
-    if (existing.rows[0]) return hydrateChildren(client, context, resource, { ...(existing.rows[0].data || {}), ...existing.rows[0] });
-  }
   const result = await client.query(
     `
       INSERT INTO tenant.${config.table}(
         organization_id,company_id,branch_id,status,search_text,data,content_hash,
-        created_by,updated_by
-      ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$8)
+        created_by,updated_by,idempotency_key
+      ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$8,$9)
+      ON CONFLICT DO NOTHING
       RETURNING *
     `,
     [
@@ -823,9 +1108,21 @@ export async function createProcurementRecord(client, context, resource, input) 
       JSON.stringify(payload),
       contentHash(payload),
       context.userId,
+      idempotencyKey || null,
     ],
   );
-  const record = result.rows[0];
+  let record = result.rows[0];
+  if (!record && idempotencyKey) {
+    const existing = await client.query(
+      `SELECT * FROM tenant.${config.table}
+        WHERE organization_id=$1 AND idempotency_key=$2`,
+      [context.organizationId, idempotencyKey],
+    );
+    record = existing.rows[0];
+    if (record) return hydrateChildren(client, context, resource, { ...(record.data || {}), ...record });
+  }
+  if (!record) throw new ProcurementError(409, "The Procurement record could not be created.");
+  await persistDocumentReferences(client, resource, record.id, references, payload);
   await insertChildren(client, context, resource, record, payload);
   await event(client, context, record, resource, "created", {
     contentHash: record.content_hash,
@@ -844,17 +1141,42 @@ export async function updateProcurementRecord(client, context, resource, recordI
   permission(context, config.manage);
   const current = await getProcurementRecord(client, context, resource, recordId);
   if (config.kind === "child") {
+    const version = expectedVersion(input.expectedVersion);
+    if (version !== Number(current.version || 1)) {
+      throw new ProcurementError(409, "This child record changed after it was loaded.", "PROCUREMENT_VERSION_CONFLICT");
+    }
     const payload = normalizeChild(resource, { ...(current.data || {}), ...input }, context);
+    await validateChildParent(client, context, resource, payload, { lock: true });
     const result = await client.query(
       `
         UPDATE tenant.${config.table}
-        SET status=$3,data=$4::jsonb,updated_at=now()
-        WHERE organization_id=$1 AND id=$2
+        SET status=$3,data=$4::jsonb,content_hash=$5,version=version+1,
+            updated_by=$6,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 AND version=$7
         RETURNING *
       `,
-      [context.organizationId, id(recordId), payload.status, JSON.stringify(payload)],
+      [
+        context.organizationId,
+        id(recordId),
+        payload.status,
+        JSON.stringify(payload),
+        contentHash(payload),
+        context.userId,
+        version,
+      ],
     );
-    return { ...(result.rows[0].data || {}), ...result.rows[0] };
+    if (!result.rows[0]) {
+      throw new ProcurementError(409, "This child record changed before the update was applied.", "PROCUREMENT_VERSION_CONFLICT");
+    }
+    await persistChildReferences(client, config.table, result.rows[0].id, payload);
+    const record = {
+      ...(result.rows[0].data || {}),
+      ...result.rows[0],
+      ...childReferenceValues(config.table, payload),
+    };
+    await event(client, context, record, resource, "updated", { version: record.version });
+    await outbox(client, context, record, `procurement.${resource}.updated`, { recordId: record.id, version: record.version });
+    return record;
   }
   if (!["draft", "rejected"].includes(current.status)) {
     throw new ProcurementError(409, "Only draft or rejected documents can be edited. Use a governed amendment or lifecycle action for approved records.", "PROCUREMENT_EDIT_LOCKED");
@@ -865,6 +1187,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
   }
   let payload = normalizeDocument(resource, { ...(current.data || {}), ...input, companyId: current.company_id, branchId: current.branch_id }, context);
   payload = await ensureNumber(client, context, resource, payload);
+  const references = await validateDocumentReferences(client, context, resource, payload);
   const result = await client.query(
     `
       UPDATE tenant.${config.table}
@@ -889,6 +1212,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
   if (!record) {
     throw new ProcurementError(409, "This document changed or is no longer editable. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
   }
+  await persistDocumentReferences(client, resource, record.id, references, payload);
   await replaceChildren(client, context, resource, record, payload);
   await event(client, context, record, resource, "updated", { version: record.version });
   await outbox(client, context, record, `procurement.${resource}.updated`, { recordId: record.id, version: record.version });
@@ -966,40 +1290,148 @@ function includesState(expected, current) {
 
 async function applyReceiptToOrder(client, context, receipt, direction = 1) {
   const payload = receipt.data || receipt;
-  const purchaseOrderId = id(payload.purchaseOrderId, "Purchase order");
-  const order = await getProcurementRecord(client, context, "purchase-orders", purchaseOrderId);
+  const purchaseOrderId = id(
+    receipt.purchase_order_id || payload.purchaseOrderId,
+    "Purchase order",
+  );
+  const orderResult = await client.query(
+    `SELECT * FROM tenant.procurement_purchase_orders
+      WHERE organization_id=$1 AND id=$2
+      FOR UPDATE`,
+    [context.organizationId, purchaseOrderId],
+  );
+  const orderRow = orderResult.rows[0];
+  if (!orderRow) {
+    throw new ProcurementError(404, "Purchase order was not found.");
+  }
+  if (receipt.company_id && orderRow.company_id !== receipt.company_id) {
+    throw new ProcurementError(409, "The receipt and purchase order belong to different companies.");
+  }
+  if (!["approved", "dispatched", "acknowledged", "partially_received", "received"].includes(orderRow.status)) {
+    throw new ProcurementError(
+      409,
+      `A receipt cannot be applied to a ${orderRow.status} purchase order.`,
+      "PROCUREMENT_REFERENCE_STATE",
+    );
+  }
+
+  const order = await hydrateChildren(
+    client,
+    context,
+    "purchase-orders",
+    { ...(orderRow.data || {}), ...orderRow },
+  );
+  const receiptLines = payload.lines || [];
   const received = new Map(
-    (payload.lines || []).map((line) => [
+    receiptLines.map((line) => [
       String(line.purchaseOrderLineId || line.id || line.itemId || line.description),
       decimal(line.acceptedQuantity ?? line.quantity ?? "0") * BigInt(direction),
     ]),
   );
-  const lines = (order.lines || []).map((line) => {
+  const lineRows = await client.query(
+    `SELECT * FROM tenant.procurement_purchase_order_lines
+      WHERE organization_id=$1 AND parent_id=$2
+      ORDER BY created_at,id
+      FOR UPDATE`,
+    [context.organizationId, purchaseOrderId],
+  );
+
+  const lines = [];
+  for (const row of lineRows.rows) {
+    const line = { ...(row.data || {}), ...row };
     const key = String(line.id || line.itemId || line.description);
-    const previous = decimal(line.receivedQuantity ?? "0");
-    const next = previous + (received.get(key) || 0n);
+    const previous = decimal(
+      row.received_quantity ?? line.receivedQuantity ?? "0",
+    );
+    const delta = received.get(key) || 0n;
+    const next = previous + delta;
     const ordered = decimal(line.quantity ?? "0");
     if (next < 0n || next > ordered) {
-      throw new ProcurementError(409, "Receipt quantity would exceed the remaining purchase-order quantity.", "PROCUREMENT_RECEIPT_QUANTITY");
+      throw new ProcurementError(
+        409,
+        "Receipt quantity would exceed the remaining purchase-order quantity.",
+        "PROCUREMENT_RECEIPT_QUANTITY",
+      );
     }
-    return { ...line, receivedQuantity: format(next, 6) };
-  });
-  const allReceived = lines.every((line) => decimal(line.receivedQuantity) >= decimal(line.quantity));
-  const anyReceived = lines.some((line) => decimal(line.receivedQuantity) > 0n);
-  const status = allReceived ? "received" : anyReceived ? "partially_received" : "acknowledged";
-  const data = { ...(order.data || order), lines };
-  await client.query(
+    const nextLine = { ...(row.data || {}), receivedQuantity: format(next, 6) };
+    await client.query(
+      `UPDATE tenant.procurement_purchase_order_lines
+          SET received_quantity=$3,
+            data=$4::jsonb,
+            content_hash=$5,
+            version=version+1,
+            updated_by=$6,
+            updated_at=now()
+        WHERE organization_id=$1 AND id=$2 AND version=$7`,
+      [
+        context.organizationId,
+        row.id,
+        format(next, 6),
+        JSON.stringify(nextLine),
+        contentHash(nextLine),
+        context.userId,
+        row.version || 1,
+      ],
+    );
+    lines.push({ id: row.id, status: row.status, ...nextLine });
+  }
+
+  for (const key of received.keys()) {
+    if (!lines.some((line) => String(line.id || line.itemId || line.description) === key)) {
+      throw new ProcurementError(
+        409,
+        "A receipt line does not reference a line on this purchase order.",
+        "PROCUREMENT_RECEIPT_LINE_INVALID",
+      );
+    }
+  }
+
+  const allReceived = lines.every(
+    (line) => decimal(line.receivedQuantity) >= decimal(line.quantity),
+  );
+  const anyReceived = lines.some(
+    (line) => decimal(line.receivedQuantity) > 0n,
+  );
+  const status = allReceived
+    ? "received"
+    : anyReceived
+      ? "partially_received"
+      : "acknowledged";
+  const data = { ...(orderRow.data || {}), lines };
+  const updated = await client.query(
     `
       UPDATE tenant.procurement_purchase_orders
       SET status=$3,data=$4::jsonb,content_hash=$5,version=version+1,
           updated_by=$6,updated_at=now()
-      WHERE organization_id=$1 AND id=$2
+      WHERE organization_id=$1 AND id=$2 AND version=$7
+      RETURNING *
     `,
-    [context.organizationId, purchaseOrderId, status, JSON.stringify(data), contentHash(data), context.userId],
+    [
+      context.organizationId,
+      purchaseOrderId,
+      status,
+      JSON.stringify(data),
+      contentHash(data),
+      context.userId,
+      orderRow.version,
+    ],
   );
-  const header = { ...order, status, data, version: Number(order.version || 1) + 1 };
-  await replaceChildren(client, context, "purchase-orders", header, data);
-  await event(client, context, header, "purchase-orders", direction > 0 ? "receipt-posted" : "receipt-reversed", { receiptId: receipt.id });
+  if (!updated.rows[0]) {
+    throw new ProcurementError(
+      409,
+      "The purchase order changed while the receipt was being posted.",
+      "PROCUREMENT_VERSION_CONFLICT",
+    );
+  }
+  const header = { ...(updated.rows[0].data || {}), ...updated.rows[0], lines };
+  await event(
+    client,
+    context,
+    header,
+    "purchase-orders",
+    direction > 0 ? "receipt-posted" : "receipt-reversed",
+    { receiptId: receipt.id },
+  );
   return header;
 }
 
@@ -1009,6 +1441,12 @@ export async function transitionProcurementRecord(client, context, resource, rec
   }
   if (action === "amend" && resource === "purchase-orders") {
     return amendPurchaseOrder(client, context, recordId, input);
+  }
+  if (action === "approve-amendment" && resource === "purchase-orders") {
+    return approvePurchaseOrderAmendment(client, context, recordId, input);
+  }
+  if (action === "reject-amendment" && resource === "purchase-orders") {
+    return rejectPurchaseOrderAmendment(client, context, recordId, input);
   }
   const transition = TRANSITIONS[resource]?.[action];
   if (!transition) {
@@ -1055,7 +1493,24 @@ export async function transitionProcurementRecord(client, context, resource, rec
 
 export async function amendPurchaseOrder(client, context, recordId, input = {}) {
   permission(context, "procurement.po.amend");
-  const current = await getProcurementRecord(client, context, "purchase-orders", recordId);
+  const orderId = id(recordId, "Purchase order");
+  const locked = await client.query(
+    `SELECT * FROM tenant.procurement_purchase_orders
+      WHERE organization_id=$1 AND id=$2
+      FOR UPDATE`,
+    [context.organizationId, orderId],
+  );
+  const currentRow = locked.rows[0];
+  if (!currentRow) {
+    throw new ProcurementError(404, "Purchase order was not found.");
+  }
+  ensureCompanyAccess(context, currentRow.company_id);
+  const current = await hydrateChildren(
+    client,
+    context,
+    "purchase-orders",
+    { ...(currentRow.data || {}), ...currentRow },
+  );
   const version = expectedVersion(input.expectedVersion);
   if (version !== Number(current.version)) {
     throw new ProcurementError(409, "This purchase order changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
@@ -1069,27 +1524,38 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
     { ...(current.data || current), ...input, companyId: current.company_id, branchId: current.branch_id },
     context,
   );
+  const references = await validateDocumentReferences(
+    client,
+    context,
+    "purchase-orders",
+    merged,
+  );
   const amendment = {
     amendmentId: randomUUID(),
-    amendedAt: new Date().toISOString(),
-    amendedBy: context.userId,
+    requestedAt: new Date().toISOString(),
+    requestedBy: context.userId,
     reason,
+    previousStatus: current.status,
     previousVersion: current.version,
     previousHash: current.content_hash,
+  };
+  merged.amendments = [
+    ...(Array.isArray(current.amendments) ? current.amendments : []),
+    { ...amendment, status: "pending_approval" },
+  ];
+  merged.pendingAmendment = {
+    ...amendment,
     previousData: current.data || {},
   };
-  merged.amendments = [...(Array.isArray(current.amendments) ? current.amendments : []), amendment];
   const result = await client.query(
-    `
-      UPDATE tenant.procurement_purchase_orders
-      SET data=$3::jsonb,search_text=$4,content_hash=$5,version=version+1,
-          status='approved',updated_by=$6,updated_at=now()
+    `UPDATE tenant.procurement_purchase_orders
+        SET data=$3::jsonb,search_text=$4,content_hash=$5,version=version+1,
+            status='pending_amendment_approval',updated_by=$6,updated_at=now()
       WHERE organization_id=$1 AND id=$2 AND version=$7 AND status=$8
-      RETURNING *
-    `,
+      RETURNING *`,
     [
       context.organizationId,
-      id(recordId),
+      orderId,
       JSON.stringify(merged),
       searchText(configFor("purchase-orders"), merged, "purchase-orders"),
       contentHash(merged),
@@ -1099,70 +1565,291 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
     ],
   );
   const record = result.rows[0];
-  if (!record) throw new ProcurementError(409, "This purchase order changed before the amendment was applied.", "PROCUREMENT_VERSION_CONFLICT");
+  if (!record) throw new ProcurementError(409, "This purchase order changed before the amendment was submitted.", "PROCUREMENT_VERSION_CONFLICT");
+  await persistDocumentReferences(client, "purchase-orders", record.id, references, merged);
   await replaceChildren(client, context, "purchase-orders", record, merged);
-  await event(client, context, record, "purchase-orders", "amended", amendment);
-  await outbox(client, context, record, "procurement.purchase-orders.amended", amendment);
+  await event(client, context, record, "purchase-orders", "amendment-submitted", amendment);
+  await outbox(client, context, record, "procurement.purchase-orders.amendment-submitted", amendment);
   return getProcurementRecord(client, context, "purchase-orders", record.id);
+}
+
+async function decidePurchaseOrderAmendment(client, context, recordId, input, approved) {
+  permission(context, "procurement.po.approve");
+  const orderId = id(recordId, "Purchase order");
+  const version = expectedVersion(input.expectedVersion);
+  const locked = await client.query(
+    `SELECT * FROM tenant.procurement_purchase_orders
+      WHERE organization_id=$1 AND id=$2
+      FOR UPDATE`,
+    [context.organizationId, orderId],
+  );
+  const row = locked.rows[0];
+  if (!row) throw new ProcurementError(404, "Purchase order was not found.");
+  ensureCompanyAccess(context, row.company_id);
+  if (row.status !== "pending_amendment_approval") {
+    throw new ProcurementError(409, "This purchase order amendment is not awaiting approval.", "PROCUREMENT_INVALID_TRANSITION");
+  }
+  if (version !== Number(row.version)) {
+    throw new ProcurementError(409, "This purchase order amendment changed after it was loaded.", "PROCUREMENT_VERSION_CONFLICT");
+  }
+  const pending = row.data?.pendingAmendment;
+  if (!pending || !["approved", "dispatched", "acknowledged", "partially_received"].includes(pending.previousStatus)) {
+    throw new ProcurementError(409, "The purchase order amendment lineage is invalid.", "PROCUREMENT_AMENDMENT_LINEAGE");
+  }
+  const decisionReason = approved
+    ? text(input.reason, "Approval note", { max: 1000 })
+    : text(input.reason, "Rejection reason", { required: true, max: 1000 });
+  const decision = {
+    amendmentId: pending.amendmentId,
+    decidedAt: new Date().toISOString(),
+    decidedBy: context.userId,
+    decision: approved ? "approved" : "rejected",
+    reason: decisionReason || null,
+  };
+  let nextData;
+  if (approved) {
+    nextData = { ...(row.data || {}) };
+    delete nextData.pendingAmendment;
+    nextData.amendments = (Array.isArray(nextData.amendments) ? nextData.amendments : []).map((entry) =>
+      entry?.amendmentId === pending.amendmentId
+        ? { ...entry, status: "approved", approvedAt: decision.decidedAt, approvedBy: context.userId, approvalNote: decisionReason || null }
+        : entry,
+    );
+  } else {
+    nextData = { ...(pending.previousData || {}) };
+    nextData.amendments = [
+      ...(Array.isArray(nextData.amendments) ? nextData.amendments : []),
+      {
+        amendmentId: pending.amendmentId,
+        requestedAt: pending.requestedAt,
+        requestedBy: pending.requestedBy,
+        reason: pending.reason,
+        previousStatus: pending.previousStatus,
+        previousVersion: pending.previousVersion,
+        previousHash: pending.previousHash,
+        status: "rejected",
+        rejectedAt: decision.decidedAt,
+        rejectedBy: context.userId,
+        rejectionReason: decisionReason,
+      },
+    ];
+  }
+  const updated = await client.query(
+    `UPDATE tenant.procurement_purchase_orders
+        SET status=$3,data=$4::jsonb,search_text=$5,content_hash=$6,
+            version=version+1,updated_by=$7,updated_at=now()
+      WHERE organization_id=$1 AND id=$2
+        AND status='pending_amendment_approval' AND version=$8
+      RETURNING *`,
+    [
+      context.organizationId,
+      orderId,
+      pending.previousStatus,
+      JSON.stringify(nextData),
+      searchText(configFor("purchase-orders"), nextData, "purchase-orders"),
+      contentHash(nextData),
+      context.userId,
+      version,
+    ],
+  );
+  const record = updated.rows[0];
+  if (!record) {
+    throw new ProcurementError(409, "This purchase order amendment changed before the decision was applied.", "PROCUREMENT_VERSION_CONFLICT");
+  }
+  if (!approved) {
+    const restored = normalizeDocument(
+      "purchase-orders",
+      { ...nextData, companyId: row.company_id, branchId: row.branch_id },
+      context,
+    );
+    const references = await validateDocumentReferences(client, context, "purchase-orders", restored);
+    await persistDocumentReferences(client, "purchase-orders", record.id, references, restored);
+    await replaceChildren(client, context, "purchase-orders", record, restored);
+  }
+  await event(
+    client,
+    context,
+    record,
+    "purchase-orders",
+    approved ? "amendment-approved" : "amendment-rejected",
+    decision,
+  );
+  await outbox(
+    client,
+    context,
+    record,
+    approved
+      ? "procurement.purchase-orders.amendment-approved"
+      : "procurement.purchase-orders.amendment-rejected",
+    decision,
+  );
+  return getProcurementRecord(client, context, "purchase-orders", record.id);
+}
+
+export async function approvePurchaseOrderAmendment(client, context, recordId, input = {}) {
+  return decidePurchaseOrderAmendment(client, context, recordId, input, true);
+}
+
+export async function rejectPurchaseOrderAmendment(client, context, recordId, input = {}) {
+  return decidePurchaseOrderAmendment(client, context, recordId, input, false);
 }
 
 export async function awardSourcingEvent(client, context, recordId, input = {}) {
   permission(context, "procurement.sourcing.award");
-  const source = await getProcurementRecord(client, context, "sourcing-events", recordId);
+  const sourceId = id(recordId, "Sourcing event");
+  const sourceRows = await client.query(
+    `SELECT * FROM tenant.procurement_sourcing_events
+      WHERE organization_id=$1 AND id=$2
+      FOR UPDATE`,
+    [context.organizationId, sourceId],
+  );
+  const sourceRow = sourceRows.rows[0];
+  if (!sourceRow) throw new ProcurementError(404, "Sourcing event was not found.");
   const version = expectedVersion(input.expectedVersion);
-  if (version !== Number(source.version)) {
-    throw new ProcurementError(409, "This sourcing event changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
+  if (version !== Number(sourceRow.version)) {
+    throw new ProcurementError(
+      409,
+      "This sourcing event changed after it was loaded. Refresh and try again.",
+      "PROCUREMENT_VERSION_CONFLICT",
+    );
   }
-  if (!["active", "closed"].includes(source.status)) {
-    throw new ProcurementError(409, `Cannot award a ${source.status} sourcing event.`, "PROCUREMENT_INVALID_TRANSITION");
+  if (sourceRow.status !== "active") {
+    throw new ProcurementError(
+      409,
+      `Cannot award a ${sourceRow.status} sourcing event.`,
+      "PROCUREMENT_INVALID_TRANSITION",
+    );
   }
+  const existingAward = await client.query(
+    `SELECT id,created_record_id,award_type
+       FROM tenant.procurement_sourcing_awards
+      WHERE organization_id=$1 AND source_event_id=$2`,
+    [context.organizationId, sourceId],
+  );
+  if (existingAward.rows[0] || sourceRow.data?.award) {
+    throw new ProcurementError(
+      409,
+      "This sourcing event has already been awarded.",
+      "PROCUREMENT_AWARD_ALREADY_EXISTS",
+    );
+  }
+
+  const source = await hydrateChildren(
+    client,
+    context,
+    "sourcing-events",
+    { ...(sourceRow.data || {}), ...sourceRow },
+  );
   const selectedBidId = id(input.selectedBidId, "Selected bid");
   const bid = (source.bids || []).find((row) => String(row.id) === selectedBidId);
-  if (!bid) throw new ProcurementError(404, "Selected bid was not found in this sourcing event.");
+  if (!bid) {
+    throw new ProcurementError(
+      404,
+      "Selected bid was not found in this sourcing event.",
+    );
+  }
   const supplierId = id(bid.supplierId || input.supplierId, "Supplier");
-  const awardType = text(input.awardType || "purchase-order", "Award type", { required: true, max: 40 });
+  await loadReference(
+    client,
+    context,
+    "procurement_suppliers",
+    supplierId,
+    source.company_id,
+    "Supplier",
+    { allowedStatuses: ["qualified", "active"] },
+  );
+  const awardType = text(
+    input.awardType || "purchase-order",
+    "Award type",
+    { required: true, max: 40 },
+  );
   if (!new Set(["purchase-order", "agreement"]).has(awardType)) {
-    throw new ProcurementError(400, "Award type must be purchase-order or agreement.");
+    throw new ProcurementError(
+      400,
+      "Award type must be purchase-order or agreement.",
+    );
   }
   const lines = array(input.lines || bid.lines, "Award lines", { required: true });
-  const created = awardType === "agreement"
-    ? await createProcurementRecord(client, context, "agreements", {
-        companyId: source.company_id,
-        branchId: source.branch_id,
-        supplierId,
-        title: input.title || `Award from ${source.eventNumber || source.title}`,
-        validFrom: input.validFrom,
-        validUntil: input.validUntil,
-        currencyCode: input.currencyCode || bid.currencyCode || source.currencyCode,
-        lines,
-        sourceEventId: source.id,
-        selectedBidId,
-      })
-    : await createProcurementRecord(client, context, "purchase-orders", {
-        companyId: source.company_id,
-        branchId: source.branch_id,
-        supplierId,
-        title: input.title || `Award from ${source.eventNumber || source.title}`,
-        expectedDeliveryDate: input.expectedDeliveryDate,
-        currencyCode: input.currencyCode || bid.currencyCode || source.currencyCode,
-        lines,
-        sourceEventId: source.id,
-        selectedBidId,
-      });
-  const award = { awardType, selectedBidId, supplierId, createdRecordId: created.id };
+  const idempotencyKey = `sourcing-award:${source.id}`;
+  const created =
+    awardType === "agreement"
+      ? await createProcurementRecord(client, context, "agreements", {
+          companyId: source.company_id,
+          branchId: source.branch_id,
+          supplierId,
+          title: input.title || `Award from ${source.eventNumber || source.title}`,
+          validFrom: input.validFrom,
+          validUntil: input.validUntil,
+          currencyCode: input.currencyCode || bid.currencyCode || source.currencyCode,
+          lines,
+          sourceEventId: source.id,
+          selectedBidId,
+          idempotencyKey,
+        })
+      : await createProcurementRecord(client, context, "purchase-orders", {
+          companyId: source.company_id,
+          branchId: source.branch_id,
+          supplierId,
+          title: input.title || `Award from ${source.eventNumber || source.title}`,
+          expectedDeliveryDate: input.expectedDeliveryDate,
+          currencyCode: input.currencyCode || bid.currencyCode || source.currencyCode,
+          lines,
+          sourceEventId: source.id,
+          selectedBidId,
+          idempotencyKey,
+        });
+
+  const award = {
+    awardType,
+    selectedBidId,
+    supplierId,
+    createdRecordId: created.id,
+  };
   await client.query(
+    `INSERT INTO tenant.procurement_sourcing_awards(
+       organization_id,company_id,source_event_id,selected_bid_id,supplier_id,
+       award_type,created_record_id,award_payload,created_by
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
+    [
+      context.organizationId,
+      source.company_id,
+      source.id,
+      selectedBidId,
+      supplierId,
+      awardType,
+      created.id,
+      JSON.stringify(award),
+      context.userId,
+    ],
+  );
+  const updated = await client.query(
     `
       UPDATE tenant.procurement_sourcing_events
       SET status='closed',data=jsonb_set(data,'{award}',$3::jsonb,true),
           version=version+1,updated_by=$4,updated_at=now()
-      WHERE organization_id=$1 AND id=$2 AND version=$5 AND status=$6
-      RETURNING id
+      WHERE organization_id=$1 AND id=$2 AND version=$5 AND status='active'
+      RETURNING *
     `,
-    [context.organizationId, source.id, JSON.stringify(award), context.userId, version, source.status],
+    [context.organizationId, source.id, JSON.stringify(award), context.userId, version],
   );
-  await event(client, context, source, "sourcing-events", "awarded", award);
-  await outbox(client, context, source, "procurement.sourcing-events.awarded", award);
-  return { sourceEvent: await getProcurementRecord(client, context, "sourcing-events", source.id), award: created };
+  if (!updated.rows[0]) {
+    throw new ProcurementError(
+      409,
+      "The sourcing event changed before the award was committed.",
+      "PROCUREMENT_VERSION_CONFLICT",
+    );
+  }
+  await event(client, context, updated.rows[0], "sourcing-events", "awarded", award);
+  await outbox(client, context, updated.rows[0], "procurement.sourcing-events.awarded", award);
+  return {
+    sourceEvent: await getProcurementRecord(
+      client,
+      context,
+      "sourcing-events",
+      source.id,
+    ),
+    award: created,
+  };
 }
 
 function lineKey(line) {
@@ -1188,64 +1875,216 @@ export async function runProcurementMatch(client, context, input) {
   permission(context, "procurement.matching.manage");
   const value = object(input);
   const purchaseOrderId = id(value.purchaseOrderId, "Purchase order");
-  const purchaseOrder = await getProcurementRecord(client, context, "purchase-orders", purchaseOrderId);
-  const invoiceNumber = text(value.invoiceNumber, "Invoice number", { required: true, max: 100 });
-  const invoiceLines = array(value.invoiceLines, "Invoice lines", { required: true }).map((line, index) => normalizeLine(line, index, "invoice"));
-  const matchMode = text(value.matchMode || "three-way", "Match mode", { required: true, max: 20 });
+  const purchaseOrderRows = await client.query(
+    `SELECT * FROM tenant.procurement_purchase_orders
+      WHERE organization_id=$1 AND id=$2
+      FOR UPDATE`,
+    [context.organizationId, purchaseOrderId],
+  );
+  const purchaseOrderRow = purchaseOrderRows.rows[0];
+  if (!purchaseOrderRow) {
+    throw new ProcurementError(404, "Purchase order was not found.");
+  }
+  if (!["approved", "dispatched", "acknowledged", "partially_received", "received"].includes(purchaseOrderRow.status)) {
+    throw new ProcurementError(
+      409,
+      `A ${purchaseOrderRow.status} purchase order is not eligible for invoice matching.`,
+      "PROCUREMENT_REFERENCE_STATE",
+    );
+  }
+  const purchaseOrder = await hydrateChildren(
+    client,
+    context,
+    "purchase-orders",
+    { ...(purchaseOrderRow.data || {}), ...purchaseOrderRow },
+  );
+  const supplierId = id(
+    value.supplierId || purchaseOrderRow.supplier_id || purchaseOrder.supplierId,
+    "Supplier",
+  );
+  if (
+    purchaseOrderRow.supplier_id &&
+    purchaseOrderRow.supplier_id !== supplierId
+  ) {
+    throw new ProcurementError(
+      409,
+      "The invoice supplier does not match the purchase order supplier.",
+      "PROCUREMENT_MATCH_SUPPLIER",
+    );
+  }
+  const currencyCode = text(
+    value.currencyCode || purchaseOrder.currencyCode || "INR",
+    "Currency",
+    { required: true, max: 3 },
+  ).toUpperCase();
+  if (
+    purchaseOrder.currencyCode &&
+    String(purchaseOrder.currencyCode).toUpperCase() !== currencyCode
+  ) {
+    throw new ProcurementError(
+      409,
+      "The invoice currency does not match the purchase order currency.",
+      "PROCUREMENT_MATCH_CURRENCY",
+    );
+  }
+
+  const invoiceNumber = text(value.invoiceNumber, "Invoice number", {
+    required: true,
+    max: 100,
+  });
+  const duplicate = await client.query(
+    `SELECT id,status FROM tenant.procurement_invoice_matches
+      WHERE organization_id=$1 AND company_id=$2 AND supplier_id=$3
+        AND upper(invoice_number)=upper($4)
+      FOR UPDATE`,
+    [
+      context.organizationId,
+      purchaseOrder.company_id,
+      supplierId,
+      invoiceNumber,
+    ],
+  );
+  if (duplicate.rows[0]) {
+    throw new ProcurementError(
+      409,
+      "This supplier invoice number has already been matched.",
+      "PROCUREMENT_DUPLICATE_INVOICE",
+    );
+  }
+
+  const invoiceLines = array(value.invoiceLines, "Invoice lines", {
+    required: true,
+  }).map((line, index) => normalizeLine(line, index, "invoice"));
+  const matchMode = text(value.matchMode || "three-way", "Match mode", {
+    required: true,
+    max: 20,
+  });
   if (!new Set(["two-way", "three-way", "four-way"]).has(matchMode)) {
-    throw new ProcurementError(400, "Match mode must be two-way, three-way or four-way.");
+    throw new ProcurementError(
+      400,
+      "Match mode must be two-way, three-way or four-way.",
+    );
   }
-  const policyTolerancePercent = await matchingTolerancePolicy(client, context, purchaseOrder.company_id);
-  const requestedTolerancePercent = value.tolerancePercent == null
-    ? policyTolerancePercent
-    : Number(value.tolerancePercent);
-  if (!Number.isFinite(requestedTolerancePercent) || requestedTolerancePercent < 0 || requestedTolerancePercent > 100) {
-    throw new ProcurementError(400, "Tolerance percent must be between 0 and 100.");
+
+  const policyTolerancePercent = await matchingTolerancePolicy(
+    client,
+    context,
+    purchaseOrder.company_id,
+  );
+  const requestedTolerancePercent =
+    value.tolerancePercent == null
+      ? policyTolerancePercent
+      : Number(value.tolerancePercent);
+  if (
+    !Number.isFinite(requestedTolerancePercent) ||
+    requestedTolerancePercent < 0 ||
+    requestedTolerancePercent > 100
+  ) {
+    throw new ProcurementError(
+      400,
+      "Tolerance percent must be between 0 and 100.",
+    );
   }
-  const toleranceOverridden = requestedTolerancePercent !== policyTolerancePercent;
+  const toleranceOverridden =
+    requestedTolerancePercent !== policyTolerancePercent;
   if (toleranceOverridden) {
     permission(context, "procurement.matching.override");
-    text(value.overrideReason, "Tolerance override reason", { required: true, max: 1000 });
+    text(value.overrideReason, "Tolerance override reason", {
+      required: true,
+      max: 1000,
+    });
   }
   const tolerancePercent = requestedTolerancePercent;
-  const orderLines = purchaseOrder.lines || [];
+
+  const orderLineRows = await client.query(
+    `SELECT * FROM tenant.procurement_purchase_order_lines
+      WHERE organization_id=$1 AND parent_id=$2
+      ORDER BY created_at,id
+      FOR UPDATE`,
+    [context.organizationId, purchaseOrderId],
+  );
+  const orderLines = orderLineRows.rows.map((row) => ({
+    ...(row.data || {}),
+    ...row,
+  }));
   const issues = [];
+  const quantityUpdates = [];
   let invoiceTotal = 0n;
   let orderMatchedTotal = 0n;
+
   for (const invoiceLine of invoiceLines) {
-    const orderLine = orderLines.find((line) => lineKey(line) === lineKey(invoiceLine));
+    const orderLine = orderLines.find(
+      (line) => lineKey(line) === lineKey(invoiceLine),
+    );
     const invoiceAmount = lineAmount(invoiceLine);
     invoiceTotal += invoiceAmount;
     if (!orderLine) {
-      issues.push({ type: "missing-order-line", line: invoiceLine.description, invoiceAmount: format(invoiceAmount, 2) });
+      issues.push({
+        type: "missing-order-line",
+        line: invoiceLine.description,
+        invoiceAmount: format(invoiceAmount, 2),
+      });
       continue;
     }
     const orderAmount = lineAmount(orderLine);
     orderMatchedTotal += orderAmount;
-    const allowed = (orderAmount < 0n ? -orderAmount : orderAmount) * BigInt(Math.round(tolerancePercent * 100)) / 10000n;
+    const allowed =
+      (orderAmount < 0n ? -orderAmount : orderAmount) *
+      BigInt(Math.round(tolerancePercent * 100)) /
+      10000n;
     const variance = invoiceAmount - orderAmount;
     if ((variance < 0n ? -variance : variance) > allowed) {
-      issues.push({ type: "price-or-value-variance", line: invoiceLine.description, variance: format(variance, 2), tolerancePercent });
+      issues.push({
+        type: "price-or-value-variance",
+        line: invoiceLine.description,
+        variance: format(variance, 2),
+        tolerancePercent,
+      });
     }
-    if (matchMode !== "two-way") {
-      const received = decimal(orderLine.receivedQuantity ?? "0");
-      const invoiced = decimal(invoiceLine.quantity ?? "0");
-      if (invoiced > received) {
-        issues.push({ type: "receipt-quantity-variance", line: invoiceLine.description, invoicedQuantity: format(invoiced, 6), receivedQuantity: format(received, 6) });
-      }
+
+    const alreadyInvoiced = decimal(
+      orderLine.invoiced_quantity ?? orderLine.invoicedQuantity ?? "0",
+    );
+    const invoiceQuantity = decimal(invoiceLine.quantity ?? "0");
+    const nextInvoiced = alreadyInvoiced + invoiceQuantity;
+    const orderedQuantity = decimal(orderLine.quantity ?? "0");
+    const receivedQuantity = decimal(
+      orderLine.received_quantity ?? orderLine.receivedQuantity ?? "0",
+    );
+    const maximumQuantity =
+      matchMode === "two-way" ? orderedQuantity : receivedQuantity;
+
+    if (nextInvoiced > maximumQuantity) {
+      issues.push({
+        type:
+          matchMode === "two-way"
+            ? "order-quantity-variance"
+            : "receipt-quantity-variance",
+        line: invoiceLine.description,
+        attemptedCumulativeQuantity: format(nextInvoiced, 6),
+        eligibleQuantity: format(maximumQuantity, 6),
+      });
     }
     if (matchMode === "four-way" && !orderLine.inspectionAccepted) {
-      issues.push({ type: "inspection-not-accepted", line: invoiceLine.description });
+      issues.push({
+        type: "inspection-not-accepted",
+        line: invoiceLine.description,
+      });
     }
+    quantityUpdates.push({
+      row: orderLine,
+      nextInvoiced,
+    });
   }
+
   const varianceAmount = invoiceTotal - orderMatchedTotal;
   const status = issues.length ? "exception" : "matched";
   const matchingRecord = {
     purchaseOrderId,
-    supplierId: purchaseOrder.supplierId || null,
+    supplierId,
     companyId: purchaseOrder.company_id,
     branchId: purchaseOrder.branch_id || null,
-    currencyCode: purchaseOrder.currencyCode || "INR",
+    currencyCode,
     invoiceId: value.invoiceId ? id(value.invoiceId, "Invoice") : null,
     invoiceNumber,
     invoiceLines,
@@ -1256,7 +2095,9 @@ export async function runProcurementMatch(client, context, input) {
     tolerancePercent,
     policyTolerancePercent,
     toleranceOverridden,
-    toleranceOverrideReason: toleranceOverridden ? text(value.overrideReason, "Tolerance override reason", { max: 1000 }) : null,
+    toleranceOverrideReason: toleranceOverridden
+      ? text(value.overrideReason, "Tolerance override reason", { max: 1000 })
+      : null,
     status,
     invoiceTotal: format(invoiceTotal, 2),
     orderMatchedTotal: format(orderMatchedTotal, 2),
@@ -1265,36 +2106,152 @@ export async function runProcurementMatch(client, context, input) {
     matchedAt: new Date().toISOString(),
     matchedBy: context.userId,
   };
+
+  const ledger = await client.query(
+    `INSERT INTO tenant.procurement_invoice_matches(
+       organization_id,company_id,purchase_order_id,supplier_id,invoice_id,
+       invoice_number,currency_code,match_mode,status,invoice_total,
+       order_matched_total,variance_amount,payload,created_by
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14)
+     RETURNING *`,
+    [
+      context.organizationId,
+      purchaseOrder.company_id,
+      purchaseOrderId,
+      supplierId,
+      matchingRecord.invoiceId,
+      invoiceNumber,
+      currencyCode,
+      matchMode,
+      status,
+      format(invoiceTotal, 6),
+      format(orderMatchedTotal, 6),
+      format(varianceAmount, 6),
+      JSON.stringify(matchingRecord),
+      context.userId,
+    ],
+  );
+
   const matchResult = await client.query(
     `
       INSERT INTO tenant.procurement_matching_records(
-        organization_id,company_id,parent_id,status,data
-      ) VALUES($1,$2,$3,$4,$5::jsonb)
+        organization_id,company_id,parent_id,status,data,content_hash,updated_by
+      ) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)
       RETURNING *
     `,
-    [context.organizationId, purchaseOrder.company_id, purchaseOrder.id, status, JSON.stringify(matchingRecord)],
+    [
+      context.organizationId,
+      purchaseOrder.company_id,
+      purchaseOrder.id,
+      status,
+      JSON.stringify({
+        ...matchingRecord,
+        invoiceMatchId: ledger.rows[0].id,
+      }),
+      contentHash(matchingRecord),
+      context.userId,
+    ],
   );
+
   let exception = null;
   if (issues.length) {
-    exception = await createProcurementRecord(client, context, "match-exceptions", {
-      companyId: purchaseOrder.company_id,
-      branchId: purchaseOrder.branch_id,
-      purchaseOrderId,
-      invoiceNumber,
-      title: `Match exception for ${invoiceNumber}`,
-      varianceAmount: format(varianceAmount < 0n ? -varianceAmount : varianceAmount, 2),
-      issues,
-      matchingRecords: [{ matchingRecordId: matchResult.rows[0].id, ...matchingRecord }],
-    });
+    exception = await createProcurementRecord(
+      client,
+      context,
+      "match-exceptions",
+      {
+        companyId: purchaseOrder.company_id,
+        branchId: purchaseOrder.branch_id,
+        purchaseOrderId,
+        supplierId,
+        invoiceNumber,
+        title: `Match exception for ${invoiceNumber}`,
+        varianceAmount: format(
+          varianceAmount < 0n ? -varianceAmount : varianceAmount,
+          2,
+        ),
+        issues,
+        matchingRecords: [
+          {
+            matchingRecordId: matchResult.rows[0].id,
+            invoiceMatchId: ledger.rows[0].id,
+            ...matchingRecord,
+          },
+        ],
+        idempotencyKey: `match-exception:${ledger.rows[0].id}`,
+      },
+    );
     await client.query(
-      `UPDATE tenant.procurement_match_exceptions SET status='open' WHERE organization_id=$1 AND id=$2`,
+      `UPDATE tenant.procurement_match_exceptions
+          SET status='open'
+        WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, exception.id],
     );
   } else {
-    await outbox(client, context, purchaseOrder, "procurement.vendor-bill.ready", matchingRecord);
+    for (const update of quantityUpdates) {
+      const nextData = {
+        ...(update.row.data || {}),
+        invoicedQuantity: format(update.nextInvoiced, 6),
+      };
+      const updated = await client.query(
+        `UPDATE tenant.procurement_purchase_order_lines
+            SET invoiced_quantity=$3,
+              data=$4::jsonb,
+              content_hash=$5,
+              version=version+1,
+              updated_by=$6,
+              updated_at=now()
+          WHERE organization_id=$1 AND id=$2 AND version=$7
+          RETURNING id`,
+        [
+          context.organizationId,
+          update.row.id,
+          format(update.nextInvoiced, 6),
+          JSON.stringify(nextData),
+          contentHash(nextData),
+          context.userId,
+          update.row.version || 1,
+        ],
+      );
+      if (!updated.rows[0]) {
+        throw new ProcurementError(
+          409,
+          "A purchase-order line changed while the invoice was being matched.",
+          "PROCUREMENT_VERSION_CONFLICT",
+        );
+      }
+    }
+    await outbox(
+      client,
+      context,
+      purchaseOrder,
+      "procurement.vendor-bill.ready",
+      {
+        ...matchingRecord,
+        invoiceMatchId: ledger.rows[0].id,
+      },
+    );
   }
-  await event(client, context, purchaseOrder, "purchase-orders", "invoice-matched", matchingRecord);
-  return { matchingRecord: { ...matchResult.rows[0], ...matchingRecord }, exception };
+
+  await event(
+    client,
+    context,
+    purchaseOrder,
+    "purchase-orders",
+    "invoice-matched",
+    {
+      ...matchingRecord,
+      invoiceMatchId: ledger.rows[0].id,
+    },
+  );
+  return {
+    matchingRecord: {
+      ...matchResult.rows[0],
+      ...matchingRecord,
+      invoiceMatchId: ledger.rows[0].id,
+    },
+    exception,
+  };
 }
 
 export async function getProcurementDashboard(client, context) {
@@ -1306,7 +2263,7 @@ export async function getProcurementDashboard(client, context) {
       SELECT
         (SELECT count(*) FROM tenant.procurement_requisitions record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('submitted','pending_approval'))::int pending_requisitions,
         (SELECT count(*) FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1 ${companyFilter} AND record.status='active')::int active_sourcing,
-        (SELECT count(*) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('approved','dispatched','acknowledged','partially_received'))::int open_orders,
+        (SELECT count(*) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval'))::int open_orders,
         (SELECT count(*) FROM tenant.procurement_receipts record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('draft','submitted'))::int pending_receipts,
         (SELECT count(*) FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 ${companyFilter} AND record.status='open')::int match_exceptions,
         (SELECT count(*) FROM tenant.procurement_suppliers record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('conditional','blocked','suspended'))::int supplier_risks,
@@ -1323,7 +2280,7 @@ const REPORT_SQL = Object.freeze({
   "purchase-price-variance": `SELECT coalesce(record.data->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum(nullif(record.data->>'varianceAmount','')::numeric),0)::text metric_value FROM tenant.procurement_matching_records record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) GROUP BY 1 ORDER BY abs(coalesce(sum(nullif(record.data->>'varianceAmount','')::numeric),0)) DESC`,
   "contract-compliance": `SELECT CASE WHEN record.data ? 'agreementId' THEN 'on-contract' ELSE 'off-contract' END dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) GROUP BY 1 ORDER BY count(*) DESC`,
   "maverick-spend": `SELECT coalesce(record.data->>'requesterDepartment','unassigned') dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND NOT (record.data ? 'agreementId') GROUP BY 1 ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
-  "open-commitments": `SELECT record.status dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status IN ('approved','dispatched','acknowledged','partially_received') GROUP BY record.status ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
+  "open-commitments": `SELECT record.status dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval') GROUP BY record.status ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
   "overdue-orders": `SELECT coalesce(record.data->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status NOT IN ('received','closed','cancelled') AND nullif(record.data->>'expectedDeliveryDate','')::date < current_date GROUP BY 1 ORDER BY count(*) DESC`,
   "matching-exceptions": `SELECT coalesce(record.data->'issues'->0->>'type','other') dimension_value,count(*)::int document_count,coalesce(sum(nullif(record.data->>'varianceAmount','')::numeric),0)::text metric_value FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status='open' GROUP BY 1 ORDER BY count(*) DESC`,
   savings: `SELECT coalesce(record.data->'award'->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum(nullif(record.data->>'savingsAmount','')::numeric),0)::text metric_value FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status='closed' GROUP BY 1 ORDER BY coalesce(sum(nullif(record.data->>'savingsAmount','')::numeric),0) DESC`,

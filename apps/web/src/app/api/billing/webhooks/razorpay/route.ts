@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { mapProviderSubscriptionStatus } from "@vercentlabs/api";
 
-import { replaceOrganizationSubscription } from "@/lib/billing";
+import { replaceOrganizationSubscriptionWithClient } from "@/lib/billing";
 import { query, transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
 import { readRequestBytes, sha256 } from "@/lib/security";
@@ -36,6 +36,15 @@ function asMap(value: unknown): JsonMap {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonMap)
     : {};
+}
+
+function safeUuid(value: unknown) {
+  const candidate = value ? String(value) : "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    candidate,
+  )
+    ? candidate
+    : null;
 }
 
 function entity(payload: JsonMap, key: string): JsonMap | null {
@@ -87,6 +96,12 @@ export async function POST(request: Request) {
       30,
       3_600,
     );
+    const maximumAttempts = boundedIntegerEnvironment(
+      "RAZORPAY_WEBHOOK_MAX_ATTEMPTS",
+      12,
+      1,
+      100,
+    );
     if (
       providerCreatedAt &&
       Math.abs(Date.now() - providerCreatedAt.getTime()) >
@@ -118,8 +133,8 @@ export async function POST(request: Request) {
       `
         INSERT INTO billing_webhook_events (
           provider_event_id, event_type, provider_created_at,
-          signature, payload, payload_hash
-        ) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+          signature, signature_value, payload, payload_hash, next_attempt_at
+        ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, now())
         ON CONFLICT (provider, provider_event_id) DO NOTHING
         RETURNING id, processing_status, payload_hash
       `,
@@ -128,6 +143,7 @@ export async function POST(request: Request) {
         eventType,
         providerCreatedAt,
         sha256(signature),
+        signature,
         rawBody,
         payloadHash,
       ],
@@ -168,11 +184,17 @@ export async function POST(request: Request) {
         SET processing_status = 'processing',
           processing_error = NULL,
           processing_started_at = now(),
+          last_attempt_at = now(),
+          next_attempt_at = NULL,
           processing_lease_expires_at = now() + ($2 * interval '1 second'),
           processing_attempts = processing_attempts + 1
         WHERE id = $1
           AND (
-            processing_status IN ('received', 'failed')
+            processing_status = 'received'
+            OR (
+              processing_status = 'failed'
+              AND COALESCE(next_attempt_at, now()) <= now()
+            )
             OR (
               processing_status = 'processing'
               AND processing_lease_expires_at IS NOT NULL
@@ -215,72 +237,152 @@ export async function POST(request: Request) {
 
     if (!subscription) {
       const subscriptionNotes = asMap(subscriptionEntity?.notes);
-      const checkoutSessionId = subscriptionNotes.vercentlabs_checkout_session_id
-        ? String(subscriptionNotes.vercentlabs_checkout_session_id)
-        : null;
-      const organizationIdFromNotes = subscriptionNotes.vercentlabs_organization_id
-        ? String(subscriptionNotes.vercentlabs_organization_id)
-        : null;
-      const checkoutRows = await query<{
-        id: string;
-        organization_id: string;
-        plan_price_id: string;
-      }>(
-        `
-          SELECT id, organization_id, plan_price_id
-          FROM billing_checkout_sessions
-          WHERE provider = 'razorpay'
-            AND status IN ('created', 'authorised')
-            AND (
-              provider_subscription_id = $1
-              OR (
-                $2::uuid IS NOT NULL
-                AND id = $2::uuid
-                AND ($3::uuid IS NULL OR organization_id = $3::uuid)
-              )
-            )
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-        [providerSubscriptionId, checkoutSessionId, organizationIdFromNotes],
+      const checkoutSessionId = safeUuid(
+        subscriptionNotes.vercentlabs_checkout_session_id,
       );
-      const checkout = checkoutRows[0];
-      if (checkout) {
-        await query(
+      const organizationIdFromNotes = safeUuid(
+        subscriptionNotes.vercentlabs_organization_id,
+      );
+      const recovered = await transaction(async (client) => {
+        const candidateRows = await client.query<{
+          id: string;
+          organization_id: string;
+        }>(
+          `
+            SELECT id, organization_id
+            FROM billing_checkout_sessions
+            WHERE provider = 'razorpay'
+              AND status IN (
+                'created',
+                'provider_creating',
+                'provider_link_pending',
+                'provider_recovery_pending',
+                'verifying',
+                'authorised'
+              )
+              AND (
+                provider_subscription_id = $1
+                OR (
+                  $2::uuid IS NOT NULL
+                  AND id = $2::uuid
+                  AND ($3::uuid IS NULL OR organization_id = $3::uuid)
+                )
+              )
+            ORDER BY created_at DESC
+            LIMIT 1
+          `,
+          [providerSubscriptionId, checkoutSessionId, organizationIdFromNotes],
+        );
+        const candidate = candidateRows.rows[0];
+        if (!candidate) return null;
+
+        await client.query(
+          `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+          [`billing-checkout:${candidate.organization_id}`],
+        );
+        const checkoutRows = await client.query<{
+          id: string;
+          organization_id: string;
+          plan_price_id: string;
+          provider_subscription_id: string | null;
+          status: string;
+        }>(
+          `
+            SELECT id, organization_id, plan_price_id, provider_subscription_id, status
+            FROM billing_checkout_sessions
+            WHERE id = $1 AND organization_id = $2
+              AND provider = 'razorpay'
+              AND status IN (
+                'created',
+                'provider_creating',
+                'provider_link_pending',
+                'provider_recovery_pending',
+                'verifying',
+                'authorised'
+              )
+            FOR UPDATE
+          `,
+          [candidate.id, candidate.organization_id],
+        );
+        const checkout = checkoutRows.rows[0];
+        if (!checkout) return null;
+        if (
+          checkout.provider_subscription_id &&
+          checkout.provider_subscription_id !== providerSubscriptionId
+        ) {
+          throw new HttpError(
+            409,
+            "The checkout is linked to a different provider subscription.",
+          );
+        }
+        await client.query(
           `UPDATE billing_checkout_sessions
-             SET provider_subscription_id = COALESCE(provider_subscription_id, $2)
+             SET provider_subscription_id = $2,
+               status = CASE
+                 WHEN status = 'authorised' THEN status
+                 ELSE 'provider_link_pending'
+               END,
+               provider_created_at = COALESCE(provider_created_at, now()),
+               last_error = NULL,
+               next_recovery_at = NULL,
+               updated_at = now()
            WHERE id = $1 AND organization_id = $3`,
           [checkout.id, providerSubscriptionId, checkout.organization_id],
         );
-        const local = await replaceOrganizationSubscription({
+        const local = await replaceOrganizationSubscriptionWithClient(client, {
           organizationId: checkout.organization_id,
           planPriceId: checkout.plan_price_id,
           providerSubscriptionId,
           checkoutSessionId: checkout.id,
         });
-        subscription = {
+        await client.query(
+          `UPDATE billing_checkout_sessions
+             SET subscription_id = $2,
+               provider_linked_at = COALESCE(provider_linked_at, now()),
+               updated_at = now()
+           WHERE id = $1`,
+          [checkout.id, local.id],
+        );
+        return {
           id: local.id,
           organization_id: checkout.organization_id,
           last_provider_event_at: null,
         };
-      }
+      });
+      if (recovered) subscription = recovered;
     }
 
     if (!subscription) {
       await query(
         `
           UPDATE billing_webhook_events
-          SET processing_status = 'failed', processed_at = NULL,
+          SET processing_status = CASE
+                WHEN processing_attempts >= $2 THEN 'dead_lettered'
+                ELSE 'failed'
+              END,
+            processed_at = NULL,
+            dead_lettered_at = CASE
+              WHEN processing_attempts >= $2 THEN now()
+              ELSE dead_lettered_at
+            END,
             processing_error = 'subscription_not_found',
+            next_attempt_at = CASE
+              WHEN processing_attempts >= $2 THEN NULL
+              ELSE now() + (LEAST(3600, power(2, processing_attempts) * 15) * interval '1 second')
+            END,
             processing_lease_expires_at = NULL
           WHERE id = $1
         `,
-        [eventRowId],
+        [eventRowId, maximumAttempts],
       );
       throw new HttpError(503, "The subscription is not linked locally yet. Retry this webhook.");
     }
 
     await transaction(async (client) => {
+      await client.query(
+        `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+        [`billing-checkout:${subscription.organization_id}`],
+      );
       await client.query(
         `UPDATE billing_webhook_events SET organization_id = $2 WHERE id = $1`,
         [eventRowId, subscription.organization_id],
@@ -449,7 +551,8 @@ export async function POST(request: Request) {
         `
           UPDATE billing_webhook_events
           SET processing_status = 'processed', processed_at = now(),
-            processing_error = NULL, processing_lease_expires_at = NULL
+            processing_error = NULL, processing_lease_expires_at = NULL,
+            next_attempt_at = NULL
           WHERE id = $1
         `,
         [eventRowId],
@@ -462,7 +565,19 @@ export async function POST(request: Request) {
       await query(
         `
           UPDATE billing_webhook_events
-          SET processing_status = 'failed', processing_error = $2,
+          SET processing_status = CASE
+                WHEN processing_attempts >= $3 THEN 'dead_lettered'
+                ELSE 'failed'
+              END,
+            processing_error = $2,
+            dead_lettered_at = CASE
+              WHEN processing_attempts >= $3 THEN now()
+              ELSE dead_lettered_at
+            END,
+            next_attempt_at = CASE
+              WHEN processing_attempts >= $3 THEN NULL
+              ELSE now() + (LEAST(3600, power(2, processing_attempts) * 15) * interval '1 second')
+            END,
             processing_lease_expires_at = NULL
           WHERE id = $1 AND processing_status = 'processing'
         `,
@@ -471,6 +586,12 @@ export async function POST(request: Request) {
           error instanceof Error
             ? error.message.slice(0, 1000)
             : "unknown_error",
+          boundedIntegerEnvironment(
+            "RAZORPAY_WEBHOOK_MAX_ATTEMPTS",
+            12,
+            1,
+            100,
+          ),
         ],
       ).catch(() => undefined);
     }

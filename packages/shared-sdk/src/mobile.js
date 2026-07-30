@@ -284,17 +284,28 @@ export function createMobileClient({
         { idempotencyKey },
       );
     },
-    completeActivity(id, outcome, idempotencyKey = requestIdFactory()) {
+    completeActivity(
+      id,
+      outcome,
+      idempotencyKey = requestIdFactory(),
+      expectations = {},
+    ) {
       return perform(
         `/crm/activities/${encodeURIComponent(id)}/complete`,
-        { method: "POST", body: JSON.stringify({ outcome }) },
+        { method: "POST", body: JSON.stringify({ outcome, ...expectations }) },
         { idempotencyKey },
       );
     },
-    moveOpportunity(id, stageId, note, idempotencyKey = requestIdFactory()) {
+    moveOpportunity(
+      id,
+      stageId,
+      note,
+      idempotencyKey = requestIdFactory(),
+      expectations = {},
+    ) {
       return perform(
         `/crm/opportunities/${encodeURIComponent(id)}/stage`,
-        { method: "POST", body: JSON.stringify({ stageId, note }) },
+        { method: "POST", body: JSON.stringify({ stageId, note, ...expectations }) },
         { idempotencyKey },
       );
     },

@@ -180,7 +180,6 @@ const ACTIONS: Record<string, Record<string, string[]>> = {
     submitted: ["approve", "cancel"],
     approved: ["activate", "cancel"],
     active: ["close", "award", "cancel"],
-    closed: ["award"],
   },
   agreements: {
     draft: ["submit", "cancel"],
@@ -196,6 +195,7 @@ const ACTIONS: Record<string, Record<string, string[]>> = {
     dispatched: ["acknowledge", "amend", "cancel"],
     acknowledged: ["amend", "close"],
     partially_received: ["amend", "close"],
+    pending_amendment_approval: ["approve-amendment", "reject-amendment"],
     received: ["close"],
   },
   receipts: {
@@ -628,7 +628,7 @@ export function ProcurementResourceWorkspace({
   async function runAction(action: string) {
     if (!recordId) return;
     let reason = "";
-    if (["reject", "cancel", "block", "suspend", "override", "reverse", "amend"].includes(action)) {
+    if (["reject", "reject-amendment", "cancel", "block", "suspend", "override", "reverse", "amend"].includes(action)) {
       reason = window.prompt(`Reason for ${action}`) || "";
       if (!reason) return;
     }

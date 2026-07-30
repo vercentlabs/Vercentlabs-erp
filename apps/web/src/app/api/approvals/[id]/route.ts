@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { getApprovalCommand } from "@/lib/approval-commands";
 import {
-  requirePermission,
+  requireApiPermission,
   requirePermissionFromSession,
 } from "@/lib/authorization";
 import { requireBillingWriteAccess } from "@/lib/billing";
@@ -25,7 +25,7 @@ export async function GET(
   route: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requirePermission("approvals.manage");
+    const session = await requireApiPermission("approvals.manage");
     const id = identifier.parse((await route.params).id);
     const rows = await query(
       `SELECT approval.id, approval.title, approval.entity_type,
@@ -55,7 +55,7 @@ export async function PATCH(
 ) {
   try {
     assertSameOrigin(request);
-    const session = await requirePermission("approvals.manage");
+    const session = await requireApiPermission("approvals.manage");
     const id = identifier.parse((await route.params).id);
     const input = approvalDecisionSchema.parse(await readJson(request));
     const decision = assertApprovalDecision({

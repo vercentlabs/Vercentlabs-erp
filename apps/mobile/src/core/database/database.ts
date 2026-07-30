@@ -2,6 +2,8 @@ import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as SQLite from "expo-sqlite";
 
+import { runMobileMigrations } from "./migrations";
+
 const keyName = "vercentlabs.mobile.database-key.v1";
 const databaseName = "vercentlabs-mobile.db";
 const recoveryIdentityName = "vercentlabs.mobile.database-recovery.v1";
@@ -69,18 +71,6 @@ function isUnreadableEncryptedDatabase(error: unknown) {
   );
 }
 
-async function ensureColumn(
-  database: Awaited<ReturnType<typeof SQLite.openDatabaseAsync>>,
-  table: string,
-  column: string,
-  definition: string,
-) {
-  const columns = await database.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
-  if (!columns.some((entry) => entry.name === column)) {
-    await database.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}
-
 async function openEncryptedDatabase(identity: DatabaseIdentity) {
   const database = await SQLite.openDatabaseAsync(identity.databaseName);
   try {
@@ -96,40 +86,8 @@ async function openEncryptedDatabase(identity: DatabaseIdentity) {
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
       PRAGMA cipher_memory_security = ON;
-      CREATE TABLE IF NOT EXISTS cache_entries (
-        cache_key TEXT PRIMARY KEY,
-        resource TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        server_updated_at TEXT,
-        cached_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS cache_entries_resource_idx
-        ON cache_entries(resource, cached_at DESC);
-      CREATE TABLE IF NOT EXISTS mutation_queue (
-        id TEXT PRIMARY KEY,
-        operation TEXT NOT NULL,
-        resource TEXT NOT NULL,
-        record_id TEXT,
-        payload TEXT NOT NULL,
-        idempotency_key TEXT NOT NULL UNIQUE,
-        state TEXT NOT NULL CHECK (state IN ('pending','sending','failed')),
-        attempts INTEGER NOT NULL DEFAULT 0,
-        last_error TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS sync_state (
-        scope TEXT PRIMARY KEY,
-        cursor TEXT,
-        synced_at INTEGER,
-        metadata TEXT
-      );
     `);
-    await ensureColumn(database, "mutation_queue", "next_attempt_at", "INTEGER");
-    await ensureColumn(database, "mutation_queue", "last_http_status", "INTEGER");
-    await database.runAsync(
-      "UPDATE mutation_queue SET next_attempt_at = COALESCE(next_attempt_at, created_at) WHERE next_attempt_at IS NULL AND attempts < 5",
-    );
+    await runMobileMigrations(database);
     return database;
   } catch (error) {
     await database.closeAsync().catch(() => undefined);
@@ -164,6 +122,7 @@ export async function purgeOfflineWorkspace() {
   await database.execAsync(`
     DELETE FROM cache_entries;
     DELETE FROM mutation_queue;
+    DELETE FROM mutation_dead_letters;
     DELETE FROM sync_state;
   `);
 }
@@ -182,6 +141,7 @@ export async function bindOfflineWorkspace(owner: string) {
     await database.execAsync(`
       DELETE FROM cache_entries;
       DELETE FROM mutation_queue;
+      DELETE FROM mutation_dead_letters;
       DELETE FROM sync_state;
     `);
     await database.runAsync(
@@ -219,6 +179,7 @@ export async function writeCache(cacheKey: string, resource: string, payload: un
 }
 
 export type QueuedMutation = { id: string; operation: string; resource: string; recordId: string | null; payload: string; idempotencyKey: string; attempts: number; nextAttemptAt: number | null };
+export type DeadLetterMutation = QueuedMutation & { lastError: string; lastHttpStatus: number | null; failedAt: number };
 
 export async function enqueueMutation(input: { id: string; operation: string; resource: string; recordId?: string; payload: unknown; idempotencyKey: string }) {
   const database = await initializeDatabase();
@@ -277,14 +238,71 @@ export async function failMutation(
   const retryable = options.retryable !== false && attempts < 5;
   const delay = retryable ? Math.min(60 * 60 * 1000, 2 ** attempts * 5_000) : null;
   const now = Date.now();
+  const finalMessage = message.slice(0, 500);
+  if (!retryable) {
+    await database.withTransactionAsync(async () => {
+      await database.runAsync(
+        `INSERT OR REPLACE INTO mutation_dead_letters(
+           id,operation,resource,record_id,payload,idempotency_key,attempts,
+           last_error,last_http_status,created_at,failed_at
+         )
+         SELECT id,operation,resource,record_id,payload,idempotency_key,?, ?, ?,
+                created_at, ?
+           FROM mutation_queue WHERE id=?`,
+        attempts,
+        finalMessage,
+        options.httpStatus ?? null,
+        now,
+        id,
+      );
+      await database.runAsync("DELETE FROM mutation_queue WHERE id=?", id);
+    });
+    return;
+  }
   await database.runAsync(
     `UPDATE mutation_queue SET state='failed', attempts=?, last_error=?,
        last_http_status=?, next_attempt_at=?, updated_at=? WHERE id=?`,
-    retryable ? attempts : 5,
-    message.slice(0, 500),
+    attempts,
+    finalMessage,
     options.httpStatus ?? null,
-    delay === null ? null : now + delay,
+    now + (delay ?? 0),
     now,
     id,
   );
+}
+
+export async function deadLetterMutations() {
+  const database = await initializeDatabase();
+  return database.getAllAsync<DeadLetterMutation>(
+    `SELECT id,operation,resource,record_id AS recordId,payload,
+            idempotency_key AS idempotencyKey,attempts,NULL AS nextAttemptAt,
+            last_error AS lastError,last_http_status AS lastHttpStatus,
+            failed_at AS failedAt
+       FROM mutation_dead_letters ORDER BY failed_at DESC LIMIT 100`,
+  );
+}
+
+export async function retryDeadLetterMutation(id: string) {
+  const database = await initializeDatabase();
+  const now = Date.now();
+  await database.withTransactionAsync(async () => {
+    await database.runAsync(
+      `INSERT OR REPLACE INTO mutation_queue(
+         id,operation,resource,record_id,payload,idempotency_key,state,attempts,
+         last_error,created_at,updated_at,next_attempt_at,last_http_status
+       )
+       SELECT id,operation,resource,record_id,payload,idempotency_key,'pending',0,
+              NULL,created_at,?, ?, NULL
+         FROM mutation_dead_letters WHERE id=?`,
+      now,
+      now,
+      id,
+    );
+    await database.runAsync("DELETE FROM mutation_dead_letters WHERE id=?", id);
+  });
+}
+
+export async function discardDeadLetterMutation(id: string) {
+  const database = await initializeDatabase();
+  await database.runAsync("DELETE FROM mutation_dead_letters WHERE id=?", id);
 }

@@ -36,9 +36,20 @@ export async function runMigrations({
       CREATE TABLE IF NOT EXISTS ${tableName} (
         name text PRIMARY KEY,
         checksum text NOT NULL,
-        applied_at timestamptz NOT NULL DEFAULT now()
+        state text NOT NULL DEFAULT 'applied',
+        started_at timestamptz,
+        applied_at timestamptz,
+        failed_at timestamptz,
+        error_message text,
+        CHECK (state IN ('applying','applied','failed'))
       )
     `);
+    await client.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'applied'`);
+    await client.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS started_at timestamptz`);
+    await client.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS failed_at timestamptz`);
+    await client.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS error_message text`);
+    await client.query(`ALTER TABLE ${tableName} ALTER COLUMN applied_at DROP NOT NULL`);
+    await client.query(`UPDATE ${tableName} SET state='applied', applied_at=COALESCE(applied_at,now()) WHERE state IS NULL OR state='applied'`);
     await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
       lockName,
     ]);
@@ -47,14 +58,21 @@ export async function runMigrations({
       const sql = fs.readFileSync(path.join(directory, name), "utf8");
       const checksum = migrationChecksum(sql);
       const existing = await client.query(
-        `SELECT checksum FROM ${tableName} WHERE name = $1`,
+        `SELECT checksum,state,started_at,error_message FROM ${tableName} WHERE name = $1`,
         [name],
       );
 
       if (existing.rows[0]) {
         if (existing.rows[0].checksum !== checksum) {
           throw new Error(
-            `${label} migration ${name} changed after it was applied.`,
+            `${label} migration ${name} changed after it was registered.`,
+          );
+        }
+        if (existing.rows[0].state !== "applied") {
+          throw new Error(
+            `${label} migration ${name} is recorded as ${existing.rows[0].state}. ` +
+              "A nontransactional migration may have stopped after changing the database. " +
+              "Inspect and reconcile it before explicitly marking it applied; it will not be rerun automatically.",
           );
         }
         console.log(`Skipped ${name}`);
@@ -63,17 +81,39 @@ export async function runMigrations({
 
       const nonTransactional = sql.includes(NON_TRANSACTIONAL_MARKER);
       if (nonTransactional) {
-        await client.query(sql);
         await client.query(
-          `INSERT INTO ${tableName} (name, checksum) VALUES ($1, $2)`,
+          `INSERT INTO ${tableName} (name,checksum,state,started_at,applied_at)
+           VALUES ($1,$2,'applying',now(),NULL)`,
           [name, checksum],
         );
+        try {
+          await client.query(sql);
+          await client.query(
+            `UPDATE ${tableName}
+                SET state='applied',applied_at=now(),failed_at=NULL,error_message=NULL
+              WHERE name=$1 AND checksum=$2 AND state='applying'`,
+            [name, checksum],
+          );
+        } catch (error) {
+          await client.query(
+            `UPDATE ${tableName}
+                SET state='failed',failed_at=now(),error_message=$2
+              WHERE name=$1 AND checksum=$3 AND state='applying'`,
+            [
+              name,
+              error instanceof Error ? error.message.slice(0, 2000) : "unknown_error",
+              checksum,
+            ],
+          ).catch(() => undefined);
+          throw error;
+        }
       } else {
         await client.query("BEGIN");
         try {
           await client.query(prepareTransactionalSql(sql));
           await client.query(
-            `INSERT INTO ${tableName} (name, checksum) VALUES ($1, $2)`,
+            `INSERT INTO ${tableName} (name,checksum,state,started_at,applied_at)
+             VALUES ($1,$2,'applied',now(),now())`,
             [name, checksum],
           );
           await client.query("COMMIT");

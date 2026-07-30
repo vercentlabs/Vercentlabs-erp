@@ -33,8 +33,8 @@ function boundedNumber(
   max: number,
 ) {
   const parsed = Number(value || fallback);
-  return Number.isFinite(parsed)
-    ? Math.min(max, Math.max(min, parsed))
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? parsed
     : fallback;
 }
 

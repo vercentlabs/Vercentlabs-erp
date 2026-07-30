@@ -168,7 +168,12 @@ export function parseProcurementCreate(resource: string, value: unknown) {
 
 export function parseProcurementUpdate(resource: string, value: unknown) {
   const schema = getDocumentSchema(resource);
-  if (!schema) return childSchema.partial().parse(value);
+  if (!schema) {
+    return childSchema
+      .partial()
+      .extend({ expectedVersion: z.coerce.number().int().positive() })
+      .parse(value);
+  }
   return schema
     .partial()
     .extend({ expectedVersion: z.coerce.number().int().positive() })
@@ -195,6 +200,8 @@ export const procurementActionSchema = z
       "reopen",
       "reverse",
       "amend",
+      "approve-amendment",
+      "reject-amendment",
       "award",
     ]),
     reason: z.string().trim().max(1000).optional(),
@@ -206,6 +213,8 @@ export const procurementActionSchema = z
 export const procurementMatchSchema = z
   .object({
     purchaseOrderId: uuid,
+    supplierId: optionalUuid,
+    currencyCode: z.string().trim().length(3).optional(),
     invoiceId: optionalUuid,
     sourceGoodsReceiptId: optionalUuid,
     invoiceNumber: z.string().trim().min(1).max(100),

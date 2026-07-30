@@ -64,12 +64,14 @@ export function moveOpportunityStage(
   opportunityId: string,
   stageId: string,
   note?: string | null,
+  expectations?: { expectedUpdatedAt?: string; expectedStageId?: string | null },
 ): Promise<any>;
 export function completeCrmActivity(
   client: QueryClient,
   context: CrmContext,
   activityId: string,
   outcome?: string | null,
+  expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
 ): Promise<any>;
 export function getCrmOptions(
   client: QueryClient,

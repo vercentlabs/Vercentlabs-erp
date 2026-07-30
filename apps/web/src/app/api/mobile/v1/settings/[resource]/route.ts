@@ -57,15 +57,15 @@ export async function POST(
     const { resource: value } = await route.params;
     const { session, resource } = await context(request, value);
     await requireBillingWriteAccess(session.organizationId!);
-    if (resource === "companies" || resource === "branches") {
-      await assertOrganizationLimit(session.organizationId!, resource);
-    }
     const input = resourceSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
     const created = await transaction(async (client) =>
       withMobileIdempotency(client, session, request, input, async () => {
+        if (resource === "companies" || resource === "branches") {
+          await assertOrganizationLimit(session.organizationId!, resource, client);
+        }
         const record = await createResource(
           resource,
           session.organizationId!,

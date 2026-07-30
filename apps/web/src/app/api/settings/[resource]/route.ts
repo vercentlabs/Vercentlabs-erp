@@ -4,6 +4,7 @@ import {
   requireBillingWriteAccess,
 } from "@/lib/billing";
 import { getSessionContext } from "@/lib/auth";
+import { transaction } from "@/lib/db";
 import { requirePermissionFromSession } from "@/lib/authorization";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import {
@@ -23,6 +24,7 @@ export async function POST(
     const session = await getSessionContext();
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
+    const organizationId = session.organizationId;
     const { resource } = await context.params;
     if (!isResourceKey(resource))
       throw new HttpError(404, "Unknown settings resource.");
@@ -30,31 +32,33 @@ export async function POST(
       session,
       resourceDefinitions[resource].permission,
     );
-    await requireBillingWriteAccess(session.organizationId);
-    if (resource === "companies") {
-      await assertOrganizationLimit(session.organizationId, "companies");
-    }
-    if (resource === "branches") {
-      await assertOrganizationLimit(session.organizationId, "branches");
-    }
+    await requireBillingWriteAccess(organizationId);
     const input = resourceSchemas[resource].parse(
       await readJson(request),
     ) as Record<string, unknown>;
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const created = await createResource(
-      resource,
-      session.organizationId,
-      session.userId,
-      input,
-    );
-    await audit({
-      organizationId: session.organizationId,
-      actorUserId: session.userId,
-      eventType: `${resource}.created`,
-      entityType: resource,
-      entityId: created.id,
-      afterData: input,
-      request,
+    await incrementBillingUsage(organizationId, "api_requests_monthly");
+    const created = await transaction(async (client) => {
+      if (resource === "companies" || resource === "branches") {
+        await assertOrganizationLimit(organizationId, resource, client);
+      }
+      const record = await createResource(
+        resource,
+        organizationId,
+        session.userId,
+        input,
+        client,
+      );
+      await audit({
+        organizationId: organizationId,
+        actorUserId: session.userId,
+        eventType: `${resource}.created`,
+        entityType: resource,
+        entityId: record.id,
+        afterData: input,
+        request,
+        client,
+      });
+      return record;
     });
     return ok({ message: "Record created.", id: created.id }, 201);
   } catch (error) {

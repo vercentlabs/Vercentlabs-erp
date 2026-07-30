@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authorization";
+import { requireApiPermission } from "@/lib/authorization";
 import { query, transaction } from "@/lib/db";
 import { errorResponse, ok, readJson } from "@/lib/http";
 import { assertSameOrigin, audit } from "@/lib/security";
@@ -7,7 +7,7 @@ import { profileSchema } from "@/lib/validation";
 export async function PATCH(request: Request) {
   try {
     assertSameOrigin(request);
-    const session = await requirePermission("profile.manage");
+    const session = await requireApiPermission("profile.manage");
     const input = profileSchema.parse(await readJson(request));
     const before = await query<{
       full_name: string;

@@ -120,18 +120,104 @@ export async function updateFiscalPeriodStatus(client, context, idValue, input) 
 
 export async function createCloseRun(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.closeManage);
-  const company = await loadCompany(client, context, input.companyId || context.activeCompanyId);
-  const ledger = await getPrimaryLedger(client, context, company.id, input.ledgerId);
+  const company = await loadCompany(
+    client,
+    context,
+    input.companyId || context.activeCompanyId,
+  );
+  const ledger = await getPrimaryLedger(
+    client,
+    context,
+    company.id,
+    input.ledgerId,
+  );
   const periodId = uuid(input.fiscalPeriodId, "Fiscal period");
-  const period = await client.query(`SELECT * FROM tenant.fiscal_periods WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [context.organizationId, company.id, periodId]);
-  if (!period.rows[0]) throw new AccountingError(404, "Fiscal period was not found for this company.");
-  const runNumber = await allocateNumber(client, context.organizationId, "accounting_close_run");
-  const closeType = ["month","quarter","year","soft","hard"].includes(input.closeType) ? input.closeType : "month";
-  const result = await client.query(`INSERT INTO tenant.accounting_close_runs (organization_id,company_id,ledger_id,fiscal_period_id,run_number,close_type,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,'planned',now()) RETURNING *`, [context.organizationId, company.id, ledger.id, periodId, runNumber, closeType]);
-  for (const [sequence, taskKey, name] of DEFAULT_TASKS) {
-    await client.query(`INSERT INTO tenant.accounting_close_tasks (organization_id,close_run_id,sequence,task_key,name,blocking,status) VALUES ($1,$2,$3,$4,$5,true,'pending')`, [context.organizationId, result.rows[0].id, sequence, taskKey, name]);
+  const period = await client.query(
+    `SELECT *
+       FROM tenant.fiscal_periods
+      WHERE organization_id=$1 AND company_id=$2 AND id=$3
+      FOR UPDATE`,
+    [context.organizationId, company.id, periodId],
+  );
+  const fiscalPeriod = period.rows[0];
+  if (!fiscalPeriod) {
+    throw new AccountingError(404, "Fiscal period was not found for this company.");
   }
-  await event(client, context, "close_run", result.rows[0].id, "accounting.close.created", null, "planned", { runNumber });
+  if (!["open", "soft_closed"].includes(fiscalPeriod.status)) {
+    throw new AccountingError(
+      409,
+      `A close run cannot be created for a ${fiscalPeriod.status} period.`,
+    );
+  }
+  const active = await client.query(
+    `SELECT id
+       FROM tenant.accounting_close_runs
+      WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3
+        AND fiscal_period_id=$4
+        AND status IN ('planned','in_progress','blocked')
+      FOR UPDATE`,
+    [context.organizationId, company.id, ledger.id, periodId],
+  );
+  if (active.rows[0]) {
+    throw new AccountingError(
+      409,
+      "An active close run already exists for this ledger and period.",
+    );
+  }
+  const runNumber = await allocateNumber(
+    client,
+    context.organizationId,
+    "accounting_close_run",
+  );
+  const closeType = ["month", "quarter", "year", "soft", "hard"].includes(
+    input.closeType,
+  )
+    ? input.closeType
+    : "month";
+  const result = await client.query(
+    `INSERT INTO tenant.accounting_close_runs (
+       organization_id,company_id,ledger_id,fiscal_period_id,run_number,
+       close_type,status,created_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,'planned',now())
+     RETURNING *`,
+    [
+      context.organizationId,
+      company.id,
+      ledger.id,
+      periodId,
+      runNumber,
+      closeType,
+    ],
+  );
+  let previousTaskId = null;
+  for (const [sequence, taskKey, name] of DEFAULT_TASKS) {
+    const task = await client.query(
+      `INSERT INTO tenant.accounting_close_tasks (
+         organization_id,close_run_id,sequence,task_key,name,blocking,status,
+         depends_on_task_ids
+       ) VALUES ($1,$2,$3,$4,$5,true,'pending',$6::uuid[])
+       RETURNING id`,
+      [
+        context.organizationId,
+        result.rows[0].id,
+        sequence,
+        taskKey,
+        name,
+        previousTaskId ? [previousTaskId] : [],
+      ],
+    );
+    previousTaskId = task.rows[0].id;
+  }
+  await event(
+    client,
+    context,
+    "close_run",
+    result.rows[0].id,
+    "accounting.close.created",
+    null,
+    "planned",
+    { runNumber },
+  );
   return getCloseRun(client, context, result.rows[0].id);
 }
 
@@ -153,27 +239,174 @@ export async function getCloseRun(client, context, idValue) {
   return { run: run.rows[0], tasks: tasks.rows, blockers };
 }
 
-export async function updateCloseTask(client, context, runIdValue, taskIdValue, input) {
+export async function updateCloseTask(
+  client,
+  context,
+  runIdValue,
+  taskIdValue,
+  input,
+) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.closeManage);
-  const runId = uuid(runIdValue, "Close run"); const taskId = uuid(taskIdValue, "Close task");
+  const runId = uuid(runIdValue, "Close run");
+  const taskId = uuid(taskIdValue, "Close task");
+  const expectedTaskVersion = Number(input.expectedVersion);
+  if (!Number.isInteger(expectedTaskVersion) || expectedTaskVersion < 1) {
+    throw new AccountingError(400, "Expected close-task version is required.");
+  }
   const status = String(input.status || "");
-  if (!["pending","in_progress","completed","waived","blocked"].includes(status)) throw new AccountingError(400, "Close task status is invalid.");
+  if (!["pending", "in_progress", "completed", "waived", "blocked"].includes(status)) {
+    throw new AccountingError(400, "Close task status is invalid.");
+  }
   const note = text(input.note, 1000) || null;
-  const evidence = input.evidence && typeof input.evidence === "object" && !Array.isArray(input.evidence) ? input.evidence : {};
+  const evidence =
+    input.evidence &&
+    typeof input.evidence === "object" &&
+    !Array.isArray(input.evidence)
+      ? input.evidence
+      : {};
+  if (["completed", "waived"].includes(status)) {
+    const evidenceType = text(evidence.type, 80);
+    const evidenceReference = text(
+      evidence.reference || evidence.documentId || evidence.uri,
+      1000,
+    );
+    if (!evidenceType || !evidenceReference) {
+      throw new AccountingError(
+        400,
+        "Completion and waiver evidence require a type and reference.",
+      );
+    }
+  }
   if (status === "waived") {
     requirePermission(context, ACCOUNTING_PERMISSIONS.closeWaive);
     if (!note) throw new AccountingError(400, "A waiver reason is required.");
-    if (!Object.keys(evidence).length) throw new AccountingError(400, "Waiver evidence is required.");
   }
-  const current = await client.query(`SELECT * FROM tenant.accounting_close_tasks WHERE organization_id=$1 AND close_run_id=$2 AND id=$3 FOR UPDATE`, [context.organizationId, runId, taskId]);
-  if (!current.rows[0]) throw new AccountingError(404, "Close task not found.");
-  const result = await client.query(`UPDATE tenant.accounting_close_tasks SET status=$4,note=$5,evidence=$6::jsonb,completed_at=CASE WHEN $4 IN ('completed','waived') THEN now() ELSE NULL END,completed_by=CASE WHEN $4 IN ('completed','waived') THEN $7 ELSE NULL END WHERE organization_id=$1 AND close_run_id=$2 AND id=$3 AND status=$8 RETURNING *`, [context.organizationId, runId, taskId, status, note, JSON.stringify(evidence), context.userId, current.rows[0].status]);
-  if (!result.rows[0]) throw new AccountingError(409, "The close task changed before the update was applied.");
-  await event(client, context, "close_task", taskId, status === "waived" ? "accounting.close.task_waived" : "accounting.close.task_updated", current.rows[0].status, status, { runId, note, evidence });
-  const totals = await client.query(`SELECT count(*)::int AS total,count(*) FILTER (WHERE status IN ('completed','waived'))::int AS completed,count(*) FILTER (WHERE status='blocked')::int AS blocked FROM tenant.accounting_close_tasks WHERE organization_id=$1 AND close_run_id=$2`, [context.organizationId, runId]);
+
+  const runRows = await client.query(
+    `SELECT * FROM tenant.accounting_close_runs
+      WHERE organization_id=$1 AND id=$2
+      FOR UPDATE`,
+    [context.organizationId, runId],
+  );
+  const run = runRows.rows[0];
+  if (!run) throw new AccountingError(404, "Close run not found.");
+  if (!["planned", "in_progress", "blocked"].includes(run.status)) {
+    throw new AccountingError(
+      409,
+      `Tasks cannot be changed after the close run is ${run.status}.`,
+    );
+  }
+
+  const current = await client.query(
+    `SELECT *
+       FROM tenant.accounting_close_tasks
+      WHERE organization_id=$1 AND close_run_id=$2 AND id=$3
+      FOR UPDATE`,
+    [context.organizationId, runId, taskId],
+  );
+  const task = current.rows[0];
+  if (!task) throw new AccountingError(404, "Close task not found.");
+  if (Number(task.version) !== expectedTaskVersion) {
+    throw new AccountingError(
+      409,
+      "The close task changed after it was loaded.",
+    );
+  }
+  if (["completed", "waived"].includes(status) && task.depends_on_task_ids?.length) {
+    const dependencies = await client.query(
+      `SELECT id,status
+         FROM tenant.accounting_close_tasks
+        WHERE organization_id=$1 AND close_run_id=$2
+          AND id=ANY($3::uuid[])
+        FOR UPDATE`,
+      [context.organizationId, runId, task.depends_on_task_ids],
+    );
+    const incomplete = dependencies.rows.filter(
+      (dependency) => !["completed", "waived"].includes(dependency.status),
+    );
+    if (incomplete.length) {
+      throw new AccountingError(
+        409,
+        "Complete the prerequisite close tasks before finishing this task.",
+      );
+    }
+  }
+
+  const result = await client.query(
+    `UPDATE tenant.accounting_close_tasks
+        SET status=$4,note=$5,evidence=$6::jsonb,
+            completed_at=CASE WHEN $4='completed' THEN now() ELSE NULL END,
+            completed_by=CASE WHEN $4='completed' THEN $7 ELSE NULL END,
+            waived_at=CASE WHEN $4='waived' THEN now() ELSE NULL END,
+            waived_by=CASE WHEN $4='waived' THEN $7 ELSE NULL END,
+            waiver_reason=CASE WHEN $4='waived' THEN $5 ELSE NULL END,
+            version=version+1
+      WHERE organization_id=$1 AND close_run_id=$2 AND id=$3
+        AND status=$8 AND version=$9
+      RETURNING *`,
+    [
+      context.organizationId,
+      runId,
+      taskId,
+      status,
+      note,
+      JSON.stringify(evidence),
+      context.userId,
+      task.status,
+      expectedTaskVersion,
+    ],
+  );
+  if (!result.rows[0]) {
+    throw new AccountingError(
+      409,
+      "The close task changed before the update was applied.",
+    );
+  }
+  await event(
+    client,
+    context,
+    "close_task",
+    taskId,
+    status === "waived"
+      ? "accounting.close.task_waived"
+      : "accounting.close.task_updated",
+    task.status,
+    status,
+    { runId, note, evidence, version: result.rows[0].version },
+  );
+  const totals = await client.query(
+    `SELECT count(*)::int AS total,
+            count(*) FILTER (WHERE status IN ('completed','waived'))::int AS completed,
+            count(*) FILTER (WHERE status='blocked')::int AS blocked
+       FROM tenant.accounting_close_tasks
+      WHERE organization_id=$1 AND close_run_id=$2`,
+    [context.organizationId, runId],
+  );
   const summary = totals.rows[0];
-  const percent = Number(summary.total) ? (Number(summary.completed) / Number(summary.total)) * 100 : 0;
-  await client.query(`UPDATE tenant.accounting_close_runs SET completion_percent=$3,status=CASE WHEN $4::int>0 THEN 'blocked' WHEN $3>0 THEN 'in_progress' ELSE status END,started_at=COALESCE(started_at,now()),started_by=COALESCE(started_by,$5) WHERE organization_id=$1 AND id=$2`, [context.organizationId, runId, percent.toFixed(2), Number(summary.blocked), context.userId]);
+  const percent = Number(summary.total)
+    ? (Number(summary.completed) / Number(summary.total)) * 100
+    : 0;
+  await client.query(
+    `UPDATE tenant.accounting_close_runs
+        SET completion_percent=$3,
+            status=CASE
+              WHEN $4::int>0 THEN 'blocked'
+              WHEN $3>0 THEN 'in_progress'
+              ELSE status
+            END,
+            started_at=COALESCE(started_at,now()),
+            started_by=COALESCE(started_by,$5),
+            version=version+1
+      WHERE organization_id=$1 AND id=$2
+        AND status IN ('planned','in_progress','blocked')`,
+    [
+      context.organizationId,
+      runId,
+      percent.toFixed(2),
+      Number(summary.blocked),
+      context.userId,
+    ],
+  );
   return getCloseRun(client, context, runId);
 }
 
@@ -234,17 +467,127 @@ async function postYearEndClosingJournal(client, context, detail) {
   return created.entry;
 }
 
-export async function completeCloseRun(client, context, idValue) {
+export async function completeCloseRun(client, context, idValue, input = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.closeManage);
   const id = uuid(idValue, "Close run");
-  const detail = await getCloseRun(client, context, id);
-  const blocking = detail.tasks.filter((task) => task.blocking && !["completed","waived"].includes(task.status));
-  if (blocking.length) throw new AccountingError(409, `${blocking.length} blocking close tasks remain incomplete.`);
-  if (detail.blockers.length) throw new AccountingError(409, `The period has ${detail.blockers.length} unresolved close blocker categories: ${detail.blockers.map((blocker) => blocker.message).join("; ")}.`);
-  if (detail.run.close_type === "year") await postYearEndClosingJournal(client, context, detail);
-  const periodStatus = detail.run.close_type === "hard" || detail.run.close_type === "year" ? "locked" : "closed";
-  await client.query(`UPDATE tenant.fiscal_periods SET status=$3,locked_at=CASE WHEN $3='locked' THEN now() ELSE locked_at END,locked_by=CASE WHEN $3='locked' THEN $4 ELSE locked_by END,close_note=$5 WHERE organization_id=$1 AND id=$2`, [context.organizationId, detail.run.fiscal_period_id, periodStatus, context.userId, `Completed by close run ${detail.run.run_number}`]);
-  await client.query(`UPDATE tenant.accounting_close_runs SET status='completed',completion_percent=100,completed_at=now(),completed_by=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, context.userId]);
-  await event(client, context, "close_run", id, "accounting.close.completed", detail.run.status, "completed", { periodStatus });
+  const expectedRunVersion = Number(input.expectedVersion);
+  if (!Number.isInteger(expectedRunVersion) || expectedRunVersion < 1) {
+    throw new AccountingError(400, "Expected close-run version is required.");
+  }
+
+  const locked = await client.query(
+    `SELECT run.*,period.name AS period_name,
+            period.start_date AS period_start_date,
+            period.end_date AS period_end_date,
+            period.status AS period_status,
+            company.name AS company_name
+       FROM tenant.accounting_close_runs run
+       JOIN tenant.fiscal_periods period ON period.id=run.fiscal_period_id
+       JOIN public.companies company ON company.id=run.company_id
+      WHERE run.organization_id=$1 AND run.id=$2
+      FOR UPDATE OF run,period`,
+    [context.organizationId, id],
+  );
+  const run = locked.rows[0];
+  if (!run) throw new AccountingError(404, "Close run not found.");
+  if (Number(run.version) !== expectedRunVersion) {
+    throw new AccountingError(409, "The close run changed after it was loaded.");
+  }
+  if (!["planned", "in_progress", "blocked"].includes(run.status)) {
+    throw new AccountingError(
+      409,
+      `A ${run.status} close run cannot be completed again.`,
+    );
+  }
+
+  const tasks = await client.query(
+    `SELECT *
+       FROM tenant.accounting_close_tasks
+      WHERE organization_id=$1 AND close_run_id=$2
+      ORDER BY sequence
+      FOR UPDATE`,
+    [context.organizationId, id],
+  );
+  const detail = {
+    run,
+    tasks: tasks.rows,
+    blockers: await periodBlockers(client, context, run.company_id, {
+      start_date: run.period_start_date,
+      end_date: run.period_end_date,
+    }),
+  };
+  const blocking = detail.tasks.filter(
+    (task) => task.blocking && !["completed", "waived"].includes(task.status),
+  );
+  if (blocking.length) {
+    throw new AccountingError(
+      409,
+      `${blocking.length} blocking close tasks remain incomplete.`,
+    );
+  }
+  if (detail.blockers.length) {
+    throw new AccountingError(
+      409,
+      `The period has ${detail.blockers.length} unresolved close blocker categories: ${detail.blockers
+        .map((blocker) => blocker.message)
+        .join("; ")}.`,
+    );
+  }
+
+  if (run.close_type === "year") {
+    await postYearEndClosingJournal(client, context, detail);
+  }
+  const periodStatus =
+    run.close_type === "hard" || run.close_type === "year"
+      ? "locked"
+      : "closed";
+  const periodUpdated = await client.query(
+    `UPDATE tenant.fiscal_periods
+        SET status=$3,
+            locked_at=CASE WHEN $3='locked' THEN now() ELSE locked_at END,
+            locked_by=CASE WHEN $3='locked' THEN $4 ELSE locked_by END,
+            close_note=$5
+      WHERE organization_id=$1 AND id=$2
+        AND status IN ('open','soft_closed')
+      RETURNING id`,
+    [
+      context.organizationId,
+      run.fiscal_period_id,
+      periodStatus,
+      context.userId,
+      `Completed by close run ${run.run_number}`,
+    ],
+  );
+  if (!periodUpdated.rows[0]) {
+    throw new AccountingError(
+      409,
+      "The fiscal period changed before close completion.",
+    );
+  }
+  const completed = await client.query(
+    `UPDATE tenant.accounting_close_runs
+        SET status='completed',completion_percent=100,completed_at=now(),
+            completed_by=$3,version=version+1
+      WHERE organization_id=$1 AND id=$2
+        AND version=$4 AND status IN ('planned','in_progress','blocked')
+      RETURNING *`,
+    [context.organizationId, id, context.userId, expectedRunVersion],
+  );
+  if (!completed.rows[0]) {
+    throw new AccountingError(
+      409,
+      "The close run changed before completion was committed.",
+    );
+  }
+  await event(
+    client,
+    context,
+    "close_run",
+    id,
+    "accounting.close.completed",
+    run.status,
+    "completed",
+    { periodStatus, version: completed.rows[0].version },
+  );
   return getCloseRun(client, context, id);
 }

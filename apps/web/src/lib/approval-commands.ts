@@ -6,6 +6,7 @@ import {
   approveVendorPayment,
   approveQuotation,
   approveSalesOrder,
+  approveSalesOrderAmendment,
   completeCrmActivity,
   moveOpportunityStage,
   rejectBudgetApproval,
@@ -15,6 +16,7 @@ import {
   rejectVendorPaymentApproval,
   rejectQuotationApproval,
   rejectSalesOrderApproval,
+  rejectSalesOrderAmendment,
 } from "@vercentlabs/api";
 import { createCommandRegistry } from "@vercentlabs/workflows";
 import type { PoolClient } from "pg";
@@ -165,6 +167,42 @@ const definitions: ApprovalCommand[] = [
         client,
         salesContext(session),
         String(payload.orderId),
+      ),
+  },
+  {
+    key: "sales.order.amendment.approve",
+    permission: PERMISSIONS.salesOrderApprove,
+    entityType: "sales_order_amendment",
+    entityId: (payload) => String(payload.orderId),
+    title: (payload) =>
+      `Approve Sales order amendment ${String(payload.orderId)}`,
+    validate: (payload) =>
+      z
+        .object({
+          orderId: uuid,
+          orderVersionId: uuid,
+          previousVersionId: uuid,
+          resumeStatus: z.enum(["confirmed", "on_hold"]),
+        })
+        .strict()
+        .parse(payload),
+    execute: ({ client, session }, payload) =>
+      approveSalesOrderAmendment(
+        client,
+        salesContext(session),
+        String(payload.orderId),
+        String(payload.orderVersionId),
+        String(payload.previousVersionId),
+        payload.resumeStatus as "confirmed" | "on_hold",
+      ),
+    reject: ({ client, session }, payload) =>
+      rejectSalesOrderAmendment(
+        client,
+        salesContext(session),
+        String(payload.orderId),
+        String(payload.orderVersionId),
+        String(payload.previousVersionId),
+        payload.resumeStatus as "confirmed" | "on_hold",
       ),
   },
   {

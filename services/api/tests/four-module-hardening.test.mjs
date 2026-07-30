@@ -24,11 +24,13 @@ test("Procurement matching tolerance is policy controlled", () => {
 
 test("Accounting settings and close controls reject unsafe shortcuts", () => {
   const setup = read("services/api/src/accounting/setup.js");
+  const core = read("services/api/src/accounting/core.js");
   const close = read("services/api/src/accounting/close.js");
-  assert.match(setup, /function strictBoolean/);
+  assert.match(core, /export function strictBoolean/);
+  assert.match(core, /normalized === "false"/);
   assert.doesNotMatch(setup, /Boolean\(input\[key\]\)/);
   assert.match(close, /ACCOUNTING_PERMISSIONS\.closeWaive/);
-  assert.match(close, /Waiver evidence is required/);
+  assert.match(close, /Completion and waiver evidence require a type and reference/);
   assert.match(close, /Closed and locked periods can only be produced by a completed governed close run/);
 });
 
@@ -67,4 +69,31 @@ test("Business-data boolean imports use explicit value mapping", () => {
   assert.match(business, /\["false", "0", "no", "n", "off"\]/);
   assert.doesNotMatch(business, /z\.coerce\.boolean/);
   assert.doesNotMatch(validation, /z\.coerce\.boolean/);
+});
+
+test("remaining hardening keeps billing, Procurement and amendments transaction-safe", () => {
+  const billingVerify = read("apps/web/src/app/api/billing/verify/route.ts");
+  const procurement = read("services/api/src/procurement/index.js");
+  const sales = read("services/api/src/sales/index.js");
+  const mobileMigrations = read("apps/mobile/src/core/database/migrations/index.ts");
+
+  const checkoutLock = billingVerify.indexOf("FOR UPDATE");
+  const subscriptionReplace = billingVerify.indexOf(
+    "replaceOrganizationSubscriptionWithClient",
+    billingVerify.indexOf("const result = await transaction"),
+  );
+  assert.ok(checkoutLock >= 0 && subscriptionReplace > checkoutLock);
+  assert.match(billingVerify, /status = 'verifying'/);
+
+  assert.match(procurement, /procurement_sourcing_awards/);
+  assert.match(procurement, /WHERE organization_id=\$1 AND id=\$2\s+FOR UPDATE/);
+  assert.match(procurement, /status='pending_amendment_approval'/);
+  assert.match(procurement, /approvePurchaseOrderAmendment/);
+  assert.match(procurement, /rejectPurchaseOrderAmendment/);
+  assert.match(procurement, /received_quantity=\$3/);
+
+  assert.match(sales, /sales\.order\.amendment\.approve/);
+  assert.match(sales, /approval_request_id=\$1/);
+  assert.match(sales, /pg_advisory_xact_lock/);
+  assert.match(mobileMigrations, /runMobileMigrations/);
 });
