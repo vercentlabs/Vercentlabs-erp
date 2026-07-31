@@ -21,7 +21,7 @@ function pageRoutes(root, prefix = "") {
   return routes;
 }
 
-test("every protected web page family has an explicit native destination", () => {
+test("every protected web page family has an explicit mobile destination", () => {
   const webRoot = path.join(repositoryRoot, "apps/web/src/app/(app)");
   const routes = pageRoutes(webRoot).sort();
   const manifest = read("src/core/modules/web-parity.ts");
@@ -32,7 +32,9 @@ test("every protected web page family has an explicit native destination", () =>
     manifest.indexOf("export const protectedWebParity"),
     manifest.indexOf("export const authenticationWebParity"),
   );
-  assert.doesNotMatch(protectedEntries, /secure-browser-handoff/);
+  assert.match(protectedEntries, /web: "\/accounting"[^\n]+secure-browser-handoff/);
+  assert.match(protectedEntries, /web: "\/sales"[^\n]+secure-browser-handoff/);
+  assert.match(protectedEntries, /web: "\/crm"[^\n]+delivery: "native"/);
 });
 
 test("workspace navigation contains no disabled or web-only destination", () => {

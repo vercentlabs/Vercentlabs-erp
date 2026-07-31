@@ -75,5 +75,5 @@ if (failures.length) {
 }
 
 console.log(
-  `Implementation verified: ${packages.length} shared packages, end-to-end transactional approvals and leased CRM outbox delivery.`,
+  `Static implementation markers verified: ${packages.length} shared packages, approval wiring and leased CRM outbox delivery. Live end-to-end execution requires database and browser tests.`,
 );

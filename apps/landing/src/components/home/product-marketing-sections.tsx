@@ -8,7 +8,12 @@ import {
   Warehouse,
 } from "lucide-react";
 import Link from "next/link";
-import { isReleasedModule } from "@vercentlabs/shared-types";
+import {
+  isReleasedModule,
+  RELEASED_MODULE_COUNT,
+  ROADMAP_MODULE_COUNT,
+  TOTAL_MODULE_COUNT,
+} from "@vercentlabs/shared-types";
 
 import PageContainer from "@/components/layout/page-container";
 import RevealOnScroll from "@/components/ui/reveal-on-scroll";
@@ -182,12 +187,11 @@ export default function ProductMarketingSections() {
           <RevealOnScroll>
             <div className="os-section-heading-row">
               <div>
-                <p className="os-eyebrow">Released CRM, Sales & Accounting</p>
-                <h2>Enough surface area to run real customer work.</h2>
+                <p className="os-eyebrow">Controlled early access · CRM, Sales, Accounting & Procurement</p>
+                <h2>Selected governed workflows for real pilot validation.</h2>
               </div>
               <p>
-                The released scope is intentionally focused. Every capability
-                below maps to a real workflow, record or control in the product.
+                The early-access scope is intentionally bounded. The capabilities below describe the CRM operating core; module-specific limitations remain visible on each module page.
               </p>
             </div>
           </RevealOnScroll>
@@ -216,7 +220,7 @@ export default function ProductMarketingSections() {
             <div className="os-system-map__heading">
               <div>
                 <p className="os-eyebrow">The system map</p>
-                <h2>Twelve modules. Three are released. Nine are roadmap.</h2>
+                <h2>{TOTAL_MODULE_COUNT} modules. {RELEASED_MODULE_COUNT} early-access. {ROADMAP_MODULE_COUNT} roadmap.</h2>
               </div>
               <Link href="/modules" className="os-text-link">
                 Open module roadmap <ArrowRight aria-hidden="true" />

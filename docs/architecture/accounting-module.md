@@ -135,7 +135,7 @@ A source document and its journal entry have independent statuses. An invoice ma
 
 ## Release contract
 
-Accounting is released only when migrations, forced RLS, permissions, company foundations, numbering, tests, TypeScript, lint, build, database verifiers, source verifiers and product-release verification all pass. The installer performs these checks before creating a commit.
+Accounting is released only when migrations, forced RLS, permissions, company foundations, numbering, tests, TypeScript, lint, build, database verifiers, source verifiers and product-release verification all pass. Accounting changes may be committed only after the repository release gate, database verifiers, migration checks and manual acceptance evidence pass.
 
 ## Enterprise control extensions
 

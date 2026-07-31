@@ -21,6 +21,15 @@ export const ROADMAP_MODULE_KEYS = Object.freeze(
   ERP_MODULE_CATALOG.filter((module) => module.availability === "roadmap").map((module) => module.key),
 );
 
+export const TOTAL_MODULE_COUNT = ERP_MODULE_CATALOG.length;
+export const RELEASED_MODULE_COUNT = RELEASED_MODULE_KEYS.length;
+export const ROADMAP_MODULE_COUNT = ROADMAP_MODULE_KEYS.length;
+export const RELEASED_MODULE_NAMES = Object.freeze(
+  ERP_MODULE_CATALOG.filter((module) => module.availability === "released").map((module) => module.name),
+);
+export const RELEASE_STAGE = "controlled-early-access";
+export const NATIVE_OPERATIONAL_MODULE_KEYS = Object.freeze(["crm", "procurement"]);
+
 export function getErpModule(key) {
   return ERP_MODULE_CATALOG.find((module) => module.key === key) || null;
 }

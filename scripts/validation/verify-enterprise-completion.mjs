@@ -95,7 +95,11 @@ const staleScopePatterns = [
   /eleven roadmap/i,
   /eleven future modules/i,
   /3 released/i,
+  /three (?:are )?released/i,
   /9 roadmap/i,
+  /nine (?:are )?roadmap/i,
+  /released end to end/i,
+  /end-to-end release completion/i,
 ];
 const scopeFiles = [
   "Readme.md",
@@ -103,6 +107,10 @@ const scopeFiles = [
   "apps/landing/src/app/pricing/page.tsx",
   "apps/landing/src/app/product/page.tsx",
   "apps/landing/src/app/workflows/page.tsx",
+  "apps/landing/src/app/changelog/page.tsx",
+  "apps/landing/src/app/modules/[slug]/page.tsx",
+  "apps/landing/src/components/home/hero-section.tsx",
+  "apps/landing/src/components/home/product-marketing-sections.tsx",
   "apps/landing/src/content/landing.ts",
   "docs/testing/manual-crm-acceptance.md",
   "docs/testing/manual-landing-acceptance.md",
@@ -120,5 +128,5 @@ if (failures.length) {
 }
 
 console.log(
-  `Enterprise completion verified: ${released.length} released modules, ${roadmap.length} roadmap modules, connected quote-to-cash and source-to-pay controls.`,
+  `Static enterprise release-contract checks passed: ${released.length} controlled early-access modules, ${roadmap.length} roadmap modules. This does not certify all benchmark capabilities or live end-to-end workflows.`,
 );

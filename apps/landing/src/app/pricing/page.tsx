@@ -16,7 +16,7 @@ import { siteConfig } from "@/lib/site-config";
 export const metadata = createPageMetadata({
   title: "Vercentlabs ERP Pricing",
   description:
-    "Review unlimited-user pricing for the released Vercentlabs ERP CRM scope and governed platform foundation.",
+    "Review early-access pricing for selected governed CRM, Sales, Accounting and Procurement workflows and the shared platform foundation.",
   path: "/pricing",
 });
 
@@ -25,7 +25,7 @@ const plans = [
     code: "launch",
     name: "Launch",
     audience:
-      "Small businesses replacing spreadsheets with one governed CRM workspace.",
+      "Small businesses validating one governed customer-operations workspace.",
     monthly: "₹3,999",
     yearly: "₹39,990 yearly",
     onboarding: "Self-guided onboarding included",
@@ -62,7 +62,7 @@ const plans = [
     code: "scale",
     name: "Scale",
     audience:
-      "Established multi-company businesses with higher CRM and integration volume.",
+      "Established multi-company businesses with higher early-access workflow and integration volume.",
     monthly: "₹24,999",
     yearly: "₹2,49,990 yearly",
     onboarding: "₹74,999 implementation package",
@@ -94,7 +94,7 @@ export default function PricingPage() {
       <PageHero
         eyebrow="Commercial model"
         title="Price the operating capacity. Not every person who needs the truth."
-        description="Every standard plan includes unlimited users. Published pricing applies to the released CRM, Sales, Accounting, Procurement and platform-foundation scope; the eight roadmap modules are not included as shipped capability."
+        description="Every standard plan includes unlimited users. Published pricing applies only to the explicitly supported controlled early-access workflows and platform foundation. It does not imply that all benchmarked capabilities in CRM, Sales, Accounting or Procurement are complete; roadmap modules and unreleased capabilities are excluded."
       />
 
       <OperatorBand

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Vercentlabs ERP API
   version: 0.4.0
-  description: Browser and native contracts for the released CRM, Sales, Accounting and Procurement platform.
+  description: Partial internal browser and native contracts for selected controlled early-access CRM, Sales, Accounting and Procurement workflows. This is not yet the complete supported public API.
 servers:
   - url: https://erp.example.com/api
 paths:

@@ -145,7 +145,7 @@ export const integrityPoints = [
     icon: BadgeCheck,
     title: "Released means usable",
     description:
-      "CRM is the only module presented as released early-access scope.",
+      "Four modules are presented as controlled early-access scope: CRM, Sales, Accounting and Procurement.",
   },
   {
     icon: Database,

@@ -30,7 +30,7 @@ const entries = [
   {
     date: "July 2026",
     label: "Release",
-    title: "CRM end-to-end release completion",
+    title: "CRM governed early-access workflow release",
     items: [
       "Web and mobile approval initiation",
       "Permission-safe mutation controls",

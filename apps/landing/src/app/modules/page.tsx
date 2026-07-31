@@ -1,4 +1,9 @@
-import { isReleasedModule } from "@vercentlabs/shared-types";
+import {
+  isReleasedModule,
+  RELEASED_MODULE_COUNT,
+  ROADMAP_MODULE_COUNT,
+  TOTAL_MODULE_COUNT,
+} from "@vercentlabs/shared-types";
 
 import MarketingShell from "@/components/marketing/marketing-shell";
 import PageHero from "@/components/marketing/page-hero";
@@ -24,8 +29,8 @@ export default function ModulesPage() {
     <MarketingShell>
       <PageHero
         eyebrow="System map"
-        title="Twelve modules. Four released. Eight stated without theatre."
-        description="CRM, Sales, Accounting and Procurement are the released early-access operating modules. The remaining eight modules are roadmap scope built on the same identity, permission, audit and master-data foundation."
+        title={`${TOTAL_MODULE_COUNT} modules. ${RELEASED_MODULE_COUNT} controlled early-access. ${ROADMAP_MODULE_COUNT} roadmap.`}
+        description="CRM, Sales, Accounting and Procurement provide selected controlled early-access workflows. The remaining modules are roadmap scope built on the same identity, permission, audit and master-data foundation."
       />
 
       <OperatorBand
@@ -45,7 +50,7 @@ export default function ModulesPage() {
                 title={module.name}
                 description={module.summary}
                 status={released ? "released" : "roadmap"}
-                meta={released ? "Released early access" : "Roadmap module"}
+                meta={released ? "Controlled early access" : "Roadmap module"}
                 href={`/modules/${module.slug}`}
               />
             );
@@ -63,7 +68,7 @@ export default function ModulesPage() {
       <OperatorFinalCta
         eyebrow="Scope discussion"
         title="Start with the released operating core. Expand only after evidence."
-        description="Use the released CRM-to-cash and source-to-pay core to validate data ownership, permissions, accounting handoffs and adoption before broader ERP rollout."
+        description="Use selected CRM, quotation-to-order, accounting and source-to-pay workflows to validate data ownership, permissions, handoffs and adoption before broader ERP rollout."
         primary={{ label: "Book a scope session", href: "/contact" }}
         secondary={{
           label: "See implementation approach",

@@ -4,6 +4,7 @@ export type ErpModule = {
   summary: string;
   outcome: string;
   capabilities: string[];
+  releaseNote?: string;
 };
 
 export type BusinessFlow = {
@@ -18,6 +19,7 @@ export type Industry = {
   description: string;
   challenges: string[];
   capabilities: string[];
+  releaseNote?: string;
 };
 
 export const erpModules: ErpModule[] = [
@@ -25,56 +27,64 @@ export const erpModules: ErpModule[] = [
     slug: "accounting",
     name: "Accounting",
     summary:
-      "Control ledgers, receivables, payables, cash, taxes, budgets and financial reporting from the same operational data.",
+      "Operate core ledgers, journals, receivables, payables, banking records, budgets, close and reporting controls from governed operational data.",
     outcome:
-      "Give finance teams a current, traceable view of performance without repeated reconciliation.",
+      "Give finance teams a traceable accounting core while statutory provider workflows remain explicitly separate.",
     capabilities: [
-      "General ledger and chart of accounts",
-      "Accounts receivable and payable",
-      "Cash, bank, tax and payment operations",
-      "Budgets and financial statements",
+      "General ledger, journals and chart of accounts",
+      "Receivables, payables, receipts and payments",
+      "Bank statement and reconciliation foundations",
+      "Budgets, close and financial reporting controls",
     ],
+    releaseNote:
+      "Available as controlled early-access web scope. India e-Invoice, E-Way Bill, GST return filing and other provider-backed statutory workflows are not yet released.",
   },
   {
     slug: "procurement",
     name: "Procurement",
     summary:
-      "Manage suppliers, requests, approvals, quotations, purchase orders, receipts and supplier invoices.",
+      "Manage governed supplier records, requisitions, sourcing, purchase orders, receipts and matching foundations.",
     outcome:
-      "Control spend and supplier commitments from request through payment.",
+      "Control selected source-to-pay handoffs while supplier portals, budget enforcement and stock-backed execution continue to mature.",
     capabilities: [
-      "Purchase requests and approvals",
-      "Supplier and quotation management",
-      "Purchase orders and receipts",
-      "Three-way matching and supplier analysis",
+      "Supplier records and governance",
+      "Requisitions, approvals and sourcing events",
+      "Purchase orders, amendments and receipts",
+      "Matching foundations and Accounting handoff",
     ],
+    releaseNote:
+      "Available as controlled early-access web scope with selected native dashboard access. Full supplier onboarding, budget checks, supplier portal and stock-backed matching are not yet released.",
   },
   {
     slug: "sales",
     name: "Sales",
     summary:
-      "Move from quotation to sales order, fulfilment, invoicing, returns and customer commitments in one flow.",
+      "Create versioned quotations and governed sales orders with approvals, customer decisions and Accounting handoffs.",
     outcome:
-      "Create a reliable order-to-cash process with fewer manual handoffs.",
+      "Create a controlled quotation-to-order core without claiming stock-backed fulfilment or returns that are not yet released.",
     capabilities: [
-      "Quotations, pricing and contracts",
-      "Sales orders and fulfilment",
-      "Customer credit and commitments",
-      "Returns, invoicing and order visibility",
+      "Versioned quotations and customer decisions",
+      "Pricing, tax and approval evidence",
+      "Sales-order conversion and lifecycle controls",
+      "Invoice-request handoff and sales reporting",
     ],
+    releaseNote:
+      "Available as controlled early-access web scope. Stock-backed fulfilment, reservations, pick-pack-ship, returns, sales contracts and recurring billing are not yet released.",
   },
   {
     slug: "crm",
     name: "CRM",
     summary:
       "Manage leads, opportunities, activities, pipelines and customer history beside delivery and financial context.",
-    outcome: "Help commercial teams act with complete customer context.",
+    outcome: "Help commercial teams act with governed customer context.",
     capabilities: [
       "Lead and opportunity management",
       "Pipeline stages and activities",
       "Customer interaction history",
       "Forecasting and sales handoff",
     ],
+    releaseNote:
+      "Available as controlled early-access web and native scope. Live email, calendar, telephony and messaging integrations require external provider configuration; advanced account/contact merge and intelligence remain under development.",
   },
   {
     slug: "stock",

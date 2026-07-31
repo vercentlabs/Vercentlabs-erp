@@ -1,9 +1,13 @@
 # Mobile and responsive-web parity
 
-This document is the release contract between `apps/web` at its mobile
-breakpoint and `apps/mobile`. Parity means that every protected web route has a
-permission-safe native destination, the same business operation is available,
-and the shared visual language is preserved without embedding a WebView.
+This document records the navigation and operation coverage between `apps/web`
+at its mobile breakpoint and `apps/mobile`. Every protected web route must have
+a permission-safe mobile destination, but a destination is not automatically a
+native operation equivalent. Entries marked `native` provide the operation in
+the app; entries marked `secure-browser-handoff` open the responsive web
+workflow without embedding a WebView. Current native business-module coverage
+focuses on CRM and selected Procurement workspaces. Sales and Accounting remain
+primarily responsive-web workflows.
 
 ## Protected workspace
 
@@ -34,7 +38,8 @@ and the shared visual language is preserved without embedding a WebView.
 The canonical route inventory lives in
 `apps/mobile/src/core/modules/web-parity.ts`. Its automated contract test scans
 every protected `apps/web/src/app/(app)/**/page.tsx` file and fails when a web
-page family lacks a mobile destination.
+page family lacks an explicit native destination or secure browser handoff. The
+test verifies routing coverage; it does not prove end-to-end operation parity.
 
 ## Authentication boundary
 

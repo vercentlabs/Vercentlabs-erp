@@ -24,13 +24,13 @@ test("homepage uses the operating-system editorial composition", () => {
 });
 
 test("homepage stays honest about released and roadmap scope", () => {
-  assert.match(hero, /Released CRM, Sales, Accounting & Procurement/);
-  assert.match(hero, /label: "Released modules", value: "4"/);
-  assert.match(hero, /label: "Roadmap modules", value: "8"/);
-  assert.match(
-    sections,
-    /Twelve modules\. Three are released\. Nine are roadmap\./,
-  );
+  assert.match(hero, /Controlled early access · CRM, Sales, Accounting & Procurement/);
+  assert.match(hero, /RELEASED_MODULE_COUNT/);
+  assert.match(hero, /ROADMAP_MODULE_COUNT/);
+  assert.match(sections, /TOTAL_MODULE_COUNT/);
+  assert.match(sections, /RELEASED_MODULE_COUNT/);
+  assert.match(sections, /ROADMAP_MODULE_COUNT/);
+  assert.doesNotMatch(sections, /Three are released|Nine are roadmap/);
   assert.match(sections, /isReleasedModule/);
   assert.match(sections, /Synthetic previews are labelled/);
 });

@@ -78,7 +78,9 @@
     "db:verify:sales": "corepack pnpm --filter @vercentlabs/web verify:sales-database",
     "verify:enterprise": "node scripts/validation/verify-enterprise-completion.mjs",
     "verify:four-module-plan": "node scripts/implementation/verify-four-module-register.mjs",
-    "billing:retry-webhooks": "corepack pnpm --filter @vercentlabs/web billing:retry-webhooks"
+    "billing:retry-webhooks": "corepack pnpm --filter @vercentlabs/web billing:retry-webhooks",
+    "report:419": "node scripts/implementation/report-four-module-progress.mjs",
+    "verify:419-complete": "node scripts/validation/verify-419-feature-completion.mjs"
   },
   "engines": {
     "node": ">=24 <25",

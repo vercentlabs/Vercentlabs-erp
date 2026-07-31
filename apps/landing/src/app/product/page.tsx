@@ -7,7 +7,7 @@ import StructuredContentPage, {
 export const metadata = createPageMetadata({
   title: "Vercentlabs ERP Product | Four Released Business Modules",
   description:
-    "Review the released Vercentlabs CRM, Sales, Accounting and Procurement scope, with eight future ERP modules clearly separated as roadmap.",
+    "Review the controlled early-access Vercentlabs CRM, Sales, Accounting and Procurement scope, with incomplete and roadmap capabilities clearly separated.",
   path: "/product",
 });
 
@@ -16,13 +16,13 @@ const config: StructuredPageConfig = {
     eyebrow: "Current product boundary",
     title: "Four governed business modules on one operating foundation.",
     description:
-      "Vercentlabs ERP currently delivers identity, organisation context, permissions, governed business data, approvals, audit history and billing controls with CRM, Sales, Accounting and Procurement released end to end. Eight operational modules remain explicit roadmap scope.",
+      "Vercentlabs ERP currently provides a governed platform foundation with selected controlled early-access workflows across CRM, Sales, Accounting and Procurement. This is not a claim that every benchmarked enterprise capability is complete; eight additional modules remain roadmap scope.",
     primary: { label: "Book a released-scope demo", href: "/book-demo" },
     secondary: { label: "Inspect all released features", href: "/features" },
   },
   sections: [
     {
-      eyebrow: "Released CRM",
+      eyebrow: "Early-access CRM",
       title: "Run the customer lifecycle from capture to governed decision.",
       paragraphs: [
         "Capture, qualify, assign and convert leads; manage opportunities, activities, campaigns, consent, reports and the native CRM client.",
@@ -37,28 +37,28 @@ const config: StructuredPageConfig = {
       ],
     },
     {
-      eyebrow: "Released Sales",
+      eyebrow: "Early-access Sales",
       title: "Control quotation-to-order and downstream handoffs.",
       paragraphs: [
         "Create versioned quotations with pricing, tax, margin and approval evidence; collect secure customer decisions; convert accepted quotations exactly once into governed sales orders.",
-        "Confirm, hold, amend and cancel orders while preserving schedules, fulfilment requests, invoice requests, version history and idempotent handoffs.",
+        "This scope covers quotation-to-order controls and invoice-request handoffs. Stock-backed reservations, pick-pack-ship, returns, sales contracts and recurring billing are not yet released.",
       ],
     },
     {
-      eyebrow: "Released Accounting",
-      title: "Operate the ledger, subledgers, banking, tax and close.",
+      eyebrow: "Early-access Accounting",
+      title: "Operate core ledger, subledger, banking and close controls.",
       tone: "dark",
       paragraphs: [
-        "Maintain chart of accounts, journals, receivables, payables, payments, allocations, banking, GST, assets, accruals, recurring entries, budgets, forecasts, foreign-exchange revaluation, intercompany and consolidation controls.",
-        "Run governed period close and financial reports with balanced posting, immutable evidence, reversals, dimensions and restricted database access.",
+        "Maintain chart of accounts, journals, receivables, payables, payments, allocations, banking records, assets, accruals, recurring entries, budgets, forecasts, foreign-exchange, intercompany and consolidation foundations.",
+        "Run governed posting, reversal, close and reporting controls. India e-Invoice, E-Way Bill, GST-return filing and other live statutory provider workflows are not yet released.",
       ],
     },
     {
-      eyebrow: "Released Procurement",
-      title: "Run source-to-pay controls from supplier through matching.",
+      eyebrow: "Early-access Procurement",
+      title: "Validate selected source-to-pay controls from supplier through matching.",
       paragraphs: [
-        "Manage supplier onboarding and qualification, requisitions, sourcing events, bid evaluation and award, agreements, purchase orders, amendments, receipts, services, returns and invoice matching.",
-        "Apply two-, three- or four-way matching, tolerance policies, exception records, separation of duties, supplier performance reporting, audit events and retryable integration outbox delivery.",
+        "Manage supplier records, requisitions, sourcing events, bid evaluation, purchase orders, amendments, receipts and matching foundations.",
+        "Supplier portals, complete onboarding, budget enforcement, mature service/return flows and stock-backed matching remain implementation work and are not represented as complete.",
       ],
     },
     {
@@ -104,9 +104,9 @@ const config: StructuredPageConfig = {
     },
   ],
   finalCta: {
-    title: "Evaluate the released workflows with real operating evidence.",
+    title: "Evaluate the controlled early-access workflows with real operating evidence.",
     description:
-      "Bring real users, records, permission boundaries, exceptions and measurable acceptance criteria. The demo will stay inside released scope.",
+      "Bring real users, records, permission boundaries, exceptions and measurable acceptance criteria. The demo will stay inside explicitly supported early-access scope and disclose known limitations.",
     primary: { label: "Book a released-scope demo", href: "/book-demo" },
     secondary: { label: "Open the module roadmap", href: "/modules" },
   },

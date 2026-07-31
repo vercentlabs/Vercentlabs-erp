@@ -41,7 +41,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
   return (
     <MarketingShell>
       <PageHero
-        eyebrow={released ? "Released early-access module" : "Roadmap module"}
+        eyebrow={released ? "Controlled early-access module" : "Roadmap module"}
         title={item.name}
         description={item.summary}
       />
@@ -70,7 +70,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
         <OperatorNote label="Current status">
           <p>
             {released
-              ? "Available as released CRM early-access scope with permissions, approvals, audit history and mobile workflows."
+              ? item.releaseNote ?? `${item.name} is available as controlled early-access scope. Native coverage and external integrations vary by module.`
               : "Visible for roadmap transparency. It cannot be activated in the current release."}
           </p>
         </OperatorNote>
@@ -99,7 +99,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
         eyebrow={released ? "Early access" : "Roadmap conversation"}
         title={
           released
-            ? "Validate CRM with a real operating team."
+            ? `Validate ${item.name} with a real operating team.`
             : `Help shape ${item.name} around a real operating problem.`
         }
         description={
@@ -108,7 +108,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
             : "Roadmap discussions are grounded in process evidence, not feature wish lists."
         }
         primary={{
-          label: released ? "Request CRM early access" : "Discuss the roadmap",
+          label: released ? `Request ${item.name} early access` : "Discuss the roadmap",
           href: "/contact",
         }}
         secondary={{ label: "Return to system map", href: "/modules" }}
