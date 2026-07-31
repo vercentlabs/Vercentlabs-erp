@@ -17,7 +17,7 @@
     "build:web": "corepack pnpm --filter @vercentlabs/web build",
     "lint:web": "corepack pnpm --filter @vercentlabs/web lint",
     "typecheck:web": "corepack pnpm --filter @vercentlabs/web typecheck",
-    "infra:up": "docker compose -f infrastructure/docker/compose.local.yml up -d",
+    "infra:up": "docker compose -f infrastructure/docker/compose.local.yml up -d --wait",
     "infra:down": "docker compose -f infrastructure/docker/compose.local.yml down",
     "infra:logs": "docker compose -f infrastructure/docker/compose.local.yml logs -f",
     "db:migrate:control": "corepack pnpm --filter @vercentlabs/web db:migrate",

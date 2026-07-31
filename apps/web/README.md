@@ -4,9 +4,22 @@ The authenticated platform foundation includes secure account lifecycle manageme
 
 ## Local development
 
+Use Node.js 24 and run these commands from the repository root. First create the
+ignored environment file:
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
+
+Set `APP_DATABASE_PASSWORD` to a local password of at least 24 characters and
+put the same URL-encoded password in `DATABASE_URL`. The supplied
+`MIGRATION_DATABASE_URL` matches the local Compose database.
+
 ```bash
 pnpm infra:up
 pnpm db:migrate:control
+pnpm db:migrate:tenant
+pnpm db:provision:runtime-role
 pnpm dev:web
 ```
 

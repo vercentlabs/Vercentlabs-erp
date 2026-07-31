@@ -9,9 +9,15 @@ Required variables:
 - `APP_DATABASE_ROLE`: runtime role name.
 - `APP_DATABASE_PASSWORD`: strong runtime password.
 
-Provision or repair the role:
+For local development, define these variables in the ignored
+`apps/web/.env.local` file. The password embedded in `DATABASE_URL` must be the
+URL-encoded form of `APP_DATABASE_PASSWORD`.
+
+Apply both schemas before provisioning or repairing the role:
 
 ```bash
+pnpm db:migrate:control
+pnpm db:migrate:tenant
 pnpm db:provision:runtime-role
 ```
 

@@ -9,9 +9,12 @@ with Expo SDK 57, Expo Router, strict TypeScript and the versioned
 ## Local setup
 
 1. Use Node 24 and pnpm 11.17.0.
-2. Copy `.env.example` to `.env.local` and set the public API origin.
-3. Run `pnpm dev:mobile` from the repository root.
-4. Use a development build for encrypted SQLite, Face ID, Razorpay and other
+2. Copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and set the
+   public API origin.
+3. Complete the root web setup and start the authenticated application on an
+   origin reachable from the device.
+4. Run `pnpm dev:mobile` from the repository root.
+5. Use a development build for encrypted SQLite, Face ID, Razorpay and other
    native modules. Expo Go is not a supported runtime.
 
 Razorpay `3.0.0` is intentionally excluded from Expo Doctor's React Native
