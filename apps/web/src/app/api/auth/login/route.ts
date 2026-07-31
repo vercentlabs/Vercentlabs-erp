@@ -6,28 +6,23 @@ import {
 } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
+import { assertSameOrigin, audit, recordLoginEvent } from "@/lib/security";
 import {
-  assertSameOrigin,
-  audit,
-  clientIp,
-  enforceRateLimit,
-  recordLoginEvent,
-} from "@/lib/security";
+  enforceLoginRateLimits,
+  GENERIC_LOGIN_FAILURE,
+  isAccountLocked,
+  isLoginUsable,
+  loginFailureReason,
+  recordFailedPasswordAttempt,
+  recordSuccessfulLogin,
+} from "@/lib/login-policy";
 import { loginSchema } from "@/lib/validation";
-
-const genericFailure = "The email or password is incorrect.";
 
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = loginSchema.parse(await readJson(request));
-    const ipAddress = clientIp(request);
-    await enforceRateLimit("login-ip:" + ipAddress, 20, 900);
-    await enforceRateLimit(
-      `login-credential:${ipAddress}:${input.email}`,
-      10,
-      900,
-    );
+    await enforceLoginRateLimits(request, input.email);
 
     const rows = await query<{
       id: string;
@@ -81,37 +76,14 @@ export async function POST(request: Request) {
       input.password,
       user?.password_hash,
     );
-    const locked = Boolean(
-      user?.locked_until && new Date(user.locked_until).getTime() > Date.now(),
-    );
-    const accountUsable = Boolean(
-      user &&
-      passwordValid &&
-      user.status === "active" &&
-      user.email_verified_at &&
-      !locked,
-    );
+    const locked = isAccountLocked(user);
+    const accountUsable = isLoginUsable(user, passwordValid);
 
     if (!accountUsable) {
-      let reason = "unknown_account";
-      if (user) {
-        if (!passwordValid) reason = "invalid_password";
-        else if (user.status !== "active") reason = "account_disabled";
-        else if (!user.email_verified_at) reason = "email_unverified";
-        else if (locked) reason = "account_locked";
-      }
+      const reason = loginFailureReason(user, passwordValid);
 
       if (user && !passwordValid && !locked) {
-        // Record the signal for monitoring, but do not allow an unauthenticated
-        // attacker to globally lock a known employee account. Abuse is bounded
-        // by the IP and credential-pair rate limits above.
-        await query(
-          `UPDATE users
-              SET failed_login_attempts = LEAST(failed_login_attempts + 1, 1000000),
-                  updated_at = now()
-            WHERE id = $1`,
-          [user.id],
-        );
+        await recordFailedPasswordAttempt(user.id);
       }
 
       await recordLoginEvent({
@@ -121,20 +93,10 @@ export async function POST(request: Request) {
         succeeded: false,
         reason,
       });
-      throw new HttpError(401, genericFailure);
+      throw new HttpError(401, GENERIC_LOGIN_FAILURE);
     }
 
-    await query(
-      `
-      UPDATE users
-      SET failed_login_attempts = 0,
-          locked_until = NULL,
-          last_login_at = now(),
-          updated_at = now()
-      WHERE id = $1
-    `,
-      [user.id],
-    );
+    await recordSuccessfulLogin(user.id);
 
     const session = await createSession(user.id, request, user.organization_id);
     const context = {

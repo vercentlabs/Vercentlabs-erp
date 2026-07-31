@@ -13,7 +13,8 @@
     "validate": "pnpm test && pnpm lint && pnpm typecheck && pnpm build && pnpm test:e2e",
     "test": "node --test",
     "test:e2e": "node scripts/verify-production-journeys.mjs",
-    "test:browser": "node scripts/verify-browser-journeys.mjs"
+    "test:browser": "node scripts/verify-browser-journeys.mjs",
+    "test:platform-live": "node scripts/verify-platform-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/shared-types": "workspace:*",

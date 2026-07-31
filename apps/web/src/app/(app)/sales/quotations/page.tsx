@@ -1,1 +1,101 @@
-import Link from "next/link";import { listQuotations } from "@vercentlabs/api";import { requireWorkspace } from "@/lib/auth";import { hasPermission,PERMISSIONS } from "@/lib/authorization";import { tenantTransaction } from "@/lib/db";import { salesContext } from "@/lib/sales";export const dynamic="force-dynamic";export default async function QuotationsPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const session=await requireWorkspace();if(!hasPermission(session,PERMISSIONS.salesView))return null;const context=salesContext(session);const filters=await searchParams;const rows=await tenantTransaction(context.organizationId,client=>listQuotations(client,context,filters));return <><section className="page-heading"><div><p className="eyebrow">Sales · Quotations</p><h1>Commercial proposals</h1><p>Every customer-facing revision remains immutable and independently auditable.</p></div><Link className="primary-button" href="/sales/quotations/new">New quotation</Link></section><section className="panel"><form className="sales-filter"><input name="search" defaultValue={filters.search} placeholder="Search quotation or customer"/><select name="status" defaultValue={filters.status||"all"}><option value="all">All statuses</option>{["draft","pending_approval","approved","sent","viewed","accepted","rejected","expired","converted","cancelled"].map(status=><option key={status}>{status}</option>)}</select><button className="secondary-button">Apply</button></form><div className="sales-table"><div className="sales-table-row sales-table-head"><span>Quotation</span><span>Customer</span><span>Status</span><span>Valid until</span><span>Total</span></div>{rows.map((row)=><Link className="sales-table-row" href={`/sales/quotations/${row.id}`} key={row.id}><span><strong>{row.quotation_number}</strong><small>Revision {row.version_number}</small></span><span>{row.customer_name}</span><span><i className="status-badge neutral">{row.lifecycle_status}</i></span><span>{String(row.valid_until).slice(0,10)}</span><span>{row.currency_code} {row.grand_total}</span></Link>)}</div></section></>}
+import { listQuotations } from "@vercentlabs/api";
+import Link from "next/link";
+
+import AccessDenied from "@/components/access-denied";
+import { requireWorkspace } from "@/lib/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import { tenantTransaction } from "@/lib/db";
+import { salesContext } from "@/lib/sales";
+
+export const dynamic = "force-dynamic";
+
+export default async function QuotationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const session = await requireWorkspace();
+  if (!hasPermission(session, PERMISSIONS.salesView)) {
+    return <AccessDenied area="Sales quotations" />;
+  }
+
+  const context = salesContext(session);
+  const filters = await searchParams;
+  const rows = await tenantTransaction(context.organizationId, (client) =>
+    listQuotations(client, context, filters),
+  );
+
+  return (
+    <>
+      <section className="page-heading">
+        <div>
+          <p className="eyebrow">Sales · Quotations</p>
+          <h1>Commercial proposals</h1>
+          <p>
+            Every customer-facing revision remains immutable and independently
+            auditable.
+          </p>
+        </div>
+        <Link className="primary-button" href="/sales/quotations/new">
+          New quotation
+        </Link>
+      </section>
+      <section className="panel">
+        <form className="sales-filter">
+          <input
+            name="search"
+            defaultValue={filters.search}
+            placeholder="Search quotation or customer"
+          />
+          <select name="status" defaultValue={filters.status || "all"}>
+            <option value="all">All statuses</option>
+            {[
+              "draft",
+              "pending_approval",
+              "approved",
+              "sent",
+              "viewed",
+              "accepted",
+              "rejected",
+              "expired",
+              "converted",
+              "cancelled",
+            ].map((status) => (
+              <option key={status}>{status}</option>
+            ))}
+          </select>
+          <button className="secondary-button">Apply</button>
+        </form>
+        <div className="sales-table">
+          <div className="sales-table-row sales-table-head">
+            <span>Quotation</span>
+            <span>Customer</span>
+            <span>Status</span>
+            <span>Valid until</span>
+            <span>Total</span>
+          </div>
+          {rows.map((row) => (
+            <Link
+              className="sales-table-row"
+              href={`/sales/quotations/${row.id}`}
+              key={row.id}
+            >
+              <span>
+                <strong>{row.quotation_number}</strong>
+                <small>Revision {row.version_number}</small>
+              </span>
+              <span>{row.customer_name}</span>
+              <span>
+                <i className="status-badge neutral">{row.lifecycle_status}</i>
+              </span>
+              <span>{String(row.valid_until).slice(0, 10)}</span>
+              <span>
+                {row.currency_code} {row.grand_total}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}

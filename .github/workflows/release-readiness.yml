@@ -61,7 +61,10 @@ jobs:
       - run: pnpm db:verify:accounting
       - run: pnpm db:verify:procurement
       - run: pnpm db:verify:billing
+      - run: pnpm test:platform-live
+      - run: pnpm format:check
       - run: pnpm lint:landing && pnpm typecheck:landing && pnpm build:landing
       - run: pnpm test:landing:e2e
       - run: pnpm test:landing:browser
       - run: pnpm lint:web && pnpm typecheck:web && pnpm build:web
+      - run: pnpm lint:mobile && pnpm typecheck:mobile

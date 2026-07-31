@@ -4,13 +4,17 @@ import { getMobileSessionContext, verifyPasswordOrDummy } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { HttpError, readJson } from "@/lib/http";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { createMobileSession } from "@/lib/mobile-session";
 import {
-  audit,
-  clientIp,
-  enforceRateLimit,
-  recordLoginEvent,
-} from "@/lib/security";
+  enforceLoginRateLimits,
+  GENERIC_LOGIN_FAILURE,
+  isAccountLocked,
+  isLoginUsable,
+  loginFailureReason,
+  recordFailedPasswordAttempt,
+  recordSuccessfulLogin,
+} from "@/lib/login-policy";
+import { createMobileSession } from "@/lib/mobile-session";
+import { audit, recordLoginEvent } from "@/lib/security";
 
 const inputSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -23,13 +27,10 @@ const inputSchema = z.object({
   }),
 });
 
-const genericFailure = "The email or password is incorrect.";
-
 export async function POST(request: Request) {
   try {
     const input = inputSchema.parse(await readJson(request));
-    await enforceRateLimit(`mobile-login-ip:${clientIp(request)}`, 20, 900);
-    await enforceRateLimit(`mobile-login-email:${input.email}`, 10, 900);
+    await enforceLoginRateLimits(request, input.email);
 
     const rows = await query<{
       id: string;
@@ -68,38 +69,13 @@ export async function POST(request: Request) {
       input.password,
       user?.password_hash,
     );
-    const locked = Boolean(
-      user?.locked_until && new Date(user.locked_until).getTime() > Date.now(),
-    );
-    const usable = Boolean(
-      user &&
-      passwordValid &&
-      user.status === "active" &&
-      user.email_verified_at &&
-      !locked,
-    );
+    const locked = isAccountLocked(user);
+    const usable = isLoginUsable(user, passwordValid);
 
     if (!usable) {
-      let reason = "unknown_account";
-      if (user) {
-        if (!passwordValid) reason = "invalid_password";
-        else if (user.status !== "active") reason = "account_disabled";
-        else if (!user.email_verified_at) reason = "email_unverified";
-        else if (locked) reason = "account_locked";
-      }
+      const reason = loginFailureReason(user, passwordValid);
       if (user && !passwordValid && !locked) {
-        await query(
-          `UPDATE users SET
-             failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE
-               WHEN failed_login_attempts + 1 >= 5
-               THEN now() + interval '15 minutes'
-               ELSE locked_until
-             END,
-             updated_at = now()
-           WHERE id = $1`,
-          [user.id],
-        );
+        await recordFailedPasswordAttempt(user.id);
       }
       await recordLoginEvent({
         request,
@@ -108,7 +84,7 @@ export async function POST(request: Request) {
         succeeded: false,
         reason,
       });
-      throw new HttpError(401, genericFailure);
+      throw new HttpError(401, GENERIC_LOGIN_FAILURE);
     }
 
     if (!user.organization_id) {
@@ -125,12 +101,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await query(
-      `UPDATE users SET failed_login_attempts = 0, locked_until = NULL,
-                        last_login_at = now(), updated_at = now()
-        WHERE id = $1`,
-      [user.id],
-    );
+    await recordSuccessfulLogin(user.id);
     const created = await createMobileSession({
       userId: user.id,
       organizationId: user.organization_id,
