@@ -148,3 +148,30 @@ export function getRelationshipGraph(
   context: CrmFoundationContext,
   partyId: string,
 ): Promise<Array<Record<string, unknown>>>;
+export class LeadGovernanceError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details: Array<Record<string, unknown>>;
+}
+export function getLeadConfiguration(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  recordTypeKey?: string,
+): Promise<Record<string, unknown>>;
+export function validateLeadInput(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input: Record<string, unknown>,
+  recordTypeKey?: string,
+): Promise<Record<string, unknown>>;
+export function findLeadDuplicates(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input: Record<string, unknown>,
+  excludeId?: string | null,
+): Promise<Array<Record<string, unknown>>>;
+export function resolveLeadOwner(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input: Record<string, unknown>,
+): Promise<string | null>;
