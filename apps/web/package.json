@@ -34,7 +34,8 @@
     "verify:procurement-database": "node scripts/verify-procurement-database.mjs",
     "verify:sales": "node scripts/verify-sales.mjs",
     "verify:sales-database": "node scripts/verify-sales-database.mjs",
-    "billing:retry-webhooks": "node scripts/retry-razorpay-webhooks.mjs"
+    "billing:retry-webhooks": "node scripts/retry-razorpay-webhooks.mjs",
+    "crm:foundation:live": "node scripts/verify-crm-foundation-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

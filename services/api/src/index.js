@@ -764,9 +764,7 @@ export async function updateBusinessDataRecord(
     const assignments = [];
     for (const field of suppliedFields) {
       parameters.push(scopedInput[field] ?? null);
-      assignments.push(
-        `${definition.fields[field]} = $${parameters.length}`,
-      );
+      assignments.push(`${definition.fields[field]} = $${parameters.length}`);
     }
     parameters.push(context.userId);
     const updatedByParameter = `$${parameters.length}`;
@@ -1530,3 +1528,4 @@ export * from "./sales/index.js";
 export * from "./accounting/index.js";
 
 export * from "./procurement/index.js";
+export * from "./crm/foundation.js";

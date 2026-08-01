@@ -108,3 +108,43 @@ export * from "./sales.js";
 export * from "./accounting.js";
 
 export * from "./procurement.js";
+export class CrmFoundationError extends Error {
+  readonly status: number;
+  readonly code: string;
+  constructor(status: number, message: string, code?: string);
+}
+export type CrmFoundationContext = Omit<
+  BusinessDataContext,
+  "allowAllCompanies"
+> & {
+  allowAllCompanies?: boolean;
+};
+export function findAccountDuplicates(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input?: Record<string, unknown>,
+): Promise<Array<Record<string, unknown>>>;
+export function findContactDuplicates(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input?: Record<string, unknown>,
+): Promise<Array<Record<string, unknown>>>;
+export function mergeAccounts(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  sourceId: string,
+  survivorId: string,
+  reason?: string | null,
+): Promise<Record<string, unknown>>;
+export function mergeContacts(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  sourceId: string,
+  survivorId: string,
+  reason?: string | null,
+): Promise<Record<string, unknown>>;
+export function getRelationshipGraph(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  partyId: string,
+): Promise<Array<Record<string, unknown>>>;
