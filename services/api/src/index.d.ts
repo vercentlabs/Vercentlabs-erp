@@ -177,3 +177,5 @@ export function resolveLeadOwner(
 ): Promise<string | null>;
 
 export * from "./crm/lead-operations.js";
+
+export * from "./crm/opportunity-operations.js";

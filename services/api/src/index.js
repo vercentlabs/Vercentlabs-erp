@@ -1532,3 +1532,5 @@ export * from "./crm/foundation.js";
 export * from "./crm/lead-governance.js";
 
 export * from "./crm/lead-operations.js";
+
+export * from "./crm/opportunity-operations.js";
