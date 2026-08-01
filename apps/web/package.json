@@ -36,7 +36,8 @@
     "verify:sales-database": "node scripts/verify-sales-database.mjs",
     "billing:retry-webhooks": "node scripts/retry-razorpay-webhooks.mjs",
     "crm:foundation:live": "node scripts/verify-crm-foundation-live.mjs",
-    "crm:lead-governance:live": "node scripts/verify-crm-lead-governance-live.mjs"
+    "crm:lead-governance:live": "node scripts/verify-crm-lead-governance-live.mjs",
+    "crm:lead-operations:live": "node scripts/verify-crm-lead-operations-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

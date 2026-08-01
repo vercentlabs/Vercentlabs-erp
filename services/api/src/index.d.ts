@@ -175,3 +175,5 @@ export function resolveLeadOwner(
   context: CrmFoundationContext,
   input: Record<string, unknown>,
 ): Promise<string | null>;
+
+export * from "./crm/lead-operations.js";

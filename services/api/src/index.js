@@ -1530,3 +1530,5 @@ export * from "./accounting/index.js";
 export * from "./procurement/index.js";
 export * from "./crm/foundation.js";
 export * from "./crm/lead-governance.js";
+
+export * from "./crm/lead-operations.js";
