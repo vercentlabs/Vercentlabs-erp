@@ -1,4 +1,7 @@
-import { listQuotations } from "@vercentlabs/api";
+import {
+  getQuotationGovernanceDashboard,
+  listQuotations,
+} from "@vercentlabs/api";
 import Link from "next/link";
 
 import AccessDenied from "@/components/access-denied";
@@ -8,6 +11,15 @@ import { tenantTransaction } from "@/lib/db";
 import { salesContext } from "@/lib/sales";
 
 export const dynamic = "force-dynamic";
+
+type GovernanceSummary = {
+  active?: number;
+  activeValue?: number;
+  pendingApproval?: number;
+  expiring?: number;
+  attention?: number;
+  blocked?: number;
+};
 
 export default async function QuotationsPage({
   searchParams,
@@ -21,9 +33,17 @@ export default async function QuotationsPage({
 
   const context = salesContext(session);
   const filters = await searchParams;
-  const rows = await tenantTransaction(context.organizationId, (client) =>
-    listQuotations(client, context, filters),
+  const data = await tenantTransaction(
+    context.organizationId,
+    async (client) => ({
+      rows: await listQuotations(client, context, filters),
+      governance: await getQuotationGovernanceDashboard(client, context),
+    }),
   );
+  const governance = data.governance as {
+    summary?: GovernanceSummary;
+  };
+  const summary = governance.summary || {};
 
   return (
     <>
@@ -40,6 +60,43 @@ export default async function QuotationsPage({
           New quotation
         </Link>
       </section>
+
+      <section className="module-metric-grid" aria-label="Quotation governance">
+        {[
+          {
+            label: "Active quotations",
+            value: String(summary.active || 0),
+            meta: `${String(summary.expiring || 0)} approaching expiry`,
+          },
+          {
+            label: "Active commercial value",
+            value: `INR ${String(summary.activeValue || 0)}`,
+            meta: "Base-currency governance view",
+          },
+          {
+            label: "Pending approvals",
+            value: String(summary.pendingApproval || 0),
+            meta: "Commercial decisions awaiting action",
+          },
+          {
+            label: "Needs attention",
+            value: String(
+              Number(summary.attention || 0) + Number(summary.blocked || 0),
+            ),
+            meta: `${String(summary.blocked || 0)} currently blocked`,
+          },
+        ].map((metric) => (
+          <article
+            className="module-metric-card tone-indigo"
+            key={metric.label}
+          >
+            <span className="module-metric-label">{metric.label}</span>
+            <strong>{metric.value}</strong>
+            <small>{metric.meta}</small>
+          </article>
+        ))}
+      </section>
+
       <section className="panel">
         <form className="sales-filter">
           <input
@@ -74,7 +131,7 @@ export default async function QuotationsPage({
             <span>Valid until</span>
             <span>Total</span>
           </div>
-          {rows.map((row) => (
+          {data.rows.map((row) => (
             <Link
               className="sales-table-row"
               href={`/sales/quotations/${row.id}`}

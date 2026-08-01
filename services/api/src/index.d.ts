@@ -179,3 +179,5 @@ export function resolveLeadOwner(
 export * from "./crm/lead-operations.js";
 
 export * from "./crm/opportunity-operations.js";
+
+export * from "./sales/quotation-governance.js";

@@ -1534,3 +1534,5 @@ export * from "./crm/lead-governance.js";
 export * from "./crm/lead-operations.js";
 
 export * from "./crm/opportunity-operations.js";
+
+export * from "./sales/quotation-governance.js";

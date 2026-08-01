@@ -38,7 +38,8 @@
     "crm:foundation:live": "node scripts/verify-crm-foundation-live.mjs",
     "crm:lead-governance:live": "node scripts/verify-crm-lead-governance-live.mjs",
     "crm:lead-operations:live": "node scripts/verify-crm-lead-operations-live.mjs",
-    "crm:opportunity-operations:live": "node scripts/verify-crm-opportunity-operations-live.mjs"
+    "crm:opportunity-operations:live": "node scripts/verify-crm-opportunity-operations-live.mjs",
+    "sales:quotation-governance:live": "node scripts/verify-sales-quotation-governance-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

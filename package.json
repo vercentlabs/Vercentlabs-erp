@@ -88,7 +88,9 @@
     "release:gate:live": "corepack pnpm release:gate && corepack pnpm test:platform-live",
     "format:stage-1": "corepack pnpm --filter @vercentlabs/web exec prettier --write src/lib/login-policy.ts src/components/access-denied.tsx \"src/app/(app)/sales/orders/page.tsx\" \"src/app/(app)/sales/quotations/page.tsx\" src/app/api/auth/login/route.ts src/app/api/mobile/v1/auth/login/route.ts tests/stage-one-platform.test.mjs ../../scripts/validation/verify-stage-1-platform.mjs ../../package.json ../../.github/workflows/release-readiness.yml ../../tests/e2e/README.md ../../tests/integration/README.md ../../docs/implementation/stages/STAGE_1_PLATFORM_CORRECTNESS.md && corepack pnpm --filter @vercentlabs/landing exec prettier --write scripts/verify-platform-live.mjs package.json",
     "verify:stage-2a": "node scripts/validation/verify-stage-2a-crm-foundation.mjs",
-    "test:crm-foundation-live": "corepack pnpm --filter @vercentlabs/web crm:foundation:live"
+    "test:crm-foundation-live": "corepack pnpm --filter @vercentlabs/web crm:foundation:live",
+    "verify:stage-4": "node scripts/validation/verify-stage-4-sales-quotation-governance.mjs",
+    "test:sales-quotation-governance-live": "corepack pnpm --filter @vercentlabs/web sales:quotation-governance:live"
   },
   "engines": {
     "node": ">=24 <25",
