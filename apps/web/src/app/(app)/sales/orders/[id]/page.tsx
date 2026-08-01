@@ -1,4 +1,4 @@
-import { getSalesOrder } from "@vercentlabs/api";
+import { assessSalesOrderReadiness, getSalesOrder } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
 import SalesDocumentActions from "@/components/sales-document-actions";
@@ -55,16 +55,29 @@ export default async function OrderDetailPage({
 
   const context = salesContext(session);
   let data: Awaited<ReturnType<typeof getSalesOrder>>;
+  let governance: Awaited<ReturnType<typeof assessSalesOrderReadiness>>;
 
   try {
-    data = await tenantTransaction(context.organizationId, (client) =>
-      getSalesOrder(client, context, id),
-    );
+    ({ data, governance } = await tenantTransaction(
+      context.organizationId,
+      async (client) => ({
+        data: await getSalesOrder(client, context, id),
+        governance: await assessSalesOrderReadiness(client, context, id),
+      }),
+    ));
   } catch {
     return notFound();
   }
 
   const order = data.order;
+  const health = governance.health as {
+    readiness?: string;
+    blockers?: string[];
+    warnings?: string[];
+    readyToFulfill?: boolean;
+    readyToInvoice?: boolean;
+    readyToClose?: boolean;
+  };
 
   return (
     <>
@@ -73,14 +86,49 @@ export default async function OrderDetailPage({
           <p className="eyebrow">Sales order</p>
           <h1>{order.sales_order_number}</h1>
           <p>
-            {order.customer_snapshot?.displayName || "Customer"} · {order.currency_code}{" "}
-            {order.grand_total}
+            {order.customer_snapshot?.displayName || "Customer"} ·{" "}
+            {order.currency_code} {order.grand_total}
           </p>
         </div>
         <span className="status-badge neutral">{order.lifecycle_status}</span>
       </section>
 
-      <SalesDocumentActions type="order" id={id} status={order.lifecycle_status} />
+      <SalesDocumentActions
+        type="order"
+        id={id}
+        status={order.lifecycle_status}
+      />
+
+      <section className="panel">
+        <p className="eyebrow">Order governance</p>
+        <h2>Commercial and operational readiness</h2>
+        <div className="sales-status-strip">
+          {[
+            ["Readiness", health.readiness || "unknown"],
+            ["Fulfilment", health.readyToFulfill ? "ready" : "not ready"],
+            ["Invoicing", health.readyToInvoice ? "ready" : "not ready"],
+            ["Closure", health.readyToClose ? "ready" : "not ready"],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+        {[...(health.blockers || []), ...(health.warnings || [])].length > 0 ? (
+          <div className="sales-document-list">
+            {[...(health.blockers || []), ...(health.warnings || [])].map(
+              (message) => (
+                <div key={message}>
+                  <span>{message}</span>
+                </div>
+              ),
+            )}
+          </div>
+        ) : (
+          <p>No governance blockers or warnings are active.</p>
+        )}
+      </section>
 
       <section className="sales-status-strip">
         {[
@@ -173,7 +221,9 @@ export default async function OrderDetailPage({
                     {event.to_status || event.from_status || "Recorded"}
                   </small>
                 </span>
-                <time>{new Date(event.occurred_at).toLocaleString("en-IN")}</time>
+                <time>
+                  {new Date(event.occurred_at).toLocaleString("en-IN")}
+                </time>
               </div>
             ))}
           </div>

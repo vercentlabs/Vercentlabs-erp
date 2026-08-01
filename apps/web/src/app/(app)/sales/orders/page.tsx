@@ -1,4 +1,7 @@
-import { listSalesOrders } from "@vercentlabs/api";
+import {
+  getSalesOrderGovernanceDashboard,
+  listSalesOrders,
+} from "@vercentlabs/api";
 import Link from "next/link";
 
 import AccessDenied from "@/components/access-denied";
@@ -21,9 +24,21 @@ export default async function OrdersPage({
 
   const context = salesContext(session);
   const filters = await searchParams;
-  const rows = await tenantTransaction(context.organizationId, (client) =>
-    listSalesOrders(client, context, filters),
+  const { rows, governance } = await tenantTransaction(
+    context.organizationId,
+    async (client) => ({
+      rows: await listSalesOrders(client, context, filters),
+      governance: await getSalesOrderGovernanceDashboard(client, context),
+    }),
   );
+  const summary = governance.summary as Record<string, unknown>;
+  const summaryCards: Array<[string, unknown]> = [
+    ["Active orders", summary.active],
+    ["Pending approval", summary.pendingApproval],
+    ["Ready to fulfil", summary.readyToFulfill],
+    ["Ready to invoice", summary.readyToInvoice],
+    ["On hold", summary.onHold],
+  ];
 
   return (
     <>
@@ -39,6 +54,14 @@ export default async function OrdersPage({
         <Link className="primary-button" href="/sales/orders/new">
           New order
         </Link>
+      </section>
+      <section className="sales-status-strip">
+        {summaryCards.map(([label, value]) => (
+          <div key={String(label)}>
+            <span>{label}</span>
+            <strong>{String(value ?? 0)}</strong>
+          </div>
+        ))}
       </section>
       <section className="panel">
         <form className="sales-filter">
