@@ -41,7 +41,8 @@
     "crm:opportunity-operations:live": "node scripts/verify-crm-opportunity-operations-live.mjs",
     "sales:quotation-governance:live": "node scripts/verify-sales-quotation-governance-live.mjs",
     "sales:order-governance:live": "node scripts/verify-sales-order-governance-live.mjs",
-    "accounting:receivables-governance:live": "node scripts/verify-accounting-receivables-governance-live.mjs"
+    "accounting:receivables-governance:live": "node scripts/verify-accounting-receivables-governance-live.mjs",
+    "accounting:payables-governance:live": "node scripts/verify-accounting-payables-governance-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

@@ -23,3 +23,5 @@ export * from "./settlements.js";
 export * from "./subledger-approvals.js";
 
 export * from "./receivables-governance.js";
+
+export * from "./payables-governance.js";
