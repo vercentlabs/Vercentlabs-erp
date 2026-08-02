@@ -92,7 +92,9 @@
     "verify:stage-4": "node scripts/validation/verify-stage-4-sales-quotation-governance.mjs",
     "test:sales-quotation-governance-live": "corepack pnpm --filter @vercentlabs/web sales:quotation-governance:live",
     "verify:stage-5": "node scripts/validation/verify-stage-5-sales-order-governance.mjs",
-    "test:sales-order-governance-live": "corepack pnpm --filter @vercentlabs/web sales:order-governance:live"
+    "test:sales-order-governance-live": "corepack pnpm --filter @vercentlabs/web sales:order-governance:live",
+    "verify:stage-6": "node scripts/validation/verify-stage-6-accounting-receivables-governance.mjs",
+    "test:accounting-receivables-governance-live": "corepack pnpm --filter @vercentlabs/web accounting:receivables-governance:live"
   },
   "engines": {
     "node": ">=24 <25",

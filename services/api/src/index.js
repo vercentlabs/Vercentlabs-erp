@@ -1538,3 +1538,5 @@ export * from "./crm/opportunity-operations.js";
 export * from "./sales/quotation-governance.js";
 
 export * from "./sales/order-governance.js";
+
+export * from "./accounting/receivables-governance.js";

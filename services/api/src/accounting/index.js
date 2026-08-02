@@ -21,3 +21,5 @@ export * from "./forecast.js";
 
 export * from "./settlements.js";
 export * from "./subledger-approvals.js";
+
+export * from "./receivables-governance.js";
