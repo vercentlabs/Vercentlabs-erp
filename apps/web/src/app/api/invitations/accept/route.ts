@@ -401,7 +401,7 @@ export async function POST(request: Request) {
         `
           INSERT INTO notifications (
             organization_id, user_id, type, title, message, href
-          ) VALUES ($1, $2, 'access', 'Workspace access granted', $3, '/dashboard')
+          ) VALUES ($1, $2, 'access', 'Workspace access granted', $3, '/profile')
         `,
         [
           invitation.organization_id,

@@ -23,6 +23,7 @@ export default function NotificationList({
   }>;
 }) {
   const router = useRouter();
+  const [items, setItems] = useState(notifications);
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
 
@@ -41,7 +42,17 @@ export default function NotificationList({
       result.message ||
         (result.ok ? "Notifications updated." : "Request not completed."),
     );
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      const readAt = new Date().toISOString();
+      setItems((current) =>
+        current.map((item) =>
+          !id || item.id === id
+            ? { ...item, readAt: item.readAt || readAt }
+            : item,
+        ),
+      );
+      router.refresh();
+    }
   }
 
   async function openNotification(
@@ -60,12 +71,21 @@ export default function NotificationList({
         body: JSON.stringify({ action: "read", id }),
       });
       if (!result.ok) {
-        setMessage(result.message || "The notification could not be marked read.");
+        setMessage(
+          result.message || "The notification could not be marked read.",
+        );
+        setPending("");
+        return;
       }
+      const readAt = new Date().toISOString();
+      setItems((current) =>
+        current.map((item) => (item.id === id ? { ...item, readAt } : item)),
+      );
     }
 
     setPending("");
     router.push(href);
+    router.refresh();
   }
 
   return (
@@ -79,7 +99,7 @@ export default function NotificationList({
           type="button"
           className="secondary-button"
           onClick={() => void mark()}
-          disabled={Boolean(pending) || !notifications.some((item) => !item.readAt)}
+          disabled={Boolean(pending) || !items.some((item) => !item.readAt)}
         >
           {pending === "all" ? "Updating…" : "Mark all read"}
         </button>
@@ -90,7 +110,7 @@ export default function NotificationList({
         </p>
       ) : null}
       <div className="notification-list">
-        {notifications.map((item) => {
+        {items.map((item) => {
           const href = safeWorkspaceHref(item.href);
           return (
             <article
@@ -129,7 +149,7 @@ export default function NotificationList({
             </article>
           );
         })}
-        {!notifications.length ? (
+        {!items.length ? (
           <div className="empty-state">
             <strong>No notifications</strong>
             <p>Business alerts and assigned actions will appear here.</p>

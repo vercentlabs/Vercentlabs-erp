@@ -552,7 +552,7 @@ export async function seedOrganizationFoundation(
   await client.query(
     `
     INSERT INTO notifications (organization_id, user_id, type, title, message, href)
-    VALUES ($1, $2, 'welcome', 'Your ERP workspace is ready', 'Review companies, branches, roles and users before adding business workflows.', '/dashboard')
+    VALUES ($1, $2, 'welcome', 'Your ERP workspace is ready', 'Review companies, branches, roles and users before adding business workflows.', '/settings')
   `,
     [input.organizationId, input.ownerUserId],
   );
