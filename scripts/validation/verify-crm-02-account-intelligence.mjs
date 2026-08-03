@@ -208,9 +208,9 @@ const crmCounts = register
     return summary;
   }, {});
 assert.deepEqual(crmCounts, {
-  Partial: 23,
-  Missing: 20,
-  Implemented: 39,
+  Partial: 22,
+  Missing: 17,
+  Implemented: 43,
   "Needs hardening": 1,
 });
 

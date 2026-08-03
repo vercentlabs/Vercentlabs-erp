@@ -117,7 +117,10 @@
     "verify:crm-03-complete": "corepack pnpm verify:crm-03 && corepack pnpm test:crm-03-live",
     "verify:crm-04": "node scripts/validation/verify-crm-04-communications.mjs",
     "test:crm-04-live": "corepack pnpm --filter @vercentlabs/web crm:communications:live",
-    "verify:crm-04-complete": "corepack pnpm verify:crm-04 && corepack pnpm test:crm-04-live"
+    "verify:crm-04-complete": "corepack pnpm verify:crm-04 && corepack pnpm test:crm-04-live",
+    "verify:crm-05": "node scripts/validation/verify-crm-05-conversation-intelligence.mjs",
+    "test:crm-05-live": "corepack pnpm --filter @vercentlabs/web crm:conversation-intelligence:live",
+    "verify:crm-05-complete": "corepack pnpm verify:crm-05 && corepack pnpm test:crm-05-live"
   },
   "engines": {
     "node": ">=24 <25",

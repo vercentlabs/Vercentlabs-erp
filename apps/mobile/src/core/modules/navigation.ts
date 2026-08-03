@@ -39,6 +39,13 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm-communications",
   },
   {
+    key: "crm-conversation-intelligence",
+    label: "Calls & transcripts",
+    icon: "call-outline",
+    permission: "crm.view",
+    href: "/(protected)/workspace/crm-conversation-intelligence",
+  },
+  {
     key: "master-data",
     label: "Master data",
     icon: "server-outline",

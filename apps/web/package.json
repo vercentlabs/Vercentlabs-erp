@@ -51,7 +51,8 @@
     "crm:account-intelligence:live": "node scripts/verify-crm-account-intelligence-live.mjs",
     "crm:privacy-retention": "node scripts/process-crm-privacy-retention.mjs",
     "crm:customer-success:live": "node scripts/verify-crm-customer-success-live.mjs",
-    "crm:communications:live": "node scripts/verify-crm-communications-live.mjs"
+    "crm:communications:live": "node scripts/verify-crm-communications-live.mjs",
+    "crm:conversation-intelligence:live": "node scripts/verify-crm-conversation-intelligence-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

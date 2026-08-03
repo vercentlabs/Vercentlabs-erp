@@ -52,13 +52,24 @@
     "module": "CRM",
     "subdomain": "Activities and productivity",
     "capability": "Call and meeting transcription",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Conversation and insight tables exist, but transcription providers and processing jobs are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/032_crm_telephony_conversation_intelligence.sql",
+      "services/api/src/crm/conversation-intelligence.js",
+      "services/api/src/crm/conversation-intelligence.d.ts",
+      "apps/web/src/app/api/crm/conversation-intelligence",
+      "apps/web/src/app/(app)/crm/conversation-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/conversation-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-conversation-intelligence-crm05.test.mjs",
+      "scripts/validation/verify-crm-05-conversation-intelligence.mjs",
+      "apps/web/scripts/verify-crm-conversation-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-05 executable acceptance gate",
+    "externalDependencyNotes": "Provider-neutral telephony and transcription are implemented and verified with deterministic sandbox adapters. Production provider promotion requires real credentials and public webhooks."
   },
   {
     "id": "CRM-004",
@@ -113,13 +124,24 @@
     "module": "CRM",
     "subdomain": "Activities and productivity",
     "capability": "Telephony integration and click-to-call",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No production telephony adapter was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/032_crm_telephony_conversation_intelligence.sql",
+      "services/api/src/crm/conversation-intelligence.js",
+      "services/api/src/crm/conversation-intelligence.d.ts",
+      "apps/web/src/app/api/crm/conversation-intelligence",
+      "apps/web/src/app/(app)/crm/conversation-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/conversation-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-conversation-intelligence-crm05.test.mjs",
+      "scripts/validation/verify-crm-05-conversation-intelligence.mjs",
+      "apps/web/scripts/verify-crm-conversation-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-05 executable acceptance gate",
+    "externalDependencyNotes": "Provider-neutral telephony and transcription are implemented and verified with deterministic sandbox adapters. Production provider promotion requires real credentials and public webhooks."
   },
   {
     "id": "CRM-007",
@@ -980,13 +1002,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Conversation transcription and summarisation",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/032_crm_telephony_conversation_intelligence.sql",
+      "services/api/src/crm/conversation-intelligence.js",
+      "services/api/src/crm/conversation-intelligence.d.ts",
+      "apps/web/src/app/api/crm/conversation-intelligence",
+      "apps/web/src/app/(app)/crm/conversation-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/conversation-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-conversation-intelligence-crm05.test.mjs",
+      "scripts/validation/verify-crm-05-conversation-intelligence.mjs",
+      "apps/web/scripts/verify-crm-conversation-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-05 executable acceptance gate",
+    "externalDependencyNotes": "Provider-neutral telephony and transcription are implemented and verified with deterministic sandbox adapters. Production provider promotion requires real credentials and public webhooks."
   },
   {
     "id": "CRM-047",
@@ -1029,13 +1062,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Telephony call logging and recordings",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/032_crm_telephony_conversation_intelligence.sql",
+      "services/api/src/crm/conversation-intelligence.js",
+      "services/api/src/crm/conversation-intelligence.d.ts",
+      "apps/web/src/app/api/crm/conversation-intelligence",
+      "apps/web/src/app/(app)/crm/conversation-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/conversation-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-conversation-intelligence-crm05.test.mjs",
+      "scripts/validation/verify-crm-05-conversation-intelligence.mjs",
+      "apps/web/scripts/verify-crm-conversation-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-05 executable acceptance gate",
+    "externalDependencyNotes": "Provider-neutral telephony and transcription are implemented and verified with deterministic sandbox adapters. Production provider promotion requires real credentials and public webhooks."
   },
   {
     "id": "CRM-050",
