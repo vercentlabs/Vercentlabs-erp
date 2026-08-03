@@ -191,3 +191,5 @@ export * from "./accounting/payables-governance.js";
 export * from "./accounting/banking-governance.js";
 
 export * from "./accounting/tax-reporting-governance.js";
+
+export * from "./procurement/governance.js";
