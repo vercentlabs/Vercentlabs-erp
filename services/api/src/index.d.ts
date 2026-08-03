@@ -187,3 +187,5 @@ export * from "./sales/order-governance.js";
 export * from "./accounting/receivables-governance.js";
 
 export * from "./accounting/payables-governance.js";
+
+export * from "./accounting/banking-governance.js";

@@ -96,7 +96,9 @@
     "verify:stage-6": "node scripts/validation/verify-stage-6-accounting-receivables-governance.mjs",
     "test:accounting-receivables-governance-live": "corepack pnpm --filter @vercentlabs/web accounting:receivables-governance:live",
     "verify:stage-7": "node scripts/validation/verify-stage-7-accounting-payables-governance.mjs",
-    "test:accounting-payables-governance-live": "corepack pnpm --filter @vercentlabs/web accounting:payables-governance:live"
+    "test:accounting-payables-governance-live": "corepack pnpm --filter @vercentlabs/web accounting:payables-governance:live",
+    "verify:stage-8": "node scripts/validation/verify-stage-8-accounting-banking-governance.mjs",
+    "test:accounting-banking-governance-live": "corepack pnpm --filter @vercentlabs/web accounting:banking-governance:live"
   },
   "engines": {
     "node": ">=24 <25",

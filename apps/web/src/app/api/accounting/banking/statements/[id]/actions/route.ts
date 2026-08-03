@@ -1,4 +1,5 @@
 import {
+  captureBankingGovernanceSnapshot,
   startBankReconciliation,
   suggestBankMatches,
   type AccountingRecord,
@@ -22,8 +23,24 @@ export async function POST(
 
     let result: AccountingRecord | AccountingRecord[];
     if (action === "reconcile") {
-      result = await tenantTransaction(context.organizationId, (client) =>
-        startBankReconciliation(client, context, { bankStatementId: id }),
+      result = await tenantTransaction(
+        context.organizationId,
+        async (client) => {
+          const reconciliation = await startBankReconciliation(
+            client,
+            context,
+            {
+              bankStatementId: id,
+            },
+          );
+          await captureBankingGovernanceSnapshot(
+            client,
+            context,
+            id,
+            "reconciliation_started",
+          );
+          return reconciliation;
+        },
       );
     } else if (action === "suggest") {
       result = await tenantTransaction(context.organizationId, (client) =>
