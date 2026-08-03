@@ -27,3 +27,5 @@ export * from "./receivables-governance.js";
 export * from "./payables-governance.js";
 
 export * from "./banking-governance.js";
+
+export * from "./tax-reporting-governance.js";

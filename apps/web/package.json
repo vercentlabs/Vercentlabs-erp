@@ -43,7 +43,8 @@
     "sales:order-governance:live": "node scripts/verify-sales-order-governance-live.mjs",
     "accounting:receivables-governance:live": "node scripts/verify-accounting-receivables-governance-live.mjs",
     "accounting:payables-governance:live": "node scripts/verify-accounting-payables-governance-live.mjs",
-    "accounting:banking-governance:live": "node scripts/verify-accounting-banking-governance-live.mjs"
+    "accounting:banking-governance:live": "node scripts/verify-accounting-banking-governance-live.mjs",
+    "accounting:tax-reporting-governance:live": "node scripts/verify-accounting-tax-reporting-governance-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",
