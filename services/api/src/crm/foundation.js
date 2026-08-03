@@ -169,10 +169,8 @@ export async function mergeAccounts(
     ["contacts", "party_id"],
     ["addresses", "party_id"],
     ["crm_opportunities", "party_id"],
-    ["crm_activities", "party_id"],
     ["crm_communications", "party_id"],
     ["crm_account_plans", "party_id"],
-    ["crm_account_stakeholders", "party_id"],
     ["crm_buying_committees", "party_id"],
     ["crm_account_signals", "party_id"],
     ["crm_field_visits", "party_id"],
@@ -183,6 +181,11 @@ export async function mergeAccounts(
       [survivorId, context.organizationId, sourceId],
     );
   }
+  await client.query(
+    `UPDATE tenant.crm_activities SET entity_id = $1, updated_at = now()
+      WHERE organization_id = $2 AND entity_type = 'party' AND entity_id = $3`,
+    [survivorId, context.organizationId, sourceId],
+  );
   await client.query(
     `UPDATE tenant.crm_relationship_edges SET status='inactive', updated_by=$1, updated_at=now()
       WHERE organization_id=$2 AND status='active' AND ((from_entity_type='party' AND from_entity_id=$3 AND to_entity_type='party' AND to_entity_id=$4)
@@ -252,7 +255,6 @@ export async function mergeContacts(
   }
   const references = [
     ["crm_opportunities", "contact_id"],
-    ["crm_activities", "contact_id"],
     ["crm_communications", "contact_id"],
     ["crm_account_stakeholders", "contact_id"],
     ["crm_buying_committee_members", "contact_id"],
@@ -264,6 +266,11 @@ export async function mergeContacts(
       [survivorId, context.organizationId, sourceId],
     );
   }
+  await client.query(
+    `UPDATE tenant.crm_activities SET entity_id = $1, updated_at = now()
+      WHERE organization_id = $2 AND entity_type = 'contact' AND entity_id = $3`,
+    [survivorId, context.organizationId, sourceId],
+  );
   await client.query(
     `UPDATE tenant.crm_relationship_edges SET status='inactive', updated_by=$1, updated_at=now()
       WHERE organization_id=$2 AND status='active' AND ((from_entity_type='contact' AND from_entity_id=$3 AND to_entity_type='contact' AND to_entity_id=$4)

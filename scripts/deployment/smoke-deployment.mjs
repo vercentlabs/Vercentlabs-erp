@@ -82,8 +82,8 @@ const webReadiness = await checkJson(
   "vercentlabs-erp-web",
   "ready",
 );
-if (webReadiness?.schema?.tenant !== "027_enterprise_release_governance.sql") {
-  throw new Error("Web readiness does not report the Stage 11 tenant schema.");
+if (webReadiness?.schema?.tenant !== "028_crm_core_acceptance.sql") {
+  throw new Error("Web readiness does not report the CRM-01 tenant schema.");
 }
 if (!String(webHealth.runtime || "").startsWith("node-")) {
   throw new Error("Web health omitted runtime metadata.");
@@ -182,5 +182,5 @@ if (smokeEmail) {
 }
 
 console.log(
-  `Landing pages (${landingRoutes.length}), public assets, landing/web security headers, release metadata, web health and Stage 11 database readiness smoke checks passed.`,
+  `Landing pages (${landingRoutes.length}), public assets, landing/web security headers, release metadata, web health and CRM-01 database readiness smoke checks passed.`,
 );

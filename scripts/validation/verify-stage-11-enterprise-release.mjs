@@ -76,7 +76,12 @@ const readiness = fs.readFileSync(
   "apps/web/src/app/api/readiness/route.ts",
   "utf8",
 );
-assert.match(readiness, /027_enterprise_release_governance\.sql/);
+assert.match(readiness, /028_crm_core_acceptance\.sql/);
+assert.ok(
+  fs.existsSync(
+    "database/tenant/migrations/027_enterprise_release_governance.sql",
+  ),
+);
 assert.match(readiness, /017_billing_state_machine_and_recovery\.sql/);
 assert.match(readiness, /VERCENTLABS_RELEASE_SHA/);
 
@@ -93,7 +98,7 @@ const smoke = fs.readFileSync(
   "scripts/deployment/smoke-deployment.mjs",
   "utf8",
 );
-assert.match(smoke, /027_enterprise_release_governance\.sql/);
+assert.match(smoke, /028_crm_core_acceptance\.sql/);
 assert.match(smoke, /security header missing/);
 
 const workflow = fs.readFileSync(

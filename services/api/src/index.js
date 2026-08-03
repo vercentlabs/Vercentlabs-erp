@@ -1549,4 +1549,6 @@ export * from "./accounting/tax-reporting-governance.js";
 
 export * from "./procurement/governance.js";
 
+export * from "./crm/core-acceptance.js";
+
 export * from "./release/governance.js";

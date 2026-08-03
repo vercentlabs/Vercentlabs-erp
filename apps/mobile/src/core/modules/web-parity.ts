@@ -226,6 +226,11 @@ export const protectedWebParity: readonly WebParityEntry[] = [
     mobile: "/(protected)/workspace/procurement",
     delivery: "native",
   },
+  {
+    web: "/crm/readiness",
+    mobile: "/crm/readiness",
+    delivery: "secure-browser-handoff",
+  },
   { web: "/sales", mobile: "/sales", delivery: "secure-browser-handoff" },
   {
     web: "/sales/orders",
