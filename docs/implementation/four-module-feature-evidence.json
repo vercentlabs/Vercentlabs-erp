@@ -1334,104 +1334,192 @@
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Campaign membership and response tracking",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Campaign attribution exists, but full member status and response progression is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-065",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Marketing journey automation",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Automation and sequence foundations exist, but multichannel marketing journeys are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-066",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Email and SMS campaign execution",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Templates exist without a complete bulk campaign execution engine."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-067",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Marketing lists and dynamic segments",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Campaign records exist, but reusable static/dynamic audience management is absent."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-068",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Multi-touch marketing attribution",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Source and campaign fields exist; configurable first/last/multi-touch attribution is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-069",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "A/B and multivariate campaign testing",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No experiment framework for CRM campaigns was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-070",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Event and webinar management",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No registration, attendance and follow-up workflow was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-071",
     "module": "CRM",
     "subdomain": "Marketing",
     "capability": "Survey and feedback management",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No survey builder and response analytics were found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/034_crm_marketing_execution.sql",
+      "services/api/src/crm/marketing-execution.js",
+      "services/api/src/crm/marketing-execution.d.ts",
+      "apps/web/src/app/api/crm/marketing",
+      "apps/web/src/app/(app)/crm/marketing/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/marketing/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-marketing-execution-crm07.test.mjs",
+      "scripts/validation/verify-crm-07-marketing-execution.mjs",
+      "apps/web/scripts/verify-crm-marketing-execution-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-07 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with native/mock execution adapters. Production email, SMS, webinar and external survey providers require configured credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-072",

@@ -53,6 +53,13 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm-lead-acquisition",
   },
   {
+    key: "crm-marketing",
+    label: "Marketing",
+    icon: "megaphone-outline",
+    permission: "crm.view",
+    href: "/(protected)/workspace/crm-marketing",
+  },
+  {
     key: "master-data",
     label: "Master data",
     icon: "server-outline",

@@ -123,7 +123,10 @@
     "verify:crm-05-complete": "corepack pnpm verify:crm-05 && corepack pnpm test:crm-05-live",
     "verify:crm-06": "node scripts/validation/verify-crm-06-lead-acquisition.mjs",
     "test:crm-06-live": "corepack pnpm --filter @vercentlabs/web crm:lead-acquisition:live",
-    "verify:crm-06-complete": "corepack pnpm verify:crm-06 && corepack pnpm test:crm-06-live"
+    "verify:crm-06-complete": "corepack pnpm verify:crm-06 && corepack pnpm test:crm-06-live",
+    "verify:crm-07": "node scripts/validation/verify-crm-07-marketing-execution.mjs",
+    "test:crm-07-live": "corepack pnpm --filter @vercentlabs/web crm:marketing-execution:live",
+    "verify:crm-07-complete": "corepack pnpm verify:crm-07 && corepack pnpm test:crm-07-live"
   },
   "engines": {
     "node": ">=24 <25",
