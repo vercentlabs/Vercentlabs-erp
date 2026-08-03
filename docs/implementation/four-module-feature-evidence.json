@@ -644,52 +644,92 @@
     "module": "CRM",
     "subdomain": "Customer success",
     "capability": "Onboarding plans and success milestones",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Account success-plan fields exist, but operational onboarding plans and playbooks are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/customer-success.js",
+      "database/tenant/migrations/030_crm_customer_success.sql",
+      "apps/web/src/app/(app)/crm/customer-success/page.tsx",
+      "apps/web/src/app/api/crm/customer-success/accounts/[id]/route.ts",
+      "apps/web/src/app/api/mobile/v1/crm/customer-success/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-customer-success-crm03.test.mjs",
+      "scripts/validation/verify-crm-03-customer-success.mjs",
+      "apps/web/scripts/verify-crm-customer-success-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T09:50:00.000Z",
+    "verifiedBy": "crm-03-live-gate",
+    "externalDependencyNotes": "Onboarding templates, dependency-aware milestones, owners, customer participants, progress and health impact are operational and live-tested. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-032",
     "module": "CRM",
     "subdomain": "Customer success",
     "capability": "Renewal and churn management",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Renewal dates and health fields exist, but renewal opportunities and churn workflow are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/customer-success.js",
+      "database/tenant/migrations/030_crm_customer_success.sql",
+      "apps/web/src/app/(app)/crm/customer-success/page.tsx",
+      "apps/web/src/app/api/crm/customer-success/accounts/[id]/route.ts",
+      "apps/web/src/app/api/mobile/v1/crm/customer-success/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-customer-success-crm03.test.mjs",
+      "scripts/validation/verify-crm-03-customer-success.mjs",
+      "apps/web/scripts/verify-crm-customer-success-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T09:50:00.000Z",
+    "verifiedBy": "crm-03-live-gate",
+    "externalDependencyNotes": "Renewal cases, forecast categories, expansion values, risk levels and churn interventions are operational and live-tested. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-033",
     "module": "CRM",
     "subdomain": "Customer success",
     "capability": "NPS, CSAT and customer feedback loops",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No integrated NPS/CSAT programme was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/customer-success.js",
+      "database/tenant/migrations/030_crm_customer_success.sql",
+      "apps/web/src/app/(app)/crm/customer-success/page.tsx",
+      "apps/web/src/app/api/crm/customer-success/accounts/[id]/route.ts",
+      "apps/web/src/app/api/mobile/v1/crm/customer-success/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-customer-success-crm03.test.mjs",
+      "scripts/validation/verify-crm-03-customer-success.mjs",
+      "apps/web/scripts/verify-crm-customer-success-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T09:50:00.000Z",
+    "verifiedBy": "crm-03-live-gate",
+    "externalDependencyNotes": "NPS, CSAT and CES validation, normalization, follow-up flags and churn recovery creation are operational and live-tested. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-034",
     "module": "CRM",
     "subdomain": "Customer success",
     "capability": "Product adoption and usage ingestion",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No product telemetry ingestion or adoption model was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/customer-success.js",
+      "database/tenant/migrations/030_crm_customer_success.sql",
+      "apps/web/src/app/(app)/crm/customer-success/page.tsx",
+      "apps/web/src/app/api/crm/customer-success/accounts/[id]/route.ts",
+      "apps/web/src/app/api/mobile/v1/crm/customer-success/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-customer-success-crm03.test.mjs",
+      "scripts/validation/verify-crm-03-customer-success.mjs",
+      "apps/web/scripts/verify-crm-customer-success-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T09:50:00.000Z",
+    "verifiedBy": "crm-03-live-gate",
+    "externalDependencyNotes": "Product telemetry ingestion is idempotent, tenant-scoped and incorporated into health calculations with executable live evidence. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-035",
@@ -865,13 +905,23 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Customer-success health, adoption and renewal management",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/customer-success.js",
+      "database/tenant/migrations/030_crm_customer_success.sql",
+      "apps/web/src/app/(app)/crm/customer-success/page.tsx",
+      "apps/web/src/app/api/crm/customer-success/accounts/[id]/route.ts",
+      "apps/web/src/app/api/mobile/v1/crm/customer-success/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-customer-success-crm03.test.mjs",
+      "scripts/validation/verify-crm-03-customer-success.mjs",
+      "apps/web/scripts/verify-crm-customer-success-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T09:50:00.000Z",
+    "verifiedBy": "crm-03-live-gate",
+    "externalDependencyNotes": "Customer health, adoption, feedback, service risk, onboarding and renewal are unified in a governed portfolio workspace. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-048",

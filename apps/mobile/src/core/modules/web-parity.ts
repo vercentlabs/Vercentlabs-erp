@@ -274,6 +274,11 @@ export const protectedWebParity: readonly WebParityEntry[] = [
   },
   { web: "/crm", mobile: "/(protected)/workspace/crm", delivery: "native" },
   {
+    web: "/crm/customer-success",
+    mobile: "/(protected)/workspace/crm-customer-success",
+    delivery: "native",
+  },
+  {
     web: "/crm/[resource]",
     mobile: "/(protected)/workspace/crm/[resource]",
     delivery: "native",

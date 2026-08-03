@@ -49,7 +49,8 @@
     "enterprise:release-governance:live": "node scripts/verify-enterprise-release-governance-live.mjs",
     "crm:core-acceptance:live": "node scripts/verify-crm-core-acceptance-live.mjs",
     "crm:account-intelligence:live": "node scripts/verify-crm-account-intelligence-live.mjs",
-    "crm:privacy-retention": "node scripts/process-crm-privacy-retention.mjs"
+    "crm:privacy-retention": "node scripts/process-crm-privacy-retention.mjs",
+    "crm:customer-success:live": "node scripts/verify-crm-customer-success-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

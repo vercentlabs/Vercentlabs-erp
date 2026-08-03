@@ -199,3 +199,5 @@ export * from "./crm/core-acceptance.js";
 export * from "./crm/account-intelligence.js";
 
 export * from "./release/governance.js";
+
+export * from "./crm/customer-success.js";
