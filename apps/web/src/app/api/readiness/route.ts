@@ -4,7 +4,7 @@ import { errorResponse, HttpError, ok } from "@/lib/http";
 export const dynamic = "force-dynamic";
 
 const EXPECTED_CONTROL_MIGRATION = "017_billing_state_machine_and_recovery.sql";
-const EXPECTED_TENANT_MIGRATION = "028_crm_core_acceptance.sql";
+const EXPECTED_TENANT_MIGRATION = "029_crm_account_intelligence_privacy.sql";
 const REQUIRED_RELEASE_FOUNDATION = Object.freeze({
   control: "014_procurement_module_release.sql",
   tenant: "013_procurement_enterprise_completion.sql",

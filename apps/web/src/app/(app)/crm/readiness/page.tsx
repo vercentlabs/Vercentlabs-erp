@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   crmCoreAcceptanceContext,
   getCrmCoreAcceptanceDashboard,
@@ -159,6 +160,12 @@ export default async function CrmCoreReadinessPage() {
             executable tests and the signed local acceptance ledger for CRM-010
             through CRM-026.
           </p>
+          <Link
+            className="secondary-button"
+            href="/crm/readiness/account-intelligence"
+          >
+            Open CRM-02 readiness
+          </Link>
         </section>
       </div>
 

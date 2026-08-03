@@ -1,4 +1,4 @@
-import { mergeContactsGoverned } from "@vercentlabs/api";
+import { recordCustomerServiceEvent } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import {
@@ -7,7 +7,8 @@ import {
 } from "@/lib/billing";
 import { crmContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
+import { HttpError, ok, readJson } from "@/lib/http";
+import { crmAccountIntelligenceErrorResponse } from "@/lib/crm-account-intelligence-route";
 import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 export async function POST(
@@ -18,47 +19,36 @@ export async function POST(
     assertSameOriginOrMobile(request);
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmAccountsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmCommunicationsManage);
     await requireBillingWriteAccess(session.organizationId);
-    const { id } = await route.params;
-    const body = (await readJson(request)) as {
-      survivorId?: string;
-      reason?: string;
-    };
-    if (!body.survivorId)
-      throw new HttpError(400, "Choose the surviving record.");
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
+    const { id } = await route.params;
+    const body = (await readJson(request)) as Record<string, unknown>;
     const context = crmContext(session);
-    const merge = await tenantTransaction(
+    const event = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const result = await mergeContactsGoverned(
+        const created = await recordCustomerServiceEvent(
           client,
           context,
           id,
-          body.survivorId!,
-          body.reason || null,
+          body,
         );
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,
-          eventType: "crm.contact.merged",
-          entityType: "contact",
-          entityId: body.survivorId!,
-          afterData: result,
+          eventType: "crm.customer.service_event.recorded",
+          entityType: "account",
+          entityId: id,
+          afterData: created,
           request,
           client,
         });
-        return result;
+        return created;
       },
     );
-    return ok({ message: "Records merged successfully.", merge });
+    return ok({ message: "Customer service event recorded.", event });
   } catch (error) {
-    if (error && typeof error === "object" && "status" in error) {
-      const message =
-        "message" in error ? String(error.message) : "CRM request failed.";
-      return errorResponse(new HttpError(Number(error.status), message));
-    }
-    return errorResponse(error);
+    return crmAccountIntelligenceErrorResponse(error);
   }
 }

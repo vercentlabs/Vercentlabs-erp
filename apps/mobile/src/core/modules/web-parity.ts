@@ -279,6 +279,31 @@ export const protectedWebParity: readonly WebParityEntry[] = [
     delivery: "native",
   },
   {
+    web: "/crm/accounts/[id]",
+    mobile: "/(protected)/crm/accounts/[id]",
+    delivery: "native",
+  },
+  {
+    web: "/crm/contacts/[id]",
+    mobile: "/(protected)/crm/contacts/[id]",
+    delivery: "native",
+  },
+  {
+    web: "/crm/readiness/account-intelligence",
+    mobile: "/crm/readiness/account-intelligence",
+    delivery: "secure-browser-handoff",
+  },
+  {
+    web: "/crm/privacy-requests/[id]",
+    mobile: "/crm/privacy-requests/[id]",
+    delivery: "secure-browser-handoff",
+  },
+  {
+    web: "/crm/privacy-retention",
+    mobile: "/crm/privacy-retention",
+    delivery: "secure-browser-handoff",
+  },
+  {
     web: "/crm/leads/[id]",
     mobile: "/(protected)/crm/leads/[id]",
     delivery: "native",

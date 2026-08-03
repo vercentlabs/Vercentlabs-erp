@@ -76,7 +76,7 @@ const readiness = fs.readFileSync(
   "apps/web/src/app/api/readiness/route.ts",
   "utf8",
 );
-assert.match(readiness, /028_crm_core_acceptance\.sql/);
+assert.match(readiness, /029_crm_account_intelligence_privacy\.sql/);
 assert.ok(
   fs.existsSync(
     "database/tenant/migrations/027_enterprise_release_governance.sql",
@@ -98,7 +98,7 @@ const smoke = fs.readFileSync(
   "scripts/deployment/smoke-deployment.mjs",
   "utf8",
 );
-assert.match(smoke, /028_crm_core_acceptance\.sql/);
+assert.match(smoke, /029_crm_account_intelligence_privacy\.sql/);
 assert.match(smoke, /security header missing/);
 
 const workflow = fs.readFileSync(

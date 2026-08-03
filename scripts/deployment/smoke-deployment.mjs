@@ -82,7 +82,9 @@ const webReadiness = await checkJson(
   "vercentlabs-erp-web",
   "ready",
 );
-if (webReadiness?.schema?.tenant !== "028_crm_core_acceptance.sql") {
+if (
+  webReadiness?.schema?.tenant !== "029_crm_account_intelligence_privacy.sql"
+) {
   throw new Error("Web readiness does not report the CRM-01 tenant schema.");
 }
 if (!String(webHealth.runtime || "").startsWith("node-")) {

@@ -553,52 +553,91 @@
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Account hierarchies and parent-child relationships",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Party records exist, but mature enterprise account hierarchies and roll-up visibility are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/accounts/[id]/hierarchy/route.ts",
+      "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Hierarchy changes are cycle-protected, tenant-scoped and transactionally accepted, including merge-time reparenting evidence. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-028",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Customer 360 timeline across CRM, quotes, orders, invoices and support",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "CRM records and transactional modules exist, but one complete chronological customer timeline is not evident."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/accounts/[id]/customer-360/route.ts",
+      "apps/web/src/app/api/crm/accounts/[id]/service-events/route.ts",
+      "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Customer 360 is transactionally verified across CRM, quotations, orders, invoices, receipts and governed support-event ingestion. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-029",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Account duplicate detection and merge",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No governed account/party merge process was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/accounts/[id]/merge/route.ts",
+      "apps/web/src/components/crm-account-intelligence-actions.tsx",
+      "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Account duplicate discovery and transactional merge are verified with hierarchy safety, tenant-scoped reference movement, aliases and immutable history. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-030",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Contact duplicate detection and merge",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Lead duplicate handling exists, but equivalent contact merge governance was not found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/contacts/[id]/merge/route.ts",
+      "apps/web/src/components/crm-contact-merge-actions.tsx",
+      "apps/web/src/app/(app)/crm/contacts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Contact duplicate discovery and transactional merge are verified with tenant-scoped reference movement, aliases and immutable merge history. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-031",
@@ -657,13 +696,26 @@
     "module": "CRM",
     "subdomain": "Data governance",
     "capability": "Automated retention, anonymisation and erasure execution",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Consent and privacy-request records exist; complete policy execution is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/privacy/[id]/preview/route.ts",
+      "apps/web/src/app/api/crm/privacy/[id]/execute/route.ts",
+      "apps/web/src/app/api/crm/privacy/retention/route.ts",
+      "apps/web/src/components/crm-privacy-actions.tsx",
+      "apps/web/src/components/crm-privacy-retention-manager.tsx",
+      "apps/web/scripts/process-crm-privacy-retention.mjs"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Identity verification and legal-hold gates, manual anonymisation/erasure and automated retention execution are transactionally verified; financial transaction shells remain for statutory integrity. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-036",
