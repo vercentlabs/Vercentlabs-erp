@@ -60,6 +60,13 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm-marketing",
   },
   {
+    key: "crm-lead-intelligence",
+    label: "Lead intelligence",
+    icon: "analytics-outline",
+    permission: "crm.view",
+    href: "/(protected)/workspace/crm-lead-intelligence",
+  },
+  {
     key: "master-data",
     label: "Master data",
     icon: "server-outline",

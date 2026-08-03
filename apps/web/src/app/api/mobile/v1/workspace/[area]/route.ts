@@ -6,6 +6,7 @@ import {
   getCommunicationsDashboard,
   getConversationIntelligenceDashboard,
   getLeadAcquisitionDashboard,
+  getLeadIntelligenceDashboard,
   getMarketingDashboard,
   getProcurementDashboard,
 } from "@vercentlabs/api";
@@ -72,6 +73,11 @@ const copy = {
     "CRM marketing",
     "Segments, journeys and attribution",
     "Review governed audiences, campaign runs, journeys, events, surveys and influenced revenue.",
+  ],
+  "crm-lead-intelligence": [
+    "CRM lead intelligence",
+    "Scores, response SLAs and nurture",
+    "Review explainable scoring, first-response commitments and the prioritized seller work queue.",
   ],
   approvals: [
     "Approval centre",
@@ -197,6 +203,15 @@ export async function GET(
         context.organizationId,
         async (client) => ({
           dashboard: await getMarketingDashboard(client, context),
+        }),
+      );
+    } else if (area === "crm-lead-intelligence") {
+      requirePermissionFromSession(session, PERMISSIONS.crmView);
+      const context = crmContext(session);
+      data = await tenantTransaction(
+        context.organizationId,
+        async (client) => ({
+          dashboard: await getLeadIntelligenceDashboard(client, context),
         }),
       );
     } else if (area === "crm-reports") {

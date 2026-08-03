@@ -1271,39 +1271,72 @@
     "module": "CRM",
     "subdomain": "Lead management",
     "capability": "Behavioural lead scoring",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Rule-based scoring exists; scoring based on email, web, event and product engagement is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/035_crm_lead_intelligence.sql",
+      "services/api/src/crm/lead-intelligence.js",
+      "services/api/src/crm/lead-intelligence.d.ts",
+      "apps/web/src/app/api/crm/lead-intelligence",
+      "apps/web/src/app/(app)/crm/lead-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-intelligence-crm08.test.mjs",
+      "scripts/validation/verify-crm-08-lead-intelligence.mjs",
+      "apps/web/scripts/verify-crm-lead-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-08 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with versioned, explainable scoring; business-hours SLA evidence; and a consent-aware seller nurture queue. Live provider events can be ingested through the governed behavior-event API."
   },
   {
     "id": "CRM-061",
     "module": "CRM",
     "subdomain": "Lead management",
     "capability": "Lead SLA and response-time management",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Timestamps and activities exist, but configurable lead-response SLAs and escalations are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/035_crm_lead_intelligence.sql",
+      "services/api/src/crm/lead-intelligence.js",
+      "services/api/src/crm/lead-intelligence.d.ts",
+      "apps/web/src/app/api/crm/lead-intelligence",
+      "apps/web/src/app/(app)/crm/lead-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-intelligence-crm08.test.mjs",
+      "scripts/validation/verify-crm-08-lead-intelligence.mjs",
+      "apps/web/scripts/verify-crm-lead-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-08 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with versioned, explainable scoring; business-hours SLA evidence; and a consent-aware seller nurture queue. Live provider events can be ingested through the governed behavior-event API."
   },
   {
     "id": "CRM-062",
     "module": "CRM",
     "subdomain": "Lead management",
     "capability": "Lead nurture work queue",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Sequences and recommendations exist, but one prioritized seller work queue is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/035_crm_lead_intelligence.sql",
+      "services/api/src/crm/lead-intelligence.js",
+      "services/api/src/crm/lead-intelligence.d.ts",
+      "apps/web/src/app/api/crm/lead-intelligence",
+      "apps/web/src/app/(app)/crm/lead-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-intelligence-crm08.test.mjs",
+      "scripts/validation/verify-crm-08-lead-intelligence.mjs",
+      "apps/web/scripts/verify-crm-lead-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-08 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with versioned, explainable scoring; business-hours SLA evidence; and a consent-aware seller nurture queue. Live provider events can be ingested through the governed behavior-event API."
   },
   {
     "id": "CRM-063",

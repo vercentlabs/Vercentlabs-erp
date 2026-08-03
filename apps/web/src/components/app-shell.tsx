@@ -101,6 +101,12 @@ const moduleNavigation: NavigationGroup[] = [
         permission: PERMISSIONS.crmView,
       },
       {
+        href: "/crm/lead-intelligence",
+        label: "Lead intelligence",
+        icon: "crm",
+        permission: PERMISSIONS.crmView,
+      },
+      {
         href: "/crm/reports",
         label: "Reports",
         icon: "audit",

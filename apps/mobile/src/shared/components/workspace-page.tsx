@@ -912,6 +912,55 @@ export function WorkspacePage({ area }: { area: string }) {
         </View>
       );
     }
+    if (area === "crm-lead-intelligence") {
+      const dashboard = (data.dashboard || {}) as Row;
+      const summary = (dashboard.summary || {}) as Row;
+      return (
+        <View style={{ gap: spacing.xl }}>
+          <View
+            style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}
+          >
+            <Metric
+              label="Active leads"
+              value={summary.active_leads || 0}
+              icon="people-outline"
+            />
+            <Metric
+              label="Qualified"
+              value={summary.qualified_leads || 0}
+              icon="checkmark-circle-outline"
+            />
+            <Metric
+              label="Average score"
+              value={summary.average_score || 0}
+              icon="analytics-outline"
+            />
+            <Metric
+              label="Unscored"
+              value={summary.unscored_leads || 0}
+              icon="help-circle-outline"
+            />
+          </View>
+          <Text style={{ ...type.heading, color: colors.text }}>
+            Seller nurture queue
+          </Text>
+          {((dashboard.topQueue || []) as Row[]).map((row) => (
+            <RecordCard
+              key={String(row.id)}
+              row={row}
+              fields={[
+                "company_name",
+                "score",
+                "lead_grade",
+                "recommended_action",
+                "priority_score",
+                "due_at",
+              ]}
+            />
+          ))}
+        </View>
+      );
+    }
     if (area === "profile") {
       const user = data.user as Row;
       return (
