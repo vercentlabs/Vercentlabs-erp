@@ -1548,3 +1548,5 @@ export * from "./accounting/banking-governance.js";
 export * from "./accounting/tax-reporting-governance.js";
 
 export * from "./procurement/governance.js";
+
+export * from "./release/governance.js";

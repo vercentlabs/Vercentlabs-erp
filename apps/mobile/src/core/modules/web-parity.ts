@@ -350,6 +350,11 @@ export const protectedWebParity: readonly WebParityEntry[] = [
     delivery: "native",
   },
   {
+    web: "/settings/release-readiness",
+    mobile: "/(protected)/workspace/audit-logs",
+    delivery: "native",
+  },
+  {
     web: "/settings/[resource]",
     mobile: "/(protected)/workspace/settings/[resource]",
     delivery: "native",

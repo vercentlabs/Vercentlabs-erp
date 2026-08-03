@@ -350,6 +350,12 @@ const settingsNavigation: NavigationItem[] = [
     icon: "numbering",
     permission: PERMISSIONS.numberingManage,
   },
+  {
+    href: "/settings/release-readiness",
+    label: "Release readiness",
+    icon: "audit",
+    permission: PERMISSIONS.auditView,
+  },
 ];
 
 function initials(name: string) {
@@ -378,9 +384,7 @@ function NavigationCollection({
 }) {
   return items.map((item) => (
     <NavigationLink
-      badge={
-        item.href === "/notifications" ? unreadNotifications : item.badge
-      }
+      badge={item.href === "/notifications" ? unreadNotifications : item.badge}
       exact={item.exact}
       href={item.href}
       icon={item.icon}

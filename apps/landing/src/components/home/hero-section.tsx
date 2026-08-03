@@ -1,14 +1,12 @@
 import { ArrowDown, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { RELEASED_MODULE_COUNT, ROADMAP_MODULE_COUNT } from "@vercentlabs/shared-types";
-
 import OperatingSystemDemo from "@/components/home/operating-system-demo";
 import PageContainer from "@/components/layout/page-container";
 import RevealOnScroll from "@/components/ui/reveal-on-scroll";
 
 const proofMetrics = [
-  { label: "Early-access modules", value: String(RELEASED_MODULE_COUNT) },
-  { label: "Roadmap modules", value: String(ROADMAP_MODULE_COUNT) },
+  { label: "Early-access modules", value: "4" },
+  { label: "Roadmap modules", value: "8" },
   { label: "Control layer", value: "Shared" },
 ] as const;
 
@@ -25,7 +23,10 @@ export default function HeroSection() {
         <RevealOnScroll>
           <div className="os-hero__headline-grid">
             <div>
-              <p className="os-eyebrow">Controlled early access · CRM, Sales, Accounting & Procurement</p>
+              <p className="os-eyebrow">
+                Released CRM, Sales, Accounting & Procurement · controlled early
+                access
+              </p>
               <h1 id="os-hero-title">
                 <span>Run the work.</span>
                 <span>Keep the truth.</span>

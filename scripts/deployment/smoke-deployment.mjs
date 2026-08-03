@@ -72,8 +72,22 @@ await checkJson(
   "vercentlabs-landing",
   "operational",
 );
-await checkJson(`${webUrl}/api/health`, "vercentlabs-erp-web", "alive");
-await checkJson(`${webUrl}/api/readiness`, "vercentlabs-erp-web", "ready");
+const webHealth = await checkJson(
+  `${webUrl}/api/health`,
+  "vercentlabs-erp-web",
+  "alive",
+);
+const webReadiness = await checkJson(
+  `${webUrl}/api/readiness`,
+  "vercentlabs-erp-web",
+  "ready",
+);
+if (webReadiness?.schema?.tenant !== "027_enterprise_release_governance.sql") {
+  throw new Error("Web readiness does not report the Stage 11 tenant schema.");
+}
+if (!String(webHealth.runtime || "").startsWith("node-")) {
+  throw new Error("Web health omitted runtime metadata.");
+}
 
 const landingRoutes = [
   "/",
@@ -92,14 +106,26 @@ for (const pathname of landingRoutes) await checkLandingPage(pathname);
 const homepage = await checkedFetch(landingUrl, {
   headers: { Accept: "text/html" },
 });
-for (const header of [
-  "content-security-policy",
-  "referrer-policy",
-  "x-content-type-options",
-  "x-frame-options",
+const webHomepage = await checkedFetch(webUrl, {
+  headers: { Accept: "text/html" },
+});
+for (const [label, response] of [
+  ["Landing", homepage],
+  ["Web", webHomepage],
 ]) {
-  if (!homepage.headers.get(header)) {
-    throw new Error(`Landing security header missing: ${header}.`);
+  for (const header of [
+    "content-security-policy",
+    "referrer-policy",
+    "x-content-type-options",
+    "x-frame-options",
+  ]) {
+    if (!response.headers.get(header)) {
+      const message =
+        label === "Landing"
+          ? `Landing security header missing: ${header}.`
+          : `Web security header missing: ${header}.`;
+      throw new Error(message);
+    }
   }
 }
 
@@ -156,5 +182,5 @@ if (smokeEmail) {
 }
 
 console.log(
-  `Landing pages (${landingRoutes.length}), public assets, security headers, web health and database readiness smoke checks passed.`,
+  `Landing pages (${landingRoutes.length}), public assets, landing/web security headers, release metadata, web health and Stage 11 database readiness smoke checks passed.`,
 );
