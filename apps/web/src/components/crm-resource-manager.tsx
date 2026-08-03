@@ -332,8 +332,13 @@ export default function CrmResourceManager({
                   ))}
                   <td>
                     <div className="row-actions">
-                      {definition.key === "leads" ||
-                      definition.key === "opportunities" ? (
+                      {[
+                        "leads",
+                        "opportunities",
+                        "accounts",
+                        "contacts",
+                        "privacy-requests",
+                      ].includes(definition.key) ? (
                         <Link
                           className="link-button"
                           href={`/crm/${definition.key}/${String(row.id)}`}

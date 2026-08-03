@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import path from "node:path";
+import dotenv from "dotenv";
 import pg from "pg";
-import "dotenv/config";
+
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
+dotenv.config({ quiet: true });
 const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
 assert.ok(url, "MIGRATION_DATABASE_URL or DATABASE_URL is required.");
 const pool = new pg.Pool({ connectionString: url });

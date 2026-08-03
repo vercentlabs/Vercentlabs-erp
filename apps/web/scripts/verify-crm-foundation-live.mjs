@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import path from "node:path";
+import dotenv from "dotenv";
 import pg from "pg";
-import "dotenv/config";
+
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
+dotenv.config({ quiet: true });
 import {
   findAccountDuplicates,
   findContactDuplicates,

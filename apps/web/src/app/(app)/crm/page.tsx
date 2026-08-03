@@ -17,7 +17,10 @@ type DashboardRow = Record<string, unknown>;
 function percentage(value: unknown, total: unknown) {
   const denominator = Number(total || 0);
   if (!denominator) return 0;
-  return Math.min(100, Math.max(0, Math.round((Number(value || 0) / denominator) * 100)));
+  return Math.min(
+    100,
+    Math.max(0, Math.round((Number(value || 0) / denominator) * 100)),
+  );
 }
 
 export default async function CrmDashboardPage() {
@@ -101,6 +104,9 @@ export default async function CrmDashboardPage() {
           <Link className="secondary-button" href="/crm/activities?create=1">
             Schedule activity
           </Link>
+          <Link className="secondary-button" href="/crm/readiness">
+            CRM readiness
+          </Link>
         </div>
       </section>
 
@@ -117,7 +123,9 @@ export default async function CrmDashboardPage() {
             <span className="module-metric-label">{metric.label}</span>
             <strong>{metric.value}</strong>
             <small>{metric.meta}</small>
-            <span className="module-card-arrow" aria-hidden="true">→</span>
+            <span className="module-card-arrow" aria-hidden="true">
+              →
+            </span>
           </Link>
         ))}
       </section>
@@ -151,7 +159,9 @@ export default async function CrmDashboardPage() {
             <div>
               <p className="eyebrow">Pipeline health</p>
               <h2>Revenue by stage</h2>
-              <p>Spot stalled value and focus seller attention where it matters.</p>
+              <p>
+                Spot stalled value and focus seller attention where it matters.
+              </p>
             </div>
             <Link className="link-button" href="/crm/pipeline">
               Open pipeline
@@ -160,16 +170,22 @@ export default async function CrmDashboardPage() {
           <div className="stage-health-list">
             {dashboard.stages.map((stage: DashboardRow) => {
               const amount = Number(stage.amount || 0);
-              const width = Math.max(4, Math.round((amount / maxStageAmount) * 100));
+              const width = Math.max(
+                4,
+                Math.round((amount / maxStageAmount) * 100),
+              );
               return (
                 <Link href="/crm/pipeline" key={String(stage.id)}>
                   <span className="stage-health-copy">
                     <strong>{String(stage.name)}</strong>
                     <small>
-                      {String(stage.opportunityCount || 0)} opportunities · {String(stage.probability || 0)}% probability
+                      {String(stage.opportunityCount || 0)} opportunities ·{" "}
+                      {String(stage.probability || 0)}% probability
                     </small>
                   </span>
-                  <span className="stage-health-value">{money(stage.amount)}</span>
+                  <span className="stage-health-value">
+                    {money(stage.amount)}
+                  </span>
                   <span className="stage-health-meter" aria-hidden="true">
                     <i style={{ width: `${width}%` }} />
                   </span>
@@ -198,16 +214,22 @@ export default async function CrmDashboardPage() {
           </div>
           <div className="source-performance-list">
             {dashboard.sources.map((source: DashboardRow) => {
-              const conversion = percentage(source.convertedCount, source.leadCount);
+              const conversion = percentage(
+                source.convertedCount,
+                source.leadCount,
+              );
               return (
                 <div key={String(source.name)}>
                   <span className="source-avatar" aria-hidden="true">
-                    {String(source.name || "?").slice(0, 1).toUpperCase()}
+                    {String(source.name || "?")
+                      .slice(0, 1)
+                      .toUpperCase()}
                   </span>
                   <span className="source-performance-copy">
                     <strong>{String(source.name || "Unattributed")}</strong>
                     <small>
-                      {String(source.leadCount || 0)} leads · {String(source.convertedCount || 0)} converted
+                      {String(source.leadCount || 0)} leads ·{" "}
+                      {String(source.convertedCount || 0)} converted
                     </small>
                   </span>
                   <span className="source-conversion">
@@ -246,7 +268,11 @@ export default async function CrmDashboardPage() {
                 <div>
                   <strong>{String(activity.subject)}</strong>
                   <p>
-                    {String(activity.activityType || "task").replaceAll("_", " ")} · {String(activity.assignedName || "Unassigned")}
+                    {String(activity.activityType || "task").replaceAll(
+                      "_",
+                      " ",
+                    )}{" "}
+                    · {String(activity.assignedName || "Unassigned")}
                   </p>
                 </div>
                 <time>
@@ -266,7 +292,10 @@ export default async function CrmDashboardPage() {
                 </span>
                 <strong>Your follow-up queue is clear</strong>
                 <p>Create the next customer action before leaving a record.</p>
-                <Link className="secondary-button" href="/crm/activities?create=1">
+                <Link
+                  className="secondary-button"
+                  href="/crm/activities?create=1"
+                >
                   Create activity
                 </Link>
               </div>
@@ -282,13 +311,31 @@ export default async function CrmDashboardPage() {
             </div>
           </div>
           {[
-            ["Qualify new demand", "Review open leads and assign the next action.", "/crm/leads"],
-            ["Advance revenue", "Update stage, close date and forecast confidence.", "/crm/pipeline"],
-            ["Protect relationships", "Review account health and engagement gaps.", "/crm/reports"],
-            ["Tune the system", "Manage pipelines, scoring and automations.", "/crm/settings"],
+            [
+              "Qualify new demand",
+              "Review open leads and assign the next action.",
+              "/crm/leads",
+            ],
+            [
+              "Advance revenue",
+              "Update stage, close date and forecast confidence.",
+              "/crm/pipeline",
+            ],
+            [
+              "Protect relationships",
+              "Review account health and engagement gaps.",
+              "/crm/reports",
+            ],
+            [
+              "Tune the system",
+              "Manage pipelines, scoring and automations.",
+              "/crm/settings",
+            ],
           ].map(([title, description, href], index) => (
             <Link href={href} key={href}>
-              <span className="workflow-step-number">{String(index + 1).padStart(2, "0")}</span>
+              <span className="workflow-step-number">
+                {String(index + 1).padStart(2, "0")}
+              </span>
               <span>
                 <strong>{title}</strong>
                 <small>{description}</small>

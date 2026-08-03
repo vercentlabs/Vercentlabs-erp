@@ -1,4 +1,4 @@
-import { mergeContacts } from "@vercentlabs/api";
+import { mergeContactsGoverned } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import {
@@ -32,7 +32,7 @@ export async function POST(
     const merge = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const result = await mergeContacts(
+        const result = await mergeContactsGoverned(
           client,
           context,
           id,

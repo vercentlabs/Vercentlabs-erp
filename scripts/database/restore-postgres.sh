@@ -10,6 +10,31 @@ BACKUP_FILE="${1:-}"
   exit 1
 }
 command -v pg_restore >/dev/null || { echo "pg_restore is required." >&2; exit 1; }
+command -v sha256sum >/dev/null || { echo "sha256sum is required." >&2; exit 1; }
+
+if [[ -f "$BACKUP_FILE.sha256" ]]; then
+  (
+    cd "$(dirname "$BACKUP_FILE")"
+    sha256sum -c "$(basename "$BACKUP_FILE").sha256"
+  )
+else
+  echo "A matching .sha256 file is required before restore." >&2
+  exit 1
+fi
+
 pg_restore --list "$BACKUP_FILE" >/dev/null
-pg_restore --dbname="$DATABASE_URL" --clean --if-exists --no-owner --no-privileges "$BACKUP_FILE"
-echo "Restore completed. Run all database verifiers before allowing traffic."
+pg_restore \
+  --dbname="$DATABASE_URL" \
+  --clean \
+  --if-exists \
+  --no-owner \
+  --no-privileges \
+  --exit-on-error \
+  --single-transaction \
+  "$BACKUP_FILE"
+
+if command -v psql >/dev/null; then
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ANALYZE;" >/dev/null
+fi
+
+echo "Restore completed and checksum verified. Run every database and live verifier before allowing traffic."

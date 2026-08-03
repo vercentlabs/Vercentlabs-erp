@@ -229,11 +229,61 @@ paths:
               properties:
                 action:
                   type: string
-                  enum: [confirm, hold, release_hold, cancel, amend, complete_fulfillment]
+                  enum:
+                    [
+                      confirm,
+                      hold,
+                      release_hold,
+                      cancel,
+                      amend,
+                      complete_fulfillment,
+                    ]
       responses:
         "200":
           description: Updated sales order
         "409":
+          $ref: "#/components/responses/Problem"
+  /release/governance:
+    get:
+      summary: Read enterprise release readiness, latest checks and incidents
+      responses:
+        "200":
+          description: Organisation-scoped release governance dashboard
+        "403":
+          $ref: "#/components/responses/Problem"
+    post:
+      summary: Record a check, capture a readiness snapshot or manage a release incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [record-check, capture-snapshot, upsert-incident]
+                check:
+                  type: object
+                snapshot:
+                  type: object
+                incident:
+                  type: object
+      responses:
+        "200":
+          description: Release governance action committed
+        "400":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+  /release/governance/timeline:
+    get:
+      summary: Read release checks, incidents and snapshots as a unified timeline
+      responses:
+        "200":
+          description: Organisation-scoped release governance timeline
+        "403":
           $ref: "#/components/responses/Problem"
 components:
   securitySchemes:

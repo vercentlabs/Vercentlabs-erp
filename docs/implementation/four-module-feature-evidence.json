@@ -122,12 +122,24 @@
     "subdomain": "Core CRM",
     "capability": "Account plans and stakeholder maps",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "database/tenant/migrations/003_crm_enterprise_core.sql",
+      "apps/web/src/app/(app)/crm/[resource]/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-011",
@@ -135,12 +147,24 @@
     "subdomain": "Core CRM",
     "capability": "Accounts, contacts and addresses",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm/foundation.js",
+      "apps/web/src/app/api/crm/accounts/duplicates/route.ts",
+      "apps/web/src/app/api/crm/relationships/graph/route.ts",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-012",
@@ -148,12 +172,24 @@
     "subdomain": "Core CRM",
     "capability": "Activities, reminders and recurring activities",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "apps/web/src/app/api/crm/activities/[id]/complete/route.ts",
+      "apps/mobile/src/modules/crm/data/sync.ts",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-013",
@@ -161,12 +197,24 @@
     "subdomain": "Core CRM",
     "capability": "Buying committees and relationship mapping",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "apps/web/src/app/api/crm/relationships/graph/route.ts",
+      "database/tenant/migrations/003_crm_enterprise_core.sql",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-014",
@@ -174,12 +222,24 @@
     "subdomain": "Core CRM",
     "capability": "CRM data-quality scores",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "apps/web/src/app/api/crm/reports/[report]/route.ts",
+      "apps/web/src/app/(app)/crm/reports/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-015",
@@ -187,12 +247,24 @@
     "subdomain": "Core CRM",
     "capability": "Campaigns and source attribution",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "apps/web/src/app/api/crm/[resource]/route.ts",
+      "apps/web/src/app/(app)/crm/[resource]/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-016",
@@ -200,12 +272,24 @@
     "subdomain": "Core CRM",
     "capability": "Competitor tracking",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "database/tenant/migrations/003_crm_enterprise_core.sql",
+      "apps/web/src/app/(app)/crm/[resource]/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-017",
@@ -213,12 +297,24 @@
     "subdomain": "Core CRM",
     "capability": "Consent, do-not-contact and privacy requests",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "database/tenant/migrations/005_crm_completion_pack.sql",
+      "apps/web/src/app/(app)/crm/[resource]/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-018",
@@ -226,12 +322,25 @@
     "subdomain": "Core CRM",
     "capability": "Duplicate detection and lead merge",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm/lead-governance.js",
+      "apps/web/src/app/api/crm/leads/duplicates/route.ts",
+      "apps/web/src/app/api/crm/leads/[id]/merge/route.ts",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-lead-governance-stage2b.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-019",
@@ -239,12 +348,25 @@
     "subdomain": "Core CRM",
     "capability": "Forecast submissions and pipeline inspections",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm/opportunity-operations.js",
+      "apps/web/src/app/api/crm/reports/[report]/route.ts",
+      "apps/web/src/app/(app)/crm/pipeline/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-opportunity-operations-stage3.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-020",
@@ -252,12 +374,25 @@
     "subdomain": "Core CRM",
     "capability": "Lead assignment and round robin",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm/lead-governance.js",
+      "database/tenant/migrations/017_crm_lead_governance.sql",
+      "apps/web/src/app/api/crm/leads/operations/route.ts",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-lead-governance-stage2b.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-021",
@@ -265,12 +400,25 @@
     "subdomain": "Core CRM",
     "capability": "Lead capture and lead master",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "apps/web/src/app/api/crm/public/capture/[key]/route.ts",
+      "apps/mobile/src/modules/crm/components/lead-capture.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-lead-governance-stage2b.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-022",
@@ -278,12 +426,25 @@
     "subdomain": "Core CRM",
     "capability": "Lead conversion",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "apps/web/src/app/api/crm/leads/[id]/convert/route.ts",
+      "apps/web/src/components/crm-lead-actions.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-lead-governance-stage2b.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-023",
@@ -291,12 +452,25 @@
     "subdomain": "Core CRM",
     "capability": "Lead scoring",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "services/api/src/crm/lead-governance.js",
+      "apps/web/src/app/api/crm/leads/validate/route.ts",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-lead-governance-stage2b.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-024",
@@ -304,12 +478,25 @@
     "subdomain": "Core CRM",
     "capability": "Opportunity and pipeline management",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm/opportunity-operations.js",
+      "apps/web/src/app/api/crm/opportunities/[id]/stage/route.ts",
+      "apps/web/src/app/(app)/crm/pipeline/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs",
+      "services/api/tests/crm-opportunity-operations-stage3.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-025",
@@ -317,12 +504,24 @@
     "subdomain": "Core CRM",
     "capability": "Playbooks and stage-exit questions",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "database/tenant/migrations/005_crm_completion_pack.sql",
+      "apps/web/src/app/(app)/crm/[resource]/page.tsx",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-026",
@@ -330,64 +529,115 @@
     "subdomain": "Core CRM",
     "capability": "Sales teams, territories and quotas",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "services/api/src/crm.js",
+      "database/tenant/migrations/006_crm_release_foundation.sql",
+      "apps/web/src/app/api/crm/reports/[report]/route.ts",
+      "services/api/src/crm/core-acceptance.js",
+      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-core-acceptance-crm01.test.mjs",
+      "scripts/validation/verify-crm-01-core-acceptance.mjs",
+      "apps/web/scripts/verify-crm-core-acceptance-live.mjs",
+      "services/api/tests/crm-service.test.mjs",
+      "services/api/tests/crm-completion.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T06:30:00.000Z",
+    "verifiedBy": "crm-01-live-gate",
+    "externalDependencyNotes": "Verified by the CRM-01 transactional local/staging acceptance gate. Production promotion remains governed by Stage 11; provider-dependent CRM capabilities are outside CRM-01."
   },
   {
     "id": "CRM-027",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Account hierarchies and parent-child relationships",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Party records exist, but mature enterprise account hierarchies and roll-up visibility are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/accounts/[id]/hierarchy/route.ts",
+      "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Hierarchy changes are cycle-protected, tenant-scoped and transactionally accepted, including merge-time reparenting evidence. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-028",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Customer 360 timeline across CRM, quotes, orders, invoices and support",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "CRM records and transactional modules exist, but one complete chronological customer timeline is not evident."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/accounts/[id]/customer-360/route.ts",
+      "apps/web/src/app/api/crm/accounts/[id]/service-events/route.ts",
+      "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Customer 360 is transactionally verified across CRM, quotations, orders, invoices, receipts and governed support-event ingestion. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-029",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Account duplicate detection and merge",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No governed account/party merge process was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/accounts/[id]/merge/route.ts",
+      "apps/web/src/components/crm-account-intelligence-actions.tsx",
+      "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Account duplicate discovery and transactional merge are verified with hierarchy safety, tenant-scoped reference movement, aliases and immutable history. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-030",
     "module": "CRM",
     "subdomain": "Customer and account management",
     "capability": "Contact duplicate detection and merge",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Lead duplicate handling exists, but equivalent contact merge governance was not found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/contacts/[id]/merge/route.ts",
+      "apps/web/src/components/crm-contact-merge-actions.tsx",
+      "apps/web/src/app/(app)/crm/contacts/[id]/page.tsx"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Contact duplicate discovery and transactional merge are verified with tenant-scoped reference movement, aliases and immutable merge history. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-031",
@@ -446,13 +696,26 @@
     "module": "CRM",
     "subdomain": "Data governance",
     "capability": "Automated retention, anonymisation and erasure execution",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Consent and privacy-request records exist; complete policy execution is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "services/api/src/crm/account-intelligence.js",
+      "database/tenant/migrations/029_crm_account_intelligence_privacy.sql",
+      "apps/web/src/app/api/crm/privacy/[id]/preview/route.ts",
+      "apps/web/src/app/api/crm/privacy/[id]/execute/route.ts",
+      "apps/web/src/app/api/crm/privacy/retention/route.ts",
+      "apps/web/src/components/crm-privacy-actions.tsx",
+      "apps/web/src/components/crm-privacy-retention-manager.tsx",
+      "apps/web/scripts/process-crm-privacy-retention.mjs"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-account-intelligence-crm02.test.mjs",
+      "scripts/validation/verify-crm-02-account-intelligence.mjs",
+      "apps/web/scripts/verify-crm-account-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T08:00:00.000Z",
+    "verifiedBy": "crm-02-live-gate",
+    "externalDependencyNotes": "Identity verification and legal-hold gates, manual anonymisation/erasure and automated retention execution are transactionally verified; financial transaction shells remain for statutory integrity. Production promotion remains subject to Stage 11 deployment controls."
   },
   {
     "id": "CRM-036",

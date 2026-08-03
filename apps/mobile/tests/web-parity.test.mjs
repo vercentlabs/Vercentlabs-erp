@@ -32,9 +32,9 @@ test("every protected web page family has an explicit mobile destination", () =>
     manifest.indexOf("export const protectedWebParity"),
     manifest.indexOf("export const authenticationWebParity"),
   );
-  assert.match(protectedEntries, /web: "\/accounting"[^\n]+secure-browser-handoff/);
-  assert.match(protectedEntries, /web: "\/sales"[^\n]+secure-browser-handoff/);
-  assert.match(protectedEntries, /web: "\/crm"[^\n]+delivery: "native"/);
+  assert.match(protectedEntries, /web: "\/accounting"[\s\S]*?secure-browser-handoff/);
+  assert.match(protectedEntries, /web: "\/sales"[\s\S]*?secure-browser-handoff/);
+  assert.match(protectedEntries, /web: "\/crm"[\s\S]*?delivery: "native"/);
 });
 
 test("workspace navigation contains no disabled or web-only destination", () => {
