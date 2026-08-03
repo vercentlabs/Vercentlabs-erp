@@ -201,3 +201,5 @@ export * from "./crm/account-intelligence.js";
 export * from "./release/governance.js";
 
 export * from "./crm/customer-success.js";
+
+export * from "./crm/communications.js";

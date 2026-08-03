@@ -50,7 +50,8 @@
     "crm:core-acceptance:live": "node scripts/verify-crm-core-acceptance-live.mjs",
     "crm:account-intelligence:live": "node scripts/verify-crm-account-intelligence-live.mjs",
     "crm:privacy-retention": "node scripts/process-crm-privacy-retention.mjs",
-    "crm:customer-success:live": "node scripts/verify-crm-customer-success-live.mjs"
+    "crm:customer-success:live": "node scripts/verify-crm-customer-success-live.mjs",
+    "crm:communications:live": "node scripts/verify-crm-communications-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

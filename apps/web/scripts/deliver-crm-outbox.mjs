@@ -19,7 +19,9 @@ const workerId = randomUUID();
 function integerEnvironment(name, fallback, minimum, maximum) {
   const parsed = Number(process.env[name] ?? fallback);
   if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
-    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+    throw new Error(
+      `${name} must be an integer between ${minimum} and ${maximum}.`,
+    );
   }
   return parsed;
 }
@@ -34,12 +36,7 @@ const pool = new pg.Pool({
   application_name: "vercentlabs-crm-outbox-worker",
 });
 const batchSize = integerEnvironment("CRM_OUTBOX_BATCH_SIZE", 25, 1, 100);
-const maximumAttempts = integerEnvironment(
-  "CRM_OUTBOX_MAX_ATTEMPTS",
-  5,
-  1,
-  20,
-);
+const maximumAttempts = integerEnvironment("CRM_OUTBOX_MAX_ATTEMPTS", 5, 1, 20);
 const leaseSeconds = integerEnvironment(
   "CRM_OUTBOX_LEASE_SECONDS",
   300,
@@ -86,6 +83,108 @@ function smtpConfiguration() {
   };
 }
 
+function providerCredential(reference) {
+  const value = String(reference || "").trim();
+  const variable = value.startsWith("env:") ? value.slice(4) : value;
+  if (!/^[A-Z][A-Z0-9_]{2,127}$/.test(variable)) return null;
+  const raw = process.env[variable];
+  if (!raw) return null;
+  let credential;
+  try {
+    credential = JSON.parse(raw);
+  } catch {
+    throw new Error(`CRM provider credential ${variable} is invalid JSON.`);
+  }
+  if (!credential.accessToken) {
+    throw new Error(`CRM provider credential ${variable} has no access token.`);
+  }
+  return credential;
+}
+
+function gmailRawMessage(message, from) {
+  const headers = [
+    `From: ${from}`,
+    `To: ${message.to}`,
+    `Subject: ${String(message.subject || "Vercentlabs CRM message").replace(/[\r\n]/g, " ")}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    `X-Vercentlabs-Outbox-Id: ${message.eventId}`,
+    "",
+    message.body || "",
+  ].join("\r\n");
+  return Buffer.from(headers, "utf8").toString("base64url");
+}
+
+async function deliverProviderEmail(message) {
+  const provider = String(message.sync_provider || "").toLowerCase();
+  if (!["gmail", "microsoft365"].includes(provider)) return null;
+  const credential = providerCredential(message.credential_reference);
+  if (!credential) {
+    throw new Error(`CRM ${provider} credential is not configured.`);
+  }
+  if (provider === "gmail") {
+    const response = await fetch(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${credential.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          raw: gmailRawMessage(
+            message,
+            message.sync_email_address ||
+              credential.emailAddress ||
+              credential.email,
+          ),
+          ...(message.external_thread_id
+            ? { threadId: message.external_thread_id }
+            : {}),
+        }),
+        signal: AbortSignal.timeout(emailTimeoutMs),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Gmail send failed (${response.status}).`);
+    }
+    const receipt = await response.json();
+    return {
+      provider: "gmail",
+      messageId: String(receipt.id || message.eventId),
+      receipt,
+    };
+  }
+  const response = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credential.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: {
+        subject: message.subject || "Vercentlabs CRM message",
+        body: { contentType: "Text", content: message.body || "" },
+        toRecipients: [{ emailAddress: { address: message.to } }],
+        internetMessageHeaders: [
+          { name: "X-Vercentlabs-Outbox-Id", value: message.eventId },
+        ],
+      },
+      saveToSentItems: true,
+    }),
+    signal: AbortSignal.timeout(emailTimeoutMs),
+  });
+  if (!response.ok) {
+    throw new Error(`Microsoft 365 send failed (${response.status}).`);
+  }
+  return {
+    provider: "microsoft365",
+    messageId: `microsoft365:${message.eventId}`,
+    receipt: { accepted: [message.to], status: response.status },
+  };
+}
+
 async function deliverEmail(message) {
   const mode = (process.env.CRM_OUTBOX_PROVIDER || "").toLowerCase();
   if (mode === "fake") {
@@ -98,6 +197,9 @@ async function deliverEmail(message) {
       receipt: { accepted: [message.to] },
     };
   }
+
+  const providerDelivery = await deliverProviderEmail(message);
+  if (providerDelivery) return providerDelivery;
 
   const webhookUrl = process.env.CRM_EMAIL_WEBHOOK_URL?.trim();
   if (webhookUrl) {
@@ -117,9 +219,7 @@ async function deliverEmail(message) {
         subject: message.subject,
         text: message.body,
       }),
-      signal: AbortSignal.timeout(
-        emailTimeoutMs,
-      ),
+      signal: AbortSignal.timeout(emailTimeoutMs),
     });
     if (!response.ok) {
       throw new Error(`CRM email webhook failed (${response.status}).`);
@@ -229,12 +329,26 @@ async function messageForEvent(event) {
           communication.lead_id,
           communication.contact_id,
           communication.party_id,
+          email_message.sync_account_id,
+          email_thread.external_thread_id,
+          sync_account.provider AS sync_provider,
+          sync_account.credential_reference,
+          sync_account.email_address AS sync_email_address,
           COALESCE(
             NULLIF(communication.to_addresses[1], ''),
             NULLIF(lead.email, ''),
             NULLIF(contact.email, '')
           ) AS recipient
         FROM tenant.crm_communications AS communication
+        LEFT JOIN tenant.crm_email_messages AS email_message
+          ON email_message.organization_id = communication.organization_id
+         AND email_message.communication_id = communication.id
+        LEFT JOIN tenant.crm_email_threads AS email_thread
+          ON email_thread.organization_id = email_message.organization_id
+         AND email_thread.id = email_message.thread_id
+        LEFT JOIN tenant.crm_sync_accounts AS sync_account
+          ON sync_account.organization_id = email_message.organization_id
+         AND sync_account.id = email_message.sync_account_id
         LEFT JOIN tenant.crm_leads AS lead
           ON lead.organization_id = communication.organization_id
          AND lead.id = communication.lead_id
@@ -327,6 +441,25 @@ async function completeEvent(event, message, delivery) {
     );
     await client.query(
       `
+        UPDATE tenant.crm_email_messages
+        SET status = $3,
+            provider = $4,
+            provider_message_id = $5,
+            sent_at = CASE WHEN $3 = 'sent' THEN now() ELSE sent_at END,
+            metadata = metadata || $6::jsonb
+        WHERE organization_id = $1 AND communication_id = $2
+      `,
+      [
+        event.organization_id,
+        message.id,
+        message.suppressed ? "unsubscribed" : "sent",
+        delivery.provider,
+        delivery.messageId,
+        JSON.stringify({ receipt: delivery.receipt }),
+      ],
+    );
+    await client.query(
+      `
         UPDATE tenant.crm_outbox_events
         SET status = 'delivered',
             delivered_at = now(),
@@ -376,6 +509,15 @@ async function failEvent(event, error) {
       ],
     );
     if (!updated.rowCount) return;
+    await client.query(
+      `
+        UPDATE tenant.crm_email_messages
+        SET status = 'failed',
+            metadata = metadata || jsonb_build_object('lastDeliveryError', $3)
+        WHERE organization_id = $1 AND communication_id = $2
+      `,
+      [event.organization_id, event.entity_id, message],
+    );
     await client.query(
       `
         UPDATE tenant.crm_communications

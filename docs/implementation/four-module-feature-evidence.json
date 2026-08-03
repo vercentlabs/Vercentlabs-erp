@@ -4,26 +4,48 @@
     "module": "CRM",
     "subdomain": "Activities and productivity",
     "capability": "Shared team inbox",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Conversation structures exist, but provider-backed shared inbox execution is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Shared inbox queues, assignment collision protection, SLA deadlines and web/mobile workspaces are operational and live-tested."
   },
   {
     "id": "CRM-002",
     "module": "CRM",
     "subdomain": "Activities and productivity",
     "capability": "Two-way Microsoft 365 and Google calendar sync",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Sync-account structures exist but production synchronization is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Gmail and Microsoft 365 calendar adapters, delta cursors, idempotent event ingestion and private-event governance are implemented; production acceptance requires configured provider credentials."
   },
   {
     "id": "CRM-003",
@@ -43,26 +65,48 @@
     "module": "CRM",
     "subdomain": "Activities and productivity",
     "capability": "Self-service meeting scheduling",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Meeting-link records exist, but availability calculation and provider booking are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Public meeting links, availability calculation, buffers, notice periods, booking conflict checks and cancellation/reschedule tokens are implemented and live-tested."
   },
   {
     "id": "CRM-005",
     "module": "CRM",
     "subdomain": "Activities and productivity",
     "capability": "Email open, click, bounce and unsubscribe tracking",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No complete deliverability and engagement-event pipeline was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Immutable delivery, open, click, bounce, complaint and unsubscribe events update message state and suppression controls with live evidence."
   },
   {
     "id": "CRM-006",
@@ -762,13 +806,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Actual email provider sync",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Gmail and Microsoft 365 mailbox delta adapters, sync locks, cursor persistence, retries and idempotent ingestion are implemented; production acceptance requires configured provider credentials."
   },
   {
     "id": "CRM-037",
@@ -788,13 +843,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Omnichannel conversation inbox",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Provider-neutral conversation threads unify email and future channel queues with ownership, SLA, entity links and timeline aggregation."
   },
   {
     "id": "CRM-039",
@@ -815,12 +881,23 @@
     "subdomain": "Engagement and advanced CRM",
     "capability": "Email/SMS/WhatsApp template library",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Email/SMS/WhatsApp templates now have verified operational integration with governed outbound email and signatures."
   },
   {
     "id": "CRM-041",
@@ -879,13 +956,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Meeting scheduling and calendar sync",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Calendar synchronisation and meeting scheduling share one conflict-aware event model and are verified through live acceptance; production provider acceptance requires credentials."
   },
   {
     "id": "CRM-046",
@@ -1357,13 +1445,24 @@
     "module": "CRM",
     "subdomain": "Sales engagement",
     "capability": "Email send windows, throttling and deliverability controls",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Templates and sequence records exist without a complete production sending-control layer."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/031_crm_communications_calendar.sql",
+      "services/api/src/crm/communications.js",
+      "apps/web/src/app/(app)/crm/communications/page.tsx",
+      "apps/web/src/app/api/crm/communications",
+      "apps/web/src/app/api/crm/public/meetings",
+      "apps/mobile/src/core/modules/navigation.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-communications-crm04.test.mjs",
+      "apps/web/scripts/verify-crm-communications-live.mjs",
+      "scripts/validation/verify-crm-04-communications.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-04 executable acceptance gate",
+    "externalDependencyNotes": "Outbound email enforces suppression, send windows, hourly throttling, consent-aware delivery and failure retries."
   },
   {
     "id": "CRM-082",
