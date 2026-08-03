@@ -205,3 +205,4 @@ export * from "./crm/customer-success.js";
 export * from "./crm/communications.js";
 
 export * from "./crm/conversation-intelligence.js";
+export * from "./crm/lead-acquisition.js";

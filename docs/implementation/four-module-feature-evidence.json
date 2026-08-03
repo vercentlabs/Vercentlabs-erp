@@ -1138,13 +1138,24 @@
     "module": "CRM",
     "subdomain": "Lead acquisition",
     "capability": "Bulk lead import with mapping, validation and rollback",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Import capability exists, but a mature field-mapping, preview, duplicate strategy and rollback experience is incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/033_crm_lead_acquisition.sql",
+      "services/api/src/crm/lead-acquisition.js",
+      "services/api/src/crm/lead-acquisition.d.ts",
+      "apps/web/src/app/api/crm/lead-acquisition",
+      "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-acquisition/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-acquisition-crm06.test.mjs",
+      "scripts/validation/verify-crm-06-lead-acquisition.mjs",
+      "apps/web/scripts/verify-crm-lead-acquisition-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T12:30:00.000Z",
+    "verifiedBy": "CRM-06 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with sandbox adapters. Production advertising, social and enrichment promotion requires configured provider credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-055",
@@ -1164,52 +1175,96 @@
     "module": "CRM",
     "subdomain": "Lead acquisition",
     "capability": "Landing-page and form builder",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Secure capture forms exist, but a marketer-facing page/form designer and publishing workflow is absent."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/033_crm_lead_acquisition.sql",
+      "services/api/src/crm/lead-acquisition.js",
+      "services/api/src/crm/lead-acquisition.d.ts",
+      "apps/web/src/app/api/crm/lead-acquisition",
+      "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-acquisition/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-acquisition-crm06.test.mjs",
+      "scripts/validation/verify-crm-06-lead-acquisition.mjs",
+      "apps/web/scripts/verify-crm-lead-acquisition-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T12:30:00.000Z",
+    "verifiedBy": "CRM-06 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with sandbox adapters. Production advertising, social and enrichment promotion requires configured provider credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-057",
     "module": "CRM",
     "subdomain": "Lead acquisition",
     "capability": "Advertising lead connectors",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No production connectors for Google, Meta or LinkedIn lead forms were found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/033_crm_lead_acquisition.sql",
+      "services/api/src/crm/lead-acquisition.js",
+      "services/api/src/crm/lead-acquisition.d.ts",
+      "apps/web/src/app/api/crm/lead-acquisition",
+      "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-acquisition/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-acquisition-crm06.test.mjs",
+      "scripts/validation/verify-crm-06-lead-acquisition.mjs",
+      "apps/web/scripts/verify-crm-lead-acquisition-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T12:30:00.000Z",
+    "verifiedBy": "CRM-06 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with sandbox adapters. Production advertising, social and enrichment promotion requires configured provider credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-058",
     "module": "CRM",
     "subdomain": "Lead acquisition",
     "capability": "Live chat and chatbot lead capture",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No integrated webchat or chatbot lead channel was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/033_crm_lead_acquisition.sql",
+      "services/api/src/crm/lead-acquisition.js",
+      "services/api/src/crm/lead-acquisition.d.ts",
+      "apps/web/src/app/api/crm/lead-acquisition",
+      "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-acquisition/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-acquisition-crm06.test.mjs",
+      "scripts/validation/verify-crm-06-lead-acquisition.mjs",
+      "apps/web/scripts/verify-crm-lead-acquisition-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T12:30:00.000Z",
+    "verifiedBy": "CRM-06 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with sandbox adapters. Production advertising, social and enrichment promotion requires configured provider credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-059",
     "module": "CRM",
     "subdomain": "Lead acquisition",
     "capability": "Social-media lead and message capture",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No social inbox or social lead connector was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/033_crm_lead_acquisition.sql",
+      "services/api/src/crm/lead-acquisition.js",
+      "services/api/src/crm/lead-acquisition.d.ts",
+      "apps/web/src/app/api/crm/lead-acquisition",
+      "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-acquisition/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-acquisition-crm06.test.mjs",
+      "scripts/validation/verify-crm-06-lead-acquisition.mjs",
+      "apps/web/scripts/verify-crm-lead-acquisition-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T12:30:00.000Z",
+    "verifiedBy": "CRM-06 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with sandbox adapters. Production advertising, social and enrichment promotion requires configured provider credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-060",
@@ -1255,13 +1310,24 @@
     "module": "CRM",
     "subdomain": "Lead management",
     "capability": "Lead enrichment and company intelligence",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No live enrichment provider or firmographic data workflow was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/033_crm_lead_acquisition.sql",
+      "services/api/src/crm/lead-acquisition.js",
+      "services/api/src/crm/lead-acquisition.d.ts",
+      "apps/web/src/app/api/crm/lead-acquisition",
+      "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/lead-acquisition/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-lead-acquisition-crm06.test.mjs",
+      "scripts/validation/verify-crm-06-lead-acquisition.mjs",
+      "apps/web/scripts/verify-crm-lead-acquisition-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03T12:30:00.000Z",
+    "verifiedBy": "CRM-06 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented and verified with sandbox adapters. Production advertising, social and enrichment promotion requires configured provider credentials and provider acceptance evidence."
   },
   {
     "id": "CRM-064",

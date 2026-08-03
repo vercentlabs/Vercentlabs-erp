@@ -5,6 +5,7 @@ import {
   getCustomerSuccessDashboard,
   getCommunicationsDashboard,
   getConversationIntelligenceDashboard,
+  getLeadAcquisitionDashboard,
   getProcurementDashboard,
 } from "@vercentlabs/api";
 
@@ -60,6 +61,11 @@ const copy = {
     "CRM conversation intelligence",
     "Calls, recordings and transcripts",
     "Review telephony provider health, governed recordings, transcript jobs and conversation actions.",
+  ],
+  "crm-lead-acquisition": [
+    "CRM lead acquisition",
+    "Imports, forms, channels and enrichment",
+    "Review governed imports, published forms, provider events, open chats and enrichment proposals.",
   ],
   approvals: [
     "Approval centre",
@@ -167,6 +173,15 @@ export async function GET(
             client,
             context,
           ),
+        }),
+      );
+    } else if (area === "crm-lead-acquisition") {
+      requirePermissionFromSession(session, PERMISSIONS.crmView);
+      const context = crmContext(session);
+      data = await tenantTransaction(
+        context.organizationId,
+        async (client) => ({
+          dashboard: await getLeadAcquisitionDashboard(client, context),
         }),
       );
     } else if (area === "crm-reports") {
