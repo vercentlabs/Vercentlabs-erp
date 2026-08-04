@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const read = (path) => fs.readFileSync(path, "utf8");
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
+const read = (relativePath) =>
+  fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
 
 const workspacePages = [
   "ai-intelligence",
@@ -38,9 +45,76 @@ test("CRM product CSS is scoped and imported last", () => {
   );
 });
 
-test("CRM operational action component posts, validates and refreshes", () => {
+test("CRM workspace metrics use neutral vertical spacing", () => {
+  const css = read("apps/web/src/app/crm-product.css");
+
+  assert.match(
+    css,
+    /\.crm-product-metric\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*gap:\s*8px[^}]*padding:\s*18px/s,
+  );
+  for (const tone of ["success", "warning", "danger"]) {
+    assert.match(
+      css,
+      new RegExp(
+        `\\.crm-product-metric\\.${tone}\\s*\\{[^}]*border-color:\\s*var\\(--color-line\\)`,
+        "s",
+      ),
+    );
+  }
+  assert.match(
+    css,
+    /\.crm-standard-shell \.crm-product-metric:hover\s*\{[^}]*border-color:\s*var\(--color-line\)/s,
+  );
+});
+
+test("CRM action fields align without stretching paired controls", () => {
+  const css = read("apps/web/src/app/crm-product.css");
+
+  assert.match(
+    css,
+    /\.crm-action-fields\s*\{[^}]*align-items:\s*start[^}]*column-gap:\s*18px[^}]*row-gap:\s*18px/s,
+  );
+  assert.match(
+    css,
+    /\.crm-action-field\s*\{[^}]*grid-auto-rows:\s*max-content[^}]*align-content:\s*start[^}]*align-self:\s*start/s,
+  );
+  assert.match(
+    css,
+    /\.crm-action-field > span\s*\{[^}]*align-items:\s*center[^}]*line-height:\s*18px/s,
+  );
+});
+
+test("every CRM route family inherits the dashboard design language", () => {
+  const css = read("apps/web/src/app/crm-product.css");
+  const crmLayout = read("apps/web/src/app/(app)/crm/layout.tsx");
+
+  assert.match(crmLayout, /crm-standard-shell crm-workbench/);
+  for (const selector of [
+    ".page-heading",
+    ".module-hero",
+    ".module-metric-card",
+    ".business-data-layout",
+    ".crm-resource-layout",
+    ".crm-detail-list",
+    ".crm-timeline",
+    ".crm-kanban-column",
+    ".crm-report-grid",
+    ".settings-grid",
+  ]) {
+    assert.match(
+      css,
+      new RegExp(`\\.crm-standard-shell \\${selector.replace(".", ".")}`),
+      selector,
+    );
+  }
+  assert.match(css, /@media \(max-width: 960px\)/);
+  assert.match(css, /@media \(max-width: 720px\)/);
+});
+
+test("CRM operational action component submits resilient requests, validates and refreshes", () => {
   const source = read("apps/web/src/components/crm/crm-action-workbench.tsx");
-  assert.match(source, /fetch\(endpoint/);
+  assert.match(source, /requestJson<Record<string, unknown>>\(endpoint/);
+  assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.match(source, /JSON\.parse/);
   assert.match(source, /router\.refresh\(\)/);
   assert.match(source, /aria-live/);

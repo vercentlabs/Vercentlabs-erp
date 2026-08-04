@@ -249,7 +249,6 @@ export default async function LeadAcquisitionPage() {
       actions={[
         { href: "/crm/leads", label: "Leads" },
         { href: "/crm/marketing", label: "Marketing" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Operate imports, form publishing, advertising and social adapters, chat capture and reviewable enrichment."
       eyebrow="Lead acquisition"

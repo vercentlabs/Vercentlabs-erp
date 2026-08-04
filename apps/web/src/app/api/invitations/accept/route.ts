@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { validateInvitationRolesForAcceptance } from "@/lib/access-administration";
+
 import {
   createSession,
   hashPassword,
@@ -143,6 +145,10 @@ export async function POST(request: Request) {
       if (!invitation || invitation.id !== invitationSnapshot.id) {
         throw new HttpError(400, invalidInvitation);
       }
+      await validateInvitationRolesForAcceptance(client, {
+        organizationId: invitation.organization_id,
+        invitationId: invitation.id,
+      });
 
       const currentUserResult = await client.query<{
         id: string;
@@ -213,22 +219,37 @@ export async function POST(request: Request) {
         [invitation.organization_id, userId, legacyRole],
       );
       await client.query(
-        `
-          DELETE FROM user_role_assignments
-          WHERE organization_id = $1 AND user_id = $2
-        `,
+        `UPDATE user_role_assignments
+            SET status='revoked',is_primary=false,revoked_at=now(),updated_at=now(),
+                reason='Replaced by accepted invitation'
+          WHERE organization_id=$1 AND user_id=$2 AND status='active'`,
         [invitation.organization_id, userId],
       );
-      await client.query(
-        `
-          INSERT INTO user_role_assignments (
-            organization_id, user_id, role_id, assigned_by
-          )
-          SELECT organization_id, $2, role_id, invited_by
-          FROM organization_invitations
-          WHERE id = $1
-        `,
+      const assignedRoleIds = await client.query<{ role_id: string }>(
+        `INSERT INTO user_role_assignments(
+           organization_id,user_id,role_id,assigned_by,is_primary,starts_at,
+           expires_at,status,reason
+         )
+         SELECT invitation_role.organization_id,$2,invitation_role.role_id,
+                invitation.invited_by,invitation_role.is_primary,
+                invitation_role.starts_at,invitation_role.expires_at,'active',
+                'Accepted organisation invitation'
+         FROM organization_invitation_roles invitation_role
+         JOIN organization_invitations invitation ON invitation.id=invitation_role.invitation_id
+         WHERE invitation_role.invitation_id=$1
+         ON CONFLICT(organization_id,user_id,role_id) DO UPDATE SET
+           assigned_by=EXCLUDED.assigned_by,is_primary=EXCLUDED.is_primary,
+           starts_at=EXCLUDED.starts_at,expires_at=EXCLUDED.expires_at,
+           status='active',reason=EXCLUDED.reason,revoked_at=NULL,revoked_by=NULL,
+           updated_at=now()
+         RETURNING role_id`,
         [invitation.id, userId],
+      );
+      if (!assignedRoleIds.rowCount)
+        throw new HttpError(409, invalidInvitation);
+      const assignedRoles = await client.query<{ role_name: string }>(
+        `SELECT name AS role_name FROM roles WHERE id=ANY($1::uuid[]) ORDER BY name`,
+        [assignedRoleIds.rows.map((row) => row.role_id)],
       );
 
       await client.query(
@@ -250,6 +271,11 @@ export async function POST(request: Request) {
           DELETE FROM membership_department_access
           WHERE organization_id = $1 AND user_id = $2
         `,
+        [invitation.organization_id, userId],
+      );
+      await client.query(
+        `DELETE FROM membership_team_access
+          WHERE organization_id=$1 AND user_id=$2`,
         [invitation.organization_id, userId],
       );
 
@@ -348,6 +374,16 @@ export async function POST(request: Request) {
         `,
         [invitation.id, userId],
       );
+      await client.query(
+        `INSERT INTO membership_team_access(organization_id,user_id,team_id)
+         SELECT scope.organization_id,$2,scope.team_id
+         FROM organization_invitation_team_access scope
+         JOIN teams team ON team.organization_id=scope.organization_id
+           AND team.id=scope.team_id AND team.status='active'
+         WHERE scope.invitation_id=$1
+         ON CONFLICT DO NOTHING`,
+        [invitation.id, userId],
+      );
 
       await client.query(
         `
@@ -406,7 +442,21 @@ export async function POST(request: Request) {
         [
           invitation.organization_id,
           userId,
-          `You joined the organisation as ${invitation.role_name}.`,
+          `You joined the organisation with ${assignedRoles.rows.map((row) => row.role_name).join(" + ")}.`,
+        ],
+      );
+
+      await client.query(
+        `INSERT INTO access_assignment_events(
+           organization_id,user_id,actor_user_id,event_type,before_state,after_state
+         ) VALUES($1,$2,NULL,'invitation_accepted',NULL,$3::jsonb)`,
+        [
+          invitation.organization_id,
+          userId,
+          JSON.stringify({
+            roleNames: assignedRoles.rows.map((row) => row.role_name),
+            invitationId: invitation.id,
+          }),
         ],
       );
 

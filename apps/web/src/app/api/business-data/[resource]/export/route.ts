@@ -40,8 +40,8 @@ export async function GET(
       }),
     );
 
-    const columns = businessDataDefinitions[resource].columns.map(
-      (column) => column.key,
+    const columns = businessDataDefinitions[resource].fields.map(
+      (field) => field.name,
     );
     const rows = [
       columns.map(csvCell).join(","),

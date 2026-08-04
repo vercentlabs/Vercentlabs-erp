@@ -225,8 +225,7 @@
       "services/api/src/crm.js",
       "database/tenant/migrations/003_crm_enterprise_core.sql",
       "apps/web/src/app/(app)/crm/[resource]/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -250,8 +249,7 @@
       "services/api/src/crm/foundation.js",
       "apps/web/src/app/api/crm/accounts/duplicates/route.ts",
       "apps/web/src/app/api/crm/relationships/graph/route.ts",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -275,8 +273,7 @@
       "services/api/src/crm.js",
       "apps/web/src/app/api/crm/activities/[id]/complete/route.ts",
       "apps/mobile/src/modules/crm/data/sync.ts",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -300,8 +297,7 @@
       "services/api/src/crm.js",
       "apps/web/src/app/api/crm/relationships/graph/route.ts",
       "database/tenant/migrations/003_crm_enterprise_core.sql",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -325,8 +321,7 @@
       "services/api/src/crm.js",
       "apps/web/src/app/api/crm/reports/[report]/route.ts",
       "apps/web/src/app/(app)/crm/reports/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -350,8 +345,7 @@
       "services/api/src/crm.js",
       "apps/web/src/app/api/crm/[resource]/route.ts",
       "apps/web/src/app/(app)/crm/[resource]/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -375,8 +369,7 @@
       "services/api/src/crm.js",
       "database/tenant/migrations/003_crm_enterprise_core.sql",
       "apps/web/src/app/(app)/crm/[resource]/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -400,8 +393,7 @@
       "services/api/src/crm.js",
       "database/tenant/migrations/005_crm_completion_pack.sql",
       "apps/web/src/app/(app)/crm/[resource]/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -425,8 +417,7 @@
       "services/api/src/crm/lead-governance.js",
       "apps/web/src/app/api/crm/leads/duplicates/route.ts",
       "apps/web/src/app/api/crm/leads/[id]/merge/route.ts",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -451,8 +442,7 @@
       "services/api/src/crm/opportunity-operations.js",
       "apps/web/src/app/api/crm/reports/[report]/route.ts",
       "apps/web/src/app/(app)/crm/pipeline/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -477,8 +467,7 @@
       "services/api/src/crm/lead-governance.js",
       "database/tenant/migrations/017_crm_lead_governance.sql",
       "apps/web/src/app/api/crm/leads/operations/route.ts",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -503,8 +492,7 @@
       "services/api/src/crm.js",
       "apps/web/src/app/api/crm/public/capture/[key]/route.ts",
       "apps/mobile/src/modules/crm/components/lead-capture.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -529,8 +517,7 @@
       "services/api/src/crm.js",
       "apps/web/src/app/api/crm/leads/[id]/convert/route.ts",
       "apps/web/src/components/crm-lead-actions.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -555,8 +542,7 @@
       "services/api/src/crm.js",
       "services/api/src/crm/lead-governance.js",
       "apps/web/src/app/api/crm/leads/validate/route.ts",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -581,8 +567,7 @@
       "services/api/src/crm/opportunity-operations.js",
       "apps/web/src/app/api/crm/opportunities/[id]/stage/route.ts",
       "apps/web/src/app/(app)/crm/pipeline/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -607,8 +592,7 @@
       "services/api/src/crm.js",
       "database/tenant/migrations/005_crm_completion_pack.sql",
       "apps/web/src/app/(app)/crm/[resource]/page.tsx",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",
@@ -632,8 +616,7 @@
       "services/api/src/crm.js",
       "database/tenant/migrations/006_crm_release_foundation.sql",
       "apps/web/src/app/api/crm/reports/[report]/route.ts",
-      "services/api/src/crm/core-acceptance.js",
-      "apps/web/src/app/(app)/crm/readiness/page.tsx"
+      "services/api/src/crm/core-acceptance.js"
     ],
     "testPaths": [
       "services/api/tests/crm-core-acceptance-crm01.test.mjs",

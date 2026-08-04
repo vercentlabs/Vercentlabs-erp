@@ -183,7 +183,7 @@ export const administrationNavigation: readonly WorkspaceDestination[] = [
     key: "roles",
     label: "Roles & permissions",
     icon: "key-outline",
-    permission: "roles.manage",
+    permission: "roles.view",
     href: "/(protected)/workspace/roles",
   },
   {

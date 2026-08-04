@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -19,8 +20,22 @@ import {
 import { redact } from "../../packages/observability/src/index.js";
 import { csvCell } from "../../packages/reporting-engine/src/index.js";
 
+function bashExecutable() {
+  if (process.platform !== "win32") return "bash";
+
+  const located = spawnSync("where.exe", ["git.exe"], { encoding: "utf8" });
+  if (located.status === 0) {
+    for (const gitPath of located.stdout.split(/\r?\n/).filter(Boolean)) {
+      const candidate = path.resolve(path.dirname(gitPath), "../bin/bash.exe");
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+
+  return "bash";
+}
+
 test("exports, logs and attachment paths reject common data-boundary attacks", () => {
-  assert.match(csvCell("=HYPERLINK(\"https://invalid\")"), /'=/);
+  assert.match(csvCell('=HYPERLINK("https://invalid")'), /'=/);
   assert.deepEqual(redact({ password: "secret", safe: "visible" }), {
     password: "[REDACTED]",
     safe: "visible",
@@ -67,7 +82,7 @@ test("source exports include reproducibility files without native build output",
     .join("/");
   try {
     const result = spawnSync(
-      "bash",
+      bashExecutable(),
       ["export-project-code.sh", relativeOutput],
       { cwd: projectRoot, encoding: "utf8" },
     );
@@ -76,7 +91,10 @@ test("source exports include reproducibility files without native build output",
     assert.match(source, /^FILE: apps\/web\/\.env\.example$/m);
     assert.match(source, /^FILE: pnpm-lock\.yaml$/m);
     assert.doesNotMatch(source, /^FILE: apps\/mobile\/android\//m);
-    assert.doesNotMatch(source, /^FILE: vercentlabs-source-export-regression-/m);
+    assert.doesNotMatch(
+      source,
+      /^FILE: vercentlabs-source-export-regression-/m,
+    );
     assert.doesNotMatch(source, /^FILE: .*\.env\.local$/m);
   } finally {
     rmSync(directory, { recursive: true, force: true });

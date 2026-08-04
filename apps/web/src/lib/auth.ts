@@ -310,7 +310,20 @@ async function resolveSessionContext(
       WHERE company.organization_id = membership.organization_id
         AND company.status = 'active'
         AND (
-          membership.role IN ('owner', 'admin')
+          EXISTS (
+            SELECT 1
+            FROM user_role_assignments AS unrestricted_assignment
+            JOIN roles AS unrestricted_role
+              ON unrestricted_role.id = unrestricted_assignment.role_id
+             AND unrestricted_role.organization_id = membership.organization_id
+             AND unrestricted_role.slug IN ('organization_owner', 'system_administrator')
+             AND unrestricted_role.status = 'active'
+            WHERE unrestricted_assignment.organization_id = membership.organization_id
+              AND unrestricted_assignment.user_id = app_user.id
+              AND unrestricted_assignment.status = 'active'
+              AND unrestricted_assignment.starts_at <= now()
+              AND (unrestricted_assignment.expires_at IS NULL OR unrestricted_assignment.expires_at > now())
+          )
           OR EXISTS (
             SELECT 1
             FROM membership_company_access AS company_access
@@ -333,7 +346,20 @@ async function resolveSessionContext(
         AND branch.company_id = active_company.id
         AND branch.status = 'active'
         AND (
-          membership.role IN ('owner', 'admin')
+          EXISTS (
+            SELECT 1
+            FROM user_role_assignments AS unrestricted_assignment
+            JOIN roles AS unrestricted_role
+              ON unrestricted_role.id = unrestricted_assignment.role_id
+             AND unrestricted_role.organization_id = membership.organization_id
+             AND unrestricted_role.slug IN ('organization_owner', 'system_administrator')
+             AND unrestricted_role.status = 'active'
+            WHERE unrestricted_assignment.organization_id = membership.organization_id
+              AND unrestricted_assignment.user_id = app_user.id
+              AND unrestricted_assignment.status = 'active'
+              AND unrestricted_assignment.starts_at <= now()
+              AND (unrestricted_assignment.expires_at IS NULL OR unrestricted_assignment.expires_at > now())
+          )
           OR EXISTS (
             SELECT 1
             FROM membership_branch_access AS branch_access
@@ -370,6 +396,9 @@ async function resolveSessionContext(
         ON role_permission.role_id = role.id
       WHERE assignment.organization_id = membership.organization_id
         AND assignment.user_id = app_user.id
+        AND assignment.status = 'active'
+        AND assignment.starts_at <= now()
+        AND (assignment.expires_at IS NULL OR assignment.expires_at > now())
     ) AS access_context ON true
     WHERE session.token_hash = $1
       AND session.session_type = $2

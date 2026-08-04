@@ -208,7 +208,6 @@ export default async function CrmCommunicationsPage() {
       actions={[
         { href: "/crm/activities", label: "Activities" },
         { href: "/crm/engagement-templates", label: "Templates" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Operate shared inboxes, provider synchronisation, governed outbound messaging, engagement evidence and meeting operations."
       eyebrow="Communications"

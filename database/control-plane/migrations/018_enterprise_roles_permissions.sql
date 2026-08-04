@@ -47,8 +47,8 @@ ALTER TABLE user_role_assignments VALIDATE CONSTRAINT user_role_assignments_stat
 ALTER TABLE user_role_assignments VALIDATE CONSTRAINT user_role_assignments_period_check;
 
 WITH ranked AS (
-  SELECT organization_id,user_id,role_id,
-         row_number() OVER (PARTITION BY organization_id,user_id ORDER BY CASE WHEN r.slug='organization_owner' THEN 0 WHEN r.slug='system_administrator' THEN 1 ELSE 2 END, ura.created_at, ura.role_id) AS rn
+  SELECT ura.organization_id,ura.user_id,ura.role_id,
+         row_number() OVER (PARTITION BY ura.organization_id,ura.user_id ORDER BY CASE WHEN r.slug='organization_owner' THEN 0 WHEN r.slug='system_administrator' THEN 1 ELSE 2 END, ura.created_at, ura.role_id) AS rn
   FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
   WHERE ura.status='active'
 )

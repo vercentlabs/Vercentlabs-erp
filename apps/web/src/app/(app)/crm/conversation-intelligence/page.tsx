@@ -252,7 +252,6 @@ export default async function ConversationIntelligencePage() {
       actions={[
         { href: "/crm/communications", label: "Communications" },
         { href: "/crm/activities", label: "Activities" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Operate telephony commands, consent-controlled recordings, transcription queues, summaries and action items."
       eyebrow="Conversation intelligence"

@@ -46,7 +46,6 @@ export default async function MobileReadiness() {
       actions={[
         { href: "/crm/leads", label: "Leads" },
         { href: "/crm/pipeline", label: "Pipeline" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Inspect mobile parity, offline mutation evidence, change cursors, dead-letter recovery and declared test-path integrity."
       eyebrow="Mobile CRM readiness"

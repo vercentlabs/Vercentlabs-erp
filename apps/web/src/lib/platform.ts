@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { initializeAccountingCompany, seedBusinessDataFoundation } from "@vercentlabs/api";
+import {
+  initializeAccountingCompany,
+  seedBusinessDataFoundation,
+} from "@vercentlabs/api";
 import { setTenantContext } from "@vercentlabs/database";
 import { ALL_PERMISSIONS } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
@@ -182,16 +185,40 @@ function permissionsForRole(slug: string) {
   if (slug === "purchase_manager") {
     return [
       ...baseWorkspacePermissions,
-      "approvals.manage","business_data.view","parties.manage","items.manage","finance_setup.manage",
-      "procurement.view","procurement.settings.manage","procurement.suppliers.view","procurement.suppliers.manage",
-      "procurement.suppliers.qualify","procurement.catalog.manage","procurement.requisition.create",
-      "procurement.requisition.manage","procurement.requisition.approve","procurement.sourcing.manage",
-      "procurement.sourcing.evaluate","procurement.sourcing.award","procurement.contracts.manage",
-      "procurement.contracts.approve","procurement.po.create","procurement.po.manage","procurement.po.approve",
-      "procurement.po.dispatch","procurement.po.amend","procurement.po.cancel","procurement.receipts.manage",
-      "procurement.receipts.approve","procurement.inspection.manage","procurement.returns.manage",
-      "procurement.matching.manage","procurement.matching.override","procurement.supplier_portal.manage",
-      "procurement.reports.view","procurement.audit.view"
+      "approvals.manage",
+      "business_data.view",
+      "parties.manage",
+      "items.manage",
+      "finance_setup.manage",
+      "procurement.view",
+      "procurement.settings.manage",
+      "procurement.suppliers.view",
+      "procurement.suppliers.manage",
+      "procurement.suppliers.qualify",
+      "procurement.catalog.manage",
+      "procurement.requisition.create",
+      "procurement.requisition.manage",
+      "procurement.requisition.approve",
+      "procurement.sourcing.manage",
+      "procurement.sourcing.evaluate",
+      "procurement.sourcing.award",
+      "procurement.contracts.manage",
+      "procurement.contracts.approve",
+      "procurement.po.create",
+      "procurement.po.manage",
+      "procurement.po.approve",
+      "procurement.po.dispatch",
+      "procurement.po.amend",
+      "procurement.po.cancel",
+      "procurement.receipts.manage",
+      "procurement.receipts.approve",
+      "procurement.inspection.manage",
+      "procurement.returns.manage",
+      "procurement.matching.manage",
+      "procurement.matching.override",
+      "procurement.supplier_portal.manage",
+      "procurement.reports.view",
+      "procurement.audit.view",
     ];
   }
 
@@ -290,7 +317,16 @@ async function seedCrmFoundation(
   for (const stage of [
     ["Qualification", "QUALIFICATION", 10, 10, "pipeline", false, false, 7],
     ["Needs analysis", "NEEDS_ANALYSIS", 20, 25, "pipeline", false, false, 10],
-    ["Value proposition", "VALUE_PROPOSITION", 30, 40, "best_case", false, false, 14],
+    [
+      "Value proposition",
+      "VALUE_PROPOSITION",
+      30,
+      40,
+      "best_case",
+      false,
+      false,
+      14,
+    ],
     ["Proposal", "PROPOSAL", 40, 60, "best_case", false, false, 14],
     ["Negotiation", "NEGOTIATION", 50, 80, "committed", false, false, 10],
     ["Closed won", "CLOSED_WON", 60, 100, "closed", true, false, null],
@@ -477,7 +513,8 @@ export async function seedOrganizationFoundation(
   );
 
   for (const moduleEntry of moduleCatalog) {
-    const status = moduleEntry.availability === "released" ? "enabled" : "disabled";
+    const status =
+      moduleEntry.availability === "released" ? "enabled" : "disabled";
     await client.query(
       `INSERT INTO organization_modules (
         organization_id, module_key, name, status, enabled_at

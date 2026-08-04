@@ -134,7 +134,6 @@ export default async function LeadIntelligencePage() {
       actions={[
         { href: "/crm/leads", label: "Leads" },
         { href: "/crm/activities", label: "Activities" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Operate explainable scoring, response deadlines, escalations and the consent-aware seller nurture queue."
       eyebrow="Lead intelligence"

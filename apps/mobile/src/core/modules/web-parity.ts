@@ -309,6 +309,21 @@ export const protectedWebParity: readonly WebParityEntry[] = [
     delivery: "native",
   },
   {
+    web: "/crm/partner-engagement",
+    mobile: "/(protected)/workspace/crm-partner-engagement",
+    delivery: "native",
+  },
+  {
+    web: "/crm/ai-intelligence",
+    mobile: "/(protected)/workspace/crm-ai-intelligence",
+    delivery: "native",
+  },
+  {
+    web: "/crm/mobile-readiness",
+    mobile: "/(protected)/workspace/crm-mobile-readiness",
+    delivery: "native",
+  },
+  {
     web: "/crm/[resource]",
     mobile: "/(protected)/workspace/crm/[resource]",
     delivery: "native",
@@ -371,11 +386,6 @@ export const protectedWebParity: readonly WebParityEntry[] = [
   {
     web: "/master-data/[resource]",
     mobile: "/(protected)/workspace/master-data/[resource]",
-    delivery: "native",
-  },
-  {
-    web: "/modules",
-    mobile: "/(protected)/workspace/modules",
     delivery: "native",
   },
   {
@@ -454,15 +464,5 @@ export const authenticationWebParity: readonly WebParityEntry[] = [
     web: "/verify-email",
     mobile: "/verify-email",
     delivery: "secure-browser-handoff",
-  },
-  {
-    web: "/crm/partner-engagement",
-    mobile: "/(protected)/workspace/crm-partner-engagement",
-    delivery: "native",
-  },
-  {
-    web: "/crm/ai-intelligence",
-    mobile: "/(protected)/workspace/crm-ai-intelligence",
-    delivery: "native",
   },
 ];

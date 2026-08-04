@@ -277,7 +277,6 @@ export default async function AiPage() {
       actions={[
         { href: "/crm/opportunities", label: "Open opportunities" },
         { href: "/crm/communications", label: "Communications" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Review explainable recommendations, grounded drafts, relationship signals and deal risk with mandatory human approval."
       eyebrow="CRM intelligence"

@@ -122,7 +122,7 @@ export default async function DashboardPage() {
       description: "Access roles in use",
       icon: "roles",
       href: "/settings/roles",
-      permission: PERMISSIONS.rolesManage,
+      permission: PERMISSIONS.rolesView,
     },
   ];
 
@@ -244,22 +244,26 @@ export default async function DashboardPage() {
                 !metric.permission || hasPermission(session, metric.permission),
             )
             .map((metric) => (
-            <Link
-              className={`metric-card${metric.attention ? " attention" : ""}`}
-              href={metric.href}
-              key={metric.label}
-            >
-              <span className="metric-icon" aria-hidden="true">
-                <AppIcon name={metric.icon} size={21} />
-              </span>
-              <span className="metric-copy">
-                <small>{metric.label}</small>
-                <strong>{metric.value}</strong>
-                <span>{metric.description}</span>
-              </span>
-              <AppIcon className="metric-arrow" name="arrow-right" size={17} />
-            </Link>
-          ))}
+              <Link
+                className={`metric-card${metric.attention ? " attention" : ""}`}
+                href={metric.href}
+                key={metric.label}
+              >
+                <span className="metric-icon" aria-hidden="true">
+                  <AppIcon name={metric.icon} size={21} />
+                </span>
+                <span className="metric-copy">
+                  <small>{metric.label}</small>
+                  <strong>{metric.value}</strong>
+                  <span>{metric.description}</span>
+                </span>
+                <AppIcon
+                  className="metric-arrow"
+                  name="arrow-right"
+                  size={17}
+                />
+              </Link>
+            ))}
         </div>
       </section>
 
@@ -277,17 +281,17 @@ export default async function DashboardPage() {
           {quickActions
             .filter((action) => hasPermission(session, action.permission))
             .map((action) => (
-            <Link href={action.href} key={action.href}>
-              <span aria-hidden="true">
-                <AppIcon name={action.icon} size={20} />
-              </span>
-              <div>
-                <strong>{action.label}</strong>
-                <small>{action.description}</small>
-              </div>
-              <AppIcon name="arrow-right" size={16} />
-            </Link>
-          ))}
+              <Link href={action.href} key={action.href}>
+                <span aria-hidden="true">
+                  <AppIcon name={action.icon} size={20} />
+                </span>
+                <div>
+                  <strong>{action.label}</strong>
+                  <small>{action.description}</small>
+                </div>
+                <AppIcon name="arrow-right" size={16} />
+              </Link>
+            ))}
         </div>
       </section>
 
@@ -331,7 +335,7 @@ export default async function DashboardPage() {
         </article>
 
         {canViewAudit ? (
-        <article className="panel governance-panel">
+          <article className="panel governance-panel">
             <div className="card-title-row">
               <div>
                 <p className="eyebrow">Recent governance</p>

@@ -104,9 +104,6 @@ export default async function CrmDashboardPage() {
           <Link className="secondary-button" href="/crm/activities?create=1">
             Schedule activity
           </Link>
-          <Link className="secondary-button" href="/crm/readiness">
-            CRM readiness
-          </Link>
         </div>
       </section>
 
@@ -250,7 +247,7 @@ export default async function CrmDashboardPage() {
       </div>
 
       <div className="module-dashboard-grid">
-        <section className="panel module-panel module-panel-span-2">
+        <section className="panel module-panel">
           <div className="module-section-heading">
             <div>
               <p className="eyebrow">Seller work queue</p>
@@ -303,47 +300,6 @@ export default async function CrmDashboardPage() {
           </div>
         </section>
 
-        <aside className="panel module-panel workflow-launchpad">
-          <div className="module-section-heading">
-            <div>
-              <p className="eyebrow">Workflow shortcuts</p>
-              <h2>Move work forward</h2>
-            </div>
-          </div>
-          {[
-            [
-              "Qualify new demand",
-              "Review open leads and assign the next action.",
-              "/crm/leads",
-            ],
-            [
-              "Advance revenue",
-              "Update stage, close date and forecast confidence.",
-              "/crm/pipeline",
-            ],
-            [
-              "Protect relationships",
-              "Review account health and engagement gaps.",
-              "/crm/reports",
-            ],
-            [
-              "Tune the system",
-              "Manage pipelines, scoring and automations.",
-              "/crm/settings",
-            ],
-          ].map(([title, description, href], index) => (
-            <Link href={href} key={href}>
-              <span className="workflow-step-number">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span>
-                <strong>{title}</strong>
-                <small>{description}</small>
-              </span>
-              <span aria-hidden="true">→</span>
-            </Link>
-          ))}
-        </aside>
       </div>
     </div>
   );

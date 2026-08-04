@@ -158,7 +158,6 @@ export default async function PartnerEngagementPage() {
       actions={[
         { href: "/crm/accounts", label: "Accounts" },
         { href: "/crm/opportunities", label: "Opportunities" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Operate partner-sourced revenue, MDF, field sales, engagement sequences, coaching and seller incentives from one governed workspace."
       eyebrow="Partner and seller engagement"

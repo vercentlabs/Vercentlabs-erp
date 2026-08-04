@@ -64,7 +64,7 @@ test("advanced capabilities no longer crowd the primary CRM sidebar", () => {
   assert.match(shell, /activePrefixes: \["\/crm\/conversation-intelligence"\]/);
   assert.match(
     shell,
-    /activePrefixes: \["\/crm\/mobile-readiness", "\/crm\/readiness"\]/,
+    /activePrefixes: \["\/crm\/mobile-readiness"\]/,
   );
 });
 
