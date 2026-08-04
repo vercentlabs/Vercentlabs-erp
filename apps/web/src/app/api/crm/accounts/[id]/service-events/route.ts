@@ -20,10 +20,10 @@ export async function POST(
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmCommunicationsManage);
+    const body = (await readJson(request)) as Record<string, unknown>;
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await route.params;
-    const body = (await readJson(request)) as Record<string, unknown>;
     const context = crmContext(session);
     const event = await tenantTransaction(
       context.organizationId,

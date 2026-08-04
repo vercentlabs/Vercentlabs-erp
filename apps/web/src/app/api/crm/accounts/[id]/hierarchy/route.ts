@@ -40,13 +40,13 @@ export async function PATCH(
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmAccountsManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const { id } = await route.params;
     const body = (await readJson(request)) as {
       parentPartyId?: string | null;
       reason?: string;
     };
+    await requireBillingWriteAccess(session.organizationId);
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
+    const { id } = await route.params;
     const context = crmContext(session);
     const result = await tenantTransaction(
       context.organizationId,

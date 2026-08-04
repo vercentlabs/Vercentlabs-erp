@@ -37,10 +37,10 @@ export async function PATCH(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmPrivacyManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const body = (await readJson(request)) as Record<string, unknown>;
     if (!body.id) throw new HttpError(400, "Retention policy is required.");
+    await requireBillingWriteAccess(session.organizationId);
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = crmContext(session);
     const policy = await tenantTransaction(
       context.organizationId,
@@ -76,9 +76,9 @@ export async function POST(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmPrivacyManage);
+    const body = (await readJson(request)) as Record<string, unknown>;
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const body = (await readJson(request)) as Record<string, unknown>;
     const context = crmContext(session);
     const result = await tenantTransaction(
       context.organizationId,
