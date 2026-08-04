@@ -1,0 +1,330 @@
+/*
+ * Canonical CRM product experience.
+ *
+ * This stylesheet is imported after the legacy module styles and is scoped to
+ * .crm-product-shell so it cannot change Accounting, Sales or Procurement.
+ */
+
+.crm-product-shell {
+  --crm-space-1: 6px;
+  --crm-space-2: 10px;
+  --crm-space-3: 14px;
+  --crm-space-4: 18px;
+  --crm-space-5: 24px;
+  --crm-radius-control: 8px;
+  --crm-radius-card: 10px;
+  --crm-radius-panel: 12px;
+  --crm-shadow-panel: 0 8px 24px rgba(24, 27, 32, 0.07);
+  display: grid;
+  gap: var(--crm-space-5);
+}
+
+.crm-product-shell .crm-product-hero {
+  border-radius: var(--crm-radius-panel);
+  box-shadow: var(--crm-shadow-panel);
+}
+
+.crm-product-shell .panel,
+.crm-product-shell .metric-card {
+  border-radius: var(--crm-radius-card);
+  box-shadow: 0 2px 8px rgba(24, 27, 32, 0.05);
+}
+
+.crm-product-shell .primary-button,
+.crm-product-shell .secondary-button,
+.crm-product-shell input,
+.crm-product-shell select,
+.crm-product-shell textarea,
+.crm-product-shell button {
+  border-radius: var(--crm-radius-control);
+}
+
+.crm-product-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--crm-space-3);
+}
+
+.crm-product-metric {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 116px;
+}
+
+.crm-product-metric > span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crm-product-metric > strong {
+  color: var(--text-primary);
+  font-size: clamp(1.55rem, 2vw, 2.2rem);
+  line-height: 1.05;
+}
+
+.crm-product-metric > small {
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.crm-product-metric.success {
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--border));
+}
+
+.crm-product-metric.warning {
+  border-color: color-mix(in srgb, var(--color-warning) 34%, var(--border));
+}
+
+.crm-product-metric.danger {
+  border-color: color-mix(in srgb, var(--color-danger) 34%, var(--border));
+}
+
+.crm-product-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--crm-space-4);
+  margin-bottom: var(--crm-space-4);
+}
+
+.crm-product-section-heading h2,
+.crm-action-form-heading h3 {
+  margin: 3px 0 0;
+}
+
+.crm-product-section-heading p:not(.eyebrow),
+.crm-action-form-heading h3 {
+  color: var(--text-secondary);
+}
+
+.crm-action-workbench {
+  overflow: hidden;
+}
+
+.crm-action-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
+  gap: var(--crm-space-4);
+}
+
+.crm-action-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.crm-action-list button {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.crm-action-list button:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  transform: translateY(-1px);
+}
+
+.crm-action-list button.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.crm-action-list button strong {
+  font-size: 0.9rem;
+}
+
+.crm-action-list button span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.crm-action-form {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--crm-radius-card);
+  display: grid;
+  gap: var(--crm-space-4);
+  min-width: 0;
+  padding: var(--crm-space-4);
+}
+
+.crm-action-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--crm-space-3);
+}
+
+.crm-action-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.crm-action-field > span {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.crm-action-field > span b {
+  color: var(--color-danger);
+}
+
+.crm-action-field input,
+.crm-action-field select,
+.crm-action-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.crm-action-field textarea {
+  resize: vertical;
+}
+
+.crm-action-field input:focus,
+.crm-action-field select:focus,
+.crm-action-field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+.crm-action-field small,
+.crm-action-checkbox small {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.crm-action-checkbox {
+  border: 1px solid var(--border);
+  border-radius: var(--crm-radius-control);
+  display: flex;
+  gap: 10px;
+  padding: 11px 12px;
+}
+
+.crm-action-checkbox input {
+  margin-top: 2px;
+}
+
+.crm-action-checkbox span {
+  display: grid;
+  gap: 3px;
+}
+
+.crm-action-submit-row {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--crm-space-3);
+  padding-top: var(--crm-space-3);
+}
+
+.crm-action-submit-row code {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.crm-action-result {
+  border: 1px dashed var(--border);
+  border-radius: var(--crm-radius-control);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  min-height: 62px;
+  padding: 12px;
+}
+
+.crm-action-result strong {
+  color: var(--text-primary);
+}
+
+.crm-action-result pre {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.crm-product-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--crm-space-4);
+}
+
+.crm-product-data-grid > .panel {
+  min-width: 0;
+}
+
+.crm-product-provider-note {
+  border-left: 4px solid var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.crm-product-provider-note h2 {
+  margin-bottom: 6px;
+}
+
+.crm-product-provider-note p {
+  margin: 0;
+}
+
+.crm-product-provider-note code {
+  overflow-wrap: anywhere;
+}
+
+.crm-product-shell .empty-state {
+  min-height: 220px;
+  display: grid;
+  place-content: center;
+}
+
+@media (max-width: 1100px) {
+  .crm-product-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crm-action-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-action-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .crm-product-metrics,
+  .crm-product-data-grid,
+  .crm-action-fields,
+  .crm-action-list {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-action-submit-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
