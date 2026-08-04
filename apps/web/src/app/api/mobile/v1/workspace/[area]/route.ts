@@ -10,6 +10,7 @@ import {
   getMarketingDashboard,
   getOpportunityRevenueDashboard,
   getPartnerEngagementDashboard,
+  getCrmAiDashboard,
   getProcurementDashboard,
 } from "@vercentlabs/api";
 
@@ -90,6 +91,16 @@ const copy = {
     "CRM partner and engagement",
     "Partners, field sales and coaching",
     "Review deal registration, MDF, visits, sequence branches, coaching and gamification.",
+  ],
+  "crm-ai-intelligence": [
+    "Governed CRM AI",
+    "Recommendations, relationships and deal risk",
+    "Review explainable actions, relationship health, assistant drafts and risk signals.",
+  ],
+  "crm-mobile-readiness": [
+    "CRM final readiness",
+    "Offline sync and acceptance",
+    "Review encrypted offline workflows, conflict handling and 83-capability completion evidence.",
   ],
   approvals: [
     "Approval centre",
@@ -244,6 +255,26 @@ export async function GET(
           dashboard: await getPartnerEngagementDashboard(client, context),
         }),
       );
+    } else if (area === "crm-ai-intelligence") {
+      requirePermissionFromSession(session, PERMISSIONS.crmView);
+      const context = crmContext(session);
+      data = await tenantTransaction(
+        context.organizationId,
+        async (client) => ({
+          dashboard: await getCrmAiDashboard(client, context),
+        }),
+      );
+    } else if (area === "crm-mobile-readiness") {
+      requirePermissionFromSession(session, PERMISSIONS.crmView);
+      data = {
+        offline: {
+          encrypted: true,
+          maxAttempts: 5,
+          batchSize: 50,
+          conflictStrategies: ["server-wins", "client-wins", "field-merge"],
+        },
+        capabilityCount: 83,
+      };
     } else if (area === "crm-reports") {
       requirePermissionFromSession(session, PERMISSIONS.crmReportsView);
       const names = [

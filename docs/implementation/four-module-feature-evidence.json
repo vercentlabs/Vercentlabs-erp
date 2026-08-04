@@ -1718,13 +1718,26 @@
     "module": "CRM",
     "subdomain": "Mobility",
     "capability": "Offline mobile CRM create, stage and activity workflows",
-    "registerStatus": "Needs hardening",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Encrypted offline CRM and queued commands exist, but stale-command conflicts, retry limits and dead-letter handling are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/039_crm_offline_completion.sql",
+      "services/api/src/crm/offline-sync.js",
+      "services/api/src/crm/offline-sync.d.ts",
+      "apps/web/src/app/api/mobile/v1/crm/offline-sync/route.ts",
+      "apps/mobile/src/modules/crm/data/offline-hardening.ts",
+      "apps/mobile/src/core/database/database.ts",
+      "apps/mobile/src/modules/crm/data/sync.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-offline-sync-crm12.test.mjs",
+      "scripts/validation/verify-crm-12-completion.mjs",
+      "apps/web/scripts/verify-crm-offline-completion-live.mjs",
+      "apps/mobile/src/core/database/database.test.ts"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-12 final guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with encrypted offline storage, bounded retries, dead-letter recovery, server idempotency, conflict evidence, cursor-based pull sync and live acceptance."
   },
   {
     "id": "CRM-073",

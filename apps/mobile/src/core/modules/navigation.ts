@@ -88,6 +88,13 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm-ai-intelligence",
   },
   {
+    key: "crm-mobile-readiness",
+    label: "CRM readiness",
+    icon: "cloud-done-outline",
+    permission: "crm.view",
+    href: "/(protected)/workspace/crm-mobile-readiness",
+  },
+  {
     key: "master-data",
     label: "Master data",
     icon: "server-outline",
