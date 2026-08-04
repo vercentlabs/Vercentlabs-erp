@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { requestJson } from "@/lib/client-request";
 
 export type CrmActionFieldOption = {
   label: string;
@@ -120,24 +121,20 @@ export default function CrmActionWorkbench({
       if (endpoint.includes("{")) {
         throw new Error("A required URL identifier is missing.");
       }
-      const response = await fetch(endpoint, {
+      const response = await requestJson<Record<string, unknown>>(endpoint, {
         method: selected.method || "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const contentType = response.headers.get("content-type") || "";
-      const value = contentType.includes("application/json")
-        ? await response.json()
-        : await response.text();
       if (!response.ok) {
-        const message =
-          typeof value === "object" && value && "error" in value
-            ? String((value as { error?: unknown }).error || "Request failed.")
-            : `Request failed with status ${response.status}.`;
-        setResult({ status: "error", message, value });
+        setResult({
+          status: "error",
+          message: response.message || "Request failed.",
+          value: response,
+        });
         return;
       }
-      setResult({ status: "success", value });
+      setResult({ status: "success", value: response });
       router.refresh();
     } catch (error) {
       setResult({
