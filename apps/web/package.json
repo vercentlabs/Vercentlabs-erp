@@ -59,7 +59,9 @@
     "crm:opportunity-revenue:live": "node scripts/verify-crm-opportunity-revenue-live.mjs",
     "crm:partner-engagement:live": "node scripts/verify-crm-partner-engagement-live.mjs",
     "crm:ai-intelligence:live": "node scripts/verify-crm-ai-intelligence-live.mjs",
-    "crm:offline-completion:live": "node scripts/verify-crm-offline-completion-live.mjs"
+    "crm:offline-completion:live": "node scripts/verify-crm-offline-completion-live.mjs",
+    "crm:provider-jobs": "node scripts/process-crm-provider-jobs.mjs",
+    "crm:product:live": "node scripts/verify-crm-product-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

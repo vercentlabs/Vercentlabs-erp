@@ -164,17 +164,25 @@ export function buildGenerativeAssistantDraft(input = {}) {
       "CRM_AI_FACTS_REQUIRED",
     );
   const subject = text(
-    input.subject ||
+    input.generatedSubject ||
+      input.subject ||
       `${purpose[0]?.toUpperCase() || "F"}${purpose.slice(1)} update`,
   );
-  const body = `Hello,\n\n${facts.map((f) => `• ${f}`).join("\n")}\n\nNext step: ${text(input.nextStep || "Please confirm the preferred next action.")}\n\nRegards`;
+  const body =
+    text(input.generatedBody) ||
+    `Hello,\n\n${facts.map((f) => `• ${f}`).join("\n")}\n\nNext step: ${text(input.nextStep || "Please confirm the preferred next action.")}\n\nRegards`;
+  const providerEvidence = object(input.providerEvidence);
   return {
     purpose,
     subject,
     body,
-    grounding: { facts, contextHash: crmAiHash(context) },
+    grounding: {
+      facts,
+      contextHash: crmAiHash(context),
+      ...(Object.keys(providerEvidence).length ? { providerEvidence } : {}),
+    },
     requiresHumanApproval: true,
-    contentHash: crmAiHash({ purpose, subject, body, facts }),
+    contentHash: crmAiHash({ purpose, subject, body, facts, providerEvidence }),
   };
 }
 export function calculateDealRisk(input = {}) {
