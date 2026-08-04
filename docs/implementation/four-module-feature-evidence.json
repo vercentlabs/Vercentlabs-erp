@@ -1099,39 +1099,72 @@
     "module": "CRM",
     "subdomain": "Forecasting",
     "capability": "Forecast snapshots and audit history",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Forecast periods and submissions exist, but immutable snapshots and comparison across submissions are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-052",
     "module": "CRM",
     "subdomain": "Forecasting",
     "capability": "Predictive forecasting",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Pipeline inspections and risk records exist, but a trained predictive forecast with explainability is not complete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-053",
     "module": "CRM",
     "subdomain": "Forecasting",
     "capability": "Quota seasonality and quota allocation workflows",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Quota records exist without mature seasonality, top-down allocation and approval."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-054",
@@ -1572,65 +1605,120 @@
     "module": "CRM",
     "subdomain": "Opportunity management",
     "capability": "Opportunity product and recurring-revenue lines",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Opportunity items exist; enterprise recurring-revenue schedules and line-level forecasting are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-074",
     "module": "CRM",
     "subdomain": "Opportunity management",
     "capability": "Opportunity team and revenue split",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Teams and ownership exist, but line-level team roles and revenue-credit splits are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-075",
     "module": "CRM",
     "subdomain": "Opportunity management",
     "capability": "Win-loss analysis programme",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Lost reasons and reports exist, but structured interviews, competitor analysis and trend analysis are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-076",
     "module": "CRM",
     "subdomain": "Opportunity management",
     "capability": "Mutual action plans",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Account plans and playbooks exist, but customer-visible mutual plans with milestones and owners are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-077",
     "module": "CRM",
     "subdomain": "Opportunity management",
     "capability": "Opportunity cloning and deal templates",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No governed clone/template workflow was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/036_crm_opportunity_revenue_intelligence.sql",
+      "services/api/src/crm/opportunity-revenue-intelligence.js",
+      "services/api/src/crm/opportunity-revenue-intelligence.d.ts",
+      "apps/web/src/app/api/crm/opportunity-revenue",
+      "apps/web/src/app/(app)/crm/opportunity-revenue/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/opportunity-revenue/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-opportunity-revenue-crm09.test.mjs",
+      "scripts/validation/verify-crm-09-opportunity-revenue.mjs",
+      "apps/web/scripts/verify-crm-opportunity-revenue-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-03",
+    "verifiedBy": "CRM-09 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with exact recurring-revenue schedules, balanced team splits, customer-visible mutual action plans, governed cloning, structured win/loss reviews, explainable forecast snapshots, and exact quota seasonality allocations."
   },
   {
     "id": "CRM-078",

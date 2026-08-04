@@ -961,6 +961,55 @@ export function WorkspacePage({ area }: { area: string }) {
         </View>
       );
     }
+    if (area === "crm-opportunity-revenue") {
+      const dashboard = (data.dashboard || {}) as Row;
+      const summary = (dashboard.summary || {}) as Row;
+      const forecast = (dashboard.latestForecast || {}) as Row;
+      const winLoss = (dashboard.winLoss || {}) as Row;
+      return (
+        <View style={{ gap: spacing.xl }}>
+          <View
+            style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}
+          >
+            <Metric
+              label="Open opportunities"
+              value={summary.open_opportunities || 0}
+              icon="briefcase-outline"
+            />
+            <Metric
+              label="Open pipeline"
+              value={summary.open_pipeline || 0}
+              icon="trending-up-outline"
+            />
+            <Metric
+              label="Predicted revenue"
+              value={forecast.predicted_amount || 0}
+              icon="analytics-outline"
+            />
+            <Metric
+              label="Win / loss"
+              value={`${String(winLoss.won || 0)} / ${String(winLoss.lost || 0)}`}
+              icon="trophy-outline"
+            />
+          </View>
+          <Text style={{ ...type.heading, color: colors.text }}>
+            Mutual action plans
+          </Text>
+          {((dashboard.actionPlans || []) as Row[]).map((row) => (
+            <RecordCard
+              key={String(row.id)}
+              row={row}
+              fields={[
+                "status",
+                "target_close_date",
+                "milestones",
+                "completed",
+              ]}
+            />
+          ))}
+        </View>
+      );
+    }
     if (area === "profile") {
       const user = data.user as Row;
       return (
