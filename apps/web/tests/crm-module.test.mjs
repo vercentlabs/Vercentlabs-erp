@@ -31,6 +31,10 @@ test("CRM web includes dashboard, list, detail, pipeline, reports and settings s
   for (const file of [
     "apps/web/src/app/(app)/crm/page.tsx",
     "apps/web/src/app/(app)/crm/[resource]/page.tsx",
+    "apps/web/src/app/(app)/crm/accounts/page.tsx",
+    "apps/web/src/app/(app)/crm/contacts/page.tsx",
+    "apps/web/src/app/(app)/crm/accounts/[id]/page.tsx",
+    "apps/web/src/app/(app)/crm/contacts/[id]/page.tsx",
     "apps/web/src/app/(app)/crm/leads/[id]/page.tsx",
     "apps/web/src/app/(app)/crm/opportunities/[id]/page.tsx",
     "apps/web/src/app/(app)/crm/pipeline/page.tsx",

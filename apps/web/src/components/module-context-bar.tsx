@@ -9,6 +9,7 @@ type ModuleLink = {
   href: string;
   label: string;
   exact?: boolean;
+  activePrefixes?: string[];
 };
 
 type ModuleGroup = {
@@ -28,15 +29,31 @@ const quickActions: Record<string, { href: string; label: string }> = {
 };
 
 function matches(pathname: string, item: ModuleLink) {
-  if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  if (item.exact && pathname === item.href) return true;
+  if (
+    !item.exact &&
+    (pathname === item.href || pathname.startsWith(`${item.href}/`))
+  ) {
+    return true;
+  }
+  return Boolean(
+    item.activePrefixes?.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    ),
+  );
 }
 
-export default function ModuleContextBar({ modules }: { modules: ModuleGroup[] }) {
+export default function ModuleContextBar({
+  modules,
+}: {
+  modules: ModuleGroup[];
+}) {
   const pathname = usePathname();
   const activeModule = modules.find((group) => {
     const root = group.items[0]?.href;
-    return Boolean(root && (pathname === root || pathname.startsWith(`${root}/`)));
+    return Boolean(
+      root && (pathname === root || pathname.startsWith(`${root}/`)),
+    );
   });
 
   if (!activeModule) return null;
@@ -62,7 +79,10 @@ export default function ModuleContextBar({ modules }: { modules: ModuleGroup[] }
         </span>
       </div>
 
-      <nav className="module-context-tabs" aria-label={`${activeModule.label} sections`}>
+      <nav
+        className="module-context-tabs"
+        aria-label={`${activeModule.label} sections`}
+      >
         {activeModule.items.map((item) => {
           const current = matches(pathname, item);
           return (

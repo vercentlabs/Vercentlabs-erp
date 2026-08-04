@@ -84,3 +84,62 @@ test("business APIs remain in the service boundary", () => {
   assert.match(route, /requirePermissionFromSession/);
   assert.match(route, /tenantTransaction/);
 });
+
+test("business data import is a real bounded file action", () => {
+  const manager = fs.readFileSync(
+    path.join(root, "apps/web/src/components/business-data-manager.tsx"),
+    "utf8",
+  );
+  const exportRoute = fs.readFileSync(
+    path.join(
+      root,
+      "apps/web/src/app/api/business-data/[resource]/export/route.ts",
+    ),
+    "utf8",
+  );
+
+  assert.doesNotMatch(manager, /Import API ready/);
+  assert.match(manager, /\.csv,\.json,text\/csv,application\/json/);
+  assert.match(manager, /parseCsvRows/);
+  assert.match(manager, /Import up to 100 rows at a time/);
+  assert.match(manager, /\/api\/business-data\/\$\{definition\.key\}\/import/);
+  assert.match(manager, /timeoutMs: 60_000/);
+  assert.match(
+    exportRoute,
+    /definition\[resource\]\.fields|businessDataDefinitions\[resource\]\.fields/,
+  );
+});
+
+test("CRM accounts and contacts use the Leads list presentation", () => {
+  const manager = fs.readFileSync(
+    path.join(root, "apps/web/src/components/business-data-manager.tsx"),
+    "utf8",
+  );
+  const accounts = fs.readFileSync(
+    path.join(root, "apps/web/src/app/(app)/crm/accounts/page.tsx"),
+    "utf8",
+  );
+  const contacts = fs.readFileSync(
+    path.join(root, "apps/web/src/app/(app)/crm/contacts/page.tsx"),
+    "utf8",
+  );
+
+  assert.match(accounts, /presentation="crm"/);
+  assert.match(contacts, /presentation="crm"/);
+  for (const className of [
+    "crm-resource-layout",
+    "crm-list-panel",
+    "crm-toolbar",
+    "crm-toolbar-actions",
+    "crm-filter-row",
+    "table-scroll",
+    "data-table",
+    "row-actions",
+    "crm-editor",
+    "form-stack",
+  ]) {
+    assert.match(manager, new RegExp(className), className);
+  }
+  assert.match(manager, /Create the first.*to begin this workflow/);
+  assert.match(manager, /Import CSV/);
+});

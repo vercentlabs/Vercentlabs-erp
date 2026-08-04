@@ -36,7 +36,7 @@ const crmAreas = [
   },
   {
     label: "CRM administration",
-    paths: ["/crm/settings", "/crm/mobile-readiness", "/crm/readiness"],
+    paths: ["/crm/settings", "/crm/mobile-readiness"],
     items: [
       { href: "/crm/settings", label: "CRM settings" },
       { href: "/crm/mobile-readiness", label: "Release readiness" },

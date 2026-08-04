@@ -2,7 +2,8 @@
  * Canonical CRM product experience.
  *
  * This stylesheet is imported after the legacy module styles and is scoped to
- * .crm-product-shell so it cannot change Accounting, Sales or Procurement.
+ * the CRM product/layout shells so it cannot change Accounting, Sales or
+ * Procurement.
  */
 
 .crm-product-shell {
@@ -47,9 +48,11 @@
 
 .crm-product-metric {
   display: grid;
-  align-content: start;
-  gap: 4px;
-  min-height: 116px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 8px;
+  min-height: 104px;
+  padding: 18px;
 }
 
 .crm-product-metric > span {
@@ -72,15 +75,15 @@
 }
 
 .crm-product-metric.success {
-  border-color: color-mix(in srgb, var(--color-success) 34%, var(--border));
+  border-color: var(--color-line);
 }
 
 .crm-product-metric.warning {
-  border-color: color-mix(in srgb, var(--color-warning) 34%, var(--border));
+  border-color: var(--color-line);
 }
 
 .crm-product-metric.danger {
-  border-color: color-mix(in srgb, var(--color-danger) 34%, var(--border));
+  border-color: var(--color-line);
 }
 
 .crm-product-section-heading {
@@ -167,19 +170,28 @@
 .crm-action-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--crm-space-3);
+  align-items: start;
+  column-gap: 18px;
+  row-gap: 18px;
 }
 
 .crm-action-field {
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  align-self: start;
   gap: 6px;
   min-width: 0;
 }
 
 .crm-action-field > span {
+  display: flex;
+  min-height: 18px;
+  align-items: center;
   color: var(--text-primary);
   font-size: 0.8rem;
   font-weight: 700;
+  line-height: 18px;
 }
 
 .crm-action-field > span b {
@@ -199,6 +211,7 @@
 }
 
 .crm-action-field textarea {
+  display: block;
   resize: vertical;
 }
 
@@ -326,5 +339,701 @@
   .crm-action-submit-row {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+/*
+ * CRM-wide layout contract.
+ *
+ * Every CRM route sits inside this boundary, including the legacy resource
+ * and detail screens. Keep the treatment deliberately quiet: a consistent
+ * content rhythm, squarely aligned controls and restrained surfaces.
+ */
+.crm-standard-shell {
+  --crm-content-gap: 20px;
+  --crm-section-gap: 16px;
+  --crm-control-height: 40px;
+  --crm-card-radius: 10px;
+  --module-accent: var(--module-crm, var(--color-primary));
+  --module-accent-soft: var(--module-crm-soft, var(--color-primary-soft));
+  --module-accent-ink: #4d3db2;
+  display: grid;
+  gap: var(--crm-content-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.crm-standard-shell > * {
+  min-width: 0;
+}
+
+.crm-standard-shell .crm-section-tabs-shell,
+.crm-standard-shell .page-heading,
+.crm-standard-shell .crm-workbench,
+.crm-standard-shell .crm-dashboard-grid,
+.crm-standard-shell .crm-detail-grid,
+.crm-standard-shell .crm-report-grid,
+.crm-standard-shell .module-dashboard-grid,
+.crm-standard-shell .accounting-two-column,
+.crm-standard-shell .procurement-grid {
+  margin-block: 0;
+}
+
+.crm-standard-shell .crm-section-tabs-shell {
+  min-height: 52px;
+  padding: 9px 12px;
+  border-radius: var(--crm-card-radius);
+  box-shadow: none;
+}
+
+.crm-standard-shell .crm-section-tabs-heading {
+  min-width: 200px;
+}
+
+.crm-standard-shell .crm-section-tabs {
+  align-items: center;
+}
+
+.crm-standard-shell .crm-section-tabs a {
+  min-height: 34px;
+  justify-content: center;
+  padding-inline: 12px;
+  border-radius: 7px;
+}
+
+.crm-standard-shell .page-heading {
+  position: relative;
+  min-height: 108px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--crm-card-radius);
+  overflow: hidden;
+  background:
+    linear-gradient(
+      90deg,
+      var(--module-accent-soft),
+      rgba(255, 255, 255, 0.86) 42%,
+      var(--color-surface) 72%
+    ),
+    var(--color-surface);
+}
+
+.crm-standard-shell .page-heading::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--module-accent);
+  content: "";
+}
+
+.crm-standard-shell .page-heading > div:first-child {
+  min-width: 0;
+}
+
+.crm-standard-shell .page-heading h1 {
+  margin: 0;
+  font-size: clamp(24px, 2.3vw, 32px);
+  line-height: 1.15;
+}
+
+.crm-standard-shell .page-heading p:not(.eyebrow) {
+  max-width: 760px;
+  margin: 7px 0 0;
+  line-height: 1.55;
+}
+
+.crm-standard-shell .page-heading .eyebrow,
+.crm-standard-shell .module-hero .eyebrow {
+  color: var(--module-accent-ink);
+}
+
+.crm-standard-shell .page-heading > .status-badge,
+.crm-standard-shell .page-heading > .heading-actions,
+.crm-standard-shell .page-heading > .page-heading-summary {
+  flex: 0 0 auto;
+}
+
+.crm-standard-shell .module-workbench,
+.crm-standard-shell .crm-product-shell {
+  gap: var(--crm-content-gap);
+}
+
+.crm-standard-shell .module-hero {
+  min-height: 108px;
+  align-items: center;
+  padding: 20px 22px;
+  border-radius: var(--crm-card-radius);
+  background:
+    linear-gradient(
+      90deg,
+      var(--module-accent-soft),
+      rgba(255, 255, 255, 0.86) 42%,
+      var(--color-surface) 72%
+    ),
+    var(--color-surface);
+  box-shadow: none;
+}
+
+.crm-standard-shell .module-hero::before {
+  width: 3px;
+}
+
+.crm-standard-shell .module-hero-copy {
+  align-items: center;
+}
+
+.crm-standard-shell .module-hero-icon {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.crm-standard-shell .module-hero h1 {
+  font-size: clamp(24px, 2.3vw, 32px);
+}
+
+.crm-standard-shell .module-hero-actions,
+.crm-standard-shell .heading-actions,
+.crm-standard-shell .page-heading-actions,
+.crm-standard-shell .crm-toolbar-actions,
+.crm-standard-shell .form-actions,
+.crm-standard-shell .form-row {
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-standard-shell .primary-button,
+.crm-standard-shell .secondary-button {
+  min-height: var(--crm-control-height);
+  padding-inline: 14px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.crm-standard-shell .primary-button:hover,
+.crm-standard-shell .secondary-button:hover {
+  transform: none;
+}
+
+.crm-standard-shell input,
+.crm-standard-shell select,
+.crm-standard-shell textarea {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.crm-standard-shell input,
+.crm-standard-shell select {
+  min-height: var(--crm-control-height);
+}
+
+.crm-standard-shell .panel,
+.crm-standard-shell .metric-card,
+.crm-standard-shell .crm-kanban-column,
+.crm-standard-shell .crm-opportunity-card,
+.crm-standard-shell .structured-field,
+.crm-standard-shell .structured-action-card,
+.crm-standard-shell .structured-day-row {
+  border-radius: var(--crm-card-radius);
+  box-shadow: none;
+}
+
+.crm-standard-shell .panel {
+  padding: 18px;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+}
+
+.crm-standard-shell .panel:hover {
+  border-color: var(--color-line-strong);
+}
+
+.crm-standard-shell .panel h2,
+.crm-standard-shell .panel h3 {
+  margin-block: 3px 6px;
+}
+
+.crm-standard-shell .panel > p:last-child {
+  margin-bottom: 0;
+}
+
+.crm-standard-shell .panel > .eyebrow:first-child,
+.crm-standard-shell .panel > h2:first-child {
+  margin-top: 0;
+}
+
+.crm-standard-shell .crm-product-metrics,
+.crm-standard-shell .crm-metric-grid,
+.crm-standard-shell .module-metric-grid {
+  gap: var(--crm-section-gap);
+  align-items: stretch;
+}
+
+.crm-standard-shell .crm-product-metric,
+.crm-standard-shell .crm-metric-grid .metric-card,
+.crm-standard-shell .module-metric-card {
+  min-height: 104px;
+  height: 100%;
+}
+
+.crm-standard-shell .crm-product-data-grid,
+.crm-standard-shell .crm-dashboard-grid,
+.crm-standard-shell .crm-detail-grid,
+.crm-standard-shell .module-dashboard-grid,
+.crm-standard-shell .accounting-two-column {
+  gap: var(--crm-section-gap);
+  align-items: stretch;
+}
+
+.crm-standard-shell .crm-product-data-grid > .panel,
+.crm-standard-shell .crm-dashboard-grid > .panel,
+.crm-standard-shell .crm-detail-grid > .panel,
+.crm-standard-shell .module-dashboard-grid > .panel,
+.crm-standard-shell .accounting-two-column > .panel {
+  height: 100%;
+}
+
+.crm-standard-shell .crm-product-section-heading,
+.crm-standard-shell .module-section-heading,
+.crm-standard-shell .accounting-section-heading,
+.crm-standard-shell .card-title-row,
+.crm-standard-shell .crm-toolbar {
+  align-items: center;
+  gap: 16px;
+}
+
+.crm-standard-shell .crm-product-section-heading,
+.crm-standard-shell .module-section-heading,
+.crm-standard-shell .card-title-row,
+.crm-standard-shell .crm-toolbar {
+  margin-bottom: 14px;
+}
+
+.crm-standard-shell .crm-product-section-heading h2,
+.crm-standard-shell .module-section-heading h2,
+.crm-standard-shell .card-title-row h2,
+.crm-standard-shell .crm-toolbar h2 {
+  margin-bottom: 0;
+}
+
+.crm-standard-shell .crm-resource-layout {
+  gap: var(--crm-section-gap);
+  align-items: start;
+}
+
+.crm-standard-shell .crm-filter-row {
+  align-items: end;
+  gap: 10px;
+}
+
+.crm-standard-shell .crm-filter-row,
+.crm-standard-shell .business-data-filters {
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface-subtle);
+}
+
+.crm-standard-shell .table-scroll,
+.crm-standard-shell .table-panel {
+  border-radius: 8px;
+}
+
+.crm-standard-shell .data-table th,
+.crm-standard-shell .data-table td,
+.crm-standard-shell .business-data-table th,
+.crm-standard-shell .business-data-table td {
+  height: 48px;
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.crm-standard-shell .data-table th,
+.crm-standard-shell .business-data-table th {
+  color: var(--color-muted);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+}
+
+.crm-standard-shell .data-table tbody tr:hover td,
+.crm-standard-shell .business-data-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--module-accent-soft) 45%, white);
+}
+
+.crm-standard-shell .crm-stage-summary > div,
+.crm-standard-shell .activity-list article,
+.crm-standard-shell .duplicate-list > div {
+  min-height: 48px;
+  align-items: center;
+  padding-block: 10px;
+}
+
+.crm-standard-shell .crm-detail-list {
+  align-items: stretch;
+  margin: 0;
+}
+
+.crm-standard-shell .crm-detail-list > div {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px 0;
+}
+
+.crm-standard-shell .crm-detail-list dd {
+  margin-top: 0;
+}
+
+.crm-standard-shell .crm-action-layout {
+  align-items: start;
+}
+
+.crm-standard-shell .crm-action-list button,
+.crm-standard-shell .crm-action-form,
+.crm-standard-shell .crm-action-result,
+.crm-standard-shell .crm-action-checkbox {
+  border-radius: 8px;
+}
+
+.crm-standard-shell .empty-state {
+  min-height: 160px;
+  align-items: center;
+  justify-items: center;
+}
+
+/* Dashboard component language shared by every CRM surface. */
+.crm-standard-shell .module-metric-card,
+.crm-standard-shell .crm-product-metric,
+.crm-standard-shell .metric-card {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+}
+
+.crm-standard-shell .module-metric-card:hover,
+.crm-standard-shell .metric-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--metric-tone, var(--module-accent)) 32%,
+    var(--color-line)
+  );
+  transform: none;
+}
+
+.crm-standard-shell .crm-product-metric:hover {
+  border-color: var(--color-line);
+  transform: none;
+}
+
+.crm-standard-shell .attention-strip {
+  overflow: hidden;
+  margin: 0;
+  border-radius: var(--crm-card-radius);
+  box-shadow: none;
+}
+
+.crm-standard-shell .attention-strip > a,
+.crm-standard-shell .attention-strip > div {
+  min-height: 58px;
+  align-items: center;
+}
+
+.crm-standard-shell .stage-health-list > a,
+.crm-standard-shell .source-performance-list > div,
+.crm-standard-shell .module-timeline > article,
+.crm-standard-shell .module-timeline > div {
+  min-height: 58px;
+  border-radius: 8px;
+}
+
+.crm-standard-shell .module-timeline > article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.crm-standard-shell .module-timeline > article:last-child {
+  border-bottom: 0;
+}
+
+.crm-standard-shell .module-timeline > article p,
+.crm-standard-shell .module-timeline > article time {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.crm-standard-shell .crm-timeline article {
+  min-height: 58px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.crm-standard-shell .crm-timeline article > span {
+  background: var(--module-accent-soft);
+  color: var(--module-accent-ink);
+}
+
+.crm-standard-shell .crm-timeline article > div {
+  min-width: 0;
+  padding-bottom: 12px;
+}
+
+/* Accounts and contacts reuse governed business data with CRM density. */
+.crm-standard-shell .business-data-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--crm-section-gap);
+}
+
+.crm-standard-shell .business-data-layout:has(.business-data-editor) {
+  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 0.72fr);
+}
+
+.crm-standard-shell .business-data-toolbar {
+  min-height: 42px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.crm-standard-shell .business-data-toolbar h2 {
+  margin-block: 2px 0;
+}
+
+.crm-standard-shell .business-data-toolbar-actions,
+.crm-standard-shell .business-data-row-actions,
+.crm-standard-shell .business-data-form-actions {
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-standard-shell .business-data-filters {
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.crm-standard-shell .business-data-table-wrap {
+  border-radius: 8px;
+}
+
+.crm-standard-shell .business-data-table td {
+  font-size: 12px;
+}
+
+.crm-standard-shell .business-data-editor,
+.crm-standard-shell .crm-editor {
+  top: 86px;
+  border-top: 3px solid var(--module-accent);
+}
+
+.crm-standard-shell .business-data-form,
+.crm-standard-shell .form-stack {
+  gap: 14px;
+}
+
+.crm-standard-shell .business-data-form {
+  margin-top: 14px;
+}
+
+/* Pipeline, reports and settings use the same restrained cards. */
+.crm-standard-shell .crm-kanban {
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.crm-standard-shell .crm-kanban-column {
+  min-height: 480px;
+  padding: 12px;
+  border-color: var(--color-line);
+  background: var(--color-surface-subtle);
+}
+
+.crm-standard-shell .crm-kanban-column > header {
+  min-height: 38px;
+}
+
+.crm-standard-shell .crm-kanban-column > header > span {
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.crm-standard-shell .crm-opportunity-card {
+  padding: 12px;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+}
+
+.crm-standard-shell .crm-opportunity-card:hover {
+  border-color: color-mix(in srgb, var(--module-accent) 32%, var(--color-line));
+}
+
+.crm-standard-shell .crm-kanban-empty {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+}
+
+.crm-standard-shell .crm-report-grid {
+  gap: var(--crm-section-gap);
+}
+
+.crm-standard-shell .crm-report-grid .panel {
+  border-left: 3px solid var(--module-accent);
+}
+
+.crm-standard-shell .settings-section {
+  margin-top: 0;
+}
+
+.crm-standard-shell .settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.crm-standard-shell .settings-grid > a {
+  min-height: 104px;
+  padding: 15px;
+  border-radius: var(--crm-card-radius);
+  box-shadow: none;
+}
+
+.crm-standard-shell .settings-grid > a:hover {
+  border-color: color-mix(in srgb, var(--module-accent) 30%, var(--color-line));
+  box-shadow: none;
+  transform: none;
+}
+
+.crm-standard-shell .settings-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--module-accent-soft);
+  color: var(--module-accent);
+}
+
+.crm-standard-shell .crm-product-provider-note {
+  border-left: 3px solid var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.crm-standard-shell .page-heading-actions {
+  min-height: 50px;
+  justify-content: flex-end;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--crm-card-radius);
+  background: var(--color-surface);
+}
+
+@media (max-width: 960px) {
+  .crm-standard-shell .crm-section-tabs-shell {
+    gap: 10px;
+  }
+
+  .crm-standard-shell .page-heading,
+  .crm-standard-shell .module-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .crm-standard-shell .page-heading > .status-badge,
+  .crm-standard-shell .page-heading > .heading-actions,
+  .crm-standard-shell .page-heading > .page-heading-summary {
+    flex: initial;
+  }
+
+  .crm-standard-shell .business-data-layout:has(.business-data-editor) {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-standard-shell .business-data-editor,
+  .crm-standard-shell .crm-editor {
+    position: static;
+    max-height: none;
+  }
+
+  .crm-standard-shell .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .crm-standard-shell {
+    --crm-content-gap: 14px;
+    --crm-section-gap: 12px;
+  }
+
+  .crm-standard-shell .page-heading,
+  .crm-standard-shell .module-hero,
+  .crm-standard-shell .panel {
+    padding: 16px;
+  }
+
+  .crm-standard-shell .page-heading {
+    min-height: 0;
+  }
+
+  .crm-standard-shell .module-hero-copy {
+    display: grid;
+    align-items: start;
+  }
+
+  .crm-standard-shell .module-hero-actions,
+  .crm-standard-shell .heading-actions,
+  .crm-standard-shell .page-heading-actions,
+  .crm-standard-shell .crm-toolbar-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crm-standard-shell .business-data-toolbar,
+  .crm-standard-shell .business-data-toolbar-actions,
+  .crm-standard-shell .business-data-filters,
+  .crm-standard-shell .page-heading-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crm-standard-shell .module-hero-actions > *,
+  .crm-standard-shell .heading-actions > *,
+  .crm-standard-shell .page-heading-actions > *,
+  .crm-standard-shell .crm-toolbar-actions > * {
+    width: 100%;
+  }
+
+  .crm-standard-shell .business-data-toolbar-actions > *,
+  .crm-standard-shell .page-heading-actions > * {
+    width: 100%;
+  }
+
+  .crm-standard-shell .business-data-form,
+  .crm-standard-shell .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-standard-shell .module-timeline > article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .crm-standard-shell .module-timeline > article time {
+    grid-column: 2;
+  }
+
+  .crm-standard-shell .crm-kanban {
+    grid-auto-columns: min(86vw, 320px);
   }
 }

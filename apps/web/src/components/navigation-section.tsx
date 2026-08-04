@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
@@ -11,11 +12,23 @@ export type NavigationSectionItem = {
   icon: AppIconName;
   badge?: number;
   exact?: boolean;
+  group?: string;
+  activePrefixes?: string[];
 };
 
 function matchesPath(pathname: string, item: NavigationSectionItem) {
-  if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  if (item.exact && pathname === item.href) return true;
+  if (
+    !item.exact &&
+    (pathname === item.href || pathname.startsWith(`${item.href}/`))
+  ) {
+    return true;
+  }
+  return Boolean(
+    item.activePrefixes?.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    ),
+  );
 }
 
 export default function NavigationSection({
@@ -49,18 +62,27 @@ export default function NavigationSection({
         />
       </summary>
       <div className="nav-section-items">
-        {items.map((item) => (
-          <NavigationLink
-            badge={item.badge}
-            exact={item.exact}
-            href={item.href}
-            icon={item.icon}
-            key={item.href}
-            label={item.label}
-            mobile={mobile}
-            nested
-          />
-        ))}
+        {items.map((item, index) => {
+          const previousGroup = items[index - 1]?.group;
+          const showGroup = Boolean(item.group && item.group !== previousGroup);
+          return (
+            <Fragment key={item.href}>
+              {showGroup ? (
+                <p className="nav-subgroup-label">{item.group}</p>
+              ) : null}
+              <NavigationLink
+                activePrefixes={item.activePrefixes}
+                badge={item.badge}
+                exact={item.exact}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                mobile={mobile}
+                nested
+              />
+            </Fragment>
+          );
+        })}
       </div>
     </details>
   );

@@ -213,7 +213,6 @@ export default async function CustomerSuccessPage() {
       actions={[
         { href: "/crm/accounts", label: "Accounts" },
         { href: "/crm/reports", label: "Reports" },
-        { href: "/crm/readiness", label: "CRM readiness" },
       ]}
       description="Operate onboarding, adoption telemetry, feedback, health, renewals and churn recovery from one account-centred workspace."
       eyebrow="Customer success"

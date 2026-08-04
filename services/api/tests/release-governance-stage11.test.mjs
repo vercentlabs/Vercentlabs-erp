@@ -47,10 +47,11 @@ test("missing checks stale backups and high incidents block promotion", () => {
 });
 
 test("release summaries and evidence hashes are deterministic", () => {
-  const health = evaluateReleaseReadiness({
-    checks: passedChecks(),
-    incidents: [],
-  });
+  const health = evaluateReleaseReadiness(
+    { checks: passedChecks(), incidents: [] },
+    { backupMaximumAgeHours: 24 },
+    new Date("2026-08-03T05:00:00.000Z"),
+  );
   const summary = buildReleaseGovernanceSummary({
     health,
     checks: passedChecks(),

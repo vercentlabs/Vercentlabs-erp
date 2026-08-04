@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/lib/client-request";
@@ -13,6 +14,93 @@ import type {
 
 type Option = { id: string; name: string };
 type Row = Record<string, unknown>;
+
+function parseCsvRows(source: string): Row[] {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let cell = "";
+  let quoted = false;
+  const text = source.replace(/^\uFEFF/, "");
+
+  const commitCell = () => {
+    record.push(cell);
+    cell = "";
+  };
+  const commitRecord = () => {
+    commitCell();
+    if (record.some((value) => value.trim() !== "")) records.push(record);
+    record = [];
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (character === '"') {
+        quoted = false;
+      } else {
+        cell += character;
+      }
+    } else if (character === '"' && cell === "") {
+      quoted = true;
+    } else if (character === ",") {
+      commitCell();
+    } else if (character === "\n") {
+      commitRecord();
+    } else if (character !== "\r") {
+      cell += character;
+    }
+  }
+
+  if (quoted) throw new Error("The CSV contains an unclosed quoted value.");
+  if (cell !== "" || record.length) commitRecord();
+  if (records.length < 2) {
+    throw new Error("The CSV must contain a header and at least one data row.");
+  }
+
+  const headers = records[0].map((header) => header.trim());
+  if (headers.some((header) => !header)) {
+    throw new Error("Every CSV column must have a header.");
+  }
+  if (new Set(headers).size !== headers.length) {
+    throw new Error("CSV column headers must be unique.");
+  }
+
+  return records
+    .slice(1)
+    .map((values) =>
+      Object.fromEntries(
+        headers.map((header, index) => [header, values[index]?.trim() ?? ""]),
+      ),
+    );
+}
+
+function parseImportRows(fileName: string, source: string): Row[] {
+  if (fileName.toLowerCase().endsWith(".csv")) return parseCsvRows(source);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw new Error("The JSON file is not valid.");
+  }
+  const rows = Array.isArray(parsed)
+    ? parsed
+    : parsed &&
+        typeof parsed === "object" &&
+        Array.isArray((parsed as { rows?: unknown }).rows)
+      ? (parsed as { rows: unknown[] }).rows
+      : null;
+  if (!rows) throw new Error("The JSON file must contain an array of rows.");
+  if (
+    rows.some((row) => !row || typeof row !== "object" || Array.isArray(row))
+  ) {
+    throw new Error("Every imported row must be a JSON object.");
+  }
+  return rows as Row[];
+}
 
 function normalizedDate(value: unknown) {
   if (!value) return "";
@@ -104,6 +192,8 @@ export default function BusinessDataManager({
   options,
   canManage,
   canImport,
+  detailBasePath,
+  presentation = "default",
 }: {
   definition: BusinessDataDefinition;
   rows: Row[];
@@ -111,10 +201,15 @@ export default function BusinessDataManager({
   options: Record<string, Option[]>;
   canManage: boolean;
   canImport: boolean;
+  detailBasePath?: string;
+  presentation?: "default" | "crm";
 }) {
   const router = useRouter();
+  const crmPresentation = presentation === "crm";
+  const importInput = useRef<HTMLInputElement | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [pending, setPending] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"success" | "error">(
     "success",
@@ -237,22 +332,106 @@ export default function BusinessDataManager({
     }
   }
 
+  async function importRecords(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setPending(true);
+    setImporting(true);
+    setMessage("");
+
+    try {
+      if (!/\.(csv|json)$/i.test(file.name)) {
+        throw new Error("Choose a CSV or JSON file.");
+      }
+      if (file.size > 1_000_000) {
+        throw new Error("The import file must be smaller than 1 MB.");
+      }
+
+      const importedRows = parseImportRows(file.name, await file.text());
+      if (!importedRows.length) throw new Error("The import file has no rows.");
+      if (importedRows.length > 100) {
+        throw new Error("Import up to 100 rows at a time.");
+      }
+
+      const result = await requestJson<{
+        errors?: Array<{ row: number; message: string }>;
+        succeededRows?: number;
+        failedRows?: number;
+      }>(
+        `/api/business-data/${definition.key}/import`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: file.name, rows: importedRows }),
+        },
+        { timeoutMs: 60_000 },
+      );
+
+      if (!result.ok) {
+        const firstError = result.errors?.[0];
+        throw new Error(
+          firstError
+            ? `Row ${firstError.row}: ${firstError.message}`
+            : result.message || "The records could not be imported.",
+        );
+      }
+
+      announce("success", result.message || "Records imported successfully.");
+      router.refresh();
+    } catch (error) {
+      announce(
+        "error",
+        error instanceof Error
+          ? error.message
+          : "The file could not be imported.",
+      );
+    } finally {
+      setImporting(false);
+      setPending(false);
+    }
+  }
+
   const editorKey = String(editing?.id || "new");
+  const hasActions = canManage || Boolean(detailBasePath);
 
   return (
-    <div className="business-data-layout">
-      <section className="panel business-data-list-panel">
-        <div className="business-data-toolbar">
+    <div
+      className={
+        crmPresentation ? "crm-resource-layout" : "business-data-layout"
+      }
+    >
+      <section
+        className={
+          crmPresentation
+            ? "panel crm-list-panel"
+            : "panel business-data-list-panel"
+        }
+      >
+        <div
+          className={crmPresentation ? "crm-toolbar" : "business-data-toolbar"}
+        >
           <div>
-            <p className="eyebrow">Records</p>
+            <p className="eyebrow">
+              {crmPresentation ? definition.group : "Records"}
+            </p>
             <h2>
-              {filteredRows.length === total
-                ? `${total} configured`
-                : `${filteredRows.length} of ${total}`}
+              {crmPresentation
+                ? `${filteredRows.length} records`
+                : filteredRows.length === total
+                  ? `${total} configured`
+                  : `${filteredRows.length} of ${total}`}
             </h2>
           </div>
 
-          <div className="business-data-toolbar-actions">
+          <div
+            className={
+              crmPresentation
+                ? "crm-toolbar-actions"
+                : "business-data-toolbar-actions"
+            }
+          >
             <a
               className="secondary-button"
               href={`/api/business-data/${definition.key}/export`}
@@ -260,12 +439,31 @@ export default function BusinessDataManager({
               Export CSV
             </a>
             {canImport ? (
-              <span
-                className="status-badge neutral"
-                title="Governed JSON import API is enabled for this resource."
-              >
-                Import API ready
-              </span>
+              <>
+                <input
+                  ref={importInput}
+                  className="sr-only"
+                  type="file"
+                  accept={
+                    crmPresentation
+                      ? ".csv,text/csv"
+                      : ".csv,.json,text/csv,application/json"
+                  }
+                  onChange={(event) => void importRecords(event)}
+                />
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={pending}
+                  onClick={() => importInput.current?.click()}
+                >
+                  {importing
+                    ? "Importing…"
+                    : crmPresentation
+                      ? "Import CSV"
+                      : "Import"}
+                </button>
+              </>
             ) : null}
             {canManage ? (
               <button
@@ -279,7 +477,11 @@ export default function BusinessDataManager({
           </div>
         </div>
 
-        <div className="business-data-filters">
+        <div
+          className={
+            crmPresentation ? "crm-filter-row" : "business-data-filters"
+          }
+        >
           <label>
             Search
             <input
@@ -316,8 +518,14 @@ export default function BusinessDataManager({
           </p>
         ) : null}
 
-        <div className="business-data-table-wrap">
-          <table className="business-data-table">
+        <div
+          className={
+            crmPresentation ? "table-scroll" : "business-data-table-wrap"
+          }
+        >
+          <table
+            className={crmPresentation ? "data-table" : "business-data-table"}
+          >
             <thead>
               <tr>
                 {definition.columns.map((column) => (
@@ -325,7 +533,7 @@ export default function BusinessDataManager({
                     {column.label}
                   </th>
                 ))}
-                {canManage ? <th scope="col">Actions</th> : null}
+                {hasActions ? <th scope="col">Actions</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -349,37 +557,80 @@ export default function BusinessDataManager({
                       )}
                     </td>
                   ))}
-                  {canManage ? (
+                  {hasActions ? (
                     <td>
-                      <div className="business-data-row-actions">
-                        <button
-                          className="link-button"
-                          type="button"
-                          onClick={() => setEditing(row)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="link-button danger"
-                          type="button"
-                          disabled={
-                            pending ||
-                            String(row.status) === "inactive" ||
-                            String(row.status) === "locked"
-                          }
-                          onClick={() => void archive(row)}
-                        >
-                          Archive
-                        </button>
+                      <div
+                        className={
+                          crmPresentation
+                            ? "row-actions"
+                            : "business-data-row-actions"
+                        }
+                      >
+                        {detailBasePath ? (
+                          <Link
+                            className="link-button"
+                            href={`${detailBasePath}/${String(row.id)}`}
+                          >
+                            View
+                          </Link>
+                        ) : null}
+                        {canManage ? (
+                          <>
+                            <button
+                              className="link-button"
+                              type="button"
+                              onClick={() => setEditing(row)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="link-button danger"
+                              type="button"
+                              disabled={
+                                pending ||
+                                String(row.status) === "inactive" ||
+                                String(row.status) === "locked"
+                              }
+                              onClick={() => void archive(row)}
+                            >
+                              Archive
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </td>
                   ) : null}
                 </tr>
               ))}
+              {crmPresentation && !filteredRows.length ? (
+                <tr>
+                  <td
+                    colSpan={definition.columns.length + (hasActions ? 1 : 0)}
+                  >
+                    <div className="empty-state">
+                      <strong>No matching records</strong>
+                      <p>
+                        {search || status !== "all"
+                          ? "Adjust the filters to find a record."
+                          : `Create the first ${definition.singular} to begin this workflow.`}
+                      </p>
+                      {canManage && !search && status === "all" ? (
+                        <button
+                          className="primary-button"
+                          type="button"
+                          onClick={() => setEditing({})}
+                        >
+                          Add {definition.singular}
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
 
-          {!filteredRows.length ? (
+          {!crmPresentation && !filteredRows.length ? (
             <div className="empty-state">
               <strong>No matching records</strong>
               <p>
@@ -393,19 +644,31 @@ export default function BusinessDataManager({
 
       {canManage && editing ? (
         <aside
-          className="panel business-data-editor"
+          className={
+            crmPresentation ? "panel crm-editor" : "panel business-data-editor"
+          }
           key={editorKey}
           aria-labelledby="business-data-editor-title"
         >
           <div className="card-title-row">
             <div>
               <p className="eyebrow">
-                {editing.id ? "Edit record" : "New record"}
+                {crmPresentation
+                  ? editing.id
+                    ? "Edit"
+                    : "Create"
+                  : editing.id
+                    ? "Edit record"
+                    : "New record"}
               </p>
               <h2 id="business-data-editor-title">
-                {editing.id
-                  ? `Update ${definition.singular}`
-                  : `Create ${definition.singular}`}
+                {crmPresentation
+                  ? definition.singular.replace(/^./, (character) =>
+                      character.toUpperCase(),
+                    )
+                  : editing.id
+                    ? `Update ${definition.singular}`
+                    : `Create ${definition.singular}`}
               </h2>
             </div>
             <button
@@ -418,7 +681,10 @@ export default function BusinessDataManager({
             </button>
           </div>
 
-          <form className="business-data-form" onSubmit={submit}>
+          <form
+            className={crmPresentation ? "form-stack" : "business-data-form"}
+            onSubmit={submit}
+          >
             {definition.fields.map((field) => {
               const defaultValue = fieldDefault(field, editing);
               const dynamicOptions = field.optionsKey
@@ -497,13 +763,17 @@ export default function BusinessDataManager({
               );
             })}
 
-            <div className="business-data-form-actions">
+            <div
+              className={
+                crmPresentation ? "form-row" : "business-data-form-actions"
+              }
+            >
               <button
                 className="primary-button"
                 type="submit"
                 disabled={pending}
               >
-                {pending ? "Saving…" : "Save record"}
+                {pending ? "Saving…" : crmPresentation ? "Save" : "Save record"}
               </button>
               <button
                 className="secondary-button"
