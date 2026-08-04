@@ -57,7 +57,8 @@
     "crm:marketing-execution:live": "node scripts/verify-crm-marketing-execution-live.mjs",
     "crm:lead-intelligence:live": "node scripts/verify-crm-lead-intelligence-live.mjs",
     "crm:opportunity-revenue:live": "node scripts/verify-crm-opportunity-revenue-live.mjs",
-    "crm:partner-engagement:live": "node scripts/verify-crm-partner-engagement-live.mjs"
+    "crm:partner-engagement:live": "node scripts/verify-crm-partner-engagement-live.mjs",
+    "crm:ai-intelligence:live": "node scripts/verify-crm-ai-intelligence-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

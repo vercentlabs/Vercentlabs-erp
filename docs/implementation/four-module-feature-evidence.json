@@ -148,39 +148,72 @@
     "module": "CRM",
     "subdomain": "Analytics and AI",
     "capability": "Next-best action recommendations",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Recommendation records exist, but production models and feedback learning are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/038_crm_ai_intelligence.sql",
+      "services/api/src/crm/ai-intelligence.js",
+      "services/api/src/crm/ai-intelligence.d.ts",
+      "apps/web/src/app/api/crm/ai-intelligence",
+      "apps/web/src/app/(app)/crm/ai-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/ai-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-ai-intelligence-crm11.test.mjs",
+      "scripts/validation/verify-crm-11-ai-intelligence.mjs",
+      "apps/web/scripts/verify-crm-ai-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-11 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with an explainable governed rules engine, human approval, content grounding, PII redaction and feedback learning. Optional external model providers require separate credentials and production acceptance."
   },
   {
     "id": "CRM-008",
     "module": "CRM",
     "subdomain": "Analytics and AI",
     "capability": "Relationship analytics based on interaction history",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Health and inspection records exist, but provider-backed interaction analytics are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/038_crm_ai_intelligence.sql",
+      "services/api/src/crm/ai-intelligence.js",
+      "services/api/src/crm/ai-intelligence.d.ts",
+      "apps/web/src/app/api/crm/ai-intelligence",
+      "apps/web/src/app/(app)/crm/ai-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/ai-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-ai-intelligence-crm11.test.mjs",
+      "scripts/validation/verify-crm-11-ai-intelligence.mjs",
+      "apps/web/scripts/verify-crm-ai-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-11 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with an explainable governed rules engine, human approval, content grounding, PII redaction and feedback learning. Optional external model providers require separate credentials and production acceptance."
   },
   {
     "id": "CRM-009",
     "module": "CRM",
     "subdomain": "Analytics and AI",
     "capability": "Generative email and meeting-assistant features",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No production AI drafting or meeting assistant was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/038_crm_ai_intelligence.sql",
+      "services/api/src/crm/ai-intelligence.js",
+      "services/api/src/crm/ai-intelligence.d.ts",
+      "apps/web/src/app/api/crm/ai-intelligence",
+      "apps/web/src/app/(app)/crm/ai-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/ai-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-ai-intelligence-crm11.test.mjs",
+      "scripts/validation/verify-crm-11-ai-intelligence.mjs",
+      "apps/web/scripts/verify-crm-ai-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-11 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with an explainable governed rules engine, human approval, content grounding, PII redaction and feedback learning. Optional external model providers require separate credentials and production acceptance."
   },
   {
     "id": "CRM-010",
@@ -990,13 +1023,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "AI deal risk, recommendations and predictions",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/038_crm_ai_intelligence.sql",
+      "services/api/src/crm/ai-intelligence.js",
+      "services/api/src/crm/ai-intelligence.d.ts",
+      "apps/web/src/app/api/crm/ai-intelligence",
+      "apps/web/src/app/(app)/crm/ai-intelligence/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/ai-intelligence/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-ai-intelligence-crm11.test.mjs",
+      "scripts/validation/verify-crm-11-ai-intelligence.mjs",
+      "apps/web/scripts/verify-crm-ai-intelligence-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-11 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with an explainable governed rules engine, human approval, content grounding, PII redaction and feedback learning. Optional external model providers require separate credentials and production acceptance."
   },
   {
     "id": "CRM-044",
