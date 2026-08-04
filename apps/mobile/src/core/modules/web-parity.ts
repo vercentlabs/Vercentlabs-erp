@@ -465,4 +465,9 @@ export const authenticationWebParity: readonly WebParityEntry[] = [
     mobile: "/(protected)/workspace/crm-partner-engagement",
     delivery: "native",
   },
+  {
+    web: "/crm/ai-intelligence",
+    mobile: "/(protected)/workspace/crm-ai-intelligence",
+    delivery: "native",
+  },
 ];

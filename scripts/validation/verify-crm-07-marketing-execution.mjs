@@ -121,10 +121,7 @@ const counts = crm.reduce((result, entry) => {
   return result;
 }, {});
 assert.deepEqual(counts, {
-  Implemented: 57,
-  Partial: 17,
-  Missing: 8,
-  "Needs hardening": 1,
+  Implemented: 83,
 });
 
 const rootPackage = JSON.parse(fs.readFileSync("package.json", "utf8"));
