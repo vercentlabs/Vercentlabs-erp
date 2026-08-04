@@ -1,0 +1,10 @@
+BEGIN;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS recommendation_id uuid;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS draft_id uuid;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS outcome text;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS reason text;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS correction jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS learnable boolean NOT NULL DEFAULT false;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE tenant.crm_ai_feedback ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+COMMIT;

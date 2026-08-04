@@ -49,7 +49,17 @@
     "enterprise:release-governance:live": "node scripts/verify-enterprise-release-governance-live.mjs",
     "crm:core-acceptance:live": "node scripts/verify-crm-core-acceptance-live.mjs",
     "crm:account-intelligence:live": "node scripts/verify-crm-account-intelligence-live.mjs",
-    "crm:privacy-retention": "node scripts/process-crm-privacy-retention.mjs"
+    "crm:privacy-retention": "node scripts/process-crm-privacy-retention.mjs",
+    "crm:customer-success:live": "node scripts/verify-crm-customer-success-live.mjs",
+    "crm:communications:live": "node scripts/verify-crm-communications-live.mjs",
+    "crm:conversation-intelligence:live": "node scripts/verify-crm-conversation-intelligence-live.mjs",
+    "crm:lead-acquisition:live": "node scripts/verify-crm-lead-acquisition-live.mjs",
+    "crm:marketing-execution:live": "node scripts/verify-crm-marketing-execution-live.mjs",
+    "crm:lead-intelligence:live": "node scripts/verify-crm-lead-intelligence-live.mjs",
+    "crm:opportunity-revenue:live": "node scripts/verify-crm-opportunity-revenue-live.mjs",
+    "crm:partner-engagement:live": "node scripts/verify-crm-partner-engagement-live.mjs",
+    "crm:ai-intelligence:live": "node scripts/verify-crm-ai-intelligence-live.mjs",
+    "crm:offline-completion:live": "node scripts/verify-crm-offline-completion-live.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",
