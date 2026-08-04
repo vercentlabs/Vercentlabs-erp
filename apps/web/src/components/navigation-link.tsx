@@ -13,6 +13,7 @@ export default function NavigationLink({
   mobile = false,
   nested = false,
   exact = false,
+  activePrefixes = [],
 }: {
   href: string;
   label: string;
@@ -21,13 +22,18 @@ export default function NavigationLink({
   mobile?: boolean;
   nested?: boolean;
   exact?: boolean;
+  activePrefixes?: string[];
 }) {
   const pathname = usePathname();
-  const active = exact
+  const primaryMatch = exact
     ? pathname === href
     : href === "/dashboard"
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`);
+  const aliasMatch = activePrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+  const active = primaryMatch || aliasMatch;
 
   return (
     <Link
