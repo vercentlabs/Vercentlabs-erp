@@ -429,62 +429,221 @@ export async function GET(
         ),
       };
     } else if (area === "roles") {
-      requirePermissionFromSession(session, PERMISSIONS.rolesManage);
+      requirePermissionFromSession(session, PERMISSIONS.rolesView);
       const [roles, permissions] = await Promise.all([
         query(
-          `SELECT r.id,r.name,r.slug,r.description,r.is_system,
-          COALESCE(array_agg(rp.permission_key ORDER BY rp.permission_key) FILTER (WHERE rp.permission_key IS NOT NULL),ARRAY[]::text[]) AS permission_keys,
-          (SELECT count(*)::int FROM user_role_assignments ura WHERE ura.organization_id=r.organization_id AND ura.role_id=r.id) AS user_count
-          FROM roles r LEFT JOIN role_permissions rp ON rp.role_id=r.id
-          WHERE r.organization_id=$1 AND r.status='active' GROUP BY r.id
-          ORDER BY CASE WHEN r.slug='organization_owner' THEN 0 WHEN r.is_system THEN 1 ELSE 2 END,r.name`,
+          `SELECT r.id,r.name,r.slug,r.description,r.is_system,r.assignable,
+            r.module_key,r.risk_level,r.version,
+            COALESCE(array_agg(rp.permission_key ORDER BY rp.permission_key)
+              FILTER (WHERE rp.permission_key IS NOT NULL),ARRAY[]::text[]) AS permission_keys,
+            (SELECT count(*)::int FROM user_role_assignments ura
+              WHERE ura.organization_id=r.organization_id AND ura.role_id=r.id
+                AND ura.status='active' AND ura.starts_at<=now()
+                AND (ura.expires_at IS NULL OR ura.expires_at>now())) AS user_count
+           FROM roles r LEFT JOIN role_permissions rp ON rp.role_id=r.id
+           WHERE r.organization_id=$1 AND r.status='active'
+             AND (r.module_key='platform' OR EXISTS(
+               SELECT 1 FROM organization_modules module
+               WHERE module.organization_id=r.organization_id
+                 AND module.module_key=r.module_key AND module.status='enabled'))
+           GROUP BY r.id
+           ORDER BY CASE WHEN r.slug='organization_owner' THEN 0 WHEN r.is_system THEN 1 ELSE 2 END,
+             r.module_key,r.name`,
           [organizationId],
         ),
         query(
           `SELECT key,name,category,description FROM permissions ORDER BY category,name`,
         ),
       ]);
-      data = { roles, permissions };
+      const canManage = hasPermission(session, PERMISSIONS.rolesManage);
+      const unrestricted = session.roleSlugs.includes("organization_owner");
+      const grantable = new Set(session.permissions);
+      data = {
+        roles: roles.map((role: Record<string, unknown>) => ({
+          ...role,
+          can_manage:
+            canManage &&
+            !Boolean(role.is_system) &&
+            (unrestricted ||
+              (Array.isArray(role.permission_keys) &&
+                role.permission_keys.every((key) =>
+                  grantable.has(String(key)),
+                ))),
+        })),
+        permissions: permissions.filter(
+          (permission: Record<string, unknown>) =>
+            unrestricted || grantable.has(String(permission.key)),
+        ),
+        canManage,
+      };
     } else {
       requirePermissionFromSession(session, PERMISSIONS.usersView);
-      const [users, invitations, roles, companies, branches, departments] =
-        await Promise.all([
-          query(
-            `SELECT u.id AS user_id,u.full_name,u.email,m.status,r.id AS role_id,r.name AS role_name,r.slug AS role_slug,u.email_verified_at,u.last_login_at,
-          COALESCE((SELECT array_agg(a.company_id) FROM membership_company_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS company_ids,
-          COALESCE((SELECT array_agg(a.branch_id) FROM membership_branch_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS branch_ids,
-          COALESCE((SELECT array_agg(a.department_id) FROM membership_department_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS department_ids
-          FROM organization_memberships m JOIN users u ON u.id=m.user_id
-          LEFT JOIN user_role_assignments ura ON ura.organization_id=m.organization_id AND ura.user_id=u.id
-          LEFT JOIN roles r ON r.id=ura.role_id WHERE m.organization_id=$1 ORDER BY u.full_name`,
-            [organizationId],
-          ),
-          query(
-            `SELECT i.id,i.email,COALESCE(r.name,i.role) AS role_name,i.expires_at,i.revoked_at,i.accepted_at FROM organization_invitations i LEFT JOIN roles r ON r.id=i.role_id WHERE i.organization_id=$1 ORDER BY i.created_at DESC LIMIT 100`,
-            [organizationId],
-          ),
-          query(
-            `SELECT id,name,slug FROM roles WHERE organization_id=$1 AND status='active' ORDER BY name`,
-            [organizationId],
-          ),
-          query(
-            `SELECT id,name FROM companies WHERE organization_id=$1 AND status='active' ORDER BY is_primary DESC,name`,
-            [organizationId],
-          ),
-          query(
-            `SELECT id,name,company_id FROM branches WHERE organization_id=$1 AND status='active' ORDER BY is_primary DESC,name`,
-            [organizationId],
-          ),
-          query(
-            `SELECT id,name FROM departments WHERE organization_id=$1 AND status='active' ORDER BY name`,
-            [organizationId],
-          ),
-        ]);
+      const [
+        users,
+        invitations,
+        roles,
+        companies,
+        branches,
+        departments,
+        teams,
+      ] = await Promise.all([
+        query(
+          `SELECT u.id AS user_id,u.full_name,u.email,m.status,
+              COALESCE((SELECT array_agg(ura.role_id ORDER BY ura.is_primary DESC,r.name)
+                FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
+                WHERE ura.organization_id=m.organization_id AND ura.user_id=u.id AND ura.status='active'),ARRAY[]::uuid[]) AS role_ids,
+              COALESCE((SELECT array_agg(r.name ORDER BY ura.is_primary DESC,r.name)
+                FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
+                WHERE ura.organization_id=m.organization_id AND ura.user_id=u.id AND ura.status='active'),ARRAY[]::text[]) AS role_names,
+              COALESCE((SELECT array_agg(r.slug ORDER BY ura.is_primary DESC,r.name)
+                FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
+                WHERE ura.organization_id=m.organization_id AND ura.user_id=u.id AND ura.status='active'),ARRAY[]::text[]) AS role_slugs,
+              (SELECT ura.role_id FROM user_role_assignments ura
+                WHERE ura.organization_id=m.organization_id AND ura.user_id=u.id
+                  AND ura.status='active' AND ura.is_primary LIMIT 1) AS primary_role_id,
+              (SELECT min(ura.starts_at) FROM user_role_assignments ura
+                WHERE ura.organization_id=m.organization_id AND ura.user_id=u.id AND ura.status='active') AS access_starts_at,
+              (SELECT max(ura.expires_at) FROM user_role_assignments ura
+                WHERE ura.organization_id=m.organization_id AND ura.user_id=u.id AND ura.status='active') AS access_expires_at,
+              u.email_verified_at,u.last_login_at,
+              COALESCE((SELECT array_agg(a.company_id) FROM membership_company_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS company_ids,
+              COALESCE((SELECT array_agg(a.branch_id) FROM membership_branch_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS branch_ids,
+              COALESCE((SELECT array_agg(a.department_id) FROM membership_department_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS department_ids,
+              COALESCE((SELECT array_agg(a.team_id) FROM membership_team_access a WHERE a.organization_id=m.organization_id AND a.user_id=u.id),ARRAY[]::uuid[]) AS team_ids
+             FROM organization_memberships m JOIN users u ON u.id=m.user_id
+             WHERE m.organization_id=$1
+               AND ($3::boolean OR EXISTS(
+                 SELECT 1 FROM membership_company_access actor_access
+                 JOIN membership_company_access target_access
+                   ON target_access.organization_id=actor_access.organization_id
+                  AND target_access.company_id=actor_access.company_id
+                 WHERE actor_access.organization_id=m.organization_id
+                   AND actor_access.user_id=$2 AND target_access.user_id=u.id))
+             ORDER BY u.full_name`,
+          [
+            organizationId,
+            session.userId,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+          ],
+        ),
+        query(
+          `SELECT i.id,i.email,i.expires_at,i.revoked_at,i.accepted_at,
+              COALESCE((SELECT array_agg(r.name ORDER BY ir.is_primary DESC,r.name)
+                FROM organization_invitation_roles ir JOIN roles r ON r.id=ir.role_id
+                WHERE ir.invitation_id=i.id),ARRAY[COALESCE(primary_role.name,i.role)]::text[]) AS role_names
+             FROM organization_invitations i LEFT JOIN roles primary_role ON primary_role.id=i.role_id
+             WHERE i.organization_id=$1
+               AND ($3::boolean OR EXISTS(
+                 SELECT 1 FROM membership_company_access actor_access
+                 JOIN organization_invitation_company_access invitation_access
+                   ON invitation_access.organization_id=actor_access.organization_id
+                  AND invitation_access.company_id=actor_access.company_id
+                 WHERE actor_access.organization_id=i.organization_id
+                   AND actor_access.user_id=$2
+                   AND invitation_access.invitation_id=i.id))
+             ORDER BY i.created_at DESC LIMIT 100`,
+          [
+            organizationId,
+            session.userId,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+          ],
+        ),
+        query(
+          `SELECT r.id,r.name,r.slug,r.module_key,r.risk_level,
+              COALESCE(array_agg(rp.permission_key ORDER BY rp.permission_key)
+                FILTER (WHERE rp.permission_key IS NOT NULL),ARRAY[]::text[]) AS permission_keys
+             FROM roles r LEFT JOIN role_permissions rp ON rp.role_id=r.id
+             WHERE r.organization_id=$1 AND r.status='active'
+               AND (r.assignable OR ($4::boolean AND r.slug='organization_owner'))
+               AND ($3::boolean OR NOT EXISTS (
+                 SELECT 1 FROM role_permissions ceiling_permission
+                 WHERE ceiling_permission.role_id=r.id
+                   AND NOT(ceiling_permission.permission_key=ANY($2::text[]))
+               ))
+               AND (r.module_key='platform' OR EXISTS(
+                 SELECT 1 FROM organization_modules module
+                 WHERE module.organization_id=r.organization_id
+                   AND module.module_key=r.module_key AND module.status='enabled'))
+             GROUP BY r.id ORDER BY r.module_key,r.name`,
+          [
+            organizationId,
+            session.permissions,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+            session.roleSlugs.includes("organization_owner"),
+          ],
+        ),
+        query(
+          `SELECT company.id,company.name FROM companies company
+             WHERE company.organization_id=$1 AND company.status='active'
+               AND ($3::boolean OR EXISTS(
+                 SELECT 1 FROM membership_company_access access
+                 WHERE access.organization_id=company.organization_id
+                   AND access.user_id=$2 AND access.company_id=company.id))
+             ORDER BY company.is_primary DESC,company.name`,
+          [
+            organizationId,
+            session.userId,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+          ],
+        ),
+        query(
+          `SELECT branch.id,branch.name,branch.company_id FROM branches branch
+             WHERE branch.organization_id=$1 AND branch.status='active'
+               AND ($3::boolean OR EXISTS(
+                 SELECT 1 FROM membership_branch_access access
+                 WHERE access.organization_id=branch.organization_id
+                   AND access.user_id=$2 AND access.branch_id=branch.id))
+             ORDER BY branch.is_primary DESC,branch.name`,
+          [
+            organizationId,
+            session.userId,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+          ],
+        ),
+        query(
+          `SELECT department.id,department.name,department.company_id,department.branch_id
+             FROM departments department
+             WHERE department.organization_id=$1 AND department.status='active'
+               AND ($3::boolean OR EXISTS(
+                 SELECT 1 FROM membership_department_access access
+                 WHERE access.organization_id=department.organization_id
+                   AND access.user_id=$2 AND access.department_id=department.id))
+             ORDER BY department.name`,
+          [
+            organizationId,
+            session.userId,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+          ],
+        ),
+        query(
+          `SELECT team.id,team.name,team.department_id FROM teams team
+             WHERE team.organization_id=$1 AND team.status='active'
+               AND ($3::boolean OR EXISTS(
+                 SELECT 1 FROM membership_team_access access
+                 WHERE access.organization_id=team.organization_id
+                   AND access.user_id=$2 AND access.team_id=team.id))
+             ORDER BY team.name`,
+          [
+            organizationId,
+            session.userId,
+            session.roleSlugs.includes("organization_owner") ||
+              session.roleSlugs.includes("system_administrator"),
+          ],
+        ),
+      ]);
       data = {
         users,
         invitations,
-        options: { roles, companies, branches, departments },
-        canManage: hasPermission(session, PERMISSIONS.usersManage),
+        options: { roles, companies, branches, departments, teams },
+        canManage:
+          hasPermission(session, PERMISSIONS.usersManage) &&
+          hasPermission(session, PERMISSIONS.rolesAssign),
         currentUserId: session.userId,
       };
     }

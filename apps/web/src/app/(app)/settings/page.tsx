@@ -77,7 +77,7 @@ const items: Array<{
     description: "Least-privilege roles and capabilities",
     icon: "roles",
     group: "Access",
-    permission: PERMISSIONS.rolesManage,
+    permission: PERMISSIONS.rolesView,
   },
   {
     label: "Numbering series",

@@ -15,7 +15,8 @@ const status = z.enum(["active", "inactive"]);
 function booleanInput(defaultValue: boolean) {
   return z
     .preprocess((value) => {
-      if (value === undefined || value === null || value === "") return undefined;
+      if (value === undefined || value === null || value === "")
+        return undefined;
       if (typeof value === "boolean") return value;
       if (typeof value === "number") {
         if (value === 1) return true;
@@ -100,13 +101,43 @@ export const onboardingSchema = z.object({
   fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
 });
 
-export const invitationSchema = z.object({
-  email,
-  roleId: uuid,
-  companyIds: z.array(uuid).max(100).optional().default([]),
-  branchIds: z.array(uuid).max(300).optional().default([]),
-  departmentIds: z.array(uuid).max(300).optional().default([]),
-});
+const accessPeriodSchema = {
+  accessStartsAt: z.string().datetime({ offset: true }).optional().nullable(),
+  accessExpiresAt: z.string().datetime({ offset: true }).optional().nullable(),
+};
+
+export const invitationSchema = z
+  .object({
+    email,
+    roleIds: z.array(uuid).min(1).max(12),
+    primaryRoleId: uuid,
+    companyIds: z.array(uuid).max(100).optional().default([]),
+    branchIds: z.array(uuid).max(300).optional().default([]),
+    departmentIds: z.array(uuid).max(300).optional().default([]),
+    teamIds: z.array(uuid).max(300).optional().default([]),
+    acknowledgeWarningConflicts: booleanInput(false),
+    ...accessPeriodSchema,
+  })
+  .superRefine((value, context) => {
+    if (!value.roleIds.includes(value.primaryRoleId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["primaryRoleId"],
+        message: "Primary role must be included in selected roles.",
+      });
+    }
+    if (
+      value.accessStartsAt &&
+      value.accessExpiresAt &&
+      new Date(value.accessExpiresAt) <= new Date(value.accessStartsAt)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["accessExpiresAt"],
+        message: "Access expiry must be after the start date.",
+      });
+    }
+  });
 
 export const acceptInvitationSchema = z.object({
   token: z.string().min(20).max(500),
@@ -203,13 +234,39 @@ export const numberingSeriesSchema = z.object({
   status: status.default("active"),
 });
 
-export const userAccessSchema = z.object({
-  status: z.enum(["active", "disabled"]),
-  roleId: uuid,
-  companyIds: z.array(uuid).max(100),
-  branchIds: z.array(uuid).max(300),
-  departmentIds: z.array(uuid).max(300),
-});
+export const userAccessSchema = z
+  .object({
+    status: z.enum(["active", "disabled"]),
+    roleIds: z.array(uuid).min(1).max(12),
+    primaryRoleId: uuid,
+    companyIds: z.array(uuid).max(100),
+    branchIds: z.array(uuid).max(300),
+    departmentIds: z.array(uuid).max(300),
+    teamIds: z.array(uuid).max(300),
+    reason: z.string().trim().min(3).max(500),
+    acknowledgeWarningConflicts: booleanInput(false),
+    ...accessPeriodSchema,
+  })
+  .superRefine((value, context) => {
+    if (!value.roleIds.includes(value.primaryRoleId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["primaryRoleId"],
+        message: "Primary role must be included in selected roles.",
+      });
+    }
+    if (
+      value.accessStartsAt &&
+      value.accessExpiresAt &&
+      new Date(value.accessExpiresAt) <= new Date(value.accessStartsAt)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["accessExpiresAt"],
+        message: "Access expiry must be after the start date.",
+      });
+    }
+  });
 
 export const roleSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -220,7 +277,10 @@ export const roleSchema = z.object({
     .max(80)
     .regex(/^[a-z0-9_]+$/),
   description: z.string().trim().max(500).default(""),
-  permissionKeys: z.array(z.string().min(2).max(100)).max(100),
+  moduleKey: z.enum(["platform", "crm", "sales", "accounting", "procurement"]),
+  riskLevel: z.enum(["standard", "sensitive", "privileged"]),
+  permissionKeys: z.array(z.string().min(2).max(100)).max(160),
+  acknowledgeWarningConflicts: booleanInput(false),
 });
 
 export const invitationActionSchema = z.object({

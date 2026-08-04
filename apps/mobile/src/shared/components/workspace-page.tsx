@@ -355,7 +355,7 @@ export function WorkspacePage({ area }: { area: string }) {
           "Define least-privilege permissions",
           "key-outline",
           "/(protected)/workspace/roles",
-          "roles.manage",
+          "roles.view",
         ],
       ] as const;
       return (

@@ -60,7 +60,7 @@
     "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:sdk && corepack pnpm test:mobile && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:e2e",
     "audit:dependencies": "corepack pnpm audit --audit-level high",
     "verify:implementation": "node scripts/validation/verify-implementation-completeness.mjs",
-    "verify:release": "corepack pnpm verify:enterprise && node scripts/validation/verify-product-release.mjs && corepack pnpm verify:implementation && corepack pnpm verify:platform-foundation && corepack pnpm verify:mobile && corepack pnpm verify:business-data && corepack pnpm verify:crm && corepack pnpm verify:sales && corepack pnpm verify:accounting && corepack pnpm verify:procurement && corepack pnpm verify:billing && corepack pnpm verify:commercial-readiness && corepack pnpm verify:stage-1 && corepack pnpm verify:stage-10 && corepack pnpm verify:stage-11 && corepack pnpm verify:crm-01 && corepack pnpm verify:crm-02 && corepack pnpm verify:crm-03 && corepack pnpm verify:crm-08 && corepack pnpm verify:crm-09 && corepack pnpm verify:crm-10 && corepack pnpm verify:crm-11 && corepack pnpm verify:crm-12 && corepack pnpm verify:crm-product",
+    "verify:release": "corepack pnpm verify:enterprise && node scripts/validation/verify-product-release.mjs && corepack pnpm verify:implementation && corepack pnpm verify:platform-foundation && corepack pnpm verify:mobile && corepack pnpm verify:business-data && corepack pnpm verify:crm && corepack pnpm verify:sales && corepack pnpm verify:accounting && corepack pnpm verify:procurement && corepack pnpm verify:billing && corepack pnpm verify:commercial-readiness && corepack pnpm verify:stage-1 && corepack pnpm verify:stage-10 && corepack pnpm verify:stage-11 && corepack pnpm verify:crm-01 && corepack pnpm verify:crm-02 && corepack pnpm verify:crm-03 && corepack pnpm verify:crm-08 && corepack pnpm verify:crm-09 && corepack pnpm verify:crm-10 && corepack pnpm verify:crm-11 && corepack pnpm verify:crm-12 && corepack pnpm verify:crm-product && corepack pnpm verify:enterprise-rbac",
     "validate:production-env:web": "node scripts/deployment/validate-production-env.mjs web",
     "validate:production-env:landing": "node scripts/deployment/validate-production-env.mjs landing",
     "validate:production-env:migration": "node scripts/deployment/validate-production-env.mjs migration",
@@ -146,7 +146,11 @@
     "verify:crm-product": "node scripts/validation/verify-crm-product-completion.mjs",
     "test:crm-product": "node --test apps/web/tests/crm-product-experience.test.mjs apps/mobile/tests/offline-crm.test.mjs",
     "test:crm-product-live": "corepack pnpm --filter @vercentlabs/web crm:product:live",
-    "verify:crm-product-complete": "corepack pnpm verify:crm-product && corepack pnpm test:crm-product && corepack pnpm --filter @vercentlabs/web crm:product:live"
+    "verify:crm-product-complete": "corepack pnpm verify:crm-product && corepack pnpm test:crm-product && corepack pnpm --filter @vercentlabs/web crm:product:live",
+    "verify:enterprise-rbac": "node scripts/validation/verify-enterprise-rbac.mjs",
+    "test:enterprise-rbac": "corepack pnpm --filter @vercentlabs/web exec node --test tests/enterprise-rbac.test.mjs",
+    "test:enterprise-rbac-live": "corepack pnpm --filter @vercentlabs/web rbac:live",
+    "verify:enterprise-rbac-complete": "corepack pnpm verify:enterprise-rbac && corepack pnpm test:enterprise-rbac && corepack pnpm test:enterprise-rbac-live"
   },
   "engines": {
     "node": ">=24 <25",
