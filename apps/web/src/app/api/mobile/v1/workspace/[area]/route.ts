@@ -9,6 +9,7 @@ import {
   getLeadIntelligenceDashboard,
   getMarketingDashboard,
   getOpportunityRevenueDashboard,
+  getPartnerEngagementDashboard,
   getProcurementDashboard,
 } from "@vercentlabs/api";
 
@@ -84,6 +85,11 @@ const copy = {
     "CRM opportunity intelligence",
     "Revenue, action plans and forecast",
     "Review recurring revenue, team splits, customer commitments, quota seasonality and predictive forecast.",
+  ],
+  "crm-partner-engagement": [
+    "CRM partner and engagement",
+    "Partners, field sales and coaching",
+    "Review deal registration, MDF, visits, sequence branches, coaching and gamification.",
   ],
   approvals: [
     "Approval centre",
@@ -227,6 +233,15 @@ export async function GET(
         context.organizationId,
         async (client) => ({
           dashboard: await getOpportunityRevenueDashboard(client, context),
+        }),
+      );
+    } else if (area === "crm-partner-engagement") {
+      requirePermissionFromSession(session, PERMISSIONS.crmView);
+      const context = crmContext(session);
+      data = await tenantTransaction(
+        context.organizationId,
+        async (client) => ({
+          dashboard: await getPartnerEngagementDashboard(client, context),
         }),
       );
     } else if (area === "crm-reports") {

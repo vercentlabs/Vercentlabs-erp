@@ -852,13 +852,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Marketing automation journeys",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-038",
@@ -890,12 +901,21 @@
     "subdomain": "Engagement and advanced CRM",
     "capability": "CRM automation rules",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js"
+    ],
+    "testPaths": [
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded regression gate",
+    "externalDependencyNotes": "Existing implementation requires production verification. CRM-10 verified the complete operational regression path."
   },
   {
     "id": "CRM-040",
@@ -927,12 +947,21 @@
     "subdomain": "Engagement and advanced CRM",
     "capability": "Partner relationship management",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js"
+    ],
+    "testPaths": [
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded regression gate",
+    "externalDependencyNotes": "Existing implementation requires production verification. CRM-10 verified the complete operational regression path."
   },
   {
     "id": "CRM-042",
@@ -940,12 +969,21 @@
     "subdomain": "Engagement and advanced CRM",
     "capability": "Sales sequences and enrollments",
     "registerStatus": "Implemented",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Existing implementation requires production verification."
+    "implementationPaths": [
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js"
+    ],
+    "testPaths": [
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded regression gate",
+    "externalDependencyNotes": "Existing implementation requires production verification. CRM-10 verified the complete operational regression path."
   },
   {
     "id": "CRM-043",
@@ -965,13 +1003,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Field sales visits and geo-tracking",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-045",
@@ -1049,13 +1098,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Email marketing, SMS marketing and social campaigns",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-049",
@@ -1086,13 +1146,24 @@
     "module": "CRM",
     "subdomain": "Engagement and advanced CRM",
     "capability": "Events, webinars and surveys",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Capability is not complete in the supplied project snapshot."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-051",
@@ -1195,13 +1266,24 @@
     "module": "CRM",
     "subdomain": "Lead acquisition",
     "capability": "Email-to-lead and email-to-opportunity creation",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Communication and sync-account tables exist, but a production mailbox ingestion adapter is not complete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-056",
@@ -1725,39 +1807,72 @@
     "module": "CRM",
     "subdomain": "Partner management",
     "capability": "Partner portal and deal registration",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Partner concepts exist, but external registration, approval and conflict management are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-079",
     "module": "CRM",
     "subdomain": "Partner management",
     "capability": "Market development funds and partner incentives",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No MDF request, claim or partner incentive workflow was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-080",
     "module": "CRM",
     "subdomain": "Sales engagement",
     "capability": "Sequence branching and conditional steps",
-    "registerStatus": "Partial",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "Sequences exist, but mature conditional branching, replies, goals and exit criteria are incomplete."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-081",
@@ -1788,26 +1903,48 @@
     "module": "CRM",
     "subdomain": "Sales engagement",
     "capability": "Sales coaching and conversation scorecards",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No complete coaching workspace or scorecard was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "CRM-083",
     "module": "CRM",
     "subdomain": "Sales engagement",
     "capability": "CRM gamification",
-    "registerStatus": "Missing",
-    "implementationPaths": [],
-    "testPaths": [],
-    "acceptanceStatus": "not-verified",
-    "verifiedAt": null,
-    "verifiedBy": null,
-    "externalDependencyNotes": "No goals, points, badges or challenges workflow was found."
+    "registerStatus": "Implemented",
+    "implementationPaths": [
+      "database/tenant/migrations/037_crm_partner_engagement.sql",
+      "services/api/src/crm/partner-engagement.js",
+      "services/api/src/crm/partner-engagement.d.ts",
+      "apps/web/src/app/api/crm/partner-engagement",
+      "apps/web/src/app/(app)/crm/partner-engagement/page.tsx",
+      "apps/web/src/app/api/mobile/v1/crm/partner-engagement/route.ts"
+    ],
+    "testPaths": [
+      "services/api/tests/crm-partner-engagement-crm10.test.mjs",
+      "scripts/validation/verify-crm-10-partner-engagement.mjs",
+      "apps/web/scripts/verify-crm-partner-engagement-live.mjs"
+    ],
+    "acceptanceStatus": "verified",
+    "verifiedAt": "2026-08-04",
+    "verifiedBy": "CRM-10 guarded acceptance gate",
+    "externalDependencyNotes": "Implemented with provider-neutral, tenant-scoped workflows. Production channel/provider promotion still requires configured credentials where applicable."
   },
   {
     "id": "SALES-001",

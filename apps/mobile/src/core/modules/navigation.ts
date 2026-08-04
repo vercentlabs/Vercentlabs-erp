@@ -74,6 +74,13 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm-opportunity-revenue",
   },
   {
+    key: "crm-partner-engagement",
+    label: "Partner & engagement",
+    icon: "people-circle-outline",
+    permission: "crm.view",
+    href: "/(protected)/workspace/crm-partner-engagement",
+  },
+  {
     key: "master-data",
     label: "Master data",
     icon: "server-outline",

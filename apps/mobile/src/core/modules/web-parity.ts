@@ -460,4 +460,9 @@ export const authenticationWebParity: readonly WebParityEntry[] = [
     mobile: "/verify-email",
     delivery: "secure-browser-handoff",
   },
+  {
+    web: "/crm/partner-engagement",
+    mobile: "/(protected)/workspace/crm-partner-engagement",
+    delivery: "native",
+  },
 ];
