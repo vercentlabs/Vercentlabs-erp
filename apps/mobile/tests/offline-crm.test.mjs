@@ -1,31 +1,26 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const database = fs.readFileSync(
-  "apps/mobile/src/core/database/database.ts",
-  "utf8",
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../..",
 );
-const recoveryMigration = fs.readFileSync(
+const read = (relativePath) =>
+  fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
+
+const database = read("apps/mobile/src/core/database/database.ts");
+const recoveryMigration = read(
   "apps/mobile/src/core/database/migrations/002-mutation-recovery.ts",
-  "utf8",
 );
-const hardening = fs.readFileSync(
-  "apps/mobile/src/modules/crm/data/offline-hardening.ts",
-  "utf8",
-);
-const sync = fs.readFileSync(
-  "apps/mobile/src/modules/crm/data/sync.ts",
-  "utf8",
-);
-const serverRoute = fs.readFileSync(
+const hardening = read("apps/mobile/src/modules/crm/data/offline-hardening.ts");
+const sync = read("apps/mobile/src/modules/crm/data/sync.ts");
+const serverRoute = read(
   "apps/web/src/app/api/mobile/v1/crm/offline-sync/route.ts",
-  "utf8",
 );
-const serverService = fs.readFileSync(
-  "services/api/src/crm/offline-sync.js",
-  "utf8",
-);
+const serverService = read("services/api/src/crm/offline-sync.js");
 
 test("offline CRM storage uses the hardened local database and recovery migration", () => {
   assert.match(database, /mutation_queue/i);

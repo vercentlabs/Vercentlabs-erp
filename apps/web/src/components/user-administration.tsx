@@ -51,6 +51,20 @@ type RoleOption = {
   permissionKeys: string[];
 };
 
+type CompanyOption = { id: string; name: string };
+type BranchOption = { id: string; name: string; companyId: string };
+type DepartmentOption = {
+  id: string;
+  name: string;
+  companyId: string | null;
+  branchId: string | null;
+};
+type TeamOption = {
+  id: string;
+  name: string;
+  departmentId: string | null;
+};
+
 function RoleSelection({
   roles,
   selected,
@@ -141,6 +155,101 @@ function RoleSelection({
   );
 }
 
+function ScopeSelection({
+  companies,
+  branches,
+  departments,
+  teams,
+  user,
+}: {
+  companies: CompanyOption[];
+  branches: BranchOption[];
+  departments: DepartmentOption[];
+  teams: TeamOption[];
+  user?: UserRow;
+}) {
+  return (
+    <>
+      <fieldset>
+        <legend>Company access</legend>
+        <div className="permission-list compact">
+          {companies.map((company) => (
+            <label className="checkbox-row" key={company.id}>
+              <input
+                type="checkbox"
+                name="companyIds"
+                value={company.id}
+                defaultChecked={user?.companyIds.includes(company.id)}
+              />
+              <span>
+                <strong>{company.name}</strong>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Branch access</legend>
+        <div className="permission-list compact">
+          {branches.map((branch) => (
+            <label className="checkbox-row" key={branch.id}>
+              <input
+                type="checkbox"
+                name="branchIds"
+                value={branch.id}
+                defaultChecked={user?.branchIds.includes(branch.id)}
+              />
+              <span>
+                <strong>{branch.name}</strong>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {departments.length ? (
+        <fieldset>
+          <legend>Department access</legend>
+          <div className="permission-list compact">
+            {departments.map((department) => (
+              <label className="checkbox-row" key={department.id}>
+                <input
+                  type="checkbox"
+                  name="departmentIds"
+                  value={department.id}
+                  defaultChecked={user?.departmentIds.includes(department.id)}
+                />
+                <span>
+                  <strong>{department.name}</strong>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+      {teams.length ? (
+        <fieldset>
+          <legend>Team access</legend>
+          <div className="permission-list compact">
+            {teams.map((team) => (
+              <label className="checkbox-row" key={team.id}>
+                <input
+                  type="checkbox"
+                  name="teamIds"
+                  value={team.id}
+                  defaultChecked={user?.teamIds.includes(team.id)}
+                />
+                <span>
+                  <strong>{team.name}</strong>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+    </>
+  );
+}
+
 export default function UserAdministration({
   users,
   invitations,
@@ -162,15 +271,10 @@ export default function UserAdministration({
     acceptedAt: string | null;
   }>;
   roles: RoleOption[];
-  companies: Array<{ id: string; name: string }>;
-  branches: Array<{ id: string; name: string; companyId: string }>;
-  departments: Array<{
-    id: string;
-    name: string;
-    companyId: string | null;
-    branchId: string | null;
-  }>;
-  teams: Array<{ id: string; name: string; departmentId: string | null }>;
+  companies: CompanyOption[];
+  branches: BranchOption[];
+  departments: DepartmentOption[];
+  teams: TeamOption[];
   canManage: boolean;
   currentUserId: string;
 }) {
@@ -265,93 +369,6 @@ export default function UserAdministration({
     if (result.ok) router.refresh();
   }
 
-  const assignableRoles = roles.filter(
-    (role) => role.slug !== "organization_owner",
-  );
-
-  function ScopeSelection({ user }: { user?: UserRow }) {
-    return (
-      <>
-        <fieldset>
-          <legend>Company access</legend>
-          <div className="permission-list compact">
-            {companies.map((company) => (
-              <label className="checkbox-row" key={company.id}>
-                <input
-                  type="checkbox"
-                  name="companyIds"
-                  value={company.id}
-                  defaultChecked={user?.companyIds.includes(company.id)}
-                />
-                <span>
-                  <strong>{company.name}</strong>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Branch access</legend>
-          <div className="permission-list compact">
-            {branches.map((branch) => (
-              <label className="checkbox-row" key={branch.id}>
-                <input
-                  type="checkbox"
-                  name="branchIds"
-                  value={branch.id}
-                  defaultChecked={user?.branchIds.includes(branch.id)}
-                />
-                <span>
-                  <strong>{branch.name}</strong>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        {departments.length ? (
-          <fieldset>
-            <legend>Department access</legend>
-            <div className="permission-list compact">
-              {departments.map((department) => (
-                <label className="checkbox-row" key={department.id}>
-                  <input
-                    type="checkbox"
-                    name="departmentIds"
-                    value={department.id}
-                    defaultChecked={user?.departmentIds.includes(department.id)}
-                  />
-                  <span>
-                    <strong>{department.name}</strong>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ) : null}
-        {teams.length ? (
-          <fieldset>
-            <legend>Team access</legend>
-            <div className="permission-list compact">
-              {teams.map((team) => (
-                <label className="checkbox-row" key={team.id}>
-                  <input
-                    type="checkbox"
-                    name="teamIds"
-                    value={team.id}
-                    defaultChecked={user?.teamIds.includes(team.id)}
-                  />
-                  <span>
-                    <strong>{team.name}</strong>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ) : null}
-      </>
-    );
-  }
-
   return (
     <div className="stack-section">
       {canManage ? (
@@ -364,7 +381,12 @@ export default function UserAdministration({
               <input name="email" type="email" required />
             </label>
             <RoleSelection roles={roles} selected={[]} primary={null} />
-            <ScopeSelection />
+            <ScopeSelection
+              companies={companies}
+              branches={branches}
+              departments={departments}
+              teams={teams}
+            />
             <div className="split-fields">
               <label>
                 Access starts
@@ -458,7 +480,13 @@ export default function UserAdministration({
                         <option value="disabled">Disabled</option>
                       </select>
                     </label>
-                    <ScopeSelection user={user} />
+                    <ScopeSelection
+                      companies={companies}
+                      branches={branches}
+                      departments={departments}
+                      teams={teams}
+                      user={user}
+                    />
                     <div className="split-fields">
                       <label>
                         Access starts

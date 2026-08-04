@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const read = (path) => fs.readFileSync(path, "utf8");
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
+const read = (relativePath) =>
+  fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
 
 const workspacePages = [
   "ai-intelligence",
@@ -38,9 +45,10 @@ test("CRM product CSS is scoped and imported last", () => {
   );
 });
 
-test("CRM operational action component posts, validates and refreshes", () => {
+test("CRM operational action component submits resilient requests, validates and refreshes", () => {
   const source = read("apps/web/src/components/crm/crm-action-workbench.tsx");
-  assert.match(source, /fetch\(endpoint/);
+  assert.match(source, /requestJson<Record<string, unknown>>\(endpoint/);
+  assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.match(source, /JSON\.parse/);
   assert.match(source, /router\.refresh\(\)/);
   assert.match(source, /aria-live/);

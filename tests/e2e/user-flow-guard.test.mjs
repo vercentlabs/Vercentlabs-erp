@@ -11,7 +11,7 @@ test("hidden administration pages deny direct access before loading data", () =>
   const users = read("apps/web/src/app/(app)/settings/users/page.tsx");
   assert.match(users, /PERMISSIONS\.usersView\)\) notFound\(\)/);
   assert.ok(
-    users.indexOf("PERMISSIONS.usersView") < users.indexOf("const userRows"),
+    users.indexOf("PERMISSIONS.usersView") < users.indexOf("await Promise.all"),
     "users.view must be checked before user data is queried",
   );
 

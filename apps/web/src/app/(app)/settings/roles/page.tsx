@@ -10,9 +10,7 @@ export const metadata = { title: "Roles and permissions" };
 export default async function RolesPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.rolesView)) {
-    return (
-      <AccessDenied message="You do not have permission to review roles and permissions." />
-    );
+    return <AccessDenied area="roles and permissions" returnHref="/settings" />;
   }
   const organizationId = session.organizationId;
   const roleRows = await query<{
