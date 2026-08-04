@@ -11,9 +11,9 @@ allowBuilds:
   unrs-resolver: true
 
 overrides:
-  postcss: 8.5.18
+  postcss: 8.5.23
   playwright: 1.61.1
-  brace-expansion: 5.0.8
+  brace-expansion: 5.0.9
   sharp: 0.35.3
   xcode>uuid: 11.1.1
 
@@ -39,7 +39,7 @@ minimumReleaseAgeExclude:
   - expo-router@57.0.8
   - expo-splash-screen@57.0.5
   - expo@57.0.8
-  - brace-expansion@5.0.8
+  - brace-expansion@5.0.9
 
 patchedDependencies:
-  brace-expansion@5.0.8: patches/brace-expansion@5.0.8.patch
+  brace-expansion@5.0.9: patches/brace-expansion@5.0.9.patch

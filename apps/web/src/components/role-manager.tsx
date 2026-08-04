@@ -68,7 +68,7 @@ export default function RoleManager({
           {roles.map((role) => (
             <article className="resource-card" key={role.id}>
               <div className="card-title-row">
-                <div>
+                <div className="role-card-heading">
                   <strong>{role.name}</strong>
                   <span>{role.slug}</span>
                 </div>

@@ -22,6 +22,7 @@ export default async function DashboardPage() {
     branches: number;
     users: number;
     departments: number;
+    roles: number;
     unread_notifications: number;
   }>(
     `
@@ -30,6 +31,7 @@ export default async function DashboardPage() {
         (SELECT count(*)::int FROM branches WHERE organization_id=$1 AND status='active') AS branches,
         (SELECT count(*)::int FROM organization_memberships WHERE organization_id=$1 AND status='active') AS users,
         (SELECT count(*)::int FROM departments WHERE organization_id=$1 AND status='active') AS departments,
+        (SELECT count(*)::int FROM roles WHERE organization_id=$1 AND status='active') AS roles,
         (SELECT count(*)::int FROM notifications WHERE organization_id=$1 AND user_id=$2 AND read_at IS NULL) AS unread_notifications
     `,
     [organizationId, session.userId],
@@ -114,6 +116,14 @@ export default async function DashboardPage() {
       href: "/notifications",
       attention: Boolean(counts?.unread_notifications),
     },
+    {
+      label: "Roles & permissions",
+      value: counts?.roles || 0,
+      description: "Access roles in use",
+      icon: "roles",
+      href: "/settings/roles",
+      permission: PERMISSIONS.rolesManage,
+    },
   ];
 
   const quickActions: Array<{
@@ -171,8 +181,8 @@ export default async function DashboardPage() {
             and move into the right operating context.
           </p>
           <div className="dashboard-hero-actions">
-            <Link className="primary-button inverse" href="/modules">
-              <AppIcon name="modules" size={18} /> Open modules
+            <Link className="primary-button inverse" href="/crm">
+              <AppIcon name="crm" size={18} /> Open CRM
             </Link>
             <Link className="secondary-button inverse" href="/settings">
               <AppIcon name="settings" size={18} /> Workspace settings

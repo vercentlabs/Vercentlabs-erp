@@ -87,14 +87,6 @@ const items: Array<{
     group: "Controls",
     permission: PERMISSIONS.numberingManage,
   },
-  {
-    label: "Release readiness",
-    href: "/settings/release-readiness",
-    description: "Executable checks, incidents, backups and promotion evidence",
-    icon: "audit",
-    group: "Controls",
-    permission: PERMISSIONS.auditView,
-  },
 ];
 
 export default async function SettingsPage() {

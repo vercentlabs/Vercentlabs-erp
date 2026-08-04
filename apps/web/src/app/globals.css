@@ -2369,6 +2369,24 @@ legend {
   color: var(--color-ink);
 }
 
+.role-card-heading {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.role-card-heading strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.role-card-heading span {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .resource-card span {
   color: var(--color-muted);
   font-size: 11px;
@@ -2406,6 +2424,14 @@ legend {
   cursor: pointer;
   color: var(--color-primary);
   font-weight: 750;
+}
+
+.role-grid .resource-card {
+  gap: 14px;
+}
+
+.role-grid .chip-row {
+  margin-top: 4px;
 }
 
 .empty-state {

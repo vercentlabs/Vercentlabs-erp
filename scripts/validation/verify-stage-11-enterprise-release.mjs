@@ -8,7 +8,6 @@ const required = [
   "database/tenant/migrations/027_enterprise_release_governance.sql",
   "apps/web/src/app/api/release/governance/route.ts",
   "apps/web/src/app/api/release/governance/timeline/route.ts",
-  "apps/web/src/app/(app)/settings/release-readiness/page.tsx",
   "apps/web/scripts/verify-enterprise-release-governance-live.mjs",
   "scripts/database/rehearse-restore.sh",
   "scripts/validation/report-enterprise-release-readiness.mjs",
@@ -108,19 +107,11 @@ const workflow = fs.readFileSync(
 assert.match(workflow, /pnpm test:enterprise-release-live/);
 assert.match(workflow, /pnpm report:release-readiness/);
 
-const page = fs.readFileSync(
-  "apps/web/src/app/(app)/settings/release-readiness/page.tsx",
-  "utf8",
-);
-assert.match(page, /Production readiness control tower/);
-assert.match(page, /419-capability evidence remains separate/);
-assert.match(page, /PERMISSIONS\.auditView/);
-
 const mobile = fs.readFileSync(
   "apps/mobile/src/core/modules/web-parity.ts",
   "utf8",
 );
-assert.match(mobile, /web: "\/settings\/release-readiness"/);
+assert.doesNotMatch(mobile, /web: "\/settings\/release-readiness"/);
 
 const register = JSON.parse(
   fs.readFileSync(

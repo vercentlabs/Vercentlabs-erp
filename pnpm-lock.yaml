@@ -5,14 +5,14 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  postcss: 8.5.18
+  postcss: 8.5.23
   playwright: 1.61.1
-  brace-expansion: 5.0.8
+  brace-expansion: 5.0.9
   sharp: 0.35.3
   xcode>uuid: 11.1.1
 
 patchedDependencies:
-  brace-expansion@5.0.8: 88af046c6a3fa19d8456e8ab0ba1e4e8ac6dfe7966ae8400da5b20e7b702f942
+  brace-expansion@5.0.9: 88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94
 
 importers:
 
@@ -2168,8 +2168,8 @@ packages:
     resolution: {integrity: sha512-apC2+fspHGI3mMKj+dGevkGo/tCqVB8jMb6i+OX+E29p0Iposz07fABkRIfVUPNd5A5VbuOz1bZbnmkKLYF+wQ==}
     engines: {node: '>= 5.10.0'}
 
-  brace-expansion@5.0.8:
-    resolution: {integrity: sha512-JZyDyq3D4AUifKTPOB7DELf6XsB3WdPuNxCtob1vFXPsSXhdAiHBWJ/tJ8HAc9aH84BK+5JFZLNkJKx3G9kzQg==}
+  brace-expansion@5.0.9:
+    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
     engines: {node: 20 || >=22}
 
   braces@3.0.3:
@@ -3814,8 +3814,8 @@ packages:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
 
-  postcss@8.5.18:
-    resolution: {integrity: sha512-xdB1oSLHbz1vRWgCDalrCqEFTWzFlhqFC5tIHLMOSUIjhm3XXQ1qrFy8S/ESr1JYRRXqM3c1QFiMZUJdUTqyMQ==}
+  postcss@8.5.23:
+    resolution: {integrity: sha512-g50586zr4bZmwFiTlflMu8E0bDTb5I5gertgwAKmsdUlTQIhZtunzUlD1WSzwcVWPoAVpsrA6vlfCD7oXvRwgg==}
     engines: {node: ^10 || ^12 || >=14}
 
   postgres-array@2.0.0:
@@ -5497,7 +5497,7 @@ snapshots:
       jsc-safe-url: 0.2.4
       lightningcss: 1.30.2
       picomatch: 4.0.5
-      postcss: 8.5.18
+      postcss: 8.5.23
       resolve-from: 5.0.0
     optionalDependencies:
       expo: 57.0.8(139e1b028e92f0c1def301e8807aebbd)
@@ -6292,7 +6292,7 @@ snapshots:
       '@alloc/quick-lru': 5.2.0
       '@tailwindcss/node': 4.1.18
       '@tailwindcss/oxide': 4.1.18
-      postcss: 8.5.18
+      postcss: 8.5.23
       tailwindcss: 4.1.18
 
   '@tanstack/query-core@5.101.2': {}
@@ -6925,7 +6925,7 @@ snapshots:
     dependencies:
       big-integer: 1.6.52
 
-  brace-expansion@5.0.8(patch_hash=88af046c6a3fa19d8456e8ab0ba1e4e8ac6dfe7966ae8400da5b20e7b702f942):
+  brace-expansion@5.0.9(patch_hash=88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94):
     dependencies:
       balanced-match: 4.0.4
 
@@ -8632,11 +8632,11 @@ snapshots:
 
   minimatch@10.2.5:
     dependencies:
-      brace-expansion: 5.0.8(patch_hash=88af046c6a3fa19d8456e8ab0ba1e4e8ac6dfe7966ae8400da5b20e7b702f942)
+      brace-expansion: 5.0.9(patch_hash=88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94)
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.8(patch_hash=88af046c6a3fa19d8456e8ab0ba1e4e8ac6dfe7966ae8400da5b20e7b702f942)
+      brace-expansion: 5.0.9(patch_hash=88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94)
 
   minimist@1.2.8: {}
 
@@ -8668,7 +8668,7 @@ snapshots:
       '@swc/helpers': 0.5.15
       baseline-browser-mapping: 2.10.43
       caniuse-lite: 1.0.30001805
-      postcss: 8.5.18
+      postcss: 8.5.23
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
       styled-jsx: 5.1.6(@babel/core@7.29.7(supports-color@8.1.1))(react@19.2.3)
@@ -8890,7 +8890,7 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postcss@8.5.18:
+  postcss@8.5.23:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1

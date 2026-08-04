@@ -1528,7 +1528,9 @@ tbody tr:hover td,
 }
 
 .crm-section-tabs-shell {
+  position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
@@ -1538,6 +1540,22 @@ tbody tr:hover td,
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-xs);
+}
+
+.crm-section-tabs-shell.has-overflow::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 72px;
+  height: 100%;
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    var(--color-surface) 72%
+  );
+  content: "";
+  pointer-events: none;
 }
 
 .crm-section-tabs-heading {
@@ -1560,6 +1578,7 @@ tbody tr:hover td,
 
 .crm-section-tabs {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
@@ -1590,6 +1609,21 @@ tbody tr:hover td,
   color: var(--color-primary-strong);
 }
 
+.crm-section-tabs-hint {
+  flex: 0 0 100%;
+  margin: -8px 0 0;
+  padding: 2px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface-subtle);
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: right;
+  pointer-events: none;
+}
+
 @media (max-width: 960px) {
   .nav-subgroup-label {
     margin-left: 44px;
@@ -1606,6 +1640,11 @@ tbody tr:hover td,
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 2px;
+  }
+
+  .crm-section-tabs-shell.has-overflow::after,
+  .crm-section-tabs-hint {
+    display: none;
   }
 
   .crm-section-tabs a {

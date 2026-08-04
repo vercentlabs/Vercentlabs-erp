@@ -9,7 +9,6 @@ const required = [
   "src/app/(app)/audit-logs/page.tsx",
   "src/app/(app)/security/page.tsx",
   "src/app/(app)/notifications/page.tsx",
-  "src/app/(app)/modules/page.tsx",
   "src/app/api/profile/route.ts",
   "src/app/api/approvals/[id]/route.ts",
   "src/app/api/modules/[key]/route.ts",
