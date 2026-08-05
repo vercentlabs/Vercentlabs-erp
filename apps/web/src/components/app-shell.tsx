@@ -302,6 +302,62 @@ const moduleNavigation: NavigationGroup[] = [
     ],
   },
   {
+    label: "Projects",
+    icon: "modules",
+    items: [
+      {
+        href: "/projects",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/projects",
+        label: "Projects",
+        icon: "modules",
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/milestones",
+        label: "Milestones",
+        icon: "check",
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/tasks",
+        label: "Tasks",
+        icon: "approvals",
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/time-entries",
+        label: "Time",
+        icon: "audit",
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/expenses",
+        label: "Expenses",
+        icon: "accounting",
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/budgets",
+        label: "Budgets",
+        icon: "accounting",
+        permission: PERMISSIONS.projectsView,
+      },
+      {
+        href: "/projects/profitability",
+        label: "Profitability",
+        icon: "sales",
+        permission: PERMISSIONS.projectsProfitabilityView,
+      },
+    ],
+  },
+
+  {
     label: "Manufacturing",
     icon: "modules",
     items: [

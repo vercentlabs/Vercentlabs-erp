@@ -5,7 +5,7 @@ export const ERP_MODULE_CATALOG = Object.freeze([
   { key: "crm", name: "CRM", description: "Leads, opportunities, customer relationships and activities.", availability: "released" },
   { key: "stock", name: "Stock", description: "Warehouses, balances, movements, transfers, traceability, replenishment and valuation.", availability: "released" },
   { key: "manufacturing", name: "Manufacturing", description: "BOMs, routings, work centers, material planning, work orders, production execution and costing.", availability: "released" },
-  { key: "projects", name: "Projects", description: "Projects, tasks, time, budgets and profitability.", availability: "roadmap" },
+  { key: "projects", name: "Projects", description: "Projects, milestones, tasks, resources, time, expenses, budgets, billing and profitability.", availability: "released" },
   { key: "assets", name: "Assets", description: "Asset lifecycle, depreciation and maintenance.", availability: "roadmap" },
   { key: "point-of-sale", name: "Point of Sale", description: "Counter sales, payments, shifts and returns.", availability: "roadmap" },
   { key: "quality", name: "Quality", description: "Inspections, non-conformances and corrective action.", availability: "roadmap" },

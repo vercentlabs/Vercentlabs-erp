@@ -272,6 +272,29 @@ function permissionsForRole(slug: string) {
       "manufacturing.audit.view",
     ];
   }
+  if (slug === "project_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "business_data.view",
+      "projects.view",
+      "projects.manage",
+      "projects.create",
+      "projects.tasks.manage",
+      "projects.milestones.manage",
+      "projects.resources.manage",
+      "projects.time.enter",
+      "projects.time.approve",
+      "projects.expense.enter",
+      "projects.expense.approve",
+      "projects.budget.manage",
+      "projects.procurement.link",
+      "projects.billing.manage",
+      "projects.profitability.view",
+      "projects.reports.view",
+      "projects.settings.manage",
+      "projects.audit.view",
+    ];
+  }
 
   if (slug === "hr_manager") {
     return [
