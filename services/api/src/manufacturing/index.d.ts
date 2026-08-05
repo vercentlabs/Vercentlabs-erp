@@ -3,6 +3,7 @@ export type ManufacturingContext = {
   companyId: string;
   userId: string;
   permissions: readonly string[];
+  roleSlugs: readonly string[];
 };
 
 export declare function getManufacturingDashboard(

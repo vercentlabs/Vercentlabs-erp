@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
+import { getManufacturingDashboard } from "../../../services/api/src/manufacturing/index.js";
+
 const read = (file) =>
   fs.readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
 
@@ -44,4 +46,46 @@ test("manufacturing has permission-safe web routes and APIs", () => {
   assert.match(page, /<AccessDenied/);
   assert.match(production, /productionPostSchema/);
   assert.match(production, /tenantTransaction/);
+});
+
+test("organization owners retain Manufacturing service access", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes("shortage_count")) {
+        return { rows: [{ shortage_count: 0 }] };
+      }
+      return {
+        rows: [
+          {
+            active_work_orders: 0,
+            planned_work_orders: 0,
+            completed_work_orders: 0,
+            remaining_quantity: "0",
+          },
+        ],
+      };
+    },
+  };
+
+  await assert.doesNotReject(() =>
+    getManufacturingDashboard(client, {
+      organizationId: "organization-id",
+      companyId: "company-id",
+      userId: "user-id",
+      permissions: [],
+      roleSlugs: ["organization_owner"],
+    }),
+  );
+
+  await assert.rejects(
+    () =>
+      getManufacturingDashboard(client, {
+        organizationId: "organization-id",
+        companyId: "company-id",
+        userId: "user-id",
+        permissions: [],
+        roleSlugs: ["employee"],
+      }),
+    /Missing permission: manufacturing\.view/,
+  );
 });

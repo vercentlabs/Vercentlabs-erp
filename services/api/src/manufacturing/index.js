@@ -13,7 +13,10 @@ const RESOURCE_TABLES = Object.freeze({
 });
 
 function assertPermission(context, permission) {
-  if (!context.permissions?.includes(permission)) {
+  if (
+    !context.roleSlugs?.includes("organization_owner") &&
+    !context.permissions?.includes(permission)
+  ) {
     const error = new Error(`Missing permission: ${permission}`);
     error.code = "FORBIDDEN";
     throw error;

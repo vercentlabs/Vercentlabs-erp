@@ -9,5 +9,6 @@ export function manufacturingContext(session: WorkspaceSessionContext) {
     companyId: session.activeCompanyId,
     userId: session.userId,
     permissions: session.permissions,
+    roleSlugs: session.roleSlugs,
   };
 }
