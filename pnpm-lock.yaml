@@ -12,7 +12,7 @@ overrides:
   xcode>uuid: 11.1.1
 
 patchedDependencies:
-  brace-expansion@5.0.9: 88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94
+  brace-expansion@5.0.9: e578f2ff8b8511fef8ae65139aee8f579acfd20ca22bf602b92073dcb05d4067
 
 importers:
 
@@ -6925,7 +6925,7 @@ snapshots:
     dependencies:
       big-integer: 1.6.52
 
-  brace-expansion@5.0.9(patch_hash=88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94):
+  brace-expansion@5.0.9(patch_hash=e578f2ff8b8511fef8ae65139aee8f579acfd20ca22bf602b92073dcb05d4067):
     dependencies:
       balanced-match: 4.0.4
 
@@ -8632,11 +8632,11 @@ snapshots:
 
   minimatch@10.2.5:
     dependencies:
-      brace-expansion: 5.0.9(patch_hash=88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94)
+      brace-expansion: 5.0.9(patch_hash=e578f2ff8b8511fef8ae65139aee8f579acfd20ca22bf602b92073dcb05d4067)
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.9(patch_hash=88c88f904d1ab3526967aff5621aa45bdca6ecfb8906db5c8cacf9034be51e94)
+      brace-expansion: 5.0.9(patch_hash=e578f2ff8b8511fef8ae65139aee8f579acfd20ca22bf602b92073dcb05d4067)
 
   minimist@1.2.8: {}
 
