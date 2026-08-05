@@ -181,9 +181,6 @@ export default async function DashboardPage() {
             and move into the right operating context.
           </p>
           <div className="dashboard-hero-actions">
-            <Link className="primary-button inverse" href="/crm">
-              <AppIcon name="crm" size={18} /> Open CRM
-            </Link>
             <Link className="secondary-button inverse" href="/settings">
               <AppIcon name="settings" size={18} /> Workspace settings
             </Link>

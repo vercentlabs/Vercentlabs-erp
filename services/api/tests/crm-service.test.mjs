@@ -101,6 +101,43 @@ test("CRM list queries remain organization scoped", async () => {
   );
   assert.match(captured, /record\.organization_id = \$1/);
 });
+test("CRM list pagination returns an exact total beyond the first 500 records", async () => {
+  const queries = [];
+  const client = {
+    async query(text, parameters) {
+      queries.push({ text, parameters: [...parameters] });
+      if (text.startsWith("SELECT count(*)"))
+        return { rows: [{ total: 1001 }] };
+      return {
+        rows: [
+          {
+            id: "00000000-0000-4000-8000-000000000010",
+            first_name: "Page",
+            last_name: "One Hundred One",
+          },
+        ],
+      };
+    },
+  };
+  const result = await listCrmRecords(
+    client,
+    {
+      organizationId: "00000000-0000-4000-8000-000000000000",
+      userId: "00000000-0000-4000-8000-000000000001",
+      activeCompanyId: null,
+      activeBranchId: null,
+      allowAllCompanies: true,
+    },
+    "leads",
+    { limit: 10, offset: 1000, search: "Page", status: "new" },
+  );
+
+  assert.equal(result.total, 1001);
+  assert.equal(result.rows[0].firstName, "Page");
+  assert.deepEqual(queries[1].parameters.slice(-2), [10, 1000]);
+  assert.match(queries[0].text, /ILIKE/);
+  assert.match(queries[0].text, /record\.status/);
+});
 test("CRM dashboard serializes queries on a transaction client", async () => {
   let active = false;
   let calls = 0;
@@ -123,7 +160,6 @@ test("CRM dashboard serializes queries on a transaction client", async () => {
   });
   assert.equal(calls, 4);
 });
-
 
 test("company and branch scope is applied to CRM record lists", async () => {
   let captured = "";
@@ -187,7 +223,6 @@ test("governed opportunity fields cannot be changed through generic PATCH", asyn
     /governed opportunity stage action/,
   );
 });
-
 
 test("consent evidence is immutable", async () => {
   const client = {
@@ -358,10 +393,20 @@ test("CRM branch access fails closed without an authorized active branch", async
     activeBranchId: null,
     allowAllCompanies: false,
   };
-  await listCrmRecords({ query: async (text) => ((sql = text), { rows: [] }) }, restricted, "leads");
+  await listCrmRecords(
+    { query: async (text) => ((sql = text), { rows: [] }) },
+    restricted,
+    "leads",
+  );
   assert.match(sql, /AND false/);
   await assert.rejects(
-    () => createCrmRecord({ query: async () => assert.fail("must not query") }, restricted, "activities", { subject: "Blocked" }),
+    () =>
+      createCrmRecord(
+        { query: async () => assert.fail("must not query") },
+        restricted,
+        "activities",
+        { subject: "Blocked" },
+      ),
     /allowed branch/,
   );
 });
@@ -376,11 +421,19 @@ test("CRM writes reject unauthorized branches and cross-company input", async ()
   };
   const client = { query: async () => assert.fail("must not query") };
   await assert.rejects(
-    () => createCrmRecord(client, restricted, "activities", { subject: "Wrong branch", branchId: "00000000-0000-4000-8000-000000000099" }),
+    () =>
+      createCrmRecord(client, restricted, "activities", {
+        subject: "Wrong branch",
+        branchId: "00000000-0000-4000-8000-000000000099",
+      }),
     /another branch/,
   );
   await assert.rejects(
-    () => createCrmRecord(client, restricted, "activities", { subject: "Wrong company", companyId: "00000000-0000-4000-8000-000000000098" }),
+    () =>
+      createCrmRecord(client, restricted, "activities", {
+        subject: "Wrong company",
+        companyId: "00000000-0000-4000-8000-000000000098",
+      }),
     /another company/,
   );
 });

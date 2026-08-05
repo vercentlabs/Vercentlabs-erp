@@ -416,6 +416,9 @@ async function createLead(client, context, lead, options = {}) {
 export async function previewLeadImport(client, context, input = {}) {
   const rows = validateLeadImportRows(input.rows, input.fieldMapping || {});
   const contentHash = crmLeadAcquisitionHash({
+    fileName: text(input.fileName || "lead-import.csv", 240),
+    sourceFormat: text(input.sourceFormat || "csv", 20),
+    duplicateStrategy: text(input.duplicateStrategy || "skip", 20),
     rows: input.rows,
     fieldMapping: input.fieldMapping || {},
   });
@@ -648,6 +651,8 @@ export async function submitPublishedLeadForm(
   form,
   input = {},
 ) {
+  const formId = form.id || form.form_id;
+  assertUuid(formId, "Capture form");
   const fingerprint = crmLeadAcquisitionHash(
     input.__fingerprint || "anonymous",
   ).slice(0, 64);
@@ -658,7 +663,7 @@ export async function submitPublishedLeadForm(
      ON CONFLICT(organization_id,form_id,fingerprint,window_started_at)
      DO UPDATE SET attempts=tenant.crm_capture_rate_limits.attempts+1
      RETURNING attempts`,
-    [context.organizationId, form.id, fingerprint],
+    [context.organizationId, formId, fingerprint],
   );
   if (Number(rate.rows[0]?.attempts || 0) > limit)
     throw new CrmLeadAcquisitionError(429, "Lead-form rate limit exceeded.");
@@ -691,7 +696,7 @@ export async function submitPublishedLeadForm(
     [
       context.organizationId,
       result.leadId,
-      form.id,
+      formId,
       String(Date.now()),
       JSON.stringify(input),
       JSON.stringify({
@@ -899,9 +904,10 @@ export async function queueLeadEnrichment(client, context, input = {}) {
       context.userId,
     ],
   );
-  if (Object.keys(review.proposedChanges).length)
-    await client.query(
-      `INSERT INTO tenant.crm_enrichment_reviews(organization_id,enrichment_job_id,proposed_changes,provenance,confidence) VALUES($1,$2,$3::jsonb,$4::jsonb,$5)`,
+  let reviewId = null;
+  if (Object.keys(review.proposedChanges).length) {
+    const createdReview = await client.query(
+      `INSERT INTO tenant.crm_enrichment_reviews(organization_id,enrichment_job_id,proposed_changes,provenance,confidence) VALUES($1,$2,$3::jsonb,$4::jsonb,$5) RETURNING id`,
       [
         context.organizationId,
         job.rows[0].id,
@@ -910,7 +916,9 @@ export async function queueLeadEnrichment(client, context, input = {}) {
         review.confidence,
       ],
     );
-  return job.rows[0];
+    reviewId = createdReview.rows[0]?.id || null;
+  }
+  return { ...job.rows[0], reviewId };
 }
 
 export async function reviewLeadEnrichment(
@@ -932,9 +940,21 @@ export async function reviewLeadEnrichment(
       409,
       "Enrichment review is already complete.",
     );
-  const acceptedKeys = Array.isArray(input.acceptedKeys)
-    ? input.acceptedKeys
-    : [];
+  const decision = text(input.decision, 20).toLowerCase();
+  if (decision && !["approved", "rejected"].includes(decision)) {
+    throw new CrmLeadAcquisitionError(
+      400,
+      "Enrichment decision must be approved or rejected.",
+    );
+  }
+  const acceptedKeys =
+    decision === "rejected"
+      ? []
+      : Array.isArray(input.acceptedKeys)
+        ? input.acceptedKeys.map((key) => text(key, 120)).filter(Boolean)
+        : decision === "approved"
+          ? Object.keys(row.proposed_changes || {})
+          : [];
   const accepted = Object.fromEntries(
     Object.entries(row.proposed_changes || {}).filter(([key]) =>
       acceptedKeys.includes(key),
@@ -1003,33 +1023,30 @@ export async function reviewLeadEnrichment(
 }
 
 export async function getLeadAcquisitionDashboard(client, context) {
-  const [summary, imports, forms, connections, events, enrichment] =
-    await Promise.all([
-      client.query(
-        `SELECT (SELECT count(*)::int FROM tenant.crm_lead_import_batches WHERE organization_id=$1) imports,(SELECT count(*)::int FROM tenant.crm_capture_forms WHERE organization_id=$1 AND status='active' AND published_at IS NOT NULL) published_forms,(SELECT count(*)::int FROM tenant.crm_lead_acquisition_connections WHERE organization_id=$1 AND status IN ('sandbox','connected')) active_connections,(SELECT count(*)::int FROM tenant.crm_lead_acquisition_events WHERE organization_id=$1 AND status='processed') processed_events,(SELECT count(*)::int FROM tenant.crm_chat_sessions WHERE organization_id=$1 AND status='open') open_chats,(SELECT count(*)::int FROM tenant.crm_enrichment_reviews WHERE organization_id=$1 AND status='pending') pending_enrichment`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT id,file_name,status,total_rows,valid_rows,invalid_rows,created_rows,created_at FROM tenant.crm_lead_import_batches WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 10`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT id,name,public_key,status,version,published_at FROM tenant.crm_capture_forms WHERE organization_id=$1 ORDER BY updated_at DESC LIMIT 10`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT id,provider,display_name,status,last_event_at,last_error FROM tenant.crm_lead_acquisition_connections WHERE organization_id=$1 ORDER BY updated_at DESC`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT id,provider,event_type,source_channel,status,lead_id,received_at FROM tenant.crm_lead_acquisition_events WHERE organization_id=$1 ORDER BY received_at DESC LIMIT 10`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT review.id,job.provider,job.entity_type,job.entity_id,review.confidence,review.status,review.created_at FROM tenant.crm_enrichment_reviews review JOIN tenant.crm_enrichment_jobs job ON job.organization_id=review.organization_id AND job.id=review.enrichment_job_id WHERE review.organization_id=$1 ORDER BY review.created_at DESC LIMIT 10`,
-        [context.organizationId],
-      ),
-    ]);
+  const summary = await client.query(
+    `SELECT (SELECT count(*)::int FROM tenant.crm_lead_import_batches WHERE organization_id=$1) imports,(SELECT count(*)::int FROM tenant.crm_capture_forms WHERE organization_id=$1 AND status='active' AND published_at IS NOT NULL) published_forms,(SELECT count(*)::int FROM tenant.crm_lead_acquisition_connections WHERE organization_id=$1 AND status IN ('sandbox','connected')) active_connections,(SELECT count(*)::int FROM tenant.crm_lead_acquisition_events WHERE organization_id=$1 AND status='processed') processed_events,(SELECT count(*)::int FROM tenant.crm_chat_sessions WHERE organization_id=$1 AND status='open') open_chats,(SELECT count(*)::int FROM tenant.crm_enrichment_reviews WHERE organization_id=$1 AND status='pending') pending_enrichment`,
+    [context.organizationId],
+  );
+  const imports = await client.query(
+    `SELECT id,file_name,status,total_rows,valid_rows,invalid_rows,created_rows,created_at FROM tenant.crm_lead_import_batches WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 10`,
+    [context.organizationId],
+  );
+  const forms = await client.query(
+    `SELECT id,name,public_key,status,version,published_at FROM tenant.crm_capture_forms WHERE organization_id=$1 ORDER BY updated_at DESC LIMIT 10`,
+    [context.organizationId],
+  );
+  const connections = await client.query(
+    `SELECT id,provider,display_name,status,last_event_at,last_error FROM tenant.crm_lead_acquisition_connections WHERE organization_id=$1 ORDER BY updated_at DESC`,
+    [context.organizationId],
+  );
+  const events = await client.query(
+    `SELECT id,provider,event_type,source_channel,status,lead_id,received_at FROM tenant.crm_lead_acquisition_events WHERE organization_id=$1 ORDER BY received_at DESC LIMIT 10`,
+    [context.organizationId],
+  );
+  const enrichment = await client.query(
+    `SELECT review.id,job.provider,job.entity_type,job.entity_id,review.confidence,review.status,review.created_at FROM tenant.crm_enrichment_reviews review JOIN tenant.crm_enrichment_jobs job ON job.organization_id=review.organization_id AND job.id=review.enrichment_job_id WHERE review.organization_id=$1 ORDER BY review.created_at DESC LIMIT 10`,
+    [context.organizationId],
+  );
   return {
     summary: summary.rows[0] || {},
     imports: imports.rows,

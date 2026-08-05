@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
@@ -29,9 +31,12 @@ export async function POST(
     requireCrmManage(session, resource);
 
     const bytes = await readRequestBytes(request, 2_000_000);
-    const rows = parseCsv(
-      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-    );
+    const csv = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const contentHash = createHash("sha256").update(bytes).digest("hex");
+    const fileName =
+      request.headers.get("x-import-file-name")?.trim().slice(0, 240) ||
+      `${resource}-import.csv`;
+    const rows = parseCsv(csv);
     if (rows.length < 2)
       throw new HttpError(
         400,
@@ -53,7 +58,55 @@ export async function POST(
     const result = await tenantTransaction(
       context.organizationId,
       async (client) => {
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [`crm-import:${context.organizationId}:${resource}`],
+        );
+        const claimed = await client.query(
+          `INSERT INTO tenant.crm_import_receipts(
+             organization_id,resource,file_name,content_hash,total_rows,created_by
+           ) VALUES($1,$2,$3,$4,$5,$6)
+           ON CONFLICT (organization_id,resource,content_hash) DO NOTHING
+           RETURNING id`,
+          [
+            context.organizationId,
+            resource,
+            fileName,
+            contentHash,
+            rows.length - 1,
+            session.userId,
+          ],
+        );
+        if (!claimed.rows[0]) {
+          const existing = await client.query(
+            `SELECT id,status,total_rows,succeeded_rows,failed_rows,error_details
+             FROM tenant.crm_import_receipts
+             WHERE organization_id=$1 AND resource=$2 AND content_hash=$3`,
+            [context.organizationId, resource, contentHash],
+          );
+          const receipt = existing.rows[0];
+          if (!receipt)
+            throw new HttpError(409, "The import could not be claimed safely.");
+          return {
+            importId: receipt.id,
+            succeeded: Number(receipt.succeeded_rows || 0),
+            failed: Number(receipt.failed_rows || 0),
+            skipped: Math.max(
+              0,
+              Number(receipt.total_rows || 0) -
+                Number(receipt.succeeded_rows || 0) -
+                Number(receipt.failed_rows || 0),
+            ),
+            errors: Array.isArray(receipt.error_details)
+              ? receipt.error_details
+              : [],
+            replayed: true,
+            inProgress: receipt.status === "processing",
+          };
+        }
+
         let succeeded = 0;
+        let skipped = 0;
         const errors: Array<{ row: number; message: string }> = [];
         for (let index = 1; index < rows.length; index += 1) {
           const rowNumber = index + 1;
@@ -65,6 +118,24 @@ export async function POST(
               headers.map((header, column) => [header, values[column] ?? ""]),
             );
             const input = await crmSchemas[resource].parseAsync(raw);
+            if (resource === "leads") {
+              const email = String(input.email || "").trim() || null;
+              const phone =
+                String(input.mobile || input.phone || "").trim() || null;
+              const duplicate = await client.query(
+                `SELECT id FROM tenant.crm_leads
+                 WHERE organization_id=$1 AND status<>'archived'
+                   AND (($2::text IS NOT NULL AND normalized_email=tenant.crm_normalize_email($2))
+                     OR ($3::text IS NOT NULL AND normalized_phone=tenant.crm_normalize_phone($3)))
+                 LIMIT 1`,
+                [context.organizationId, email, phone],
+              );
+              if (duplicate.rows[0]) {
+                skipped += 1;
+                await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+                continue;
+              }
+            }
             await createCrmRecord(client, context, resource, input);
             await client.query(`RELEASE SAVEPOINT ${savepoint}`);
             succeeded += 1;
@@ -78,10 +149,29 @@ export async function POST(
           }
         }
         const importResult = {
+          importId: claimed.rows[0].id,
           succeeded,
+          skipped,
           failed: errors.length,
           errors: errors.slice(0, 100),
+          replayed: false,
+          inProgress: false,
         };
+        await client.query(
+          `UPDATE tenant.crm_import_receipts
+           SET status=$3,total_rows=$4,succeeded_rows=$5,failed_rows=$6,
+               error_details=$7::jsonb,completed_at=now()
+           WHERE organization_id=$1 AND id=$2`,
+          [
+            context.organizationId,
+            claimed.rows[0].id,
+            errors.length ? "completed_with_errors" : "completed",
+            rows.length - 1,
+            succeeded,
+            errors.length,
+            JSON.stringify(errors.slice(0, 100)),
+          ],
+        );
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,
@@ -95,18 +185,29 @@ export async function POST(
       },
     );
 
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    if (result.succeeded) {
+    if (!result.replayed)
+      await incrementBillingUsage(
+        session.organizationId,
+        "api_requests_monthly",
+      );
+    if (!result.replayed && result.succeeded) {
       await incrementBillingUsage(
         session.organizationId,
         "imports_rows_monthly",
         result.succeeded,
       );
     }
-    return ok({
-      message: `Imported ${result.succeeded} records; ${result.failed} failed.`,
-      ...result,
-    });
+    return ok(
+      {
+        message: result.inProgress
+          ? "This file is already being imported. No second import was started."
+          : result.replayed
+            ? `This file was already imported. No duplicate records were created. Original result: ${result.succeeded} imported; ${result.skipped} duplicates skipped; ${result.failed} failed.`
+            : `Imported ${result.succeeded} records; ${result.skipped} duplicates skipped; ${result.failed} failed.`,
+        ...result,
+      },
+      result.inProgress ? 202 : 200,
+    );
   } catch (error) {
     try {
       rethrowCrmError(error);

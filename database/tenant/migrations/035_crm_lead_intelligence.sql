@@ -106,6 +106,17 @@ CREATE TABLE IF NOT EXISTS tenant.crm_lead_sla_policies (
   UNIQUE (organization_id, name)
 );
 
+-- Migration 018 introduced the SLA policy table with a smaller column set.
+-- CREATE TABLE IF NOT EXISTS does not evolve that existing table, so add the
+-- intelligence fields explicitly for both upgraded and freshly built schemas.
+ALTER TABLE tenant.crm_lead_sla_policies
+  ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS sequence integer NOT NULL DEFAULT 100 CHECK (sequence > 0),
+  ADD COLUMN IF NOT EXISTS escalation_after_minutes integer NOT NULL DEFAULT 30 CHECK (escalation_after_minutes BETWEEN 0 AND 43200),
+  ADD COLUMN IF NOT EXISTS business_hours jsonb NOT NULL DEFAULT '{"timezone":"Asia/Kolkata","weekdays":[1,2,3,4,5],"start":"09:00","end":"18:00"}'::jsonb,
+  ADD COLUMN IF NOT EXISTS escalation_user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS reassign_on_breach boolean NOT NULL DEFAULT false;
+
 CREATE TABLE IF NOT EXISTS tenant.crm_lead_sla_cases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,

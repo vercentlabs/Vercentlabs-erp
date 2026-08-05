@@ -16,6 +16,7 @@ export default async function LoginPage({
   const { reset, expired } = await searchParams;
   return (
     <AuthCard
+      pageClassName="viewport-auth-page"
       eyebrow="Welcome back"
       title="Sign in to your ERP workspace"
       description="Use your verified work account to continue."

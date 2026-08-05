@@ -11,6 +11,7 @@ export default async function SignupPage() {
   if (session) redirect(nextPath(session));
   return (
     <AuthCard
+      pageClassName="viewport-auth-page"
       eyebrow="Create your account"
       title="Start your organisation workspace"
       description="Create the first administrator account. Organisation setup follows after email verification."

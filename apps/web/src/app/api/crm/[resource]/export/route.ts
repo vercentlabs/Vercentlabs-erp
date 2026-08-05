@@ -9,6 +9,8 @@ import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError } from "@/lib/http";
 import { audit } from "@/lib/security";
 
+const EXPORT_BATCH_SIZE = 500;
+
 export async function GET(
   request: Request,
   route: { params: Promise<{ resource: string }> },
@@ -22,8 +24,22 @@ export async function GET(
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmResourceView(session, resource);
     const context = crmContext(session);
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      listCrmRecords(client, context, resource, { limit: 500, offset: 0 }),
+    const result = await tenantTransaction(
+      context.organizationId,
+      async (client) => {
+        const rows: Array<Record<string, unknown>> = [];
+        let total = 0;
+        do {
+          const batch = await listCrmRecords(client, context, resource, {
+            limit: EXPORT_BATCH_SIZE,
+            offset: rows.length,
+          });
+          rows.push(...batch.rows);
+          total = batch.total;
+          if (!batch.rows.length) break;
+        } while (rows.length < total);
+        return { rows, total };
+      },
     );
     const keys = Array.from(
       new Set(result.rows.flatMap((row) => Object.keys(row))),

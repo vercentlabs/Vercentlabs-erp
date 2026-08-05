@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import PasswordField from "@/components/password-field";
 import { requestJson } from "@/lib/client-request";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 export default function AcceptInvitationForm({
   token,
@@ -68,14 +69,14 @@ export default function AcceptInvitationForm({
         name="password"
         label={existingUser ? "Existing account password" : "Create password"}
         autoComplete={existingUser ? "current-password" : "new-password"}
-        minLength={existingUser ? undefined : 15}
+        minLength={existingUser ? undefined : MIN_PASSWORD_LENGTH}
       />
       {!existingUser ? (
         <PasswordField
           name="confirmPassword"
           label="Confirm password"
           autoComplete="new-password"
-          minLength={15}
+          minLength={MIN_PASSWORD_LENGTH}
         />
       ) : (
         <input type="hidden" name="confirmPassword" value="existing-account" />

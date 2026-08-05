@@ -27,7 +27,7 @@ const actions: CrmActionDefinition[] = [
       {
         name: "fileName",
         label: "File name",
-        defaultValue: "lead-import.csv",
+        defaultValue: "vercent-lead-import-test.csv",
         required: true,
       },
       {
@@ -45,7 +45,14 @@ const actions: CrmActionDefinition[] = [
         name: "fieldMapping",
         label: "Field mapping",
         type: "json",
-        defaultValue: { email: "email", fullName: "name", phone: "phone" },
+        defaultValue: {
+          firstName: "first_name",
+          lastName: "last_name",
+          email: "email",
+          phone: "phone",
+          companyName: "company",
+          jobTitle: "job_title",
+        },
       },
       {
         name: "rows",
@@ -54,9 +61,20 @@ const actions: CrmActionDefinition[] = [
         required: true,
         defaultValue: [
           {
-            email: "buyer@example.com",
-            name: "Sample Buyer",
+            first_name: "Rahul",
+            last_name: "Sharma",
+            email: "rahul.crmtest01@example.com",
             phone: "+919876543210",
+            company: "Apex Components Pvt Ltd",
+            job_title: "Purchase Manager",
+          },
+          {
+            first_name: "Neha",
+            last_name: "Patil",
+            email: "neha.crmtest02@example.com",
+            phone: "+919876543211",
+            company: "Nova Engineering LLP",
+            job_title: "Operations Head",
           },
         ],
       },
@@ -100,8 +118,8 @@ const actions: CrmActionDefinition[] = [
         defaultValue: {
           fields: [
             {
-              name: "fullName",
-              label: "Full name",
+              name: "firstName",
+              label: "First name",
               type: "text",
               required: true,
             },
@@ -219,6 +237,20 @@ const actions: CrmActionDefinition[] = [
           { label: "Rejected", value: "rejected" },
         ],
       },
+      {
+        name: "acceptedKeys",
+        label: "Accepted fields",
+        type: "json",
+        defaultValue: [
+          "companyName",
+          "jobTitle",
+          "industry",
+          "city",
+          "state",
+          "countryCode",
+        ],
+        help: "Keep only the proposed fields that should be applied. A rejected decision ignores this list.",
+      },
       { name: "notes", label: "Review notes", type: "textarea" },
     ],
   },
@@ -230,14 +262,20 @@ export default async function LeadAcquisitionPage() {
     return <AccessDenied area="lead acquisition" returnHref="/crm" />;
   }
   const context = crmContext(session);
-  const [dashboard, readiness] = (await tenantTransaction(
+  const [dashboard, readiness] = await tenantTransaction(
     context.organizationId,
-    async (client) =>
-      Promise.all([
-        getLeadAcquisitionDashboard(client, context),
-        getCrmLeadAcquisitionReadiness(client, context),
-      ]),
-  )) as [Row, Row];
+    async (client) => {
+      const dashboardResult = await getLeadAcquisitionDashboard(
+        client,
+        context,
+      );
+      const readinessResult = await getCrmLeadAcquisitionReadiness(
+        client,
+        context,
+      );
+      return [dashboardResult, readinessResult] as [Row, Row];
+    },
+  );
   const summary = (dashboard.summary || {}) as Row;
   const imports = (dashboard.imports || []) as Row[];
   const forms = (dashboard.forms || []) as Row[];
@@ -355,8 +393,8 @@ export default async function LeadAcquisitionPage() {
                   <span>
                     <strong>{String(row.provider)}</strong>
                     <small>
-                      {String(row.entity_type)} · confidence{" "}
-                      {String(row.confidence)}
+                      Review {String(row.id)} · {String(row.entity_type)} ·
+                      confidence {String(row.confidence)}
                     </small>
                   </span>
                   <b>{String(row.status)}</b>

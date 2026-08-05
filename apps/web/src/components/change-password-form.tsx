@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import PasswordField from "@/components/password-field";
 import { requestJson } from "@/lib/client-request";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 export default function ChangePasswordForm() {
   const router = useRouter();
@@ -47,13 +48,13 @@ export default function ChangePasswordForm() {
         name="password"
         label="New password"
         autoComplete="new-password"
-        minLength={15}
+        minLength={MIN_PASSWORD_LENGTH}
       />
       <PasswordField
         name="confirmPassword"
         label="Confirm new password"
         autoComplete="new-password"
-        minLength={15}
+        minLength={MIN_PASSWORD_LENGTH}
       />
       <p className="field-help">
         Changing your password revokes all other sessions.

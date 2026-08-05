@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const MIN_PASSWORD_LENGTH = 8;
+
 const commonPasswords = new Set([
   "password",
   "password123",
@@ -15,7 +17,8 @@ const commonPasswords = new Set([
 
 export function passwordPolicyIssues(password: string) {
   const issues: string[] = [];
-  if (password.length < 15) issues.push("Use at least 15 characters.");
+  if (password.length < MIN_PASSWORD_LENGTH)
+    issues.push(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
   if (password.length > 128) issues.push("Use no more than 128 characters.");
   if (commonPasswords.has(password.toLowerCase()))
     issues.push("Choose a password that is not commonly used.");

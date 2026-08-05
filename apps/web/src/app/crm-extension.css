@@ -115,7 +115,7 @@
 }
 .crm-filter-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.32fr);
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.32fr) auto;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
@@ -451,7 +451,10 @@
 }
 .structured-day-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 0.7fr) minmax(
+      120px,
+      0.7fr
+    );
   gap: 0.75rem;
   align-items: end;
   padding: 0.75rem;

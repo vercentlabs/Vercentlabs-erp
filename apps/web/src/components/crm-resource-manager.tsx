@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import DownwardSelect from "@/components/downward-select";
+import PaginationControls from "@/components/pagination-controls";
 import StructuredFieldEditor from "@/components/structured-field-editor";
 import type { CrmDefinition, CrmField } from "@/lib/crm";
 import { requestJson } from "@/lib/client-request";
@@ -54,6 +56,11 @@ function show(value: unknown, format?: string) {
 export default function CrmResourceManager({
   definition,
   rows,
+  total,
+  page,
+  pageSize,
+  initialSearch,
+  initialStatus,
   options,
   canManage,
   startCreating = false,
@@ -62,6 +69,11 @@ export default function CrmResourceManager({
 }: {
   definition: CrmDefinition;
   rows: Row[];
+  total: number;
+  page: number;
+  pageSize: number;
+  initialSearch: string;
+  initialStatus: string;
   options: Record<string, Option[]>;
   canManage: boolean;
   startCreating?: boolean;
@@ -73,24 +85,36 @@ export default function CrmResourceManager({
   const [editing, setEditing] = useState<Row | null>(() =>
     startCreating && canManage ? {} : null,
   );
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [search, setSearch] = useState(initialSearch);
+  const [status, setStatus] = useState(initialStatus);
   const [pending, setPending] = useState(false);
+  const [importPending, setImportPending] = useState(false);
   const [message, setMessage] = useState("");
-  const filtered = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          (status === "all" || String(row.status || "") === status) &&
-          (!search.trim() ||
-            Object.values(row).some((value) =>
-              String(value ?? "")
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-            )),
-      ),
-    [rows, search, status],
-  );
+  const statusOptions = useMemo(() => {
+    const configured =
+      definition.fields.find((field) => field.name === "status")?.options || [];
+    const options = new Map(
+      configured.map((option) => [option.value, option.label]),
+    );
+    for (const row of rows) {
+      const value = String(row.status || "");
+      if (value && !options.has(value)) options.set(value, show(value));
+    }
+    if (initialStatus !== "all" && !options.has(initialStatus))
+      options.set(initialStatus, show(initialStatus));
+    if (!options.has("archived")) options.set("archived", "Archived");
+    return [...options].map(([value, label]) => ({ value, label }));
+  }, [definition.fields, initialStatus, rows]);
+
+  function navigate(nextPage: number, nextSearch: string, nextStatus: string) {
+    const query = new URLSearchParams();
+    const normalizedSearch = nextSearch.trim();
+    if (normalizedSearch) query.set("search", normalizedSearch);
+    if (nextStatus !== "all") query.set("status", nextStatus);
+    if (nextPage > 1) query.set("page", String(nextPage));
+    const suffix = query.toString();
+    router.push(`/crm/${definition.key}${suffix ? `?${suffix}` : ""}`);
+  }
   const label = (key: string, value: unknown) => {
     const column = definition.columns.find((item) => item.key === key);
     const option = column?.optionsKey
@@ -192,23 +216,35 @@ export default function CrmResourceManager({
     setPending(false);
   }
   async function importCsv(file: File) {
-    setPending(true);
-    setMessage("");
-    const result = await requestJson(
-      `/api/crm/${definition.key}/import`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "text/csv" },
-        body: await file.text(),
-      },
-      { timeoutMs: 60_000 },
-    );
+    setImportPending(true);
     setMessage(
-      result.message || (result.ok ? "Import completed." : "Import failed."),
+      `Importing ${file.name}. Keep this page open; the same file cannot be imported twice.`,
     );
-    setPending(false);
-    if (fileRef.current) fileRef.current.value = "";
-    if (result.ok) router.refresh();
+    try {
+      const result = await requestJson(
+        `/api/crm/${definition.key}/import`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/csv",
+            "X-Import-File-Name": file.name,
+          },
+          body: await file.text(),
+        },
+        { timeoutMs: 300_000 },
+      );
+      setMessage(
+        result.message || (result.ok ? "Import completed." : "Import failed."),
+      );
+      if (result.ok) router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "The CSV could not be read.",
+      );
+    } finally {
+      setImportPending(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   return (
@@ -217,7 +253,7 @@ export default function CrmResourceManager({
         <div className="crm-toolbar">
           <div>
             <p className="eyebrow">{definition.group}</p>
-            <h2>{filtered.length} records</h2>
+            <h2>{total} records</h2>
           </div>
           <div className="crm-toolbar-actions">
             {canExport ? (
@@ -243,9 +279,10 @@ export default function CrmResourceManager({
                 <button
                   className="secondary-button"
                   type="button"
+                  disabled={importPending}
                   onClick={() => fileRef.current?.click()}
                 >
-                  Import CSV
+                  {importPending ? "Importing…" : "Import CSV"}
                 </button>
               </>
             ) : null}
@@ -260,7 +297,13 @@ export default function CrmResourceManager({
             ) : null}
           </div>
         </div>
-        <div className="crm-filter-row">
+        <form
+          className="crm-filter-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            navigate(1, search, status);
+          }}
+        >
           <label>
             Search
             <input
@@ -269,38 +312,20 @@ export default function CrmResourceManager({
               placeholder={`Search ${definition.title.toLowerCase()}`}
             />
           </label>
-          <label>
-            Status
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="all">All statuses</option>
-              {[
-                "new",
-                "contacted",
-                "working",
-                "qualified",
-                "unqualified",
-                "converted",
-                "open",
-                "won",
-                "lost",
-                "planned",
-                "active",
-                "paused",
-                "completed",
-                "cancelled",
-                "inactive",
-                "archived",
-              ].map((value) => (
-                <option key={value} value={value}>
-                  {value.replaceAll("_", " ")}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+          <DownwardSelect
+            label="Status"
+            ariaLabel="Filter by status"
+            value={status}
+            onValueChange={setStatus}
+            options={[
+              { value: "all", label: "All statuses" },
+              ...statusOptions,
+            ]}
+          />
+          <button className="secondary-button" type="submit">
+            Apply filters
+          </button>
+        </form>
         {message ? (
           <p className="notice" role="status">
             {message}
@@ -317,10 +342,17 @@ export default function CrmResourceManager({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => (
+              {rows.map((row) => (
                 <tr key={String(row.id)}>
                   {definition.columns.map((column) => (
-                    <td key={column.key}>
+                    <td
+                      key={column.key}
+                      className={
+                        column.format === "datetime"
+                          ? "crm-datetime-cell"
+                          : undefined
+                      }
+                    >
                       {column.format === "status" ? (
                         <span className="status-badge neutral">
                           {label(column.key, row[column.key])}
@@ -392,7 +424,7 @@ export default function CrmResourceManager({
                   </td>
                 </tr>
               ))}
-              {!filtered.length ? (
+              {!rows.length ? (
                 <tr>
                   <td colSpan={definition.columns.length + 1}>
                     <div className="empty-state">
@@ -418,6 +450,14 @@ export default function CrmResourceManager({
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalItems={total}
+          onPageChange={(nextPage) =>
+            navigate(nextPage, initialSearch, initialStatus)
+          }
+        />
       </section>
       {editing && canManage ? (
         <section className="panel crm-editor">

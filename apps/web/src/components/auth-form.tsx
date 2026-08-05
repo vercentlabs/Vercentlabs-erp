@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import PasswordField from "@/components/password-field";
 import { requestJson } from "@/lib/client-request";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 type Mode = "login" | "forgot" | "reset" | "verify";
 
@@ -82,17 +83,14 @@ export default function AuthForm({
             name="password"
             label="New password"
             autoComplete="new-password"
-            minLength={15}
+            minLength={MIN_PASSWORD_LENGTH}
           />
           <PasswordField
             name="confirmPassword"
             label="Confirm new password"
             autoComplete="new-password"
-            minLength={15}
+            minLength={MIN_PASSWORD_LENGTH}
           />
-          <p className="field-help">
-            Use a unique passphrase of at least 15 characters.
-          </p>
         </>
       ) : null}
       {mode === "login" ? (

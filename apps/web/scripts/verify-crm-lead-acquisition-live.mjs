@@ -90,6 +90,37 @@ try {
   assert.equal(preview.rows[1].valid, false);
   const committed = await commitLeadImport(client, context, preview.batch.id);
   assert.equal(committed.created_rows, 1);
+  const duplicatePreview = await previewLeadImport(client, context, {
+    fileName: `${unique}-duplicate.csv`,
+    duplicateStrategy: "skip",
+    fieldMapping: {
+      firstName: "Given",
+      email: "Email",
+      companyName: "Company",
+    },
+    rows: [
+      {
+        Given: "CRM06 Import",
+        Email: `${unique.toLowerCase()}@example.com`,
+        Company: "Vercent Test",
+      },
+      { Given: "", Email: "invalid", Company: "Invalid row" },
+    ],
+  });
+  assert.notEqual(duplicatePreview.batch.id, preview.batch.id);
+  const duplicateCommit = await commitLeadImport(
+    client,
+    context,
+    duplicatePreview.batch.id,
+  );
+  assert.equal(duplicateCommit.created_rows, 0);
+  assert.equal(duplicateCommit.skipped_rows, 1);
+  const duplicateRollback = await rollbackLeadImport(
+    client,
+    context,
+    duplicatePreview.batch.id,
+  );
+  assert.equal(duplicateRollback.rolledBack, 0);
   const importedRow = (
     await client.query(
       `SELECT result_lead_id FROM tenant.crm_lead_import_rows
@@ -115,14 +146,25 @@ try {
   });
   const published = await publishLeadForm(client, context, form.id);
   assert.equal(published.status, "active");
-  const formResult = await submitPublishedLeadForm(client, context, published, {
-    firstName: "CRM06 Form",
-    email: `${unique.toLowerCase()}-form@example.com`,
-    companyName: "Form Company",
-    consentEmail: true,
-    consent: true,
-    __fingerprint: `${unique}-form-fingerprint`,
-  });
+  const publicForm = (
+    await client.query("SELECT * FROM tenant.crm_public_capture_form_v2($1)", [
+      published.public_key,
+    ])
+  ).rows[0];
+  assert.equal(publicForm.form_id, form.id);
+  const formResult = await submitPublishedLeadForm(
+    client,
+    context,
+    publicForm,
+    {
+      firstName: "CRM06 Form",
+      email: `${unique.toLowerCase()}-form@example.com`,
+      companyName: "Form Company",
+      consentEmail: true,
+      consent: true,
+      __fingerprint: `${unique}-form-fingerprint`,
+    },
+  );
   assert.equal(formResult.action, "create");
 
   const connection = await createLeadAcquisitionConnection(client, context, {
@@ -213,15 +255,9 @@ try {
     confidence: 95,
     provenance: { providerRecordId: `${unique}-enrichment` },
   });
-  const review = (
-    await client.query(
-      `SELECT id FROM tenant.crm_enrichment_reviews
-        WHERE organization_id=$1 AND enrichment_job_id=$2`,
-      [context.organizationId, job.id],
-    )
-  ).rows[0];
-  assert.ok(review?.id);
-  const reviewed = await reviewLeadEnrichment(client, context, review.id, {
+  assert.ok(job.reviewId);
+  const reviewed = await reviewLeadEnrichment(client, context, job.reviewId, {
+    decision: "approved",
     acceptedKeys: ["industry", "jobTitle"],
   });
   assert.equal(reviewed.status, "accepted");
@@ -245,7 +281,7 @@ try {
         connectionId: connection.id,
         providerEventId: event.eventId,
         chatSessionId: chat.id,
-        enrichmentReviewId: review.id,
+        enrichmentReviewId: job.reviewId,
         tenantIsolation: true,
         idempotencyVerified: true,
       },

@@ -5,19 +5,18 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import PasswordField from "@/components/password-field";
 import { requestJson } from "@/lib/client-request";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 export default function SignupForm() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-  const [developmentUrl, setDevelopmentUrl] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
     setPending(true);
     setMessage("");
-    setDevelopmentUrl("");
     const form = new FormData(formElement);
     const result = await requestJson<{
       developmentUrl?: string;
@@ -28,7 +27,6 @@ export default function SignupForm() {
       body: JSON.stringify(Object.fromEntries(form.entries())),
     });
     setMessage(result.message || "Request completed.");
-    setDevelopmentUrl(result.developmentUrl || "");
     setPending(false);
     if (result.ok) {
       formElement.reset();
@@ -65,17 +63,14 @@ export default function SignupForm() {
         name="password"
         label="Password"
         autoComplete="new-password"
-        minLength={15}
+        minLength={MIN_PASSWORD_LENGTH}
       />
       <PasswordField
         name="confirmPassword"
         label="Confirm password"
         autoComplete="new-password"
-        minLength={15}
+        minLength={MIN_PASSWORD_LENGTH}
       />
-      <p className="field-help">
-        Use a unique passphrase of at least 15 characters. Spaces are allowed.
-      </p>
       <button className="primary-button" type="submit" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </button>
@@ -83,11 +78,6 @@ export default function SignupForm() {
         <p className="notice" role="status">
           {message}
         </p>
-      ) : null}
-      {developmentUrl ? (
-        <a className="development-link" href={developmentUrl}>
-          Open the local verification link
-        </a>
       ) : null}
       {message ? (
         <Link href="/verify-email">Resend or verify another email</Link>

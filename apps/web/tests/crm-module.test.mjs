@@ -94,11 +94,12 @@ test("transaction-scoped CRM queries execute sequentially", () => {
     "apps/web/src/app/(app)/crm/leads/[id]/page.tsx",
     "apps/web/src/app/(app)/crm/opportunities/[id]/page.tsx",
     "apps/web/src/app/(app)/crm/reports/page.tsx",
+    "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
+    "services/api/src/crm/lead-acquisition.js",
   ]) {
     assert.doesNotMatch(read(file), /Promise\.all/, file);
   }
 });
-
 
 test("enterprise CRM core includes revenue operations, account strategy, playbooks, privacy and data quality", () => {
   const sql = read("database/tenant/migrations/003_crm_enterprise_core.sql");
@@ -120,7 +121,10 @@ test("enterprise CRM core includes revenue operations, account strategy, playboo
     "crm_privacy_requests",
     "crm_data_quality_scores",
   ])
-    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS tenant\.${table}`));
+    assert.match(
+      sql,
+      new RegExp(`CREATE TABLE IF NOT EXISTS tenant\.${table}`),
+    );
   assert.ok(sql.includes("FORCE ROW LEVEL SECURITY"));
   assert.ok(sql.includes("blocks_stage_exit"));
 });
@@ -153,14 +157,40 @@ test("revenue operations, account health and privacy reports are exposed", () =>
 test("enterprise CRM routes enforce resource-specific access for sensitive data", () => {
   const helper = read("apps/web/src/lib/crm-api.ts");
   const collectionRoute = read("apps/web/src/app/api/crm/[resource]/route.ts");
-  const importRoute = read("apps/web/src/app/api/crm/[resource]/import/route.ts");
-  const exportRoute = read("apps/web/src/app/api/crm/[resource]/export/route.ts");
+  const importRoute = read(
+    "apps/web/src/app/api/crm/[resource]/import/route.ts",
+  );
+  const exportRoute = read(
+    "apps/web/src/app/api/crm/[resource]/export/route.ts",
+  );
   assert.ok(helper.includes("restrictedResources"));
   assert.ok(helper.includes("requireCrmResourceView"));
   assert.ok(helper.includes("requireCrmReportView"));
-  assert.ok(collectionRoute.includes("requireCrmResourceView(session, resource)"));
+  assert.ok(
+    collectionRoute.includes("requireCrmResourceView(session, resource)"),
+  );
   assert.ok(importRoute.includes("requireCrmManage(session, resource)"));
   assert.ok(exportRoute.includes("requireCrmResourceView(session, resource)"));
+});
+
+test("generic CRM imports are idempotent and visibly remain in progress", () => {
+  const route = read("apps/web/src/app/api/crm/[resource]/import/route.ts");
+  const manager = read("apps/web/src/components/crm-resource-manager.tsx");
+  const migration = read(
+    "database/tenant/migrations/043_crm_import_idempotency.sql",
+  );
+
+  assert.match(route, /createHash\("sha256"\)/);
+  assert.match(route, /ON CONFLICT \(organization_id,resource,content_hash\)/);
+  assert.match(route, /pg_advisory_xact_lock/);
+  assert.match(route, /No duplicate records were created/);
+  assert.match(route, /normalized_email=tenant\.crm_normalize_email/);
+  assert.match(route, /normalized_phone=tenant\.crm_normalize_phone/);
+  assert.match(route, /skipped \+= 1/);
+  assert.match(manager, /disabled=\{importPending\}/);
+  assert.match(manager, /Importing…/);
+  assert.match(manager, /timeoutMs: 300_000/);
+  assert.match(migration, /UNIQUE \(organization_id, resource, content_hash\)/);
 });
 
 test("sales-team, territory and playbook child records are manageable resources", () => {

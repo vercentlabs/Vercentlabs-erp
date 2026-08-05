@@ -380,25 +380,39 @@
 }
 
 .crm-standard-shell .crm-section-tabs-shell {
-  min-height: 52px;
-  padding: 9px 12px;
+  min-height: 86px;
+  gap: 20px;
+  padding: 14px var(--workspace-nav-inline-padding, 20px);
   border-radius: var(--crm-card-radius);
   box-shadow: none;
 }
 
 .crm-standard-shell .crm-section-tabs-heading {
-  min-width: 200px;
+  min-width: 260px;
+  gap: 5px;
+}
+
+.crm-standard-shell .crm-section-tabs-heading span {
+  font-size: var(--workspace-nav-title-size, 15px);
+  line-height: 1.35;
+}
+
+.crm-standard-shell .crm-section-tabs-heading small {
+  font-size: var(--workspace-nav-copy-size, 13px);
+  line-height: 1.45;
 }
 
 .crm-standard-shell .crm-section-tabs {
   align-items: center;
+  gap: 8px;
 }
 
 .crm-standard-shell .crm-section-tabs a {
-  min-height: 34px;
+  min-height: var(--workspace-nav-tab-height, 46px);
   justify-content: center;
-  padding-inline: 12px;
-  border-radius: 7px;
+  padding-inline: 16px;
+  border-radius: 8px;
+  font-size: var(--workspace-nav-tab-size, 14px);
 }
 
 .crm-standard-shell .page-heading {
@@ -620,6 +634,16 @@
 .crm-standard-shell .card-title-row h2,
 .crm-standard-shell .crm-toolbar h2 {
   margin-bottom: 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.crm-standard-shell .crm-product-section-heading p:not(.eyebrow),
+.crm-standard-shell .module-section-heading p:not(.eyebrow),
+.crm-standard-shell .card-title-row p:not(.eyebrow),
+.crm-standard-shell .crm-toolbar p:not(.eyebrow) {
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .crm-standard-shell .crm-resource-layout {
@@ -657,8 +681,12 @@
 .crm-standard-shell .data-table th,
 .crm-standard-shell .business-data-table th {
   color: var(--color-muted);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.07em;
+}
+
+.crm-standard-shell .data-table td.crm-datetime-cell {
+  white-space: nowrap;
 }
 
 .crm-standard-shell .data-table tbody tr:hover td,
@@ -693,6 +721,12 @@
 
 .crm-standard-shell .crm-action-layout {
   align-items: start;
+}
+
+@media (min-width: 1101px) {
+  .crm-standard-shell .crm-action-form {
+    margin-top: -8px;
+  }
 }
 
 .crm-standard-shell .crm-action-list button,

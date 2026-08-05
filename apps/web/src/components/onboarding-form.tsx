@@ -202,30 +202,6 @@ export default function OnboardingForm() {
         </div>
       </section>
 
-      <aside
-        className="onboarding-summary"
-        aria-label="Workspace creation summary"
-      >
-        <div className="onboarding-summary-icon" aria-hidden="true">
-          <AppIcon name="sparkles" size={22} />
-        </div>
-        <div>
-          <strong>Your workspace foundation will include</strong>
-          <p>
-            These records are created together so the workspace starts in a
-            consistent state.
-          </p>
-          <div className="chip-row">
-            <span>Organisation</span>
-            <span>Primary company</span>
-            <span>Primary branch</span>
-            <span>Owner access</span>
-            <span>12-module registry</span>
-            <span>Numbering defaults</span>
-          </div>
-        </div>
-      </aside>
-
       <div className="onboarding-submit-row">
         <div>
           <strong>Ready to create the workspace?</strong>

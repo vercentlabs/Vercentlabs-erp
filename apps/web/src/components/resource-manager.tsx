@@ -4,6 +4,9 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/lib/client-request";
+import PaginationControls from "@/components/pagination-controls";
+
+const PAGE_SIZE = 12;
 
 export type FieldDefinition = {
   name: string;
@@ -33,6 +36,13 @@ export default function ResourceManager({
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const visibleRows = rows.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
   const key = useMemo(
     () => String(editing?.id || "new") + JSON.stringify(editing || {}),
     [editing],
@@ -99,7 +109,7 @@ export default function ResourceManager({
           ) : null}
         </div>
         <div className="resource-cards">
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <article key={String(row.id)} className="resource-card">
               <div>
                 <strong>
@@ -149,6 +159,14 @@ export default function ResourceManager({
             </div>
           ) : null}
         </div>
+        {resource !== "organization" ? (
+          <PaginationControls
+            page={currentPage}
+            pageSize={PAGE_SIZE}
+            totalItems={rows.length}
+            onPageChange={setPage}
+          />
+        ) : null}
       </section>
 
       {canManage && editing ? (

@@ -1302,7 +1302,10 @@ function assertWritableScope(definition, context, input) {
     !context.allowAllCompanies &&
     !context.activeCompanyId
   ) {
-    throw new CrmError(403, "Select an allowed company before maintaining CRM records.");
+    throw new CrmError(
+      403,
+      "Select an allowed company before maintaining CRM records.",
+    );
   }
   if (
     definition.companyScoped &&
@@ -1452,17 +1455,21 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   where += buildSearch(definition, filters.search, parameters);
   where += buildFilters(definition, filters, parameters);
   const limit = limitValue(filters.limit);
-  const offset = Math.max(0, Number(filters.offset || 0) || 0);
-  const result = await client.query(
-    `SELECT record.*, count(*) OVER()::int AS __total FROM ${definition.table} record WHERE ${where} ORDER BY ${definition.orderBy} LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
+  const offset = Math.max(
+    0,
+    Math.min(10_000_000, Math.trunc(Number(filters.offset || 0) || 0)),
+  );
+  const countResult = await client.query(
+    `SELECT count(*)::int AS total FROM ${definition.table} record WHERE ${where}`,
     parameters,
   );
-  const total = Number(result.rows[0]?.__total || 0);
+  const total = Number(countResult.rows[0]?.total || 0);
+  const result = await client.query(
+    `SELECT record.* FROM ${definition.table} record WHERE ${where} ORDER BY ${definition.orderBy} LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
+    parameters,
+  );
   return {
-    rows: result.rows.map((row) => {
-      const { __total: _ignored, ...record } = row;
-      return camelizeRow(record);
-    }),
+    rows: result.rows.map(camelizeRow),
     total,
     limit,
     offset,
@@ -1742,7 +1749,12 @@ export async function createCrmRecord(client, context, resource, input) {
     );
   if (resource === "custom-records")
     await validateCustomRecord(client, context, prepared);
-  await validateOrganizationUserReferences(client, context, definition, prepared);
+  await validateOrganizationUserReferences(
+    client,
+    context,
+    definition,
+    prepared,
+  );
   const entries = mutableEntries(definition, prepared);
   if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
   const columns = [
@@ -1829,7 +1841,12 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     prepared.data ??= before.data;
     await validateCustomRecord(client, context, prepared, id);
   }
-  await validateOrganizationUserReferences(client, context, definition, prepared);
+  await validateOrganizationUserReferences(
+    client,
+    context,
+    definition,
+    prepared,
+  );
   const entries = mutableEntries(definition, prepared);
   if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
   const parameters = entries.map(([, value]) => value);
@@ -2236,6 +2253,18 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
 export async function mergeCrmLead(client, context, sourceId, targetId) {
   if (sourceId === targetId)
     throw new CrmError(400, "A lead cannot be merged into itself.");
+  const existingMerge = await client.query(
+    `SELECT * FROM tenant.crm_merge_records WHERE organization_id = $1 AND entity_type = 'lead' AND source_id = $2`,
+    [context.organizationId, sourceId],
+  );
+  if (existingMerge.rows[0]) {
+    if (existingMerge.rows[0].target_id !== targetId)
+      throw new CrmError(
+        409,
+        "This lead has already been merged into another lead.",
+      );
+    return { ...camelizeRow(existingMerge.rows[0]), replayed: true };
+  }
   const parameters = [context.organizationId, [sourceId, targetId]];
   const rows = await client.query(
     `SELECT record.* FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.id = ANY($2::uuid[])${recordScope(resources.leads, context, parameters)} FOR UPDATE`,
@@ -2245,8 +2274,13 @@ export async function mergeCrmLead(client, context, sourceId, targetId) {
   const target = rows.rows.find((row) => row.id === targetId);
   if (!source || !target)
     throw new CrmError(404, "Source or target lead was not found.");
-  if (source.status === "converted")
-    throw new CrmError(409, "Converted leads cannot be merged.");
+  if (["converted", "archived"].includes(source.status))
+    throw new CrmError(409, "This lead is no longer available to merge.");
+  if (["converted", "archived"].includes(target.status))
+    throw new CrmError(
+      409,
+      "The selected lead is no longer available as a merge target.",
+    );
   await client.query(
     `INSERT INTO tenant.crm_lead_tags (organization_id, lead_id, tag_id, created_by) SELECT organization_id, $3, tag_id, $4 FROM tenant.crm_lead_tags WHERE organization_id = $1 AND lead_id = $2 ON CONFLICT DO NOTHING`,
     [context.organizationId, sourceId, targetId, context.userId],
@@ -2290,7 +2324,7 @@ export async function mergeCrmLead(client, context, sourceId, targetId) {
     sourceId,
     targetId,
   });
-  return camelizeRow(result.rows[0]);
+  return { ...camelizeRow(result.rows[0]), replayed: false };
 }
 
 export async function moveOpportunityStage(
@@ -2458,7 +2492,11 @@ export async function completeCrmActivity(
     );
   }
   if (current.status === "completed") {
-    throw new CrmError(409, "This activity has already been completed.", "CRM_ACTIVITY_COMPLETED");
+    throw new CrmError(
+      409,
+      "This activity has already been completed.",
+      "CRM_ACTIVITY_COMPLETED",
+    );
   }
 
   const result = await client.query(
@@ -2470,7 +2508,11 @@ export async function completeCrmActivity(
     [outcome, context.userId, context.organizationId, activityId],
   );
   if (!result.rows[0]) {
-    throw new CrmError(409, "This activity changed. Refresh it and try again.", "CRM_ACTIVITY_CONFLICT");
+    throw new CrmError(
+      409,
+      "This activity changed. Refresh it and try again.",
+      "CRM_ACTIVITY_CONFLICT",
+    );
   }
   const activity = camelizeRow(result.rows[0]);
   if (activity.entityType === "lead" && activity.entityId)
@@ -3089,6 +3131,7 @@ export async function findCrmDuplicates(
   input,
   excludeId = null,
 ) {
+  if (["converted", "archived"].includes(input.status)) return [];
   const parameters = [
     context.organizationId,
     input.email || null,
@@ -3097,7 +3140,7 @@ export async function findCrmDuplicates(
     excludeId,
   ];
   const result = await client.query(
-    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${recordScope(resources.leads, context, parameters)} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
+    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.status NOT IN ('converted','archived') AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${recordScope(resources.leads, context, parameters)} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
     parameters,
   );
   return result.rows.map(camelizeRow);

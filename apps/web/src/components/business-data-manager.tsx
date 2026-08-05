@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/lib/client-request";
+import DownwardSelect from "@/components/downward-select";
+import PaginationControls from "@/components/pagination-controls";
 
 import type {
   BusinessDataDefinition,
@@ -14,6 +16,7 @@ import type {
 
 type Option = { id: string; name: string };
 type Row = Record<string, unknown>;
+const PAGE_SIZE = 10;
 
 function parseCsvRows(source: string): Row[] {
   const records: string[][] = [];
@@ -216,6 +219,7 @@ export default function BusinessDataManager({
   );
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [page, setPage] = useState(1);
 
   const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -234,6 +238,12 @@ export default function BusinessDataManager({
       });
     });
   }, [definition.columns, options, rows, search, status]);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const visibleRows = filteredRows.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
 
   function announce(kind: "success" | "error", value: string) {
     setMessageKind(kind);
@@ -487,24 +497,30 @@ export default function BusinessDataManager({
             <input
               type="search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
               placeholder={`Search ${definition.title.toLowerCase()}`}
             />
           </label>
-          <label>
-            Status
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="open">Open</option>
-              <option value="closed">Closed</option>
-              <option value="locked">Locked</option>
-            </select>
-          </label>
+          <DownwardSelect
+            label="Status"
+            ariaLabel="Filter by status"
+            value={status}
+            onValueChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
+            options={[
+              { value: "all", label: "All statuses" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+              { value: "open", label: "Open" },
+              { value: "closed", label: "Closed" },
+              { value: "locked", label: "Locked" },
+            ]}
+          />
         </div>
 
         {message ? (
@@ -537,7 +553,7 @@ export default function BusinessDataManager({
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={String(row.id)}>
                   {definition.columns.map((column) => (
                     <td key={column.key}>
@@ -640,6 +656,12 @@ export default function BusinessDataManager({
             </div>
           ) : null}
         </div>
+        <PaginationControls
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          totalItems={filteredRows.length}
+          onPageChange={setPage}
+        />
       </section>
 
       {canManage && editing ? (

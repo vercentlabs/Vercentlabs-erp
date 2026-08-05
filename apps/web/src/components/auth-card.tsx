@@ -26,15 +26,17 @@ export default function AuthCard({
   description,
   children,
   footer,
+  pageClassName,
 }: {
   eyebrow: string;
   title: string;
   description: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  pageClassName?: string;
 }) {
   return (
-    <main className="auth-page">
+    <main className={`auth-page${pageClassName ? ` ${pageClassName}` : ""}`}>
       <section className="auth-brand-panel" aria-labelledby="auth-value-title">
         <div className="auth-brand-top">
           <Link

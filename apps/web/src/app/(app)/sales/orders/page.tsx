@@ -5,12 +5,16 @@ import {
 import Link from "next/link";
 
 import AccessDenied from "@/components/access-denied";
+import DownwardSelect from "@/components/downward-select";
+import PaginationLinks from "@/components/pagination-links";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
 import { salesContext } from "@/lib/sales";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 10;
 
 export default async function OrdersPage({
   searchParams,
@@ -39,6 +43,11 @@ export default async function OrdersPage({
     ["Ready to invoice", summary.readyToInvoice],
     ["On hold", summary.onHold],
   ];
+  const totalItems = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const requestedPage = Math.max(1, Number(filters.page) || 1);
+  const page = Math.min(requestedPage, totalPages);
+  const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <>
@@ -70,19 +79,25 @@ export default async function OrdersPage({
             defaultValue={filters.search}
             placeholder="Search order or customer"
           />
-          <select name="status" defaultValue={filters.status || "all"}>
-            <option value="all">All statuses</option>
-            {[
-              "draft",
-              "pending_approval",
-              "confirmed",
-              "on_hold",
-              "cancelled",
-              "closed",
-            ].map((status) => (
-              <option key={status}>{status}</option>
-            ))}
-          </select>
+          <DownwardSelect
+            name="status"
+            ariaLabel="Filter sales orders by status"
+            defaultValue={filters.status || "all"}
+            options={[
+              { value: "all", label: "All statuses" },
+              ...[
+                "draft",
+                "pending_approval",
+                "confirmed",
+                "on_hold",
+                "cancelled",
+                "closed",
+              ].map((status) => ({
+                value: status,
+                label: status.replaceAll("_", " "),
+              })),
+            ]}
+          />
           <button className="secondary-button">Apply</button>
         </form>
         <div className="sales-table">
@@ -93,7 +108,7 @@ export default async function OrdersPage({
             <span>Fulfilment</span>
             <span>Total</span>
           </div>
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <Link
               className="sales-table-row"
               href={`/sales/orders/${row.id}`}
@@ -112,6 +127,13 @@ export default async function OrdersPage({
             </Link>
           ))}
         </div>
+        <PaginationLinks
+          pathname="/sales/orders"
+          query={filters}
+          page={page}
+          pageSize={PAGE_SIZE}
+          totalItems={totalItems}
+        />
       </section>
     </>
   );

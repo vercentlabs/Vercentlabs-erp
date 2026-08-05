@@ -12,6 +12,7 @@ export default async function VerifyEmailPage({
   const { token = "", email = "" } = await searchParams;
   return (
     <AuthCard
+      pageClassName="viewport-auth-page"
       eyebrow="Email verification"
       title={token ? "Verify your work email" : "Check your work email"}
       description={

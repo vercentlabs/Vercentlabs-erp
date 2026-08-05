@@ -34,6 +34,24 @@ test("advanced CRM pages use the canonical workbench and operational actions", (
   }
 });
 
+test("lead acquisition examples use supported lead identity fields", () => {
+  const source = read("apps/web/src/app/(app)/crm/lead-acquisition/page.tsx");
+
+  assert.doesNotMatch(source, /fullName/);
+  for (const mapping of [
+    'firstName: "first_name"',
+    'lastName: "last_name"',
+    'companyName: "company"',
+    'jobTitle: "job_title"',
+  ]) {
+    assert.match(source, new RegExp(mapping));
+  }
+  assert.match(source, /rahul\.crmtest01@example\.com/);
+  assert.match(source, /neha\.crmtest02@example\.com/);
+  assert.match(source, /name: "acceptedKeys"/);
+  assert.match(source, /Review \{String\(row\.id\)\}/);
+});
+
 test("CRM product CSS is scoped and imported last", () => {
   const css = read("apps/web/src/app/crm-product.css");
   const layout = read("apps/web/src/app/layout.tsx");
@@ -81,6 +99,15 @@ test("CRM action fields align without stretching paired controls", () => {
   assert.match(
     css,
     /\.crm-action-field > span\s*\{[^}]*align-items:\s*center[^}]*line-height:\s*18px/s,
+  );
+});
+
+test("CRM action form reclaims desktop space without shifting mobile cards", () => {
+  const css = read("apps/web/src/app/crm-product.css");
+
+  assert.match(
+    css,
+    /@media \(min-width: 1101px\)\s*\{\s*\.crm-standard-shell \.crm-action-form\s*\{\s*margin-top:\s*-8px;/s,
   );
 });
 
