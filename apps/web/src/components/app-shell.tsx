@@ -302,6 +302,118 @@ const moduleNavigation: NavigationGroup[] = [
     ],
   },
   {
+    label: "Point of Sale",
+    icon: "sales",
+    items: [
+      {
+        href: "/point-of-sale",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.posView,
+      },
+      {
+        href: "/point-of-sale/checkout",
+        label: "Checkout",
+        icon: "sales",
+        permission: PERMISSIONS.posOperate,
+      },
+      {
+        href: "/point-of-sale/shifts",
+        label: "Shifts",
+        icon: "audit",
+        permission: PERMISSIONS.posView,
+      },
+      {
+        href: "/point-of-sale/sales",
+        label: "Sales",
+        icon: "sales",
+        permission: PERMISSIONS.posView,
+      },
+      {
+        href: "/point-of-sale/returns",
+        label: "Returns",
+        icon: "stock",
+        permission: PERMISSIONS.posView,
+      },
+      {
+        href: "/point-of-sale/cash-movements",
+        label: "Cash movements",
+        icon: "accounting",
+        permission: PERMISSIONS.posView,
+      },
+      {
+        href: "/point-of-sale/reconciliations",
+        label: "Reconciliation",
+        icon: "check",
+        permission: PERMISSIONS.posView,
+      },
+      {
+        href: "/point-of-sale/terminals",
+        label: "Terminals",
+        icon: "settings",
+        permission: PERMISSIONS.posTerminalManage,
+      },
+    ],
+  },
+
+  {
+    label: "Assets",
+    icon: "modules",
+    items: [
+      {
+        href: "/assets",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/assets",
+        label: "Asset register",
+        icon: "modules",
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/assignments",
+        label: "Assignments",
+        icon: "users",
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/transfers",
+        label: "Transfers",
+        icon: "stock",
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/maintenance-orders",
+        label: "Maintenance",
+        icon: "settings",
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/inspections",
+        label: "Inspections",
+        icon: "check",
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/depreciation-runs",
+        label: "Depreciation",
+        icon: "accounting",
+        permission: PERMISSIONS.assetsView,
+      },
+      {
+        href: "/assets/disposals",
+        label: "Disposals",
+        icon: "audit",
+        permission: PERMISSIONS.assetsView,
+      },
+    ],
+  },
+
+  {
     label: "Projects",
     icon: "modules",
     items: [

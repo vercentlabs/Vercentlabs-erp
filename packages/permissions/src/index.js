@@ -6,6 +6,8 @@ import { PROCUREMENT_PERMISSIONS } from "./procurement.js";
 import { STOCK_PERMISSIONS } from "./stock.js";
 import { MANUFACTURING_PERMISSIONS } from "./manufacturing.js";
 import { PROJECT_PERMISSIONS } from "./projects.js";
+import { ASSET_PERMISSIONS } from "./assets.js";
+import { POS_PERMISSIONS } from "./point-of-sale.js";
 
 export const CORE_PERMISSIONS = Object.freeze({
   workspaceView: "workspace.view",
@@ -49,6 +51,8 @@ export const ALL_PERMISSIONS = Object.freeze([
   ...Object.values(STOCK_PERMISSIONS),
   ...Object.values(MANUFACTURING_PERMISSIONS),
   ...Object.values(PROJECT_PERMISSIONS),
+  ...Object.values(ASSET_PERMISSIONS),
+  ...Object.values(POS_PERMISSIONS),
   ...Object.values(BILLING_PERMISSIONS),
 ]);
 
@@ -63,3 +67,5 @@ export * from "./billing.js";
 export * from "./stock.js";
 export * from "./manufacturing.js";
 export * from "./projects.js";
+export * from "./assets.js";
+export * from "./point-of-sale.js";

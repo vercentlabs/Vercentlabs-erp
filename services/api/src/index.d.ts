@@ -215,3 +215,5 @@ export * from "./crm/offline-sync.js";
 export * from "./stock/index.js";
 export * from "./manufacturing/index.js";
 export * from "./projects/index.js";
+export * from "./assets/index.js";
+export * from "./point-of-sale/index.js";

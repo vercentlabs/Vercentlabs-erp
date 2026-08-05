@@ -295,6 +295,51 @@ function permissionsForRole(slug: string) {
       "projects.audit.view",
     ];
   }
+  if (slug === "asset_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "business_data.view",
+      "assets.view",
+      "assets.manage",
+      "assets.create",
+      "assets.capitalize",
+      "assets.assign",
+      "assets.transfer",
+      "assets.maintain",
+      "assets.inspect",
+      "assets.depreciate",
+      "assets.dispose",
+      "assets.accounting.handoff",
+      "assets.reports.view",
+      "assets.settings.manage",
+      "assets.audit.view",
+    ];
+  }
+  if (slug === "pos_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "business_data.view",
+      "stock.view",
+      "stock.issue",
+      "stock.receive",
+      "pos.view",
+      "pos.operate",
+      "pos.shift.open",
+      "pos.shift.close",
+      "pos.sale.create",
+      "pos.discount.apply",
+      "pos.return.create",
+      "pos.return.approve",
+      "pos.cash.adjust",
+      "pos.price.override",
+      "pos.terminal.manage",
+      "pos.store.manage",
+      "pos.payment.manage",
+      "pos.reports.view",
+      "pos.settings.manage",
+      "pos.audit.view",
+    ];
+  }
 
   if (slug === "hr_manager") {
     return [

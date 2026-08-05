@@ -1,0 +1,18 @@
+export const POS_PERMISSIONS = Object.freeze({
+  view: "pos.view",
+  operate: "pos.operate",
+  shiftOpen: "pos.shift.open",
+  shiftClose: "pos.shift.close",
+  saleCreate: "pos.sale.create",
+  discountApply: "pos.discount.apply",
+  returnCreate: "pos.return.create",
+  returnApprove: "pos.return.approve",
+  cashAdjust: "pos.cash.adjust",
+  priceOverride: "pos.price.override",
+  terminalManage: "pos.terminal.manage",
+  storeManage: "pos.store.manage",
+  paymentManage: "pos.payment.manage",
+  reportsView: "pos.reports.view",
+  settingsManage: "pos.settings.manage",
+  auditView: "pos.audit.view",
+});

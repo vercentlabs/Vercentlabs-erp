@@ -1,0 +1,16 @@
+export const ASSET_PERMISSIONS = Object.freeze({
+  view: "assets.view",
+  manage: "assets.manage",
+  create: "assets.create",
+  capitalize: "assets.capitalize",
+  assign: "assets.assign",
+  transfer: "assets.transfer",
+  maintain: "assets.maintain",
+  inspect: "assets.inspect",
+  depreciate: "assets.depreciate",
+  dispose: "assets.dispose",
+  accountingHandoff: "assets.accounting.handoff",
+  reportsView: "assets.reports.view",
+  settingsManage: "assets.settings.manage",
+  auditView: "assets.audit.view",
+});

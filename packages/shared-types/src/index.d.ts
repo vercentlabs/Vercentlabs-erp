@@ -46,3 +46,5 @@ export * from "./procurement.js";
 export * from "./stock.js";
 export * from "./manufacturing.js";
 export * from "./projects.js";
+export * from "./assets.js";
+export * from "./point-of-sale.js";
