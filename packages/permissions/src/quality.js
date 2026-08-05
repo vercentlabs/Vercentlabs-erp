@@ -1,0 +1,16 @@
+export const QUALITY_PERMISSIONS = Object.freeze({
+  view: "quality.view",
+  manage: "quality.manage",
+  planManage: "quality.plan.manage",
+  inspect: "quality.inspect",
+  release: "quality.release",
+  hold: "quality.hold",
+  nonconformanceManage: "quality.nonconformance.manage",
+  capaManage: "quality.capa.manage",
+  samplingManage: "quality.sampling.manage",
+  supplierQualityManage: "quality.supplier.manage",
+  auditManage: "quality.audit.manage",
+  reportsView: "quality.reports.view",
+  settingsManage: "quality.settings.manage",
+  auditView: "quality.audit.view",
+});

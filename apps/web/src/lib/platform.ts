@@ -340,6 +340,56 @@ function permissionsForRole(slug: string) {
       "pos.audit.view",
     ];
   }
+  if (slug === "quality_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "business_data.view",
+      "stock.view",
+      "procurement.view",
+      "manufacturing.view",
+      "pos.view",
+      "quality.view",
+      "quality.manage",
+      "quality.plan.manage",
+      "quality.inspect",
+      "quality.release",
+      "quality.hold",
+      "quality.nonconformance.manage",
+      "quality.capa.manage",
+      "quality.sampling.manage",
+      "quality.supplier.manage",
+      "quality.audit.manage",
+      "quality.reports.view",
+      "quality.settings.manage",
+      "quality.audit.view",
+    ];
+  }
+  if (slug === "support_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "business_data.view",
+      "crm.view",
+      "sales.view",
+      "projects.view",
+      "assets.view",
+      "quality.view",
+      "support.view",
+      "support.manage",
+      "support.ticket.create",
+      "support.ticket.assign",
+      "support.ticket.resolve",
+      "support.ticket.close",
+      "support.queue.manage",
+      "support.sla.manage",
+      "support.escalation.manage",
+      "support.knowledge.manage",
+      "support.communication.manage",
+      "support.sensitive.view",
+      "support.reports.view",
+      "support.settings.manage",
+      "support.audit.view",
+    ];
+  }
 
   if (slug === "hr_manager") {
     return [

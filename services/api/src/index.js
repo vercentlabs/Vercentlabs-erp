@@ -1572,3 +1572,6 @@ export * from "./manufacturing/index.js";
 export * from "./projects/index.js";
 export * from "./assets/index.js";
 export * from "./point-of-sale/index.js";
+export * from "./quality/index.js";
+export * from "./support/index.js";
+export * from "./hr-payroll/index.js";

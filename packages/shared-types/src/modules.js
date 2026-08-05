@@ -8,7 +8,9 @@ export const ERP_MODULE_CATALOG = Object.freeze([
   { key: "projects", name: "Projects", description: "Projects, milestones, tasks, resources, time, expenses, budgets, billing and profitability.", availability: "released" },
   { key: "assets", name: "Assets", description: "Asset register, capitalization, custody, maintenance, depreciation, audits, transfers and disposal.", availability: "released" },
   { key: "point-of-sale", name: "Point of Sale", description: "Stores, terminals, checkout, payments, returns, cashier shifts, stock movements and reconciliation.", availability: "released" },
-  { key: "hr-payroll", name: "HR & Payroll", description: "Employees, attendance, leave and payroll.", availability: "roadmap" },
+  { key: "quality", name: "Quality", description: "Quality plans, inspections, holds, non-conformance, CAPA, supplier quality, audits and traceability.", availability: "released" },
+  { key: "support", name: "Support", description: "Tickets, queues, priorities, SLAs, escalation, ownership, communication, knowledge and customer history.", availability: "released" },
+  { key: "hr-payroll", name: "HR & Payroll", description: "Employees, organisation structure, attendance, leave, expenses, compensation, payroll, payslips and statutory controls.", availability: "released" },
 ].map((module) => Object.freeze(module)));
 
 export const RELEASED_MODULE_KEYS = Object.freeze(

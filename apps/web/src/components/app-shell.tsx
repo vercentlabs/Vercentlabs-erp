@@ -302,6 +302,174 @@ const moduleNavigation: NavigationGroup[] = [
     ],
   },
   {
+    label: "HR & Payroll",
+    icon: "users",
+    items: [
+      {
+        href: "/hr-payroll",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.hrPayrollView,
+      },
+      {
+        href: "/hr-payroll/employees",
+        label: "Employees",
+        icon: "users",
+        permission: PERMISSIONS.hrPayrollEmployeeView,
+      },
+      {
+        href: "/hr-payroll/attendance",
+        label: "Attendance",
+        icon: "check",
+        permission: PERMISSIONS.hrPayrollView,
+      },
+      {
+        href: "/hr-payroll/leave-requests",
+        label: "Leave",
+        icon: "approvals",
+        permission: PERMISSIONS.hrPayrollView,
+      },
+      {
+        href: "/hr-payroll/expenses",
+        label: "Expenses",
+        icon: "accounting",
+        permission: PERMISSIONS.hrPayrollView,
+      },
+      {
+        href: "/hr-payroll/salary-structures",
+        label: "Compensation",
+        icon: "settings",
+        permission: PERMISSIONS.hrPayrollView,
+      },
+      {
+        href: "/hr-payroll/payroll-runs",
+        label: "Payroll runs",
+        icon: "hr-payroll",
+        permission: PERMISSIONS.hrPayrollView,
+      },
+      {
+        href: "/hr-payroll/payslips",
+        label: "Payslips",
+        icon: "audit",
+        permission: PERMISSIONS.hrPayrollPayslipView,
+      },
+    ],
+  },
+
+  {
+    label: "Support",
+    icon: "support",
+    items: [
+      {
+        href: "/support",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/tickets",
+        label: "Tickets",
+        icon: "support",
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/queues",
+        label: "Queues",
+        icon: "users",
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/sla-policies",
+        label: "SLA policies",
+        icon: "audit",
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/escalations",
+        label: "Escalations",
+        icon: "approvals",
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/communications",
+        label: "Communications",
+        icon: "crm",
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/knowledge",
+        label: "Knowledge",
+        icon: "support",
+        permission: PERMISSIONS.supportView,
+      },
+      {
+        href: "/support/customer-history",
+        label: "Customer history",
+        icon: "users",
+        permission: PERMISSIONS.supportView,
+      },
+    ],
+  },
+
+  {
+    label: "Quality",
+    icon: "check",
+    items: [
+      {
+        href: "/quality",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/plans",
+        label: "Quality plans",
+        icon: "settings",
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/inspections",
+        label: "Inspections",
+        icon: "check",
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/holds",
+        label: "Quality holds",
+        icon: "stock",
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/non-conformances",
+        label: "Non-conformance",
+        icon: "audit",
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/capa",
+        label: "CAPA",
+        icon: "approvals",
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/supplier-quality",
+        label: "Supplier quality",
+        icon: "procurement",
+        permission: PERMISSIONS.qualityView,
+      },
+      {
+        href: "/quality/audits",
+        label: "Audits",
+        icon: "audit",
+        permission: PERMISSIONS.qualityView,
+      },
+    ],
+  },
+
+  {
     label: "Point of Sale",
     icon: "sales",
     items: [

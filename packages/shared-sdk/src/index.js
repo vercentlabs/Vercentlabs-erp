@@ -119,3 +119,6 @@ export * from "./manufacturing.js";
 export * from "./projects.js";
 export * from "./assets.js";
 export * from "./point-of-sale.js";
+export * from "./quality.js";
+export * from "./support.js";
+export * from "./hr-payroll.js";

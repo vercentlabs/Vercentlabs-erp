@@ -157,7 +157,10 @@
     "db:verify:manufacturing": "corepack pnpm --filter @vercentlabs/web verify:database",
     "verify:projects": "node scripts/validation/verify-projects-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/projects-module.test.mjs",
     "verify:assets": "node scripts/validation/verify-assets-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/assets-module.test.mjs",
-    "verify:point-of-sale": "node scripts/validation/verify-point-of-sale-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/point-of-sale-module.test.mjs"
+    "verify:point-of-sale": "node scripts/validation/verify-point-of-sale-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/point-of-sale-module.test.mjs",
+    "verify:quality": "node scripts/validation/verify-quality-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/quality-module.test.mjs",
+    "verify:support": "node scripts/validation/verify-support-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/support-module.test.mjs",
+    "verify:hr-payroll": "node scripts/validation/verify-hr-payroll-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/hr-payroll-module.test.mjs"
   },
   "engines": {
     "node": ">=24 <25",

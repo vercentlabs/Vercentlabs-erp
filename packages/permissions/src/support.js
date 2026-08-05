@@ -1,0 +1,17 @@
+export const SUPPORT_PERMISSIONS = Object.freeze({
+  view: "support.view",
+  manage: "support.manage",
+  ticketCreate: "support.ticket.create",
+  ticketAssign: "support.ticket.assign",
+  ticketResolve: "support.ticket.resolve",
+  ticketClose: "support.ticket.close",
+  queueManage: "support.queue.manage",
+  slaManage: "support.sla.manage",
+  escalationManage: "support.escalation.manage",
+  knowledgeManage: "support.knowledge.manage",
+  communicationManage: "support.communication.manage",
+  sensitiveView: "support.sensitive.view",
+  reportsView: "support.reports.view",
+  settingsManage: "support.settings.manage",
+  auditView: "support.audit.view",
+});
