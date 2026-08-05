@@ -1568,3 +1568,4 @@ export * from "./crm/partner-engagement.js";
 export * from "./crm/ai-intelligence.js";
 export * from "./crm/offline-sync.js";
 export * from "./stock/index.js";
+export * from "./manufacturing/index.js";

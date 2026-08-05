@@ -302,6 +302,55 @@ const moduleNavigation: NavigationGroup[] = [
     ],
   },
   {
+    label: "Manufacturing",
+    icon: "modules",
+    items: [
+      {
+        href: "/manufacturing",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.manufacturingView,
+      },
+      {
+        href: "/manufacturing/boms",
+        label: "Bills of material",
+        icon: "modules",
+        permission: PERMISSIONS.manufacturingBomView,
+      },
+      {
+        href: "/manufacturing/work-orders",
+        label: "Work orders",
+        icon: "approvals",
+        permission: PERMISSIONS.manufacturingView,
+      },
+      {
+        href: "/manufacturing/work-centers",
+        label: "Work centers",
+        icon: "settings",
+        permission: PERMISSIONS.manufacturingView,
+      },
+      {
+        href: "/manufacturing/routings",
+        label: "Routings",
+        icon: "audit",
+        permission: PERMISSIONS.manufacturingView,
+      },
+      {
+        href: "/manufacturing/material-requirements",
+        label: "Material planning",
+        icon: "procurement",
+        permission: PERMISSIONS.manufacturingView,
+      },
+      {
+        href: "/manufacturing/production-postings",
+        label: "Production postings",
+        icon: "check",
+        permission: PERMISSIONS.manufacturingView,
+      },
+    ],
+  },
+  {
     label: "Accounting",
     icon: "accounting",
     items: [

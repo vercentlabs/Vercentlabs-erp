@@ -522,6 +522,14 @@ export async function requireWorkspace(): Promise<WorkspaceSessionContext> {
   return session as WorkspaceSessionContext;
 }
 
+export async function requireApiWorkspace(): Promise<WorkspaceSessionContext> {
+  const session = await getSessionContext();
+  if (!session?.organizationId) {
+    throw new Error("An authenticated organisation workspace is required.");
+  }
+  return session as WorkspaceSessionContext;
+}
+
 export function nextPath(session: SessionContext) {
   if (!session.emailVerified)
     return "/verify-email?email=" + encodeURIComponent(session.email);

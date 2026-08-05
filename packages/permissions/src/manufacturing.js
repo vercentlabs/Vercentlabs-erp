@@ -1,0 +1,16 @@
+export const MANUFACTURING_PERMISSIONS = Object.freeze({
+  view: "manufacturing.view",
+  manage: "manufacturing.manage",
+  bomView: "manufacturing.bom.view",
+  bomManage: "manufacturing.bom.manage",
+  routingManage: "manufacturing.routing.manage",
+  planningRun: "manufacturing.planning.run",
+  workOrderManage: "manufacturing.work_order.manage",
+  workOrderRelease: "manufacturing.work_order.release",
+  productionPost: "manufacturing.production.post",
+  scrapPost: "manufacturing.scrap.post",
+  costingView: "manufacturing.costing.view",
+  reportsView: "manufacturing.reports.view",
+  settingsManage: "manufacturing.settings.manage",
+  auditView: "manufacturing.audit.view",
+});

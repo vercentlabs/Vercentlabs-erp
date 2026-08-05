@@ -44,3 +44,4 @@ export * from "./sales.js";
 
 export * from "./procurement.js";
 export * from "./stock.js";
+export * from "./manufacturing.js";

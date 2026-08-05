@@ -10,6 +10,7 @@ import {
   SALES_PERMISSIONS,
   PROCUREMENT_PERMISSIONS,
   STOCK_PERMISSIONS,
+  MANUFACTURING_PERMISSIONS,
 } from "@vercentlabs/permissions";
 
 export const PERMISSIONS = {
@@ -114,6 +115,19 @@ export const PERMISSIONS = {
   stockValuationView: STOCK_PERMISSIONS.valuationView,
   stockReportsView: STOCK_PERMISSIONS.reportsView,
   stockSettingsManage: STOCK_PERMISSIONS.settingsManage,
+  manufacturingView: MANUFACTURING_PERMISSIONS.view,
+  manufacturingManage: MANUFACTURING_PERMISSIONS.manage,
+  manufacturingBomView: MANUFACTURING_PERMISSIONS.bomView,
+  manufacturingBomManage: MANUFACTURING_PERMISSIONS.bomManage,
+  manufacturingRoutingManage: MANUFACTURING_PERMISSIONS.routingManage,
+  manufacturingPlanningRun: MANUFACTURING_PERMISSIONS.planningRun,
+  manufacturingWorkOrderManage: MANUFACTURING_PERMISSIONS.workOrderManage,
+  manufacturingWorkOrderRelease: MANUFACTURING_PERMISSIONS.workOrderRelease,
+  manufacturingProductionPost: MANUFACTURING_PERMISSIONS.productionPost,
+  manufacturingScrapPost: MANUFACTURING_PERMISSIONS.scrapPost,
+  manufacturingCostingView: MANUFACTURING_PERMISSIONS.costingView,
+  manufacturingReportsView: MANUFACTURING_PERMISSIONS.reportsView,
+  manufacturingSettingsManage: MANUFACTURING_PERMISSIONS.settingsManage,
   billingView: BILLING_PERMISSIONS.view,
   billingManage: BILLING_PERMISSIONS.manage,
   billingCheckout: BILLING_PERMISSIONS.checkout,

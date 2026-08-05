@@ -152,7 +152,9 @@
     "test:enterprise-rbac-live": "corepack pnpm --filter @vercentlabs/web rbac:live",
     "verify:enterprise-rbac-complete": "corepack pnpm verify:enterprise-rbac && corepack pnpm test:enterprise-rbac && corepack pnpm test:enterprise-rbac-live",
     "verify:stock": "node scripts/validation/verify-stock-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/stock-module.test.mjs",
-    "db:verify:stock": "corepack pnpm --filter @vercentlabs/web verify:database"
+    "db:verify:stock": "corepack pnpm --filter @vercentlabs/web verify:database",
+    "verify:manufacturing": "node scripts/validation/verify-manufacturing-module.mjs && corepack pnpm --filter @vercentlabs/web exec node --test tests/manufacturing-module.test.mjs",
+    "db:verify:manufacturing": "corepack pnpm --filter @vercentlabs/web verify:database"
   },
   "engines": {
     "node": ">=24 <25",
