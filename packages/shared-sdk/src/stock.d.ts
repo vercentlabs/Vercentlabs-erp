@@ -1,0 +1,2 @@
+export type StockClient={dashboard():Promise<unknown>;list(resource:string,filters?:Record<string,unknown>):Promise<unknown>;postMovement(input:Record<string,unknown>):Promise<unknown>;createTransfer(input:Record<string,unknown>):Promise<unknown>;completeTransfer(id:string):Promise<unknown>;reserve(input:Record<string,unknown>):Promise<unknown>;releaseReservation(id:string):Promise<unknown>;};
+export declare function createStockClient(options?:{baseUrl?:string;fetchImpl?:typeof fetch}):StockClient;

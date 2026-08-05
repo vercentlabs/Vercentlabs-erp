@@ -247,6 +247,61 @@ const moduleNavigation: NavigationGroup[] = [
     ],
   },
   {
+    label: "Stock",
+    icon: "modules",
+    items: [
+      {
+        href: "/stock",
+        label: "Overview",
+        icon: "dashboard",
+        exact: true,
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/balances",
+        label: "Stock balances",
+        icon: "modules",
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/movements",
+        label: "Movements",
+        icon: "audit",
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/transfers",
+        label: "Transfers",
+        icon: "procurement",
+        permission: PERMISSIONS.stockTransfer,
+      },
+      {
+        href: "/stock/batches",
+        label: "Batches",
+        icon: "check",
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/serials",
+        label: "Serial numbers",
+        icon: "check",
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/reservations",
+        label: "Reservations",
+        icon: "approvals",
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/reorder-rules",
+        label: "Replenishment",
+        icon: "sales",
+        permission: PERMISSIONS.stockView,
+      },
+    ],
+  },
+  {
     label: "Accounting",
     icon: "accounting",
     items: [

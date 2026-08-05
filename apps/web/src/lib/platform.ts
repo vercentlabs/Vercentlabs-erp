@@ -222,7 +222,29 @@ function permissionsForRole(slug: string) {
     ];
   }
 
-  if (["inventory_manager", "manufacturing_manager"].includes(slug)) {
+  if (slug === "inventory_manager") {
+    return [
+      ...baseWorkspacePermissions,
+      "approvals.manage",
+      "business_data.view",
+      "items.manage",
+      "inventory_setup.manage",
+      "stock.view",
+      "stock.manage",
+      "stock.receive",
+      "stock.issue",
+      "stock.transfer",
+      "stock.adjust",
+      "stock.reserve",
+      "stock.count",
+      "stock.valuation.view",
+      "stock.reports.view",
+      "stock.settings.manage",
+      "stock.audit.view",
+    ];
+  }
+
+  if (slug === "manufacturing_manager") {
     return [
       ...baseWorkspacePermissions,
       "approvals.manage",

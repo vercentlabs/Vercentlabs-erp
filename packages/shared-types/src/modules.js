@@ -3,7 +3,7 @@ export const ERP_MODULE_CATALOG = Object.freeze([
   { key: "procurement", name: "Procurement", description: "Governed supplier lifecycle, sourcing, agreements, purchase orders, receipts and source-to-pay controls.", availability: "released" },
   { key: "sales", name: "Sales", description: "Quotations, approvals, sales orders and governed order-to-cash handoffs.", availability: "released" },
   { key: "crm", name: "CRM", description: "Leads, opportunities, customer relationships and activities.", availability: "released" },
-  { key: "stock", name: "Stock", description: "Warehouses, inventory, transfers and traceability.", availability: "roadmap" },
+  { key: "stock", name: "Stock", description: "Warehouses, balances, movements, transfers, traceability, replenishment and valuation.", availability: "released" },
   { key: "manufacturing", name: "Manufacturing", description: "Production planning, materials, operations and costs.", availability: "roadmap" },
   { key: "projects", name: "Projects", description: "Projects, tasks, time, budgets and profitability.", availability: "roadmap" },
   { key: "assets", name: "Assets", description: "Asset lifecycle, depreciation and maintenance.", availability: "roadmap" },

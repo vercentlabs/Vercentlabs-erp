@@ -43,3 +43,4 @@ export * from "./structured-fields.js";
 export * from "./sales.js";
 
 export * from "./procurement.js";
+export * from "./stock.js";

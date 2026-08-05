@@ -114,3 +114,4 @@ export * from "./mobile.js";
 export * from "./accounting.js";
 
 export * from "./procurement.js";
+export * from "./stock.js";

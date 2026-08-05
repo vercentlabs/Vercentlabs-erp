@@ -42,3 +42,4 @@ export const CORE_PERMISSIONS: Readonly<{
 export * from "./sales.js";
 
 export * from "./procurement.js";
+export * from "./stock.js";
