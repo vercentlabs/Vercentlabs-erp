@@ -65,7 +65,7 @@ export function SectionHeader({ eyebrow, title, description, align = "left", cla
 interface StackProps {
   children: ReactNode;
   className?: string;
-  gap?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 8;
+  gap?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10;
   as?: ElementType;
 }
 
@@ -78,6 +78,7 @@ const GAP_CLASSES: Record<NonNullable<StackProps["gap"]>, string> = {
   5: "gap-5",
   6: "gap-6",
   8: "gap-8",
+  10: "gap-10",
 };
 
 /** Vertical layout primitive. */
@@ -98,11 +99,12 @@ export function Cluster({ children, className, gap = 2, as: As = "div" }: StackP
 interface GridProps {
   children: ReactNode;
   className?: string;
-  columns?: 2 | 3 | 4 | 12;
-  gap?: 1 | 2 | 3 | 4 | 6 | 8;
+  columns?: 1 | 2 | 3 | 4 | 12;
+  gap?: 1 | 2 | 3 | 4 | 6 | 8 | 10;
 }
 
 const GRID_COLUMN_CLASSES: Record<NonNullable<GridProps["columns"]>, string> = {
+  1: "grid-cols-1",
   2: "grid-cols-1 sm:grid-cols-2",
   3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
   4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",

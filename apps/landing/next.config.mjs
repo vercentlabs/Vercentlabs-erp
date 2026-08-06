@@ -13,7 +13,7 @@ const contentSecurityPolicy = [
   // 'unsafe-inline' is required in every environment, matching apps/web's proven
   // CSP: Next.js emits its own inline bootstrap/hydration <script> tags on every
   // page. A stricter nonce-based policy needs middleware to mint a per-request
-  // nonce — out of scope for this phase's foundation; see phase-3-brief.md.
+  // nonce — out of scope for this phase's foundation; see docs/landing-redesign/phase-2/phase-3-brief.md.
   "script-src 'self' 'unsafe-inline'" + (isProduction ? "" : " 'unsafe-eval'"),
   "style-src 'self' 'unsafe-inline'",
   "connect-src 'self'",
@@ -63,6 +63,12 @@ const nextConfig = {
       },
       {
         source: "/design-system/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        // The post-submission confirmation must never be indexed — carries a
+        // per-submission request id in its query string, not real content.
+        source: "/book-demo/thank-you",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
     ];

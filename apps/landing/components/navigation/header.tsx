@@ -66,9 +66,21 @@ export function Header() {
           >
             Sign in
           </Link>
-          <ButtonLink href={CTAS.primary.href} size="sm" className="hidden sm:inline-flex">
-            {CTAS.primary.label}
-          </ButtonLink>
+          {/*
+            Visibility toggled on this wrapper, not via a className passed
+            into ButtonLink: ButtonLink's own base classes always include an
+            unprefixed `inline-flex`, which is equal-specificity with a plain
+            `hidden` override — whichever rule Tailwind happens to emit later
+            in the stylesheet wins, independent of class order in the HTML.
+            That silently kept this button visible below 480px, overlapping
+            the wordmark. A visibility toggle on a plain wrapper div has no
+            competing base `display` utility to fight with.
+          */}
+          <div className="hidden sm:block">
+            <ButtonLink href={CTAS.primary.href} size="sm">
+              {CTAS.primary.label}
+            </ButtonLink>
+          </div>
 
           <button
             type="button"

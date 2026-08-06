@@ -8,7 +8,12 @@ import { SITE_IDENTITY } from "@vercentlabs/landing-content";
  */
 export const SITE_URL = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000");
 
-/** apps/web's own URL — used only for the header/footer "Sign in" link, which leaves this app. */
+/**
+ * apps/web's own URL. Used both client-side (header/footer "Sign in" link,
+ * which leaves this app) and server-only (lib/crm-capture.ts's lead-delivery
+ * proxy target) — safe in both contexts since this is just a base URL, never
+ * a secret.
+ */
 export const APP_URL = new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001");
 
 export function absoluteUrl(path: string): string {

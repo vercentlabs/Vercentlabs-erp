@@ -45,7 +45,7 @@ export function Footer() {
               An operational ERP for growing, multi-location businesses — sales, inventory, procurement, production,
               and finance on one live system.
             </p>
-            <ButtonLink href={CTAS.primary.href} size="sm" className="mt-5">
+            <ButtonLink href={CTAS.primary.href} size="sm" variant="secondary" className="mt-5">
               {CTAS.primary.label}
             </ButtonLink>
           </div>

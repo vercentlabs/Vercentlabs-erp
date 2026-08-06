@@ -69,3 +69,7 @@ temp/
 apps/mobile/.expo/
 apps/mobile/android/
 apps/mobile/ios/
+
+# Local-only marketing demo org credentials (never commit)
+apps/landing/scripts/.demo-org-credentials.local.md
+apps/landing/scripts/.captured-screenshots.local.json

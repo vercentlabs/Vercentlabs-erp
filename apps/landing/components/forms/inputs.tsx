@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type { ChangeEvent, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cx } from "@/lib/utils";
 
 const FIELD_BASE =
@@ -49,10 +49,15 @@ interface CheckboxProps {
   name?: string;
   required?: boolean;
   defaultChecked?: boolean;
+  /** Controlled mode — pass together with onChange. Omit both for uncontrolled (defaultChecked) usage. */
+  checked?: boolean;
+  onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
+  invalid?: boolean;
   className?: string;
 }
 
-export function Checkbox({ id, label, name, required, defaultChecked, className }: CheckboxProps) {
+export function Checkbox({ id, label, name, required, defaultChecked, checked, onChange, invalid, className }: CheckboxProps) {
+  const isControlled = checked !== undefined;
   return (
     <label htmlFor={id} className={cx("flex items-start gap-2.5 text-sm text-(--color-text-secondary)", className)}>
       <input
@@ -60,7 +65,8 @@ export function Checkbox({ id, label, name, required, defaultChecked, className 
         name={name}
         type="checkbox"
         required={required}
-        defaultChecked={defaultChecked}
+        aria-invalid={invalid || undefined}
+        {...(isControlled ? { checked, onChange } : { defaultChecked, onChange })}
         className="mt-0.5 h-4 w-4 flex-none rounded-[4px] border-(--color-border-strong) text-(--color-bg-brand) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)"
       />
       <span>{label}</span>

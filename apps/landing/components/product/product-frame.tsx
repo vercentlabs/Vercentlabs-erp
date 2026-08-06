@@ -88,7 +88,7 @@ export function ProductCallout({ number, label, className }: CalloutProps) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-(--radius-control) border border-(--color-border-brand) bg-(--color-bg-elevated) px-2 py-1 text-xs font-medium text-(--color-text-brand)",
+        "inline-flex items-center gap-1.5 rounded-(--radius-control) border border-(--color-border-brand) bg-(--color-bg-elevated) px-2.5 py-1.5 text-xs font-medium text-(--color-text-brand)",
         className,
       )}
     >

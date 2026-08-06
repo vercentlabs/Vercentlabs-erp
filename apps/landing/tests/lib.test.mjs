@@ -53,7 +53,14 @@ test("jsonLdScriptProps escapes '<' so a payload value can't close the script ta
   assert.ok(!props.dangerouslySetInnerHTML.__html.includes("</script>"));
 });
 
-test("getApprovedScreenshot returns null when nothing is approved (the current, honest state)", () => {
-  assert.equal(APPROVED_SCREENSHOTS.length, 0, "a screenshot was added without updating this test's assumption");
-  assert.equal(getApprovedScreenshot("anything"), null);
+test("getApprovedScreenshot returns null for an id with no approved entry", () => {
+  assert.equal(getApprovedScreenshot("no-such-screenshot-id"), null);
+});
+
+test("every approved screenshot is marked approvedForMarketing and resolves by id", () => {
+  assert.ok(APPROVED_SCREENSHOTS.length > 0);
+  for (const screenshot of APPROVED_SCREENSHOTS) {
+    assert.equal(screenshot.approvedForMarketing, true);
+    assert.equal(getApprovedScreenshot(screenshot.id)?.id, screenshot.id);
+  }
 });

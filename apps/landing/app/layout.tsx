@@ -3,6 +3,7 @@ import { ROOT_METADATA } from "@/lib/metadata";
 import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/json-ld";
 import { Header } from "@/components/navigation/header";
 import { Footer } from "@/components/layout/footer";
+import { AttributionInit } from "@/components/analytics/attribution-init";
 import "./globals.css";
 
 export const metadata = ROOT_METADATA;
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Footer />
         <script {...jsonLdScriptProps(organizationJsonLd())} />
         <script {...jsonLdScriptProps(websiteJsonLd())} />
+        <AttributionInit />
       </body>
     </html>
   );

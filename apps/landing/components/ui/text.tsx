@@ -1,4 +1,4 @@
-import type { ElementType, ReactNode } from "react";
+import { forwardRef, type ElementType, type ReactNode, type Ref } from "react";
 import { cx } from "@/lib/utils";
 
 type HeadingLevel = "display" | "h1" | "h2" | "h3" | "h4";
@@ -26,16 +26,20 @@ interface HeadingProps {
   id?: string;
   /** Override the rendered tag without changing the visual style (e.g. a "display" styled h2). */
   as?: ElementType;
+  tabIndex?: number;
 }
 
-export function Heading({ level, children, className, id, as }: HeadingProps) {
+export const Heading = forwardRef(function Heading(
+  { level, children, className, id, as, tabIndex }: HeadingProps,
+  ref: Ref<HTMLElement>,
+) {
   const As = as ?? HEADING_TAG[level];
   return (
-    <As id={id} className={cx(HEADING_CLASSES[level], "text-(--color-text-primary)", className)}>
+    <As ref={ref} id={id} tabIndex={tabIndex} className={cx(HEADING_CLASSES[level], "text-(--color-text-primary)", className)}>
       {children}
     </As>
   );
-}
+});
 
 type TextVariant =
   | "lead"
@@ -67,11 +71,16 @@ interface TextProps {
   children: ReactNode;
   className?: string;
   as?: ElementType;
+  role?: string;
 }
 
-export function Text({ variant = "body", children, className, as }: TextProps) {
+export function Text({ variant = "body", children, className, as, role }: TextProps) {
   const As = as ?? (variant === "label" ? "span" : "p");
-  return <As className={cx(TEXT_CLASSES[variant], className)}>{children}</As>;
+  return (
+    <As role={role} className={cx(TEXT_CLASSES[variant], className)}>
+      {children}
+    </As>
+  );
 }
 
 export function InlineCode({ children, className }: { children: ReactNode; className?: string }) {
