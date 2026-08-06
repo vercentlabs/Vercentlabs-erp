@@ -92,3 +92,12 @@ export const TYPOGRAPHY_TOKENS: {
   bodyLineHeight: number;
   numericVariant: string;
 };
+
+export const SEMANTIC_BACKGROUND: Record<"page" | "subtle" | "inverse" | "elevated" | "brand" | "selected", string>;
+export const SEMANTIC_TEXT: Record<"primary" | "secondary" | "muted" | "inverse" | "brand" | "link" | "disabled", string>;
+export const SEMANTIC_BORDER: Record<"default" | "strong" | "subtle" | "brand" | "error" | "focus", string>;
+export const SEMANTIC_STATE: Record<
+  "success" | "successSoft" | "warning" | "warningSoft" | "error" | "errorSoft" | "information" | "informationSoft" | "focus" | "disabled",
+  string
+>;
+export const SEMANTIC_PRODUCT: Record<"frame" | "chrome" | "canvas" | "annotation" | "highlight", string>;

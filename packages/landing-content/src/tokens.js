@@ -61,3 +61,60 @@ export const TYPOGRAPHY_TOKENS = Object.freeze({
   bodyLineHeight: 1.65,
   numericVariant: "tabular-nums",
 });
+
+/**
+ * Phase 2 extension: semantic categories required by phase-2-brief.md /
+ * docs/landing-redesign/phase-2/design-system-specification.md. Every value here
+ * resolves to a COLOR_TOKENS entry (never a new raw hex) so there is exactly one
+ * place the actual brand palette is defined. See docs/landing-redesign/phase-2/
+ * decision-log.md for why this extends, rather than replaces, the Phase 1 palette.
+ */
+export const SEMANTIC_BACKGROUND = Object.freeze({
+  page: COLOR_TOKENS.canvas,
+  subtle: COLOR_TOKENS.brandAccentSoft,
+  inverse: COLOR_TOKENS.ink,
+  elevated: COLOR_TOKENS.surface,
+  brand: COLOR_TOKENS.brandAccent,
+  selected: COLOR_TOKENS.brandAccentSoft,
+});
+
+export const SEMANTIC_TEXT = Object.freeze({
+  primary: COLOR_TOKENS.ink,
+  secondary: COLOR_TOKENS.mutedInk,
+  muted: COLOR_TOKENS.mutedInk,
+  inverse: COLOR_TOKENS.surface,
+  brand: COLOR_TOKENS.brandAccentStrong,
+  link: COLOR_TOKENS.brandAccent,
+  disabled: "#98a2b3",
+});
+
+export const SEMANTIC_BORDER = Object.freeze({
+  default: COLOR_TOKENS.border,
+  strong: "#98a2b3",
+  subtle: "#eef1f4",
+  brand: COLOR_TOKENS.brandAccent,
+  error: COLOR_TOKENS.error,
+  focus: COLOR_TOKENS.focusRing,
+});
+
+export const SEMANTIC_STATE = Object.freeze({
+  success: COLOR_TOKENS.success,
+  successSoft: "#eaf8ef",
+  warning: COLOR_TOKENS.warning,
+  warningSoft: "#fef3e2",
+  error: COLOR_TOKENS.error,
+  errorSoft: "#fdeded",
+  information: COLOR_TOKENS.signalCyan,
+  informationSoft: "#e5f6fa",
+  focus: COLOR_TOKENS.focusRing,
+  disabled: "#98a2b3",
+});
+
+/** Tokens for framing and annotating real product screenshots (never used for marketing chrome). */
+export const SEMANTIC_PRODUCT = Object.freeze({
+  frame: COLOR_TOKENS.border,
+  chrome: "#f2f4f7",
+  canvas: COLOR_TOKENS.surface,
+  annotation: COLOR_TOKENS.brandAccent,
+  highlight: "#fef3e2",
+});

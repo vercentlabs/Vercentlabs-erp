@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens for the "Control Surface" creative direction
+ * (docs/landing-redesign/phase-1/creative-direction.md, phase-2/design-system-specification.md).
+ *
+ * Every hex value below is copied verbatim from packages/landing-content/src/tokens.js —
+ * that file is the single source of truth. apps/landing/tests/tokens-sync.test.mjs
+ * fails the build if this file drifts from it. Do not hand-edit a colour here without
+ * updating tokens.js first.
+ */
+@theme {
+  /* Base palette (packages/landing-content COLOR_TOKENS) */
+  --color-canvas: #f9fafb;
+  --color-surface: #ffffff;
+  --color-ink: #101828;
+  --color-muted-ink: #667085;
+  --color-border: #e4e7ec;
+  --color-brand: #4338ca;
+  --color-brand-strong: #3730a3;
+  --color-brand-soft: #eef2ff;
+  --color-signal-cyan: #0891b2;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-error: #b91c1c;
+  --color-focus-ring: #4338ca;
+
+  /* Semantic layer (packages/landing-content SEMANTIC_*) */
+  --color-bg-page: #f9fafb;
+  --color-bg-subtle: #eef2ff;
+  --color-bg-inverse: #101828;
+  --color-bg-elevated: #ffffff;
+  --color-bg-brand: #4338ca;
+  --color-bg-selected: #eef2ff;
+
+  --color-text-primary: #101828;
+  --color-text-secondary: #667085;
+  --color-text-muted: #667085;
+  --color-text-inverse: #ffffff;
+  --color-text-brand: #3730a3;
+  --color-text-link: #4338ca;
+  --color-text-disabled: #98a2b3;
+
+  --color-border-default: #e4e7ec;
+  --color-border-strong: #98a2b3;
+  --color-border-subtle: #eef1f4;
+  --color-border-brand: #4338ca;
+  --color-border-error: #b91c1c;
+  --color-border-focus: #4338ca;
+
+  --color-state-success: #15803d;
+  --color-state-success-soft: #eaf8ef;
+  --color-state-warning: #b45309;
+  --color-state-warning-soft: #fef3e2;
+  --color-state-error: #b91c1c;
+  --color-state-error-soft: #fdeded;
+  --color-state-info: #0891b2;
+  --color-state-info-soft: #e5f6fa;
+
+  --color-product-frame: #e4e7ec;
+  --color-product-chrome: #f2f4f7;
+  --color-product-canvas: #ffffff;
+  --color-product-annotation: #4338ca;
+  --color-product-highlight: #fef3e2;
+
+  /* Module accent colours (packages/landing-content LANDING_MODULES[*].accentColor) */
+  --color-module-crm: #6956d9;
+  --color-module-sales: #2468d7;
+  --color-module-accounting: #31566f;
+  --color-module-procurement: #087f6a;
+  --color-module-stock: #b45309;
+  --color-module-manufacturing: #c2410c;
+  --color-module-projects: #7e22ce;
+  --color-module-assets: #4d7c0f;
+  --color-module-point-of-sale: #be185d;
+  --color-module-quality: #15803d;
+  --color-module-support: #b91c1c;
+  --color-module-hr-payroll: #a21caf;
+
+  /* Radius (packages/landing-content RADIUS_TOKENS) */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-panel: 16px;
+
+  /* Shadow (packages/landing-content SHADOW_TOKENS) */
+  --shadow-subtle: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-panel:
+    0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+
+  /* Container (packages/landing-content CONTAINER_TOKENS) */
+  --container-max: 1600px;
+
+  /* Breakpoints (packages/landing-content BREAKPOINT_TOKENS) — Tailwind defaults are close;
+     explicit overrides keep them exactly in sync with the token source. */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1440px;
+
+  /* Typography (packages/landing-content TYPOGRAPHY_TOKENS) */
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tracking-headline: -0.045em;
+  --leading-body: 1.65;
+
+  /* Motion (packages/landing-content MOTION_TOKENS) */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border-default);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-bg-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: var(--tracking-headline);
+    font-weight: 600;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .tabular-data {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    background: var(--color-bg-inverse);
+    color: var(--color-text-inverse);
+    padding: 12px 16px;
+    border-radius: 0 0 var(--radius-control) 0;
+  }
+
+  .skip-link:focus {
+    left: 0;
+  }
+}

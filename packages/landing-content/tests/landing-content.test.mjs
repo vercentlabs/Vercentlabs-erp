@@ -11,7 +11,46 @@ import {
   getIcp,
   MODULE_NAV_GROUPS,
   CTAS,
+  COLOR_TOKENS,
+  SEMANTIC_BACKGROUND,
+  SEMANTIC_TEXT,
+  SEMANTIC_BORDER,
+  SEMANTIC_STATE,
+  SEMANTIC_PRODUCT,
 } from "../src/index.js";
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+test("every semantic token resolves to a valid hex colour", () => {
+  for (const group of [SEMANTIC_BACKGROUND, SEMANTIC_TEXT, SEMANTIC_BORDER, SEMANTIC_STATE, SEMANTIC_PRODUCT]) {
+    for (const [key, value] of Object.entries(group)) {
+      assert.match(value, HEX_COLOR, `token "${key}" is not a valid hex colour: "${value}"`);
+    }
+  }
+});
+
+test("semantic tokens only reuse COLOR_TOKENS values or a documented extension colour", () => {
+  const baseValues = new Set(Object.values(COLOR_TOKENS));
+  // A small number of extension colours (soft/strong state variants, disabled grey) are
+  // allowed without a COLOR_TOKENS entry of their own — they are not brand accents.
+  const allowedExtensions = new Set([
+    "#98a2b3",
+    "#eef1f4",
+    "#eaf8ef",
+    "#fef3e2",
+    "#fdeded",
+    "#e5f6fa",
+    "#f2f4f7",
+  ]);
+  for (const group of [SEMANTIC_BACKGROUND, SEMANTIC_TEXT, SEMANTIC_BORDER, SEMANTIC_STATE, SEMANTIC_PRODUCT]) {
+    for (const [key, value] of Object.entries(group)) {
+      assert.ok(
+        baseValues.has(value) || allowedExtensions.has(value.toLowerCase()),
+        `token "${key}" ("${value}") is a new raw colour outside COLOR_TOKENS and the documented extension list`,
+      );
+    }
+  }
+});
 
 test("every released ERP module has a landing enrichment entry", () => {
   assert.equal(LANDING_MODULES.length, RELEASED_MODULE_KEYS.length);
