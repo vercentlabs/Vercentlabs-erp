@@ -53,7 +53,7 @@
     "doctor:mobile": "corepack pnpm --filter @vercentlabs/mobile doctor",
     "export:mobile": "corepack pnpm --filter @vercentlabs/mobile export",
     "verify:mobile": "node scripts/validation/verify-mobile-foundation.mjs",
-    "test:packages": "corepack pnpm --filter @vercentlabs/config --filter @vercentlabs/document-engine --filter @vercentlabs/localization --filter @vercentlabs/observability --filter @vercentlabs/reporting-engine --filter @vercentlabs/shared-ui --filter @vercentlabs/test-utils --filter @vercentlabs/workflows test",
+    "test:packages": "corepack pnpm --filter @vercentlabs/config --filter @vercentlabs/document-engine --filter @vercentlabs/landing-content --filter @vercentlabs/localization --filter @vercentlabs/observability --filter @vercentlabs/reporting-engine --filter @vercentlabs/shared-ui --filter @vercentlabs/test-utils --filter @vercentlabs/workflows test",
     "test:integration": "node --test tests/integration/*.test.mjs",
     "test:security": "node --test tests/security/*.test.mjs",
     "test:e2e": "node --test tests/e2e/*.test.mjs",
