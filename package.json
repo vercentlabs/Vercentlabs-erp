@@ -10,6 +10,7 @@
     "phone:android": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/mobile/android-phone.ps1",
     "dev:landing": "corepack pnpm --filter @vercentlabs/landing dev",
     "build:landing": "corepack pnpm --filter @vercentlabs/landing build",
+    "start:landing": "corepack pnpm --filter @vercentlabs/landing start",
     "lint:landing": "corepack pnpm --filter @vercentlabs/landing lint",
     "typecheck:landing": "corepack pnpm --filter @vercentlabs/landing typecheck",
     "format:landing": "corepack pnpm --filter @vercentlabs/landing format",
