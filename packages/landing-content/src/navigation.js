@@ -35,7 +35,7 @@ export const PRIMARY_NAV = Object.freeze([
  * ("Learn More"/"Get Started") — always name the action and, where relevant, the object.
  */
 export const CTAS = Object.freeze({
-  primary: { label: "Book a Demo", href: "/book-demo" },
+  primary: { label: "Book a Product Demo", href: "/book-demo" },
   exploreProduct: { label: "Explore the Platform", href: "/product/platform" },
   exploreModules: { label: "Explore Modules", href: "/modules" },
   watchTour: { label: "Watch Product Tour", href: "/product-tour" },
@@ -44,14 +44,21 @@ export const CTAS = Object.freeze({
 });
 
 /**
- * Analytics event names fixed in conversion-architecture.md so later phases don't
- * reinvent naming. No instrumentation is wired in Phase 1 — this is the contract only.
+ * Analytics event names not tied to a specific homepage section (those are
+ * declared per-section via `analyticsId` in homepage.js instead — see
+ * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). Reconciled in
+ * Phase 3 against what apps/landing actually calls track() with; three
+ * entries (module_page_view, industry_page_view, product_tour_play) are
+ * reserved for Phase 4-5 pages that don't exist yet.
  */
 export const ANALYTICS_EVENTS = Object.freeze([
-  "cta_click",
+  "homepage_view",
   "demo_form_start",
-  "demo_form_submit_success",
-  "demo_form_submit_error",
+  "demo_form_validation_error",
+  "demo_form_submit",
+  "demo_form_success",
+  "demo_form_error",
+  "product_demo_complete",
   "product_tour_play",
   "module_page_view",
   "industry_page_view",

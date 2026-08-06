@@ -17,6 +17,11 @@ import {
   SEMANTIC_BORDER,
   SEMANTIC_STATE,
   SEMANTIC_PRODUCT,
+  HOMEPAGE_SECTIONS,
+  HERO,
+  CONNECTED_SYSTEM_SECTION,
+  MODULE_ARCHITECTURE_SECTION,
+  FLAGSHIP_WORKFLOW_SECTION,
 } from "../src/index.js";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -135,5 +140,47 @@ test("no CTA uses a banned generic label", () => {
       !banned.includes(cta.label.toLowerCase()),
       `CTA label "${cta.label}" uses a banned generic phrase per conversion-architecture.md`,
     );
+  }
+});
+
+test("HOMEPAGE_SECTIONS has exactly 12 sections, each with a unique id, heading, and analyticsId", () => {
+  assert.equal(HOMEPAGE_SECTIONS.length, 12);
+  const ids = HOMEPAGE_SECTIONS.map((section) => section.id);
+  assert.equal(new Set(ids).size, ids.length, "a homepage section id is duplicated");
+  const analyticsIds = HOMEPAGE_SECTIONS.map((section) => section.analyticsId);
+  assert.equal(new Set(analyticsIds).size, analyticsIds.length, "a homepage section analyticsId is duplicated");
+  for (const section of HOMEPAGE_SECTIONS) {
+    assert.ok(section.heading && section.heading.length > 0, `section "${section.id}" has no heading`);
+  }
+});
+
+test("hero and final CTA use the approved primary CTA destination", () => {
+  assert.equal(HERO.primaryCta.href, "/book-demo");
+  assert.equal(HERO.primaryCta.label, "Book a Product Demo");
+});
+
+test("connected-system steps reference only real module keys", () => {
+  const validKeys = new Set(LANDING_MODULES.map((module) => module.key));
+  for (const step of CONNECTED_SYSTEM_SECTION.steps) {
+    assert.ok(validKeys.has(step.module), `connected-system step "${step.label}" references unknown module "${step.module}"`);
+  }
+});
+
+test("module architecture group summaries match real nav groups exactly", () => {
+  const navGroupKeys = MODULE_NAV_GROUPS.map((group) => group.key).sort();
+  const summaryKeys = MODULE_ARCHITECTURE_SECTION.groupSummaries.map((summary) => summary.groupKey).sort();
+  assert.deepEqual(summaryKeys, navGroupKeys);
+});
+
+test("flagship workflow references a real workflow slug", () => {
+  const validSlugs = new Set(LANDING_WORKFLOWS.map((workflow) => workflow.slug));
+  assert.ok(validSlugs.has(FLAGSHIP_WORKFLOW_SECTION.workflowSlug));
+});
+
+test("no homepage section copy uses a banned overclaiming phrase", () => {
+  const banned = ["seamless", "revolutioni", "game-chang", "transform overnight", "all-in-one"];
+  const haystack = JSON.stringify(HOMEPAGE_SECTIONS).toLowerCase();
+  for (const phrase of banned) {
+    assert.ok(!haystack.includes(phrase), `homepage content uses banned phrase "${phrase}" per positioning-and-messaging.md copy rules`);
   }
 });
