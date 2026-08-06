@@ -1,0 +1,31 @@
+import type { ReactNode } from "react";
+import { ROOT_METADATA } from "@/lib/metadata";
+import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/json-ld";
+import { Header } from "@/components/navigation/header";
+import { Footer } from "@/components/layout/footer";
+import "./globals.css";
+
+export const metadata = ROOT_METADATA;
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#f9fafb",
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+        <Header />
+        <main id="main-content">{children}</main>
+        <Footer />
+        <script {...jsonLdScriptProps(organizationJsonLd())} />
+        <script {...jsonLdScriptProps(websiteJsonLd())} />
+      </body>
+    </html>
+  );
+}
