@@ -7,3 +7,7 @@ export * from "./tokens.js";
 export * from "./homepage.js";
 export * from "./capability-registry.js";
 export * from "./platform-pages.js";
+export * from "./industries.js";
+export * from "./solutions.js";
+export * from "./implementation.js";
+export * from "./buyer-roles.js";

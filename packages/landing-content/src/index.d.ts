@@ -103,16 +103,41 @@ export const LANDING_MODULES: readonly LandingModule[];
 export function getLandingModule(key: string): LandingModule | null;
 export function getModulesByNavGroup(navGroup: string): LandingModule[];
 
+export interface WorkflowSequenceStep {
+  step: string;
+  moduleKey: string;
+  detail: string;
+}
+
+export interface WorkflowFaq {
+  question: string;
+  answer: string;
+}
+
 export interface LandingWorkflow {
   slug: string;
   name: string;
   modules: string[];
   summary: string;
   iaPriority: "P0" | "P1" | "P2";
+  /** The following fields are only populated for the 6 routed workflows (ROUTED_WORKFLOW_SLUGS). */
+  trigger?: string;
+  participants?: string[];
+  sequence?: WorkflowSequenceStep[];
+  automatedActions?: string[];
+  approvals?: string[];
+  exceptions?: string[];
+  visibility?: string[];
+  businessValue?: string[];
+  faqs?: WorkflowFaq[];
+  screenshotId?: string;
 }
 
 export const LANDING_WORKFLOWS: readonly LandingWorkflow[];
+export const ROUTED_WORKFLOW_SLUGS: readonly string[];
 export function getWorkflowsForModule(moduleKey: string): LandingWorkflow[];
+export function getWorkflow(slug: string): LandingWorkflow | null;
+export function getRoutedWorkflows(): LandingWorkflow[];
 
 export interface LandingIcp {
   slug: string;
@@ -175,6 +200,16 @@ export const ANALYTICS_EVENTS: readonly [
   "platform_page_view",
   "platform_cta_click",
   "modules_index_view",
+  "industries_index_view",
+  "industry_final_cta_click",
+  "solutions_index_view",
+  "solution_page_view",
+  "solution_cta_click",
+  "workflows_index_view",
+  "workflow_page_view",
+  "workflow_cta_click",
+  "implementation_page_view",
+  "implementation_cta_click",
 ];
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };
@@ -431,3 +466,105 @@ export interface ModulesIndexPage {
 }
 
 export const MODULES_INDEX_PAGE: ModulesIndexPage;
+
+// --- Buyer roles (buyer-roles.js) ---
+
+export interface BuyerRole {
+  slug: string;
+  title: string;
+  concernSummary: string;
+  primaryConcerns: string[];
+  relevantModuleKeys: string[];
+  proofPoint: string;
+}
+
+export const BUYER_ROLES: readonly BuyerRole[];
+export function getBuyerRole(slug: string): BuyerRole | null;
+export function getBuyerRolesBySlugs(slugs: string[]): BuyerRole[];
+
+// --- Industry pages (industries.js) ---
+
+export interface IndustryModuleStackEntry {
+  moduleKey: string;
+  role: string;
+}
+
+export interface IndustryPage {
+  slug: string;
+  icpSlug: string;
+  name: string;
+  directDefinition: string;
+  operatingModel: string;
+  challenges: string[];
+  moduleStack: IndustryModuleStackEntry[];
+  primaryWorkflowSlug?: string;
+  buyerRoleSlugs: string[];
+  evidenceHighlights: string[];
+  screenshots: { primary?: string };
+  faqs: ModuleFaq[];
+  metaDescription: string;
+  searchIntent: string;
+  conversion: ModuleConversion;
+}
+
+export const LANDING_INDUSTRIES: readonly IndustryPage[];
+export function getIndustry(slug: string): IndustryPage | null;
+export function getIndustriesForModule(moduleKey: string): IndustryPage[];
+export function getIndustriesForWorkflow(workflowSlug: string): IndustryPage[];
+
+// --- Solution pages (solutions.js) ---
+
+export interface SolutionApproachItem {
+  title: string;
+  description: string;
+  moduleKey?: string;
+}
+
+export interface SolutionPage {
+  slug: string;
+  name: string;
+  problemStatement: string;
+  before: string;
+  after: string;
+  approach: SolutionApproachItem[];
+  /** The one paired platform page this solution differentiates against — an absolute path, e.g. "/product/automation". */
+  relatedPlatformPageSlug: string;
+  relatedModuleKeys: string[];
+  relatedWorkflowSlugs: string[];
+  faqs: ModuleFaq[];
+  metaDescription: string;
+  searchIntent: string;
+  conversion: ModuleConversion;
+}
+
+export const LANDING_SOLUTIONS: readonly SolutionPage[];
+export function getSolution(slug: string): SolutionPage | null;
+export function getSolutionsForModule(moduleKey: string): SolutionPage[];
+
+// --- Implementation & migration page (implementation.js) ---
+
+export interface ImplementationPhase {
+  id: string;
+  name: string;
+  description: string;
+  activities: string[];
+  typicalOutputs: string[];
+  /** Only set on the Data Migration phase. */
+  migrationChecklist?: string[];
+}
+
+export interface ImplementationPage {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  directDefinition: string;
+  searchIntent: string;
+  eyebrow: string;
+  heading: string;
+  supportingText: string;
+  phases: ImplementationPhase[];
+  faqs: ModuleFaq[];
+  conversion: ModuleConversion;
+}
+
+export const IMPLEMENTATION_PAGE: ImplementationPage;

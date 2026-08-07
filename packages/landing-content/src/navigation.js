@@ -22,10 +22,13 @@ export const PRIMARY_NAV = Object.freeze([
       { label: "Mobile", href: "/product/mobile" },
       { label: "Security", href: "/security" },
       { label: "Integrations", href: "/product/integrations" },
+      { label: "Implementation", href: "/implementation" },
     ],
   },
   { label: "Modules", href: "/modules" },
   { label: "Industries", href: "/industries" },
+  { label: "Solutions", href: "/solutions" },
+  { label: "Workflows", href: "/workflows" },
   { label: "Pricing", href: "/pricing" },
   { label: "Resources", href: "/resources" },
 ]);
@@ -53,8 +56,11 @@ export const CTAS = Object.freeze({
  * review caught this array drifting behind the .d.ts: the type declared 7
  * event names the runtime array never actually had, which typechecked clean
  * only because nothing at runtime validates track() calls against this array
- * — see docs/landing-redesign/phase-4/decision-log.md). "product_tour_play"
- * and "industry_page_view" remain reserved for pages that don't exist yet.
+ * — see docs/landing-redesign/phase-4/decision-log.md). This is no longer
+ * just a documented convention: tests/analytics-events-sync.test.mjs parses
+ * index.d.ts's literal-union source and fails the build if it and this array
+ * ever diverge again. "product_tour_play" remains reserved for a page that
+ * doesn't exist yet.
  */
 export const ANALYTICS_EVENTS = Object.freeze([
   "homepage_view",
@@ -75,4 +81,14 @@ export const ANALYTICS_EVENTS = Object.freeze([
   "platform_page_view",
   "platform_cta_click",
   "modules_index_view",
+  "industries_index_view",
+  "industry_final_cta_click",
+  "solutions_index_view",
+  "solution_page_view",
+  "solution_cta_click",
+  "workflows_index_view",
+  "workflow_page_view",
+  "workflow_cta_click",
+  "implementation_page_view",
+  "implementation_cta_click",
 ]);
