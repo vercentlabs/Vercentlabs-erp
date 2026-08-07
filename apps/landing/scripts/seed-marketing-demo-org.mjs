@@ -365,28 +365,6 @@ async function postJson(page, url, body) {
   );
 }
 
-async function getJson(page, url) {
-  return page.evaluate(async (url) => {
-    const response = await fetch(url);
-    return response.json().catch(() => ({}));
-  }, url);
-}
-
-/** Selects the option at `position` among non-empty <option> values (0-indexed),
- * falling back to the first non-empty option if fewer exist. Used where two
- * *different* real accounts are wanted (e.g. two journal lines) and there is
- * no name attribute or predictable label to key off. */
-async function selectOptionByPosition(selectLocator, position) {
-  await selectLocator.waitFor({ state: "visible" });
-  const values = await selectLocator.locator("option").evaluateAll((options) =>
-    options.map((option) => option.value),
-  );
-  const real = values.filter((value) => value !== "");
-  const value = real[position] || real[0];
-  if (!value) throw new Error("No option available to select.");
-  await selectLocator.selectOption(value);
-}
-
 async function main() {
   assertSafeEnvironment();
   log("guard", `Target ${BASE_URL} looks safe (non-production, localhost).`);

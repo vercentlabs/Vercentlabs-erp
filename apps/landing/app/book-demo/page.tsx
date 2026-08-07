@@ -1,4 +1,4 @@
-import { POSITIONING, LANDING_MODULES } from "@vercentlabs/landing-content";
+import { POSITIONING, LANDING_MODULES, getIndustry, getWorkflow, getSolution, ROUTED_WORKFLOW_SLUGS, getLandingModule } from "@vercentlabs/landing-content";
 import { Container, Section, Stack, Grid } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { FeatureList } from "@/components/ui/card";
@@ -13,17 +13,50 @@ export const metadata = buildPageMetadata({
 });
 
 /**
- * `?module={slug}` preselects the matching module checkbox — read via the
+ * `?module=`, `?industry=`, `?workflow=`, or `?solution=` preselect the
+ * relevant module checkboxes and change the page's lead copy — read via the
  * page's native `searchParams` prop (a Server Component convention), not
  * `useSearchParams()`/`Suspense`. That avoids the exact hydration-race defect
  * class the thank-you page hit in Phase 3 (see docs/landing-redesign/phase-3/
- * implementation-summary.md, defect #1). The value is validated against the
- * real module catalog server-side before use — an unrecognized slug is
- * silently ignored, never trusted as-is.
+ * implementation-summary.md, defect #1). Every value is validated against a
+ * real, typed registry server-side before use — an unrecognized slug is
+ * silently ignored, never trusted as-is, and no PII ever flows through these
+ * params. Checked in this priority order when more than one is present
+ * (a real referring page only ever sends one, but resolution stays
+ * deterministic either way): module, industry, workflow, solution.
  */
-export default async function BookDemoPage({ searchParams }: { searchParams: Promise<{ module?: string }> }) {
-  const { module: moduleSlug } = await searchParams;
-  const initialModule = LANDING_MODULES.find((module) => module.key === moduleSlug)?.name;
+export default async function BookDemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ module?: string; industry?: string; workflow?: string; solution?: string }>;
+}) {
+  const { module: moduleSlug, industry: industrySlug, workflow: workflowSlug, solution: solutionSlug } = await searchParams;
+
+  let initialModuleKeys: string[] = [];
+  let contextLabel: string | null = null;
+
+  const matchedModule = moduleSlug ? LANDING_MODULES.find((m) => m.key === moduleSlug) : undefined;
+  const matchedIndustry = !matchedModule && industrySlug ? getIndustry(industrySlug) : null;
+  const matchedWorkflow =
+    !matchedModule && !matchedIndustry && workflowSlug && ROUTED_WORKFLOW_SLUGS.includes(workflowSlug) ? getWorkflow(workflowSlug) : null;
+  const matchedSolution = !matchedModule && !matchedIndustry && !matchedWorkflow && solutionSlug ? getSolution(solutionSlug) : null;
+
+  if (matchedModule) {
+    initialModuleKeys = [matchedModule.key];
+  } else if (matchedIndustry) {
+    initialModuleKeys = matchedIndustry.moduleStack.map((entry) => entry.moduleKey);
+    contextLabel = `Built for ${matchedIndustry.name.toLowerCase()} operations like yours.`;
+  } else if (matchedWorkflow) {
+    initialModuleKeys = matchedWorkflow.modules;
+    contextLabel = `See the ${matchedWorkflow.name} workflow running in your business.`;
+  } else if (matchedSolution) {
+    initialModuleKeys = matchedSolution.relatedModuleKeys;
+    contextLabel = `We'll focus this session on: ${matchedSolution.name.toLowerCase()}.`;
+  }
+
+  const initialModuleNames = initialModuleKeys
+    .map((key) => getLandingModule(key)?.name)
+    .filter((name): name is string => Boolean(name));
 
   return (
     <Section tone="page" className="pt-10 sm:pt-14">
@@ -35,6 +68,11 @@ export default async function BookDemoPage({ searchParams }: { searchParams: Pro
             <Text variant="lead">
               {`${POSITIONING.heroSubhead} Book a demo and we'll walk through the modules and workflows relevant to your operation — not a generic product tour.`}
             </Text>
+            {contextLabel ? (
+              <div className="rounded-(--radius-control) border border-(--color-border-brand) bg-(--color-bg-elevated) px-4 py-3">
+                <Text variant="label">{contextLabel}</Text>
+              </div>
+            ) : null}
             <div>
               <Text variant="label">What to expect</Text>
               <FeatureList
@@ -49,7 +87,7 @@ export default async function BookDemoPage({ searchParams }: { searchParams: Pro
             </div>
           </Stack>
           <div className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-panel) sm:p-8">
-            <DemoForm initialModule={initialModule} />
+            <DemoForm initialModules={initialModuleNames} />
           </div>
         </Grid>
       </Container>

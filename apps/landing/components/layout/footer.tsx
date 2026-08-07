@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LANDING_MODULES, CTAS } from "@vercentlabs/landing-content";
+import { LANDING_MODULES, LANDING_INDUSTRIES, CTAS } from "@vercentlabs/landing-content";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
@@ -25,6 +25,8 @@ const COMPANY_LINKS = [
   { label: "Contact", href: "/contact" },
   { label: "Pricing", href: "/pricing" },
   { label: "Implementation", href: "/implementation" },
+  { label: "Solutions", href: "/solutions" },
+  { label: "Workflows", href: "/workflows" },
 ];
 
 const LEGAL_LINKS = [
@@ -38,7 +40,7 @@ export function Footer() {
   return (
     <footer className="border-t border-(--color-border-default) bg-(--color-bg-elevated)">
       <Container className="py-14">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-6">
           <div className="sm:col-span-2 lg:col-span-2">
             <Logo />
             <p className="mt-4 max-w-[32ch] text-sm leading-relaxed text-(--color-text-secondary)">
@@ -65,6 +67,24 @@ export function Footer() {
               <li>
                 <Link href="/modules" prefetch={false} className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4">
                   All modules
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">Industries</p>
+            <ul className="mt-3 flex flex-col gap-2.5">
+              {LANDING_INDUSTRIES.map((industry) => (
+                <li key={industry.slug}>
+                  <Link href={`/industries/${industry.slug}`} prefetch={false} className="text-sm text-(--color-text-secondary) hover:text-(--color-text-brand)">
+                    {industry.name}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/industries" prefetch={false} className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4">
+                  All industries
                 </Link>
               </li>
             </ul>

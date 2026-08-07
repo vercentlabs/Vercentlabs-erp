@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { LANDING_MODULES, getLandingModule } from "@vercentlabs/landing-content";
+import { LANDING_MODULES, getLandingModule, getIndustriesForModule, getWorkflowsForModule, getSolutionsForModule, ROUTED_WORKFLOW_SLUGS } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader, Grid, Stack, Inline } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Checklist } from "@/components/ui/card";
@@ -46,6 +46,10 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   const connectedModules = landingModule.connectedModules
     .map((link) => getLandingModule(link.moduleKey))
     .filter((m): m is NonNullable<typeof m> => Boolean(m));
+
+  const relatedIndustries = getIndustriesForModule(landingModule.key);
+  const relatedWorkflows = getWorkflowsForModule(landingModule.key).filter((w) => ROUTED_WORKFLOW_SLUGS.includes(w.slug));
+  const relatedSolutions = getSolutionsForModule(landingModule.key);
 
   const breadcrumbTrail = [
     { name: "Modules", path: "/modules" },
@@ -212,6 +216,9 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
                 { label: "Explore the full platform", href: "/product" },
                 { label: "See all modules", href: "/modules" },
                 ...connectedModules.slice(0, 4).map((m) => ({ label: `${m.name} module`, href: `/modules/${m.key}` })),
+                ...relatedIndustries.slice(0, 2).map((industry) => ({ label: `${industry.name} industry`, href: `/industries/${industry.slug}` })),
+                ...relatedWorkflows.slice(0, 2).map((workflow) => ({ label: `${workflow.name} workflow`, href: `/workflows/${workflow.slug}` })),
+                ...relatedSolutions.slice(0, 2).map((solution) => ({ label: `${solution.name} solution`, href: `/solutions/${solution.slug}` })),
               ]}
             />
           </Stack>

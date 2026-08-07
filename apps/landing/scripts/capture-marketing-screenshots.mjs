@@ -43,17 +43,6 @@ const BASE_URL = process.env.DEMO_BASE_URL || "http://localhost:3001";
 const HEADLESS = process.env.DEMO_HEADLESS !== "false";
 const OUTPUT_DIR = path.resolve(__dirname, "../public/product");
 const CREDENTIALS_PATH = path.join(__dirname, ".demo-org-credentials.local.md");
-const RECORD_IDS_PATH = path.join(__dirname, ".demo-org-record-ids.local.json");
-
-async function loadRecordIds() {
-  const text = await readFile(RECORD_IDS_PATH, "utf8").catch(() => null);
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
-  }
-}
 
 function assertSafeEnvironment() {
   if (process.env.NODE_ENV === "production") {

@@ -37,15 +37,16 @@ const EMPTY_VALUES: DemoFormValues = {
   companyWebsiteHidden: "",
 };
 
-export function DemoForm({ initialModule }: { initialModule?: string } = {}) {
+export function DemoForm({ initialModules }: { initialModules?: string[] } = {}) {
   const router = useRouter();
   const [values, setValues] = useState<DemoFormValues>(EMPTY_VALUES);
   const [errors, setErrors] = useState<DemoFormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Preselected once from a validated ?module= query param (see app/book-demo/page.tsx)
-  // — the user can still add or remove modules freely afterward.
-  const [modulesOfInterest, setModulesOfInterest] = useState<string[]>(initialModule ? [initialModule] : []);
+  // Preselected once from a validated ?module=/?industry=/?workflow=/?solution=
+  // query param (see app/book-demo/page.tsx) — the user can still add or
+  // remove modules freely afterward.
+  const [modulesOfInterest, setModulesOfInterest] = useState<string[]>(initialModules ?? []);
   const formRef = useRef<HTMLFormElement>(null);
   const startedRef = useRef(false);
 
