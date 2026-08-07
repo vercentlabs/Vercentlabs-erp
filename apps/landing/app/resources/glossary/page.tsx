@@ -81,7 +81,11 @@ export default function GlossaryIndexPage() {
                 <div key={entry.term} className="py-5">
                   <dt className="text-base font-semibold text-(--color-text-primary)">
                     {href ? (
-                      <Link href={href} prefetch={false} className="hover:text-(--color-text-brand) hover:underline underline-offset-4">
+                      <Link
+                        href={href}
+                        prefetch={false}
+                        className="underline decoration-(--color-border-strong) underline-offset-4 hover:text-(--color-text-brand) hover:decoration-(--color-text-brand)"
+                      >
                         {entry.term}
                       </Link>
                     ) : (

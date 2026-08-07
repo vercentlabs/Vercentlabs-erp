@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS, ROUTED_WORKFLOW_SLUGS } from "@vercentlabs/landing-content";
+import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS, ROUTED_WORKFLOW_SLUGS, VERCENTLABS_VS_ODOO } from "@vercentlabs/landing-content";
 
 /**
  * Not an assertion suite — captures screenshots to test-results/ for direct human
@@ -158,6 +158,47 @@ test.describe("visual review captures — Phase 5 industry, solution, workflow, 
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
       await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
+    });
+  }
+});
+
+// Phase 6 — resource hub, requirements checklist, one representative cornerstone
+// guide, one glossary term, and the comparison page, desktop + mobile. A
+// deliberately reduced set for Cycle 1 (matching the governing brief's own
+// scope for this cycle), not every one of the ~20 new routes — the E2E route
+// suite (phase6-routes.spec.ts) already covers every route's functional
+// correctness; this block is for design/UX review specifically.
+test.describe("visual review captures — Phase 6 resource hub, requirements checklist, glossary, and comparison routes", () => {
+  const routes = [
+    { path: "/resources", name: "resources-index" },
+    { path: "/resources/erp-buying-guide", name: "resources-erp-buying-guide" },
+    { path: "/resources/erp-requirements-checklist", name: "resources-erp-requirements-checklist" },
+    { path: "/resources/glossary", name: "resources-glossary-index" },
+    { path: "/resources/glossary/rbac", name: "resources-glossary-rbac" },
+    { path: "/compare", name: "compare-index" },
+    { path: `/compare/${VERCENTLABS_VS_ODOO.slug}`, name: "compare-vercentlabs-vs-odoo" },
+  ];
+
+  for (const route of routes) {
+    test(`${route.path} — desktop`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-desktop.png`, fullPage: true });
+    });
+
+    test(`${route.path} — mobile 390`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
+    });
+
+    test(`${route.path} — mobile 320`, async ({ page }) => {
+      await page.setViewportSize({ width: 320, height: 568 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-320.png`, fullPage: true });
     });
   }
 });
