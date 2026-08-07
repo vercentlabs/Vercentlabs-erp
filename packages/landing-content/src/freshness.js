@@ -148,6 +148,8 @@ export const CONTENT_FRESHNESS = Object.freeze({
   "/resources/erp-migration-guide": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new cornerstone guide." },
   "/resources/manufacturing-erp-guide": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new cornerstone guide." },
   "/resources/erp-vs-spreadsheets": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new cornerstone guide." },
+  "/compare": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new comparison index." },
+  "/compare/vercentlabs-vs-odoo": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new comparison, every claim live-verified against odoo.com on 2026-08-07." },
 });
 
 export function getFreshness(path) {

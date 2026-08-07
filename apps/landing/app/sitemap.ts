@@ -7,6 +7,7 @@ import {
   ROUTED_WORKFLOW_SLUGS,
   RESOURCE_GUIDES,
   STANDALONE_GLOSSARY_SLUGS,
+  VERCENTLABS_VS_ODOO,
   getFreshness,
 } from "@vercentlabs/landing-content";
 import { absoluteUrl } from "@/lib/site";
@@ -53,5 +54,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...RESOURCE_GUIDES.map((guide) => entry(`/resources/${guide.slug}`, "monthly", 0.7)),
     entry("/resources/glossary", "monthly", 0.7),
     ...STANDALONE_GLOSSARY_SLUGS.map((slug) => entry(`/resources/glossary/${slug}`, "monthly", 0.6)),
+    entry("/compare", "monthly", 0.7),
+    entry(`/compare/${VERCENTLABS_VS_ODOO.slug}`, "monthly", 0.7),
   ];
 }

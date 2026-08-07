@@ -17,3 +17,4 @@ export * from "./authors.js";
 export * from "./answers.js";
 export * from "./glossary.js";
 export * from "./resources.js";
+export * from "./comparisons.js";

@@ -714,3 +714,39 @@ export const RESOURCE_GUIDES: readonly ResourceGuide[];
 export const RESOURCE_CATEGORIES: readonly string[];
 export function getResourceGuide(slug: string): ResourceGuide | null;
 export function getResourceGuidesForModule(moduleKey: string): ResourceGuide[];
+
+// --- Comparisons (comparisons.js) ---
+
+export interface ComparisonEvidence {
+  claimId: string;
+  competitor: string;
+  claim: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  verifiedAt: string;
+  sourceType: EditorialSourceType;
+}
+
+export interface ComparisonDimension {
+  id: string;
+  title: string;
+  odoo: string;
+  vercentlabs: string;
+  evidenceIds: string[];
+}
+
+export interface ComparisonPage {
+  slug: string;
+  competitor: string;
+  metaDescription: string;
+  searchIntent: string;
+  directAnswer: string;
+  dimensions: ComparisonDimension[];
+  strongerFitForOdoo: string[];
+  strongerFitForVercentlabs: string[];
+  faqs: ModuleFaq[];
+}
+
+export const ODOO_COMPARISON_EVIDENCE: readonly ComparisonEvidence[];
+export const VERCENTLABS_VS_ODOO: ComparisonPage;
+export function getComparisonEvidence(claimId: string): ComparisonEvidence | null;
