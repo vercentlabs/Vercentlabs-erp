@@ -43,6 +43,17 @@ const BASE_URL = process.env.DEMO_BASE_URL || "http://localhost:3001";
 const HEADLESS = process.env.DEMO_HEADLESS !== "false";
 const OUTPUT_DIR = path.resolve(__dirname, "../public/product");
 const CREDENTIALS_PATH = path.join(__dirname, ".demo-org-credentials.local.md");
+const RECORD_IDS_PATH = path.join(__dirname, ".demo-org-record-ids.local.json");
+
+async function loadRecordIds() {
+  const text = await readFile(RECORD_IDS_PATH, "utf8").catch(() => null);
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
 
 function assertSafeEnvironment() {
   if (process.env.NODE_ENV === "production") {
@@ -86,6 +97,21 @@ const CAPTURES = [
   { id: "sales-quotation-detail", path: null, fullPage: true },
   { id: "sales-order-detail", path: null, fullPage: true },
   { id: "stock-overview", path: "/stock", fullPage: false },
+  { id: "accounting-dashboard", path: "/accounting", fullPage: false },
+  // procurement/orders/{id} was captured and rejected: its ProcurementResourceWorkspace
+  // detail view renders a raw "Document facts" field dump (unstyled UUIDs
+  // for branchId/companyId/supplierId/id) — the same defect class Phase 3
+  // rejected on the CRM opportunity-detail capture. The orders list view is
+  // materially cleaner (real title, status badge, version) even though its
+  // secondary Branch/Company ID columns still show raw ids.
+  { id: "procurement-orders-list", path: "/procurement/orders", fullPage: false },
+  { id: "manufacturing-dashboard", path: "/manufacturing", fullPage: false },
+  { id: "projects-dashboard", path: "/projects", fullPage: false },
+  { id: "assets-dashboard", path: "/assets", fullPage: false },
+  { id: "quality-dashboard", path: "/quality", fullPage: false },
+  { id: "support-dashboard", path: "/support", fullPage: false },
+  { id: "hr-payroll-dashboard", path: "/hr-payroll", fullPage: false },
+  { id: "point-of-sale-dashboard", path: "/point-of-sale", fullPage: false },
 ];
 
 async function main() {
@@ -115,6 +141,15 @@ async function main() {
       continue;
     }
     await page.goto(`${BASE_URL}${capture.path}`, { waitUntil: "networkidle" });
+    // Some detail pages (e.g. Procurement's ProcurementResourceWorkspace)
+    // fetch their record client-side after the initial networkidle render,
+    // showing a transient "Loading record…" state. Wait for that text to
+    // clear (and for Next <Image> lazy-loading to settle) before capturing.
+    await page
+      .getByText("Loading record", { exact: false })
+      .waitFor({ state: "detached", timeout: 10_000 })
+      .catch(() => {});
+    await page.waitForTimeout(750);
     const outputPath = path.join(OUTPUT_DIR, `${capture.id}.png`);
     await page.screenshot({ path: outputPath, fullPage: capture.fullPage });
     log("captured", outputPath);

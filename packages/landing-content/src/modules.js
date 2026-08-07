@@ -448,7 +448,8 @@ const MODULE_ENRICHMENT = Object.freeze({
     // borrowing "sales-order-detail" here, which rendered a real Sales screen
     // under an "Accounting screens" caption — a genuine evidence-honesty bug,
     // not a stylistic one. See docs/landing-redesign/phase-4/decision-log.md).
-    screenshots: {},
+    // Phase 5 closed the gap with a dedicated Accounting dashboard capture.
+    screenshots: { primary: "accounting-dashboard" },
     conversion: { heading: "See how Vercentlabs Accounting would run your bill-matching and close process.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -567,7 +568,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does Procurement automatically create a requisition when stock runs low?", answer: "Not automatically — Stock's reorder rules reference a preferred supplier, but there's no automatic requisition job triggered from Stock today. Replenishment decisions are still a deliberate step." },
       { question: "Is Procurement available on mobile?", answer: "No dedicated mobile navigation entry exists for Procurement — only a generic fallback resource list. Treat it as a desktop/browser workflow today." },
     ],
-    screenshots: {},
+    screenshots: { primary: "procurement-orders-list" },
     conversion: { heading: "See how Vercentlabs Procurement would run your requisition-to-payment chain.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -801,7 +802,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does production update inventory automatically?", answer: "Yes — every material issue and finished-goods receipt posts as a real, auditable stock movement in the same system, not a separate manual reconciliation step." },
       { question: "Is there a scheduler that runs MRP automatically?", answer: "No — planning runs are triggered manually and produce recommended actions; there is no background scheduler running them on a cadence today." },
     ],
-    screenshots: {},
+    screenshots: { primary: "manufacturing-dashboard" },
     conversion: { heading: "See how Vercentlabs Manufacturing would run your demand-to-production process.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -917,7 +918,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does project billing require re-entering data into Sales or Accounting?", answer: "No — billing milestones use idempotency keys to hand off, so the same billing event can't be entered (or double-billed) twice across systems." },
       { question: "Is there a mobile app for logging project time in the field?", answer: "Not today — Projects has no native mobile presence, which is a real gap for field-based time entry. Time tracking is a browser workflow." },
     ],
-    screenshots: {},
+    screenshots: { primary: "projects-dashboard" },
     conversion: { heading: "See how Vercentlabs Projects would track your delivery and profitability.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -1038,7 +1039,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Are asset inspections and transfers fully automated today?", answer: "The data model exists for both, but no create-function has been found — they're read-only today, not a live create-workflow. This is an honest current limitation, not a planned feature described as shipped." },
       { question: "Is the Assets module connected to Accounting's fixed-asset depreciation?", answer: "Identity fields align but the two are not foreign-key joined — they're independent data models. Don't assume a single unified capitalization-to-depreciation pipeline." },
     ],
-    screenshots: {},
+    screenshots: { primary: "assets-dashboard" },
     conversion: { heading: "See how Vercentlabs Assets would govern your equipment lifecycle.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -1148,7 +1149,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does a POS sale automatically create a Sales order or Accounting invoice?", answer: "Not automatically — the linking columns exist on the POS sale record, but they're not populated by an automated process today. Treat POS as inventory-integrated, not fully books-integrated, until that link ships." },
       { question: "Is Point of Sale available on a mobile phone?", answer: "No — Point of Sale is explicitly excluded from the mobile module catalog. It's a desktop/terminal workflow." },
     ],
-    screenshots: {},
+    screenshots: { primary: "point-of-sale-dashboard" },
     conversion: { heading: "See how Vercentlabs Point of Sale would connect checkout to your live inventory.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -1268,7 +1269,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "What happens automatically when an inspection fails?", answer: "An automatic inventory hold is placed on the affected material — batch, serial, receipt, work order, or return — so it can't move forward silently. This behavior is togglable per organization." },
       { question: "Does Quality only cover incoming receiving?", answer: "No — quality plans are typed by stage and span incoming, in-process manufacturing, final inspection, stock audits, supplier quality, and customer returns. It's a genuine cross-module framework, not a receiving-only checklist." },
     ],
-    screenshots: {},
+    screenshots: { primary: "quality-dashboard" },
     conversion: { heading: "See how Vercentlabs Quality would govern inspection and release across your operations.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -1387,7 +1388,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Can a ticket be closed without saying what was done?", answer: "No — a guarded state machine requires a resolution code before a ticket can transition to closed." },
       { question: "Is escalation fully automated?", answer: "Not yet — the escalation data model exists, but automated escalation triggering has not been found in the codebase. Treat escalation tracking as a schema-ready, not fully automated, capability today." },
     ],
-    screenshots: {},
+    screenshots: { primary: "support-dashboard" },
     conversion: { heading: "See how Vercentlabs Support would connect tickets to your customer's commercial history.", ctaLabel: "Book a Product Demo" },
   },
 
@@ -1500,7 +1501,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does payroll posting automatically create a general-ledger journal entry?", answer: "No — a posted run carries a manual accounting-batch reference field for finance to reconcile against; there is no automated GL-journal-posting call found in the codebase today." },
       { question: "Is HR & Payroll accessible on mobile?", answer: "No — it's cataloged in the platform's module list but explicitly excluded from the enabled mobile modules, alongside Stock, as one of the two notable mobile-access gaps." },
     ],
-    screenshots: {},
+    screenshots: { primary: "hr-payroll-dashboard" },
     conversion: { heading: "See how Vercentlabs HR & Payroll would run your attendance-to-payroll process.", ctaLabel: "Book a Product Demo" },
   },
 });

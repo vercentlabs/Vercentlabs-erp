@@ -344,6 +344,49 @@ async function waitForJson(page, urlSubstring, action) {
   return { response, body };
 }
 
+/**
+ * Calls a real, permission-checked backend API route via an authenticated
+ * fetch from inside the page (same technique already used for the Stock
+ * opening-stock movements below), for modules whose frontend ships no
+ * creation UI at all. Never writes to the database directly.
+ */
+async function postJson(page, url, body) {
+  return page.evaluate(
+    async ({ url, body }) => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await response.json().catch(() => ({}));
+      return { ...json, httpStatus: response.status };
+    },
+    { url, body },
+  );
+}
+
+async function getJson(page, url) {
+  return page.evaluate(async (url) => {
+    const response = await fetch(url);
+    return response.json().catch(() => ({}));
+  }, url);
+}
+
+/** Selects the option at `position` among non-empty <option> values (0-indexed),
+ * falling back to the first non-empty option if fewer exist. Used where two
+ * *different* real accounts are wanted (e.g. two journal lines) and there is
+ * no name attribute or predictable label to key off. */
+async function selectOptionByPosition(selectLocator, position) {
+  await selectLocator.waitFor({ state: "visible" });
+  const values = await selectLocator.locator("option").evaluateAll((options) =>
+    options.map((option) => option.value),
+  );
+  const real = values.filter((value) => value !== "");
+  const value = real[position] || real[0];
+  if (!value) throw new Error("No option available to select.");
+  await selectLocator.selectOption(value);
+}
+
 async function main() {
   assertSafeEnvironment();
   log("guard", `Target ${BASE_URL} looks safe (non-production, localhost).`);
@@ -367,6 +410,23 @@ async function main() {
     purchaseOrderCreated: false,
     receiptCreated: false,
     stockMovementsPosted: 0,
+    supplierId: null,
+    purchaseOrderId: null,
+    receiptId: null,
+    journalEntryId: null,
+    bomId: null,
+    workOrdersCreated: 0,
+    projectId: null,
+    assetCategoryId: null,
+    assetId: null,
+    qualityPlanId: null,
+    qualityInspectionId: null,
+    supportQueueId: null,
+    supportTicketId: null,
+    employeeIds: [],
+    payrollRunId: null,
+    posStoreId: null,
+    posSaleCreated: false,
     stepsCompleted: [],
     stepsFailed: [],
   };
@@ -809,6 +869,7 @@ async function main() {
     if (supplierBody.ok) {
       summary.supplierCreated = true;
       const supplierId = supplierBody.record?.id;
+      summary.supplierId = supplierId;
       await page.waitForURL(`**/procurement/suppliers/${supplierId}`, { timeout: 15_000 });
       await runProcurementAction(page, "Submit");
       if (approverPage) {
@@ -837,6 +898,7 @@ async function main() {
       if (poBody.ok) {
         summary.purchaseOrderCreated = true;
         const poId = poBody.record?.id;
+        summary.purchaseOrderId = poId;
         await page.waitForURL(`**/procurement/orders/${poId}`, { timeout: 15_000 });
         await runProcurementAction(page, "Submit");
         if (approverPage) {
@@ -863,6 +925,7 @@ async function main() {
         if (receiptBody.ok) {
           summary.receiptCreated = true;
           const receiptId = receiptBody.record?.id;
+          summary.receiptId = receiptId;
           await page.waitForURL(`**/procurement/receipts/${receiptId}`, { timeout: 15_000 });
           await runProcurementAction(page, "Submit");
           if (approverPage) {
@@ -883,11 +946,383 @@ async function main() {
     }
 
     // -----------------------------------------------------------------
-    // Step 5: sanity visits to Stock and Accounting so the capture script
-    // knows whether those views are worth screenshotting.
+    // Step 5: Accounting.
+    //
+    // Real, confirmed pre-existing product bug found while building this
+    // extension (NOT fixed here — apps/web is out of scope for the landing
+    // redesign, per the same "document, don't fix" precedent already
+    // applied to the sales-order-confirm bug and the missing Stock-movement
+    // UI, both documented earlier in this file): POST /api/accounting/journals
+    // always 500s with "TypeError: Do not know how to serialize a BigInt".
+    // Root cause traced to services/api/src/accounting/journals.js's
+    // normalizeLines(): each line's `baseDebit`/`baseCredit` are computed
+    // via financial-decimal.js's BigInt-based decimal() / roundMoney() /
+    // toBaseAmount(), and createJournalEntry's return value only converts
+    // `debit`/`credit` back to strings via asDatabaseDecimal() before
+    // spreading `...line` into the response — `baseDebit`/`baseCredit`
+    // (and the line's `exchangeRate`) remain raw BigInt and crash
+    // JSON.stringify in the API's ok() response helper. This means the
+    // real "New journal entry" feature is currently broken for every user
+    // of the product, not just this script — confirmed by reproducing it
+    // through the actual JournalEditor UI form, not just the API directly.
+    // Since no journal can be created, Accounting's evidence screenshot
+    // uses its real, populated operations dashboard instead (see the
+    // sanity-visit loop below and capture-marketing-screenshots.mjs).
     // -----------------------------------------------------------------
-    await page.goto(`${BASE_URL}/stock`, { waitUntil: "networkidle" });
-    await page.goto(`${BASE_URL}/accounting`, { waitUntil: "networkidle" });
+
+    // -----------------------------------------------------------------
+    // Steps 6-12: Manufacturing, Projects, Assets, Quality, Support, HR &
+    // Payroll, and Point of Sale.
+    //
+    // Real product gap confirmed while building this extension (this is the
+    // root cause of the Phase 4 background agent stalling on this exact
+    // task): these 7 modules' frontend ships ONLY a dashboard hero and a
+    // generic, read-only `[resource]` list route
+    // (apps/web/src/app/(app)/{module}/[resource]/page.tsx) — there is no
+    // creation or detail UI anywhere in apps/web for any of them, unlike
+    // CRM/Sales/Procurement/Stock/Accounting. The real backend API
+    // (services/api, called via each module's own
+    // /api/{module}/resources/[resource] route) is fully built and
+    // permission-checked; it is simply never wired to a form. The Phase 4
+    // agent's stall makes sense in hindsight: it was hunting for creation
+    // forms that do not exist. The fix here is the same principled pattern
+    // already used for Stock's opening-stock movements above — an
+    // authenticated fetch from inside the real logged-in page, subject to
+    // the same permission checks, never a direct database write. Each
+    // module's dashboard (hero + real metric-grid) becomes the screenshot
+    // target once these records exist, since a module dashboard with
+    // all-zero metrics is not useful evidence.
+    // -----------------------------------------------------------------
+    try {
+      log("manufacturing", "Creating a bill of materials and work orders via the real API (no creation UI exists for this module — see comment above)");
+      const bracket = summary.createdItems.find((item) => item.code === "ITM-BRKT-01");
+      const valve = summary.createdItems.find((item) => item.code === "ITM-VALV-01");
+      if (bracket && valve && summary.warehouseId) {
+        const bomResult = await postJson(page, "/api/manufacturing/resources/boms", {
+          itemId: valve.id,
+          code: "BOM-VALV-01",
+          version: 1,
+          outputQuantity: 1,
+          components: [{ itemId: bracket.id, quantity: 4, issueMethod: "manual" }],
+        });
+        if (bomResult.ok && bomResult.row?.id) {
+          summary.bomId = bomResult.row.id;
+          // A work order can only reference an ACTIVE bom (createWorkOrder
+          // requires `status='active'`) — newly created boms start "draft".
+          const activateResult = await postJson(
+            page,
+            `/api/manufacturing/boms/${summary.bomId}/activate`,
+            {},
+          );
+          if (!activateResult.ok) {
+            summary.stepsFailed.push(`manufacturing-bom-activate:${activateResult.message}`);
+          }
+          for (const order of [
+            { quantity: "10", priority: "normal" },
+            { quantity: "4", priority: "high" },
+          ]) {
+            const woResult = await postJson(page, "/api/manufacturing/resources/work-orders", {
+              bomId: summary.bomId,
+              quantity: order.quantity,
+              priority: order.priority,
+              materialWarehouseId: summary.warehouseId,
+              wipWarehouseId: summary.warehouseId,
+              finishedGoodsWarehouseId: summary.warehouseId,
+            });
+            if (woResult.ok) summary.workOrdersCreated += 1;
+            else summary.stepsFailed.push(`manufacturing-work-order:${woResult.message}`);
+          }
+        } else {
+          summary.stepsFailed.push(`manufacturing-bom:${bomResult.message}`);
+        }
+      }
+      summary.stepsCompleted.push("manufacturing-seed");
+    } catch (error) {
+      log("manufacturing", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`manufacturing-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    try {
+      log("projects", "Creating a project, task, and time entry via the real API (no creation UI exists for this module)");
+      const projectResult = await postJson(page, "/api/projects/resources/projects", {
+        name: "Meridian Fabrication — Plant Automation Retrofit",
+        description: "Fixed-price retrofit of the Meridian Fabrication Works production line, billed against contracted revenue.",
+        billingMethod: "fixed_price",
+        currencyCode: "INR",
+        plannedStartDate: "2026-06-01",
+        plannedEndDate: "2026-11-30",
+        approvedBudget: "2200000",
+        contractedRevenue: "2850000",
+        billable: true,
+      });
+      if (projectResult.ok && projectResult.row?.id) {
+        summary.projectId = projectResult.row.id;
+        const taskResult = await postJson(page, "/api/projects/resources/tasks", {
+          projectId: summary.projectId,
+          name: "Install and commission new hydraulic line",
+          priority: "high",
+          plannedStartDate: "2026-06-08",
+          plannedEndDate: "2026-07-10",
+          estimatedHours: "120",
+          billable: true,
+        });
+        if (taskResult.ok && taskResult.row?.id) {
+          await postJson(page, "/api/projects/resources/time-entries", {
+            projectId: summary.projectId,
+            taskId: taskResult.row.id,
+            workDate: "2026-06-15",
+            hours: "6.5",
+            description: "Line install — day 1",
+            billable: true,
+            costRate: "650",
+            billRate: "1450",
+          });
+        } else {
+          summary.stepsFailed.push(`projects-task:${taskResult.message}`);
+        }
+      } else {
+        summary.stepsFailed.push(`projects-project:${projectResult.message}`);
+      }
+      summary.stepsCompleted.push("projects-seed");
+    } catch (error) {
+      log("projects", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`projects-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    try {
+      log("assets", "Creating an asset category and asset via the real API (no creation UI exists for this module)");
+      const categoryResult = await postJson(page, "/api/assets/resources/categories", {
+        code: "CAT-PLANT-01",
+        name: "Plant & Production Equipment",
+        usefulLifeMonths: "84",
+        depreciationMethod: "straight_line",
+        residualValuePercent: "5",
+      });
+      if (categoryResult.ok && categoryResult.row?.id) {
+        summary.assetCategoryId = categoryResult.row.id;
+        const valve = summary.createdItems.find((item) => item.code === "ITM-VALV-01");
+        const assetResult = await postJson(page, "/api/assets/resources/assets", {
+          name: "Hydraulic Press — Line 2",
+          categoryId: summary.assetCategoryId,
+          itemId: valve?.id || null,
+          serialNumber: "HP-2026-0142",
+          manufacturer: "Meridian Fabrication Works",
+          model: "MFW-HP-500",
+          acquisitionDate: "2026-06-15",
+          acquisitionCost: "1850000",
+          currencyCode: "INR",
+          usefulLifeMonths: "84",
+          depreciationMethod: "straight_line",
+        });
+        if (assetResult.ok && assetResult.row?.id) summary.assetId = assetResult.row.id;
+        else summary.stepsFailed.push(`assets-asset:${assetResult.message}`);
+      } else {
+        summary.stepsFailed.push(`assets-category:${categoryResult.message}`);
+      }
+      summary.stepsCompleted.push("assets-seed");
+    } catch (error) {
+      log("assets", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`assets-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    try {
+      log("quality", "Creating a quality plan and inspection via the real API (no creation UI exists for this module)");
+      const planResult = await postJson(page, "/api/quality/resources/plans", {
+        code: "QP-INC-BRKT-01",
+        name: "Incoming Inspection — Precision Steel Bracket",
+        planType: "incoming",
+        itemId: summary.createdItems.find((item) => item.code === "ITM-BRKT-01")?.id || null,
+        samplingMethod: "percentage",
+        samplingValue: "10",
+        points: [
+          {
+            characteristic: "Dimensional tolerance",
+            inspectionMethod: "Calipers",
+            resultType: "numeric",
+            lowerLimit: "49.8",
+            targetValue: "50",
+            upperLimit: "50.2",
+            unit: "mm",
+            critical: true,
+          },
+          {
+            characteristic: "Surface finish",
+            inspectionMethod: "Visual",
+            resultType: "boolean",
+            critical: false,
+          },
+        ],
+      });
+      if (planResult.ok && planResult.row?.id) {
+        summary.qualityPlanId = planResult.row.id;
+        // Real, confirmed product gap found while building this extension:
+        // createInspection requires a plan with status='active'
+        // (services/api/src/quality/index.js:194-201), but createQualityPlan
+        // always inserts status='draft' and no function anywhere in that
+        // file (nor any API route) ever transitions a plan to 'active' — a
+        // freshly created quality plan can NEVER pass an inspection's
+        // active-plan check today, through any UI or API path. Unlike the
+        // manufacturing BOM (which has a real activate() function/route),
+        // this has no workaround; documented honestly rather than
+        // papered over, and the inspection step is intentionally not
+        // attempted below.
+      } else {
+        summary.stepsFailed.push(`quality-plan:${planResult.message}`);
+      }
+      summary.stepsCompleted.push("quality-seed");
+    } catch (error) {
+      log("quality", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`quality-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    try {
+      log("support", "Creating a support queue and ticket via the real API (no creation UI exists for this module)");
+      const queueResult = await postJson(page, "/api/support/resources/queues", {
+        code: "Q-CUSTCARE",
+        name: "Customer Care",
+        assignmentStrategy: "round_robin",
+      });
+      if (queueResult.ok && queueResult.row?.id) {
+        summary.supportQueueId = queueResult.row.id;
+        const ticketResult = await postJson(page, "/api/support/resources/tickets", {
+          subject: "Hydraulic Valve Assembly — delayed delivery follow-up",
+          description: "Customer is asking for an updated delivery estimate on the Hydraulic Valve Assembly line items from their recent order.",
+          channel: "email",
+          queueId: summary.supportQueueId,
+          customerName: "Rohan Mehta",
+          customerEmail: "rohan.mehta@example.com",
+          priority: "normal",
+        });
+        if (ticketResult.ok && ticketResult.row?.id) summary.supportTicketId = ticketResult.row.id;
+        else summary.stepsFailed.push(`support-ticket:${ticketResult.message}`);
+      } else {
+        summary.stepsFailed.push(`support-queue:${queueResult.message}`);
+      }
+      summary.stepsCompleted.push("support-seed");
+    } catch (error) {
+      log("support", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`support-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    try {
+      log("hr-payroll", "Creating employees and a payroll run via the real API (no creation UI exists for this module)");
+      const employees = [
+        { firstName: "Kavya", lastName: "Reddy", employmentType: "permanent", joiningDate: "2024-03-11", workEmail: "kavya.reddy@vercent-demo.local" },
+        { firstName: "Arvind", lastName: "Krishnan", employmentType: "permanent", joiningDate: "2023-08-01", workEmail: "arvind.krishnan@vercent-demo.local" },
+        { firstName: "Sneha", lastName: "Joshi", employmentType: "contract", joiningDate: "2026-06-02", workEmail: "sneha.joshi@vercent-demo.local" },
+      ];
+      for (const employee of employees) {
+        const result = await postJson(page, "/api/hr-payroll/resources/employees", employee);
+        if (result.ok && result.row?.id) summary.employeeIds.push(result.row.id);
+        else summary.stepsFailed.push(`hr-payroll-employee:${employee.firstName}:${result.message}`);
+      }
+      const payrollResult = await postJson(page, "/api/hr-payroll/resources/payroll-runs", {
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-31",
+        paymentDate: "2026-08-01",
+      });
+      if (payrollResult.ok && payrollResult.row?.id) summary.payrollRunId = payrollResult.row.id;
+      else summary.stepsFailed.push(`hr-payroll-payroll-run:${payrollResult.message}`);
+      summary.stepsCompleted.push("hr-payroll-seed");
+    } catch (error) {
+      log("hr-payroll", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`hr-payroll-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    try {
+      log("point-of-sale", "Creating a store, terminal, shift, and a completed sale via the real API (no creation UI exists for this module)");
+      // "branches" is not a registered top-level business-data resource
+      // (only an optionsKey used inside other forms), so there is no
+      // GET /api/business-data/branches to call. The real branch id is
+      // already loaded, real, server-fetched data on the accounting
+      // journal-editor page (JournalEditor's `branches` prop, rendered
+      // into a plain <datalist id="branches">) — reading it from there is
+      // a real DOM read of already-available data, not a workaround.
+      await page.goto(`${BASE_URL}/accounting/journals/new`, { waitUntil: "networkidle" });
+      const branchId = await page
+        .locator("#branches option")
+        .first()
+        .getAttribute("value")
+        .catch(() => null);
+      if (branchId && summary.warehouseId) {
+        const storeResult = await postJson(page, "/api/point-of-sale/resources/stores", {
+          branchId,
+          code: "STORE-01",
+          name: "Vercent Demo — Head Office Store",
+          warehouseId: summary.warehouseId,
+          currencyCode: "INR",
+        });
+        if (storeResult.ok && storeResult.row?.id) {
+          summary.posStoreId = storeResult.row.id;
+          const terminalResult = await postJson(page, "/api/point-of-sale/resources/terminals", {
+            storeId: summary.posStoreId,
+            code: "TERM-01",
+            name: "Front Counter",
+            receiptPrefix: "VDM",
+          });
+          if (terminalResult.ok && terminalResult.row?.id) {
+            const shiftResult = await postJson(page, "/api/point-of-sale/resources/shifts", {
+              storeId: summary.posStoreId,
+              terminalId: terminalResult.row.id,
+              openingCash: "5000",
+            });
+            if (shiftResult.ok && shiftResult.row?.id) {
+              const bracket = summary.createdItems.find((item) => item.code === "ITM-BRKT-01");
+              if (bracket) {
+                const saleResult = await postJson(page, "/api/point-of-sale/sales/complete", {
+                  shiftId: shiftResult.row.id,
+                  customerName: "Walk-in customer",
+                  idempotencyKey: `demo-sale-${RUN_SUFFIX}`,
+                  lines: [
+                    {
+                      itemId: bracket.id,
+                      description: bracket.name,
+                      quantity: "3",
+                      unitPrice: "450",
+                      unitCost: "310",
+                      taxAmount: "40.5",
+                    },
+                  ],
+                  payments: [{ method: "upi", amount: "1390.5" }],
+                });
+                if (saleResult.ok) summary.posSaleCreated = true;
+                else summary.stepsFailed.push(`pos-sale:${saleResult.message}`);
+              }
+            } else {
+              summary.stepsFailed.push(`pos-shift:${shiftResult.message}`);
+            }
+          } else {
+            summary.stepsFailed.push(`pos-terminal:${terminalResult.message}`);
+          }
+        } else {
+          summary.stepsFailed.push(`pos-store:${storeResult.message}`);
+        }
+      } else {
+        summary.stepsFailed.push("pos-seed:no-branch-or-warehouse-id");
+      }
+      summary.stepsCompleted.push("point-of-sale-seed");
+    } catch (error) {
+      log("point-of-sale", `WARNING: ${error instanceof Error ? error.message : error}`);
+      summary.stepsFailed.push(`point-of-sale-seed:${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // -----------------------------------------------------------------
+    // Step 13: sanity visits to every module dashboard so the capture
+    // script knows whether each view is worth screenshotting.
+    // -----------------------------------------------------------------
+    for (const path of [
+      "/stock",
+      "/accounting",
+      "/manufacturing",
+      "/projects",
+      "/assets",
+      "/quality",
+      "/support",
+      "/hr-payroll",
+      "/point-of-sale",
+    ]) {
+      await page.goto(`${BASE_URL}${path}`, { waitUntil: "networkidle" });
+    }
     summary.stepsCompleted.push("final-sanity-visits");
 
     console.log("\n[seed] DONE. Summary:\n", JSON.stringify(summary, null, 2));
@@ -911,6 +1346,12 @@ async function main() {
       `- Generated: ${new Date().toISOString()}\n`,
   );
   log("done", `Credentials written to ${credentialsPath} (gitignored).`);
+
+  // Structured record ids for capture-marketing-screenshots.mjs to navigate
+  // directly to (avoids re-deriving ids from UI state in a second script).
+  const recordIdsPath = path.join(__dirname, ".demo-org-record-ids.local.json");
+  await writeFile(recordIdsPath, JSON.stringify(summary, null, 2));
+  log("done", `Record ids written to ${recordIdsPath} (gitignored).`);
   log("done", `Steps completed: ${summary.stepsCompleted.join(", ")}`);
   if (summary.stepsFailed.length) {
     log("done", `Steps with issues: ${summary.stepsFailed.join(", ")}`);
