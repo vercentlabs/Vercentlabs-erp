@@ -40,6 +40,14 @@ The glossary entries are dictionary-style (definition/why-it-matters/how-it-work
 
 The buying guide's section answers a strategic sequencing question ("which module should you implement first, and why") in prose form; `/modules` is a catalog/directory page with no equivalent strategic framing. Different intents, no overlap.
 
+### 8. REVIEWED, no action — `/modules/manufacturing` and `/industries/manufacturing` both title as "Manufacturing"
+
+Found by `packages/landing-content/scripts/check-cannibalization.mjs` (see below), not by the manual pass above — this predates Phase 6 (shipped in Phase 4/5) and wasn't part of the original candidate list. Both pages' bare `name`/H1 text is the literal string "Manufacturing." **Verdict: acceptable, not a real collision** — the two pages are structurally different entity types (a product-capability page vs. a buyer-industry page), sit under different breadcrumb trails (`Modules > Manufacturing` vs. `Industries > Manufacturing`), carry different `metaDescription`/`searchIntent` values, and answer different questions ("what does the Manufacturing module do" vs. "does Vercentlabs fit a manufacturing company"). Comparable to a retailer having both a product-category page and a use-case page sharing a short, generic label — the surrounding context, not the bare label, disambiguates it. No change made; flagged here so a future reviewer doesn't have to re-investigate it from scratch.
+
+## Automated tool
+
+`packages/landing-content/scripts/check-cannibalization.mjs` (run via `pnpm content:cannibalization`) performs a deterministic exact/near-duplicate title scan across all ~61 real content-backed routes and prints any collisions for human review — it never auto-deletes or auto-merges anything. Running it against the final Phase 6 route set found exactly the 2 real findings documented above (item 1, already fixed before the script existed, confirming it would have caught it; and item 8, newly surfaced and reviewed here). Re-run this script whenever a new route is added.
+
 ## Summary
 
-7 candidate pairs reviewed; 1 real collision found and fixed (item 1), 1 pre-empted by design decision (item 2), 5 reviewed and confirmed as legitimately distinct or complementary (items 3-7, with one minor cross-linking enhancement opportunity noted for later, not urgent). No route was deleted or merged as a result of this review — every page reviewed here earns its place with a distinct, real intent.
+8 candidate pairs reviewed (7 from the manual pass, 1 surfaced by the new automated script); 1 real collision found and fixed (item 1), 1 pre-empted by design decision (item 2), 6 reviewed and confirmed as legitimately distinct or complementary (items 3-5 and 7-8, plus item 6's minor cross-linking enhancement opportunity noted for later, not urgent). No route was deleted or merged as a result of this review — every page reviewed here earns its place with a distinct, real intent.

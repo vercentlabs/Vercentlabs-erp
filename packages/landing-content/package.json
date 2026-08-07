@@ -10,7 +10,12 @@
     }
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "content:validate": "node --test",
+    "content:links": "node --test tests/internal-link-graph.test.mjs",
+    "content:freshness": "node --test tests/freshness.test.mjs",
+    "content:cannibalization": "node scripts/check-cannibalization.mjs",
+    "content:stale": "node scripts/check-stale-content.mjs"
   },
   "dependencies": {
     "@vercentlabs/shared-types": "workspace:*"
