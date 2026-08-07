@@ -35,6 +35,14 @@ const nextConfig = {
     // apps/landing/public. Extend this list only when a real remote source exists.
     remotePatterns: [],
   },
+  async redirects() {
+    return [
+      // /security is canonical (docs/landing-redesign/phase-1/information-architecture.md,
+      // Tier 4) — /product/security is kept only as a redirect for anyone who types the
+      // /product/{page} pattern by analogy with the other platform pages.
+      { source: "/product/security", destination: "/security", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
