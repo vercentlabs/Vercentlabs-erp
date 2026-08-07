@@ -93,6 +93,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
           eyebrow="Solution"
           heading={solution.name}
           supportingText={solution.problemStatement}
+          heroScreenshotId={solution.screenshotId}
           connectedModuleKeys={solution.relatedModuleKeys}
           ctaHref={`/book-demo?solution=${solution.slug}`}
           ctaLabel={solution.conversion.ctaLabel}

@@ -535,6 +535,8 @@ export interface SolutionPage {
   relatedPlatformPageSlug: string;
   relatedModuleKeys: string[];
   relatedWorkflowSlugs: string[];
+  /** Only present where a real approved screenshot honestly illustrates this page's approach claims — see solutions.js's header comment. */
+  screenshotId?: string;
   faqs: ModuleFaq[];
   metaDescription: string;
   searchIntent: string;

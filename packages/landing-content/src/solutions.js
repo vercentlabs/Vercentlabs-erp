@@ -17,6 +17,14 @@
  * that a reader can go to for the underlying capability, never restating that
  * page's content. Every approach[] claim traces to
  * docs/landing-redesign/phase-1/product-intelligence.md.
+ *
+ * screenshotId (optional, Phase 6) is assigned only where a real approved
+ * screenshot (apps/landing/lib/product/screenshots.ts) honestly illustrates
+ * that page's specific approach[] claims — not a generic module screenshot
+ * bolted on for coverage. multi-company-management deliberately has none:
+ * no approved screenshot shows company/branch isolation or consolidation,
+ * and forcing an unrelated one would misrepresent what the image shows.
+ * See docs/landing-redesign/phase-6/decision-log.md.
  */
 export const LANDING_SOLUTIONS = Object.freeze([
   {
@@ -37,6 +45,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     relatedPlatformPageSlug: "/product",
     relatedModuleKeys: ["stock", "sales", "procurement"],
     relatedWorkflowSlugs: ["procure-to-pay"],
+    screenshotId: "sales-quotation-detail",
     faqs: [
       { question: "How much of our existing spreadsheet data actually migrates?", answer: "Customers, items, suppliers, and open transactions are migrated and reconciled as part of implementation — see the implementation journey's data-migration phase for the real process, not a manual re-typing exercise." },
       { question: "Will the team lose the flexibility a spreadsheet gives them?", answer: "Server-validated forms replace ad hoc cell edits, which is a real trade-off — you lose free-form editing in exchange for data that every module can trust. Most teams that make this switch are doing so because the free-form editing was already the problem, not a feature." },
@@ -64,6 +73,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     relatedPlatformPageSlug: "/product/platform",
     relatedModuleKeys: ["crm", "sales", "procurement", "support"],
     relatedWorkflowSlugs: ["lead-to-cash", "procure-to-pay"],
+    screenshotId: "sales-order-detail",
     faqs: [
       { question: "Does every module talk to every other module automatically?", answer: "No — the connections are real but specific, not an all-to-all mesh. Standard sales-order fulfillment, for example, does not yet post an automatic stock deduction; only Manufacturing and Point of Sale write to the stock ledger today. See each module page's 'Connected modules' section for the honest, specific relationship." },
       { question: "How is this different from just buying integration middleware for our existing tools?", answer: "Middleware connects separate systems after the fact, with all the sync-lag and conflict-resolution problems that implies. Here, CRM, Sales, Procurement, and Accounting are one system with one data model — there's no sync step for these connections because there's nothing to sync. (Not every module pair works this way yet — see the previous question.)" },
@@ -118,6 +128,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     relatedPlatformPageSlug: "/product/automation",
     relatedModuleKeys: ["accounting", "quality", "hr-payroll"],
     relatedWorkflowSlugs: ["procure-to-pay", "hire-to-payroll"],
+    screenshotId: "quality-dashboard",
     faqs: [
       { question: "Is this a general-purpose workflow builder we configure ourselves?", answer: "No — this is a set of real, built-in governed automations (approval routing, self-approval blocking, scheduled financial postings, automatic quality holds) rather than a drag-and-drop workflow designer. See the Automation platform page for the full, honest breakdown of what's automatic today versus what still requires a manual trigger." },
       { question: "Does self-approval blocking apply everywhere, or just in Accounting?", answer: "It's a shared pattern applied across multiple modules — Accounting's subledger approvals, Procurement, HR & Payroll's leave and payroll runs, Assets' capitalization and disposal, Projects' timesheet approval — not an Accounting-only control." },
@@ -145,6 +156,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     relatedPlatformPageSlug: "/product/analytics",
     relatedModuleKeys: ["accounting", "crm", "procurement", "projects"],
     relatedWorkflowSlugs: ["project-to-profitability"],
+    screenshotId: "projects-dashboard",
     faqs: [
       { question: "Is 'real-time' actually real-time, or refreshed on a schedule?", answer: "Reports read live transactional data, not a scheduled data-warehouse refresh — a posted journal, a completed inspection, or an approved timesheet is reflected the next time the relevant report runs, not the next morning." },
       { question: "Can we export data for our own BI tool instead of using the built-in reports?", answer: "CSV export exists with injection-safe handling and hard-capped pagination — see the Analytics platform page for the full breakdown of what's exportable and what stays report-only today." },
