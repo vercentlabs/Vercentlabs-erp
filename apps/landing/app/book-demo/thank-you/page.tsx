@@ -38,8 +38,8 @@ export default function ThankYouPage() {
             <ButtonLink href="/" prefetch>
               Back to homepage
             </ButtonLink>
-            <ButtonLink href="/product-tour" variant="secondary" prefetch={false}>
-              Explore product workflows
+            <ButtonLink href="/product" variant="secondary" prefetch={false}>
+              Explore the platform
             </ButtonLink>
           </Inline>
         </div>

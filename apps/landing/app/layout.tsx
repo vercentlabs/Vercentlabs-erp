@@ -4,6 +4,7 @@ import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/
 import { Header } from "@/components/navigation/header";
 import { Footer } from "@/components/layout/footer";
 import { AttributionInit } from "@/components/analytics/attribution-init";
+import { StickyMobileCta } from "@/components/marketing/sticky-mobile-cta";
 import "./globals.css";
 
 export const metadata = ROOT_METADATA;
@@ -24,6 +25,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Header />
         <main id="main-content">{children}</main>
         <Footer />
+        {/* Mobile-only spacer so the fixed sticky CTA bar never covers footer content. */}
+        <div className="h-[calc(env(safe-area-inset-bottom)+5rem)] lg:hidden" aria-hidden="true" />
+        <StickyMobileCta />
         <script {...jsonLdScriptProps(organizationJsonLd())} />
         <script {...jsonLdScriptProps(websiteJsonLd())} />
         <AttributionInit />

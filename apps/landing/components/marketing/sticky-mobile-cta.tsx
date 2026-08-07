@@ -1,28 +1,36 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { track } from "@/lib/analytics";
-import type { AnalyticsEventName } from "@/lib/analytics";
 
 /**
- * Mobile-only conversion bar, fixed to the bottom of the viewport. Hidden at
- * `lg` and above, where the header CTA is already visible without scrolling.
- * A matching spacer in the page (see app/page.tsx) reserves room below the
- * final CTA section so this bar never covers footer content — the spacer's
- * height must stay >= this bar's own rendered height (11 (44px) + 2 * 0.75rem
- * padding, before any safe-area inset), or the tail of the final section can
- * peek out from under the bar on notched/home-indicator phones.
+ * Mobile-only conversion bar, fixed to the bottom of the viewport, mounted
+ * once in the root layout (not per-page) so it can never be missed on a new
+ * route — a Phase 4 Cycle 2 UX review found it wired into the homepage only,
+ * meaning all 32 new module/platform pages had no persistent mobile CTA at
+ * all, a direct violation of docs/landing-redesign/phase-1/
+ * conversion-architecture.md's "demo conversion must never require opening
+ * the mobile nav menu" rule. See docs/landing-redesign/phase-4/decision-log.md.
+ *
+ * Hidden at `lg` and above (the header CTA is already visible there), and on
+ * /book-demo* routes (the form or its confirmation is already the page's
+ * entire purpose — a floating "Book a Product Demo" button while someone is
+ * mid-form, or just finished, reads as broken rather than helpful).
  */
-export function StickyMobileCta({ href, label, event }: { href: string; label: string; event: AnalyticsEventName }) {
+export function StickyMobileCta() {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/book-demo")) return null;
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-(--color-border-default) bg-(--color-bg-elevated) p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-(--shadow-panel) lg:hidden">
       <Link
-        href={href}
+        href="/book-demo"
         prefetch={false}
-        onClick={() => track(event, { ctaLocation: "sticky_mobile_bar", ctaDestination: href })}
+        onClick={() => track("sticky_mobile_cta_click", { ctaLocation: "sticky_mobile_bar", ctaDestination: "/book-demo" })}
         className="flex h-11 w-full items-center justify-center rounded-(--radius-control) bg-(--color-bg-brand) text-sm font-semibold text-(--color-text-inverse)"
       >
-        {label}
+        Book a Product Demo
       </Link>
     </div>
   );

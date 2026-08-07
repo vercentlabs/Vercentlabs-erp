@@ -1,4 +1,4 @@
-import { POSITIONING } from "@vercentlabs/landing-content";
+import { POSITIONING, LANDING_MODULES } from "@vercentlabs/landing-content";
 import { Container, Section, Stack, Grid } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { FeatureList } from "@/components/ui/card";
@@ -12,7 +12,19 @@ export const metadata = buildPageMetadata({
   path: "/book-demo",
 });
 
-export default function BookDemoPage() {
+/**
+ * `?module={slug}` preselects the matching module checkbox — read via the
+ * page's native `searchParams` prop (a Server Component convention), not
+ * `useSearchParams()`/`Suspense`. That avoids the exact hydration-race defect
+ * class the thank-you page hit in Phase 3 (see docs/landing-redesign/phase-3/
+ * implementation-summary.md, defect #1). The value is validated against the
+ * real module catalog server-side before use — an unrecognized slug is
+ * silently ignored, never trusted as-is.
+ */
+export default async function BookDemoPage({ searchParams }: { searchParams: Promise<{ module?: string }> }) {
+  const { module: moduleSlug } = await searchParams;
+  const initialModule = LANDING_MODULES.find((module) => module.key === moduleSlug)?.name;
+
   return (
     <Section tone="page" className="pt-10 sm:pt-14">
       <Container>
@@ -37,7 +49,7 @@ export default function BookDemoPage() {
             </div>
           </Stack>
           <div className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-panel) sm:p-8">
-            <DemoForm />
+            <DemoForm initialModule={initialModule} />
           </div>
         </Grid>
       </Container>

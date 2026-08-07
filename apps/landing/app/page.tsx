@@ -26,12 +26,11 @@ import { ProductScreenshot, WorkflowConnector } from "@/components/product/produ
 import { getApprovedScreenshot } from "@/lib/product/screenshots";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
 import { NumberedSteps } from "@/components/marketing/numbered-steps";
-import { StickyMobileCta } from "@/components/marketing/sticky-mobile-cta";
 import { TrackView } from "@/components/analytics/track-view";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { HomepageViewTracker } from "@/components/analytics/homepage-view-tracker";
 import { buildPageMetadata } from "@/lib/metadata";
-import { jsonLdScriptProps } from "@/lib/seo/json-ld";
+import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 
 export const metadata = buildPageMetadata({
   title: HOMEPAGE_METADATA.title,
@@ -42,6 +41,7 @@ export const metadata = buildPageMetadata({
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
+  "@id": SOFTWARE_APPLICATION_ID,
   name: "Vercentlabs ERP",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
@@ -363,9 +363,9 @@ export default function HomePage() {
         </Section>
       </TrackView>
 
-      {/* Mobile-only spacer so the fixed sticky CTA bar never covers footer content — matches StickyMobileCta's own rendered height including its safe-area inset. */}
-      <div className="h-[calc(env(safe-area-inset-bottom)+5rem)] lg:hidden" aria-hidden="true" />
-      <StickyMobileCta href={HERO.primaryCta.href} label={HERO.primaryCta.label} event="sticky_mobile_cta_click" />
+      {/* The sticky mobile CTA bar (and its footer-clearance spacer) is now
+          mounted once, globally, in app/layout.tsx — see
+          docs/landing-redesign/phase-4/decision-log.md for why. */}
 
       {/* Organization/WebSite JSON-LD is rendered once, site-wide, by app/layout.tsx. */}
       <script {...jsonLdScriptProps(softwareApplicationJsonLd)} />
