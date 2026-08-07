@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { LANDING_MODULES, PLATFORM_PAGES } from "@vercentlabs/landing-content";
 
 /**
  * Not an assertion suite — captures screenshots to test-results/ for direct human
@@ -98,4 +99,35 @@ test.describe("visual review captures — other pages and states", () => {
     await page.goto("/this-route-does-not-exist");
     await page.screenshot({ path: "test-results/review-404.png" });
   });
+});
+
+// Phase 4 — every new module/platform route, desktop + mobile, per the Cycle 2
+// "full route review" requirement. `fullPage` screenshots need a settle wait
+// after `networkidle` since lazy-loaded below-the-fold product screenshots can
+// still be decoding when the scroll-and-stitch capture reaches them (a false
+// alarm investigated and confirmed in this phase's Cycle 1 review — the real
+// fix is patience here, not a code change).
+test.describe("visual review captures — Phase 4 module and platform routes", () => {
+  const routes = [
+    { path: "/modules", name: "modules-index" },
+    ...LANDING_MODULES.map((moduleInfo) => ({ path: `/modules/${moduleInfo.key}`, name: `module-${moduleInfo.key}` })),
+    { path: "/product", name: "product-overview" },
+    ...PLATFORM_PAGES.map((page) => ({ path: page.slug, name: `platform-${page.slug.replace(/\//g, "-")}` })),
+  ];
+
+  for (const route of routes) {
+    test(`${route.path} — desktop`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-desktop.png`, fullPage: true });
+    });
+
+    test(`${route.path} — mobile 390`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
+    });
+  }
 });

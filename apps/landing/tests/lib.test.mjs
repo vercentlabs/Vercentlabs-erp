@@ -64,3 +64,26 @@ test("every approved screenshot is marked approvedForMarketing and resolves by i
     assert.equal(getApprovedScreenshot(screenshot.id)?.id, screenshot.id);
   }
 });
+
+// Regression test for a real Phase 4 bug: a module's content referenced a
+// screenshot that actually belonged to a different module (Accounting
+// borrowed "sales-order-detail", which rendered a real Sales screen under an
+// "Accounting screens" caption — an evidence-honesty violation, not a
+// stylistic slip). Every module.screenshots.{primary,secondary} id must
+// belong to that same module.
+test("every module's referenced screenshot id actually belongs to that module", async () => {
+  const { LANDING_MODULES } = await import("@vercentlabs/landing-content");
+  for (const landingModule of LANDING_MODULES) {
+    for (const slot of ["primary", "secondary"]) {
+      const id = landingModule.screenshots[slot];
+      if (!id) continue;
+      const screenshot = APPROVED_SCREENSHOTS.find((s) => s.id === id);
+      assert.ok(screenshot, `${landingModule.key}'s ${slot} screenshot id '${id}' does not resolve to any approved screenshot`);
+      assert.equal(
+        screenshot.module,
+        landingModule.key,
+        `${landingModule.key}'s ${slot} screenshot '${id}' actually belongs to module '${screenshot.module}' — a real evidence-honesty bug, not a false positive`,
+      );
+    }
+  }
+});
