@@ -12,3 +12,7 @@ export * from "./solutions.js";
 export * from "./implementation.js";
 export * from "./buyer-roles.js";
 export * from "./freshness.js";
+export * from "./sources.js";
+export * from "./authors.js";
+export * from "./answers.js";
+export * from "./glossary.js";

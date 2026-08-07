@@ -212,6 +212,18 @@ export const ANALYTICS_EVENTS: readonly [
   "workflow_cta_click",
   "implementation_page_view",
   "implementation_cta_click",
+  "resources_index_view",
+  "resource_page_view",
+  "resource_cta_click",
+  "resource_related_click",
+  "requirements_filter",
+  "requirements_print",
+  "glossary_index_view",
+  "glossary_page_view",
+  "compare_index_view",
+  "comparison_page_view",
+  "comparison_cta_click",
+  "source_link_click",
 ];
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };
@@ -591,3 +603,85 @@ export interface ContentFreshness {
 export const CONTENT_FRESHNESS: Readonly<Record<string, ContentFreshness>>;
 export function getFreshness(path: string): ContentFreshness;
 export function hasFreshness(path: string): boolean;
+
+// --- Editorial source registry (sources.js) ---
+
+export type EditorialSourceType = "government" | "standard" | "vendor" | "industry-body" | "research" | "documentation";
+
+export interface EditorialSource {
+  id: string;
+  url: string;
+  title: string;
+  publisher: string;
+  /** ISO date this source was actually fetched/checked, not when it was first written. */
+  retrievedAt: string;
+  sourceType: EditorialSourceType;
+  summary: string;
+}
+
+export const EDITORIAL_SOURCES: readonly EditorialSource[];
+export function getSource(id: string): EditorialSource | null;
+
+// --- Content author registry (authors.js) ---
+
+export interface ContentAuthor {
+  id: string;
+  name: string;
+  role?: string;
+  bio?: string;
+  image?: string;
+  profileUrl?: string;
+  verified: boolean;
+}
+
+export const CONTENT_AUTHORS: readonly ContentAuthor[];
+export function getAuthor(id: string): ContentAuthor | null;
+
+// --- AEO answer library (answers.js) ---
+
+export interface AeoAnswer {
+  id: string;
+  question: string;
+  entity: string;
+  directAnswer: string;
+  expandedExplanation: string;
+  relatedRoute: string;
+  sourceIds?: string[];
+  lastReviewedAt: string;
+}
+
+export const AEO_ANSWERS: readonly AeoAnswer[];
+export function getAnswer(id: string): AeoAnswer | null;
+
+// --- Glossary (glossary.js) ---
+
+export interface GlossaryTermBase {
+  term: string;
+  shortDefinition: string;
+  standalone: boolean;
+}
+
+export interface GlossaryIndexEntry extends GlossaryTermBase {
+  standalone: false;
+  relatedRoute?: string;
+}
+
+export interface GlossaryStandaloneEntry extends GlossaryTermBase {
+  standalone: true;
+  slug: string;
+  definition: string;
+  whyItMatters: string;
+  howItWorks: string;
+  example: string;
+  relatedTerms: string[];
+  relatedModules: string[];
+  vercentlabsHandling: string;
+  relatedWorkflow: string | null;
+  lastReviewedAt: string;
+}
+
+export type GlossaryTerm = GlossaryIndexEntry | GlossaryStandaloneEntry;
+
+export const GLOSSARY_TERMS: readonly GlossaryTerm[];
+export const STANDALONE_GLOSSARY_SLUGS: readonly string[];
+export function getGlossaryTerm(slug: string): GlossaryStandaloneEntry | null;

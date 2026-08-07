@@ -112,7 +112,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
   },
   {
     slug: "workflow-automation",
-    name: "Workflow Automation",
+    name: "Automate Governed Workflows",
     directDefinition:
       "Automating workflow with Vercentlabs ERP means policy-routed approvals, code-enforced self-approval blocking, and scheduled recurring financial postings — real, built-in governed automations, not a drag-and-drop workflow builder you configure yourself.",
     problemStatement:
