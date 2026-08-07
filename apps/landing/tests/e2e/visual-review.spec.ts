@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { LANDING_MODULES, PLATFORM_PAGES } from "@vercentlabs/landing-content";
+import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS, ROUTED_WORKFLOW_SLUGS } from "@vercentlabs/landing-content";
 
 /**
  * Not an assertion suite — captures screenshots to test-results/ for direct human
@@ -113,6 +113,36 @@ test.describe("visual review captures — Phase 4 module and platform routes", (
     ...LANDING_MODULES.map((moduleInfo) => ({ path: `/modules/${moduleInfo.key}`, name: `module-${moduleInfo.key}` })),
     { path: "/product", name: "product-overview" },
     ...PLATFORM_PAGES.map((page) => ({ path: page.slug, name: `platform-${page.slug.replace(/\//g, "-")}` })),
+  ];
+
+  for (const route of routes) {
+    test(`${route.path} — desktop`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-desktop.png`, fullPage: true });
+    });
+
+    test(`${route.path} — mobile 390`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
+    });
+  }
+});
+
+// Phase 5 — every new industry/solution/workflow/implementation route,
+// desktop + mobile, same discipline as Phase 4's block above.
+test.describe("visual review captures — Phase 5 industry, solution, workflow, and implementation routes", () => {
+  const routes = [
+    { path: "/industries", name: "industries-index" },
+    ...LANDING_INDUSTRIES.map((industry) => ({ path: `/industries/${industry.slug}`, name: `industry-${industry.slug}` })),
+    { path: "/solutions", name: "solutions-index" },
+    ...LANDING_SOLUTIONS.map((solution) => ({ path: `/solutions/${solution.slug}`, name: `solution-${solution.slug}` })),
+    { path: "/workflows", name: "workflows-index" },
+    ...ROUTED_WORKFLOW_SLUGS.map((slug) => ({ path: `/workflows/${slug}`, name: `workflow-${slug}` })),
+    { path: "/implementation", name: "implementation" },
   ];
 
   for (const route of routes) {
