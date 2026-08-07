@@ -16,8 +16,6 @@ export const HOMEPAGE_METADATA = Object.freeze({
   // (~155-160 chars) — see docs/landing-redesign/phase-3/decision-log.md.
   description:
     "Vercentlabs connects sales, inventory, procurement, production, and finance on one live system — for manufacturers and distributors. Book a demo.",
-  /** Sitemap lastModified is sourced from here, not build time — see sitemap.ts. */
-  lastReviewed: "2026-08-06",
 });
 
 export const HERO = Object.freeze({

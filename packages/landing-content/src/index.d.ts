@@ -251,7 +251,7 @@ export interface HomepageSectionBase {
   analyticsId: HomepageAnalyticsId;
 }
 
-export const HOMEPAGE_METADATA: { title: string; description: string; lastReviewed: string };
+export const HOMEPAGE_METADATA: { title: string; description: string };
 
 export interface HeroContent extends HomepageSectionBase {
   primaryCta: HomepageCta;
@@ -572,3 +572,20 @@ export interface ImplementationPage {
 }
 
 export const IMPLEMENTATION_PAGE: ImplementationPage;
+
+// --- Content freshness registry (freshness.js) ---
+
+export interface ContentFreshness {
+  /** ISO date (YYYY-MM-DD) of the route's first real, substantive commit. */
+  publishedAt: string;
+  /** ISO date of the most recent significant content change (never a build timestamp). */
+  lastModifiedAt: string;
+  /** ISO date this route was last manually reviewed, even if unchanged. */
+  lastReviewedAt: string;
+  /** Plain-language statement of what the last significant change actually was. */
+  reviewReason: string;
+}
+
+export const CONTENT_FRESHNESS: Readonly<Record<string, ContentFreshness>>;
+export function getFreshness(path: string): ContentFreshness;
+export function hasFreshness(path: string): boolean;

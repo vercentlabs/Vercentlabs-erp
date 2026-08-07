@@ -11,3 +11,4 @@ export * from "./industries.js";
 export * from "./solutions.js";
 export * from "./implementation.js";
 export * from "./buyer-roles.js";
+export * from "./freshness.js";
