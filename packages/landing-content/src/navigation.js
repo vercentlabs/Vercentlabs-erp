@@ -47,9 +47,14 @@ export const CTAS = Object.freeze({
  * Analytics event names not tied to a specific homepage section (those are
  * declared per-section via `analyticsId` in homepage.js instead — see
  * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). Reconciled in
- * Phase 3 against what apps/landing actually calls track() with; three
- * entries (module_page_view, industry_page_view, product_tour_play) are
- * reserved for Phase 4-5 pages that don't exist yet.
+ * Phase 3 against what apps/landing actually calls track() with, and again in
+ * Phase 4 for the new module/platform events — this array and index.d.ts's
+ * ANALYTICS_EVENTS tuple type must be kept in exact sync (a Phase 4 Cycle 2
+ * review caught this array drifting behind the .d.ts: the type declared 7
+ * event names the runtime array never actually had, which typechecked clean
+ * only because nothing at runtime validates track() calls against this array
+ * — see docs/landing-redesign/phase-4/decision-log.md). "product_tour_play"
+ * and "industry_page_view" remain reserved for pages that don't exist yet.
  */
 export const ANALYTICS_EVENTS = Object.freeze([
   "homepage_view",
@@ -62,4 +67,12 @@ export const ANALYTICS_EVENTS = Object.freeze([
   "product_tour_play",
   "module_page_view",
   "industry_page_view",
+  "module_hero_cta_click",
+  "module_workflow_view",
+  "module_related_link_click",
+  "module_mid_cta_click",
+  "module_final_cta_click",
+  "platform_page_view",
+  "platform_cta_click",
+  "modules_index_view",
 ]);

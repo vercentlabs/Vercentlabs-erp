@@ -1,3 +1,76 @@
+export type ModuleHeroVariant = "screenshot-led" | "workflow-led" | "dashboard-led" | "operational-sequence";
+
+export interface CapabilityGroup {
+  id: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  /** Requirement-count allocation for this group — see capability-registry.js. */
+  requirementCount: number;
+  workflowSlug?: string;
+}
+
+export interface BusinessProblem {
+  title: string;
+  description: string;
+}
+
+export interface BusinessOutcome {
+  title: string;
+  description: string;
+}
+
+export interface ConnectedModuleRef {
+  moduleKey: string;
+  relationship: string;
+}
+
+export interface ReportingCapability {
+  name: string;
+  measures: string;
+  audience: string;
+}
+
+export interface AutomationCapability {
+  title: string;
+  description: string;
+}
+
+export interface GovernanceCapability {
+  title: string;
+  description: string;
+}
+
+export interface ModuleWorkflowStep {
+  step: string;
+  detail: string;
+}
+
+export interface ModulePrimaryWorkflow {
+  name: string;
+  trigger: string;
+  steps: ModuleWorkflowStep[];
+  approvals: string[];
+  automatedActions: string[];
+  connectedModuleKeys: string[];
+  outcome: string;
+}
+
+export interface ModuleFaq {
+  question: string;
+  answer: string;
+}
+
+export interface ModuleScreenshotRefs {
+  primary?: string;
+  secondary?: string;
+}
+
+export interface ModuleConversion {
+  heading: string;
+  ctaLabel: string;
+}
+
 export interface LandingModule {
   key: string;
   name: string;
@@ -6,9 +79,24 @@ export interface LandingModule {
   navGroup: string;
   personas: string[];
   painPoints: string[];
-  capabilityGroups: string[];
   bestAngle: string;
   accentColor: { hex: string; soft: string; sourcedFromProduct: boolean };
+  directDefinition: string;
+  heroVariant: ModuleHeroVariant;
+  searchIntent: string;
+  metaDescription: string;
+  businessProblems: BusinessProblem[];
+  businessOutcomes: BusinessOutcome[];
+  capabilityGroups: CapabilityGroup[];
+  primaryWorkflow: ModulePrimaryWorkflow;
+  connectedModules: ConnectedModuleRef[];
+  reporting: ReportingCapability[];
+  automation: AutomationCapability[];
+  governance: GovernanceCapability[];
+  implementationConsiderations: string[];
+  faqs: ModuleFaq[];
+  screenshots: ModuleScreenshotRefs;
+  conversion: ModuleConversion;
 }
 
 export const LANDING_MODULES: readonly LandingModule[];
@@ -79,6 +167,14 @@ export const ANALYTICS_EVENTS: readonly [
   "product_tour_play",
   "module_page_view",
   "industry_page_view",
+  "module_hero_cta_click",
+  "module_workflow_view",
+  "module_related_link_click",
+  "module_mid_cta_click",
+  "module_final_cta_click",
+  "platform_page_view",
+  "platform_cta_click",
+  "modules_index_view",
 ];
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };
@@ -215,3 +311,123 @@ export const SEMANTIC_STATE: Record<
   string
 >;
 export const SEMANTIC_PRODUCT: Record<"frame" | "chrome" | "canvas" | "annotation" | "highlight", string>;
+
+// --- Capability traceability registry (capability-registry.js) ---
+
+/**
+ * One real, evidence-grounded capability group (module-specific or shared-platform)
+ * carrying an honest requirement-count allocation. See
+ * docs/landing-redesign/phase-4/capability-traceability.md for the methodology —
+ * this is a structural allocation consistent with the settled 1,039 total
+ * (CLAUDE.md), not an independently re-derived count.
+ */
+export interface CapabilityGroupRecord {
+  id: string;
+  name: string;
+  moduleId?: string;
+  platformArea?: string;
+  description: string;
+  requirementCount: number;
+  workflowSlugs: string[];
+  publicPage: string;
+  publicSection: string;
+  searchTopics: string[];
+}
+
+export const CAPABILITY_GROUPS: readonly CapabilityGroupRecord[];
+export function getCapabilityGroupsForModule(moduleKey: string): CapabilityGroupRecord[];
+export function getCapabilityGroupsForPlatformArea(platformArea: string): CapabilityGroupRecord[];
+export function getTotalRequirementCount(): number;
+export function getModuleRequirementTotal(): number;
+export function getPlatformRequirementTotal(): number;
+
+// --- Platform and product-overview content (platform-pages.js) ---
+
+/** A CTA whose analytics event isn't one of the homepage's fixed section IDs. */
+export interface PageCta {
+  label: string;
+  href: string;
+}
+
+export interface PlatformFeatureItem {
+  title: string;
+  description: string;
+}
+
+export interface PlatformPageSection {
+  id: string;
+  eyebrow?: string;
+  heading: string;
+  supportingText?: string;
+  items: PlatformFeatureItem[];
+}
+
+export interface PlatformPageContent {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  directDefinition: string;
+  eyebrow: string;
+  heading: string;
+  supportingText: string;
+  heroScreenshotId?: string;
+  sections: PlatformPageSection[];
+  connectedModuleKeys: string[];
+  faqs?: ModuleFaq[];
+  primaryCta: PageCta;
+  /** Hand-written, not derived from `title` — a naive title.toLowerCase() breaks on acronym titles ("Mobile ERP" -> "mobile erp"). */
+  finalCtaHeading: string;
+}
+
+export const PLATFORM_PAGE: PlatformPageContent;
+export const AUTOMATION_PAGE: PlatformPageContent;
+export const ANALYTICS_PAGE: PlatformPageContent;
+export const MOBILE_PAGE: PlatformPageContent;
+export const INTEGRATIONS_PAGE: PlatformPageContent;
+export const SECURITY_PAGE: PlatformPageContent;
+export const PLATFORM_PAGES: readonly PlatformPageContent[];
+
+export interface ProductOverviewSection {
+  id: string;
+  eyebrow?: string;
+  heading: string;
+  supportingText?: string;
+  items?: PlatformFeatureItem[];
+}
+
+export interface ProductOverviewPage {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  directDefinition: string;
+  eyebrow: string;
+  heading: string;
+  supportingText: string;
+  heroScreenshotId?: string;
+  sections: ProductOverviewSection[];
+  faqs: ModuleFaq[];
+  primaryCta: PageCta;
+}
+
+export const PRODUCT_OVERVIEW_PAGE: ProductOverviewPage;
+
+export interface OperatingStack {
+  id: string;
+  name: string;
+  description: string;
+  moduleKeys: string[];
+}
+
+export interface ModulesIndexPage {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  directDefinition: string;
+  eyebrow: string;
+  heading: string;
+  supportingText: string;
+  operatingStacks: OperatingStack[];
+  primaryCta: PageCta;
+}
+
+export const MODULES_INDEX_PAGE: ModulesIndexPage;

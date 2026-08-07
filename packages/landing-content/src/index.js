@@ -5,3 +5,5 @@ export * from "./navigation.js";
 export * from "./metadata.js";
 export * from "./tokens.js";
 export * from "./homepage.js";
+export * from "./capability-registry.js";
+export * from "./platform-pages.js";
