@@ -5,15 +5,23 @@ import { breadcrumbJsonLd, jsonLdScriptProps, type BreadcrumbEntry } from "@/lib
  * Never rendered on the homepage (per the brief). Generated from explicit page
  * context passed by the caller, not parsed from the URL — a URL segment is not
  * always a good breadcrumb label (e.g. a module key vs. its display name).
+ *
+ * Always prepends "Home" — callers pass only the page-specific trail (e.g.
+ * `[{ name: "Modules", path: "/modules" }]`), not the full `Home / Modules /
+ * ...` sequence, so the required leading "Home" crumb (both visible and in
+ * BreadcrumbList JSON-LD) can't be forgotten at any of the 19+ call sites. A
+ * Phase 4 Cycle 2 SEO review found every one of them omitting it — see
+ * docs/landing-redesign/phase-4/decision-log.md.
  */
 export function Breadcrumbs({ trail }: { trail: BreadcrumbEntry[] }) {
   if (trail.length === 0) return null;
+  const fullTrail: BreadcrumbEntry[] = [{ name: "Home", path: "/" }, ...trail];
 
   return (
     <nav aria-label="Breadcrumb" className="text-sm">
       <ol className="flex flex-wrap items-center gap-1.5 text-(--color-text-muted)">
-        {trail.map((entry, index) => {
-          const isLast = index === trail.length - 1;
+        {fullTrail.map((entry, index) => {
+          const isLast = index === fullTrail.length - 1;
           return (
             <li key={entry.path} className="flex items-center gap-1.5">
               {index > 0 ? (
@@ -34,7 +42,7 @@ export function Breadcrumbs({ trail }: { trail: BreadcrumbEntry[] }) {
           );
         })}
       </ol>
-      <script {...jsonLdScriptProps(breadcrumbJsonLd(trail))} />
+      <script {...jsonLdScriptProps(breadcrumbJsonLd(fullTrail))} />
     </nav>
   );
 }

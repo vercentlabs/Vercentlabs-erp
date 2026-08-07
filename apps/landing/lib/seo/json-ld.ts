@@ -24,6 +24,17 @@ export function websiteJsonLd() {
   };
 }
 
+/**
+ * The one, stable @id for the site-wide SoftwareApplication entity (declared
+ * once, on the homepage — see app/page.tsx). Module pages reference this same
+ * @id via `isPartOf: { "@id": SOFTWARE_APPLICATION_ID }` rather than
+ * re-declaring a second, disconnected SoftwareApplication object — a Phase 4
+ * Cycle 2 SEO review caught 12 module pages each declaring their own inline
+ * `isPartOf` object with no @id, meaning no crawler could resolve them as the
+ * same entity as the real one. See docs/landing-redesign/phase-4/decision-log.md.
+ */
+export const SOFTWARE_APPLICATION_ID = absoluteUrl("/#software");
+
 export interface BreadcrumbEntry {
   name: string;
   path: string;
