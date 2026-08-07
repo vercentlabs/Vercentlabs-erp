@@ -87,3 +87,18 @@ test("routed workflow summaries and FAQ questions are not duplicated across work
   const allQuestions = routed.flatMap((w) => w.faqs.map((f) => f.question));
   assert.equal(new Set(allQuestions).size, allQuestions.length, "FAQ questions must not repeat across routed workflows");
 });
+
+test("no two routed workflows repeat the same sequence-step detail text verbatim (Phase 6 lead-to-cash/order-to-fulfilment overlap fix)", () => {
+  const seen = new Map();
+  for (const workflow of getRoutedWorkflows()) {
+    for (const step of workflow.sequence) {
+      const key = step.detail.trim().toLowerCase();
+      const priorSlug = seen.get(key);
+      assert.ok(
+        !priorSlug,
+        `${workflow.slug}'s sequence step '${step.step}' repeats ${priorSlug}'s step detail verbatim — cross-reference the owning workflow instead of restating it (see docs/landing-redesign/phase-6/decision-log.md item 5)`,
+      );
+      seen.set(key, workflow.slug);
+    }
+  }
+});

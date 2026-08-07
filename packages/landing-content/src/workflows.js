@@ -142,15 +142,13 @@ export const LANDING_WORKFLOWS = Object.freeze([
     trigger: "A sales quotation is accepted and converted to a sales order.",
     participants: ["Sales operations", "Warehouse/fulfilment staff", "Finance/billing"],
     sequence: [
-      { step: "Order conversion", moduleKey: "sales", detail: "The accepted quotation converts to a sales order through an idempotent promotion." },
-      { step: "Credit check and confirmation", moduleKey: "sales", detail: "The order is checked against real-time aggregated customer credit exposure, under an advisory lock, before confirmation." },
+      { step: "Order confirmed (see Lead to Cash)", moduleKey: "sales", detail: "An accepted quotation has already converted to a sales order and passed the real-time credit-exposure check — that conversion and credit-check step is Lead to Cash's, not repeated here. This workflow picks up from the confirmed order." },
       { step: "Readiness governance", moduleKey: "sales", detail: "The order's governance panel tracks readiness, fulfilment, invoicing, and closure state explicitly, rather than leaving status implicit." },
       { step: "Warehouse visibility", moduleKey: "stock", detail: "Order lines carry a warehouse reference, so warehouse and production see the same order and item records sales confirmed." },
-      { step: "Invoice generation", moduleKey: "accounting", detail: "An invoice is generated from the order through an auditable, idempotent handoff — no duplicate billing on retry." },
+      { step: "Invoice handoff", moduleKey: "accounting", detail: "The same auditable, idempotent invoice handoff Lead to Cash describes closes this workflow from the fulfilment side — no duplicate billing on retry." },
     ],
     automatedActions: [
-      "Idempotent quote-to-order promotion.",
-      "Real-time aggregated credit-exposure check at confirmation.",
+      "Order conversion and the credit-exposure check are the same automations Lead to Cash covers — see that workflow for detail.",
       "Idempotent invoice-request generation from the confirmed order.",
     ],
     approvals: [
