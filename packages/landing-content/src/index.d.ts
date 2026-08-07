@@ -685,3 +685,32 @@ export type GlossaryTerm = GlossaryIndexEntry | GlossaryStandaloneEntry;
 export const GLOSSARY_TERMS: readonly GlossaryTerm[];
 export const STANDALONE_GLOSSARY_SLUGS: readonly string[];
 export function getGlossaryTerm(slug: string): GlossaryStandaloneEntry | null;
+
+// --- Resource guides (resources.js) ---
+
+export interface ResourceSection {
+  id: string;
+  heading: string;
+  paragraphs: string[];
+}
+
+export interface ResourceGuide {
+  slug: string;
+  category: string;
+  title: string;
+  dek: string;
+  keyTakeaways: string[];
+  sections: ResourceSection[];
+  faqs: ModuleFaq[];
+  relatedModuleKeys: string[];
+  relatedWorkflowSlugs: string[];
+  relatedResourceSlugs: string[];
+  metaDescription: string;
+  searchIntent: string;
+  conversion: ModuleConversion;
+}
+
+export const RESOURCE_GUIDES: readonly ResourceGuide[];
+export const RESOURCE_CATEGORIES: readonly string[];
+export function getResourceGuide(slug: string): ResourceGuide | null;
+export function getResourceGuidesForModule(moduleKey: string): ResourceGuide[];

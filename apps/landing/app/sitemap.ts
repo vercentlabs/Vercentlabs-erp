@@ -1,5 +1,14 @@
 import type { MetadataRoute } from "next";
-import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS, ROUTED_WORKFLOW_SLUGS, getFreshness } from "@vercentlabs/landing-content";
+import {
+  LANDING_MODULES,
+  PLATFORM_PAGES,
+  LANDING_INDUSTRIES,
+  LANDING_SOLUTIONS,
+  ROUTED_WORKFLOW_SLUGS,
+  RESOURCE_GUIDES,
+  STANDALONE_GLOSSARY_SLUGS,
+  getFreshness,
+} from "@vercentlabs/landing-content";
 import { absoluteUrl } from "@/lib/site";
 
 /**
@@ -40,5 +49,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/workflows", "monthly", 0.8),
     ...ROUTED_WORKFLOW_SLUGS.map((slug) => entry(`/workflows/${slug}`, "monthly", 0.7)),
     entry("/implementation", "monthly", 0.7),
+    entry("/resources", "monthly", 0.8),
+    ...RESOURCE_GUIDES.map((guide) => entry(`/resources/${guide.slug}`, "monthly", 0.7)),
+    entry("/resources/glossary", "monthly", 0.7),
+    ...STANDALONE_GLOSSARY_SLUGS.map((slug) => entry(`/resources/glossary/${slug}`, "monthly", 0.6)),
   ];
 }

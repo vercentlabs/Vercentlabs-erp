@@ -29,6 +29,14 @@ const COMPANY_LINKS = [
   { label: "Workflows", href: "/workflows" },
 ];
 
+const RESOURCE_LINKS = [
+  { label: "ERP Buying Guide", href: "/resources/erp-buying-guide" },
+  { label: "Requirements Checklist", href: "/resources/erp-requirements-checklist" },
+  { label: "Glossary", href: "/resources/glossary" },
+  { label: "Compare Vercentlabs", href: "/compare" },
+  { label: "All resources", href: "/resources" },
+];
+
 const LEGAL_LINKS = [
   { label: "Privacy policy", href: "/legal/privacy" },
   { label: "Terms of service", href: "/legal/terms" },
@@ -40,7 +48,7 @@ export function Footer() {
   return (
     <footer className="border-t border-(--color-border-default) bg-(--color-bg-elevated)">
       <Container className="py-14">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-7">
           <div className="sm:col-span-2 lg:col-span-2">
             <Logo />
             <p className="mt-4 max-w-[32ch] text-sm leading-relaxed text-(--color-text-secondary)">
@@ -91,6 +99,7 @@ export function Footer() {
           </div>
 
           <FooterColumn title="Company" links={COMPANY_LINKS} />
+          <FooterColumn title="Resources" links={RESOURCE_LINKS} />
         </div>
 
         <div className="mt-12 flex flex-col gap-4 border-t border-(--color-border-default) pt-6 sm:flex-row sm:items-center sm:justify-between">
