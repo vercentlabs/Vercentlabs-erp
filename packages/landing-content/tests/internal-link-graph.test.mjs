@@ -9,6 +9,11 @@ import {
   getIndustriesForModule,
   getSolutionsForModule,
   getWorkflowsForModule,
+  RESOURCE_GUIDES,
+  STANDALONE_GLOSSARY_SLUGS,
+  GLOSSARY_TERMS,
+  getResourceGuidesForModule,
+  VERCENTLABS_VS_ODOO,
 } from "../src/index.js";
 
 /**
@@ -75,5 +80,52 @@ test("every module referenced by an industry's moduleStack is reciprocally disco
         `${entry.moduleKey} does not reciprocally list ${industry.slug} via getIndustriesForModule`,
       );
     }
+  }
+});
+
+// --- Phase 6: resources, glossary, and comparison additions ---
+
+test("every resource guide has at least one real outbound link (module, workflow, or related guide)", () => {
+  for (const guide of RESOURCE_GUIDES) {
+    const outboundCount = guide.relatedModuleKeys.length + guide.relatedWorkflowSlugs.length + guide.relatedResourceSlugs.length;
+    assert.ok(outboundCount > 0, `${guide.slug} has no outbound content links at all`);
+  }
+});
+
+test("every standalone glossary entry has at least one real outbound link (module or related term)", () => {
+  for (const entry of GLOSSARY_TERMS.filter((t) => t.standalone)) {
+    const outboundCount = entry.relatedModules.length + entry.relatedTerms.length + (entry.relatedWorkflow ? 1 : 0);
+    assert.ok(outboundCount > 0, `${entry.term} has no outbound content links at all`);
+  }
+});
+
+test("no module page's resource-guide backlink is forced onto every module (avoids an all-to-all mesh)", () => {
+  const totalModules = LANDING_MODULES.length;
+  for (const landingModule of LANDING_MODULES) {
+    const guides = getResourceGuidesForModule(landingModule.key);
+    assert.ok(guides.length <= 2, `${landingModule.key} links to ${guides.length} resource guides — likely over-linked rather than a curated, genuine relationship`);
+  }
+  // At least one module should genuinely have zero related guides — confirms
+  // relatedModuleKeys reflects real relevance, not every guide force-tagging every module.
+  const modulesWithNoGuide = LANDING_MODULES.filter((m) => getResourceGuidesForModule(m.key).length === 0);
+  assert.ok(modulesWithNoGuide.length > 0, "every module has at least one related guide — check relatedModuleKeys isn't over-applied");
+  assert.ok(modulesWithNoGuide.length < totalModules, "no module has a related guide at all — check relatedModuleKeys isn't empty everywhere");
+});
+
+test("the comparison page has real outbound links to modules/resources it references", () => {
+  // The comparison page's related-pages section links to the buying guide and
+  // requirements checklist (see app/compare/vercentlabs-vs-odoo/page.tsx) —
+  // verify those targets are real, existing resource guides, not dead slugs.
+  const referencedSlugs = ["erp-buying-guide", "erp-requirements-checklist"];
+  const realSlugs = new Set(RESOURCE_GUIDES.map((g) => g.slug));
+  for (const slug of referencedSlugs) {
+    assert.ok(realSlugs.has(slug), `/compare/${VERCENTLABS_VS_ODOO.slug} links to unknown resource guide '${slug}'`);
+  }
+});
+
+test("no glossary standalone slug collides with a resource guide slug (avoids an ambiguous route)", () => {
+  const guideSlugs = new Set(RESOURCE_GUIDES.map((g) => g.slug));
+  for (const slug of STANDALONE_GLOSSARY_SLUGS) {
+    assert.ok(!guideSlugs.has(slug), `glossary slug '${slug}' collides with a resource guide slug`);
   }
 });
