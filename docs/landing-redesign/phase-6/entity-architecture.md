@@ -17,11 +17,13 @@ Vercentlabs (Organization)
     │   └── Integrations & APIs
     ├── 12 Modules (see table below)
     ├── Cross-Module Workflows (12 total; 6 routed to a real page)
-    ├── Industries (4: Manufacturing, Distribution, Retail, Professional Services)
+    ├── Industries (4: Manufacturing, Distribution, Retail, Professional Services)*
     ├── Solutions (5: buyer-problem framings, each paired to exactly one Platform page)
     ├── Resources (cornerstone guides, glossary, comparisons)
     └── Evidence (product screenshots, EDITORIAL_SOURCES, ComparisonEvidence)
 ```
+
+\* The 4-industry split (Manufacturing/Distribution/Retail/Professional Services) is a real, deliberate deviation from `docs/landing-redesign/phase-1/information-architecture.md`, which — still marked "Decided" — specifies exactly 3 industry pages (Distribution and Retail combined into one). This was a live, explicit user decision made during Phase 5 (see `docs/landing-redesign/phase-5/decision-log.md` items 1-2), not an oversight this doc is silently normalizing. Flagged here explicitly (a Cycle 2 SEO review found this doc treating "4" as simply canonical with no cross-reference to the still-unreconciled IA doc) so a future reader hitting the discrepancy between the two docs has the actual reasoning, rather than having to reconstruct it. `information-architecture.md` itself has not been updated to reflect the Phase 5 decision — a real, disclosed inconsistency between two source-of-truth docs, not resolved in Phase 6.
 
 ## Canonical module names (never rephrase)
 

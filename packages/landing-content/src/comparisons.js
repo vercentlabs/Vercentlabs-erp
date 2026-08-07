@@ -99,7 +99,7 @@ export const VERCENTLABS_VS_ODOO = Object.freeze({
     {
       id: "multi-company-and-access-control",
       title: "Multi-company support and access control",
-      odoo: "Multi-company support is specifically an Odoo Custom-plan feature, not available on the free or Standard plans.",
+      odoo: "Multi-company support is available only by way of Odoo's Custom plan — adding a second company on the Free or Standard plan automatically upgrades the account to Custom pricing.",
       vercentlabs: "Structural multi-company and branch isolation, plus scoped and time-bound role assignments, are core platform capabilities available across the product — not gated to a higher tier.",
       evidenceIds: ["odoo-custom-plan"],
     },

@@ -172,3 +172,20 @@
     left: 0;
   }
 }
+
+/*
+ * Print: site chrome (header/footer/sticky mobile CTA) never belongs in a
+ * printed page — found by Cycle 2's UX/CRO review testing the requirements
+ * checklist's "Print this checklist" button with real print-media emulation
+ * and confirming the full header/footer/nav printed alongside the checklist.
+ * Page-specific content (e.g. the checklist's own breadcrumbs/FAQ/related
+ * links) is hidden via print:hidden Tailwind utility classes at the call
+ * site instead, since what belongs on a printed page differs per page.
+ */
+@media print {
+  header,
+  footer,
+  [data-sticky-mobile-cta] {
+    display: none !important;
+  }
+}

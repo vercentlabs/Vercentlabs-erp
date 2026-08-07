@@ -50,7 +50,13 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   const relatedIndustries = getIndustriesForModule(landingModule.key);
   const relatedWorkflows = getWorkflowsForModule(landingModule.key).filter((w) => ROUTED_WORKFLOW_SLUGS.includes(w.slug));
   const relatedSolutions = getSolutionsForModule(landingModule.key);
-  const relatedGuides = getResourceGuidesForModule(landingModule.key);
+  // Sorted by specificity (fewest relatedModuleKeys first) so a narrowly-scoped
+  // guide (e.g. manufacturing-erp-guide, 2 modules) wins over a broad one that
+  // happens to also list this module (e.g. erp-buying-guide, 5 modules) — a
+  // real regression found by Cycle 2's seo-aeo-geo-reviewer, where plain array
+  // order meant the generic buying guide silently shadowed the topically
+  // relevant guide on 3 of 4 modules. See decision-log.md.
+  const relatedGuides = [...getResourceGuidesForModule(landingModule.key)].sort((a, b) => a.relatedModuleKeys.length - b.relatedModuleKeys.length);
 
   const breadcrumbTrail = [
     { name: "Modules", path: "/modules" },

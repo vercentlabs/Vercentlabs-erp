@@ -103,7 +103,12 @@ test("no module page's resource-guide backlink is forced onto every module (avoi
   const totalModules = LANDING_MODULES.length;
   for (const landingModule of LANDING_MODULES) {
     const guides = getResourceGuidesForModule(landingModule.key);
-    assert.ok(guides.length <= 2, `${landingModule.key} links to ${guides.length} resource guides — likely over-linked rather than a curated, genuine relationship`);
+    // Threshold is 3, not the rendered link count (module pages only ever show 1
+    // backlink — see app/modules/[slug]/page.tsx's .slice(0, 1)) — this guards the
+    // underlying content-layer relationship data against an all-to-all mesh, with
+    // room for a genuinely central module (e.g. stock) to have real, distinct
+    // relationships to multiple guides without being flagged as padding.
+    assert.ok(guides.length <= 3, `${landingModule.key} links to ${guides.length} resource guides — likely over-linked rather than a curated, genuine relationship`);
   }
   // At least one module should genuinely have zero related guides — confirms
   // relatedModuleKeys reflects real relevance, not every guide force-tagging every module.

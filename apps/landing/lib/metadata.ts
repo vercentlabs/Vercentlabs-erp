@@ -52,6 +52,12 @@ export const ROOT_METADATA: Metadata = {
   generator: "Next.js",
   referrer: "strict-origin-when-cross-origin",
   keywords: ["ERP software", "manufacturing ERP", "inventory management software", "operational ERP"],
+  // Real, discoverable feed — without this <link>, /resources/feed.xml was a
+  // working but orphaned endpoint no crawler or feed reader could find (a
+  // Cycle 2 seo-aeo-geo-reviewer finding).
+  alternates: {
+    types: { "application/rss+xml": absoluteUrl("/resources/feed.xml") },
+  },
   openGraph: {
     type: "website",
     siteName: SITE.productName,

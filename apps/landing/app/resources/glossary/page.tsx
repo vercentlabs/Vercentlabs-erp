@@ -4,6 +4,8 @@ import { Container, Section, SectionHeader, Stack } from "@/components/layout/co
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DirectDefinition } from "@/components/modules/direct-definition";
+import { ContextualCta } from "@/components/shared/contextual-cta";
+import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
@@ -37,11 +39,15 @@ export default function GlossaryIndexPage() {
     isPartOf: { "@id": SOFTWARE_APPLICATION_ID },
     mainEntity: {
       "@type": "ItemList",
-      itemListElement: sorted.map((entry, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        name: entry.term,
-      })),
+      itemListElement: sorted.map((entry, index) => {
+        const href = glossaryHref(entry);
+        return {
+          "@type": "ListItem",
+          position: index + 1,
+          name: entry.term,
+          ...(href ? { item: absoluteUrl(href) } : {}),
+        };
+      }),
     },
   };
 
@@ -97,6 +103,28 @@ export default function GlossaryIndexPage() {
               );
             })}
           </dl>
+        </Container>
+      </Section>
+
+      <ContextualCta
+        prompt="See these terms in the actual product, not just a definition."
+        href="/book-demo"
+        event="resource_cta_click"
+        ctaLocation="glossary_index_mid"
+      />
+
+      <Section tone="inverse">
+        <Container>
+          <div className="mx-auto max-w-[640px] text-center">
+            <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
+              Ready to see it running on your own data?
+            </Heading>
+            <div className="mt-6 flex justify-center">
+              <TrackedCtaLink href="/book-demo" event="resource_cta_click" ctaLocation="glossary_index_final">
+                Book a Product Demo
+              </TrackedCtaLink>
+            </div>
+          </div>
         </Container>
       </Section>
 

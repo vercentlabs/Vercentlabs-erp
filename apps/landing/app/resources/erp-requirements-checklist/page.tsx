@@ -74,6 +74,19 @@ export default function RequirementsChecklistPage() {
     isPartOf: { "@id": SOFTWARE_APPLICATION_ID },
   };
 
+  const faqPageJsonLd =
+    guide.faqs.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: guide.faqs.map((faq) => ({
+            "@type": "Question",
+            name: faq.question,
+            acceptedAnswer: { "@type": "Answer", text: faq.answer },
+          })),
+        }
+      : null;
+
   return (
     <>
       <TrackView event="resource_page_view" properties={{ section: guide.slug }}>
@@ -137,6 +150,7 @@ export default function RequirementsChecklistPage() {
       </Section>
 
       <script {...jsonLdScriptProps(techArticleJsonLd)} />
+      {faqPageJsonLd ? <script {...jsonLdScriptProps(faqPageJsonLd)} /> : null}
     </>
   );
 }

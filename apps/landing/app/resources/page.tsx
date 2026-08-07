@@ -4,6 +4,8 @@ import { Container, Section, SectionHeader, Stack } from "@/components/layout/co
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DirectDefinition } from "@/components/modules/direct-definition";
+import { ContextualCta } from "@/components/shared/contextual-cta";
+import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
@@ -107,6 +109,34 @@ export default function ResourcesIndexPage() {
                 Evidence-backed, neutrally-framed comparisons against other ERP platforms.
               </Text>
             </Link>
+          </div>
+          <Text variant="caption" className="mt-8">
+            <a href="/resources/feed.xml" className="hover:text-(--color-text-brand) hover:underline underline-offset-4">
+              RSS feed
+            </a>{" "}
+            of new and updated resources.
+          </Text>
+        </Container>
+      </Section>
+
+      <ContextualCta
+        prompt="See how Vercentlabs handles the requirements that matter most to you."
+        href="/book-demo"
+        event="resource_cta_click"
+        ctaLocation="resources_index_mid"
+      />
+
+      <Section tone="inverse">
+        <Container>
+          <div className="mx-auto max-w-[640px] text-center">
+            <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
+              Ready to see it running on your own data?
+            </Heading>
+            <div className="mt-6 flex justify-center">
+              <TrackedCtaLink href="/book-demo" event="resource_cta_click" ctaLocation="resources_index_final">
+                Book a Product Demo
+              </TrackedCtaLink>
+            </div>
           </div>
         </Container>
       </Section>

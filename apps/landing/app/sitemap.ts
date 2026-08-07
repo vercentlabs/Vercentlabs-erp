@@ -55,6 +55,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/resources/glossary", "monthly", 0.7),
     ...STANDALONE_GLOSSARY_SLUGS.map((slug) => entry(`/resources/glossary/${slug}`, "monthly", 0.6)),
     entry("/compare", "monthly", 0.7),
-    entry(`/compare/${VERCENTLABS_VS_ODOO.slug}`, "monthly", 0.7),
+    // "weekly" not "monthly" — comparisons carry a materially shorter real review
+    // cycle than the rest of the site (competitor pricing/editions change faster
+    // than product content), see freshness-and-sitemap-policy.md's 30-day interval
+    // and comparison-evidence-register.md. A Cycle 2 SEO review found the sitemap
+    // wasn't reflecting this distinct cadence — fixed here.
+    entry(`/compare/${VERCENTLABS_VS_ODOO.slug}`, "weekly", 0.7),
   ];
 }

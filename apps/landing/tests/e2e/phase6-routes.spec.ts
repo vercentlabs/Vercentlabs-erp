@@ -11,6 +11,28 @@ function trackConsoleErrors(page: import("@playwright/test").Page) {
   return errors;
 }
 
+test.describe("module page resource-guide backlink specificity", () => {
+  // Regression test for a real Cycle 2 finding (seo-aeo-geo-reviewer): adding
+  // relatedModuleKeys to erp-buying-guide (a broad, 5-module guide) caused it
+  // to silently shadow more specific guides on modules that also match a
+  // narrower guide, since plain array order picked whichever guide happened
+  // to come first. Fixed by sorting candidates by specificity (fewest
+  // relatedModuleKeys) in app/modules/[slug]/page.tsx — this test asserts the
+  // actual selected guide per module, not just "a real guide exists."
+  const expected: [string, string][] = [
+    ["manufacturing", "manufacturing-erp-guide"],
+    ["procurement", "erp-vs-spreadsheets"],
+    ["sales", "erp-vs-spreadsheets"],
+  ];
+
+  for (const [moduleKey, expectedGuideSlug] of expected) {
+    test(`/modules/${moduleKey} links to the specific /resources/${expectedGuideSlug}, not a broader generic guide`, async ({ page }) => {
+      await page.goto(`/modules/${moduleKey}`);
+      await expect(page.locator(`a[href="/resources/${expectedGuideSlug}"]`).first()).toBeAttached();
+    });
+  }
+});
+
 test.describe("resource hub", () => {
   test("/resources returns 200, renders one real H1, and has no console errors", async ({ page }) => {
     const consoleErrors = trackConsoleErrors(page);

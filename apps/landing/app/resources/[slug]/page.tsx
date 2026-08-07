@@ -97,7 +97,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
         <Container>
           <SidebarLayout
             content={
-              <Stack gap={10}>
+              <Stack gap={10} className="max-w-[70ch]">
                 <KeyTakeaways items={guide.keyTakeaways} />
                 {guide.sections.map((section) => (
                   <div key={section.id} id={section.id} className="scroll-mt-24 flex flex-col gap-3">

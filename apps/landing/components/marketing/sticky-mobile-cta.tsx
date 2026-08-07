@@ -33,7 +33,10 @@ export function StickyMobileCta() {
   if (pathname?.startsWith("/book-demo")) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-(--color-border-default) bg-(--color-bg-elevated) p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-(--shadow-panel) sm:hidden">
+    <div
+      data-sticky-mobile-cta
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-(--color-border-default) bg-(--color-bg-elevated) p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-(--shadow-panel) sm:hidden"
+    >
       <Link
         href="/book-demo"
         prefetch={false}

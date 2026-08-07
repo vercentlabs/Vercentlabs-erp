@@ -82,6 +82,7 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
           <button
             type="button"
             onClick={() => handleFilterChange("all")}
+            aria-pressed={activeFilter === "all"}
             className={cx(
               "rounded-(--radius-control) border px-3 py-1.5 text-xs font-medium transition-colors",
               activeFilter === "all" ? "border-(--color-text-brand) bg-(--color-bg-brand) text-(--color-text-inverse)" : "border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-text-brand)",
@@ -94,6 +95,7 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
               key={filter.key}
               type="button"
               onClick={() => handleFilterChange(filter.key)}
+              aria-pressed={activeFilter === filter.key}
               className={cx(
                 "rounded-(--radius-control) border px-3 py-1.5 text-xs font-medium transition-colors",
                 activeFilter === filter.key ? "border-(--color-text-brand) bg-(--color-bg-brand) text-(--color-text-inverse)" : "border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-text-brand)",
@@ -104,7 +106,7 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
           ))}
         </div>
         <div className="flex items-center gap-4">
-          <Text variant="caption">{hydrated ? `${checkedCount} of ${groups.length} marked` : null}</Text>
+          <Text variant="caption">{hydrated ? `${checkedCount} of ${groups.length} groups reviewed` : null}</Text>
           <button type="button" onClick={handlePrint} className="text-xs font-medium text-(--color-text-brand) hover:underline underline-offset-4">
             Print this checklist
           </button>

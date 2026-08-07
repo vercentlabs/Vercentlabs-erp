@@ -75,7 +75,7 @@ export const RESOURCE_GUIDES = Object.freeze([
       { question: "Should we build a custom system instead of buying ERP software?", answer: "That's a real, legitimate option for a narrow, well-understood process — but it means owning ongoing maintenance, security patching, and feature development yourself indefinitely. Most organisations find that cost compounds faster than expected once the process needs to change." },
       { question: "Is a free or open-source ERP a safe first step?", answer: "It can be, for organisations with in-house engineering capacity to self-host, patch, and extend it. The real cost to evaluate honestly is total cost of ownership over several years, not just license price — hosting, customization, and support all have to come from somewhere." },
     ],
-    relatedModuleKeys: [],
+    relatedModuleKeys: ["stock", "procurement", "accounting", "projects", "manufacturing"],
     relatedWorkflowSlugs: [],
     relatedResourceSlugs: ["erp-requirements-checklist", "erp-implementation-checklist", "erp-vs-spreadsheets"],
     metaDescription: "A vendor-neutral ERP buying guide: how to evaluate ERP software based on real operational pain, which modules to implement first, and the questions worth asking any vendor.",
