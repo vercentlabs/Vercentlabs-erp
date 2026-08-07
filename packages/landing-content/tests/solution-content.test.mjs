@@ -17,6 +17,17 @@ test("every solution has a unique slug, searchIntent, and metaDescription", () =
   assert.equal(new Set(metas).size, 5);
 });
 
+test("every solution has a directDefinition distinct from its problemStatement (no duplicate hero/DirectDefinition text)", () => {
+  for (const solution of LANDING_SOLUTIONS) {
+    assert.ok(solution.directDefinition && solution.directDefinition.length > 40, `${solution.slug} needs a real directDefinition`);
+    assert.notEqual(
+      solution.directDefinition.trim().toLowerCase(),
+      solution.problemStatement.trim().toLowerCase(),
+      `${solution.slug}'s directDefinition must not repeat problemStatement verbatim (the hero and DirectDefinition sections render different fields)`,
+    );
+  }
+});
+
 test("every solution's relatedPlatformPageSlug resolves to a real platform or product-overview route", () => {
   const realRoutes = new Set([PRODUCT_OVERVIEW_PAGE.slug, ...PLATFORM_PAGES.map((p) => p.slug)]);
   for (const solution of LANDING_SOLUTIONS) {

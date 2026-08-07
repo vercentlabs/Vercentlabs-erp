@@ -29,6 +29,8 @@ export const LANDING_WORKFLOWS = Object.freeze([
     summary:
       "A captured lead converts to an account and opportunity, progresses through a governed pipeline, becomes a publicly accepted quotation, converts to a credit-checked order, and posts a customer invoice.",
     iaPriority: "P0",
+    directDefinition:
+      "Lead to Cash is Vercentlabs ERP's real, cited sequence connecting CRM, Sales, and Accounting — the same system carries a captured lead through a publicly accepted quotation to a posted customer invoice, with no re-typed handoff between the three modules.",
     trigger: "A lead is captured from a public form, an import, or a signed webhook.",
     participants: ["Sales rep", "Sales approver (for over-threshold quotations)", "Buyer (customer)", "Finance/billing"],
     sequence: [
@@ -87,6 +89,8 @@ export const LANDING_WORKFLOWS = Object.freeze([
     summary:
       "A requisition moves through sourcing, award, purchase order, and receipt, and a vendor bill can only be created once two- or three-way matching confirms it.",
     iaPriority: "P0",
+    directDefinition:
+      "Procure to Pay is Vercentlabs ERP's real, cited sequence connecting Procurement and Accounting — a purchase order can only become a vendor bill once matching confirms the order, receipt, and invoice actually agree.",
     trigger: "A requisition is raised for goods or services the business needs.",
     participants: ["Requesting employee", "Category/sourcing buyer", "Supplier", "Receiving clerk", "AP/finance staff"],
     sequence: [
@@ -133,6 +137,8 @@ export const LANDING_WORKFLOWS = Object.freeze([
     summary:
       "An accepted quotation converts to a credit-checked sales order, warehouse and production see the same order and item records, and an invoice is generated from the order through an auditable, idempotent handoff.",
     iaPriority: "P0",
+    directDefinition:
+      "Order to Fulfilment is Vercentlabs ERP's real, cited sequence covering what happens once a sales order exists — the warehouse and finance side of the process, distinct from Lead to Cash's revenue-team focus on getting the order signed in the first place.",
     trigger: "A sales quotation is accepted and converted to a sales order.",
     participants: ["Sales operations", "Warehouse/fulfilment staff", "Finance/billing"],
     sequence: [
@@ -176,6 +182,8 @@ export const LANDING_WORKFLOWS = Object.freeze([
     summary:
       "A bill of materials becomes a work order; release is blocked on component shortage; every material issue and finished-goods receipt posts a real stock movement.",
     iaPriority: "P1",
+    directDefinition:
+      "Plan to Production is Vercentlabs ERP's real, cited sequence connecting Manufacturing and Stock — a released work order snapshots its bill of materials and cannot proceed without proven component availability, then posts real stock movements as it runs.",
     trigger: "An active bill of materials exists and a work order is created against it.",
     participants: ["Production planner", "Shop-floor supervisor", "Work-center operator"],
     sequence: [
@@ -225,6 +233,8 @@ export const LANDING_WORKFLOWS = Object.freeze([
     summary:
       "Approved timesheets, expenses, and procurement actuals compute live project gross margin against contracted revenue while the project is still open.",
     iaPriority: "P1",
+    directDefinition:
+      "Project Planning to Profitability is Vercentlabs ERP's real, cited sequence connecting Projects, Procurement, Accounting, and HR & Payroll — gross margin is computed live from approved actuals against contracted revenue while a project is still open, not reconstructed after it closes.",
     trigger: "A project is set up with a billing method and, where relevant, contracted revenue and a linked Sales order.",
     participants: ["Project/delivery manager", "Consultants and employees logging time/expenses", "Finance/PMO staff"],
     sequence: [
@@ -268,6 +278,8 @@ export const LANDING_WORKFLOWS = Object.freeze([
     summary:
       "An employee record moves through onboarding, compensation setup, and attendance tracking to an attendance-adjusted, maker-checker-governed payroll run.",
     iaPriority: "P0",
+    directDefinition:
+      "Hire to Payroll is Vercentlabs ERP's real, cited sequence connecting HR & Payroll and Accounting — attendance-adjusted pay is calculated in one transaction and a run cannot be approved by the person who prepared it, with a manual accounting-batch reference for finance to reconcile against.",
     trigger: "An employee record is created as part of onboarding.",
     participants: ["HR manager/admin", "Line manager", "Payroll preparer", "Payroll approver (a different person than the preparer)"],
     sequence: [

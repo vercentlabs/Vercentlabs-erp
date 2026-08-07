@@ -94,7 +94,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
         />
       </TrackView>
 
-      <DirectDefinition definition={workflow.summary} />
+      <DirectDefinition definition={workflow.directDefinition ?? workflow.summary} />
 
       {/* Full sequence */}
       <Section tone="page">

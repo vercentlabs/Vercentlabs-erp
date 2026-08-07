@@ -13,7 +13,7 @@ export function RolePerspective({ roles }: { roles: readonly BuyerRole[] }) {
     <Grid columns={roles.length >= 3 ? 3 : 2} gap={6}>
       {roles.map((role) => (
         <div key={role.slug} className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-5">
-          <Heading level="h4">{role.title}</Heading>
+          <Heading level="h3">{role.title}</Heading>
           <Text variant="bodySmall" className="mt-2">
             {role.concernSummary}
           </Text>

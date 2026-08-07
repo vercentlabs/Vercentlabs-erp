@@ -121,6 +121,8 @@ export interface LandingWorkflow {
   summary: string;
   iaPriority: "P0" | "P1" | "P2";
   /** The following fields are only populated for the 6 routed workflows (ROUTED_WORKFLOW_SLUGS). */
+  /** A direct-answer sentence distinct from `summary` — rendered in DirectDefinition, never the same text as the hero subhead. */
+  directDefinition?: string;
   trigger?: string;
   participants?: string[];
   sequence?: WorkflowSequenceStep[];
@@ -141,7 +143,7 @@ export function getRoutedWorkflows(): LandingWorkflow[];
 
 export interface LandingIcp {
   slug: string;
-  industrySlug: string;
+  industrySlugs: string[];
   name: string;
   triggerEvent: string;
   primaryModules: string[];
@@ -523,6 +525,8 @@ export interface SolutionApproachItem {
 export interface SolutionPage {
   slug: string;
   name: string;
+  /** A direct-answer sentence distinct from `problemStatement` — rendered in DirectDefinition, never the same text as the hero subhead. */
+  directDefinition: string;
   problemStatement: string;
   before: string;
   after: string;

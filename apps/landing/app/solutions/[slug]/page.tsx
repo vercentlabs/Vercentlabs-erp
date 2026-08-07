@@ -101,7 +101,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
         />
       </TrackView>
 
-      <DirectDefinition definition={solution.problemStatement} />
+      <DirectDefinition definition={solution.directDefinition} />
 
       {/* Before/after */}
       <Section tone="page">

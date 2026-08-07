@@ -24,6 +24,16 @@ test("every industry references a real ICP slug", () => {
   }
 });
 
+test("every ICP's industrySlugs resolve to real, routed industry pages (no stale route landmine)", () => {
+  const realIndustrySlugs = new Set(LANDING_INDUSTRIES.map((i) => i.slug));
+  for (const icp of LANDING_ICPS) {
+    assert.ok(icp.industrySlugs.length >= 1, `ICP '${icp.slug}' has no industrySlugs`);
+    for (const slug of icp.industrySlugs) {
+      assert.ok(realIndustrySlugs.has(slug), `ICP '${icp.slug}' references unknown industry route '${slug}'`);
+    }
+  }
+});
+
 test("distribution and retail intentionally share one ICP, per the documented split reasoning", () => {
   const distribution = getIndustry("distribution");
   const retail = getIndustry("retail");
@@ -64,11 +74,11 @@ test("every industry's buyerRoleSlugs resolve to real buyer roles", () => {
   }
 });
 
-test("every industry has at least 3 evidence highlights, 3 challenges, and 2 FAQs", () => {
+test("every industry has at least 3 evidence highlights, 3 challenges, and 4-6 FAQs (seo-aeo-geo-architecture.md's documented floor for module/industry pages)", () => {
   for (const industry of LANDING_INDUSTRIES) {
     assert.ok(industry.evidenceHighlights.length >= 3, `${industry.slug} needs at least 3 evidence highlights`);
     assert.ok(industry.challenges.length >= 3, `${industry.slug} needs at least 3 challenges`);
-    assert.ok(industry.faqs.length >= 2, `${industry.slug} needs at least 2 FAQs`);
+    assert.ok(industry.faqs.length >= 4 && industry.faqs.length <= 6, `${industry.slug} needs 4-6 FAQs, has ${industry.faqs.length}`);
   }
 });
 

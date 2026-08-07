@@ -22,6 +22,8 @@ export const LANDING_SOLUTIONS = Object.freeze([
   {
     slug: "replace-spreadsheets",
     name: "Replace Spreadsheets",
+    directDefinition:
+      "Replacing spreadsheets with Vercentlabs ERP means one server-validated master-data model, governed numbering series, and an immutable audit trail replacing the item, BOM, and pricing files departments currently maintain separately.",
     problemStatement:
       "Your item master lives in one spreadsheet, your BOM in another, your invoice numbering is a manually incremented cell, and every one of them drifts out of sync with what's actually true the moment two people edit at once.",
     before: "Item codes, prices, and BOM structures re-typed across three or four spreadsheets, with no single version anyone fully trusts — and no record of who changed what, when.",
@@ -47,6 +49,8 @@ export const LANDING_SOLUTIONS = Object.freeze([
   {
     slug: "connect-business-operations",
     name: "Connect Business Operations",
+    directDefinition:
+      "Connecting business operations with Vercentlabs ERP means CRM, Sales, Procurement, and Accounting reading and writing the same real records at each handoff — not synced copies reconciled between separate tools.",
     problemStatement:
       "Procurement doesn't know what sales just promised a customer. Production doesn't know what procurement just ordered. Every handoff between departments is a re-typed email or a Slack message, not a system that already knows.",
     before: "A CRM opportunity, a Sales quotation, a Procurement purchase order, and an Accounting invoice exist as four separate records in four separate tools, connected only by someone remembering to update all four.",
@@ -62,7 +66,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     relatedWorkflowSlugs: ["lead-to-cash", "procure-to-pay"],
     faqs: [
       { question: "Does every module talk to every other module automatically?", answer: "No — the connections are real but specific, not an all-to-all mesh. Standard sales-order fulfillment, for example, does not yet post an automatic stock deduction; only Manufacturing and Point of Sale write to the stock ledger today. See each module page's 'Connected modules' section for the honest, specific relationship." },
-      { question: "How is this different from just buying integration middleware for our existing tools?", answer: "Middleware connects separate systems after the fact, with all the sync-lag and conflict-resolution problems that implies. Here, CRM, Sales, Procurement, Stock, and Accounting are one system with one data model — there's no sync step because there's nothing to sync." },
+      { question: "How is this different from just buying integration middleware for our existing tools?", answer: "Middleware connects separate systems after the fact, with all the sync-lag and conflict-resolution problems that implies. Here, CRM, Sales, Procurement, and Accounting are one system with one data model — there's no sync step for these connections because there's nothing to sync. (Not every module pair works this way yet — see the previous question.)" },
       { question: "What connects the platform underneath these module handoffs?", answer: "See the Platform capability page for the shared control plane — multi-tenancy, roles and permissions, the approval-workflow engine, and the immutable audit trail every module inherits rather than rebuilding." },
     ],
     metaDescription: "See how Vercentlabs connects CRM, Sales, Procurement, and Accounting as one real data model — a won opportunity becomes a quotation, an order, and an invoice without being re-typed at each handoff.",
@@ -72,8 +76,10 @@ export const LANDING_SOLUTIONS = Object.freeze([
   {
     slug: "multi-company-management",
     name: "Multi-Company Management",
+    directDefinition:
+      "Managing multiple companies with Vercentlabs ERP means structural isolation by company and branch, scoped and time-bound roles, and real consolidation when you need a combined view — relevant to a manufacturer running several plants or a distributor running multiple warehouses under one legal umbrella, not just a holding-company structure.",
     problemStatement:
-      "You run more than one legal entity, or more than one branch, and today that means either a separate system per entity or one shared login where anyone can see everyone else's numbers.",
+      "You run more than one legal entity, more than one plant, or more than one branch — a manufacturer with several facilities, a distributor with multiple warehouses — and today that means either a separate system per entity or one shared login where anyone can see everyone else's numbers.",
     before: "Either N separate systems (one per company) that never reconcile with each other, or one shared system with no real separation — every user sees every company's data whether they should or not.",
     after: "One platform, structurally isolated by company and branch — a user's access is scoped to the companies, branches, or even departments they're actually granted, with consolidation and intercompany posting available when you need a combined view.",
     approach: [
@@ -97,6 +103,8 @@ export const LANDING_SOLUTIONS = Object.freeze([
   {
     slug: "workflow-automation",
     name: "Workflow Automation",
+    directDefinition:
+      "Automating workflow with Vercentlabs ERP means policy-routed approvals, code-enforced self-approval blocking, and scheduled recurring financial postings — real, built-in governed automations, not a drag-and-drop workflow builder you configure yourself.",
     problemStatement:
       "A discount approval sits in an email thread for a week. A journal entry gets posted without anyone checking it against the account it references. The parts of your process that shouldn't need a human keep needing one anyway.",
     before: "Approvals routed by whoever remembers to forward the email; the same person able to create and approve their own transaction; recurring postings re-entered by hand every period.",
@@ -122,6 +130,8 @@ export const LANDING_SOLUTIONS = Object.freeze([
   {
     slug: "real-time-business-reporting",
     name: "Real-Time Business Reporting",
+    directDefinition:
+      "Real-time reporting with Vercentlabs ERP means every report — project margin, financial statements, pipeline forecast, spend analysis — reads the same live transactional data every module writes to, not a scheduled data-warehouse refresh.",
     problemStatement:
       "Sales, finance, and operations each keep their own version of the numbers, refreshed whenever someone remembers to update the spreadsheet — usually right before the numbers are needed, never when a decision actually depends on them.",
     before: "A month-end close before anyone knows the real margin; a manually rebuilt pipeline forecast; a stock count that's only as current as the last physical walk-through.",

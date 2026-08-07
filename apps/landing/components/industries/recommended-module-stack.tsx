@@ -29,7 +29,7 @@ export function RecommendedModuleStack({
               <ModuleTag name={landingModule.name} accentColor={landingModule.accentColor.hex} />
             </Link>
             <div className="sm:max-w-[640px]">
-              <Heading level="h4">{landingModule.name}</Heading>
+              <Heading level="h3">{landingModule.name}</Heading>
               <Text variant="bodySmall" className="mt-1">
                 {entry.role}
               </Text>

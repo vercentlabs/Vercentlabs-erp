@@ -43,6 +43,7 @@ export default async function BookDemoPage({
 
   if (matchedModule) {
     initialModuleKeys = [matchedModule.key];
+    contextLabel = `We'll focus this session on ${matchedModule.name}.`;
   } else if (matchedIndustry) {
     initialModuleKeys = matchedIndustry.moduleStack.map((entry) => entry.moduleKey);
     contextLabel = `Built for ${matchedIndustry.name.toLowerCase()} operations like yours.`;

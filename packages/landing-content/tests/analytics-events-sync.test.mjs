@@ -23,8 +23,21 @@ function extractDeclaredEventNames() {
   const match = source.match(/export const ANALYTICS_EVENTS: readonly \[([\s\S]*?)\];/);
   assert.ok(match, "index.d.ts must declare `export const ANALYTICS_EVENTS: readonly [...]`");
   const body = match[1];
-  const names = [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  // Match both quote styles so a single-quoted literal (valid TypeScript,
+  // invisible to a double-quote-only regex) can never silently slip past
+  // this guard uncounted — the exact failure mode this test exists to catch.
+  const names = [...body.matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
   assert.ok(names.length > 0, "Could not parse any event names out of index.d.ts's ANALYTICS_EVENTS tuple");
+  // Beyond parsing them correctly, flag single-quoted entries outright: every
+  // other string literal in this file uses double quotes, so a lone
+  // single-quoted entry is itself a style inconsistency worth surfacing, not
+  // just silently tolerating.
+  const singleQuoted = [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(
+    singleQuoted,
+    [],
+    `index.d.ts's ANALYTICS_EVENTS tuple has single-quoted entr${singleQuoted.length === 1 ? "y" : "ies"} (${singleQuoted.join(", ")}) — use double quotes to match the rest of the file`,
+  );
   return names;
 }
 

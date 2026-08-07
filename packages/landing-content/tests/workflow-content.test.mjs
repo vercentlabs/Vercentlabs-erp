@@ -23,6 +23,17 @@ test("order-to-fulfilment and hire-to-payroll are new, real entries with a modul
   assert.ok(hireToPayroll.modules.length >= 2);
 });
 
+test("every routed workflow has a directDefinition distinct from its summary (no duplicate hero/DirectDefinition text)", () => {
+  for (const workflow of getRoutedWorkflows()) {
+    assert.ok(workflow.directDefinition && workflow.directDefinition.length > 40, `${workflow.slug} needs a real directDefinition`);
+    assert.notEqual(
+      workflow.directDefinition.trim().toLowerCase(),
+      workflow.summary.trim().toLowerCase(),
+      `${workflow.slug}'s directDefinition must not repeat summary verbatim (the hero and DirectDefinition sections render different fields)`,
+    );
+  }
+});
+
 test("every routed workflow has the full page-level structure: trigger, participants, sequence, automatedActions, approvals, exceptions, visibility, businessValue, faqs, screenshotId", () => {
   const routed = getRoutedWorkflows();
   assert.equal(routed.length, 6);

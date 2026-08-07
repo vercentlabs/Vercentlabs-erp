@@ -161,7 +161,7 @@ export const APPROVED_SCREENSHOTS: readonly ProductScreenshot[] = Object.freeze(
     width: 1440,
     height: 900,
     module: "hr-payroll",
-    workflow: "payroll-to-books",
+    workflow: "hire-to-payroll",
     caption: "Employees, attendance, leave, and payroll runs connected in one workforce workspace.",
     approvedForMarketing: true,
   },
