@@ -25,8 +25,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Header />
         <main id="main-content">{children}</main>
         <Footer />
-        {/* Mobile-only spacer so the fixed sticky CTA bar never covers footer content. */}
-        <div className="h-[calc(env(safe-area-inset-bottom)+5rem)] lg:hidden" aria-hidden="true" />
+        {/* Mobile-only spacer so the fixed sticky CTA bar never covers footer content.
+            Matches StickyMobileCta's own sm:hidden breakpoint exactly — see that
+            component's doc comment for why this isn't lg:hidden. */}
+        <div className="h-[calc(env(safe-area-inset-bottom)+5rem)] sm:hidden" aria-hidden="true" />
         <StickyMobileCta />
         <script {...jsonLdScriptProps(organizationJsonLd())} />
         <script {...jsonLdScriptProps(websiteJsonLd())} />

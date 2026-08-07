@@ -13,17 +13,27 @@ import { track } from "@/lib/analytics";
  * conversion-architecture.md's "demo conversion must never require opening
  * the mobile nav menu" rule. See docs/landing-redesign/phase-4/decision-log.md.
  *
- * Hidden at `lg` and above (the header CTA is already visible there), and on
- * /book-demo* routes (the form or its confirmation is already the page's
- * entire purpose — a floating "Book a Product Demo" button while someone is
- * mid-form, or just finished, reads as broken rather than helpful).
+ * Hidden at `sm` (480px) and above, matching the header CTA's own `hidden
+ * sm:block` breakpoint exactly — not `lg`. A Phase 6 investigation (real
+ * screenshot + Playwright visibility check, not assumption) found the two
+ * breakpoints previously didn't line up: this bar used `lg:hidden` (visible
+ * up to 1024px) while the header CTA used `hidden sm:block` (visible from
+ * 480px), so from 480-1023px BOTH rendered simultaneously — confirmed live
+ * at 768px showing three "Book a Product Demo" prompts on screen at once
+ * (hero CTA, header CTA, sticky bar). Below 480px only this bar shows;
+ * at 480px and above only the header CTA shows — a clean handoff, not a
+ * gap. See docs/landing-redesign/phase-6/decision-log.md.
+ *
+ * Hidden on /book-demo* routes (the form or its confirmation is already the
+ * page's entire purpose — a floating "Book a Product Demo" button while
+ * someone is mid-form, or just finished, reads as broken rather than helpful).
  */
 export function StickyMobileCta() {
   const pathname = usePathname();
   if (pathname?.startsWith("/book-demo")) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-(--color-border-default) bg-(--color-bg-elevated) p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-(--shadow-panel) lg:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-(--color-border-default) bg-(--color-bg-elevated) p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-(--shadow-panel) sm:hidden">
       <Link
         href="/book-demo"
         prefetch={false}
