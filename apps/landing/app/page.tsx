@@ -67,7 +67,7 @@ export default function HomePage() {
       <HomepageViewTracker />
       {/* Hero */}
       <TrackView event="hero_view">
-        <Section tone="page" className="pt-12 sm:pt-16">
+        <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
           <Container>
             <Grid
               columns={hasHeroScreenshot ? 2 : 1}
@@ -142,7 +142,7 @@ export default function HomePage() {
                 </Text>
               ))}
             </Grid>
-            <Inline gap={4} className="mt-8">
+            <Inline gap={4} className="mt-8 border-t border-(--color-border-default) pt-8">
               <ButtonLink href="/product/platform" variant="tertiary" prefetch={false}>
                 See how the platform connects
               </ButtonLink>
@@ -184,7 +184,7 @@ export default function HomePage() {
                 );
               })}
             </div>
-            <Inline gap={4} className="mt-8">
+            <Inline gap={4} className="mt-8 border-t border-(--color-border-default) pt-8">
               <ButtonLink href="/modules" variant="tertiary" prefetch={false}>
                 See all modules
               </ButtonLink>
@@ -304,7 +304,7 @@ export default function HomePage() {
                 </div>
               ))}
             </Grid>
-            <Inline gap={4} className="mt-8">
+            <Inline gap={4} className="mt-8 border-t border-(--color-border-default) pt-8">
               <ButtonLink href="/security" variant="tertiary" prefetch={false}>
                 See the security architecture
               </ButtonLink>
