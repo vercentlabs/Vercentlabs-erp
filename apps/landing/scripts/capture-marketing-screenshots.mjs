@@ -140,7 +140,32 @@ async function main() {
       .catch(() => {});
     await page.waitForTimeout(750);
     const outputPath = path.join(OUTPUT_DIR, `${capture.id}.png`);
-    await page.screenshot({ path: outputPath, fullPage: capture.fullPage });
+    if (capture.fullPage) {
+      // Playwright's fullPage stitched capture doesn't repeat position:sticky/fixed
+      // chrome (the app shell's sidebar) past the first viewport — on any page taller
+      // than 900px the sidebar's dark background just stops partway down the image,
+      // leaving a large dead gray gap beside content that keeps going. Real users never
+      // see this (the sidebar stays pinned while they scroll); it's purely a capture
+      // artifact. Fix: resize the viewport to the page's content height (capped — see
+      // MAX_CAPTURE_HEIGHT below) and take a single non-stitched screenshot, so the
+      // sidebar renders correctly for the whole frame with no scrolling/stitching.
+      //
+      // The cap itself matters independently of the sidebar bug: capturing a record
+      // detail page's full, uncapped document height (some pages exceed 1300px) also
+      // produces an image whose aspect ratio no longer reads as a browser window —
+      // it looks unnaturally tall/square next to the site's other 900-1000px-tall
+      // screenshots. 1080 was chosen by checking each affected page's actual content
+      // at 1000/1080 and picking the smallest cap that avoids cutting a table row or
+      // list entry mid-element (see docs/landing-redesign/phase-8/decision-log.md).
+      const MAX_CAPTURE_HEIGHT = 1080;
+      const contentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      await page.setViewportSize({ width: 1440, height: Math.min(contentHeight, MAX_CAPTURE_HEIGHT) });
+      await page.waitForTimeout(100);
+      await page.screenshot({ path: outputPath, fullPage: false });
+      await page.setViewportSize({ width: 1440, height: 900 });
+    } else {
+      await page.screenshot({ path: outputPath, fullPage: false });
+    }
     log("captured", outputPath);
     captured.push(capture.id);
   }

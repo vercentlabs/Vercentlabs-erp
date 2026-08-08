@@ -66,7 +66,7 @@ export const CONNECTED_SYSTEM_SECTION = Object.freeze({
     { label: "Opportunity", module: "crm", detail: "Progresses through a governed pipeline with qualification checkpoints." },
     { label: "Quotation", module: "sales", detail: "Priced with GST-aware tax rules, accepted publicly with a digital signature." },
     { label: "Sales order", module: "sales", detail: "Converted from the accepted quotation with a real-time credit check." },
-    { label: "Warehouse & production", module: "stock", detail: "See the same order and item records — no separate spreadsheet to reconcile." },
+    { label: "Warehouse", module: "stock", detail: "See the same order and item records — no separate spreadsheet to reconcile." },
     { label: "Quality", module: "quality", detail: "Inspects incoming, in-process, and outgoing goods against the same item and batch records." },
     { label: "Invoice", module: "accounting", detail: "Generated from the order through an auditable, idempotent handoff." },
     { label: "Support", module: "support", detail: "Any resulting ticket carries the full order and account history automatically." },
