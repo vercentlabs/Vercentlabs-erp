@@ -16,23 +16,29 @@
     "test": "node --test",
     "test:e2e": "playwright test",
     "test:browser": "playwright test",
-    "test:e2e:install": "playwright install chromium --with-deps"
+    "test:e2e:install": "playwright install chromium --with-deps",
+    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
+    "lighthouse:baseline": "node scripts/lighthouse-baseline.mjs"
   },
   "dependencies": {
     "@vercentlabs/landing-content": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*",
     "next": "16.2.11",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "web-vitals": "^6.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "chrome-launcher": "^1.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "lighthouse": "^13.4.1",
     "postcss": "^8.5.23",
     "prettier": "^3.7.4",
     "tailwindcss": "^4.1.18",

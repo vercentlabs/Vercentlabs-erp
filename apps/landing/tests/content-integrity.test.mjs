@@ -74,3 +74,33 @@ test("no component or page under app/ or components/ references a fabricated sta
   for (const root of roots) walk(root);
   assert.deepEqual(offenders, []);
 });
+
+/**
+ * Regression guard for a real Phase 2 P0: Tailwind v4's CSS-variable
+ * shorthand uses parens (`bg-(--token)`), not square brackets (`bg-[--token]`).
+ * The bracket form compiles to invalid CSS with no build error and no lint
+ * error — it silently produced a transparent mega-menu panel with hero text
+ * showing through it, only caught by visual inspection (see
+ * docs/landing-redesign/phase-2/decision-log.md item 4d, which explicitly
+ * recommended this exact check as unfinished follow-up work).
+ */
+test("no Tailwind class string uses the invalid bracket-CSS-variable syntax (bg-[--x] instead of bg-(--x))", () => {
+  const suspiciousPattern = /\b[a-z-]+-\[--[a-z-]+\]/;
+  const roots = [path.join(appDir, "app"), path.join(appDir, "components")];
+  const offenders = [];
+
+  function walk(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile() && (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts") || entry.name.endsWith(".css"))) {
+        const source = readFileSync(fullPath, "utf8");
+        if (suspiciousPattern.test(source)) offenders.push(fullPath);
+      }
+    }
+  }
+
+  for (const root of roots) walk(root);
+  assert.deepEqual(offenders, [], "found bracket-syntax CSS-variable references — use bg-(--token) instead of bg-[--token]");
+});
