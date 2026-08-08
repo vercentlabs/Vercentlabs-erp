@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { POSITIONING, SITE_IDENTITY } from "@vercentlabs/landing-content";
+import { POSITIONING, SITE_IDENTITY, COLOR_TOKENS } from "@vercentlabs/landing-content";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -50,7 +50,7 @@ export default async function OpengraphImage() {
           <div style={{ fontSize: 60, fontWeight: 700, color: "#101828", lineHeight: 1.1, letterSpacing: -1 }}>
             {POSITIONING.heroHeadline}
           </div>
-          <div style={{ fontSize: 28, color: "#667085", lineHeight: 1.4 }}>{SITE_IDENTITY.category}</div>
+          <div style={{ fontSize: 28, color: COLOR_TOKENS.mutedInk, lineHeight: 1.4 }}>{SITE_IDENTITY.category}</div>
         </div>
 
         <div style={{ display: "flex", gap: 40 }}>

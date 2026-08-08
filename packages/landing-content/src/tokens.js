@@ -10,7 +10,13 @@ export const COLOR_TOKENS = Object.freeze({
   canvas: "#f9fafb",
   surface: "#ffffff",
   ink: "#101828",
-  mutedInk: "#667085",
+  // Was #667085 (4.44:1 against brandAccentSoft/#eef2ff — fails WCAG AA's
+  // 4.5:1 for normal text). Darkened to the minimal value that clears AA
+  // with real margin (4.83:1), found via axe-core scanning all Phase 7
+  // representative routes — a real, MEASURED, site-wide finding (228 nodes
+  // across 9 of 13 routes), not a one-off component bug. See
+  // docs/landing-redesign/phase-7/decision-log.md.
+  mutedInk: "#5d6b81",
   border: "#e4e7ec",
   brandAccent: "#4338ca",
   brandAccentStrong: "#3730a3",

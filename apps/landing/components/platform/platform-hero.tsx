@@ -59,7 +59,7 @@ export function PlatformHero({
     <Section tone="page" className="pt-12 sm:pt-16">
       <Container>
         {screenshot ? (
-          <SplitLayout ratio="primary-wide" primary={copy} secondary={<ProductScreenshot id={screenshot.id} />} />
+          <SplitLayout ratio="primary-wide" primary={copy} secondary={<ProductScreenshot id={screenshot.id} priority />} />
         ) : (
           <Stack gap={8}>
             {copy}

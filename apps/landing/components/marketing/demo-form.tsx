@@ -49,6 +49,14 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
   const [modulesOfInterest, setModulesOfInterest] = useState<string[]>(initialModules ?? []);
   const formRef = useRef<HTMLFormElement>(null);
   const startedRef = useRef(false);
+  // Synchronous guard against a genuine double-click sending two requests —
+  // `submitting` state alone isn't enough: React batches setState, so two
+  // click events dispatched in the same tick can both read `submitting` as
+  // still false before the first call's setSubmitting(true) has committed.
+  // A ref mutation is immediate and synchronous, closing that real race.
+  // Found via a real Playwright test (tests/e2e/lead-reliability.spec.ts)
+  // dispatching two native click() calls in one tick and observing 2 POSTs.
+  const submittingRef = useRef(false);
 
   function updateField<K extends keyof DemoFormValues>(key: K, value: DemoFormValues[K]) {
     if (!startedRef.current) {
@@ -60,7 +68,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting) return;
+    if (submittingRef.current) return;
 
     const validationErrors = validateDemoForm(values);
     if (Object.keys(validationErrors).length > 0) {
@@ -72,6 +80,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
       return;
     }
 
+    submittingRef.current = true;
     setErrors({});
     setSubmitError(null);
     setSubmitting(true);
@@ -93,6 +102,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
           setSubmitError(result.error || "We couldn't submit your request. Please try again.");
         }
         track("demo_form_error", { errorCategory: String(response.status) });
+        submittingRef.current = false;
         setSubmitting(false);
         return;
       }
@@ -102,6 +112,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
     } catch {
       setSubmitError("We couldn't reach the server. Check your connection and try again.");
       track("demo_form_error", { errorCategory: "network" });
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -200,7 +211,12 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
 
       <Stack gap={2}>
         <Text variant="label">Modules you&apos;re curious about (optional)</Text>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
+        {/* role="group"+aria-label: a screen-reader user tabbing through 12
+            unrelated-sounding checkboxes ("CRM", "Sales", ...) otherwise gets
+            no group context — the visible <Text> label above isn't
+            programmatically associated with the checkboxes without this.
+            Matches the same pattern already used in requirements-checklist.tsx. */}
+        <div className="flex flex-wrap gap-x-5 gap-y-2" role="group" aria-label="Modules you're curious about (optional)">
           {LANDING_MODULES.map((module) => (
             <label key={module.key} className="flex items-center gap-2 text-sm text-(--color-text-secondary)">
               <input

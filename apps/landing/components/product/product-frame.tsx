@@ -40,6 +40,14 @@ interface ProductScreenshotProps {
   className?: string;
   /** Only true on the noindex /design-system route — see lib/product/screenshots.ts. */
   allowPlaceholder?: boolean;
+  /**
+   * Set only where a real Lighthouse run confirmed this exact screenshot is
+   * the route's LCP element (see docs/landing-redesign/phase-7/
+   * media-performance-audit.md) — currently just PlatformHero's hero
+   * screenshot. Defaults to lazy-loading, which is correct everywhere else
+   * (e.g. product-evidence-section.tsx's below-the-fold screenshots).
+   */
+  priority?: boolean;
 }
 
 /**
@@ -49,7 +57,7 @@ interface ProductScreenshotProps {
  * fallback"). The fallback itself is only shown when `allowPlaceholder` is set,
  * which only the /design-system review route does.
  */
-export function ProductScreenshot({ id, moduleAccentColor, className, allowPlaceholder = false }: ProductScreenshotProps) {
+export function ProductScreenshot({ id, moduleAccentColor, className, allowPlaceholder = false, priority = false }: ProductScreenshotProps) {
   const screenshot = getApprovedScreenshot(id);
 
   if (!screenshot) {
@@ -72,6 +80,7 @@ export function ProductScreenshot({ id, moduleAccentColor, className, allowPlace
         height={screenshot.height}
         className="h-auto w-full"
         sizes="(min-width: 1024px) 800px, 100vw"
+        priority={priority}
       />
     </ProductFrame>
   );

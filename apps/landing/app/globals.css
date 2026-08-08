@@ -14,7 +14,7 @@
   --color-canvas: #f9fafb;
   --color-surface: #ffffff;
   --color-ink: #101828;
-  --color-muted-ink: #667085;
+  --color-muted-ink: #5d6b81;
   --color-border: #e4e7ec;
   --color-brand: #4338ca;
   --color-brand-strong: #3730a3;
@@ -34,8 +34,8 @@
   --color-bg-selected: #eef2ff;
 
   --color-text-primary: #101828;
-  --color-text-secondary: #667085;
-  --color-text-muted: #667085;
+  --color-text-secondary: #5d6b81;
+  --color-text-muted: #5d6b81;
   --color-text-inverse: #ffffff;
   --color-text-brand: #3730a3;
   --color-text-link: #4338ca;

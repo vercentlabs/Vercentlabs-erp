@@ -92,7 +92,7 @@ export default function HomePage() {
                   ))}
                 </Inline>
               </Stack>
-              {hasHeroScreenshot ? <ProductScreenshot id={HERO.screenshotId} moduleAccentColor="var(--color-brand)" /> : null}
+              {hasHeroScreenshot ? <ProductScreenshot id={HERO.screenshotId} moduleAccentColor="var(--color-brand)" priority /> : null}
             </Grid>
           </Container>
         </Section>

@@ -8,11 +8,23 @@
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
+// Every expired bucket was previously kept forever (only its count/resetAt
+// were reset in place on next use) — in a long-running process, unique-IP
+// cardinality grows this Map without bound. Prune lazily on each call instead
+// of adding a timer: cheap (a Map iteration only when a key is actually
+// expired), no background interval to leak or need cleanup of.
+function pruneExpired(now: number): void {
+  for (const [key, bucket] of buckets) {
+    if (bucket.resetAt <= now) buckets.delete(key);
+  }
+}
+
 export function checkRateLimit(key: string, limit: number, windowMs: number): { allowed: boolean; retryAfterMs: number } {
   const now = Date.now();
   const bucket = buckets.get(key);
 
   if (!bucket || bucket.resetAt <= now) {
+    pruneExpired(now);
     buckets.set(key, { count: 1, resetAt: now + windowMs });
     return { allowed: true, retryAfterMs: 0 };
   }

@@ -20,10 +20,7 @@ const PRODUCT_LINKS = [
   { label: "Integrations", href: "/product/integrations" },
 ];
 
-const COMPANY_LINKS = [
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
-  { label: "Pricing", href: "/pricing" },
+const PLATFORM_LINKS = [
   { label: "Implementation", href: "/implementation" },
   { label: "Solutions", href: "/solutions" },
   { label: "Workflows", href: "/workflows" },
@@ -35,11 +32,6 @@ const RESOURCE_LINKS = [
   { label: "Glossary", href: "/resources/glossary" },
   { label: "Compare Vercentlabs", href: "/compare" },
   { label: "All resources", href: "/resources" },
-];
-
-const LEGAL_LINKS = [
-  { label: "Privacy policy", href: "/legal/privacy" },
-  { label: "Terms of service", href: "/legal/terms" },
 ];
 
 export function Footer() {
@@ -98,18 +90,21 @@ export function Footer() {
             </ul>
           </div>
 
-          <FooterColumn title="Company" links={COMPANY_LINKS} />
+          <FooterColumn title="Platform" links={PLATFORM_LINKS} />
           <FooterColumn title="Resources" links={RESOURCE_LINKS} />
         </div>
 
         <div className="mt-12 flex flex-col gap-4 border-t border-(--color-border-default) pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-(--color-text-muted)">© {year} Vercentlabs. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {LEGAL_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} prefetch={false} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
-                {link.label}
-              </Link>
-            ))}
+            {/* Privacy policy / terms of service links removed — both previously
+                pointed at /legal/privacy and /legal/terms, neither of which has
+                ever existed as a real page (a genuine, pre-existing broken-link
+                defect found in Phase 7, not introduced by it — see
+                docs/landing-redesign/phase-7/decision-log.md). Real legal pages
+                need real legal content, which is out of this phase's scope to
+                draft — flagged as a pre-launch blocker in phase-8-brief.md
+                rather than shipping a link that 404s. */}
             <Link href={APP_URL.toString()} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
               Sign in
             </Link>
