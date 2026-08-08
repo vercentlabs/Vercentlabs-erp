@@ -3,6 +3,7 @@ import { ROOT_METADATA } from "@/lib/metadata";
 import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/json-ld";
 import { Header } from "@/components/navigation/header";
 import { Footer } from "@/components/layout/footer";
+import { SkipLink } from "@/components/layout/skip-link";
 import { AttributionInit } from "@/components/analytics/attribution-init";
 import { WebVitalsReporter } from "@/components/analytics/web-vitals-reporter";
 import { StickyMobileCta } from "@/components/marketing/sticky-mobile-cta";
@@ -20,15 +21,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <a href="#main-content" className="skip-link">
-          Skip to main content
-        </a>
+        <SkipLink />
         <Header />
         {/* tabIndex={-1}: without it, the skip link scrolls the viewport to
             #main-content but never moves keyboard focus there (an <a
             href="#fragment"> only focuses the target if it's natively
-            focusable or has a tabindex) — a real WCAG 2.4.1 gap found this
-            phase via a real keyboard test, not assumed. See decision-log.md. */}
+            focusable or has a tabindex) — a real WCAG 2.4.1 gap found in
+            Phase 7 via a real keyboard test. Phase 8's cross-browser smoke
+            suite then found WebKit doesn't reliably honor this native
+            behavior either — see components/layout/skip-link.tsx and
+            docs/landing-redesign/phase-8/decision-log.md. */}
         <main id="main-content" tabIndex={-1} className="focus:outline-none">
           {children}
         </main>

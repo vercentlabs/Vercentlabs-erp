@@ -26,19 +26,19 @@ export const ODOO_COMPARISON_EVIDENCE = Object.freeze([
   {
     claimId: "odoo-standard-plan",
     competitor: "Odoo",
-    claim: "Odoo's Standard plan (all apps, Odoo Online only) was listed at ₹580–950 per user/month at time of retrieval, with pricing geo-localized and subject to change.",
+    claim: "Odoo's Standard plan (all apps, Odoo Online only) was listed at ₹580–760 per user/month at time of retrieval, with pricing geo-localized and subject to change.",
     sourceUrl: "https://www.odoo.com/pricing",
     sourceTitle: "Odoo Pricing",
-    verifiedAt: "2026-08-07",
+    verifiedAt: "2026-08-08",
     sourceType: "vendor",
   },
   {
     claimId: "odoo-custom-plan",
     competitor: "Odoo",
-    claim: "Odoo's Custom plan adds Odoo Studio, multi-company support, external API access, and Odoo.sh/on-premise deployment options, listed at ₹890–1,420 per user/month at time of retrieval.",
+    claim: "Odoo's Custom plan adds Odoo Studio, multi-company support, external API access, and Odoo.sh/on-premise deployment options, listed at ₹890–1,140 per user/month at time of retrieval.",
     sourceUrl: "https://www.odoo.com/pricing",
     sourceTitle: "Odoo Pricing",
-    verifiedAt: "2026-08-07",
+    verifiedAt: "2026-08-08",
     sourceType: "vendor",
   },
   {
