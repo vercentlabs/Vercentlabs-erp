@@ -61,5 +61,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // and comparison-evidence-register.md. A Cycle 2 SEO review found the sitemap
     // wasn't reflecting this distinct cadence — fixed here.
     entry(`/compare/${VERCENTLABS_VS_ODOO.slug}`, "weekly", 0.7),
+    entry("/privacy", "yearly", 0.3),
+    entry("/terms", "yearly", 0.3),
   ];
 }

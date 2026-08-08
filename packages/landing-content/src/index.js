@@ -18,3 +18,4 @@ export * from "./answers.js";
 export * from "./glossary.js";
 export * from "./resources.js";
 export * from "./comparisons.js";
+export * from "./legal.js";

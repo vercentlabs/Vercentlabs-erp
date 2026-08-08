@@ -231,6 +231,15 @@ export const ANALYTICS_EVENTS: readonly [
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };
 export const POSITIONING: { heroHeadline: string; heroSubhead: string; promise: string };
+export const COMPANY_IDENTITY: {
+  legalName: string;
+  entityType: string;
+  country: string;
+  registeredAddress: string | null;
+  llpin: string | null;
+  privacyContactEmail: string;
+  supportContactEmail: string;
+};
 
 // --- Homepage content model (homepage.js) ---
 
@@ -438,6 +447,23 @@ export const MOBILE_PAGE: PlatformPageContent;
 export const INTEGRATIONS_PAGE: PlatformPageContent;
 export const SECURITY_PAGE: PlatformPageContent;
 export const PLATFORM_PAGES: readonly PlatformPageContent[];
+
+export interface LegalPageSection {
+  id: string;
+  heading: string;
+  paragraphs: string[];
+}
+
+export interface LegalPageContent {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  lastReviewedAt: string;
+  sections: readonly LegalPageSection[];
+}
+
+export const PRIVACY_PAGE: LegalPageContent;
+export const TERMS_PAGE: LegalPageContent;
 
 export interface ProductOverviewSection {
   id: string;

@@ -97,14 +97,17 @@ export function Footer() {
         <div className="mt-12 flex flex-col gap-4 border-t border-(--color-border-default) pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-(--color-text-muted)">© {year} Vercentlabs. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {/* Privacy policy / terms of service links removed — both previously
-                pointed at /legal/privacy and /legal/terms, neither of which has
-                ever existed as a real page (a genuine, pre-existing broken-link
-                defect found in Phase 7, not introduced by it — see
-                docs/landing-redesign/phase-7/decision-log.md). Real legal pages
-                need real legal content, which is out of this phase's scope to
-                draft — flagged as a pre-launch blocker in phase-8-brief.md
-                rather than shipping a link that 404s. */}
+            {/* Privacy/Terms restored in Phase 8 now that real pages exist at
+                /privacy and /terms (Phase 7 removed the old /legal/privacy
+                and /legal/terms links, which pointed at pages that never
+                existed — see docs/landing-redesign/phase-7/decision-log.md
+                items 16-17 and docs/landing-redesign/phase-8/legal-readiness.md). */}
+            <Link href="/privacy" prefetch={false} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" prefetch={false} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
+              Terms of Use
+            </Link>
             <Link href={APP_URL.toString()} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
               Sign in
             </Link>

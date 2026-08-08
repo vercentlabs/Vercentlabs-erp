@@ -110,6 +110,8 @@ export const CONTENT_FRESHNESS = Object.freeze({
   "/product/mobile": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
   "/product/integrations": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
   "/security": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
+  "/privacy": { publishedAt: "2026-08-08", lastModifiedAt: "2026-08-08", lastReviewedAt: "2026-08-08", reviewReason: "Published at Phase 8 launch hardening." },
+  "/terms": { publishedAt: "2026-08-08", lastModifiedAt: "2026-08-08", lastReviewedAt: "2026-08-08", reviewReason: "Published at Phase 8 launch hardening." },
   "/industries": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Published at Phase 5 launch, no content change since." },
   "/industries/manufacturing": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Published at Phase 5 launch, no content change since." },
   "/industries/distribution": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Published at Phase 5 launch, no content change since." },
@@ -149,7 +151,7 @@ export const CONTENT_FRESHNESS = Object.freeze({
   "/resources/manufacturing-erp-guide": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new cornerstone guide." },
   "/resources/erp-vs-spreadsheets": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new cornerstone guide." },
   "/compare": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new comparison index." },
-  "/compare/vercentlabs-vs-odoo": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-07", lastReviewedAt: "2026-08-07", reviewReason: "Phase 6 launch: new comparison, every claim live-verified against odoo.com on 2026-08-07." },
+  "/compare/vercentlabs-vs-odoo": { publishedAt: "2026-08-07", lastModifiedAt: "2026-08-08", lastReviewedAt: "2026-08-08", reviewReason: "Phase 8 pre-launch re-verification: Odoo's Standard/Custom plan pricing re-fetched from odoo.com, corrected from ₹580–950/₹890–1,420 to ₹580–760/₹890–1,140 to match current listed pricing." },
 });
 
 export function getFreshness(path) {
