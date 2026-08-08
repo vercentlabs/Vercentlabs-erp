@@ -54,25 +54,30 @@ export default function GlossaryIndexPage() {
   return (
     <>
       <TrackView event="glossary_index_view">
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <Section tone="page" paddingTop={{ base: 10, sm: 12 }}>
-          <Container>
-            <Stack gap={5} className="max-w-[780px]">
-              <Text variant="eyebrow">Resources</Text>
-              <Heading level="display" as="h1">
-                ERP Glossary
-              </Heading>
-              <Text variant="lead">
-                Real, plain-language definitions for the ERP and operations terms that come up most — from ERP and MRP to RBAC and maker-checker.
-              </Text>
-            </Stack>
-          </Container>
-        </Section>
+          <Section tone="page" paddingTop={{ base: 10, sm: 12 }} className="flex flex-1 items-center">
+            <Container>
+              <Stack gap={5} className="max-w-[780px]">
+                <Text variant="eyebrow">Resources</Text>
+                <Heading level="display" as="h1">
+                  ERP Glossary
+                </Heading>
+                <Text variant="lead">
+                  Real, plain-language definitions for the ERP and operations terms that come up most — from ERP and MRP to RBAC and maker-checker.
+                </Text>
+              </Stack>
+            </Container>
+          </Section>
+        </div>
       </TrackView>
 
       <DirectDefinition definition="This glossary defines the ERP, manufacturing, and operations terminology referenced throughout Vercentlabs' product and content — general industry definitions first, with real, cited detail on how Vercentlabs specifically implements the subset that connects directly to the product." />

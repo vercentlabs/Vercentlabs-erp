@@ -42,28 +42,33 @@ export default function ImplementationPage() {
   return (
     <>
       <TrackView event="implementation_page_view">
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={[{ name: "Implementation", path: "/implementation" }]} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={[{ name: "Implementation", path: "/implementation" }]} />
+            </Container>
+          </Section>
 
-        <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
-          <Container>
-            <Stack gap={5} className="max-w-[760px]">
-              <Text variant="eyebrow">{IMPLEMENTATION_PAGE.eyebrow}</Text>
-              <Heading level="display" as="h1">
-                {IMPLEMENTATION_PAGE.heading}
-              </Heading>
-              <Text variant="lead">{IMPLEMENTATION_PAGE.supportingText}</Text>
-              <div>
-                <TrackedCtaLink href="/book-demo" event="implementation_cta_click" ctaLocation="implementation_hero">
-                  {IMPLEMENTATION_PAGE.conversion.ctaLabel}
-                </TrackedCtaLink>
-              </div>
-            </Stack>
-          </Container>
-        </Section>
+          <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className="flex flex-1 items-center">
+            <Container>
+              <Stack gap={5} className="max-w-[760px]">
+                <Text variant="eyebrow">{IMPLEMENTATION_PAGE.eyebrow}</Text>
+                <Heading level="display" as="h1">
+                  {IMPLEMENTATION_PAGE.heading}
+                </Heading>
+                <Text variant="lead">{IMPLEMENTATION_PAGE.supportingText}</Text>
+                <div>
+                  <TrackedCtaLink href="/book-demo" event="implementation_cta_click" ctaLocation="implementation_hero">
+                    {IMPLEMENTATION_PAGE.conversion.ctaLabel}
+                  </TrackedCtaLink>
+                </div>
+              </Stack>
+            </Container>
+          </Section>
+        </div>
       </TrackView>
 
       <DirectDefinition definition={IMPLEMENTATION_PAGE.directDefinition} />

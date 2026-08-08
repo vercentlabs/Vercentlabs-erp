@@ -31,22 +31,27 @@ export default function ProductOverviewPage() {
   return (
     <>
       <TrackView event="platform_page_view" properties={{ workflow: "product-overview" }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={[{ name: "Product", path: "/product" }]} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={[{ name: "Product", path: "/product" }]} />
+            </Container>
+          </Section>
 
-        <PlatformHero
-          eyebrow={PRODUCT_OVERVIEW_PAGE.eyebrow}
-          heading={PRODUCT_OVERVIEW_PAGE.heading}
-          supportingText={PRODUCT_OVERVIEW_PAGE.supportingText}
-          heroScreenshotId={PRODUCT_OVERVIEW_PAGE.heroScreenshotId}
-          ctaHref={PRODUCT_OVERVIEW_PAGE.primaryCta.href}
-          ctaLabel={PRODUCT_OVERVIEW_PAGE.primaryCta.label}
-          ctaEvent="platform_cta_click"
-          ctaLocation="product_overview_hero"
-        />
+          <PlatformHero
+            eyebrow={PRODUCT_OVERVIEW_PAGE.eyebrow}
+            heading={PRODUCT_OVERVIEW_PAGE.heading}
+            supportingText={PRODUCT_OVERVIEW_PAGE.supportingText}
+            heroScreenshotId={PRODUCT_OVERVIEW_PAGE.heroScreenshotId}
+            ctaHref={PRODUCT_OVERVIEW_PAGE.primaryCta.href}
+            ctaLabel={PRODUCT_OVERVIEW_PAGE.primaryCta.label}
+            ctaEvent="platform_cta_click"
+            ctaLocation="product_overview_hero"
+          />
+        </div>
       </TrackView>
 
       <DirectDefinition definition={PRODUCT_OVERVIEW_PAGE.directDefinition} />

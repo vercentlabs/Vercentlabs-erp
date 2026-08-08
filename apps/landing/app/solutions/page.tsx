@@ -33,26 +33,31 @@ export default function SolutionsIndexPage() {
   return (
     <>
       <TrackView event="solutions_index_view">
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={[{ name: "Solutions", path: "/solutions" }]} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={[{ name: "Solutions", path: "/solutions" }]} />
+            </Container>
+          </Section>
 
-        <Section tone="page" paddingTop={{ base: 8, sm: 10 }}>
-          <Container>
-            <Stack gap={5} className="max-w-[760px]">
-              <Text variant="eyebrow">Solutions</Text>
-              <Heading level="display" as="h1">
-                Five real business problems, five real answers.
-              </Heading>
-              <Text variant="lead">
-                Not a repeat of the platform capability pages — each solution below starts from the actual problem, not the
-                feature that eventually solves it.
-              </Text>
-            </Stack>
-          </Container>
-        </Section>
+          <Section tone="page" paddingTop={{ base: 8, sm: 10 }} className="flex flex-1 items-center">
+            <Container>
+              <Stack gap={5} className="max-w-[760px]">
+                <Text variant="eyebrow">Solutions</Text>
+                <Heading level="display" as="h1">
+                  Five real business problems, five real answers.
+                </Heading>
+                <Text variant="lead">
+                  Not a repeat of the platform capability pages — each solution below starts from the actual problem, not the
+                  feature that eventually solves it.
+                </Text>
+              </Stack>
+            </Container>
+          </Section>
+        </div>
       </TrackView>
 
       <Section tone="page">

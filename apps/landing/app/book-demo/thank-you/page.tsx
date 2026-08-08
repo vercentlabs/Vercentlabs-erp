@@ -14,7 +14,7 @@ export const metadata = buildPageMetadata({
 
 export default function ThankYouPage() {
   return (
-    <Section tone="page" paddingTop={{ base: 14, sm: 20 }}>
+    <Section tone="page" paddingTop={{ base: 14, sm: 20 }} className="flex min-h-[calc(100vh-4rem)] flex-col justify-center">
       <Container>
         <div className="mx-auto max-w-[560px] text-center">
           {/*

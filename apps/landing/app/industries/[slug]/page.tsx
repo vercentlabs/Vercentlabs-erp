@@ -70,23 +70,28 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
   return (
     <>
       <TrackView event="industry_page_view" properties={{ industry: industry.slug }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <PlatformHero
-          eyebrow="Industry"
-          heading={`Vercentlabs ERP for ${industry.name}`}
-          supportingText={industry.directDefinition}
-          heroScreenshotId={industry.screenshots.primary}
-          connectedModuleKeys={industry.moduleStack.map((entry) => entry.moduleKey)}
-          ctaHref={`/book-demo?industry=${industry.slug}`}
-          ctaLabel={industry.conversion.ctaLabel}
-          ctaEvent="industry_final_cta_click"
-          ctaLocation={`industry_hero_${industry.slug}`}
-        />
+          <PlatformHero
+            eyebrow="Industry"
+            heading={`Vercentlabs ERP for ${industry.name}`}
+            supportingText={industry.directDefinition}
+            heroScreenshotId={industry.screenshots.primary}
+            connectedModuleKeys={industry.moduleStack.map((entry) => entry.moduleKey)}
+            ctaHref={`/book-demo?industry=${industry.slug}`}
+            ctaLabel={industry.conversion.ctaLabel}
+            ctaEvent="industry_final_cta_click"
+            ctaLocation={`industry_hero_${industry.slug}`}
+          />
+        </div>
       </TrackView>
 
       <DirectDefinition definition={industry.operatingModel} />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLandingModule } from "@vercentlabs/landing-content";
+import { cx } from "@/lib/utils";
 import { Container, Section, Stack, Inline, SplitLayout } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { ProductScreenshot } from "@/components/product/product-frame";
@@ -18,11 +19,13 @@ export function PlatformHero({
   ctaLabel,
   ctaEvent,
   ctaLocation,
+  className,
 }: {
   eyebrow: string;
   heading: string;
   supportingText: string;
   heroScreenshotId?: string;
+  className?: string;
   /**
    * Real modules built on this capability, rendered as a color-tag cluster
    * when no screenshot exists — a Phase 4 Cycle 2 brand/design review found
@@ -56,7 +59,7 @@ export function PlatformHero({
   );
 
   return (
-    <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
+    <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className={cx("flex flex-1 flex-col justify-center", className)}>
       <Container>
         {screenshot ? (
           <SplitLayout ratio="primary-wide" primary={copy} secondary={<ProductScreenshot id={screenshot.id} priority />} />

@@ -36,25 +36,30 @@ export default function ResourcesIndexPage() {
   return (
     <>
       <TrackView event="resources_index_view">
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <Section tone="page" paddingTop={{ base: 10, sm: 12 }}>
-          <Container>
-            <Stack gap={5} className="max-w-[780px]">
-              <Text variant="eyebrow">Resources</Text>
-              <Heading level="display" as="h1">
-                ERP buying, implementation, and reference guides
-              </Heading>
-              <Text variant="lead">
-                Real, evidence-grounded guides for evaluating and implementing ERP software — vendor-neutral where the topic calls for it, specific about Vercentlabs where that&apos;s genuinely useful.
-              </Text>
-            </Stack>
-          </Container>
-        </Section>
+          <Section tone="page" paddingTop={{ base: 10, sm: 12 }} className="flex flex-1 items-center">
+            <Container>
+              <Stack gap={5} className="max-w-[780px]">
+                <Text variant="eyebrow">Resources</Text>
+                <Heading level="display" as="h1">
+                  ERP buying, implementation, and reference guides
+                </Heading>
+                <Text variant="lead">
+                  Real, evidence-grounded guides for evaluating and implementing ERP software — vendor-neutral where the topic calls for it, specific about Vercentlabs where that&apos;s genuinely useful.
+                </Text>
+              </Stack>
+            </Container>
+          </Section>
+        </div>
       </TrackView>
 
       <DirectDefinition definition="This resource hub covers the ERP buying, implementation, and terminology questions a real evaluation runs into — a buying guide, a requirements checklist, an implementation checklist, a migration guide, a manufacturing ERP guide, an ERP-vs-spreadsheets breakdown, a glossary, and vendor comparisons." />

@@ -59,19 +59,24 @@ export default function VercentlabsVsOdooPage() {
   return (
     <>
       <TrackView event="comparison_page_view" properties={{ section: VERCENTLABS_VS_ODOO.slug }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <ArticleHeader
-          eyebrow="Compare"
-          title={`Vercentlabs vs. ${VERCENTLABS_VS_ODOO.competitor}`}
-          dek={VERCENTLABS_VS_ODOO.directAnswer}
-          author={AUTHOR}
-          freshness={freshness}
-        />
+          <ArticleHeader
+            eyebrow="Compare"
+            title={`Vercentlabs vs. ${VERCENTLABS_VS_ODOO.competitor}`}
+            dek={VERCENTLABS_VS_ODOO.directAnswer}
+            author={AUTHOR}
+            freshness={freshness}
+          />
+        </div>
       </TrackView>
 
       <Section tone="page">

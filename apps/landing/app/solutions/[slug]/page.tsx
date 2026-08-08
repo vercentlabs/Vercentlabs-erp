@@ -83,23 +83,28 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
   return (
     <>
       <TrackView event="solution_page_view" properties={{ section: solution.slug }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <PlatformHero
-          eyebrow="Solution"
-          heading={solution.name}
-          supportingText={solution.problemStatement}
-          heroScreenshotId={solution.screenshotId}
-          connectedModuleKeys={solution.relatedModuleKeys}
-          ctaHref={`/book-demo?solution=${solution.slug}`}
-          ctaLabel={solution.conversion.ctaLabel}
-          ctaEvent="solution_cta_click"
-          ctaLocation={`solution_hero_${solution.slug}`}
-        />
+          <PlatformHero
+            eyebrow="Solution"
+            heading={solution.name}
+            supportingText={solution.problemStatement}
+            heroScreenshotId={solution.screenshotId}
+            connectedModuleKeys={solution.relatedModuleKeys}
+            ctaHref={`/book-demo?solution=${solution.slug}`}
+            ctaLabel={solution.conversion.ctaLabel}
+            ctaEvent="solution_cta_click"
+            ctaLocation={`solution_hero_${solution.slug}`}
+          />
+        </div>
       </TrackView>
 
       <DirectDefinition definition={solution.directDefinition} />

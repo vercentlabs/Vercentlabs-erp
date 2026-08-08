@@ -32,25 +32,30 @@ export default function CompareIndexPage() {
   return (
     <>
       <TrackView event="compare_index_view">
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <Section tone="page" paddingTop={{ base: 10, sm: 12 }}>
-          <Container>
-            <Stack gap={5} className="max-w-[780px]">
-              <Text variant="eyebrow">Compare</Text>
-              <Heading level="display" as="h1">
-                Compare Vercentlabs
-              </Heading>
-              <Text variant="lead">
-                Every comparison here is built from real, live-verified sources — never &ldquo;Vercentlabs is better,&rdquo; always where each platform may actually be the stronger fit.
-              </Text>
-            </Stack>
-          </Container>
-        </Section>
+          <Section tone="page" paddingTop={{ base: 10, sm: 12 }} className="flex flex-1 items-center">
+            <Container>
+              <Stack gap={5} className="max-w-[780px]">
+                <Text variant="eyebrow">Compare</Text>
+                <Heading level="display" as="h1">
+                  Compare Vercentlabs
+                </Heading>
+                <Text variant="lead">
+                  Every comparison here is built from real, live-verified sources — never &ldquo;Vercentlabs is better,&rdquo; always where each platform may actually be the stronger fit.
+                </Text>
+              </Stack>
+            </Container>
+          </Section>
+        </div>
       </TrackView>
 
       <DirectDefinition definition="This page indexes Vercentlabs' evidence-based ERP comparisons — currently one, against Odoo, with more added only where real intent, verifiable evidence, and a maintainable difference exist. See docs/landing-redesign/phase-6/comparison-policy.md for the standard every comparison here has to clear." />

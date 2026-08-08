@@ -39,23 +39,28 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
   return (
     <>
       <TrackView event="platform_page_view" properties={{ workflow: content.slug }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <PlatformHero
-          eyebrow={content.eyebrow}
-          heading={content.heading}
-          supportingText={content.supportingText}
-          heroScreenshotId={content.heroScreenshotId}
-          connectedModuleKeys={content.connectedModuleKeys}
-          ctaHref={content.primaryCta.href}
-          ctaLabel={content.primaryCta.label}
-          ctaEvent="platform_cta_click"
-          ctaLocation={`platform_hero_${content.slug}`}
-        />
+          <PlatformHero
+            eyebrow={content.eyebrow}
+            heading={content.heading}
+            supportingText={content.supportingText}
+            heroScreenshotId={content.heroScreenshotId}
+            connectedModuleKeys={content.connectedModuleKeys}
+            ctaHref={content.primaryCta.href}
+            ctaLabel={content.primaryCta.label}
+            ctaEvent="platform_cta_click"
+            ctaLocation={`platform_hero_${content.slug}`}
+          />
+        </div>
       </TrackView>
 
       <DirectDefinition definition={content.directDefinition} />

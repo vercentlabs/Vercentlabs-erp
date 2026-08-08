@@ -35,28 +35,33 @@ export default function ModulesIndexPage() {
   return (
     <>
       <TrackView event="modules_index_view">
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={[{ name: "Modules", path: "/modules" }]} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={[{ name: "Modules", path: "/modules" }]} />
+            </Container>
+          </Section>
 
-        <Section tone="page" paddingTop={{ base: 8, sm: 10 }}>
-          <Container>
-            <Stack gap={5} className="max-w-[760px]">
-              <Text variant="eyebrow">{MODULES_INDEX_PAGE.eyebrow}</Text>
-              <Heading level="display" as="h1">
-                {MODULES_INDEX_PAGE.heading}
-              </Heading>
-              <Text variant="lead">{MODULES_INDEX_PAGE.supportingText}</Text>
-              <div>
-                <TrackedCtaLink href={MODULES_INDEX_PAGE.primaryCta.href} event="platform_cta_click" ctaLocation="modules_index_hero">
-                  {MODULES_INDEX_PAGE.primaryCta.label}
-                </TrackedCtaLink>
-              </div>
-            </Stack>
-          </Container>
-        </Section>
+          <Section tone="page" paddingTop={{ base: 8, sm: 10 }} className="flex flex-1 items-center">
+            <Container>
+              <Stack gap={5} className="max-w-[760px]">
+                <Text variant="eyebrow">{MODULES_INDEX_PAGE.eyebrow}</Text>
+                <Heading level="display" as="h1">
+                  {MODULES_INDEX_PAGE.heading}
+                </Heading>
+                <Text variant="lead">{MODULES_INDEX_PAGE.supportingText}</Text>
+                <div>
+                  <TrackedCtaLink href={MODULES_INDEX_PAGE.primaryCta.href} event="platform_cta_click" ctaLocation="modules_index_hero">
+                    {MODULES_INDEX_PAGE.primaryCta.label}
+                  </TrackedCtaLink>
+                </div>
+              </Stack>
+            </Container>
+          </Section>
+        </div>
       </TrackView>
 
       <DirectDefinition definition={MODULES_INDEX_PAGE.directDefinition} />
