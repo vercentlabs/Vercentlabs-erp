@@ -17,7 +17,7 @@ import {
   LANDING_MODULES,
   CTAS,
 } from "@vercentlabs/landing-content";
-import { Container, Section, Stack, Inline, Grid, SectionHeader } from "@/components/layout/container";
+import { Container, Section, Stack, Inline, Grid, SplitLayout, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { ButtonLink } from "@/components/ui/button";
 import { ModuleTag } from "@/components/ui/tag";
@@ -62,38 +62,46 @@ export default function HomePage() {
   const hasHeroScreenshot = Boolean(getApprovedScreenshot(HERO.screenshotId));
   const approvedWorkflowScreenshotIds = FLAGSHIP_WORKFLOW_SECTION.screenshotIds.filter((id) => getApprovedScreenshot(id));
 
+  const heroCopy = (
+    <Stack gap={5} className={hasHeroScreenshot ? undefined : "max-w-[720px]"}>
+      <Text variant="eyebrow">{HERO.eyebrow}</Text>
+      <Heading level="display">{HERO.heading}</Heading>
+      <Text variant="lead">{HERO.supportingText}</Text>
+      <Inline gap={3}>
+        <TrackedCtaLink href={HERO.primaryCta.href} event={HERO.primaryCta.analyticsId} ctaLocation="hero">
+          {HERO.primaryCta.label}
+        </TrackedCtaLink>
+        <TrackedCtaLink href={HERO.secondaryCta.href} event={HERO.secondaryCta.analyticsId} ctaLocation="hero" variant="secondary">
+          {HERO.secondaryCta.label}
+        </TrackedCtaLink>
+      </Inline>
+      <Inline gap={6} className="mt-2 flex-wrap">
+        {HERO.evidence.map((item) => (
+          <Metric key={item.label} label={item.label} value={item.value} />
+        ))}
+      </Inline>
+    </Stack>
+  );
+
   return (
     <>
       <HomepageViewTracker />
       {/* Hero */}
       <TrackView event="hero_view">
-        <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
+        {/* Header is a sticky h-16 (4rem) bar — this fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className="flex min-h-[calc(100vh-4rem)] flex-col justify-center">
           <Container>
-            <Grid
-              columns={hasHeroScreenshot ? 2 : 1}
-              gap={8}
-              className={hasHeroScreenshot ? "items-center lg:grid-cols-[1.1fr_1fr]" : "items-start"}
-            >
-              <Stack gap={5} className={hasHeroScreenshot ? undefined : "max-w-[720px]"}>
-                <Text variant="eyebrow">{HERO.eyebrow}</Text>
-                <Heading level="display">{HERO.heading}</Heading>
-                <Text variant="lead">{HERO.supportingText}</Text>
-                <Inline gap={3}>
-                  <TrackedCtaLink href={HERO.primaryCta.href} event={HERO.primaryCta.analyticsId} ctaLocation="hero">
-                    {HERO.primaryCta.label}
-                  </TrackedCtaLink>
-                  <TrackedCtaLink href={HERO.secondaryCta.href} event={HERO.secondaryCta.analyticsId} ctaLocation="hero" variant="secondary">
-                    {HERO.secondaryCta.label}
-                  </TrackedCtaLink>
-                </Inline>
-                <Inline gap={6} className="mt-2 flex-wrap">
-                  {HERO.evidence.map((item) => (
-                    <Metric key={item.label} label={item.label} value={item.value} />
-                  ))}
-                </Inline>
-              </Stack>
-              {hasHeroScreenshot ? <ProductScreenshot id={HERO.screenshotId} moduleAccentColor="var(--color-brand)" priority /> : null}
-            </Grid>
+            {hasHeroScreenshot ? (
+              <SplitLayout
+                ratio="primary-wide"
+                primary={heroCopy}
+                secondary={<ProductScreenshot id={HERO.screenshotId} moduleAccentColor="var(--color-brand)" priority />}
+              />
+            ) : (
+              heroCopy
+            )}
           </Container>
         </Section>
       </TrackView>
@@ -128,7 +136,7 @@ export default function HomePage() {
             />
             <div className="mt-10 overflow-x-auto">
               <WorkflowConnector
-                className="min-w-[760px] lg:min-w-0"
+                className="min-w-0 sm:min-w-[760px] lg:min-w-0"
                 steps={CONNECTED_SYSTEM_SECTION.steps.map((step) => {
                   const moduleInfo = LANDING_MODULES.find((candidate) => candidate.key === step.module);
                   return { label: step.label, accentColor: moduleInfo?.accentColor.hex ?? "var(--color-brand)" };

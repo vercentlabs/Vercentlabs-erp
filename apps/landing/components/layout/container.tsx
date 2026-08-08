@@ -1,4 +1,4 @@
-import type { ElementType, ReactNode } from "react";
+import { Children, type ElementType, type ReactNode } from "react";
 import { cx } from "@/lib/utils";
 
 interface ContainerProps {
@@ -171,16 +171,33 @@ interface GridProps {
   gap?: 1 | 2 | 3 | 4 | 6 | 8 | 10;
 }
 
-const GRID_COLUMN_CLASSES: Record<NonNullable<GridProps["columns"]>, string> = {
-  1: "grid-cols-1",
-  2: "grid-cols-1 sm:grid-cols-2",
-  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
-  12: "grid-cols-1 sm:grid-cols-12",
+/**
+ * Every Grid sits on one persistent 12-column track (grid-cols-12), at every
+ * breakpoint — "columns" no longer changes the number of tracks, it just changes how
+ * many of the 12 each child spans. That's what makes a 2-column Grid on one page and
+ * a 4-column Grid elsewhere on the same page (or a different page entirely, since
+ * Container's width is identical everywhere) share the exact same underlying column
+ * boundaries, instead of each independently computing its own equal-width fractions
+ * that only coincidentally lined up. The responsive progression (1 col on mobile, 2
+ * on tablet, N on desktop) is preserved — it's just expressed as a span that changes
+ * per breakpoint instead of a track count that changes.
+ */
+const GRID_ITEM_SPAN_CLASSES: Record<NonNullable<GridProps["columns"]>, string> = {
+  1: "col-span-12",
+  2: "col-span-12 sm:col-span-6",
+  3: "col-span-12 sm:col-span-6 lg:col-span-4",
+  4: "col-span-12 sm:col-span-6 lg:col-span-3",
+  12: "col-span-12 sm:col-span-1",
 };
 
 export function Grid({ children, className, columns = 3, gap = 6 }: GridProps) {
-  return <div className={cx("grid", GRID_COLUMN_CLASSES[columns], GAP_CLASSES[gap], className)}>{children}</div>;
+  return (
+    <div className={cx("grid grid-cols-12", GAP_CLASSES[gap], className)}>
+      {Children.map(children, (child) => (
+        <div className={GRID_ITEM_SPAN_CLASSES[columns]}>{child}</div>
+      ))}
+    </div>
+  );
 }
 
 interface SplitLayoutProps {
@@ -191,18 +208,18 @@ interface SplitLayoutProps {
   ratio?: "even" | "primary-wide";
 }
 
-/** Two-column layout (e.g. hero copy + product screenshot) that stacks on mobile. */
+/**
+ * Two-column layout (e.g. hero copy + product screenshot) that stacks on mobile —
+ * on the same persistent 12-column track as Grid (see its comment), so a hero split
+ * 7/5 lines up with a 2-column Grid's 6/6 boundary and a 4-column Grid's 3/3/3/3
+ * boundaries elsewhere on the page, instead of each computing independent fractions.
+ */
 export function SplitLayout({ primary, secondary, className, ratio = "even" }: SplitLayoutProps) {
+  const [primarySpan, secondarySpan] = ratio === "primary-wide" ? ["lg:col-span-7", "lg:col-span-5"] : ["lg:col-span-6", "lg:col-span-6"];
   return (
-    <div
-      className={cx(
-        "grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16",
-        ratio === "primary-wide" && "lg:grid-cols-[1.2fr_1fr]",
-        className,
-      )}
-    >
-      <div>{primary}</div>
-      <div>{secondary}</div>
+    <div className={cx("grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-16", className)}>
+      <div className={primarySpan}>{primary}</div>
+      <div className={secondarySpan}>{secondary}</div>
     </div>
   );
 }
