@@ -13,6 +13,14 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: "h-9 px-4 text-sm",
 };
 
+// "tertiary" renders as plain inline link text, not a bordered/filled button —
+// it must stay flush with surrounding text (no horizontal padding), unlike the
+// other variants where padding keeps text clear of a visible background/border.
+const TERTIARY_SIZE_CLASSES: Record<ButtonSize, string> = {
+  md: "h-11 text-sm",
+  sm: "h-9 text-sm",
+};
+
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-(--color-bg-brand) text-(--color-text-inverse) hover:bg-(--color-text-brand)",
   secondary:
@@ -20,6 +28,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   tertiary: "text-(--color-text-brand) hover:underline underline-offset-4",
   inverse: "bg-(--color-bg-elevated) text-(--color-text-primary) hover:bg-(--color-bg-subtle)",
 };
+
+function sizeClasses(variant: ButtonVariant, size: ButtonSize): string {
+  return variant === "tertiary" ? TERTIARY_SIZE_CLASSES[size] : SIZE_CLASSES[size];
+}
 
 interface CommonProps {
   variant?: ButtonVariant;
@@ -54,7 +66,7 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx(BASE_CLASSES, SIZE_CLASSES[size], VARIANT_CLASSES[variant], className)}
+      className={cx(BASE_CLASSES, sizeClasses(variant, size), VARIANT_CLASSES[variant], className)}
       {...rest}
     >
       {loading ? <Spinner /> : null}
@@ -92,7 +104,7 @@ export function ButtonLink({
     <Link
       href={href}
       prefetch={prefetch}
-      className={cx(BASE_CLASSES, SIZE_CLASSES[size], VARIANT_CLASSES[variant], className)}
+      className={cx(BASE_CLASSES, sizeClasses(variant, size), VARIANT_CLASSES[variant], className)}
       {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       {...rest}
     >
