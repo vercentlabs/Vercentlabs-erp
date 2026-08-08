@@ -183,6 +183,13 @@ export const CTAS: {
   talkToSpecialist: Cta;
 };
 
+export const ANNOUNCEMENT_BANNER: {
+  id: string;
+  message: string;
+  ctaLabel: string;
+  href: string;
+};
+
 export const ANALYTICS_EVENTS: readonly [
   "homepage_view",
   "demo_form_start",
@@ -227,6 +234,9 @@ export const ANALYTICS_EVENTS: readonly [
   "web_vitals_lcp",
   "web_vitals_inp",
   "web_vitals_cls",
+  "announcement_banner_view",
+  "announcement_banner_cta_click",
+  "announcement_banner_dismiss",
 ];
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };

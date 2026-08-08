@@ -46,6 +46,22 @@ export const CTAS = Object.freeze({
 });
 
 /**
+ * Site-wide top announcement bar (components/layout/announcement-banner.tsx).
+ * `id` is a dismissal key stored in localStorage — bump it whenever the message
+ * changes so visitors who dismissed an earlier announcement see the new one.
+ * No fabricated offer/discount/credit amount here: this project's evidence rules
+ * (docs/landing-redesign/phase-1's "never fabricate" rule) apply to promotional
+ * claims exactly as they do to product claims — a specific number here would be a
+ * real commercial promise, not filler copy.
+ */
+export const ANNOUNCEMENT_BANNER = Object.freeze({
+  id: "launch-2026-08",
+  message: "Vercentlabs ERP is live — see it running your workflows.",
+  ctaLabel: "Book a Product Demo",
+  href: "/book-demo",
+});
+
+/**
  * Analytics event names not tied to a specific homepage section (those are
  * declared per-section via `analyticsId` in homepage.js instead — see
  * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). Reconciled in
@@ -105,4 +121,7 @@ export const ANALYTICS_EVENTS = Object.freeze([
   "web_vitals_lcp",
   "web_vitals_inp",
   "web_vitals_cls",
+  "announcement_banner_view",
+  "announcement_banner_cta_click",
+  "announcement_banner_dismiss",
 ]);

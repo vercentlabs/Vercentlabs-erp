@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ROOT_METADATA } from "@/lib/metadata";
 import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/json-ld";
 import { Header } from "@/components/navigation/header";
+import { AnnouncementBanner } from "@/components/layout/announcement-banner";
 import { Footer } from "@/components/layout/footer";
 import { SkipLink } from "@/components/layout/skip-link";
 import { AttributionInit } from "@/components/analytics/attribution-init";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body>
         <SkipLink />
+        <AnnouncementBanner />
         <Header />
         {/* tabIndex={-1}: without it, the skip link scrolls the viewport to
             #main-content but never moves keyboard focus there (an <a
