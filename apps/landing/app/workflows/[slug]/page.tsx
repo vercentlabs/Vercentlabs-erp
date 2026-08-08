@@ -75,7 +75,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
   return (
     <>
       <TrackView event="workflow_page_view" properties={{ workflow: workflow.slug }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>

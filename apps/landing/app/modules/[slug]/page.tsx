@@ -88,7 +88,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   return (
     <>
       <TrackView event="module_page_view" properties={{ workflow: landingModule.key }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>

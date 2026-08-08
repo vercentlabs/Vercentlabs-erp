@@ -70,7 +70,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
   return (
     <>
       <TrackView event="industry_page_view" properties={{ industry: industry.slug }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>

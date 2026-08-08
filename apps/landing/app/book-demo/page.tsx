@@ -73,7 +73,7 @@ export default async function BookDemoPage({
     .filter((name): name is string => Boolean(name));
 
   return (
-    <Section tone="page" className="pt-10 sm:pt-14">
+    <Section tone="page" paddingTop={{ base: 10, sm: 14 }}>
       <Container>
         <Breadcrumbs trail={[{ name: "Book a Demo", path: "/book-demo" }]} />
         <Grid columns={2} gap={10} className="mt-6 items-start">

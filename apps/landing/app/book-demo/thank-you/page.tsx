@@ -14,7 +14,7 @@ export const metadata = buildPageMetadata({
 
 export default function ThankYouPage() {
   return (
-    <Section tone="page" className="pt-14 sm:pt-20">
+    <Section tone="page" paddingTop={{ base: 14, sm: 20 }}>
       <Container>
         <div className="mx-auto max-w-[560px] text-center">
           {/*

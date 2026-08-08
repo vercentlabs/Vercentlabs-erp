@@ -39,7 +39,7 @@ export default function DesignSystemPage() {
       </Text>
 
       {/* Colour */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader eyebrow="Foundations" title="Colour tokens" />
         <Grid columns={4} gap={4} className="mt-6">
           {swatches.map(([name, value]) => (
@@ -83,7 +83,7 @@ export default function DesignSystemPage() {
       <Divider />
 
       {/* Typography */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader eyebrow="Foundations" title="Typography" />
         <Stack gap={4} className="mt-6">
           <Heading level="display">Display heading</Heading>
@@ -123,7 +123,7 @@ export default function DesignSystemPage() {
       <Divider />
 
       {/* Buttons */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader eyebrow="Actions" title="Buttons and links" />
         <Stack gap={4} className="mt-6">
           <Inline gap={3}>
@@ -154,7 +154,7 @@ export default function DesignSystemPage() {
       <Divider />
 
       {/* Structure */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader eyebrow="Structure" title="Cards, panels, tags, metrics" />
         <Grid columns={3} gap={6} className="mt-6">
           <Card accentColor={COLOR_TOKENS.brandAccent}>
@@ -201,7 +201,7 @@ export default function DesignSystemPage() {
       <Divider />
 
       {/* Forms */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader eyebrow="Forms" title="Form primitives and states" />
         <Grid columns={2} gap={8} className="mt-6">
           <Stack gap={5}>
@@ -254,7 +254,7 @@ export default function DesignSystemPage() {
       <Divider />
 
       {/* Product presentation */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader
           eyebrow="Product"
           title="Product screenshot framework"
@@ -284,7 +284,7 @@ export default function DesignSystemPage() {
       <Divider />
 
       {/* Navigation states */}
-      <Section tone="page" className="!py-12">
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader eyebrow="Navigation" title="Breadcrumbs" />
         <div className="mt-6">
           <Breadcrumbs

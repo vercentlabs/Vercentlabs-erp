@@ -39,7 +39,7 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
   return (
     <>
       <TrackView event="platform_page_view" properties={{ workflow: content.slug }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>
@@ -73,7 +73,7 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
         </Section>
       ))}
 
-      <Section tone="elevated" className="py-8 sm:py-10">
+      <Section tone="elevated" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 8, sm: 10 }}>
         <Container>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-base font-medium text-(--color-text-primary)">See {content.title} running in a live demo.</p>

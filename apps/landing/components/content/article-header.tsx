@@ -22,7 +22,7 @@ export function ArticleHeader({
   freshness: ContentFreshness;
 }) {
   return (
-    <Section tone="page" className="pb-0 pt-8 sm:pt-10">
+    <Section tone="page" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 0 }}>
       <Container>
         <Stack gap={5} className="max-w-[780px]">
           <Text variant="eyebrow">{eyebrow}</Text>

@@ -33,13 +33,13 @@ export default function SolutionsIndexPage() {
   return (
     <>
       <TrackView event="solutions_index_view">
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={[{ name: "Solutions", path: "/solutions" }]} />
           </Container>
         </Section>
 
-        <Section tone="page" className="pt-8 sm:pt-10">
+        <Section tone="page" paddingTop={{ base: 8, sm: 10 }}>
           <Container>
             <Stack gap={5} className="max-w-[760px]">
               <Text variant="eyebrow">Solutions</Text>

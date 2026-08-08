@@ -35,13 +35,13 @@ export default function WorkflowsIndexPage() {
   return (
     <>
       <TrackView event="workflows_index_view">
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={[{ name: "Workflows", path: "/workflows" }]} />
           </Container>
         </Section>
 
-        <Section tone="page" className="pt-8 sm:pt-10">
+        <Section tone="page" paddingTop={{ base: 8, sm: 10 }}>
           <Container>
             <Stack gap={5} className="max-w-[760px]">
               <Text variant="eyebrow">Cross-module workflows</Text>

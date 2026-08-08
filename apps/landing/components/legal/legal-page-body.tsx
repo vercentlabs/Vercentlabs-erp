@@ -10,7 +10,7 @@ import { TableOfContents } from "@/components/content/table-of-contents";
  */
 export function LegalPageBody({ content }: { content: LegalPageContent }) {
   return (
-    <Section tone="page" className="pb-24 pt-10">
+    <Section tone="page" paddingTop={{ base: 10 }} paddingBottom={{ base: 24 }}>
       <Container>
         <Breadcrumbs trail={[{ name: content.title, path: content.slug }]} />
         <Stack gap={2} className="mt-6 max-w-[70ch]">

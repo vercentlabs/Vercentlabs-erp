@@ -84,7 +84,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
   return (
     <>
       <TrackView event="resource_page_view" properties={{ section: guide.slug }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>

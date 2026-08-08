@@ -31,7 +31,7 @@ export default function ProductOverviewPage() {
   return (
     <>
       <TrackView event="platform_page_view" properties={{ workflow: "product-overview" }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={[{ name: "Product", path: "/product" }]} />
           </Container>

@@ -71,7 +71,7 @@ export default async function GlossaryTermPage({ params }: { params: Promise<{ s
   return (
     <>
       <TrackView event="glossary_page_view" properties={{ section: entry.slug }}>
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>

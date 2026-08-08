@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
  */
 export function DirectDefinition({ definition }: { definition: string }) {
   return (
-    <Section tone="subtle" className="py-10 sm:py-12">
+    <Section tone="subtle" paddingTop={{ base: 10, sm: 12 }} paddingBottom={{ base: 10, sm: 12 }}>
       <Container>
         <Text variant="bodyLarge" className="max-w-[820px] font-medium">
           {definition}

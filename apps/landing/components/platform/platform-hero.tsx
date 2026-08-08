@@ -56,7 +56,7 @@ export function PlatformHero({
   );
 
   return (
-    <Section tone="page" className="pt-12 sm:pt-16">
+    <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
       <Container>
         {screenshot ? (
           <SplitLayout ratio="primary-wide" primary={copy} secondary={<ProductScreenshot id={screenshot.id} priority />} />

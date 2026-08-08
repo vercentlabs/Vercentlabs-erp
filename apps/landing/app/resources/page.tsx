@@ -36,13 +36,13 @@ export default function ResourcesIndexPage() {
   return (
     <>
       <TrackView event="resources_index_view">
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={breadcrumbTrail} />
           </Container>
         </Section>
 
-        <Section tone="page" className="pt-10 sm:pt-12">
+        <Section tone="page" paddingTop={{ base: 10, sm: 12 }}>
           <Container>
             <Stack gap={5} className="max-w-[780px]">
               <Text variant="eyebrow">Resources</Text>

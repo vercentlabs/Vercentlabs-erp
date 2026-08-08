@@ -14,7 +14,7 @@ import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
  */
 export function ContextualCta({ moduleName, moduleSlug }: { moduleName: string; moduleSlug: string }) {
   return (
-    <Section tone="elevated" className="py-8 sm:py-10">
+    <Section tone="elevated" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 8, sm: 10 }}>
       <Container>
         <Inline gap={4} className="flex-wrap items-center justify-between">
           <Text variant="body" className="font-medium">

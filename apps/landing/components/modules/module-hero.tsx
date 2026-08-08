@@ -66,7 +66,7 @@ export function ModuleHero({ landingModule }: { landingModule: LandingModule }) 
   );
 
   return (
-    <Section tone="page" className="pt-12 sm:pt-16">
+    <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
       <Container>
         {effectiveVariant === "screenshot-led" || effectiveVariant === "dashboard-led" ? (
           <SplitLayout ratio="primary-wide" primary={copy} secondary={primaryScreenshot ? <ProductScreenshot id={primaryScreenshot.id} moduleAccentColor={landingModule.accentColor.hex} /> : null} />

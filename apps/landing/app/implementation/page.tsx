@@ -42,13 +42,13 @@ export default function ImplementationPage() {
   return (
     <>
       <TrackView event="implementation_page_view">
-        <Section tone="page" className="pb-0 pt-6">
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
           <Container>
             <Breadcrumbs trail={[{ name: "Implementation", path: "/implementation" }]} />
           </Container>
         </Section>
 
-        <Section tone="page" className="pt-12 sm:pt-16">
+        <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
           <Container>
             <Stack gap={5} className="max-w-[760px]">
               <Text variant="eyebrow">{IMPLEMENTATION_PAGE.eyebrow}</Text>

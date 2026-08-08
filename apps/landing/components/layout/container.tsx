@@ -17,6 +17,63 @@ export function NarrowContainer({ children, className, as: As = "div" }: Contain
   return <As className={cx("mx-auto w-full max-w-[760px] px-5 sm:px-6", className)}>{children}</As>;
 }
 
+/**
+ * Discrete Tailwind spacing values Section's padding props accept. Kept as a fixed
+ * set (not an arbitrary number) so every class this component can emit is a
+ * complete literal string somewhere below — Tailwind's build-time scanner can only
+ * discover classes it can see spelled out in source, not ones assembled at runtime
+ * via `pt-${n}` string interpolation.
+ */
+export type SectionSpacing = 0 | 6 | 8 | 10 | 12 | 14 | 16 | 20 | 24;
+
+/** A padding value that can grow at wider breakpoints; unset tiers fall back to the previous one. */
+export interface ResponsiveSpacing {
+  base: SectionSpacing;
+  sm?: SectionSpacing;
+  lg?: SectionSpacing;
+}
+
+const PADDING_TOP_CLASSES: Record<SectionSpacing, string> = {
+  0: "pt-0", 6: "pt-6", 8: "pt-8", 10: "pt-10", 12: "pt-12", 14: "pt-14", 16: "pt-16", 20: "pt-20", 24: "pt-24",
+};
+const PADDING_TOP_SM_CLASSES: Record<SectionSpacing, string> = {
+  0: "sm:pt-0", 6: "sm:pt-6", 8: "sm:pt-8", 10: "sm:pt-10", 12: "sm:pt-12", 14: "sm:pt-14", 16: "sm:pt-16", 20: "sm:pt-20", 24: "sm:pt-24",
+};
+const PADDING_TOP_LG_CLASSES: Record<SectionSpacing, string> = {
+  0: "lg:pt-0", 6: "lg:pt-6", 8: "lg:pt-8", 10: "lg:pt-10", 12: "lg:pt-12", 14: "lg:pt-14", 16: "lg:pt-16", 20: "lg:pt-20", 24: "lg:pt-24",
+};
+const PADDING_BOTTOM_CLASSES: Record<SectionSpacing, string> = {
+  0: "pb-0", 6: "pb-6", 8: "pb-8", 10: "pb-10", 12: "pb-12", 14: "pb-14", 16: "pb-16", 20: "pb-20", 24: "pb-24",
+};
+const PADDING_BOTTOM_SM_CLASSES: Record<SectionSpacing, string> = {
+  0: "sm:pb-0", 6: "sm:pb-6", 8: "sm:pb-8", 10: "sm:pb-10", 12: "sm:pb-12", 14: "sm:pb-14", 16: "sm:pb-16", 20: "sm:pb-20", 24: "sm:pb-24",
+};
+const PADDING_BOTTOM_LG_CLASSES: Record<SectionSpacing, string> = {
+  0: "lg:pb-0", 6: "lg:pb-6", 8: "lg:pb-8", 10: "lg:pb-10", 12: "lg:pb-12", 14: "lg:pb-14", 16: "lg:pb-16", 20: "lg:pb-20", 24: "lg:pb-24",
+};
+
+const DEFAULT_SECTION_PADDING: ResponsiveSpacing = { base: 16, sm: 20, lg: 24 };
+
+/**
+ * Always emits all three breakpoint tiers explicitly (filling forward from the most
+ * specific value given), so there's never a wider, unset breakpoint left pointing at
+ * some other default class competing for the same CSS property. That's what caused
+ * a real, confirmed bug: a plain `pt-8` override was silently losing to the
+ * component's own `lg:py-24` default at desktop widths, because Tailwind places
+ * `@media` breakpoint rules after plain utility rules in the generated stylesheet —
+ * so the base class always won regardless of source/className order. See
+ * docs/landing-redesign/phase-8/decision-log.md.
+ */
+function paddingClassName(side: "top" | "bottom", spacing: ResponsiveSpacing): string {
+  const sm = spacing.sm ?? spacing.base;
+  const lg = spacing.lg ?? sm;
+  const [BASE, SM, LG] =
+    side === "top"
+      ? [PADDING_TOP_CLASSES, PADDING_TOP_SM_CLASSES, PADDING_TOP_LG_CLASSES]
+      : [PADDING_BOTTOM_CLASSES, PADDING_BOTTOM_SM_CLASSES, PADDING_BOTTOM_LG_CLASSES];
+  return cx(BASE[spacing.base], SM[sm], LG[lg]);
+}
+
 interface SectionProps {
   children: ReactNode;
   className?: string;
@@ -24,6 +81,9 @@ interface SectionProps {
   tone?: "page" | "subtle" | "inverse" | "elevated";
   as?: ElementType;
   id?: string;
+  /** Overrides the default `{ base: 16, sm: 20, lg: 24 }` vertical rhythm for this edge only. */
+  paddingTop?: ResponsiveSpacing;
+  paddingBottom?: ResponsiveSpacing;
 }
 
 const TONE_CLASSES: Record<NonNullable<SectionProps["tone"]>, string> = {
@@ -34,9 +94,17 @@ const TONE_CLASSES: Record<NonNullable<SectionProps["tone"]>, string> = {
 };
 
 /** Full-bleed section band with standard vertical rhythm. */
-export function Section({ children, className, tone = "page", as: As = "section", id }: SectionProps) {
+export function Section({ children, className, tone = "page", as: As = "section", id, paddingTop, paddingBottom }: SectionProps) {
   return (
-    <As id={id} className={cx("py-16 sm:py-20 lg:py-24", TONE_CLASSES[tone], className)}>
+    <As
+      id={id}
+      className={cx(
+        paddingClassName("top", paddingTop ?? DEFAULT_SECTION_PADDING),
+        paddingClassName("bottom", paddingBottom ?? DEFAULT_SECTION_PADDING),
+        TONE_CLASSES[tone],
+        className,
+      )}
+    >
       {children}
     </As>
   );
