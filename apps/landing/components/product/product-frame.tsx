@@ -118,9 +118,9 @@ export interface WorkflowStep {
 /** Horizontal, module-coloured pipeline — the Control Surface way to show cross-module workflows. */
 export function WorkflowConnector({ steps, className }: { steps: WorkflowStep[]; className?: string }) {
   return (
-    <ol className={cx("flex flex-col gap-0 sm:flex-row sm:items-stretch", className)}>
+    <ol className={cx("flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-0", className)}>
       {steps.map((step, index) => (
-        <li key={step.label} className="flex flex-1 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-0">
+        <li key={step.label} className="flex flex-1 items-center gap-3 sm:flex-none sm:flex-col sm:items-stretch sm:gap-0">
           <div className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-2">
             <span
               className="flex h-8 w-8 flex-none items-center justify-center rounded-(--radius-control) text-xs font-semibold text-(--color-text-inverse)"
@@ -131,9 +131,12 @@ export function WorkflowConnector({ steps, className }: { steps: WorkflowStep[];
             </span>
             <span className="text-sm font-medium text-(--color-text-primary)">{step.label}</span>
           </div>
-          {index < steps.length - 1 ? (
-            <span className="mx-2 h-px flex-1 bg-(--color-border-default) sm:my-3 sm:ml-4 sm:h-8 sm:w-px sm:flex-none" aria-hidden="true" />
-          ) : null}
+          {/* Renders for every step including the last: it's a per-item marker (a row
+              divider below `sm`, a small tick beside/under each node at `sm` and up),
+              not a literal line connecting to the next node — so omitting it only for
+              the last step just made that one item look broken/inconsistent with its
+              siblings rather than signalling "end of chain". */}
+          <span className="mx-2 h-px flex-1 bg-(--color-border-default) sm:my-3 sm:ml-4 sm:h-8 sm:w-px sm:flex-none" aria-hidden="true" />
         </li>
       ))}
     </ol>
