@@ -1,0 +1,78 @@
+name: Landing CI
+
+# Scoped to apps/landing and its content package — this monorepo also
+# contains apps/web, apps/mobile, and services/api, each with a very
+# different (and much heavier) test surface out of this workflow's scope.
+# Path filters keep this from running on unrelated changes.
+on:
+  pull_request:
+    paths:
+      - "apps/landing/**"
+      - "packages/landing-content/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/landing-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/landing/**"
+      - "packages/landing-content/**"
+
+# Least-privilege default — a real Cycle 2 security finding: this workflow
+# previously omitted `permissions:` entirely, inheriting the repo/org default
+# GITHUB_TOKEN scope. No step here needs more than read access to repo
+# contents (no write step, no secrets.* usage exists in this workflow).
+permissions:
+  contents: read
+
+# Required PR checks: fast, deterministic, run on every push. The full
+# 500+ Playwright suite, Lighthouse, and cross-browser matrix are
+# deliberately NOT here — see the scheduled workflow for those, per the
+# governing brief's own instruction not to put the whole expensive suite on
+# every tiny commit.
+jobs:
+  verify:
+    name: Lint, typecheck, unit tests, build, smoke, axe
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint:landing
+
+      - name: Typecheck
+        run: pnpm typecheck:landing
+
+      - name: Unit tests (apps/landing)
+        run: pnpm test:landing
+
+      - name: Unit tests (landing-content)
+        run: pnpm --filter @vercentlabs/landing-content test
+
+      - name: Production build
+        run: pnpm build:landing
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @vercentlabs/landing exec playwright install --with-deps chromium
+
+      - name: Route smoke + link crawl + axe (Chromium only — see phase-8/ci-release-verification.md for why)
+        working-directory: apps/landing
+        run: pnpm exec playwright test tests/e2e/production-smoke.spec.ts tests/e2e/accessibility.spec.ts --project=desktop-chromium
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/landing/playwright-report/
+          retention-days: 7

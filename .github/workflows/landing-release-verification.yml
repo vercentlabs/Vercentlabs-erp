@@ -1,0 +1,68 @@
+name: Landing Release Verification
+
+# The heavier, more expensive suite — full Playwright (all specs, all
+# projects), cross-browser (Firefox/WebKit), and axe across the full 13-route
+# set. Deliberately NOT run on every PR (that's landing-ci.yml's job) — this
+# runs on manual trigger (before a real release) and weekly, per the
+# governing brief's own instruction against putting the whole expensive
+# suite on every tiny commit.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 3 * * 1" # weekly, Monday 03:00 UTC
+
+# Least-privilege default — same real Cycle 2 finding as landing-ci.yml.
+permissions:
+  contents: read
+
+jobs:
+  full-verification:
+    name: Full cross-browser + Lighthouse + deep crawl
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Production build
+        run: pnpm build:landing
+
+      - name: Install all Playwright browsers
+        run: pnpm --filter @vercentlabs/landing exec playwright install --with-deps chromium firefox webkit
+
+      - name: Full Playwright suite (all projects)
+        working-directory: apps/landing
+        run: pnpm exec playwright test
+
+      - name: Lighthouse baseline
+        working-directory: apps/landing
+        run: |
+          node scripts/prepare-standalone.mjs
+          node .next/standalone/apps/landing/server.js &
+          sleep 5
+          LIGHTHOUSE_BASE_URL=http://localhost:3000 LIGHTHOUSE_LABEL=ci node scripts/lighthouse-baseline.mjs
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-full
+          path: apps/landing/playwright-report/
+          retention-days: 14
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: apps/landing/.lighthouse-reports/
+          retention-days: 30
