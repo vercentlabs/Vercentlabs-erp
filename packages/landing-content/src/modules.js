@@ -185,7 +185,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     accentColor: { hex: "#2468d7", soft: "#edf4ff", sourcedFromProduct: true },
     directDefinition:
       "The Vercentlabs Sales module is the quote-to-cash engine — it turns a priced, tax-compliant, versioned quotation into a credit-checked order with an auditable handoff to Accounting, including a public link the customer can accept without logging in.",
-    heroVariant: "workflow-led",
+    heroVariant: "operational-sequence",
     searchIntent: "Sales management ERP",
     metaDescription:
       "Vercentlabs Sales prices GST-aware quotations, accepts them publicly with a typed signature, and converts to a credit-checked order with an auditable Accounting handoff.",
@@ -466,7 +466,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     accentColor: { hex: "#087f6a", soft: "#eaf8f4", sourcedFromProduct: true },
     directDefinition:
       "The Vercentlabs Procurement module is a source-to-pay control tower — it governs requisition, sourcing, ordering, receiving, and invoice matching with policy-driven readiness scoring at every stage, so a bill can't reach Accounts Payable until it's actually matched.",
-    heroVariant: "workflow-led",
+    heroVariant: "operational-sequence",
     searchIntent: "Procurement ERP software",
     metaDescription:
       "Vercentlabs Procurement governs requisition-to-payment with sourcing, RFQs, 2/3/4-way receipt matching, and a governance control tower that blocks unmatched bills from reaching AP.",
@@ -819,7 +819,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     accentColor: { hex: "#7e22ce", soft: "#f6edfe", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Projects module plans, staffs, executes, and financially tracks billable and internal projects, connecting tasks and timesheets to real project cost and margin as the work happens, not after close.",
-    heroVariant: "workflow-led",
+    heroVariant: "operational-sequence",
     searchIntent: "Project management ERP",
     metaDescription:
       "Vercentlabs Projects tracks staffing, tasks, time, and budget, with live gross-margin calculated from approved labor, expense, and procurement actuals while the project is still open.",
@@ -1056,7 +1056,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     accentColor: { hex: "#be185d", soft: "#fdf0f5", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Point of Sale module is governed retail checkout — cashiers ring up sales, take mixed-tender payment, and reconcile cash, with every sale deducting real inventory in the same database transaction as the sale itself.",
-    heroVariant: "workflow-led",
+    heroVariant: "operational-sequence",
     searchIntent: "Point of sale ERP",
     metaDescription:
       "Vercentlabs Point of Sale runs checkout with mixed payments and shift/cash-drawer control, deducting real inventory in the same transaction as the sale — no nightly stock sync.",
@@ -1166,7 +1166,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     accentColor: { hex: "#15803d", soft: "#eaf8ef", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Quality module enforces inspection checkpoints and disposition control across incoming receipts, in-process manufacturing, stock, and returns, with governed release and CAPA-driven resolution — a genuine cross-module inspection framework, not a module-local checklist.",
-    heroVariant: "workflow-led",
+    heroVariant: "operational-sequence",
     searchIntent: "Quality management ERP",
     metaDescription:
       "Vercentlabs Quality governs inspection and release across receiving, production, stock, and returns, with hard-coded segregation of duties and automatic holds on failed inspections.",
@@ -1286,7 +1286,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     accentColor: { hex: "#b91c1c", soft: "#fdeded", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Support module is a ticket-based system that tracks requests from creation through SLA-timed resolution, with full context links to the customer's account and the commercial record that triggered the issue — not a standalone helpdesk with no idea who the customer is.",
-    heroVariant: "workflow-led",
+    heroVariant: "operational-sequence",
     searchIntent: "Customer support ERP",
     metaDescription:
       "Vercentlabs Support tracks tickets through SLA-timed resolution with first-class links to the customer's account, sales order, invoice, asset, and project — a single customer-history view.",

@@ -1,29 +1,25 @@
 import type { LandingModule } from "@vercentlabs/landing-content";
-import { Container, Section, Stack, Inline, Grid, SplitLayout } from "@/components/layout/container";
+import { cx } from "@/lib/utils";
+import { Container, Section, Stack, Inline, SplitLayout } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Metric } from "@/components/ui/card";
 import { ModuleTag } from "@/components/ui/tag";
-import { ProductScreenshot, WorkflowConnector } from "@/components/product/product-frame";
-import { NumberedSteps } from "@/components/marketing/numbered-steps";
+import { ProductScreenshot } from "@/components/product/product-frame";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { getApprovedScreenshot } from "@/lib/product/screenshots";
 
 /**
- * Four controlled hero layouts (per docs/landing-redesign/phase-4/
- * page-differentiation-matrix.md), chosen per module by evidence strength —
- * never assumed to have a screenshot. A module assigned "screenshot-led" or
- * "dashboard-led" whose primary screenshot isn't actually approved yet falls
- * back to "operational-sequence" rather than reproducing Phase 3's empty-hero
- * defect (docs/landing-redesign/phase-3/implementation-summary.md, defect #2).
- *
- * Note: the prop is named `landingModule`, not `module` — Next.js's
- * no-assign-module-variable lint rule flags `module` as an identifier
- * (it shadows the CommonJS module object at build time).
+ * Every module hero fills a full viewport-height section — this used to be
+ * conditional on having a real screenshot (a bare copy-only hero reads fine full
+ * height; a short numbered-step list stretched the same way left 150-200px of dead
+ * space). The 10 modules without a screenshot yet no longer render that step list in
+ * the hero at all (it was redundant with the fuller "See it work" section further
+ * down the page anyway) — just the copy, centered, with the right side reserved for
+ * the real product screenshot/video each of these modules will get. Once
+ * screenshots.primary is set and approved for a module, it renders there automatically.
  */
-export function ModuleHero({ landingModule }: { landingModule: LandingModule }) {
+export function ModuleHero({ landingModule, className }: { landingModule: LandingModule; className?: string }) {
   const primaryScreenshot = landingModule.screenshots.primary ? getApprovedScreenshot(landingModule.screenshots.primary) : null;
-  const wantsScreenshot = landingModule.heroVariant === "screenshot-led" || landingModule.heroVariant === "dashboard-led";
-  const effectiveVariant = wantsScreenshot && !primaryScreenshot ? "operational-sequence" : landingModule.heroVariant;
 
   const navGroupLabel =
     landingModule.navGroup === "revenue"
@@ -37,7 +33,7 @@ export function ModuleHero({ landingModule }: { landingModule: LandingModule }) 
             : "People & Service";
 
   const copy = (
-    <Stack gap={5}>
+    <Stack gap={5} className={primaryScreenshot ? "h-full" : "h-full max-w-[720px]"}>
       <Text variant="eyebrow">{navGroupLabel} module</Text>
       <Heading level="display" as="h1">
         {landingModule.name}
@@ -51,7 +47,7 @@ export function ModuleHero({ landingModule }: { landingModule: LandingModule }) 
           Explore the Platform
         </TrackedCtaLink>
       </Inline>
-      <Inline gap={6} className="mt-1 flex-wrap">
+      <Inline gap={6} className="mt-1 flex-wrap sm:mt-auto">
         <Metric label="Capability groups" value={String(landingModule.capabilityGroups.length)} />
         <Metric label="Connected modules" value={String(landingModule.connectedModules.length)} />
         {/* ModuleTag is a color legend, not a provenance claim about where the
@@ -59,39 +55,24 @@ export function ModuleHero({ landingModule }: { landingModule: LandingModule }) 
             rhythm consistency (a Phase 4 Cycle 2 brand review found the
             product-sourced-only gate here was an unintended side effect of
             the "don't claim landing-original colors are product colors" copy
-            rule leaking into a layout decision it doesn't actually apply to). */}
-        <ModuleTag name={landingModule.name} accentColor={landingModule.accentColor.hex} />
+            rule leaking into a layout decision it doesn't actually apply to).
+            Hidden from `sm` up: the module name is already the H1 right above
+            it, so on anything wider than mobile this tag is pure repetition —
+            on mobile it still earns its place as a compact colour anchor next
+            to the metrics once the heading has scrolled out of view. */}
+        <ModuleTag name={landingModule.name} accentColor={landingModule.accentColor.hex} className="sm:hidden" />
       </Inline>
     </Stack>
   );
 
   return (
-    <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
+    <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className={cx("flex flex-1 flex-col justify-center", className)}>
       <Container>
-        {effectiveVariant === "screenshot-led" || effectiveVariant === "dashboard-led" ? (
-          <SplitLayout ratio="primary-wide" primary={copy} secondary={primaryScreenshot ? <ProductScreenshot id={primaryScreenshot.id} moduleAccentColor={landingModule.accentColor.hex} /> : null} />
-        ) : null}
-
-        {effectiveVariant === "workflow-led" ? (
-          <Stack gap={10}>
-            {copy}
-            <div className="overflow-x-auto">
-              <WorkflowConnector
-                className="min-w-[640px] lg:min-w-0"
-                steps={landingModule.primaryWorkflow.steps.map((step) => ({ label: step.step, accentColor: landingModule.accentColor.hex }))}
-              />
-            </div>
-          </Stack>
-        ) : null}
-
-        {effectiveVariant === "operational-sequence" ? (
-          <Grid columns={2} gap={10} className="items-start">
-            {copy}
-            <NumberedSteps
-              steps={landingModule.primaryWorkflow.steps.map((step, index) => ({ step: String(index + 1).padStart(2, "0"), title: step.step, description: step.detail }))}
-            />
-          </Grid>
-        ) : null}
+        <SplitLayout
+          ratio="primary-wide"
+          primary={copy}
+          secondary={primaryScreenshot ? <ProductScreenshot id={primaryScreenshot.id} moduleAccentColor={landingModule.accentColor.hex} /> : null}
+        />
       </Container>
     </Section>
   );

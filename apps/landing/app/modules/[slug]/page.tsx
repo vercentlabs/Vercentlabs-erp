@@ -88,13 +88,21 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   return (
     <>
       <TrackView event="module_page_view" properties={{ workflow: landingModule.key }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space above
+            the next section nor requires a scroll to see all of it. Modules without
+            a screenshot yet still get this: the hero renders copy-only with the
+            secondary column left empty, reserved for the screenshot/video each will
+            get — see module-hero.tsx. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <ModuleHero landingModule={landingModule} />
+          <ModuleHero landingModule={landingModule} />
+        </div>
       </TrackView>
 
       <DirectDefinition definition={landingModule.directDefinition} />
@@ -145,7 +153,12 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         </Section>
       </TrackView>
 
-      <ProductEvidenceSection screenshots={landingModule.screenshots} moduleName={landingModule.name} accentColor={landingModule.accentColor.hex} />
+      <ProductEvidenceSection
+        screenshots={landingModule.screenshots}
+        moduleName={landingModule.name}
+        accentColor={landingModule.accentColor.hex}
+        featuredOutcome={landingModule.businessOutcomes[0]}
+      />
 
       <ContextualCta moduleName={landingModule.name} moduleSlug={landingModule.key} />
 
