@@ -44,6 +44,14 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
   const participatingModules = workflow.modules.map((key) => getLandingModule(key)).filter((m): m is NonNullable<typeof m> => Boolean(m));
   const matchingIndustries = getIndustriesForWorkflow(workflow.slug);
   const screenshot = workflow.screenshotId ? getApprovedScreenshot(workflow.screenshotId) : null;
+  // lead-to-cash's step-by-step text list was long enough to make this section feel
+  // like it was mostly scrolling — swapped for one image (a stand-in for a future
+  // product video walking through the actual flow) instead. The rest of the workflow
+  // body (approvals, automated actions, exceptions, visibility, business value) is
+  // untouched, and the separate "See it in the product" section below is skipped so
+  // the same screenshot doesn't appear twice on the page. Scoped to this one workflow
+  // for now — the other 5 keep the full text sequence.
+  const useSequenceImagePlaceholder = workflow.slug === "lead-to-cash" && Boolean(screenshot);
 
   const breadcrumbTrail = [
     { name: "Workflows", path: "/workflows" },
@@ -75,23 +83,28 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
   return (
     <>
       <TrackView event="workflow_page_view" properties={{ workflow: workflow.slug }}>
-        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-          <Container>
-            <Breadcrumbs trail={breadcrumbTrail} />
-          </Container>
-        </Section>
+        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
+            remaining viewport height, so the hero neither leaves dead space
+            above the next section nor requires a scroll to see all of it. */}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+            <Container>
+              <Breadcrumbs trail={breadcrumbTrail} />
+            </Container>
+          </Section>
 
-        <PlatformHero
-          eyebrow="Cross-module workflow"
-          heading={workflow.name}
-          supportingText={workflow.summary}
-          heroScreenshotId={workflow.screenshotId}
-          connectedModuleKeys={workflow.modules}
-          ctaHref={`/book-demo?workflow=${workflow.slug}`}
-          ctaLabel="Book a Product Demo"
-          ctaEvent="workflow_cta_click"
-          ctaLocation={`workflow_hero_${workflow.slug}`}
-        />
+          <PlatformHero
+            eyebrow="Cross-module workflow"
+            heading={workflow.name}
+            supportingText={workflow.summary}
+            heroScreenshotId={workflow.screenshotId}
+            connectedModuleKeys={workflow.modules}
+            ctaHref={`/book-demo?workflow=${workflow.slug}`}
+            ctaLabel="Book a Product Demo"
+            ctaEvent="workflow_cta_click"
+            ctaLocation={`workflow_hero_${workflow.slug}`}
+          />
+        </div>
       </TrackView>
 
       <DirectDefinition definition={workflow.directDefinition ?? workflow.summary} />
@@ -101,12 +114,16 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
         <Container>
           <SectionHeader eyebrow="How it actually runs" title="The real sequence, step by step" />
           <div className="mt-10 max-w-[860px]">
-            <WorkflowSequence workflow={workflow} resolveModule={(key) => getLandingModule(key) ?? undefined} />
+            <WorkflowSequence
+              workflow={workflow}
+              resolveModule={(key) => getLandingModule(key) ?? undefined}
+              sequenceMedia={useSequenceImagePlaceholder ? <ProductScreenshot id={screenshot!.id} moduleAccentColor="var(--color-brand)" /> : undefined}
+            />
           </div>
         </Container>
       </Section>
 
-      {screenshot ? (
+      {screenshot && !useSequenceImagePlaceholder ? (
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="See it in the product" title="A real screen from this workflow, not a diagram." />

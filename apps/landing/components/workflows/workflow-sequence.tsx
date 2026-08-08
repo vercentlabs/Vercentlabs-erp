@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LandingModule, LandingWorkflow } from "@vercentlabs/landing-content";
 import { Stack, Grid, Inline } from "@/components/layout/container";
 import { Text, Heading } from "@/components/ui/text";
@@ -14,9 +15,16 @@ import { ModuleTag } from "@/components/ui/tag";
 export function WorkflowSequence({
   workflow,
   resolveModule,
+  sequenceMedia,
 }: {
   workflow: LandingWorkflow;
   resolveModule: (key: string) => LandingModule | undefined;
+  /** When provided, replaces the numbered step-by-step list with this single media
+   * element instead — e.g. one screenshot standing in for a not-yet-recorded product
+   * video walking through the flow. Everything else (trigger, participants,
+   * approvals, automated actions, exceptions, visibility, business value) still
+   * renders normally; this only swaps out the long text breakdown specifically. */
+  sequenceMedia?: ReactNode;
 }) {
   return (
     <Stack gap={10}>
@@ -36,30 +44,32 @@ export function WorkflowSequence({
         </div>
       ) : null}
 
-      <ol className="flex flex-col gap-0">
-        {(workflow.sequence ?? []).map((step, index) => {
-          const stepModule = resolveModule(step.moduleKey);
-          return (
-            <li key={step.step} className={`flex gap-4 border-(--color-border-default) py-4 ${index > 0 ? "border-t" : ""}`}>
-              <span
-                className="tabular-data flex h-7 w-7 flex-none items-center justify-center rounded-(--radius-control) bg-(--color-bg-brand) text-xs font-semibold text-(--color-text-inverse)"
-                aria-hidden="true"
-              >
-                {index + 1}
-              </span>
-              <div className="flex-1">
-                <Inline gap={2} className="items-baseline">
-                  <Text variant="label">{step.step}</Text>
-                  {stepModule ? <ModuleTag name={stepModule.name} accentColor={stepModule.accentColor.hex} /> : null}
-                </Inline>
-                <Text variant="bodySmall" className="mt-0.5">
-                  {step.detail}
-                </Text>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      {sequenceMedia ?? (
+        <ol className="flex flex-col gap-0">
+          {(workflow.sequence ?? []).map((step, index) => {
+            const stepModule = resolveModule(step.moduleKey);
+            return (
+              <li key={step.step} className={`flex gap-4 border-(--color-border-default) py-4 ${index > 0 ? "border-t" : ""}`}>
+                <span
+                  className="tabular-data flex h-7 w-7 flex-none items-center justify-center rounded-(--radius-control) bg-(--color-bg-brand) text-xs font-semibold text-(--color-text-inverse)"
+                  aria-hidden="true"
+                >
+                  {index + 1}
+                </span>
+                <div className="flex-1">
+                  <Inline gap={2} className="items-baseline">
+                    <Text variant="label">{step.step}</Text>
+                    {stepModule ? <ModuleTag name={stepModule.name} accentColor={stepModule.accentColor.hex} /> : null}
+                  </Inline>
+                  <Text variant="bodySmall" className="mt-0.5">
+                    {step.detail}
+                  </Text>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
 
       <Grid columns={2} gap={8}>
         <div>
