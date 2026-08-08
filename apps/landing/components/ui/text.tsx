@@ -34,8 +34,15 @@ export const Heading = forwardRef(function Heading(
   ref: Ref<HTMLElement>,
 ) {
   const As = as ?? HEADING_TAG[level];
+  // No hardcoded default color here: `body` already sets color: var(--color-text-primary)
+  // globally (app/globals.css), so headings inherit it for free. Baking the same utility
+  // class in here too would sit alongside any caller-supplied color override (e.g.
+  // text-(--color-text-inverse) on dark sections) with identical specificity — which one
+  // wins is then decided by Tailwind's generated stylesheet order, not by this component,
+  // and was silently losing to the hardcoded default, making inverse-toned headings
+  // invisible against dark backgrounds.
   return (
-    <As ref={ref} id={id} tabIndex={tabIndex} className={cx(HEADING_CLASSES[level], "text-(--color-text-primary)", className)}>
+    <As ref={ref} id={id} tabIndex={tabIndex} className={cx(HEADING_CLASSES[level], className)}>
       {children}
     </As>
   );
