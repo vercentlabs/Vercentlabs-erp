@@ -3,6 +3,7 @@ import { validateDemoForm, type DemoFormValues } from "@/lib/demo-form-validatio
 import { deliverDemoRequest } from "@/lib/crm-capture";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { clientIp, generateRequestId } from "@/lib/request";
+import { logLeadCaptureEvent, isTimeoutError } from "@/lib/lead-observability";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,7 @@ interface RequestBody extends DemoFormValues {
 export async function POST(request: Request) {
   const requestId = generateRequestId();
   const ip = clientIp(request);
+  const startedAt = Date.now();
 
   const rateLimit = checkRateLimit(`book-demo:${ip}`, 5, 15 * 60 * 1000);
   if (!rateLimit.allowed) {
@@ -37,9 +39,17 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ ok: false, requestId, error: "Invalid request." }, { status: 400 });
   }
+  // `JSON.parse("null")` (and "5", "\"x\"", etc.) succeeds — a syntactically
+  // valid body that isn't an object still reaches here. Property access
+  // inside validateDemoForm() (e.g. `values.firstName`) throws on null/undefined,
+  // which previously crashed into an uncaught, unlogged 500 with an empty body.
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ ok: false, requestId, error: "Invalid request." }, { status: 400 });
+  }
 
   const errors = validateDemoForm(body);
   if (Object.keys(errors).length > 0) {
+    logLeadCaptureEvent("validation_failure", requestId, Date.now() - startedAt, 422);
     return NextResponse.json({ ok: false, requestId, errors }, { status: 422 });
   }
 
@@ -62,9 +72,13 @@ export async function POST(request: Request) {
           modulesOfInterest: body.modulesOfInterest?.length ? body.modulesOfInterest : undefined,
           mainChallenge: body.mainChallenge?.trim() || undefined,
           preferredContactTime: body.preferredContactTime?.trim() || undefined,
+          // Client-supplied attribution spreads FIRST so the server-trusted
+          // requestId/source below always win — previously spread last, which
+          // let an attacker-controlled `attribution.requestId`/`.source` value
+          // silently overwrite the server's own trusted lead-source fields.
+          ...(body.attribution ?? {}),
           requestId,
           source: "landing-book-demo",
-          ...(body.attribution ?? {}),
         },
       },
       ip,
@@ -74,16 +88,18 @@ export async function POST(request: Request) {
     if (!result.ok) {
       // Safe server-side log: request id and status only, never the submitted
       // name/email/phone (see conversion-architecture.md's PII-redaction rule).
-      console.error(`[book-demo] delivery failed requestId=${requestId} status=${result.status}`);
+      logLeadCaptureEvent("upstream_failure", requestId, Date.now() - startedAt, result.status);
       return NextResponse.json(
         { ok: false, requestId, error: "We couldn't submit your request. Please try again." },
         { status: 502 },
       );
     }
 
+    logLeadCaptureEvent("success", requestId, Date.now() - startedAt, 201);
     return NextResponse.json({ ok: true, requestId }, { status: 201 });
   } catch (error) {
-    console.error(`[book-demo] delivery error requestId=${requestId}`, error instanceof Error ? error.message : error);
+    const outcome = isTimeoutError(error) ? "timeout" : "upstream_failure";
+    logLeadCaptureEvent(outcome, requestId, Date.now() - startedAt);
     return NextResponse.json(
       { ok: false, requestId, error: "We couldn't submit your request. Please try again." },
       { status: 500 },

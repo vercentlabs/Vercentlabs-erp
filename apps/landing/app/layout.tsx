@@ -4,6 +4,7 @@ import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/
 import { Header } from "@/components/navigation/header";
 import { Footer } from "@/components/layout/footer";
 import { AttributionInit } from "@/components/analytics/attribution-init";
+import { WebVitalsReporter } from "@/components/analytics/web-vitals-reporter";
 import { StickyMobileCta } from "@/components/marketing/sticky-mobile-cta";
 import "./globals.css";
 
@@ -23,7 +24,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to main content
         </a>
         <Header />
-        <main id="main-content">{children}</main>
+        {/* tabIndex={-1}: without it, the skip link scrolls the viewport to
+            #main-content but never moves keyboard focus there (an <a
+            href="#fragment"> only focuses the target if it's natively
+            focusable or has a tabindex) — a real WCAG 2.4.1 gap found this
+            phase via a real keyboard test, not assumed. See decision-log.md. */}
+        <main id="main-content" tabIndex={-1} className="focus:outline-none">
+          {children}
+        </main>
         <Footer />
         {/* Mobile-only spacer so the fixed sticky CTA bar never covers footer content.
             Matches StickyMobileCta's own sm:hidden breakpoint exactly — see that
@@ -33,6 +41,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script {...jsonLdScriptProps(organizationJsonLd())} />
         <script {...jsonLdScriptProps(websiteJsonLd())} />
         <AttributionInit />
+        <WebVitalsReporter />
       </body>
     </html>
   );

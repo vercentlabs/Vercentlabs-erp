@@ -34,6 +34,15 @@ export interface SafeAnalyticsProperties {
   campaignMedium?: string;
   campaignName?: string;
   referrerCategory?: string;
+  /**
+   * Web Vitals only (Phase 7) — route *pattern*, never a literal URL with
+   * query params, so a ?rid=/attribution-bearing path never becomes an
+   * analytics dimension. See lib/web-vitals.ts.
+   */
+  routePattern?: string;
+  metricValue?: number;
+  metricRating?: "good" | "needs-improvement" | "poor";
+  navigationType?: string;
 }
 
 declare global {

@@ -29,7 +29,6 @@ export const PRIMARY_NAV = Object.freeze([
   },
   { label: "Modules", href: "/modules" },
   { label: "Industries", href: "/industries" },
-  { label: "Pricing", href: "/pricing" },
   { label: "Resources", href: "/resources" },
 ]);
 
@@ -103,4 +102,7 @@ export const ANALYTICS_EVENTS = Object.freeze([
   "comparison_page_view",
   "comparison_cta_click",
   "source_link_click",
+  "web_vitals_lcp",
+  "web_vitals_inp",
+  "web_vitals_cls",
 ]);

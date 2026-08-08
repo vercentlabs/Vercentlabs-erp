@@ -224,6 +224,9 @@ export const ANALYTICS_EVENTS: readonly [
   "comparison_page_view",
   "comparison_cta_click",
   "source_link_click",
+  "web_vitals_lcp",
+  "web_vitals_inp",
+  "web_vitals_cls",
 ];
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };
