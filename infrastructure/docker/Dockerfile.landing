@@ -2,12 +2,19 @@ FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm-workspace.yaml declares a patchedDependencies entry (brace-expansion)
+# whose patch file must be present before `pnpm install` runs, or the install
+# fails outright with an ENOENT on the patch file — a real, reproducible
+# build failure found by actually building this image (not previously caught,
+# since nothing had built this Dockerfile before).
+COPY patches ./patches
 COPY apps/web/package.json apps/web/package.json
 COPY apps/landing/package.json apps/landing/package.json
 COPY services/api/package.json services/api/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/document-engine/package.json packages/document-engine/package.json
+COPY packages/landing-content/package.json packages/landing-content/package.json
 COPY packages/localization/package.json packages/localization/package.json
 COPY packages/observability/package.json packages/observability/package.json
 COPY packages/permissions/package.json packages/permissions/package.json
