@@ -9,8 +9,9 @@ import {
   requirePermissionFromSession,
 } from "@/lib/authorization";
 import { requireBillingWriteAccess } from "@/lib/billing";
-import { query, transaction } from "@/lib/db";
+import { transaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
+import { listMyApprovals } from "@/lib/my-work/approvals";
 import { assertSameOriginOrMobile, audit } from "@/lib/security";
 
 const createApprovalSchema = z.object({
@@ -22,21 +23,7 @@ const createApprovalSchema = z.object({
 export async function GET() {
   try {
     const session = await requireApiPermission("approvals.manage");
-    const requests = await query(
-      `SELECT approval.id, approval.title, approval.entity_type,
-              approval.entity_id, approval.command_key, approval.status,
-              approval.version, approval.requested_at, approval.decided_at,
-              requester.full_name AS requester, assignee.full_name AS assignee
-         FROM approval_requests approval
-         LEFT JOIN users requester ON requester.id = approval.requested_by
-         LEFT JOIN users assignee ON assignee.id = approval.assigned_to
-        WHERE approval.organization_id = $1
-          AND (approval.assigned_to = $2 OR approval.assigned_to IS NULL)
-        ORDER BY CASE approval.status WHEN 'pending' THEN 0 ELSE 1 END,
-                 approval.requested_at DESC
-        LIMIT 100`,
-      [session.organizationId, session.userId],
-    );
+    const requests = await listMyApprovals(session, 100);
     return ok({ requests });
   } catch (error) {
     return errorResponse(error);

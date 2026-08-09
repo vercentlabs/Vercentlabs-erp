@@ -1,7 +1,7 @@
 import { getLeadConfiguration } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requireCrmResourceView } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
 export async function GET(request: Request) {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     requireCrmResourceView(session, "leads");
     const key =
       new URL(request.url).searchParams.get("recordType") || "standard";
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     return ok(
       await tenantTransaction(context.organizationId, (c) =>
         getLeadConfiguration(c, context, key),

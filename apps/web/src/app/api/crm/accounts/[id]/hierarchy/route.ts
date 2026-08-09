@@ -5,7 +5,7 @@ import {
   requireBillingWriteAccess,
   incrementBillingUsage,
 } from "@/lib/billing";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok, readJson } from "@/lib/http";
 import { crmAccountIntelligenceErrorResponse } from "@/lib/crm-account-intelligence-route";
@@ -20,7 +20,7 @@ export async function GET(
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
     const { id } = await route.params;
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const hierarchy = await tenantTransaction(
       context.organizationId,
       (client) => getAccountHierarchy(client, context, id),
@@ -47,7 +47,7 @@ export async function PATCH(
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await route.params;
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(
       context.organizationId,
       async (client) => {

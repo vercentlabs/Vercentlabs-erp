@@ -1,7 +1,7 @@
 import { findCrmDuplicates } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requireCrmView } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { duplicateSchema } from "@/lib/crm-validation";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const input = duplicateSchema.parse(
       Object.fromEntries(url.searchParams.entries()),
     );
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const duplicates = await tenantTransaction(
       context.organizationId,
       (client) => findCrmDuplicates(client, context, input, input.excludeId),

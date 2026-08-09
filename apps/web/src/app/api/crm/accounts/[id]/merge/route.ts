@@ -5,7 +5,7 @@ import {
   requireBillingWriteAccess,
   incrementBillingUsage,
 } from "@/lib/billing";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
 import { assertSameOriginOrMobile, audit } from "@/lib/security";
@@ -28,7 +28,7 @@ export async function POST(
     if (!body.survivorId)
       throw new HttpError(400, "Choose the surviving record.");
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const merge = await tenantTransaction(
       context.organizationId,
       async (client) => {

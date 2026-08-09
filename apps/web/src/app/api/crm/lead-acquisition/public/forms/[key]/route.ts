@@ -2,6 +2,11 @@ import { submitPublishedLeadForm } from "@vercentlabs/api";
 import { crmLeadAcquisitionErrorResponse } from "@/lib/crm-lead-acquisition-route";
 import { query, tenantTransaction } from "@/lib/db";
 import { HttpError, ok } from "@/lib/http";
+import {
+  directCaptureFingerprint,
+  readRequestBytes,
+  verifiedCaptureProxyFingerprint,
+} from "@/lib/security";
 
 export async function POST(
   request: Request,
@@ -19,16 +24,39 @@ export async function POST(
     const allowed = Array.isArray(form.allowed_origins)
       ? form.allowed_origins.map(String)
       : [];
-    if (origin && allowed.length && !allowed.includes(origin))
+    // Unlike the previous check (`if (origin && allowed.length ...)`), an
+    // omitted Origin header no longer bypasses a configured allowlist — a
+    // server-to-server caller that simply doesn't send Origin must not be
+    // treated as automatically allowed. Matches the sibling
+    // apps/web/src/app/api/crm/public/capture/[key]/route.ts check.
+    if (allowed.length && !allowed.includes(origin)) {
       throw new HttpError(
         403,
         "This origin is not allowed to submit the form.",
       );
-    const input = (await request.json()) as Record<string, unknown>;
-    input.__fingerprint =
-      request.headers.get("x-vercentlabs-capture-fingerprint") ||
-      request.headers.get("x-forwarded-for") ||
-      "anonymous";
+    }
+
+    const bytes = await readRequestBytes(request, 50_000);
+    const rawBody = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      throw new HttpError(400, "Invalid JSON request.");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new HttpError(400, "Invalid JSON request.");
+    }
+    const input = parsed as Record<string, unknown>;
+
+    // Trusted-proxy HMAC fingerprint when present, otherwise clientIp()+UA —
+    // never a raw, client-suppliable X-Forwarded-For header (see Part 3 of
+    // docs/implementation/ERP_SECURITY_HARDENING_003.md: a spoofed header
+    // previously let a caller mint a fresh rate-limit fingerprint on every
+    // request).
+    const trustedFingerprint = verifiedCaptureProxyFingerprint(request, rawBody);
+    input.__fingerprint = trustedFingerprint || directCaptureFingerprint(request);
+
     if (String(input.companyWebsite || input._website || ""))
       return ok({ accepted: true });
     const context = {

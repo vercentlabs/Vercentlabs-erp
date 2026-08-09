@@ -24,7 +24,7 @@ import { z } from "zod";
 
 import type { WorkspaceSessionContext } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { accountingContext } from "@/lib/accounting";
 
 type CommandContext = {
@@ -221,10 +221,10 @@ const definitions: ApprovalCommand[] = [
         })
         .strict()
         .parse(payload),
-    execute: ({ client, session }, payload) =>
+    execute: async ({ client, session }, payload) =>
       moveOpportunityStage(
         client,
-        crmContext(session),
+        await crmApiContext(session),
         String(payload.opportunityId),
         String(payload.stageId),
         payload.note ? String(payload.note) : null,
@@ -245,10 +245,10 @@ const definitions: ApprovalCommand[] = [
         })
         .strict()
         .parse(payload),
-    execute: ({ client, session }, payload) =>
+    execute: async ({ client, session }, payload) =>
       completeCrmActivity(
         client,
-        crmContext(session),
+        await crmApiContext(session),
         String(payload.activityId),
         payload.outcome ? String(payload.outcome) : null,
       ),

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
+import { matchesPath } from "@/lib/navigation/match-path";
 
 type ModuleLink = {
   href: string;
@@ -28,20 +29,7 @@ const quickActions: Record<string, { href: string; label: string }> = {
   Accounting: { href: "/accounting/journals/new", label: "New journal" },
 };
 
-function matches(pathname: string, item: ModuleLink) {
-  if (item.exact && pathname === item.href) return true;
-  if (
-    !item.exact &&
-    (pathname === item.href || pathname.startsWith(`${item.href}/`))
-  ) {
-    return true;
-  }
-  return Boolean(
-    item.activePrefixes?.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    ),
-  );
-}
+const matches = matchesPath;
 
 export default function ModuleContextBar({
   modules,

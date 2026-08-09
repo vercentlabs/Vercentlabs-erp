@@ -314,6 +314,14 @@ export const publicCaptureSchema = z
     doNotContact: z.boolean().optional(),
     websiteUrl: z.string().max(0).optional(),
     companyWebsiteHidden: z.string().max(0).optional(),
-    customData: z.record(z.string(), z.unknown()).optional(),
+    customData: z
+      .record(z.string(), z.unknown())
+      .refine((value) => Object.keys(value).length <= 40, {
+        message: "customData accepts at most 40 fields.",
+      })
+      .refine((value) => JSON.stringify(value).length <= 20_000, {
+        message: "customData is too large.",
+      })
+      .optional(),
   })
   .strict();

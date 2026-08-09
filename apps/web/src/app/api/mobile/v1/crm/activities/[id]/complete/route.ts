@@ -1,7 +1,7 @@
 import { completeCrmActivity } from "@vercentlabs/api";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { assertCrmIdentifier } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { completeActivitySchema } from "@/lib/crm-validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
@@ -19,7 +19,7 @@ export async function POST(request: Request, route: { params: Promise<{ id: stri
     const { id } = await route.params; assertCrmIdentifier(id);
     const input = completeActivitySchema.parse(await readJson(request));
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const response = await tenantTransaction(context.organizationId, async (client) => withMobileIdempotency(client, session, request, input, async () => {
       const record = await completeCrmActivity(client, context, id, input.outcome, { expectedUpdatedAt: input.expectedUpdatedAt, expectedStatus: input.expectedStatus });
       await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: "crm.activity.completed", entityType: "activity", entityId: id, afterData: record, request, client });

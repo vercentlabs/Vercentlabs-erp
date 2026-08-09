@@ -9,7 +9,7 @@ import {
 } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { generateCrmProviderDraft } from "@/lib/crm-ai-provider";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok, readJson } from "@/lib/http";
@@ -20,7 +20,7 @@ export async function GET() {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const c = crmContext(session);
+    const c = await crmApiContext(session);
     return ok(
       await tenantTransaction(c.organizationId, async (client) => ({
         dashboard: await getCrmAiDashboard(client, c),
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const governedInput = providerDraft
       ? { ...input, ...providerDraft }
       : input;
-    const c = crmContext(session);
+    const c = await crmApiContext(session);
     const r = await tenantTransaction(c.organizationId, (client) => {
       if (a === "next-best-action")
         return createNextBestAction(client, c, governedInput);

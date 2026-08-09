@@ -22,7 +22,7 @@ import {
 import { getBillingSummary, listBillingPlans } from "@/lib/billing";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { query, tenantTransaction, transaction } from "@/lib/db";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { canViewCrmReport } from "@/lib/crm-api";
 import { HttpError, readJson } from "@/lib/http";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
@@ -173,7 +173,7 @@ export async function GET(
       );
     } else if (area === "crm") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -182,7 +182,7 @@ export async function GET(
       );
     } else if (area === "crm-customer-success") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -191,7 +191,7 @@ export async function GET(
       );
     } else if (area === "crm-communications") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -200,7 +200,7 @@ export async function GET(
       );
     } else if (area === "crm-conversation-intelligence") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -212,7 +212,7 @@ export async function GET(
       );
     } else if (area === "crm-lead-acquisition") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -221,7 +221,7 @@ export async function GET(
       );
     } else if (area === "crm-marketing") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -230,7 +230,7 @@ export async function GET(
       );
     } else if (area === "crm-lead-intelligence") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -239,7 +239,7 @@ export async function GET(
       );
     } else if (area === "crm-opportunity-revenue") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -248,7 +248,7 @@ export async function GET(
       );
     } else if (area === "crm-partner-engagement") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -257,7 +257,7 @@ export async function GET(
       );
     } else if (area === "crm-ai-intelligence") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       data = await tenantTransaction(
         context.organizationId,
         async (client) => ({
@@ -294,7 +294,7 @@ export async function GET(
         "ai-governance",
       ] as const;
       const visible = names.filter((name) => canViewCrmReport(session, name));
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       const reports = await tenantTransaction(
         context.organizationId,
         async (client) => {

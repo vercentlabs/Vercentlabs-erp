@@ -1,7 +1,7 @@
 import { createCrmRecord, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
-import { crmContext, crmDefinitions, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, crmDefinitions, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError } from "@/lib/http";
 import { readJson } from "@/lib/http";
@@ -20,7 +20,7 @@ export async function GET(request: Request, route: { params: Promise<{ resource:
     }
     requireCrmResourceView(session, resource);
     const url = new URL(request.url);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(context.organizationId, async (client) => ({
       records: await listCrmRecords(
         client,
@@ -49,7 +49,7 @@ export async function POST(request: Request, route: { params: Promise<{ resource
     await requireBillingWriteAccess(session.organizationId!);
     const input = await crmSchemas[resource].parseAsync(await readJson(request));
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const response = await tenantTransaction(context.organizationId, async (client) => withMobileIdempotency(client, session, request, input, async () => {
       const record = await createCrmRecord(client, context, resource, input);
       await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.created`, entityType: resource, entityId: String(record.id), afterData: input, request, client });

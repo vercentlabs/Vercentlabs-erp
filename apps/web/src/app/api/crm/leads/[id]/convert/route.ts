@@ -5,7 +5,7 @@ import {
 import { convertCrmLead } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { assertCrmIdentifier } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { convertLeadSchema } from "@/lib/crm-validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
@@ -25,7 +25,7 @@ export async function POST(
     assertCrmIdentifier(id);
     const input = convertLeadSchema.parse(await readJson(request));
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const conversion = await tenantTransaction(
       context.organizationId,
       async (client) => {

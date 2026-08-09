@@ -6,7 +6,7 @@ import { createCrmRecord, listCrmRecords } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
 import {
-  crmContext,
+  crmApiContext,
   crmDefinitions,
   isCrmDefinition,
   rethrowCrmError,
@@ -29,7 +29,7 @@ export async function GET(
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmResourceView(session, resource);
     const url = new URL(request.url);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(context.organizationId, (client) =>
       listCrmRecords(
         client,
@@ -66,7 +66,7 @@ export async function POST(
       await readJson(request),
     );
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {

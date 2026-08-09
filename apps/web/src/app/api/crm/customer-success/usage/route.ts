@@ -5,7 +5,7 @@ import {
   requireBillingWriteAccess,
   incrementBillingUsage,
 } from "@/lib/billing";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok, readJson } from "@/lib/http";
 import { crmCustomerSuccessErrorResponse } from "@/lib/crm-customer-success-route";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const body = (await readJson(request)) as Record<string, unknown>;
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const event = await tenantTransaction(
       context.organizationId,
       async (client) => {

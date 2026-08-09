@@ -12,7 +12,7 @@
     "export": "expo export --platform android --platform ios",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test",
     "doctor": "expo-doctor"
   },
   "dependencies": {

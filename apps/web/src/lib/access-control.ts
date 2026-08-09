@@ -1,21 +1,37 @@
 import { ALL_PERMISSIONS } from "@vercentlabs/permissions";
 
+// Every business-module key here must match packages/shared-types/src/
+// modules.js's ERP_MODULE_CATALOG exactly (plus "platform" for
+// cross-module/administrative roles that aren't scoped to one business
+// module). The two lists can't share a single TypeScript type today
+// because ERP_MODULE_CATALOG's keys aren't declared as string literals in
+// modules.d.ts — tests/security/module-access.test.mjs asserts they stay
+// in sync at runtime instead. See docs/implementation/
+// ERP_AUTHORIZATION_MODEL_004.md, Part 2/9.
+//
+// Until 2026-08-08 this list only contained "platform"/"crm"/"sales"/
+// "accounting"/"procurement" (a separate, now-removed FUTURE_MODULE_KEYS
+// held "stock"/"manufacturing"/"hr-payroll" as not-yet-real). That split
+// pre-dated ERP_MODULE_CATALOG marking all 12 modules "released" and had
+// silently drifted out of sync with it — the exact inconsistency
+// Prompt 4 closes.
 export const CURRENT_MODULE_KEYS = [
   "platform",
   "crm",
   "sales",
   "accounting",
   "procurement",
-] as const;
-
-export const FUTURE_MODULE_KEYS = [
   "stock",
   "manufacturing",
+  "projects",
+  "assets",
+  "point-of-sale",
+  "quality",
+  "support",
   "hr-payroll",
 ] as const;
 
-export type AccessModuleKey =
-  (typeof CURRENT_MODULE_KEYS)[number] | (typeof FUTURE_MODULE_KEYS)[number];
+export type AccessModuleKey = (typeof CURRENT_MODULE_KEYS)[number];
 
 export type RoleRiskLevel = "standard" | "sensitive" | "privileged";
 
@@ -156,6 +172,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     assignable: true,
     permissions: unique([
       ...crmReader,
+      "crm.records.view_all",
       "parties.manage",
       "crm.leads.manage",
       "crm.opportunities.manage",
@@ -191,6 +208,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: unique([
       ...crmReader,
       ...salesReader,
+      "crm.records.view_all",
       "approvals.manage",
       "parties.manage",
       "crm.leads.manage",
@@ -228,6 +246,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: unique([
       ...crmReader,
       ...salesReader,
+      "crm.records.view_all",
       "approvals.manage",
       "parties.manage",
       "crm.leads.manage",
@@ -287,6 +306,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: unique([
       ...crmReader,
       ...salesReader,
+      "crm.records.view_all",
       "parties.manage",
       "crm.leads.manage",
       "crm.opportunities.manage",
@@ -311,6 +331,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     assignable: true,
     permissions: unique([
       ...crmReader,
+      "crm.records.view_all",
       "parties.manage",
       "crm.leads.manage",
       "crm.activities.manage",
@@ -334,6 +355,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     assignable: true,
     permissions: unique([
       ...crmReader,
+      "crm.records.view_all",
       "parties.manage",
       "crm.accounts.manage",
       "crm.activities.manage",
@@ -353,6 +375,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     assignable: true,
     permissions: unique([
       ...crmReader,
+      "crm.records.view_all",
       "parties.manage",
       "crm.opportunities.manage",
       "crm.activities.manage",
@@ -621,39 +644,241 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     name: "Inventory Manager",
     slug: "inventory_manager",
     description:
-      "Future Stock module role. Unavailable until the module is released.",
+      "Warehouse operations, stock movements, transfers, counts, valuation and replenishment.",
     moduleKey: "stock",
     riskLevel: "sensitive",
-    assignable: false,
+    assignable: true,
     permissions: unique([
       ...businessReader,
+      "approvals.manage",
       "items.manage",
       "inventory_setup.manage",
+      "stock.view",
+      "stock.manage",
+      "stock.receive",
+      "stock.issue",
+      "stock.transfer",
+      "stock.adjust",
+      "stock.reserve",
+      "stock.count",
+      "stock.valuation.view",
+      "stock.reports.view",
+      "stock.settings.manage",
+      "stock.audit.view",
     ]),
   },
   {
     name: "Manufacturing Manager",
     slug: "manufacturing_manager",
     description:
-      "Future Manufacturing module role. Unavailable until the module is released.",
+      "BOMs, routings, work centers, material planning, work orders, production execution and costing.",
     moduleKey: "manufacturing",
     riskLevel: "sensitive",
-    assignable: false,
+    assignable: true,
     permissions: unique([
       ...businessReader,
+      "approvals.manage",
       "items.manage",
       "inventory_setup.manage",
+      "stock.view",
+      "stock.issue",
+      "stock.receive",
+      "stock.reserve",
+      "stock.valuation.view",
+      "manufacturing.view",
+      "manufacturing.manage",
+      "manufacturing.bom.view",
+      "manufacturing.bom.manage",
+      "manufacturing.routing.manage",
+      "manufacturing.planning.run",
+      "manufacturing.work_order.manage",
+      "manufacturing.work_order.release",
+      "manufacturing.production.post",
+      "manufacturing.scrap.post",
+      "manufacturing.costing.view",
+      "manufacturing.reports.view",
+      "manufacturing.settings.manage",
+      "manufacturing.audit.view",
+    ]),
+  },
+  {
+    name: "Project Manager",
+    slug: "project_manager",
+    description:
+      "Projects, milestones, tasks, resourcing, time, expenses, budgets, billing and profitability.",
+    moduleKey: "projects",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "projects.view",
+      "projects.manage",
+      "projects.create",
+      "projects.tasks.manage",
+      "projects.milestones.manage",
+      "projects.resources.manage",
+      "projects.time.enter",
+      "projects.time.approve",
+      "projects.expense.enter",
+      "projects.expense.approve",
+      "projects.budget.manage",
+      "projects.procurement.link",
+      "projects.billing.manage",
+      "projects.profitability.view",
+      "projects.reports.view",
+      "projects.settings.manage",
+      "projects.audit.view",
+    ]),
+  },
+  {
+    name: "Asset Manager",
+    slug: "asset_manager",
+    description:
+      "Asset register, capitalization, custody, maintenance, depreciation, audits, transfers and disposal.",
+    moduleKey: "assets",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "assets.view",
+      "assets.manage",
+      "assets.create",
+      "assets.capitalize",
+      "assets.assign",
+      "assets.transfer",
+      "assets.maintain",
+      "assets.inspect",
+      "assets.depreciate",
+      "assets.dispose",
+      "assets.accounting.handoff",
+      "assets.reports.view",
+      "assets.settings.manage",
+      "assets.audit.view",
+    ]),
+  },
+  {
+    name: "Point of Sale Manager",
+    slug: "pos_manager",
+    description:
+      "Stores, terminals, checkout, payments, returns, cashier shifts and reconciliation.",
+    moduleKey: "point-of-sale",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "stock.view",
+      "stock.issue",
+      "stock.receive",
+      "pos.view",
+      "pos.operate",
+      "pos.shift.open",
+      "pos.shift.close",
+      "pos.sale.create",
+      "pos.discount.apply",
+      "pos.return.create",
+      "pos.return.approve",
+      "pos.cash.adjust",
+      "pos.price.override",
+      "pos.terminal.manage",
+      "pos.store.manage",
+      "pos.payment.manage",
+      "pos.reports.view",
+      "pos.settings.manage",
+      "pos.audit.view",
+    ]),
+  },
+  {
+    name: "Quality Manager",
+    slug: "quality_manager",
+    description:
+      "Quality plans, inspections, holds, non-conformance, CAPA, supplier quality and audits.",
+    moduleKey: "quality",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "stock.view",
+      "procurement.view",
+      "manufacturing.view",
+      "pos.view",
+      "quality.view",
+      "quality.manage",
+      "quality.plan.manage",
+      "quality.inspect",
+      "quality.release",
+      "quality.hold",
+      "quality.nonconformance.manage",
+      "quality.capa.manage",
+      "quality.sampling.manage",
+      "quality.supplier.manage",
+      "quality.audit.manage",
+      "quality.reports.view",
+      "quality.settings.manage",
+      "quality.audit.view",
+    ]),
+  },
+  {
+    name: "Support Manager",
+    slug: "support_manager",
+    description:
+      "Tickets, queues, SLAs, escalation, knowledge base and customer communication.",
+    moduleKey: "support",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "crm.view",
+      "sales.view",
+      "projects.view",
+      "assets.view",
+      "quality.view",
+      "support.view",
+      "support.manage",
+      "support.ticket.create",
+      "support.ticket.assign",
+      "support.ticket.resolve",
+      "support.ticket.close",
+      "support.queue.manage",
+      "support.sla.manage",
+      "support.escalation.manage",
+      "support.knowledge.manage",
+      "support.communication.manage",
+      "support.sensitive.view",
+      "support.reports.view",
+      "support.settings.manage",
+      "support.audit.view",
     ]),
   },
   {
     name: "HR Manager",
     slug: "hr_manager",
     description:
-      "Future HR & Payroll role. Unavailable until the module is released.",
+      "Employees, attendance, leave, expenses, compensation, payroll, payslips and statutory controls.",
     moduleKey: "hr-payroll",
     riskLevel: "sensitive",
-    assignable: false,
-    permissions: businessReader,
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "hr_payroll.view",
+      "hr_payroll.employee.view",
+      "hr_payroll.employee.manage",
+      "hr_payroll.sensitive.view",
+      "hr_payroll.attendance.manage",
+      "hr_payroll.shift.manage",
+      "hr_payroll.leave.manage",
+      "hr_payroll.leave.approve",
+      "hr_payroll.expense.manage",
+      "hr_payroll.expense.approve",
+      "hr_payroll.payroll.prepare",
+      "hr_payroll.payroll.approve",
+      "hr_payroll.payroll.post",
+      "hr_payroll.payslip.view",
+      "hr_payroll.compensation.manage",
+      "hr_payroll.statutory.manage",
+      "hr_payroll.reports.view",
+      "hr_payroll.settings.manage",
+      "hr_payroll.audit.view",
+    ]),
   },
 ] as const;
 

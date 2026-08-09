@@ -1,3 +1,32 @@
+import { omitFields, omitFieldsFromRows } from "../field-visibility.js";
+
+// Personal/financial PII on tenant.hr_employees gated behind
+// hr_payroll.sensitive.view (see docs/implementation/
+// ERP_SECURITY_HARDENING_003.md, Part 1). Read-only enforcement: the
+// permission is named "sensitiveView" and no separate write/manage
+// counterpart exists for it, so mutation authority remains governed by the
+// pre-existing hr_payroll.employee.manage permission, unchanged.
+const EMPLOYEE_SENSITIVE_FIELDS = Object.freeze([
+  "personal_email",
+  "personal_phone",
+  "date_of_birth",
+  "gender",
+  "marital_status",
+  "nationality",
+  "address",
+  "bank_details",
+  "tax_identifiers",
+  "statutory_identifiers",
+  "emergency_contacts",
+]);
+
+function canViewSensitiveEmployeeFields(context) {
+  return (
+    Boolean(context.roleSlugs?.includes("organization_owner")) ||
+    Boolean(context.permissions?.includes("hr_payroll.sensitive.view"))
+  );
+}
+
 const TABLES = Object.freeze({
   employees: "hr_employees",
   departments: "hr_departments",
@@ -108,6 +137,9 @@ export async function listHrPayrollResource(
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
+  if (target === "hr_employees" && !canViewSensitiveEmployeeFields(context)) {
+    return omitFieldsFromRows(result.rows, EMPLOYEE_SENSITIVE_FIELDS);
+  }
   return result.rows;
 }
 
@@ -165,7 +197,9 @@ export async function createEmployee(client, context, input) {
     result.rows[0].id,
     "hr.employee.created",
   );
-  return result.rows[0];
+  return canViewSensitiveEmployeeFields(context)
+    ? result.rows[0]
+    : omitFields(result.rows[0], EMPLOYEE_SENSITIVE_FIELDS);
 }
 
 export async function createLeaveRequest(client, context, input) {

@@ -1,6 +1,6 @@
 import { getCrmDashboard } from "@vercentlabs/api";
 import { requireCrmView } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
 import { requireMobileSession } from "@/lib/mobile-session";
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   try {
     const session = await requireMobileSession(request);
     requireCrmView(session);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const dashboard = await tenantTransaction(context.organizationId, (client) =>
       getCrmDashboard(client, context),
     );

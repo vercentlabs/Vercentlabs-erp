@@ -1,7 +1,7 @@
 import { requestConversationTranscription } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { crmConversationIntelligenceErrorResponse } from "@/lib/crm-conversation-intelligence-route";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok } from "@/lib/http";
@@ -13,7 +13,7 @@ export async function POST(
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmAiManage);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const { id } = await route.params;
     const input = (await request.json()) as Record<string, unknown>;
     const job = await tenantTransaction(context.organizationId, (client) =>

@@ -1665,38 +1665,68 @@ legend {
   background: var(--color-canvas);
 }
 
+/* Flexbox, not CSS Grid — deliberately: the search launcher is the one
+   element that shrinks (flex: 1 1 auto with a small min-width), every
+   other control (context switcher, Quick Create, notifications/profile)
+   is flex: 0 0 auto and keeps its natural size. With default
+   `flex-wrap: nowrap`, this guarantees the whole row stays on one line at
+   any desktop/tablet width — nothing can force a second row the way a
+   fixed grid-template-columns track count could. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 25;
   min-height: 72px;
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto auto;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 10px clamp(16px, 2vw, 28px);
   border-bottom: 1px solid rgba(228, 231, 236, 0.92);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(18px);
 }
 
+.topbar > .context-switcher,
+.topbar > .topbar-menu,
+.topbar > .topbar-actions {
+  flex: 0 0 auto;
+}
+
+/* .global-search is now the command-palette launcher button (Part 42 —
+   "the existing visible top-bar field can become a launcher rather than a
+   normal inline search input"), not a real <input>; kept the class name so
+   the existing sizing/positioning rules below apply unchanged. */
 .global-search {
   position: relative;
+  flex: 1 1 180px;
+  min-width: 0;
   max-width: 560px;
-}
-
-.global-search input {
+  display: flex;
+  align-items: center;
+  gap: 0;
   min-height: var(--control-height);
-  padding-right: 82px;
-  padding-left: 42px;
-  border-color: transparent;
+  padding: 0 82px 0 42px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
   background: #f2f4f7;
-  box-shadow: none;
+  color: var(--color-muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
 }
 
-.global-search input:focus {
+.global-search:hover,
+.global-search:focus-visible {
   border-color: var(--color-primary-border);
   background: #fff;
+  outline: none;
+}
+
+.global-search-placeholder {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .global-search-icon {
@@ -1832,6 +1862,352 @@ legend {
   font-size: 11px;
   font-weight: 900;
   box-shadow: 0 8px 16px rgba(79, 70, 229, 0.16);
+}
+
+.topbar-profile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  text-align: left;
+}
+
+.topbar-profile:hover {
+  border-color: var(--color-line);
+  background: #f8fafc;
+}
+
+.topbar-profile-copy {
+  display: grid;
+  gap: 0;
+  text-align: left;
+}
+
+.topbar-profile-copy strong {
+  font-size: 12px;
+}
+
+.topbar-profile-copy small {
+  color: var(--color-muted);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.search-shortcut {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transform: translateY(-50%);
+}
+
+/* Quick Create (Part 10) */
+.quick-create-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-height);
+  padding: 0 16px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.quick-create-button:hover {
+  background: var(--color-primary-strong);
+  border-color: var(--color-primary-strong);
+}
+
+.quick-create-button span[aria-hidden="true"] {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Shared anchored-popover shell (Part 37) — Quick Create, Profile, and
+   Notifications all use the same topbar-menu/topbar-popover pair, styled
+   once rather than three times. */
+.topbar-menu {
+  position: relative;
+}
+
+.topbar-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: #fff;
+  box-shadow: var(--shadow-elevated, 0 18px 40px rgba(15, 23, 42, 0.14));
+}
+
+.topbar-popover-wide {
+  min-width: 320px;
+  max-width: 360px;
+}
+
+.topbar-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--color-ink-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  width: 100%;
+}
+
+.topbar-popover-item:hover {
+  background: var(--color-surface-subtle);
+  text-decoration: none;
+}
+
+.topbar-popover-logout {
+  color: var(--color-danger);
+}
+
+.topbar-popover-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--color-line);
+}
+
+.topbar-popover-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 8px;
+  font-size: 12px;
+}
+
+.topbar-popover-empty {
+  padding: 18px 10px;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.topbar-popover-footer {
+  display: block;
+  padding: 9px 10px;
+  border-top: 1px solid var(--color-line);
+  margin-top: 4px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.topbar-notification-list {
+  display: grid;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.topbar-notification-item {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+}
+
+.topbar-notification-item:hover {
+  background: var(--color-surface-subtle);
+}
+
+.topbar-notification-item.unread {
+  background: var(--color-primary-soft);
+}
+
+.topbar-notification-item strong {
+  font-size: 12px;
+}
+
+.topbar-notification-item small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+/* Command palette (Part 2/43) — the app's first modal/portal-based overlay
+   (Prompt 1's audit confirmed none existed). Kept visually restrained and
+   dense, matching the existing enterprise surface, not a consumer launcher. */
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 16px 16px;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.command-palette {
+  width: min(640px, 100%);
+  max-height: 70vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: #fff;
+  box-shadow: var(--shadow-elevated, 0 24px 60px rgba(15, 23, 42, 0.25));
+  overflow: hidden;
+}
+
+.command-palette-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.command-palette-input-icon {
+  flex: none;
+  color: var(--color-muted);
+}
+
+.command-palette-input {
+  flex: 1;
+  min-height: 30px;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  font-size: 15px;
+}
+
+.command-palette-input:focus {
+  box-shadow: none;
+}
+
+.command-palette-loading {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary-soft);
+  border-top-color: var(--color-primary);
+  animation: command-palette-spin 0.7s linear infinite;
+}
+
+@keyframes command-palette-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.command-palette-close {
+  flex: none;
+  padding: 3px 7px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.command-palette-results {
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.command-palette-group {
+  margin-bottom: 6px;
+}
+
+.command-palette-group-label {
+  padding: 8px 10px 4px;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.command-palette-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+}
+
+.command-palette-result:hover,
+.command-palette-result.selected {
+  background: var(--color-surface-subtle);
+}
+
+.command-palette-result-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.command-palette-result-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.command-palette-result-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-palette-result-copy small {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-palette-empty,
+.command-palette-hint {
+  padding: 24px 12px;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 .topbar-avatar:hover {
@@ -2251,6 +2627,69 @@ legend {
   color: var(--color-warning);
 }
 
+.favourite-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-ink-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.favourite-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.favourite-toggle.active {
+  border-color: var(--color-primary);
+  background: #eef2ff;
+  color: var(--color-primary);
+}
+
+.tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 20px 0;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.tab-strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tab-strip-item.active {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.tab-strip-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: var(--color-ink-secondary);
+  font-size: 10px;
+}
+
+.tab-strip-item.active .tab-strip-count {
+  background: #eef2ff;
+  color: var(--color-primary);
+}
+
 .metric-copy {
   min-width: 0;
   display: grid;
@@ -2351,15 +2790,19 @@ legend {
   margin-top: 16px;
 }
 
-.stack-list > div:not(.empty-state) {
+.stack-list > div:not(.empty-state),
+.stack-list > a:not(.empty-state) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   padding: 13px 0;
   border-bottom: 1px solid #f0f1f3;
+  color: inherit;
+  text-decoration: none;
 }
 
-.stack-list > div:last-child {
+.stack-list > div:last-child,
+.stack-list > a:last-child {
   border-bottom: 0;
 }
 
@@ -2373,8 +2816,26 @@ legend {
   font-size: 10px;
 }
 
-.timeline-list > div:not(.empty-state) {
-  grid-template-columns: auto minmax(0, 1fr);
+.timeline-list > div:not(.empty-state),
+.timeline-list > a:not(.empty-state) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.timeline-list > a:hover {
+  background: #f9fafb;
+}
+
+.timeline-item-link.attention .timeline-dot {
+  border-color: #fecaca;
+  background: #ef4444;
+  box-shadow: 0 0 0 4px #fee2e2;
+}
+
+.timeline-list small {
+  color: var(--color-muted-light);
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .timeline-dot {
@@ -2388,6 +2849,7 @@ legend {
 }
 
 .timeline-list > div > div,
+.timeline-list > a > div,
 .audit-list > div > div {
   display: grid;
   gap: 3px;
@@ -2710,6 +3172,40 @@ legend {
   border-radius: 11px;
   background: var(--color-success-soft);
   color: var(--color-success);
+}
+
+/* Page-level module-access denial (docs/implementation/
+   ERP_NAVIGATION_FOUNDATION_006.md, Part 10) — reuses .empty-state above
+   rather than a parallel style system; only the placement/icon-color
+   differ from a normal empty-list state. */
+.module-access-denied {
+  max-width: 420px;
+  margin: 48px auto;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.module-access-denied-icon {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  margin-bottom: 4px;
+}
+
+.module-access-denied h1 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.module-access-denied p {
+  font-size: 13px;
+}
+
+.module-access-denied-action {
+  margin-top: 10px;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .stack-section {
@@ -3166,13 +3662,23 @@ td small {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .topbar {
-    grid-template-columns: minmax(240px, 1fr) auto;
+  .global-search-placeholder,
+  .quick-create-label {
+    display: none;
   }
 
-  .context-switcher {
-    grid-column: 1 / -1;
-    justify-self: stretch;
+  .global-search {
+    flex: 0 0 auto;
+    max-width: none;
+    padding-right: 14px;
+  }
+
+  .search-shortcut {
+    display: none;
+  }
+
+  .quick-create-button {
+    padding: 0 12px;
   }
 }
 
@@ -3203,10 +3709,6 @@ td small {
 
   .sidebar {
     display: none;
-  }
-
-  .topbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .mobile-menu {
@@ -3366,7 +3868,6 @@ td small {
   }
 
   .topbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
     padding: 10px 12px;
   }

@@ -8,6 +8,7 @@ export class HttpError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly code?: string,
   ) {
     super(message);
   }
@@ -34,6 +35,14 @@ export function fail(
       status,
       headers: { "Cache-Control": "no-store" },
     },
+  );
+}
+
+export function failWithCode(error: HttpError) {
+  return fail(
+    error.message,
+    error.status,
+    error.code ? { code: error.code } : undefined,
   );
 }
 
@@ -75,7 +84,7 @@ export async function readJson(request: Request): Promise<unknown> {
 }
 
 export function errorResponse(error: unknown) {
-  if (error instanceof HttpError) return fail(error.message, error.status);
+  if (error instanceof HttpError) return failWithCode(error);
   if (error instanceof ZodError) {
     return fail("Review the submitted fields.", 400, {
       errors: error.flatten().fieldErrors,

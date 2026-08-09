@@ -2,7 +2,7 @@ import { archiveCrmRecord, findCrmDuplicates, getCrmRecord, updateCrmRecord } fr
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
 import { assertCrmIdentifier, requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
-import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
 import { crmPatchSchemas } from "@/lib/crm-validation";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, readJson } from "@/lib/http";
@@ -20,7 +20,7 @@ export async function GET(request: Request, route: { params: Promise<{ resource:
     const session = await requireMobileSession(request);
     const { resource, id } = await route.params;
     valid(resource); assertCrmIdentifier(id); requireCrmResourceView(session, resource);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(context.organizationId, async (client) => {
       const record = await getCrmRecord(client, context, resource, id);
       if (resource === "leads") {
@@ -58,7 +58,7 @@ export async function PATCH(request: Request, route: { params: Promise<{ resourc
     await requireBillingWriteAccess(session.organizationId!);
     const input = await crmPatchSchemas[resource].parseAsync(await readJson(request));
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const response = await tenantTransaction(context.organizationId, (client) => withMobileIdempotency(client, session, request, input, async () => {
       const record = await updateCrmRecord(client, context, resource, id, input);
       await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.updated`, entityType: resource, entityId: id, afterData: input, request, client });
@@ -75,7 +75,7 @@ export async function DELETE(request: Request, route: { params: Promise<{ resour
     valid(resource); assertCrmIdentifier(id); requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId!);
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const response = await tenantTransaction(context.organizationId, (client) =>
       withMobileIdempotency(client, session, request, { archive: true }, async () => {
         const record = await archiveCrmRecord(client, context, resource, id);

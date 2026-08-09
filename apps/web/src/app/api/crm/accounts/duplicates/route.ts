@@ -1,7 +1,7 @@
 import { findAccountDuplicates } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const input = Object.fromEntries(
       new URL(request.url).searchParams.entries(),
     );
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const duplicates = await tenantTransaction(
       context.organizationId,
       (client) => findAccountDuplicates(client, context, input),

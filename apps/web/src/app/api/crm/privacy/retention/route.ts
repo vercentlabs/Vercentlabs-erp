@@ -10,7 +10,7 @@ import {
   incrementBillingUsage,
 } from "@/lib/billing";
 import { crmAccountIntelligenceErrorResponse } from "@/lib/crm-account-intelligence-route";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok, readJson } from "@/lib/http";
 import { assertSameOriginOrMobile, audit } from "@/lib/security";
@@ -20,7 +20,7 @@ export async function GET() {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmPrivacyManage);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const dashboard = await tenantTransaction(
       context.organizationId,
       (client) => getPrivacyRetentionDashboard(client, context),
@@ -41,7 +41,7 @@ export async function PATCH(request: Request) {
     if (!body.id) throw new HttpError(400, "Retention policy is required.");
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const policy = await tenantTransaction(
       context.organizationId,
       async (client) => {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     const body = (await readJson(request)) as Record<string, unknown>;
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(
       context.organizationId,
       async (client) => {

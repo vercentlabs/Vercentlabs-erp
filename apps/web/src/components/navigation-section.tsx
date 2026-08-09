@@ -5,52 +5,46 @@ import { usePathname } from "next/navigation";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
 import NavigationLink from "@/components/navigation-link";
+import { matchesPath, type MatchablePath } from "@/lib/navigation/match-path";
 
-export type NavigationSectionItem = {
-  href: string;
+export type NavigationSectionItem = MatchablePath & {
   label: string;
   icon: AppIconName;
   badge?: number;
-  exact?: boolean;
   group?: string;
-  activePrefixes?: string[];
 };
-
-function matchesPath(pathname: string, item: NavigationSectionItem) {
-  if (item.exact && pathname === item.href) return true;
-  if (
-    !item.exact &&
-    (pathname === item.href || pathname.startsWith(`${item.href}/`))
-  ) {
-    return true;
-  }
-  return Boolean(
-    item.activePrefixes?.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    ),
-  );
-}
 
 export default function NavigationSection({
   label,
   icon,
   items,
   mobile = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   label: string;
   icon: AppIconName;
   items: NavigationSectionItem[];
   mobile?: boolean;
+  /** When provided (module sidebar sections), this section's open state is externally coordinated — see sidebar-modules.tsx (Part 11: only one module expands at a time). When omitted (e.g. Workspace settings), the section falls back to its own route-driven auto-open, unmanaged by any sibling. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const pathname = usePathname();
   const active = items.some((item) => matchesPath(pathname, item));
+  const open = controlledOpen ?? active;
 
   return (
     <details
       className={`nav-section${active ? " active" : ""}${mobile ? " mobile" : ""}`}
-      open={active}
+      open={open}
+      onToggle={
+        onOpenChange
+          ? (event) => onOpenChange((event.target as HTMLDetailsElement).open)
+          : undefined
+      }
     >
-      <summary>
+      <summary aria-expanded={open}>
         <span className="nav-section-icon" aria-hidden="true">
           <AppIcon name={icon} size={18} />
         </span>

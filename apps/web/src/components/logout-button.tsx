@@ -8,8 +8,10 @@ import { requestJson } from "@/lib/client-request";
 
 export default function LogoutButton({
   iconOnly = false,
+  className,
 }: {
   iconOnly?: boolean;
+  className?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -32,7 +34,7 @@ export default function LogoutButton({
   return (
     <button
       aria-label={pending ? "Signing out" : "Sign out"}
-      className={iconOnly ? "logout-icon-button" : "text-button"}
+      className={className ?? (iconOnly ? "logout-icon-button" : "text-button")}
       disabled={pending}
       onClick={logout}
       title="Sign out"

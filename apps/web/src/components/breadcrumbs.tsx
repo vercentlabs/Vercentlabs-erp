@@ -4,59 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import AppIcon from "@/components/app-icon";
-
-const labels: Record<string, string> = {
-  dashboard: "Home",
-  modules: "Modules",
-  notifications: "Notifications",
-  approvals: "Approvals",
-  "audit-logs": "Audit logs",
-  profile: "Profile",
-  security: "Security",
-  settings: "Settings",
-  organization: "Organisation",
-  companies: "Companies",
-  branches: "Branches",
-  departments: "Departments",
-  teams: "Teams",
-  "cost-centres": "Cost centres",
-  users: "Users",
-  roles: "Roles & permissions",
-  "numbering-series": "Numbering series",
-  search: "Search",
-  crm: "CRM",
-  leads: "Leads",
-  opportunities: "Opportunities",
-  activities: "Activities",
-  pipeline: "Pipeline",
-  reports: "Reports",
-  sales: "Sales",
-  quotations: "Quotations",
-  orders: "Orders",
-  procurement: "Procurement",
-  requisitions: "Requisitions",
-  sourcing: "Sourcing",
-  suppliers: "Suppliers",
-  contracts: "Agreements",
-  receipts: "Receipts",
-  matching: "Matching",
-  accounting: "Accounting",
-  journals: "Journal entries",
-  receivables: "Receivables",
-  payables: "Payables",
-  banking: "Banking",
-  assets: "Fixed assets",
-  planning: "Planning",
-  tax: "Tax",
-  operations: "Operations",
-  close: "Period close",
-  billing: "Billing",
-  "master-data": "Master data",
-  new: "New",
-};
+import { BREADCRUMB_LABELS } from "@/lib/navigation/breadcrumb-labels";
 
 function titleFromSegment(segment: string) {
-  if (labels[segment]) return labels[segment];
+  if (BREADCRUMB_LABELS[segment]) return BREADCRUMB_LABELS[segment];
   if (/^[0-9a-f-]{24,}$/i.test(segment)) return "Record";
   return segment.replaceAll("-", " ");
 }

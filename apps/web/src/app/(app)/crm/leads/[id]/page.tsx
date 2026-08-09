@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
 import { findCrmDuplicates, getCrmRecord } from "@vercentlabs/api";
 import CrmLeadActions from "@/components/crm-lead-actions";
+import FavouriteToggle from "@/components/favourite-toggle";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { crmContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
+import { isFavourited } from "@/lib/favourites";
+import { trackRecentRecord } from "@/lib/recent-records";
 export const dynamic = "force-dynamic";
 const nice = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
@@ -65,18 +68,34 @@ export default async function LeadDetailPage({
     return notFound();
   }
   const lead = data.lead as Record<string, unknown>;
+  const href = `/crm/leads/${id}`;
+  const label = String(lead.fullName || lead.companyName || "Lead");
+  await trackRecentRecord(session, {
+    targetType: "crm-lead",
+    href,
+    label,
+    moduleKey: "crm",
+  });
+  const favourited = await isFavourited(session, href);
   return (
     <>
       <section className="page-heading">
         <div>
           <p className="eyebrow">Lead · {String(lead.code)}</p>
-          <h1>{String(lead.fullName || lead.companyName || "Lead")}</h1>
+          <h1>{label}</h1>
           <p>
             {[lead.companyName, lead.jobTitle, lead.email, lead.mobile]
               .filter(Boolean)
               .join(" · ")}
           </p>
         </div>
+        <FavouriteToggle
+          href={href}
+          label={label}
+          targetType="crm-lead"
+          moduleKey="crm"
+          initialFavourited={favourited}
+        />
         <span className="status-badge neutral">
           {nice(String(lead.status))} · score {String(lead.score || 0)}
         </span>

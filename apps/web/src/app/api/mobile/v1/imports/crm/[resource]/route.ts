@@ -5,7 +5,7 @@ import {
   requireBillingWriteAccess,
 } from "@/lib/billing";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
 import { requireCrmManage } from "@/lib/crm-api";
 import { crmSchemas } from "@/lib/crm-validation";
 import { parseCsv } from "@/lib/csv";
@@ -41,7 +41,7 @@ export async function POST(
     }
 
     await requireBillingWriteAccess(session.organizationId);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(context.organizationId, async (client) => {
       let succeeded = 0;
       const errors: Array<{ row: number; message: string }> = [];

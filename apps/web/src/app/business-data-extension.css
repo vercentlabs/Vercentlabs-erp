@@ -275,6 +275,34 @@
   line-height: 1.55;
 }
 
+.master-data-card-access {
+  color: var(--color-muted-light, var(--color-muted));
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.master-data-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 4px;
+  padding: 11px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.master-data-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 1180px) {
   .business-data-layout {
     grid-template-columns: 1fr;

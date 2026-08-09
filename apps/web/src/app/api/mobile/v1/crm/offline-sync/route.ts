@@ -7,14 +7,14 @@ import {
 import { requireMobileSession } from "@/lib/mobile-session";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { readJson } from "@/lib/http";
 export async function GET(request: Request) {
   try {
     const s = await requireMobileSession(request);
     requirePermissionFromSession(s, PERMISSIONS.crmView);
-    const c = crmContext(s);
+    const c = await crmApiContext(s);
     const url = new URL(request.url);
     return mobileOk(
       request,
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   try {
     const s = await requireMobileSession(request);
     requirePermissionFromSession(s, PERMISSIONS.crmOpportunitiesManage);
-    const c = crmContext(s);
+    const c = await crmApiContext(s);
     const input = (await readJson(request)) as Record<string, unknown>;
     const action = String(input.action || "sync");
     const result = await tenantTransaction(c.organizationId, (client) =>

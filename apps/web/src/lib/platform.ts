@@ -5,443 +5,15 @@ import {
   seedBusinessDataFoundation,
 } from "@vercentlabs/api";
 import { setTenantContext } from "@vercentlabs/database";
-import { ALL_PERMISSIONS } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import type { PoolClient } from "pg";
 
 import type { SessionContext } from "@/lib/auth";
+import { ROLE_TEMPLATES } from "@/lib/access-control";
 import { ensureOrganizationBilling } from "@/lib/billing";
 import { query } from "@/lib/db";
 
 export const moduleCatalog = ERP_MODULE_CATALOG;
-
-const roleSeed = [
-  [
-    "Organisation Owner",
-    "organization_owner",
-    "Full organisation ownership and governance.",
-  ],
-  [
-    "System Administrator",
-    "system_administrator",
-    "Platform configuration and access administration.",
-  ],
-  [
-    "Company Administrator",
-    "company_administrator",
-    "Company, branch and user administration.",
-  ],
-  ["Finance Manager", "finance_manager", "Finance governance and approvals."],
-  ["Sales Manager", "sales_manager", "Sales team governance and approvals."],
-  [
-    "Purchase Manager",
-    "purchase_manager",
-    "Procurement governance and approvals.",
-  ],
-  ["Inventory Manager", "inventory_manager", "Stock and warehouse governance."],
-  ["Manufacturing Manager", "manufacturing_manager", "Production governance."],
-  ["HR Manager", "hr_manager", "People and payroll governance."],
-  ["Employee", "employee", "Standard employee workspace access."],
-  ["Auditor", "auditor", "Read-only governance and audit access."],
-  ["Read-only User", "read_only", "Read-only workspace access."],
-] as const;
-
-const allPermissions = ALL_PERMISSIONS;
-
-const baseWorkspacePermissions = [
-  "workspace.view",
-  "notifications.view",
-  "profile.manage",
-];
-
-const crmSalesPermissions = [
-  "crm.view",
-  "crm.leads.manage",
-  "crm.opportunities.manage",
-  "crm.activities.manage",
-  "crm.campaigns.manage",
-  "crm.communications.manage",
-  "crm.automation.manage",
-  "crm.capture.manage",
-  "crm.import",
-  "crm.export",
-  "crm.reports.view",
-  "crm.settings.manage",
-];
-
-const crmSalesManagerPermissions = [
-  "crm.revenue.manage",
-  "crm.accounts.manage",
-  "crm.playbooks.manage",
-  "crm.data-quality.manage",
-  "crm.analytics.manage",
-  "crm.partners.manage",
-  "crm.field-sales.manage",
-];
-
-const crmEmployeePermissions = [
-  "crm.accounts.manage",
-  "crm.playbooks.manage",
-  "crm.field-sales.manage",
-];
-
-const salesRepresentativePermissions = [
-  "sales.view",
-  "sales.quotation.create",
-  "sales.quotation.send",
-  "sales.order.create",
-  "sales.fulfillment.request",
-  "sales.invoice.request",
-  "sales.reports.view",
-];
-
-const salesManagerPermissions = [
-  ...salesRepresentativePermissions,
-  "sales.quotation.approve",
-  "sales.quotation.accept_on_behalf",
-  "sales.order.confirm",
-  "sales.order.approve",
-  "sales.order.amend",
-  "sales.order.hold",
-  "sales.order.cancel",
-  "sales.price.override",
-  "sales.margin.view",
-  "sales.reports.view",
-  "sales.settings.manage",
-];
-
-function permissionsForRole(slug: string) {
-  if (["organization_owner", "system_administrator"].includes(slug)) {
-    return allPermissions;
-  }
-
-  if (slug === "company_administrator") {
-    return allPermissions.filter(
-      (key) =>
-        key !== "organization.manage" &&
-        key !== "crm.ai.manage" &&
-        !["billing.manage", "billing.checkout", "billing.audit"].includes(key),
-    );
-  }
-
-  if (slug === "finance_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-      "parties.manage",
-      "finance_setup.manage",
-      "billing.view",
-      "billing.manage",
-      "billing.checkout",
-      "billing.audit",
-      "sales.view",
-      "sales.quotation.approve",
-      "sales.order.approve",
-      "sales.invoice.request",
-      "sales.margin.view",
-      "sales.credit.override",
-      "sales.reports.view",
-      "accounting.view",
-      "accounting.journal.create",
-      "accounting.journal.submit",
-      "accounting.journal.approve",
-      "accounting.journal.post",
-      "accounting.journal.reverse",
-      "accounting.receivables.manage",
-      "accounting.receipts.manage",
-      "accounting.collections.manage",
-      "accounting.payables.manage",
-      "accounting.payments.manage",
-      "accounting.bank.manage",
-      "accounting.bank.reconcile",
-      "accounting.period.manage",
-      "accounting.close.manage",
-      "accounting.budget.manage",
-      "accounting.tax.manage",
-      "accounting.fx.manage",
-      "accounting.intercompany.manage",
-      "accounting.assets.manage",
-      "accounting.recurring.manage",
-      "accounting.consolidation.manage",
-      "accounting.reports.view",
-      "accounting.settings.manage",
-      "accounting.audit.view",
-    ];
-  }
-
-  if (slug === "sales_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-      "parties.manage",
-      ...crmSalesPermissions,
-      ...crmSalesManagerPermissions,
-      ...salesManagerPermissions,
-    ];
-  }
-
-  if (slug === "purchase_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-      "parties.manage",
-      "items.manage",
-      "finance_setup.manage",
-      "procurement.view",
-      "procurement.settings.manage",
-      "procurement.suppliers.view",
-      "procurement.suppliers.manage",
-      "procurement.suppliers.qualify",
-      "procurement.catalog.manage",
-      "procurement.requisition.create",
-      "procurement.requisition.manage",
-      "procurement.requisition.approve",
-      "procurement.sourcing.manage",
-      "procurement.sourcing.evaluate",
-      "procurement.sourcing.award",
-      "procurement.contracts.manage",
-      "procurement.contracts.approve",
-      "procurement.po.create",
-      "procurement.po.manage",
-      "procurement.po.approve",
-      "procurement.po.dispatch",
-      "procurement.po.amend",
-      "procurement.po.cancel",
-      "procurement.receipts.manage",
-      "procurement.receipts.approve",
-      "procurement.inspection.manage",
-      "procurement.returns.manage",
-      "procurement.matching.manage",
-      "procurement.matching.override",
-      "procurement.supplier_portal.manage",
-      "procurement.reports.view",
-      "procurement.audit.view",
-    ];
-  }
-
-  if (slug === "inventory_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-      "items.manage",
-      "inventory_setup.manage",
-      "stock.view",
-      "stock.manage",
-      "stock.receive",
-      "stock.issue",
-      "stock.transfer",
-      "stock.adjust",
-      "stock.reserve",
-      "stock.count",
-      "stock.valuation.view",
-      "stock.reports.view",
-      "stock.settings.manage",
-      "stock.audit.view",
-    ];
-  }
-
-  if (slug === "manufacturing_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-      "items.manage",
-      "inventory_setup.manage",
-      "stock.view",
-      "stock.issue",
-      "stock.receive",
-      "stock.reserve",
-      "stock.valuation.view",
-      "manufacturing.view",
-      "manufacturing.manage",
-      "manufacturing.bom.view",
-      "manufacturing.bom.manage",
-      "manufacturing.routing.manage",
-      "manufacturing.planning.run",
-      "manufacturing.work_order.manage",
-      "manufacturing.work_order.release",
-      "manufacturing.production.post",
-      "manufacturing.scrap.post",
-      "manufacturing.costing.view",
-      "manufacturing.reports.view",
-      "manufacturing.settings.manage",
-      "manufacturing.audit.view",
-    ];
-  }
-  if (slug === "project_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "business_data.view",
-      "projects.view",
-      "projects.manage",
-      "projects.create",
-      "projects.tasks.manage",
-      "projects.milestones.manage",
-      "projects.resources.manage",
-      "projects.time.enter",
-      "projects.time.approve",
-      "projects.expense.enter",
-      "projects.expense.approve",
-      "projects.budget.manage",
-      "projects.procurement.link",
-      "projects.billing.manage",
-      "projects.profitability.view",
-      "projects.reports.view",
-      "projects.settings.manage",
-      "projects.audit.view",
-    ];
-  }
-  if (slug === "asset_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "business_data.view",
-      "assets.view",
-      "assets.manage",
-      "assets.create",
-      "assets.capitalize",
-      "assets.assign",
-      "assets.transfer",
-      "assets.maintain",
-      "assets.inspect",
-      "assets.depreciate",
-      "assets.dispose",
-      "assets.accounting.handoff",
-      "assets.reports.view",
-      "assets.settings.manage",
-      "assets.audit.view",
-    ];
-  }
-  if (slug === "pos_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "business_data.view",
-      "stock.view",
-      "stock.issue",
-      "stock.receive",
-      "pos.view",
-      "pos.operate",
-      "pos.shift.open",
-      "pos.shift.close",
-      "pos.sale.create",
-      "pos.discount.apply",
-      "pos.return.create",
-      "pos.return.approve",
-      "pos.cash.adjust",
-      "pos.price.override",
-      "pos.terminal.manage",
-      "pos.store.manage",
-      "pos.payment.manage",
-      "pos.reports.view",
-      "pos.settings.manage",
-      "pos.audit.view",
-    ];
-  }
-  if (slug === "quality_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "business_data.view",
-      "stock.view",
-      "procurement.view",
-      "manufacturing.view",
-      "pos.view",
-      "quality.view",
-      "quality.manage",
-      "quality.plan.manage",
-      "quality.inspect",
-      "quality.release",
-      "quality.hold",
-      "quality.nonconformance.manage",
-      "quality.capa.manage",
-      "quality.sampling.manage",
-      "quality.supplier.manage",
-      "quality.audit.manage",
-      "quality.reports.view",
-      "quality.settings.manage",
-      "quality.audit.view",
-    ];
-  }
-  if (slug === "support_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "business_data.view",
-      "crm.view",
-      "sales.view",
-      "projects.view",
-      "assets.view",
-      "quality.view",
-      "support.view",
-      "support.manage",
-      "support.ticket.create",
-      "support.ticket.assign",
-      "support.ticket.resolve",
-      "support.ticket.close",
-      "support.queue.manage",
-      "support.sla.manage",
-      "support.escalation.manage",
-      "support.knowledge.manage",
-      "support.communication.manage",
-      "support.sensitive.view",
-      "support.reports.view",
-      "support.settings.manage",
-      "support.audit.view",
-    ];
-  }
-
-  if (slug === "hr_manager") {
-    return [
-      ...baseWorkspacePermissions,
-      "approvals.manage",
-      "business_data.view",
-    ];
-  }
-
-  if (slug === "employee") {
-    return [
-      ...baseWorkspacePermissions,
-      "business_data.view",
-      "crm.view",
-      "crm.leads.manage",
-      "crm.opportunities.manage",
-      "crm.activities.manage",
-      "crm.communications.manage",
-      "crm.export",
-      "crm.reports.view",
-      ...crmEmployeePermissions,
-      ...salesRepresentativePermissions,
-    ];
-  }
-
-  if (slug === "auditor") {
-    return [
-      ...baseWorkspacePermissions,
-      "audit.view",
-      "business_data.view",
-      "crm.view",
-      "crm.export",
-      "crm.reports.view",
-      "crm.privacy.manage",
-      "billing.view",
-      "billing.audit",
-      "sales.view",
-      "sales.margin.view",
-      "sales.reports.view",
-      "accounting.view",
-      "accounting.reports.view",
-      "accounting.audit.view",
-    ];
-  }
-
-  return [
-    ...baseWorkspacePermissions,
-    "business_data.view",
-    "crm.view",
-    "crm.reports.view",
-  ];
-}
 
 async function seedCrmFoundation(
   client: PoolClient,
@@ -617,20 +189,44 @@ export async function seedOrganizationFoundation(
     timezone: string;
   },
 ) {
+  // Sourced from the single canonical role catalogue (apps/web/src/lib/
+  // access-control.ts's ROLE_TEMPLATES) rather than a separate,
+  // independently-maintained seed list — see docs/implementation/
+  // ERP_AUTHORIZATION_MODEL_004.md, Part 1/9 for why the two used to
+  // disagree (this file previously had its own roleSeed/permissionsForRole
+  // that had drifted: it never created project_manager/asset_manager/
+  // pos_manager/quality_manager/support_manager for new organizations at
+  // all, and always left module_key/assignable/risk_level at column
+  // defaults instead of the template's real values).
   const roleIds = new Map<string, string>();
-  for (const [name, slug, description] of roleSeed) {
+  for (const template of ROLE_TEMPLATES) {
     const id = randomUUID();
     const result = await client.query<{ id: string }>(
       `
-      INSERT INTO roles (id, organization_id, name, slug, description, is_system)
-      VALUES ($1, $2, $3, $4, $5, true)
-      ON CONFLICT (organization_id, slug) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description
+      INSERT INTO roles (id, organization_id, name, slug, description, is_system, module_key, template_key, assignable, risk_level)
+      VALUES ($1, $2, $3, $4, $5, true, $6, $4, $7, $8)
+      ON CONFLICT (organization_id, slug) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        module_key = EXCLUDED.module_key,
+        template_key = EXCLUDED.template_key,
+        assignable = EXCLUDED.assignable,
+        risk_level = EXCLUDED.risk_level
       RETURNING id
     `,
-      [id, input.organizationId, name, slug, description],
+      [
+        id,
+        input.organizationId,
+        template.name,
+        template.slug,
+        template.description,
+        template.moduleKey,
+        template.assignable,
+        template.riskLevel,
+      ],
     );
-    roleIds.set(slug, result.rows[0].id);
-    for (const permission of permissionsForRole(slug)) {
+    roleIds.set(template.slug, result.rows[0].id);
+    for (const permission of template.permissions) {
       await client.query(
         "INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         [result.rows[0].id, permission],

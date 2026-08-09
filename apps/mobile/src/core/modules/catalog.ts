@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import type { Ionicons } from "@expo/vector-icons";
-import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
+import { ERP_MODULE_CATALOG, NATIVE_OPERATIONAL_MODULE_KEYS } from "@vercentlabs/shared-types";
 
 export type MobileModule = {
   key: string;
@@ -26,7 +26,7 @@ export const mobileModules: readonly MobileModule[] = ERP_MODULE_CATALOG.map((mo
   icon: icons[module.key] ?? "apps-outline",
   href: module.key === "crm" ? "/(protected)/(tabs)/leads" : module.key === "procurement" ? "/(protected)/workspace/procurement" : undefined,
   permission: module.key === "crm" ? "crm.view" : module.key === "procurement" ? "procurement.view" : undefined,
-  enabled: module.availability === "released" && ["crm","procurement"].includes(module.key),
+  enabled: module.availability === "released" && (NATIVE_OPERATIONAL_MODULE_KEYS as readonly string[]).includes(module.key),
 }));
 
 export function availableModules(permissions: readonly string[]) {

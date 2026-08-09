@@ -1,7 +1,7 @@
 import { getCrmDashboard } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { requireCrmView } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
 export async function GET() {
@@ -9,7 +9,7 @@ export async function GET() {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requireCrmView(session);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const dashboard = await tenantTransaction(
       context.organizationId,
       (client) => getCrmDashboard(client, context),

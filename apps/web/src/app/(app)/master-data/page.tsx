@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getBusinessDataOverview } from "@vercentlabs/api";
 
 import AppIcon from "@/components/app-icon";
+import MasterDataCatalogue, {
+  type MasterDataCatalogueEntry,
+} from "@/components/master-data-catalogue";
 import { requireWorkspace } from "@/lib/auth";
 import {
   businessDataContext,
@@ -23,6 +25,13 @@ const overviewKeys = {
   Finance: "currencies",
 } as const;
 
+const GROUP_ICON = {
+  Partners: "companies",
+  Products: "stock",
+  Inventory: "branches",
+  Finance: "accounting",
+} as const;
+
 export default async function MasterDataPage() {
   const session = await requireWorkspace();
 
@@ -34,6 +43,34 @@ export default async function MasterDataPage() {
   const overview = await tenantTransaction(context.organizationId, (client) =>
     getBusinessDataOverview(client, context),
   );
+
+  // Every card still passes through businessDataView above (Master Data's
+  // single shared read gate — all 16 resources are readable at the same
+  // permission, confirmed by audit, so there is no per-resource *view*
+  // permission to further split on). "Permission-aware" here means each
+  // card additionally reflects its own resource's *manage* permission
+  // (partiesManage/itemsManage/inventorySetupManage/financeSetupManage all
+  // differ), so a user only sees "Manage access" where they actually have
+  // write rights to that specific resource, never a blanket assumption.
+  const entries: MasterDataCatalogueEntry[] = Object.values(
+    businessDataDefinitions,
+  ).map((definition) => ({
+    key: definition.key,
+    title: definition.title,
+    description: definition.description,
+    href: `/master-data/${definition.key}`,
+    group: definition.group,
+    icon: GROUP_ICON[definition.group],
+    canManage: hasPermission(session, definition.managePermission),
+  }));
+
+  const groups = businessDataGroups.map((group) => ({
+    name: group.name,
+    title: group.title,
+    description: group.description,
+    overviewLabel: "primary records",
+    overviewCount: Number(overview[overviewKeys[group.name]] || 0),
+  }));
 
   return (
     <>
@@ -91,63 +128,7 @@ export default async function MasterDataPage() {
         </article>
       </section>
 
-      {businessDataGroups.map((group) => {
-        const resources = Object.values(businessDataDefinitions).filter(
-          (definition) => definition.group === group.name,
-        );
-        const overviewKey = overviewKeys[group.name];
-
-        return (
-          <section
-            className="dashboard-section"
-            key={group.name}
-            aria-labelledby={`master-data-${group.name.toLowerCase()}`}
-          >
-            <div className="section-title-row">
-              <div>
-                <p className="eyebrow">{group.name}</p>
-                <h2 id={`master-data-${group.name.toLowerCase()}`}>
-                  {group.title}
-                </h2>
-                <p>{group.description}</p>
-              </div>
-              <span className="status-badge neutral">
-                {Number(overview[overviewKey] || 0)} primary records
-              </span>
-            </div>
-
-            <div className="master-data-grid">
-              {resources.map((definition) => (
-                <Link
-                  href={`/master-data/${definition.key}`}
-                  key={definition.key}
-                  className="master-data-card"
-                >
-                  <span className="master-data-card-icon" aria-hidden="true">
-                    <AppIcon
-                      name={
-                        definition.group === "Partners"
-                          ? "companies"
-                          : definition.group === "Products"
-                            ? "stock"
-                            : definition.group === "Inventory"
-                              ? "branches"
-                              : "accounting"
-                      }
-                      size={21}
-                    />
-                  </span>
-                  <div>
-                    <strong>{definition.title}</strong>
-                    <span>{definition.description}</span>
-                  </div>
-                  <AppIcon name="arrow-right" size={17} />
-                </Link>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      <MasterDataCatalogue entries={entries} groups={groups} />
     </>
   );
 }

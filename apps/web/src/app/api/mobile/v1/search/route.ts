@@ -2,7 +2,7 @@ import { listBusinessDataRecords, listCrmRecords } from "@vercentlabs/api";
 
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { businessDataContext } from "@/lib/business-data";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { query, tenantTransaction } from "@/lib/db";
 import { HttpError } from "@/lib/http";
 import { mobileError, mobileOk } from "@/lib/mobile-http";
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     }
 
     if (hasPermission(session, PERMISSIONS.crmView)) {
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       const crm = await tenantTransaction(context.organizationId, async (client) => {
         const output: Result[] = [];
         for (const resource of ["leads", "opportunities", "activities"] as const) {

@@ -1,9 +1,13 @@
 import Link from "next/link";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
+import WorkItemList from "@/components/work-item-list";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { query } from "@/lib/db";
+import { listFavourites } from "@/lib/favourites";
+import { getMyWorkSummary } from "@/lib/my-work/aggregate";
+import { listRecentRecords } from "@/lib/recent-records";
 
 export const metadata = { title: "Dashboard" };
 
@@ -17,6 +21,11 @@ function formatTime(value: Date) {
 export default async function DashboardPage() {
   const session = await requireWorkspace();
   const organizationId = session.organizationId as string;
+  const [myWork, favourites, recent] = await Promise.all([
+    getMyWorkSummary(session, 5),
+    listFavourites(session, 5),
+    listRecentRecords(session, 5),
+  ]);
   const [counts] = await query<{
     companies: number;
     branches: number;
@@ -222,6 +231,61 @@ export default async function DashboardPage() {
         </aside>
       </section>
 
+      <section className="dashboard-section" aria-labelledby="attention-title">
+        <div className="section-title-row">
+          <div>
+            <p className="eyebrow">Attention</p>
+            <h2 id="attention-title">What needs you today</h2>
+          </div>
+          <Link href="/my-work">
+            Open My work <AppIcon name="arrow-right" size={16} />
+          </Link>
+        </div>
+        <div className="metric-grid">
+          {[
+            {
+              label: "Tasks overdue or due today",
+              value: myWork.counts.tasksOverdue,
+              href: "/tasks",
+              icon: "approvals" as const,
+            },
+            {
+              label: "Follow-ups due today",
+              value: myWork.counts.followUpsDueToday,
+              href: "/follow-ups",
+              icon: "notifications" as const,
+            },
+            {
+              label: "Open exceptions",
+              value: myWork.counts.exceptionsOpen,
+              href: "/exceptions",
+              icon: "security" as const,
+            },
+            {
+              label: "Pending approvals",
+              value: myWork.counts.approvalsPending,
+              href: "/approvals",
+              icon: "approvals" as const,
+            },
+          ].map((metric) => (
+            <Link
+              className={`metric-card${metric.value ? " attention" : ""}`}
+              href={metric.href}
+              key={metric.label}
+            >
+              <span className="metric-icon" aria-hidden="true">
+                <AppIcon name={metric.icon} size={21} />
+              </span>
+              <span className="metric-copy">
+                <small>{metric.label}</small>
+                <strong>{metric.value}</strong>
+              </span>
+              <AppIcon className="metric-arrow" name="arrow-right" size={17} />
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section className="dashboard-section" aria-labelledby="overview-title">
         <div className="section-title-row">
           <div>
@@ -375,6 +439,58 @@ export default async function DashboardPage() {
             </Link>
           </article>
         ) : null}
+      </section>
+
+      <section className="content-grid dashboard-panels">
+        <article className="panel activity-panel">
+          <div className="card-title-row">
+            <div>
+              <p className="eyebrow">Continue where you left off</p>
+              <h2>Recent records</h2>
+            </div>
+            <Link href="/recent">
+              View all <AppIcon name="arrow-right" size={16} />
+            </Link>
+          </div>
+          <WorkItemList
+            items={recent.map((item) => ({
+              id: item.id,
+              kind: "task" as const,
+              source: item.moduleKey || item.targetType,
+              title: item.label,
+              urgency: "none" as const,
+              href: item.href,
+            }))}
+            emptyTitle="Nothing viewed yet"
+            emptyDescription="Records you open will be listed here."
+            emptyIcon="search"
+          />
+        </article>
+
+        <article className="panel activity-panel">
+          <div className="card-title-row">
+            <div>
+              <p className="eyebrow">Saved by you</p>
+              <h2>Favourites</h2>
+            </div>
+            <Link href="/favourites">
+              View all <AppIcon name="arrow-right" size={16} />
+            </Link>
+          </div>
+          <WorkItemList
+            items={favourites.map((item) => ({
+              id: item.id,
+              kind: "task" as const,
+              source: item.moduleKey || item.targetType,
+              title: item.label,
+              urgency: "none" as const,
+              href: item.href,
+            }))}
+            emptyTitle="No favourites yet"
+            emptyDescription="Star a record from its page to pin it here."
+            emptyIcon="sparkles"
+          />
+        </article>
       </section>
     </>
   );

@@ -1,5 +1,6 @@
 export const CRM_PERMISSIONS = Object.freeze({
   view: "crm.view",
+  recordsViewAll: "crm.records.view_all",
   leadsManage: "crm.leads.manage",
   opportunitiesManage: "crm.opportunities.manage",
   activitiesManage: "crm.activities.manage",

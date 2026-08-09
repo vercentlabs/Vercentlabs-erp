@@ -1,6 +1,27 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { add, allocate, decimal, format, mul } from "./money.js";
+import { hasAnyOwnField, omitFields } from "../field-visibility.js";
+
+// Supplier banking/financial-account keys inside tenant.procurement_suppliers'
+// jsonb `data` column, gated behind procurement.suppliers.sensitive (see
+// docs/implementation/ERP_SECURITY_HARDENING_003.md, Part 1). Deliberately
+// does NOT include taxRegistrationNumber: that field is already collected
+// by the standard, currently-ungated supplier form and used by roles (e.g.
+// Buyer) that hold procurement.suppliers.manage without .sensitive — gating
+// it now would break an existing working workflow (Part 8). No supplier
+// banking field is wired into any current form, so protecting this set
+// closes a real mass-assignment gap without regressing any caller.
+const SUPPLIER_SENSITIVE_FIELDS = Object.freeze([
+  "bankAccountNumber",
+  "bankAccountName",
+  "bankName",
+  "bankBranch",
+  "bankIfscCode",
+  "bankSwiftCode",
+  "bankRoutingNumber",
+  "bankIban",
+]);
 
 export class ProcurementError extends Error {
   constructor(status, message, code = "PROCUREMENT_ERROR") {
@@ -290,6 +311,26 @@ function permission(context, key) {
       403,
       "You do not have permission to perform this action.",
       "PROCUREMENT_FORBIDDEN",
+    );
+  }
+}
+
+function canViewSupplierSensitiveFields(context) {
+  return isOwner(context) || (context.permissions || []).includes("procurement.suppliers.sensitive");
+}
+
+function applySupplierFieldVisibility(resource, row, context) {
+  if (resource !== "suppliers" || canViewSupplierSensitiveFields(context)) return row;
+  return omitFields(row, SUPPLIER_SENSITIVE_FIELDS);
+}
+
+function assertSupplierSensitiveFieldsAllowed(resource, input, context) {
+  if (resource !== "suppliers" || canViewSupplierSensitiveFields(context)) return;
+  if (hasAnyOwnField(input, SUPPLIER_SENSITIVE_FIELDS)) {
+    throw new ProcurementError(
+      403,
+      "You do not have permission to set sensitive supplier banking details.",
+      "PROCUREMENT_SUPPLIER_SENSITIVE_FORBIDDEN",
     );
   }
 }
@@ -1023,7 +1064,9 @@ export async function listProcurementRecords(client, context, resource, filters 
     values,
   );
   return {
-    rows: rows.rows.map((row) => ({ ...(row.data || {}), ...row })),
+    rows: rows.rows.map((row) =>
+      applySupplierFieldVisibility(resource, { ...(row.data || {}), ...row }, context),
+    ),
     total: Number(count.rows[0]?.total || 0),
     limit,
     offset,
@@ -1043,7 +1086,11 @@ export async function getProcurementRecord(client, context, resource, recordId) 
   if (!result.rows[0]) {
     throw new ProcurementError(404, "Procurement record not found.", "PROCUREMENT_RECORD_NOT_FOUND");
   }
-  const row = { ...(result.rows[0].data || {}), ...result.rows[0] };
+  const row = applySupplierFieldVisibility(
+    resource,
+    { ...(result.rows[0].data || {}), ...result.rows[0] },
+    context,
+  );
   return config.kind === "document"
     ? hydrateChildren(client, context, resource, row)
     : row;
@@ -1055,6 +1102,7 @@ export async function createProcurementRecord(client, context, resource, input) 
     throw new ProcurementError(405, "This Procurement resource is read-only.");
   }
   permission(context, config.create);
+  assertSupplierSensitiveFieldsAllowed(resource, input, context);
 
   if (config.kind === "child") {
     const payload = normalizeChild(resource, input, context);
@@ -1139,6 +1187,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
   const config = configFor(resource);
   if (!config.manage) throw new ProcurementError(405, "This Procurement resource is read-only.");
   permission(context, config.manage);
+  assertSupplierSensitiveFieldsAllowed(resource, input, context);
   const current = await getProcurementRecord(client, context, resource, recordId);
   if (config.kind === "child") {
     const version = expectedVersion(input.expectedVersion);

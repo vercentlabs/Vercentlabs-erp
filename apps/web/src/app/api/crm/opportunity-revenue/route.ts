@@ -12,7 +12,7 @@ import {
 } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { crmOpportunityRevenueErrorResponse } from "@/lib/crm-opportunity-revenue-route";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok, readJson } from "@/lib/http";
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const opportunityId = new URL(request.url).searchParams.get(
       "opportunityId",
     );
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     requirePermissionFromSession(session, PERMISSIONS.crmOpportunitiesManage);
     const input = (await readJson(request)) as Record<string, unknown>;
     const action = String(input.action || "");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(
       context.organizationId,
       async (client) => {

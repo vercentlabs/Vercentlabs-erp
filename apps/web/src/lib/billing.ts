@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { cache } from "react";
 
 import { hasWriteAccess } from "@vercentlabs/api";
 import type {
@@ -149,7 +150,7 @@ export async function listBillingPlans(): Promise<BillingPlanPrice[]> {
   }));
 }
 
-export async function getBillingSummary(
+async function getBillingSummaryUncached(
   organizationId: string,
 ): Promise<BillingSummary> {
   const rows = await query<{
@@ -488,3 +489,9 @@ export async function replaceOrganizationSubscription(input: {
     replaceOrganizationSubscriptionWithClient(client, input),
   );
 }
+
+// Request-scoped memoization (Part 27) — see getSessionContext/
+// getEnabledModuleKeys for the matching rationale. Safe here because no
+// caller mutates billing state and then re-reads getBillingSummary within
+// the same request (mutations live in dedicated checkout/cancel routes).
+export const getBillingSummary = cache(getBillingSummaryUncached);

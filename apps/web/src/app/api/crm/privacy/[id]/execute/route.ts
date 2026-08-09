@@ -5,7 +5,7 @@ import {
   requireBillingWriteAccess,
   incrementBillingUsage,
 } from "@/lib/billing";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok, readJson } from "@/lib/http";
 import { crmAccountIntelligenceErrorResponse } from "@/lib/crm-account-intelligence-route";
@@ -24,7 +24,7 @@ export async function POST(
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await route.params;
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const execution = await tenantTransaction(
       context.organizationId,
       async (client) => {

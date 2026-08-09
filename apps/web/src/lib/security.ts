@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import type { PoolClient } from "pg";
 
@@ -7,6 +7,57 @@ import { HttpError } from "@/lib/http";
 
 export function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+const CAPTURE_SIGNATURE_MAX_AGE_MS = 5 * 60 * 1000;
+
+function safeHexEqual(left: string, right: string) {
+  if (!/^[0-9a-f]{64}$/i.test(left) || !/^[0-9a-f]{64}$/i.test(right)) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+}
+
+// Shared trusted-proxy fingerprint verification for every public,
+// unauthenticated CRM lead-capture entry point (see docs/implementation/
+// ERP_SECURITY_HARDENING_003.md, Part 3). A caller MAY present an
+// HMAC-signed x-vercentlabs-capture-* header set proving a trusted delivery
+// proxy relayed the request; when absent, callers fall back to
+// clientIp()+user-agent (never a raw, client-suppliable header) for a
+// same-request-computed fingerprint. Both public capture routes must use
+// this one implementation rather than trusting X-Forwarded-For directly.
+export function verifiedCaptureProxyFingerprint(request: Request, rawBody: string) {
+  const timestamp = request.headers.get("x-vercentlabs-capture-timestamp") || "";
+  const fingerprint = request.headers.get("x-vercentlabs-capture-fingerprint") || "";
+  const signature = request.headers.get("x-vercentlabs-capture-signature") || "";
+  if (!timestamp && !fingerprint && !signature) return null;
+
+  const secret = process.env.CRM_CAPTURE_PROXY_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new HttpError(503, "Trusted lead delivery is not configured.");
+  }
+  if (!/^\d{13}$/.test(timestamp) || !/^[0-9a-f]{64}$/i.test(fingerprint)) {
+    throw new HttpError(401, "Invalid trusted lead-delivery signature.");
+  }
+  const sentAt = Number(timestamp);
+  if (!Number.isFinite(sentAt) || Math.abs(Date.now() - sentAt) > CAPTURE_SIGNATURE_MAX_AGE_MS) {
+    throw new HttpError(401, "Trusted lead-delivery signature expired.");
+  }
+  const expected = createHmac("sha256", secret)
+    .update(`${timestamp}.${fingerprint}.${rawBody}`)
+    .digest("hex");
+  if (!safeHexEqual(signature, expected)) {
+    throw new HttpError(401, "Invalid trusted lead-delivery signature.");
+  }
+  return `proxy:${fingerprint}`;
+}
+
+// Fallback fingerprint for a direct (non-proxied) public submission. Uses
+// clientIp() — which only trusts an operator-configured header, never a
+// raw client-suppliable one — rather than reading X-Forwarded-For
+// unconditionally.
+export function directCaptureFingerprint(request: Request) {
+  return sha256(`${clientIp(request)}|${request.headers.get("user-agent") || "unknown"}`);
 }
 
 function configuredOrigins() {

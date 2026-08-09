@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
+import { matchesPath } from "@/lib/navigation/match-path";
 
 export default function NavigationLink({
   href,
@@ -25,15 +26,7 @@ export default function NavigationLink({
   activePrefixes?: string[];
 }) {
   const pathname = usePathname();
-  const primaryMatch = exact
-    ? pathname === href
-    : href === "/dashboard"
-      ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`);
-  const aliasMatch = activePrefixes.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-  const active = primaryMatch || aliasMatch;
+  const active = matchesPath(pathname, { href, exact, activePrefixes });
 
   return (
     <Link

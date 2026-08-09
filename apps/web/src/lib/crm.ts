@@ -2,9 +2,10 @@ import { CrmError } from "@vercentlabs/api";
 import { getStructuredFieldConfig } from "@vercentlabs/shared-types";
 import type { CrmContext, CrmResourceKey } from "@vercentlabs/shared-types";
 
-import type { SessionContext } from "@/lib/auth";
+import type { SessionContext, WorkspaceSessionContext } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/authorization";
 import { HttpError } from "@/lib/http";
+import { assertModuleAccessible } from "@/lib/module-access";
 
 export type CrmField = {
   name: string;
@@ -3488,6 +3489,18 @@ export function crmContext(session: SessionContext): CrmContext {
       session.roleSlugs.includes("organization_owner") ||
       session.roleSlugs.includes("system_administrator"),
   };
+}
+// The API-boundary variant of crmContext(): every CRM API route (web +
+// mobile v1) uses this instead of the bare, synchronous crmContext() so the
+// module-enablement/entitlement gate (Part 5, docs/implementation/
+// ERP_MODULE_ENFORCEMENT_005.md) runs before any CRM data is read or
+// written. Server-rendered CRM pages under apps/web/src/app/(app)/crm/**
+// intentionally keep calling the sync crmContext() directly — see that
+// doc's "Remaining Gaps" section for why SSR page reads are out of scope
+// here.
+export async function crmApiContext(session: SessionContext): Promise<CrmContext> {
+  await assertModuleAccessible(session as WorkspaceSessionContext, "crm");
+  return crmContext(session);
 }
 export function rethrowCrmError(error: unknown): never {
   if (error instanceof CrmError)

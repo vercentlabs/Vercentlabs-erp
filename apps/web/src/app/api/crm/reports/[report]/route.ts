@@ -1,7 +1,7 @@
 import { getCrmReport } from "@vercentlabs/api";
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
 import { getSessionContext } from "@/lib/auth";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { requireCrmReportView } from "@/lib/crm-api";
 import { tenantTransaction } from "@/lib/db";
 import { errorResponse, HttpError, ok } from "@/lib/http";
@@ -47,7 +47,7 @@ export async function GET(
     const { report } = await route.params;
     requireCrmReportView(session, report);
     const url = new URL(request.url);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const result = await tenantTransaction(context.organizationId, (client) =>
       getCrmReport(
         client,

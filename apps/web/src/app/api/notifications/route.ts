@@ -1,8 +1,40 @@
-import { getSessionContext } from "@/lib/auth";
+import { getSessionContext, type WorkspaceSessionContext } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
+import { listMyNotifications } from "@/lib/my-work/notifications";
 import { assertSameOrigin } from "@/lib/security";
 import { notificationActionSchema } from "@/lib/validation";
+
+// A compact preview for the topbar's notification popover (Part 16) — same
+// query shape as apps/web/src/app/(app)/notifications/page.tsx, just
+// capped smaller. Always scoped to the caller's own
+// (organization_id, user_id) row, same as PATCH below and the full page —
+// there is no path here for one user's notifications to reach another's.
+const PREVIEW_LIMIT = 8;
+
+export async function GET() {
+  try {
+    const session = await getSessionContext();
+    if (!session?.organizationId)
+      throw new HttpError(401, "Sign in to continue.");
+    const rows = await listMyNotifications(
+      session as WorkspaceSessionContext,
+      PREVIEW_LIMIT,
+    );
+    return ok({
+      notifications: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        message: row.message,
+        href: row.href,
+        readAt: row.read_at?.toISOString() || null,
+        createdAt: row.created_at.toISOString(),
+      })),
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function PATCH(request: Request) {
   try {

@@ -29,6 +29,7 @@ const resources = Object.freeze({
     orderBy: "updated_at DESC, created_at DESC",
     statusColumn: "status",
     companyScoped: true,
+    ownerField: "ownerUserId",
     fields: {
       companyId: "company_id",
       branchId: "branch_id",
@@ -72,6 +73,7 @@ const resources = Object.freeze({
     orderBy: "expected_close_date ASC NULLS LAST, updated_at DESC",
     statusColumn: "status",
     companyScoped: true,
+    ownerField: "ownerUserId",
     fields: {
       companyId: "company_id",
       branchId: "branch_id",
@@ -105,6 +107,7 @@ const resources = Object.freeze({
     orderBy: "COALESCE(due_at, start_at, created_at) ASC, created_at DESC",
     statusColumn: "status",
     companyScoped: true,
+    ownerField: "assignedTo",
     fields: {
       companyId: "company_id",
       branchId: "branch_id",
@@ -1280,6 +1283,22 @@ function addParameter(parameters, value) {
   return `$${parameters.length}`;
 }
 
+// A caller may see every record in their company/branch scope ("crm.records
+// .view_all" — granted to CRM/sales manager and administrator roles) or,
+// lacking that permission, only records they own/are assigned (definition.
+// ownerField, currently set for leads, opportunities and activities — see
+// docs/implementation/ERP_SECURITY_HARDENING_003.md, Part 2). Records with
+// no owner yet (owner_user_id/assigned_to IS NULL, e.g. a freshly captured
+// lead awaiting assignment) remain visible to anyone who can otherwise see
+// the resource, mirroring the existing company_id/branch_id IS NULL
+// convention immediately below.
+function canViewAllCrmRecords(context) {
+  return (
+    Boolean(context.roleSlugs?.includes("organization_owner")) ||
+    Boolean(context.permissions?.includes("crm.records.view_all"))
+  );
+}
+
 function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
   if (definition.table === "tenant.crm_saved_views") {
@@ -1292,6 +1311,10 @@ function recordScope(definition, context, parameters, alias = "record") {
   if (definition.fields?.branchId && !context.allowAllCompanies) {
     if (!context.activeBranchId) return " AND false";
     sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
+  }
+  if (definition.ownerField && !canViewAllCrmRecords(context)) {
+    const column = definition.fields[definition.ownerField];
+    sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)})`;
   }
   return sql;
 }
@@ -1326,6 +1349,25 @@ function assertWritableScope(definition, context, input) {
       context.activeBranchId
         ? "The CRM record belongs to another branch."
         : "Select an allowed branch before maintaining this CRM resource.",
+    );
+  }
+}
+
+// A caller without crm.records.view_all can create/own a record themselves
+// (or leave ownership to the existing lead-assignment engine) but cannot
+// hand a record off to a different, arbitrary user — that requires the same
+// elevated permission that grants company-wide visibility. Checked against
+// the RAW input (hasOwnProperty), not the merged/defaulted payload, so an
+// update that never mentions ownerField is unaffected. See Part 2 of
+// docs/implementation/ERP_SECURITY_HARDENING_003.md.
+function assertOwnerAssignmentAllowed(definition, context, input) {
+  if (!definition.ownerField || canViewAllCrmRecords(context)) return;
+  if (!Object.prototype.hasOwnProperty.call(input, definition.ownerField)) return;
+  const requested = input[definition.ownerField];
+  if (requested && requested !== context.userId) {
+    throw new CrmError(
+      403,
+      "You do not have permission to assign this record to another user.",
     );
   }
 }
@@ -1700,6 +1742,7 @@ async function validateCustomRecord(
 export async function createCrmRecord(client, context, resource, input) {
   const definition = definitionFor(resource);
   assertWritableScope(definition, context, input);
+  assertOwnerAssignmentAllowed(definition, context, input);
   const prepared = { ...input };
   if (resource === "saved-views") prepared.userId = context.userId;
   if (definition.codeEntity && !prepared[definition.codeField])
@@ -1827,6 +1870,7 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   assertWritableScope(definition, context, input);
+  assertOwnerAssignmentAllowed(definition, context, input);
   if (resource === "saved-views") delete input.userId;
   assertLifecycleUpdate(resource, before, input);
   const prepared = { ...input };
@@ -2984,35 +3028,43 @@ export async function getCrmDashboard(client, context) {
     context.activeCompanyId,
     context.activeBranchId,
     Boolean(context.allowAllCompanies),
+    Boolean(canViewAllCrmRecords(context)),
+    context.userId,
   ];
   const companyVisible = (alias) =>
     `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
   const branchVisible = (alias) =>
     `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
+  // Mirrors recordScope()'s owner-scoping rule so dashboard totals never
+  // reveal counts/sums that include records a restricted caller could not
+  // otherwise list or open individually (docs/implementation/
+  // ERP_SECURITY_HARDENING_003.md, Part 2, "CRM Analytics Security").
+  const ownerVisible = (alias, column) =>
+    `($5::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $6)`;
   const result = await client.query(
     `SELECT
       (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS open_leads,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status = 'qualified' AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS qualified_leads,
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS open_opportunities,
-      (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS pipeline_value,
-      (SELECT COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}) AS weighted_pipeline,
-      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at < now() AND ${companyVisible("activity")} AND ${branchVisible("activity")}) AS overdue_activities,
-      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day' AND ${companyVisible("activity")} AND ${branchVisible("activity")}) AS due_today,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.created_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS leads_this_month,
-      (SELECT count(*)::int FROM tenant.crm_conversion_records conversion JOIN tenant.crm_leads lead ON lead.id = conversion.lead_id AND lead.organization_id = conversion.organization_id WHERE conversion.organization_id = $1 AND conversion.converted_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS conversions_this_month`,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS open_leads,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status = 'qualified' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS qualified_leads,
+      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS open_opportunities,
+      (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS pipeline_value,
+      (SELECT COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS weighted_pipeline,
+      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at < now() AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS overdue_activities,
+      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day' AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS due_today,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.created_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS leads_this_month,
+      (SELECT count(*)::int FROM tenant.crm_conversion_records conversion JOIN tenant.crm_leads lead ON lead.id = conversion.lead_id AND lead.organization_id = conversion.organization_id WHERE conversion.organization_id = $1 AND conversion.converted_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS conversions_this_month`,
     parameters,
   );
   const stages = await client.query(
-    `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS opportunity_count, COALESCE(sum(opportunity.amount),0)::numeric AS amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`,
+    `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS opportunity_count, COALESCE(sum(opportunity.amount),0)::numeric AS amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`,
     parameters,
   );
   const sources = await client.query(
-    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
+    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
     parameters,
   );
   const activities = await client.query(
-    `SELECT activity.*, user_account.full_name AS assigned_name FROM tenant.crm_activities activity LEFT JOIN public.users user_account ON user_account.id = activity.assigned_to WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND ${companyVisible("activity")} AND ${branchVisible("activity")} ORDER BY activity.due_at ASC NULLS LAST LIMIT 10`,
+    `SELECT activity.*, user_account.full_name AS assigned_name FROM tenant.crm_activities activity LEFT JOIN public.users user_account ON user_account.id = activity.assigned_to WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} ORDER BY activity.due_at ASC NULLS LAST LIMIT 10`,
     parameters,
   );
   return {
@@ -3033,6 +3085,8 @@ export async function getCrmReport(client, context, report, filters = {}) {
     Boolean(context.allowAllCompanies),
     from,
     to,
+    Boolean(canViewAllCrmRecords(context)),
+    context.userId,
   ];
   const dateClause = (column) =>
     `AND ($5::date IS NULL OR ${column} >= $5::date) AND ($6::date IS NULL OR ${column} < $6::date + 1)`;
@@ -3040,17 +3094,27 @@ export async function getCrmReport(client, context, report, filters = {}) {
     `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
   const branchVisible = (alias) =>
     `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
+  // Same owner-scoping rule as recordScope()/getCrmDashboard() — reports
+  // built from crm_leads/crm_opportunities/crm_activities (the three
+  // resources with an ownerField, see Part 2 of docs/implementation/
+  // ERP_SECURITY_HARDENING_003.md) must not aggregate rows a restricted
+  // caller could not otherwise see individually. Reports built from other
+  // tables (campaigns, account plans, pipeline inspections, conversations,
+  // buying committees, partner accounts, AI predictions) are unaffected —
+  // none of those resources were given per-record ownership scope.
+  const ownerVisible = (alias, column) =>
+    `($7::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $8)`;
   let sql;
   if (report === "pipeline")
-    sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
+    sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
   else if (report === "conversion")
-    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} GROUP BY period ORDER BY period`;
+    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
-    sql = `SELECT COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} GROUP BY source.name ORDER BY leads DESC`;
+    sql = `SELECT COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY leads DESC`;
   else if (report === "activities")
-    sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE activity.due_at<now() AND activity.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} GROUP BY activity.activity_type ORDER BY total DESC`;
+    sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE activity.due_at<now() AND activity.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
-    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount),0)::numeric AS pipeline, COALESCE(sum(opportunity.amount*opportunity.probability/100),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
+    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount),0)::numeric AS pipeline, COALESCE(sum(opportunity.amount*opportunity.probability/100),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
   else if (report === "campaigns")
     sql = `SELECT campaign.name, campaign.status, campaign.budget, campaign.actual_cost, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_status IN ('responded','attended','converted'))::int AS responses, count(member.id) FILTER (WHERE member.member_status='converted')::int AS conversions FROM tenant.crm_campaigns campaign LEFT JOIN tenant.crm_campaign_members member ON member.campaign_id=campaign.id AND member.organization_id=campaign.organization_id WHERE campaign.organization_id=$1 ${dateClause("campaign.created_at")} AND ${companyVisible("campaign")} GROUP BY campaign.id ORDER BY campaign.created_at DESC`;
   else if (report === "revenue-operations")
@@ -3066,6 +3130,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
       FROM tenant.crm_opportunities opportunity
       WHERE opportunity.organization_id = $1 ${dateClause("opportunity.created_at")}
         AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}
+        AND ${ownerVisible("opportunity", "owner_user_id")}
       GROUP BY opportunity.owner_user_id
     ), quota_rollup AS (
       SELECT quota.user_id,
@@ -3076,6 +3141,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
         AND ${companyVisible("quota")}
         AND ($5::date IS NULL OR quota.period_end >= $5::date)
         AND ($6::date IS NULL OR quota.period_start <= $6::date)
+        AND ($7::boolean OR quota.user_id IS NULL OR quota.user_id = $8)
       GROUP BY quota.user_id
     )
     SELECT COALESCE(user_account.full_name,'Unassigned') AS owner,
@@ -3139,8 +3205,17 @@ export async function findCrmDuplicates(
     input.companyName || null,
     excludeId,
   ];
+  // Duplicate detection is a company/branch-wide concern, not an ownership
+  // one — it exists precisely to catch the case where a DIFFERENT rep
+  // already owns a matching lead, so it must keep seeing every record in
+  // scope regardless of who owns it. Strip ownerField rather than reusing
+  // recordScope(resources.leads, ...) directly, or a restricted caller
+  // would silently stop seeing colleagues' duplicates (see Part 12,
+  // "adversarial review", in docs/implementation/
+  // ERP_SECURITY_HARDENING_003.md).
+  const duplicateScope = recordScope({ ...resources.leads, ownerField: undefined }, context, parameters);
   const result = await client.query(
-    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.status NOT IN ('converted','archived') AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${recordScope(resources.leads, context, parameters)} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
+    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.status NOT IN ('converted','archived') AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${duplicateScope} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
     parameters,
   );
   return result.rows.map(camelizeRow);

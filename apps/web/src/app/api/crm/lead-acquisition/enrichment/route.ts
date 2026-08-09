@@ -1,7 +1,7 @@
 import { queueLeadEnrichment, reviewLeadEnrichment } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
+import { crmApiContext } from "@/lib/crm";
 import { crmLeadAcquisitionErrorResponse } from "@/lib/crm-lead-acquisition-route";
 import { tenantTransaction } from "@/lib/db";
 import { HttpError, ok } from "@/lib/http";
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmDataQualityManage);
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const input = (await request.json()) as Record<string, unknown>;
     const result = await tenantTransaction(context.organizationId, (client) =>
       input.action === "review"

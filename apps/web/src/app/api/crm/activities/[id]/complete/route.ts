@@ -5,7 +5,7 @@ import {
 import { completeCrmActivity } from "@vercentlabs/api";
 import { getSessionContext } from "@/lib/auth";
 import { assertCrmIdentifier } from "@/lib/crm-api";
-import { crmContext, rethrowCrmError } from "@/lib/crm";
+import { crmApiContext, rethrowCrmError } from "@/lib/crm";
 import { completeActivitySchema } from "@/lib/crm-validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
 import { tenantTransaction } from "@/lib/db";
@@ -25,7 +25,7 @@ export async function POST(
     assertCrmIdentifier(id);
     const input = completeActivitySchema.parse(await readJson(request));
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {

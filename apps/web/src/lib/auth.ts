@@ -7,6 +7,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextResponse } from "next/server";
@@ -485,7 +486,14 @@ async function resolveSessionContext(
   };
 }
 
-export async function getSessionContext(): Promise<SessionContext | null> {
+// Request-scoped memoization only (React's cache() dedupes by call within
+// one render/request, it never persists across requests) — added so that
+// per-module route-group layouts (Part 10's page-gating guard) can each
+// call getSessionContext()/requireWorkspace() without re-running the
+// session DB query the root (app)/layout.tsx already ran for the same
+// request. See docs/implementation/ERP_NAVIGATION_FOUNDATION_006.md
+// Section 9/15.
+export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const requestHeaders = await headers();
   const authorization = requestHeaders.get("authorization") || "";
   const bearer = authorization.match(/^Bearer ([A-Za-z0-9_-]{40,200})$/)?.[1];
@@ -493,7 +501,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   const store = await cookies();
   const token = store.get(cookieName)?.value;
   return token ? resolveSessionContext(token, "browser") : null;
-}
+});
 
 export async function getMobileSessionContext(
   accessToken: string,

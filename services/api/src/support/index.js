@@ -1,3 +1,18 @@
+// tenant.support_communications rows marked private_note=true are internal
+// staff-only notes not meant to be visible to every ticket viewer. Gated
+// behind support.sensitive.view (see docs/implementation/
+// ERP_SECURITY_HARDENING_003.md, Part 1). Read-only enforcement: creating a
+// private note remains governed by the pre-existing
+// support.communication.manage permission, unchanged — a caller can still
+// leave a private note without holding support.sensitive.view, they simply
+// cannot read other staff's private notes back without it.
+function canViewSensitiveSupportRecords(context) {
+  return (
+    Boolean(context.roleSlugs?.includes("organization_owner")) ||
+    Boolean(context.permissions?.includes("support.sensitive.view"))
+  );
+}
+
 const TABLES = Object.freeze({
   tickets: "support_tickets",
   queues: "support_queues",
@@ -103,6 +118,9 @@ export async function listSupportResource(
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
+  if (target === "support_communications" && !canViewSensitiveSupportRecords(context)) {
+    return result.rows.filter((row) => !row.private_note);
+  }
   return result.rows;
 }
 

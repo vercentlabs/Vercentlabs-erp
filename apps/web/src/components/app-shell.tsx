@@ -1,854 +1,21 @@
 import Link from "next/link";
 
-import AppIcon, { type AppIconName } from "@/components/app-icon";
+import AppIcon from "@/components/app-icon";
 import Breadcrumbs from "@/components/breadcrumbs";
+import CommandPalette from "@/components/command-palette";
 import ContextSwitcher from "@/components/context-switcher";
 import LogoutButton from "@/components/logout-button";
 import ModuleContextBar from "@/components/module-context-bar";
 import NavigationLink from "@/components/navigation-link";
-import NavigationSection, {
-  type NavigationSectionItem,
-} from "@/components/navigation-section";
-import WorkspaceSearch from "@/components/workspace-search";
+import NavigationSection from "@/components/navigation-section";
+import NotificationsControl from "@/components/notifications-control";
+import ProfileMenu from "@/components/profile-menu";
+import QuickCreateButton from "@/components/quick-create-button";
+import SidebarModules from "@/components/sidebar-modules";
 import type { SessionContext } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-
-type NavigationItem = NavigationSectionItem & {
-  permission?: string;
-};
-
-type NavigationGroup = {
-  label: string;
-  icon: AppIconName;
-  items: NavigationItem[];
-};
-
-const workspaceNavigation: NavigationItem[] = [
-  { href: "/dashboard", label: "Home", icon: "dashboard", exact: true },
-  {
-    href: "/master-data",
-    label: "Master data",
-    icon: "modules",
-    permission: PERMISSIONS.businessDataView,
-  },
-];
-
-const moduleNavigation: NavigationGroup[] = [
-  {
-    label: "CRM",
-    icon: "crm",
-    items: [
-      {
-        href: "/crm",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/leads",
-        label: "Leads",
-        icon: "crm",
-        group: "Customers",
-        activePrefixes: ["/crm/lead-acquisition", "/crm/lead-intelligence"],
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/accounts",
-        label: "Accounts",
-        icon: "companies",
-        group: "Customers",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/contacts",
-        label: "Contacts",
-        icon: "users",
-        group: "Customers",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/opportunities",
-        label: "Opportunities",
-        icon: "sales",
-        group: "Sales",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/activities",
-        label: "Activities",
-        icon: "approvals",
-        group: "Sales",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/pipeline",
-        label: "Pipeline & forecasting",
-        icon: "sales",
-        group: "Sales",
-        activePrefixes: ["/crm/opportunity-revenue"],
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/communications",
-        label: "Communications",
-        icon: "notifications",
-        group: "Engagement",
-        activePrefixes: ["/crm/conversation-intelligence"],
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/marketing",
-        label: "Marketing",
-        icon: "sparkles",
-        group: "Engagement",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/customer-success",
-        label: "Customer success",
-        icon: "companies",
-        group: "Engagement",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/partner-engagement",
-        label: "Partner management",
-        icon: "teams",
-        group: "Engagement",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/reports",
-        label: "Reports",
-        icon: "audit",
-        group: "Insights",
-        permission: PERMISSIONS.crmReportsView,
-      },
-      {
-        href: "/crm/ai-intelligence",
-        label: "CRM intelligence",
-        icon: "sparkles",
-        group: "Insights",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/settings",
-        label: "Settings",
-        icon: "settings",
-        group: "Administration",
-        activePrefixes: ["/crm/mobile-readiness"],
-        permission: PERMISSIONS.crmSettingsManage,
-      },
-    ],
-  },
-  {
-    label: "Sales",
-    icon: "sales",
-    items: [
-      {
-        href: "/sales",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.salesView,
-      },
-      {
-        href: "/sales/quotations",
-        label: "Quotations",
-        icon: "sales",
-        permission: PERMISSIONS.salesView,
-      },
-      {
-        href: "/sales/orders",
-        label: "Sales orders",
-        icon: "sales",
-        permission: PERMISSIONS.salesView,
-      },
-      {
-        href: "/sales/reports",
-        label: "Reports",
-        icon: "audit",
-        permission: PERMISSIONS.salesReportsView,
-      },
-      {
-        href: "/sales/settings",
-        label: "Settings",
-        icon: "settings",
-        permission: PERMISSIONS.salesSettingsManage,
-      },
-    ],
-  },
-  {
-    label: "Procurement",
-    icon: "procurement",
-    items: [
-      {
-        href: "/procurement",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/requisitions",
-        label: "Requisitions",
-        icon: "procurement",
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/sourcing",
-        label: "Sourcing",
-        icon: "procurement",
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/suppliers",
-        label: "Suppliers",
-        icon: "companies",
-        permission: PERMISSIONS.procurementSuppliersView,
-      },
-      {
-        href: "/procurement/contracts",
-        label: "Agreements",
-        icon: "audit",
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/orders",
-        label: "Purchase orders",
-        icon: "procurement",
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/receipts",
-        label: "Receipts",
-        icon: "check",
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/matching",
-        label: "Matching",
-        icon: "approvals",
-        permission: PERMISSIONS.procurementView,
-      },
-      {
-        href: "/procurement/reports",
-        label: "Reports",
-        icon: "audit",
-        permission: PERMISSIONS.procurementReportsView,
-      },
-      {
-        href: "/procurement/settings",
-        label: "Settings",
-        icon: "settings",
-        permission: PERMISSIONS.procurementSettingsManage,
-      },
-    ],
-  },
-  {
-    label: "Stock",
-    icon: "modules",
-    items: [
-      {
-        href: "/stock",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.stockView,
-      },
-      {
-        href: "/stock/balances",
-        label: "Stock balances",
-        icon: "modules",
-        permission: PERMISSIONS.stockView,
-      },
-      {
-        href: "/stock/movements",
-        label: "Movements",
-        icon: "audit",
-        permission: PERMISSIONS.stockView,
-      },
-      {
-        href: "/stock/transfers",
-        label: "Transfers",
-        icon: "procurement",
-        permission: PERMISSIONS.stockTransfer,
-      },
-      {
-        href: "/stock/batches",
-        label: "Batches",
-        icon: "check",
-        permission: PERMISSIONS.stockView,
-      },
-      {
-        href: "/stock/serials",
-        label: "Serial numbers",
-        icon: "check",
-        permission: PERMISSIONS.stockView,
-      },
-      {
-        href: "/stock/reservations",
-        label: "Reservations",
-        icon: "approvals",
-        permission: PERMISSIONS.stockView,
-      },
-      {
-        href: "/stock/reorder-rules",
-        label: "Replenishment",
-        icon: "sales",
-        permission: PERMISSIONS.stockView,
-      },
-    ],
-  },
-  {
-    label: "HR & Payroll",
-    icon: "users",
-    items: [
-      {
-        href: "/hr-payroll",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.hrPayrollView,
-      },
-      {
-        href: "/hr-payroll/employees",
-        label: "Employees",
-        icon: "users",
-        permission: PERMISSIONS.hrPayrollEmployeeView,
-      },
-      {
-        href: "/hr-payroll/attendance",
-        label: "Attendance",
-        icon: "check",
-        permission: PERMISSIONS.hrPayrollView,
-      },
-      {
-        href: "/hr-payroll/leave-requests",
-        label: "Leave",
-        icon: "approvals",
-        permission: PERMISSIONS.hrPayrollView,
-      },
-      {
-        href: "/hr-payroll/expenses",
-        label: "Expenses",
-        icon: "accounting",
-        permission: PERMISSIONS.hrPayrollView,
-      },
-      {
-        href: "/hr-payroll/salary-structures",
-        label: "Compensation",
-        icon: "settings",
-        permission: PERMISSIONS.hrPayrollView,
-      },
-      {
-        href: "/hr-payroll/payroll-runs",
-        label: "Payroll runs",
-        icon: "hr-payroll",
-        permission: PERMISSIONS.hrPayrollView,
-      },
-      {
-        href: "/hr-payroll/payslips",
-        label: "Payslips",
-        icon: "audit",
-        permission: PERMISSIONS.hrPayrollPayslipView,
-      },
-    ],
-  },
-
-  {
-    label: "Support",
-    icon: "support",
-    items: [
-      {
-        href: "/support",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/tickets",
-        label: "Tickets",
-        icon: "support",
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/queues",
-        label: "Queues",
-        icon: "users",
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/sla-policies",
-        label: "SLA policies",
-        icon: "audit",
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/escalations",
-        label: "Escalations",
-        icon: "approvals",
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/communications",
-        label: "Communications",
-        icon: "crm",
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/knowledge",
-        label: "Knowledge",
-        icon: "support",
-        permission: PERMISSIONS.supportView,
-      },
-      {
-        href: "/support/customer-history",
-        label: "Customer history",
-        icon: "users",
-        permission: PERMISSIONS.supportView,
-      },
-    ],
-  },
-
-  {
-    label: "Quality",
-    icon: "check",
-    items: [
-      {
-        href: "/quality",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/plans",
-        label: "Quality plans",
-        icon: "settings",
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/inspections",
-        label: "Inspections",
-        icon: "check",
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/holds",
-        label: "Quality holds",
-        icon: "stock",
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/non-conformances",
-        label: "Non-conformance",
-        icon: "audit",
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/capa",
-        label: "CAPA",
-        icon: "approvals",
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/supplier-quality",
-        label: "Supplier quality",
-        icon: "procurement",
-        permission: PERMISSIONS.qualityView,
-      },
-      {
-        href: "/quality/audits",
-        label: "Audits",
-        icon: "audit",
-        permission: PERMISSIONS.qualityView,
-      },
-    ],
-  },
-
-  {
-    label: "Point of Sale",
-    icon: "sales",
-    items: [
-      {
-        href: "/point-of-sale",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.posView,
-      },
-      {
-        href: "/point-of-sale/checkout",
-        label: "Checkout",
-        icon: "sales",
-        permission: PERMISSIONS.posOperate,
-      },
-      {
-        href: "/point-of-sale/shifts",
-        label: "Shifts",
-        icon: "audit",
-        permission: PERMISSIONS.posView,
-      },
-      {
-        href: "/point-of-sale/sales",
-        label: "Sales",
-        icon: "sales",
-        permission: PERMISSIONS.posView,
-      },
-      {
-        href: "/point-of-sale/returns",
-        label: "Returns",
-        icon: "stock",
-        permission: PERMISSIONS.posView,
-      },
-      {
-        href: "/point-of-sale/cash-movements",
-        label: "Cash movements",
-        icon: "accounting",
-        permission: PERMISSIONS.posView,
-      },
-      {
-        href: "/point-of-sale/reconciliations",
-        label: "Reconciliation",
-        icon: "check",
-        permission: PERMISSIONS.posView,
-      },
-      {
-        href: "/point-of-sale/terminals",
-        label: "Terminals",
-        icon: "settings",
-        permission: PERMISSIONS.posTerminalManage,
-      },
-    ],
-  },
-
-  {
-    label: "Assets",
-    icon: "modules",
-    items: [
-      {
-        href: "/assets",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/assets",
-        label: "Asset register",
-        icon: "modules",
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/assignments",
-        label: "Assignments",
-        icon: "users",
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/transfers",
-        label: "Transfers",
-        icon: "stock",
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/maintenance-orders",
-        label: "Maintenance",
-        icon: "settings",
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/inspections",
-        label: "Inspections",
-        icon: "check",
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/depreciation-runs",
-        label: "Depreciation",
-        icon: "accounting",
-        permission: PERMISSIONS.assetsView,
-      },
-      {
-        href: "/assets/disposals",
-        label: "Disposals",
-        icon: "audit",
-        permission: PERMISSIONS.assetsView,
-      },
-    ],
-  },
-
-  {
-    label: "Projects",
-    icon: "modules",
-    items: [
-      {
-        href: "/projects",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/projects",
-        label: "Projects",
-        icon: "modules",
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/milestones",
-        label: "Milestones",
-        icon: "check",
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/tasks",
-        label: "Tasks",
-        icon: "approvals",
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/time-entries",
-        label: "Time",
-        icon: "audit",
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/expenses",
-        label: "Expenses",
-        icon: "accounting",
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/budgets",
-        label: "Budgets",
-        icon: "accounting",
-        permission: PERMISSIONS.projectsView,
-      },
-      {
-        href: "/projects/profitability",
-        label: "Profitability",
-        icon: "sales",
-        permission: PERMISSIONS.projectsProfitabilityView,
-      },
-    ],
-  },
-
-  {
-    label: "Manufacturing",
-    icon: "modules",
-    items: [
-      {
-        href: "/manufacturing",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.manufacturingView,
-      },
-      {
-        href: "/manufacturing/boms",
-        label: "Bills of material",
-        icon: "modules",
-        permission: PERMISSIONS.manufacturingBomView,
-      },
-      {
-        href: "/manufacturing/work-orders",
-        label: "Work orders",
-        icon: "approvals",
-        permission: PERMISSIONS.manufacturingView,
-      },
-      {
-        href: "/manufacturing/work-centers",
-        label: "Work centers",
-        icon: "settings",
-        permission: PERMISSIONS.manufacturingView,
-      },
-      {
-        href: "/manufacturing/routings",
-        label: "Routings",
-        icon: "audit",
-        permission: PERMISSIONS.manufacturingView,
-      },
-      {
-        href: "/manufacturing/material-requirements",
-        label: "Material planning",
-        icon: "procurement",
-        permission: PERMISSIONS.manufacturingView,
-      },
-      {
-        href: "/manufacturing/production-postings",
-        label: "Production postings",
-        icon: "check",
-        permission: PERMISSIONS.manufacturingView,
-      },
-    ],
-  },
-  {
-    label: "Accounting",
-    icon: "accounting",
-    items: [
-      {
-        href: "/accounting",
-        label: "Overview",
-        icon: "dashboard",
-        exact: true,
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/journals",
-        label: "Journal entries",
-        icon: "accounting",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/receivables",
-        label: "Receivables",
-        icon: "sales",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/payables",
-        label: "Payables",
-        icon: "procurement",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/banking",
-        label: "Banking",
-        icon: "billing",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/assets",
-        label: "Fixed assets",
-        icon: "assets",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/planning",
-        label: "Planning",
-        icon: "projects",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/tax",
-        label: "Tax",
-        icon: "audit",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/operations",
-        label: "Operations",
-        icon: "settings",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/close",
-        label: "Period close",
-        icon: "check",
-        permission: PERMISSIONS.accountingView,
-      },
-      {
-        href: "/accounting/reports",
-        label: "Reports",
-        icon: "audit",
-        permission: PERMISSIONS.accountingReportsView,
-      },
-      {
-        href: "/accounting/settings",
-        label: "Settings",
-        icon: "settings",
-        permission: PERMISSIONS.accountingSettingsManage,
-      },
-    ],
-  },
-];
-
-const workNavigation: NavigationItem[] = [
-  { href: "/notifications", label: "Notifications", icon: "notifications" },
-  {
-    href: "/approvals",
-    label: "Approvals",
-    icon: "approvals",
-    permission: PERMISSIONS.approvalsManage,
-  },
-];
-
-const governanceNavigation: NavigationItem[] = [
-  {
-    href: "/billing",
-    label: "Billing",
-    icon: "billing",
-    permission: PERMISSIONS.billingView,
-  },
-  {
-    href: "/audit-logs",
-    label: "Audit logs",
-    icon: "audit",
-    permission: PERMISSIONS.auditView,
-  },
-];
-
-const settingsNavigation: NavigationItem[] = [
-  { href: "/settings", label: "Overview", icon: "dashboard", exact: true },
-  {
-    href: "/settings/organization",
-    label: "Organisation",
-    icon: "organisation",
-    permission: PERMISSIONS.organizationManage,
-  },
-  {
-    href: "/settings/companies",
-    label: "Companies",
-    icon: "companies",
-    permission: PERMISSIONS.companyManage,
-  },
-  {
-    href: "/settings/branches",
-    label: "Branches",
-    icon: "branches",
-    permission: PERMISSIONS.branchManage,
-  },
-  {
-    href: "/settings/departments",
-    label: "Departments",
-    icon: "departments",
-    permission: PERMISSIONS.departmentManage,
-  },
-  {
-    href: "/settings/teams",
-    label: "Teams",
-    icon: "teams",
-    permission: PERMISSIONS.teamManage,
-  },
-  {
-    href: "/settings/cost-centres",
-    label: "Cost centres",
-    icon: "cost-centres",
-    permission: PERMISSIONS.costCenterManage,
-  },
-  {
-    href: "/settings/users",
-    label: "Users",
-    icon: "users",
-    permission: PERMISSIONS.usersView,
-  },
-  {
-    href: "/settings/roles",
-    label: "Roles & permissions",
-    icon: "roles",
-    permission: PERMISSIONS.rolesView,
-  },
-  {
-    href: "/settings/numbering-series",
-    label: "Numbering series",
-    icon: "numbering",
-    permission: PERMISSIONS.numberingManage,
-  },
-];
+import type { ResolvedNavigationWithSettings } from "@/lib/navigation/resolve-navigation";
+import type { NavigationItem } from "@/lib/navigation/types";
+import type { QuickCreateAction } from "@/lib/quick-create/actions";
 
 function initials(name: string) {
   return name
@@ -857,12 +24,6 @@ function initials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
-}
-
-function visibleItems(session: SessionContext, items: NavigationItem[]) {
-  return items.filter(
-    (item) => !item.permission || hasPermission(session, item.permission),
-  );
 }
 
 function NavigationCollection({
@@ -887,9 +48,16 @@ function NavigationCollection({
   ));
 }
 
+// AppShell no longer computes navigation visibility itself — the `navigation`
+// prop arrives already server-resolved (Part 9: "filter before render") from
+// resolveNavigation() in apps/web/src/app/(app)/layout.tsx, which composes
+// Prompt 4/5's canonical module-access resolver with the existing
+// permission checks. See docs/implementation/ERP_NAVIGATION_FOUNDATION_006.md.
 export default function AppShell({
   session,
   shellData,
+  navigation,
+  quickCreate,
   children,
 }: {
   session: SessionContext;
@@ -899,63 +67,57 @@ export default function AppShell({
     branches: Array<{ id: string; company_id: string; name: string }>;
     unreadNotifications: number;
   };
+  navigation: ResolvedNavigationWithSettings;
+  quickCreate: QuickCreateAction[];
   children: React.ReactNode;
 }) {
-  const visibleWorkspace = visibleItems(session, workspaceNavigation);
-  const visibleModules = moduleNavigation
-    .map((group) => ({ ...group, items: visibleItems(session, group.items) }))
-    .filter((group) => group.items.length > 0);
-  const visibleWork = visibleItems(session, workNavigation);
-  const visibleGovernance = visibleItems(session, governanceNavigation);
-  const visibleSettings = visibleItems(session, settingsNavigation);
   const role =
     session.roleSlugs[0]?.replaceAll("_", " ") || session.membershipRole;
 
-  const navigation = (mobile = false) => (
+  const navigationTree = (mobile = false) => (
     <>
       <p className="nav-label">Workspace</p>
       <NavigationCollection
-        items={visibleWorkspace}
+        items={navigation.workspace}
         mobile={mobile}
         unreadNotifications={shellData.unreadNotifications}
       />
 
-      {visibleModules.length ? <p className="nav-label">Modules</p> : null}
-      {visibleModules.map((group) => (
-        <NavigationSection
-          icon={group.icon}
-          items={group.items}
-          key={group.label}
-          label={group.label}
-          mobile={mobile}
-        />
-      ))}
+      {navigation.modules.length ? <p className="nav-label">Modules</p> : null}
+      <SidebarModules groups={navigation.modules} mobile={mobile} />
 
-      {visibleWork.length ? <p className="nav-label">My work</p> : null}
+      {navigation.myWork.length ? <p className="nav-label">My work</p> : null}
       <NavigationCollection
-        items={visibleWork}
+        items={navigation.myWork}
         mobile={mobile}
         unreadNotifications={shellData.unreadNotifications}
       />
 
-      {visibleGovernance.length ? (
+      {navigation.governance.length ? (
         <p className="nav-label">Governance</p>
       ) : null}
       <NavigationCollection
-        items={visibleGovernance}
+        items={navigation.governance}
         mobile={mobile}
         unreadNotifications={shellData.unreadNotifications}
       />
 
-      {visibleSettings.length ? (
+      {navigation.administration.length || navigation.workspaceSettings.items.length ? (
         <>
           <p className="nav-label">Administration</p>
-          <NavigationSection
-            icon="settings"
-            items={visibleSettings}
-            label="Workspace settings"
+          <NavigationCollection
+            items={navigation.administration}
             mobile={mobile}
+            unreadNotifications={shellData.unreadNotifications}
           />
+          {navigation.workspaceSettings.items.length ? (
+            <NavigationSection
+              icon="settings"
+              items={navigation.workspaceSettings.items}
+              label={navigation.workspaceSettings.label}
+              mobile={mobile}
+            />
+          ) : null}
         </>
       ) : null}
     </>
@@ -1010,7 +172,7 @@ export default function AppShell({
           </dl>
         </section>
 
-        <nav className="sidebar-navigation">{navigation()}</nav>
+        <nav className="sidebar-navigation">{navigationTree()}</nav>
 
         <div className="sidebar-user">
           <Link className="sidebar-profile" href="/profile">
@@ -1048,12 +210,17 @@ export default function AppShell({
                 </div>
               </div>
               <nav aria-label="Mobile workspace navigation">
-                {navigation(true)}
+                {navigationTree(true)}
               </nav>
             </div>
           </details>
 
-          <WorkspaceSearch />
+          <CommandPalette
+            navigation={navigation}
+            quickCreate={quickCreate}
+            activeCompanyId={session.activeCompanyId}
+            activeBranchId={session.activeBranchId}
+          />
 
           <ContextSwitcher
             key={[
@@ -1069,48 +236,16 @@ export default function AppShell({
             companies={shellData.companies}
           />
 
+          <QuickCreateButton actions={quickCreate} />
+
           <nav className="topbar-actions" aria-label="Account shortcuts">
-            <Link
-              className="topbar-icon-button"
-              href="/notifications"
-              title="Notifications"
-              aria-label={`${shellData.unreadNotifications} unread notifications`}
-            >
-              <AppIcon name="notifications" size={19} />
-              {shellData.unreadNotifications ? (
-                <span className="topbar-count">
-                  {shellData.unreadNotifications > 99
-                    ? "99+"
-                    : shellData.unreadNotifications}
-                </span>
-              ) : null}
-            </Link>
-            <Link
-              className="topbar-icon-button topbar-security"
-              href="/security"
-              title="Security"
-              aria-label="Security settings"
-            >
-              <AppIcon name="security" size={19} />
-            </Link>
-            <Link
-              className="topbar-profile"
-              href="/profile"
-              aria-label="Open your profile"
-            >
-              <span className="topbar-avatar" aria-hidden="true">
-                {initials(session.fullName)}
-              </span>
-              <span className="topbar-profile-copy">
-                <strong>{session.fullName}</strong>
-                <small>{role}</small>
-              </span>
-            </Link>
+            <NotificationsControl initialUnreadCount={shellData.unreadNotifications} />
+            <ProfileMenu fullName={session.fullName} role={role} />
           </nav>
         </header>
 
         <ModuleContextBar
-          modules={visibleModules.map((group) => ({
+          modules={navigation.modules.map((group) => ({
             label: group.label,
             icon: group.icon,
             items: group.items.map(
