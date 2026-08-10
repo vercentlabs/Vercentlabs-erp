@@ -32,7 +32,10 @@ async function crmActivityTasks(
   limit: number,
 ): Promise<WorkItem[]> {
   try {
-    const context = await crmApiContext(session);
+    // "My Tasks" means mine, full stop — never broadened by
+    // crm.records.view_all (Prompt 14, Part 17), for the same reason as
+    // listMyFollowUps() in follow-ups.ts.
+    const context = { ...(await crmApiContext(session)), permissions: [], roleSlugs: [] };
     const { rows } = await tenantTransaction(session.organizationId, (client) =>
       listCrmRecords(client, context, "activities", { due: "all", limit: 100 }),
     );
@@ -52,7 +55,7 @@ async function crmActivityTasks(
         title: String(row.subject || "Untitled activity"),
         subtitle: row.activityType ? String(row.activityType) : undefined,
         dueAt: row.dueAt ? new Date(row.dueAt as string).toISOString() : undefined,
-        urgency: classifyDueAt(row.dueAt as string | null),
+        urgency: classifyDueAt(row.dueAt as string | null, session.timezone),
         priority: row.priority ? String(row.priority) : undefined,
         status: row.status ? String(row.status) : undefined,
         href: activityHref(
@@ -92,7 +95,7 @@ async function projectTasks(
         dueAt: row.planned_end_date
           ? new Date(row.planned_end_date as string).toISOString()
           : undefined,
-        urgency: classifyDueAt(row.planned_end_date as string | null),
+        urgency: classifyDueAt(row.planned_end_date as string | null, session.timezone),
         priority: row.priority ? String(row.priority) : undefined,
         status: row.status ? String(row.status) : undefined,
         href: "/projects/tasks",

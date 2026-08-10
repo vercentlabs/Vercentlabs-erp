@@ -122,6 +122,10 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       "users.view",
       "roles.view",
       "audit.view",
+      "compliance.view",
+      "automation.view",
+      "integrations.view",
+      "data_management.view",
       "business_data.view",
       "crm.view",
       "crm.export",
@@ -195,6 +199,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       "crm.customization.manage",
       "crm.partners.manage",
       "crm.field-sales.manage",
+      "automation.view",
     ]),
   },
   {

@@ -61,9 +61,10 @@ test("topbar: notifications preview is scoped to the caller's own row — the GE
   assert.match(helper, /WHERE organization_id=\$1 AND user_id=\$2/);
 });
 
-test("topbar: settings/administration visibility is permission-derived (Security appears in the topbar unconditionally because /security itself has no gate beyond authentication — confirmed, not assumed)", () => {
+test("topbar: settings/administration visibility is permission-derived (Security appears in the topbar unconditionally because /security's own personal password/sessions section still has no gate beyond authentication — confirmed, not assumed). Prompt 10 added an ADDITIONAL org-wide overview section, conditionally rendered only for auditView holders, but the page itself never calls notFound()/redirect based on a permission check, so it never blocks any authenticated member from opening it.", () => {
   const securityPage = read("apps/web/src/app/(app)/security/page.tsx");
-  assert.doesNotMatch(securityPage, /hasPermission|requirePermission/, "if /security ever gains a permission gate, the topbar's unconditional Security link must be revisited");
+  assert.doesNotMatch(securityPage, /notFound\(\)|redirect\(/, "if /security ever blocks the whole page behind a permission check, the topbar's unconditional Security link must be revisited");
+  assert.match(securityPage, /hasPermission\(session, PERMISSIONS\.auditView\)/, "the org-wide overview section is still expected to be conditionally gated");
 });
 
 test("topbar: profile menu's sign-out reuses the existing LogoutButton (real session invalidation via /api/auth/logout), not a new client-only implementation", () => {

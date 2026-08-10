@@ -244,6 +244,16 @@
     transform 160ms ease;
 }
 
+.master-data-card.static {
+  cursor: default;
+}
+
+.master-data-card.static:hover {
+  border-color: var(--color-line);
+  box-shadow: var(--shadow-subtle);
+  transform: none;
+}
+
 .master-data-card:hover {
   border-color: var(--color-primary-border);
   box-shadow: var(--shadow-panel);

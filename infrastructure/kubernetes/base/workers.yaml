@@ -1,71 +1,53 @@
-apiVersion: batch/v1
-kind: CronJob
+# Prompt 13 (Background Worker & Scheduler Foundation) replaced the two
+# per-minute CronJobs that used to live here (crm-jobs, crm-outbox — both
+# invoked scripts that never existed on disk, see
+# docs/implementation/ERP_WORKER_SCHEDULER_013.md Section 2) with one
+# coherent, long-lived Deployment. services/worker's own internal poll
+# loop (WORKER_POLL_INTERVAL_MS) and scheduler tick
+# (WORKER_SCHEDULER_TICK_MS) replace the Kubernetes-level cron scheduling
+# those two CronJobs used to provide — a Deployment, not a CronJob, is the
+# correct primitive for a process that is supposed to keep running and
+# polling continuously rather than start-work-exit every minute.
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: crm-jobs
+  name: erp-worker
   namespace: vercentlabs
 spec:
-  schedule: "* * * * *"
-  concurrencyPolicy: Forbid
-  startingDeadlineSeconds: 120
-  successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 3
-  jobTemplate:
+  replicas: 2 # Safe to run more than one — see queue.js/outbox.js's FOR UPDATE SKIP LOCKED claiming (Part 59), live-verified in ERP_WORKER_SCHEDULER_013.md Section 10.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 1 }
+  selector:
+    matchLabels: { app: erp-worker }
+  template:
+    metadata:
+      labels: { app: erp-worker }
     spec:
-      activeDeadlineSeconds: 300
-      ttlSecondsAfterFinished: 3600
-      backoffLimit: 2
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: worker
-              image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
-              command: [node, scripts/process-crm-jobs.mjs]
-              envFrom:
-                - configMapRef: { name: vercentlabs-runtime }
-                - secretRef: { name: vercentlabs-runtime }
-              resources:
-                requests: { cpu: 100m, memory: 192Mi }
-                limits: { cpu: 500m, memory: 512Mi }
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities: { drop: [ALL] }
+      terminationGracePeriodSeconds: 45 # gives worker.js's graceful shutdown (Part 13) time to finish in-flight jobs before SIGKILL
+      containers:
+        - name: worker
+          image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          command: [node, bin/start.mjs]
+          envFrom:
+            - configMapRef: { name: vercentlabs-runtime }
+            - secretRef: { name: vercentlabs-runtime }
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: 1000m, memory: 768Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
 ---
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: crm-outbox
-  namespace: vercentlabs
-spec:
-  schedule: "* * * * *"
-  concurrencyPolicy: Forbid
-  startingDeadlineSeconds: 120
-  successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 3
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 300
-      ttlSecondsAfterFinished: 3600
-      backoffLimit: 2
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: worker
-              image: ghcr.io/vercentlabs/erp-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000
-              command: [node, scripts/deliver-crm-outbox.mjs]
-              envFrom:
-                - configMapRef: { name: vercentlabs-runtime }
-                - secretRef: { name: vercentlabs-runtime }
-              resources:
-                requests: { cpu: 100m, memory: 192Mi }
-                limits: { cpu: 500m, memory: 512Mi }
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities: { drop: [ALL] }
----
+# Deliberately UNCHANGED by Prompt 13 (Part 49: "do not migrate billing to
+# the new worker unless a clearly stranded existing job exists... avoid
+# risking money-path regressions"). scripts/reconcile-razorpay-billing.mjs
+# and scripts/retry-razorpay-webhooks.mjs still do not exist on disk —
+# this is a known, pre-existing, still-open gap, not something this
+# prompt silently fixed or hid. A future, billing-focused prompt should
+# decide whether these become real scripts or migrate onto
+# services/worker's job queue.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

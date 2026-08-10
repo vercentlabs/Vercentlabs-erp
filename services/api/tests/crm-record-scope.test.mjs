@@ -261,6 +261,77 @@ test("CRM: activities are scoped by their own assignee, independent of a parent 
   );
 });
 
+// Prompt 14: apps/web's crmContext() previously never propagated
+// session.permissions/session.roleSlugs, so canViewAllCrmRecords()
+// evaluated false for every real request — including organization_owner,
+// whose elevated visibility is granted via roleSlugs, not an explicit
+// permission entry. These pure-function tests were already possible before
+// Prompt 14 (canViewAllCrmRecords() itself was always correct); what was
+// missing is a real end-to-end proof that a real session actually reaches
+// it with these fields populated — see
+// services/worker/tests/crm-auth-context-live.manual.mjs for that.
+test("CRM: organization_owner sees every lead via roleSlugs alone, with an EMPTY permissions array (Prompt 13/14's specific finding)", async () => {
+  const orgOwnerContext = baseContext(otherUser, []);
+  orgOwnerContext.roleSlugs = ["organization_owner"];
+  orgOwnerContext.allowAllCompanies = true;
+  const result = await listCrmRecords(crmClient(), orgOwnerContext, "leads", {});
+  assert.equal(result.rows.length, 1);
+});
+
+test("CRM: a context missing permissions/roleSlugs entirely fails CLOSED — canViewAllCrmRecords() must never default to open", async () => {
+  const bareContext = {
+    organizationId: org,
+    userId: otherUser,
+    activeCompanyId: company,
+    activeBranchId: null,
+    allowAllCompanies: true,
+    // permissions/roleSlugs intentionally omitted
+  };
+  const result = await listCrmRecords(crmClient(), bareContext, "leads", {});
+  assert.equal(result.rows.length, 0, "must be restricted, not view-all, when permission data is absent");
+});
+
+test("CRM: recordScope() does not leave a stray bound parameter when the branch-scope gate fails closed (regression guard for the live-DB-discovered bind-mismatch bug)", async () => {
+  // Before the Prompt 14 fix, the branch-scope gate's early `return " AND
+  // false"` discarded the already-built company-scope SQL fragment while
+  // the parameter it bound stayed in the `parameters` array — a real
+  // Postgres "bind message supplies N parameters, but prepared statement
+  // requires N-1" crash for any restricted (non-allowAllCompanies) user
+  // with activeCompanyId set but activeBranchId null (any branch-less
+  // company). This only surfaces against a real driver, which is why this
+  // mock asserts $-placeholder count in the SQL text matches params.length
+  // exactly, instead of only checking the returned rows.
+  const restrictedNoBranch = baseContext(otherUser, repPermissions);
+  restrictedNoBranch.activeBranchId = null;
+  const client = {
+    async query(sql, params = []) {
+      const placeholderCount = new Set(sql.match(/\$\d+/g) || []).size;
+      assert.equal(placeholderCount, params.length, `SQL references ${placeholderCount} distinct placeholders but ${params.length} parameters were bound: ${sql}`);
+      return sql.includes("count(*)::int AS total") ? { rows: [{ total: 0 }] } : { rows: [] };
+    },
+  };
+  const result = await listCrmRecords(client, restrictedNoBranch, "leads", {});
+  assert.equal(result.rows.length, 0);
+});
+
+test("CRM: an elevated manager (crm.records.view_all) sees every OPPORTUNITY regardless of owner, mirroring lead scoping", async () => {
+  const opportunityId = "88888888-8888-4888-8888-888888888888";
+  const opportunityOwnedByOther = {
+    id: opportunityId,
+    organization_id: org,
+    company_id: company,
+    branch_id: null,
+    owner_user_id: owner,
+    name: "Renewal",
+    status: "open",
+  };
+  const client = crmClient({ leadRow: opportunityOwnedByOther, table: "crm_opportunities", ownerColumn: "owner_user_id" });
+  const restricted = await listCrmRecords(client, otherRepContext, "opportunities", {});
+  assert.equal(restricted.rows.length, 0);
+  const elevated = await listCrmRecords(client, managerContext, "opportunities", {});
+  assert.equal(elevated.rows.length, 1);
+});
+
 test("CRM: duplicate detection is NOT owner-scoped — a restricted rep still sees a colleague's matching lead (regression guard)", async () => {
   // findCrmDuplicates exists specifically to catch the case where a
   // DIFFERENT rep already owns a matching lead. Naively reusing

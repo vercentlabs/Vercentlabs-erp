@@ -6,3 +6,4 @@ export declare function listStockResource(client:any,context:StockContext,resour
 export declare function postStockMovement(client:any,context:StockContext,input:Record<string,unknown>):Promise<Record<string,unknown>>;
 export declare function createStockTransfer(client:any,context:StockContext,input:Record<string,unknown>):Promise<Record<string,unknown>>;
 export declare function completeStockTransfer(client:any,context:StockContext,id:string):Promise<Record<string,unknown>>;
+export declare function diagnoseStockBalanceDrift(client:any,context:StockContext,options?:{repair?:boolean}):Promise<{dryRun:boolean;mismatchCount:number;mismatches:Array<Record<string,unknown>>;repaired:Array<Record<string,unknown>>}>;

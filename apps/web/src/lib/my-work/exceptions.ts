@@ -71,7 +71,7 @@ async function financeReceivableExceptions(
         dueAt: row.next_action_at
           ? new Date(row.next_action_at as string).toISOString()
           : undefined,
-        urgency: classifyDueAt(row.next_action_at as string | null),
+        urgency: classifyDueAt(row.next_action_at as string | null, session.timezone),
         priority: row.priority ? String(row.priority) : undefined,
         status: row.status ? String(row.status) : undefined,
         href: `/accounting/receivables/${row.customer_invoice_id}`,
@@ -103,7 +103,7 @@ async function financePayableExceptions(
         dueAt: row.next_action_at
           ? new Date(row.next_action_at as string).toISOString()
           : undefined,
-        urgency: classifyDueAt(row.next_action_at as string | null),
+        urgency: classifyDueAt(row.next_action_at as string | null, session.timezone),
         priority: row.priority ? String(row.priority) : undefined,
         status: row.status ? String(row.status) : undefined,
         href: `/accounting/payables/${row.vendor_bill_id}`,
@@ -135,7 +135,7 @@ async function financeReconciliationExceptions(
         dueAt: row.next_action_at
           ? new Date(row.next_action_at as string).toISOString()
           : undefined,
-        urgency: classifyDueAt(row.next_action_at as string | null),
+        urgency: classifyDueAt(row.next_action_at as string | null, session.timezone),
         priority: row.priority ? String(row.priority) : undefined,
         status: row.status ? String(row.status) : undefined,
         href: "/accounting/banking",
@@ -167,7 +167,7 @@ async function workflowProcurementExceptions(
         dueAt: row.next_action_at
           ? new Date(row.next_action_at as string).toISOString()
           : undefined,
-        urgency: classifyDueAt(row.next_action_at as string | null),
+        urgency: classifyDueAt(row.next_action_at as string | null, session.timezone),
         priority: row.priority ? String(row.priority) : undefined,
         status: row.status ? String(row.status) : undefined,
         href: `${PROCUREMENT_ENTITY_HREF[String(row.entity_type)] || "/procurement/governance"}${row.entity_id || ""}`,

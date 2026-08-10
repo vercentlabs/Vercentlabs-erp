@@ -313,6 +313,30 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared-types
 
+  services/worker:
+    dependencies:
+      '@vercentlabs/api':
+        specifier: workspace:*
+        version: link:../api
+      '@vercentlabs/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@vercentlabs/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@vercentlabs/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      pg:
+        specifier: ^8.16.3
+        version: 8.22.0
+      undici:
+        specifier: ^7.16.0
+        version: 7.29.0
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+
 packages:
 
   '@adobe/css-tools@4.5.0':
@@ -4800,6 +4824,10 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici@7.29.0:
+    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+    engines: {node: '>=20.18.1'}
 
   unicode-canonical-property-names-ecmascript@2.0.1:
     resolution: {integrity: sha512-dA8WbNeb2a6oQzAQ55YlT5vQAWGV9WXOsi3SskE3bcCdM0P4SDd+24zS/OCacdRq5BkdsRj9q3Pg6YyQoxIGqg==}
@@ -10394,6 +10422,8 @@ snapshots:
       which-boxed-primitive: 1.1.1
 
   undici-types@6.21.0: {}
+
+  undici@7.29.0: {}
 
   unicode-canonical-property-names-ecmascript@2.0.1: {}
 

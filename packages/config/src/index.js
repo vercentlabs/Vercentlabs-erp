@@ -83,6 +83,18 @@ export function validateRuntimeEnvironment(target, environment = process.env) {
     result.database = databaseConfig(environment);
     result.appUrl = stringValue(environment, "APP_URL", { required: production });
     result.allowedOrigins = originList(environment, "FORM_ALLOWED_ORIGINS", { required: production, httpsOnly: production });
+    if (target === "worker") {
+      result.worker = {
+        enabled: booleanValue(environment, "WORKER_ENABLED", true),
+        concurrency: integerValue(environment, "WORKER_CONCURRENCY", { defaultValue: 4, minimum: 1, maximum: 32 }),
+        pollIntervalMilliseconds: integerValue(environment, "WORKER_POLL_INTERVAL_MS", { defaultValue: 5_000, minimum: 500, maximum: 60_000 }),
+        leaseMilliseconds: integerValue(environment, "WORKER_LEASE_MS", { defaultValue: 120_000, minimum: 5_000, maximum: 3_600_000 }),
+        batchSize: integerValue(environment, "WORKER_BATCH_SIZE", { defaultValue: 10, minimum: 1, maximum: 100 }),
+        schedulerTickMilliseconds: integerValue(environment, "WORKER_SCHEDULER_TICK_MS", { defaultValue: 300_000, minimum: 30_000, maximum: 3_600_000 }),
+        webhookTimeoutMilliseconds: integerValue(environment, "WORKER_WEBHOOK_TIMEOUT_MS", { defaultValue: 10_000, minimum: 1_000, maximum: 60_000 }),
+        allowPrivateWebhookTargets: booleanValue(environment, "WORKER_ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
+      };
+    }
   } else if (target === "landing") {
     result.siteUrl = stringValue(environment, "NEXT_PUBLIC_SITE_URL", { required: production });
     result.allowedOrigins = originList(environment, "FORM_ALLOWED_ORIGINS", { required: production, httpsOnly: production });

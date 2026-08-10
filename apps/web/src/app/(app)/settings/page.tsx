@@ -12,7 +12,7 @@ const items: Array<{
   href: string;
   description: string;
   icon: AppIconName;
-  group: "Structure" | "Access" | "Controls";
+  group: "Structure" | "Access" | "Controls" | "Platform";
   permission: string;
 }> = [
   {
@@ -87,6 +87,54 @@ const items: Array<{
     group: "Controls",
     permission: PERMISSIONS.numberingManage,
   },
+  {
+    label: "Security",
+    href: "/security",
+    description: "Password, sessions and organisation security overview",
+    icon: "security",
+    group: "Platform",
+    permission: PERMISSIONS.workspaceView,
+  },
+  {
+    label: "Compliance",
+    href: "/compliance",
+    description: "Retention, consent, privacy requests and data governance",
+    icon: "security",
+    group: "Platform",
+    permission: PERMISSIONS.complianceView,
+  },
+  {
+    label: "Automation",
+    href: "/automation",
+    description: "CRM automation rules and execution history",
+    icon: "modules",
+    group: "Platform",
+    permission: PERMISSIONS.automationView,
+  },
+  {
+    label: "Reports & analytics",
+    href: "/reports",
+    description: "Discover real reports across accessible modules",
+    icon: "audit",
+    group: "Platform",
+    permission: PERMISSIONS.workspaceView,
+  },
+  {
+    label: "Integrations",
+    href: "/integrations",
+    description: "Payments, outbound webhooks and system email status",
+    icon: "billing",
+    group: "Platform",
+    permission: PERMISSIONS.integrationsView,
+  },
+  {
+    label: "Data management",
+    href: "/data-management",
+    description: "Import, export, bulk-update and deduplicate records",
+    icon: "stock",
+    group: "Platform",
+    permission: PERMISSIONS.dataManagementView,
+  },
 ];
 
 export default async function SettingsPage() {
@@ -112,7 +160,9 @@ export default async function SettingsPage() {
         </span>
       </section>
 
-      {(["Structure", "Access", "Controls"] as const).map((group) => (
+      {(["Structure", "Access", "Controls", "Platform"] as const)
+        .filter((group) => allowedItems.some((item) => item.group === group))
+        .map((group) => (
         <section
           className="settings-section"
           key={group}
@@ -126,7 +176,9 @@ export default async function SettingsPage() {
                   ? "Operating model"
                   : group === "Access"
                     ? "People and permissions"
-                    : "Shared platform controls"}
+                    : group === "Controls"
+                      ? "Shared platform controls"
+                      : "Automation, reporting, integrations and data"}
               </h2>
             </div>
           </div>

@@ -3,9 +3,23 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import type { BillingPlanPrice, BillingSummary } from "@vercentlabs/shared-types";
 
 import AppIcon from "@/components/app-icon";
+
+// The two usage dimensions this workspace actually meters today
+// (confirmed by direct code inspection of incrementBillingUsage() call
+// sites — see docs/implementation/ERP_GOVERNANCE_009.md Section 3). Every
+// other BillingUsageMetric (storage_bytes, automation_actions_monthly,
+// outbound_messages_monthly) is defined in the type/limits but never
+// incremented anywhere, so it is deliberately NOT shown here — Part 5
+// forbids fabricating a comprehensive usage dashboard out of unmeasured
+// dimensions.
+const METERED_USAGE_DIMENSIONS: Array<{ key: string; label: string; limitKey?: keyof BillingSummary["limits"] }> = [
+  { key: "api_requests_monthly", label: "API requests this month", limitKey: "api_requests_monthly" },
+  { key: "imports_rows_monthly", label: "Import rows this month" },
+];
 
 type PaymentRow = {
   provider_payment_id: string;
@@ -364,6 +378,36 @@ export default function BillingWorkspace({
       <section className="panel">
         <div className="card-title-row">
           <div>
+            <p className="eyebrow">Usage</p>
+            <h2>What this workspace actually meters</h2>
+          </div>
+        </div>
+        <div className="billing-limit-grid">
+          {METERED_USAGE_DIMENSIONS.map((dimension) => {
+            const used = Number(summary.usage[dimension.key] || 0);
+            const limit = dimension.limitKey
+              ? Number(summary.limits[dimension.limitKey] || 0)
+              : 0;
+            return (
+              <div key={dimension.key}>
+                <strong>
+                  {used.toLocaleString("en-IN")}
+                  {limit > 0 ? ` / ${limit.toLocaleString("en-IN")}` : ""}
+                </strong>
+                <span>{dimension.label}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="billing-commercial-note">
+          Only usage this workspace measures today is shown here — no
+          estimated or placeholder consumption figures.
+        </p>
+      </section>
+
+      <section className="panel">
+        <div className="card-title-row">
+          <div>
             <p className="eyebrow">Commercial plans</p>
             <h2>Unlimited users with controlled operating capacity</h2>
           </div>
@@ -419,6 +463,25 @@ export default function BillingWorkspace({
                   </li>
                 ))}
               </ul>
+              <details className="billing-plan-modules">
+                <summary>
+                  {plan.modules.includes("*")
+                    ? "All 12 modules included"
+                    : `${plan.modules.length} of 12 modules included`}
+                </summary>
+                <ul>
+                  {ERP_MODULE_CATALOG.map((module) => {
+                    const included =
+                      plan.modules.includes("*") || plan.modules.includes(module.key);
+                    return (
+                      <li key={module.key} className={included ? "included" : "excluded"}>
+                        {included ? <AppIcon name="check" size={13} /> : null}
+                        {module.name}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
               <button
                 className={
                   plan.planCode === "growth"

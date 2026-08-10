@@ -172,6 +172,33 @@
   font-size: 0.76rem;
   line-height: 1.6;
 }
+.billing-plan-modules {
+  margin: 0 0 0.9rem;
+  font-size: 0.76rem;
+}
+.billing-plan-modules summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.billing-plan-modules ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem !important;
+  margin: 0.6rem 0 0 !important;
+  flex: none !important;
+}
+.billing-plan-modules li {
+  font-size: 0.72rem !important;
+  color: var(--text-muted) !important;
+}
+.billing-plan-modules li.included {
+  color: var(--text-secondary) !important;
+}
+.billing-plan-modules li.excluded {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
 .billing-profile-form {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

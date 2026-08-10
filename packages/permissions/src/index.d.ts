@@ -32,6 +32,10 @@ export const CORE_PERMISSIONS: Readonly<{
   rolesAssign: "roles.assign";
   accessSodOverride: "access.sod.override";
   auditView: "audit.view";
+  complianceView: "compliance.view";
+  automationView: "automation.view";
+  integrationsView: "integrations.view";
+  dataManagementView: "data_management.view";
   notificationsView: "notifications.view";
   modulesManage: "modules.manage";
   numberingManage: "numbering.manage";

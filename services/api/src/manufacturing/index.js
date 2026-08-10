@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
+
 const RESOURCE_TABLES = Object.freeze({
   boms: "manufacturing_boms",
   routings: "manufacturing_routings",
@@ -380,39 +382,17 @@ export async function startWorkOrder(client, context, workOrderId) {
   return result.rows[0];
 }
 
-async function postStockMovement(client, context, input) {
-  const movementId = randomUUID();
-  const movementNumber =
-    input.movementNumber ||
-    `MFG-STK-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-  await client.query(
-    `INSERT INTO tenant.stock_movements
-      (id,organization_id,company_id,movement_number,movement_type,item_id,
-       warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,
-       reference_type,reference_id,reason,created_by,idempotency_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-       'manufacturing_work_order',$13,$14,$15,$16)`,
-    [
-      movementId,
-      context.organizationId,
-      context.companyId,
-      movementNumber,
-      input.movementType,
-      input.itemId,
-      input.warehouseId,
-      input.warehouseLocationId || null,
-      input.batchId || null,
-      input.serialId || null,
-      String(input.quantity),
-      String(input.unitCost || 0),
-      input.workOrderId,
-      input.reason,
-      context.userId,
-      input.idempotencyKey,
-    ],
-  );
-  return movementId;
-}
+// Material issue / finished-goods receipt route through Stock's own
+// postStockMovement (services/api/src/stock/index.js) rather than a local
+// fork, so stock_balances and stock_valuation_layers stay authoritative
+// after a production posting — see docs/implementation/
+// ERP_P0_INTEGRITY_FIXES_012.md Section 5. The augmented-permissions
+// pattern below (`{ ...context, permissions: [...] }`) mirrors the
+// existing precedent in stock/index.js's own completeStockTransfer(): the
+// caller already passed assertPermission(context,
+// "manufacturing.production.post") above, so this business operation is
+// what authorizes the resulting stock movement — the caller does not need
+// to separately hold stock.issue/stock.receive.
 
 export async function postProduction(client, context, workOrderId, input) {
   assertPermission(context, "manufacturing.production.post");
@@ -501,18 +481,24 @@ export async function postProduction(client, context, workOrderId, input) {
     }
 
     const idempotencyKey = `${input.idempotencyKey}:material:${material.id}`;
-    const stockMovementId = await postStockMovement(client, context, {
-      movementType: "issue",
-      itemId: material.item_id,
-      warehouseId: material.warehouse_id,
-      warehouseLocationId: material.warehouse_location_id,
-      batchId: material.batch_id,
-      quantity: -requiredForPosting,
-      unitCost: input.materialUnitCosts?.[material.item_id] || 0,
-      workOrderId,
-      reason: "Manufacturing material issue",
-      idempotencyKey,
-    });
+    const stockMovement = await postCanonicalStockMovement(
+      client,
+      { ...context, permissions: [...(context.permissions || []), "stock.issue"] },
+      {
+        movementType: "issue",
+        itemId: material.item_id,
+        warehouseId: material.warehouse_id,
+        warehouseLocationId: material.warehouse_location_id,
+        batchId: material.batch_id,
+        quantity: requiredForPosting,
+        unitCost: input.materialUnitCosts?.[material.item_id] || 0,
+        referenceType: "manufacturing_work_order",
+        referenceId: workOrderId,
+        reason: "Manufacturing material issue",
+        idempotencyKey,
+      },
+    );
+    const stockMovementId = stockMovement.id;
 
     await client.query(
       `INSERT INTO tenant.manufacturing_production_postings
@@ -546,19 +532,25 @@ export async function postProduction(client, context, workOrderId, input) {
   }
 
   const receiptKey = `${input.idempotencyKey}:finished-goods`;
-  const finishedMovementId = await postStockMovement(client, context, {
-    movementType: "receipt",
-    itemId: row.item_id,
-    warehouseId: row.finished_goods_warehouse_id,
-    warehouseLocationId: input.warehouseLocationId,
-    batchId: input.batchId,
-    serialId: input.serialId,
-    quantity,
-    unitCost: input.unitCost || 0,
-    workOrderId,
-    reason: "Manufacturing finished-goods receipt",
-    idempotencyKey: receiptKey,
-  });
+  const finishedStockMovement = await postCanonicalStockMovement(
+    client,
+    { ...context, permissions: [...(context.permissions || []), "stock.receive"] },
+    {
+      movementType: "receipt",
+      itemId: row.item_id,
+      warehouseId: row.finished_goods_warehouse_id,
+      warehouseLocationId: input.warehouseLocationId,
+      batchId: input.batchId,
+      serialId: input.serialId,
+      quantity,
+      unitCost: input.unitCost || 0,
+      referenceType: "manufacturing_work_order",
+      referenceId: workOrderId,
+      reason: "Manufacturing finished-goods receipt",
+      idempotencyKey: receiptKey,
+    },
+  );
+  const finishedMovementId = finishedStockMovement.id;
 
   await client.query(
     `INSERT INTO tenant.manufacturing_production_postings

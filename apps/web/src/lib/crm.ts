@@ -3488,6 +3488,15 @@ export function crmContext(session: SessionContext): CrmContext {
     allowAllCompanies:
       session.roleSlugs.includes("organization_owner") ||
       session.roleSlugs.includes("system_administrator"),
+    // Prompt 14 fix: these were previously omitted, so
+    // canViewAllCrmRecords() (services/api/src/crm.js) always evaluated
+    // false — every real request was silently restricted to owner/assignee
+    // scope even for users holding crm.records.view_all. Permission truth
+    // comes from the already-resolved session (auth.ts); this is not a
+    // second authorization query and does not synthesize permissions from
+    // role names.
+    permissions: session.permissions,
+    roleSlugs: session.roleSlugs,
   };
 }
 // The API-boundary variant of crmContext(): every CRM API route (web +

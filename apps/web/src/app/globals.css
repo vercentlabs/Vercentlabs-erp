@@ -2419,6 +2419,64 @@ legend {
   background: #12b76a;
 }
 
+.status-badge.danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.status-badge.warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.pagination-controls > div {
+  display: flex;
+  gap: 8px;
+}
+
+.secondary-button.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.audit-event-detail summary {
+  cursor: pointer;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.audit-event-detail pre {
+  max-width: 420px;
+  max-height: 260px;
+  margin: 6px 0;
+  padding: 8px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.audit-event-detail-label {
+  margin: 6px 0 0;
+  color: var(--color-muted-light);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2610,6 +2668,48 @@ legend {
 
 .metric-card.attention {
   background: linear-gradient(145deg, #fff, #fffbf3);
+}
+
+.metric-card.static {
+  cursor: default;
+}
+
+.metric-grid-spaced {
+  margin-top: 16px;
+}
+
+.plain-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-ink-secondary);
+}
+
+.plain-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.plain-list li:last-child {
+  border-bottom: 0;
+}
+
+.metric-card.static:hover {
+  transform: none;
+  box-shadow: var(--shadow-subtle);
+}
+
+.metric-note {
+  margin-top: 4px;
+  color: var(--color-muted-light);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .metric-icon {

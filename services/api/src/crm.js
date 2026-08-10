@@ -1305,11 +1305,23 @@ function recordScope(definition, context, parameters, alias = "record") {
     sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
   }
   if (definition.companyScoped && !context.allowAllCompanies) {
-    if (!context.activeCompanyId) return " AND false";
+    // Prompt 14: must return `sql + " AND false"`, not a bare " AND false"
+    // — a bare return here discards any parameter(s) already bound above
+    // (e.g. the saved_views clause) while leaving them in the `parameters`
+    // array the caller still sends, producing a Postgres bind-parameter-
+    // count mismatch. Found via Part 44's live-database verification, not
+    // by the pre-existing mocked-client tests (which never execute real
+    // SQL and so could not have caught it).
+    if (!context.activeCompanyId) return sql + " AND false";
     sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
   }
   if (definition.fields?.branchId && !context.allowAllCompanies) {
-    if (!context.activeBranchId) return " AND false";
+    // Same fix as above: a real, live-reachable case for any restricted
+    // (non-allowAllCompanies) user in a branch-less company — activeCompanyId
+    // set, activeBranchId null — previously crashed every CRM list/detail
+    // query for that user with a parameter-count mismatch instead of
+    // correctly returning zero rows.
+    if (!context.activeBranchId) return sql + " AND false";
     sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
   }
   if (definition.ownerField && !canViewAllCrmRecords(context)) {

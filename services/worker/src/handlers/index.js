@@ -1,0 +1,18 @@
+import { registerJobHandler } from "../registry.js";
+import { internalJobBackoff } from "../backoff.js";
+import { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./crm-automation-overdue.js";
+
+// Registers every currently-wired job type. Called once at worker
+// startup (bin/start.mjs) and by tests that need a populated registry.
+// This is the "typed/validated handler registry" (Part 5) — the single
+// place new job types get added, never a switch scattered through
+// worker.js.
+export function registerBuiltinHandlers() {
+  registerJobHandler(OVERDUE_ACTIVITY_JOB_TYPE, {
+    schema: overdueActivityPayloadSchema,
+    handler: detectOverdueActivitiesHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // the status-transition WHERE clause makes re-running this handler for the same org always safe
+    maxAttempts: 3,
+  });
+}

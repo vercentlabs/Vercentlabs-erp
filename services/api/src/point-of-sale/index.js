@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
+
 const TABLES = Object.freeze({
   stores: "pos_stores",
   terminals: "pos_terminals",
@@ -206,37 +208,15 @@ async function stockAvailable(client, context, itemId, warehouseId) {
   return Number(result.rows[0].available);
 }
 
-async function postStockMovement(client, context, input) {
-  const id = randomUUID();
-  await client.query(
-    `INSERT INTO tenant.stock_movements
-      (id,organization_id,company_id,movement_number,movement_type,item_id,
-       warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,
-       unit_cost,reference_type,reference_id,reason,created_by,idempotency_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-       $13,$14,$15,$16,$17)`,
-    [
-      id,
-      context.organizationId,
-      context.companyId,
-      input.movementNumber,
-      input.movementType,
-      input.itemId,
-      input.warehouseId,
-      input.warehouseLocationId || null,
-      input.batchId || null,
-      input.serialId || null,
-      String(input.quantity),
-      String(input.unitCost || 0),
-      input.referenceType,
-      input.referenceId,
-      input.reason,
-      context.userId,
-      input.idempotencyKey,
-    ],
-  );
-  return id;
-}
+// Sale-line stock issue routes through Stock's own postStockMovement
+// (services/api/src/stock/index.js) rather than a local fork, so
+// stock_balances and stock_valuation_layers stay authoritative after a
+// completed sale — see docs/implementation/ERP_P0_INTEGRITY_FIXES_012.md
+// Section 6. The augmented-permissions pattern below mirrors the existing
+// precedent in stock/index.js's own completeStockTransfer(): the caller
+// already passed requirePermission(context, "pos.sale.create") above, so
+// this business operation is what authorizes the resulting stock
+// movement — the caller does not need to separately hold stock.issue.
 
 export async function completePointOfSale(client, context, input) {
   requirePermission(context, "pos.sale.create");
@@ -361,21 +341,25 @@ export async function completePointOfSale(client, context, input) {
   );
 
   for (const line of normalizedLines) {
-    const movementId = await postStockMovement(client, context, {
-      movementNumber: `POS-STK-${randomUUID()}`,
-      movementType: "issue",
-      itemId: line.itemId,
-      warehouseId: line.warehouseId,
-      warehouseLocationId: line.warehouseLocationId,
-      batchId: line.batchId,
-      serialId: line.serialId,
-      quantity: -line.quantity,
-      unitCost: line.unitCost || 0,
-      referenceType: "pos_sale",
-      referenceId: sale.rows[0].id,
-      reason: "POS sale issue",
-      idempotencyKey: `${input.idempotencyKey}:line:${line.lineNumber}`,
-    });
+    const stockMovement = await postCanonicalStockMovement(
+      client,
+      { ...context, permissions: [...(context.permissions || []), "stock.issue"] },
+      {
+        movementType: "issue",
+        itemId: line.itemId,
+        warehouseId: line.warehouseId,
+        warehouseLocationId: line.warehouseLocationId,
+        batchId: line.batchId,
+        serialId: line.serialId,
+        quantity: line.quantity,
+        unitCost: line.unitCost || 0,
+        referenceType: "pos_sale",
+        referenceId: sale.rows[0].id,
+        reason: "POS sale issue",
+        idempotencyKey: `${input.idempotencyKey}:line:${line.lineNumber}`,
+      },
+    );
+    const movementId = stockMovement.id;
 
     await client.query(
       `INSERT INTO tenant.pos_sale_lines

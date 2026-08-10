@@ -1,0 +1,26 @@
+{
+  "name": "@vercentlabs/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "node --watch bin/start.mjs",
+    "start": "node bin/start.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@vercentlabs/api": "workspace:*",
+    "@vercentlabs/config": "workspace:*",
+    "@vercentlabs/database": "workspace:*",
+    "@vercentlabs/observability": "workspace:*",
+    "pg": "^8.16.3",
+    "undici": "^7.16.0",
+    "zod": "^4.1.12"
+  }
+}
