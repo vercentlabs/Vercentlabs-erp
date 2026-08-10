@@ -37,12 +37,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Must run before actions/setup-node@v5: that action defaults to
+      # `package-manager-cache: true`, auto-detecting the "packageManager"
+      # field in package.json and trying to resolve `pnpm` on PATH to key
+      # its cache — which fails ("Unable to locate executable file: pnpm")
+      # unless corepack has already shimmed it in. The runner's preinstalled
+      # system Node already has corepack, so this works before setup-node
+      # switches to Node 24.
+      - name: Enable corepack
+        run: corepack enable
+
       - uses: actions/setup-node@v5
         with:
           node-version: "24"
-
-      - name: Enable corepack
-        run: corepack enable
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
