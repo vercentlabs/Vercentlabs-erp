@@ -61,7 +61,11 @@
 .module-context-bar {
   position: sticky;
   z-index: 18;
-  top: 58px;
+  /* Matches .topbar's actual rendered min-height (64px — operator-workbench.css
+     loads after globals.css's own 72px default and wins). A stale 58px offset
+     here left the top ~6px of this bar sitting under the topbar during
+     scroll. */
+  top: 64px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -1128,7 +1132,7 @@
 }
 
 @media (max-width: 720px) {
-  .module-context-bar { top: 54px; display: block; padding: 8px 12px 0; }
+  .module-context-bar { top: 62px; display: block; padding: 8px 12px 0; }
   .module-context-identity { display: none; }
   .module-context-tabs { gap: 6px; padding-bottom: 8px; }
   .module-context-tabs a { min-height: 44px; padding-inline: 13px; font-size: 13px; }

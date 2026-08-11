@@ -24,7 +24,7 @@ export default function ThankYouPage() {
             client, and produce no visible output, so they're isolated in their
             own Suspense boundary that can never blank out real content.
           */}
-          <Heading level="display" id="thank-you-heading" tabIndex={-1} className="outline-none">
+          <Heading level="display" id="thank-you-heading" tabIndex={-1}>
             Request received.
           </Heading>
           <Text variant="lead" className="mt-4" role="status">

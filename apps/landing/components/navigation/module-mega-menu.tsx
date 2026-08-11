@@ -8,7 +8,7 @@ import { MODULE_NAV_GROUPS, LANDING_MODULES, CTAS } from "@vercentlabs/landing-c
  */
 export function ModuleMegaMenuContent() {
   return (
-    <div className="grid w-[min(90vw,880px)] grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
+    <div className="grid w-[min(70vw,880px)] grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
       {MODULE_NAV_GROUPS.map((group) => (
         <div key={group.key}>
           <p className="text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">{group.label}</p>

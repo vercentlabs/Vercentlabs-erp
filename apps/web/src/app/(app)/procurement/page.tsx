@@ -24,7 +24,7 @@ export default async function Page() {
           Review qualification evidence, sourcing competition, approval SLAs,
           delivery risk, receipt variance and owned Procurement exceptions.
         </p>
-        <Link className="button secondary" href="/procurement/governance">
+        <Link className="secondary-button" href="/procurement/governance">
           Open Procurement governance
         </Link>
       </section>

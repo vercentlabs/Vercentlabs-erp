@@ -39,7 +39,7 @@ export default function ManufacturingDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workspace">
+    <div className="module-workbench">
       <section className="panel">
         <p className="eyebrow">Manufacturing</p>
         <h1>Production control</h1>
@@ -63,7 +63,7 @@ export default function ManufacturingDashboard({
         ))}
       </section>
 
-      <section className="resource-grid">
+      <section className="resource-cards">
         {cards.map(([title, href, description]) => (
           <Link className="resource-card" href={href} key={href}>
             <span className="eyebrow">Manufacturing workflow</span>

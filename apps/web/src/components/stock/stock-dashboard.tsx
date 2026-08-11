@@ -11,7 +11,7 @@ export default function StockDashboard() {
       .catch(() => setD({}));
   }, []);
   return (
-    <div className="module-workspace">
+    <div className="module-workbench">
       <section className="module-hero">
         <p className="eyebrow">Inventory control</p>
         <h1>Stock</h1>
@@ -35,17 +35,17 @@ export default function StockDashboard() {
       </section>
       <section className="panel">
         <h2>Operate inventory</h2>
-        <div className="action-grid">
-          <Link className="button" href="/stock/movements">
+        <div className="module-hero-actions">
+          <Link className="primary-button" href="/stock/movements">
             Movement history
           </Link>
-          <Link className="button secondary" href="/stock/transfers">
+          <Link className="secondary-button" href="/stock/transfers">
             Transfers
           </Link>
-          <Link className="button secondary" href="/stock/balances">
+          <Link className="secondary-button" href="/stock/balances">
             Stock balances
           </Link>
-          <Link className="button secondary" href="/stock/reorder-rules">
+          <Link className="secondary-button" href="/stock/reorder-rules">
             Replenishment
           </Link>
         </div>

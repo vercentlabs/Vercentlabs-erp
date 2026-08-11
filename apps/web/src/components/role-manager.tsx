@@ -300,7 +300,7 @@ export default function RoleManager({
                 </small>
               </span>
             </label>
-            <div className="button-row">
+            <div className="action-row">
               <button
                 className="primary-button"
                 type="submit"

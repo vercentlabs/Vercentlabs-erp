@@ -78,6 +78,7 @@ export default async function OrdersPage({
             name="search"
             defaultValue={filters.search}
             placeholder="Search order or customer"
+            aria-label="Search order or customer"
           />
           <DownwardSelect
             name="status"
@@ -100,28 +101,29 @@ export default async function OrdersPage({
           />
           <button className="secondary-button">Apply</button>
         </form>
-        <div className="sales-table">
-          <div className="sales-table-row sales-table-head">
-            <span>Order</span>
-            <span>Customer</span>
-            <span>Lifecycle</span>
-            <span>Fulfilment</span>
-            <span>Total</span>
+        <div className="sales-table" role="table" aria-label="Sales orders">
+          <div className="sales-table-row sales-table-head" role="row">
+            <span role="columnheader">Order</span>
+            <span role="columnheader">Customer</span>
+            <span role="columnheader">Lifecycle</span>
+            <span role="columnheader">Fulfilment</span>
+            <span role="columnheader">Total</span>
           </div>
           {visibleRows.map((row) => (
             <Link
               className="sales-table-row"
               href={`/sales/orders/${row.id}`}
               key={row.id}
+              role="row"
             >
-              <span>
+              <span role="cell">
                 <strong>{row.sales_order_number}</strong>
                 <small>{String(row.order_date).slice(0, 10)}</small>
               </span>
-              <span>{row.customer_name}</span>
-              <span>{row.lifecycle_status}</span>
-              <span>{row.fulfillment_status}</span>
-              <span>
+              <span role="cell">{row.customer_name}</span>
+              <span role="cell">{row.lifecycle_status}</span>
+              <span role="cell">{row.fulfillment_status}</span>
+              <span role="cell">
                 {row.currency_code} {row.grand_total}
               </span>
             </Link>

@@ -22,7 +22,7 @@ export default async function Page({
       <p className="eyebrow">Stock</p>
       <h1>{resource.replaceAll("-", " ")}</h1>
       <p>{rows.length} records</p>
-      <div className="table-shell">
+      <div className="table-panel">
         <table>
           <thead>
             <tr>

@@ -37,7 +37,7 @@ export default function ProjectsDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workspace">
+    <div className="module-workbench">
       <section className="panel">
         <p className="eyebrow">Projects</p>
         <h1>Delivery and profitability control</h1>
@@ -61,7 +61,7 @@ export default function ProjectsDashboard({
         ))}
       </section>
 
-      <section className="resource-grid">
+      <section className="resource-cards">
         {resources.map(([title, href, description]) => (
           <Link className="resource-card" href={href} key={href}>
             <span className="eyebrow">Project workflow</span>

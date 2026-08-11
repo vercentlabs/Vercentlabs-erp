@@ -19,14 +19,14 @@ Prompt 11 planned Prompts 12–102 against an **estimated** distribution over 28
 
 | Prompt range | Area | Feature count | Primary goal |
 |---|---|---:|---|
-| 16 | Shared blocker: Quality-hold cross-module enforcement | 7 | Make quality holds actually block Stock/Procurement/Manufacturing movement, and add a real release-hold function |
-| 17 | Shared blocker: HR payroll correctness foundation | 12 | Real employee-compensation assignment + a real (non-hardcoded-zero) payroll calculation engine, before any statutory feature is built on top |
-| 18 | Shared blocker: Stock costing-method correctness | 5 | Make FIFO/standard-cost selections actually change the cost calculation (currently always moving-average); add a real period-close lock |
-| 19 | Shared blocker: universal write-UI framework | 8 | A reusable create/edit/action form pattern, proven on one anchor feature per module, that every module campaign below builds on |
-| 20 | Shared blocker: reporting/chart-library foundation | 9 | First chart/pivot library in the dependency tree + report builder + scheduled reports scaffold |
-| 21 | Shared blocker: integration/API-key/OAuth foundation | 6 | Tenant API keys, OAuth 2.0 completion, WhatsApp/SMS provider wiring, API docs |
-| 22 | Shared blocker: data management breadth | 4 | Generalize CRM-only duplicate/archiving/ownership/master-data-approval patterns to other modules |
-| 23 | Shared blocker: SSO/MFA/IP restrictions/record-level access audit | 4 | Real MFA enrollment, SSO, IP allowlisting; audit whether CRM's Prompt 14 context-propagation defect class exists in other modules |
+| 16 | Shared hardening: UI/UX, design-system, responsive-web, and accessibility overhaul (Landing + ERP Web) | — (not an exact-feature-matrix prompt — see `ERP_UI_UX_BUG_REGISTER_016.csv` and `ERP_UI_UX_RESPONSIVE_016.md`) | Systematic product-design correction, not cosmetic: real bug register (44 findings, 26 fixed/18 deferred-with-reason), a P0 topbar/context-switcher horizontal-overflow fix affecting every authenticated page at tablet/mobile, a P0 landing Grid-component mobile-overflow fix affecting the primary conversion route, a real collapsed desktop sidebar rail, a real mobile drawer + bottom nav, a real command-palette focus trap, and a first pass of accessibility fixes. Displaced the originally-planned Quality-hold enforcement prompt to 17 — see "Why Prompt 16 changed" below. |
+| 17 | Shared blocker: Quality-hold cross-module enforcement | 7 | Make quality holds actually block Stock/Procurement/Manufacturing movement, and add a real release-hold function |
+| 18 | Shared blocker: HR payroll correctness foundation | 12 | Real employee-compensation assignment + a real (non-hardcoded-zero) payroll calculation engine, before any statutory feature is built on top |
+| 19 | Shared blocker: Stock costing-method correctness | 5 | Make FIFO/standard-cost selections actually change the cost calculation (currently always moving-average); add a real period-close lock |
+| 20 | Shared blocker: universal write-UI framework | 8 | A reusable create/edit/action form pattern, proven on one anchor feature per module, that every module campaign below builds on |
+| 21 | Shared blocker: reporting/chart-library foundation | 9 | First chart/pivot library in the dependency tree + report builder + scheduled reports scaffold |
+| 22 | Shared blocker: integration/API-key/OAuth foundation | 6 | Tenant API keys, OAuth 2.0 completion, WhatsApp/SMS provider wiring, API docs |
+| 23 | Shared blocker: data management breadth + SSO/MFA/IP restrictions/record-level access audit | 8 | Generalize CRM-only duplicate/archiving/ownership/master-data-approval patterns to other modules; real MFA enrollment, SSO, IP allowlisting; audit whether CRM's Prompt 14 context-propagation defect class exists in other modules. Merged from two originally-separate 4-feature blocker prompts to absorb Prompt 16's UI/UX prompt without cascading a +1 renumber through the rest of the plan — see "Why Prompt 16 changed" below. |
 | 24–25 | CRM completion | 24 | Close CRM's remaining gaps (already the most mature module) |
 | 26–29 | Sales completion | 49 | Product/quotation/order/fulfilment/billing/analytics/advanced gaps, especially the confirmed Sales↔Stock disconnection |
 | 30–33 | Procurement completion | 56 | Supplier/requisition/sourcing/PO/receiving gaps, especially RFQ UI and receiving→Stock write-through |
@@ -35,10 +35,10 @@ Prompt 11 planned Prompts 12–102 against an **estimated** distribution over 28
 | 48–53 | Projects completion | 86 | Setup, planning, resources, time/expense, financials, collaboration, analytics, advanced |
 | 54–58 | Assets completion | 73 | Register, acquisition/accounting, maintenance, inspection/calibration, allocation, analytics, advanced |
 | 59–64 | POS completion | 87 | Operations, payments, retail ops, inventory/fulfilment, customer engagement, hardware, analytics, advanced |
-| 65–69 | Quality completion | 70 (77 minus 7 claimed by Prompt 16) | Setup, inspections, non-conformance, CAPA, supplier/customer quality, compliance, analytics, advanced |
+| 65–69 | Quality completion | 70 (77 minus 7 claimed by Prompt 17) | Setup, inspections, non-conformance, CAPA, supplier/customer quality, compliance, analytics, advanced |
 | 70–74 | Support completion | 73 | Tickets, assignment/workflow, SLA, customer service, knowledge, analytics, advanced |
-| 75–81 | HR & Payroll completion | 96 (108 minus 12 claimed by Prompt 17) | Core HR, recruitment, attendance/leave, statutory payroll, self-service, performance/talent, analytics, advanced |
-| 82–84 | Shared platform remaining | 47 (94 minus 47 claimed by Prompts 16/20/21/22/23) | SaaS platform ops, security/governance remainder, workflow/automation remainder, reporting remainder, integration remainder, UX remainder, data governance remainder |
+| 75–81 | HR & Payroll completion | 96 (108 minus 12 claimed by Prompt 18) | Core HR, recruitment, attendance/leave, statutory payroll, self-service, performance/talent, analytics, advanced |
+| 82–84 | Shared platform remaining | 47 (94 minus 47 claimed by Prompts 17/21/22/23) | SaaS platform ops, security/governance remainder, workflow/automation remainder, reporting remainder, integration remainder, UX remainder, data governance remainder |
 | 85–86 | Accounting targeted fixes | 10 | TDS section-rates, depreciation UOP bug, Sales/Procurement auto-drain, e-invoice/e-way-bill/TCS providers, POS/HR/Assets GL wiring |
 | 87 | Cross-module E2E | — | Re-test all 9 critical journeys from Section 25 against the finished state |
 | 88 | Security review #2 | — | Adversarial review of all new surface area from 16–86 |
@@ -50,7 +50,7 @@ Prompt 11 planned Prompts 12–102 against an **estimated** distribution over 28
 | 94 | Backup/DR runbook | — | Verify and document real backup/restore posture (SHARED-010 was UNVERIFIED) |
 | 95 | Migration/schema consolidation | — | Dead-schema cleanup review, fix the duplicate 039 migration-prefix warning from `verify:db` |
 | 96 | Notification scheduling | — | Digest/scheduled notifications, building on the Prompt 13 worker foundation |
-| 97 | KPI framework + cross-module BI | — | Deeper build on Prompt 20's chart/reporting foundation |
+| 97 | KPI framework + cross-module BI | — | Deeper build on Prompt 21's chart/reporting foundation |
 | 98 | Reports & Analytics completion | — | Real reports for any module still thin after 24–86 |
 | 99 | Automation completion | — | Cross-module automation using the scheduler foundation (worker module-gating fix folded in here) |
 | 100 | Integration completion | — | Marketplace/e-commerce/live bank feed, building on Prompts 21/83 |
@@ -59,55 +59,55 @@ Prompt 11 planned Prompts 12–102 against an **estimated** distribution over 28
 
 ---
 
-## Shared blockers (16–23)
+## Why Prompt 16 changed
 
-### Prompt 16
+Prompt 15 (this plan's own author) placed "Shared blocker — Quality-hold cross-module enforcement" at Prompt 16 in its own numbering, since Prompt 15 had no way to know Prompt 16 would actually be issued as a full UI/UX, design-system, responsive-web, and accessibility overhaul instead. That UI/UX prompt has now run as Prompt 16 (see `ERP_UI_UX_BUG_REGISTER_016.csv` and `ERP_UI_UX_RESPONSIVE_016.md` for its own deliverables) and does not claim any row from the 1,039-feature exact matrix — it is a shared cross-cutting hardening pass, not a feature-completion prompt, so it sits outside the normal 87-prompt/906-row apportionment entirely.
+
+Rather than cascade a blind "+1" through every one of the remaining 86 prompts (which would force renumbering all of 24–102 as well, invalidating every cross-reference in this document and in `ERP_TEAM_UAT_SCOPE_015.md`), the 8 shared-blocker prompts that previously occupied 16–23 are renumbered 17–23 (7 slots, one fewer) by merging the two smallest, thematically-adjacent blockers — "data management breadth" (4 features) and "SSO/MFA/IP restrictions + record-level-access audit" (4 features), both shared-platform-hardening concerns — into a single combined Prompt 23 (8 features). This keeps Prompt 24 (CRM completion) and everything after it at its original number, so only Prompts 16–23 and their handful of direct cross-references (listed below) needed updating.
+
+## Shared blockers (17–23)
+
+### Prompt 17
 **Title**: Shared blocker — Quality-hold cross-module enforcement
 **Targets**: QUAL-023, QUAL-026, QUAL-027, QUAL-028, QUAL-029, QUAL-030, QUAL-075
 **Reason**: Independently re-confirmed by Prompt 15's own research (not merely carried forward from Prompt 11): `completeInspection` genuinely inserts a real `quality_holds` row on failure, but zero references to `quality_hold` exist anywhere in Stock's `postStockMovement`, Manufacturing's material-issue path, or Procurement's receiving — a held batch/serial/item can still be issued, received, or consumed. No release-hold function exists either (`releaseInspection` updates `quality_inspections`, not `quality_holds`). Affects three other modules' own correctness, so it is fixed once, centrally, rather than three times.
 **Dependencies**: None.
 
-### Prompt 17
+### Prompt 18
 **Title**: Shared blocker — HR payroll correctness foundation
 **Targets**: HR-042, HR-043, HR-044, HR-045, HR-046, HR-047, HR-048, HR-049, HR-050, HR-051, HR-053, HR-055
 **Reason**: The single most severe correctness defect in the whole reconciliation, independently re-verified line-by-line in this prompt: `calculatePayrollRun` hardcodes `deductions = 0` and `employer = 0`, no code path anywhere lets an employee's compensation be assigned, `hr_salary_structures`/`hr_salary_components` are never queried at all, proration doesn't account for mid-period joining/separation, and the "post to Accounting" transition stores an opaque caller-supplied string instead of creating a real journal entry. Must be fixed before any statutory feature (Prompt 78) is built on top of it, per Prompt 11's own explicit judgment, reaffirmed here.
 **Dependencies**: None — do this before 75–81.
 
-### Prompt 18
+### Prompt 19
 **Title**: Shared blocker — Stock costing-method correctness
 **Targets**: STOCK-011, STOCK-063, STOCK-065, STOCK-066, STOCK-072
 **Reason**: A newly-confirmed P0 financial-correctness bug (not in Prompt 11's report): selecting FIFO or standard costing on an item has zero effect — `postStockMovement()` always computes moving-average regardless. Affects every downstream valuation/COGS/reporting figure. A real period-close lock is bundled in since it's the same "can I trust last period's stock valuation" concern.
 **Dependencies**: None — should land before Stock's own broader campaign (34–39) and before Manufacturing/POS costing work that reads Stock's valuation.
 
-### Prompt 19
+### Prompt 20
 **Title**: Shared blocker — universal write-UI framework
 **Targets**: STOCK-021, STOCK-022, SUP-001, POS-001, QUAL-011, ASSET-013, PROJ-011, MFG-033
 **Reason**: The single highest-leverage finding across both Prompt 11 and this reconciliation: eight modules have real, often well-engineered backend logic reachable only via direct API call, because every list page is read-only and every create/edit/action function has zero UI. Rather than building bespoke forms per module, this prompt builds ONE reusable pattern and proves it on one representative, high-value anchor feature per affected module (goods receipt/issue for Stock, first ticket-creation for Support, first product-search/sale for POS, first inspection for Quality, first asset-from-receipt for Assets, first WBS for Projects, first manufacturing order for Manufacturing). Every module campaign below (26–84) then reuses this pattern instead of re-inventing form infrastructure per module.
-**Dependencies**: None — the highest-priority infrastructure prompt in this plan; module campaigns 26–84 depend on it for their own MISSING_UI items even though not every one of those items lists it as a formal dependency below (to avoid a 60-entry "depends on 19" repetition, it's stated once here).
+**Dependencies**: None — the highest-priority infrastructure prompt in this plan; module campaigns 26–84 depend on it for their own MISSING_UI items even though not every one of those items lists it as a formal dependency below (to avoid a 60-entry "depends on 20" repetition, it's stated once here).
 
-### Prompt 20
+### Prompt 21
 **Title**: Shared blocker — reporting/chart-library foundation
 **Targets**: SHARED-044, SHARED-045, SHARED-046, SHARED-047, SHARED-048, SHARED-049, SHARED-051, SHARED-052, SHARED-054
 **Reason**: No chart/visualization library exists anywhere in the dependency tree (confirmed again in this reconciliation), blocking any real dashboard visualization, cross-module BI, or a genuine report builder. This is infrastructure Prompts 98 and 97 build further on.
 **Dependencies**: None.
 
-### Prompt 21
+### Prompt 22
 **Title**: Shared blocker — integration/API-key/OAuth foundation
 **Targets**: SHARED-055, SHARED-057, SHARED-058, SHARED-059, SHARED-063, SHARED-066
 **Reason**: No tenant API-key system and an incomplete OAuth token-exchange step block the entire third-party developer/integration surface — confirmed still true. Bundles WhatsApp/SMS provider wiring and identity-provider integration since they share the same "external provider credential" infrastructure need.
 **Dependencies**: None.
 
-### Prompt 22
-**Title**: Shared blocker — data management breadth
-**Targets**: SHARED-084, SHARED-086, SHARED-089, SHARED-093
-**Reason**: Every import/export/bulk-update/duplicate-detection/retention capability genuinely works but is scoped to CRM (and master data) only — confirmed again. Generalizes the pattern rather than re-implementing it per module.
-**Dependencies**: 19 (reuses the write-UI framework for any new admin surface this needs).
-
 ### Prompt 23
-**Title**: Shared blocker — SSO/MFA/IP restrictions + record-level-access audit
-**Targets**: SHARED-021, SHARED-022, SHARED-024, SHARED-016
-**Reason**: MFA remains schema-only with no enrollment flow (unchanged since Prompt 1); SSO and IP restrictions are confirmed absent. Bundled with an explicit audit task (not a fix — see Part 34/Section 26): confirm whether the class of bug Prompt 14 found and fixed in CRM's `crmContext()` (real session data never reaching a permission check) exists in any other module's own context-construction function, since Prompt 14 only audited CRM. SHARED-016 (record-level access) reflects that this audit is still open.
-**Dependencies**: None.
+**Title**: Shared blocker — data management breadth + SSO/MFA/IP restrictions + record-level-access audit
+**Targets**: SHARED-084, SHARED-086, SHARED-089, SHARED-093, SHARED-021, SHARED-022, SHARED-024, SHARED-016
+**Reason**: Merged from two originally-separate prompts (see "Why Prompt 16 changed" above) that share a "shared-platform hardening, no cross-dependency between them" character. Every import/export/bulk-update/duplicate-detection/retention capability genuinely works but is scoped to CRM (and master data) only — confirmed again; generalizes the pattern rather than re-implementing it per module. Separately: MFA remains schema-only with no enrollment flow (unchanged since Prompt 1); SSO and IP restrictions are confirmed absent. Bundled with an explicit audit task (not a fix — see Part 34/Section 26 of `ERP_EXACT_FEATURE_RECONCILIATION_015.md`): confirm whether the class of bug Prompt 14 found and fixed in CRM's `crmContext()` (real session data never reaching a permission check) exists in any other module's own context-construction function, since Prompt 14 only audited CRM. SHARED-016 (record-level access) reflects that this audit is still open.
+**Dependencies**: 20 (reuses the write-UI framework for any new admin surface the data-management-breadth half of this prompt needs).
 
 ---
 
@@ -695,7 +695,7 @@ Accounting is genuinely the strongest module in the repository (33 of 43 real fu
 **Title**: Accounting — remaining compliance + Stock/POS/HR/Assets GL wiring
 **Targets**: ACC-039 (e-way bill — same shell pattern as e-invoice, no real portal integration), ACC-040 (TCS — enum value only, no Section 206C logic), ACC-041 (POS→Accounting — confirmed fully isolated, zero GL postings on sale), ACC-042 (HR & Payroll→Accounting — confirmed fully isolated, only an opaque string stored), ACC-043 (Assets→Accounting — confirmed fully isolated, and a real float/BigInt money-handling inconsistency if ever connected).
 **Reason**: Closes the three confirmed-isolated cross-module GL integrations together since they share the same "post a real journal entry on the triggering event" shape, plus the remaining India-compliance provider gaps.
-**Dependencies**: 61–64 (POS completion) for ACC-041 to have something real to post from; 17 (HR payroll correctness) for ACC-042 to post correct numbers, not zeros; 54–58 (Assets completion) for ACC-043.
+**Dependencies**: 61–64 (POS completion) for ACC-041 to have something real to post from; 18 (HR payroll correctness) for ACC-042 to post correct numbers, not zeros; 54–58 (Assets completion) for ACC-043.
 
 ---
 
@@ -713,7 +713,7 @@ Adversarial review of all new surface area introduced by Prompts 16–86 (the wr
 Large lists, reports, audit logs, search, ledgers, MRP, and warehouse-operation queries across all modules completed in 16–86.
 
 ### Prompt 90 — Accessibility audit
-WCAG AA verification across all modules, with particular attention to the new write-UI framework (Prompt 19) since it will be the most-reused new UI surface in the product.
+WCAG AA verification across all modules, with particular attention to the new write-UI framework (Prompt 20) since it will be the most-reused new UI surface in the product. This is a deeper, module-by-module follow-on to the first-pass accessibility fixes already made in Prompt 16 (see `ERP_UI_UX_BUG_REGISTER_016.csv`'s A11Y-008/A11Y-009 rows, deferred behavioral-keyboard-navigation work).
 
 ### Prompt 91 — Responsive/mobile-web audit
 Verification across all modules' new UI surfaces.
@@ -734,10 +734,10 @@ Dead-schema cleanup review across all modules touched by 16–86; fix the duplic
 Digest/scheduled notifications, building on the Prompt 13 worker/scheduler foundation — a real, additive workload for the same job-queue infrastructure.
 
 ### Prompt 97 — KPI framework + cross-module BI
-Deeper build on Prompt 20's chart/reporting foundation, closing SHARED-053 (KPI targets and alerts) fully.
+Deeper build on Prompt 21's chart/reporting foundation, closing SHARED-053 (KPI targets and alerts) fully.
 
 ### Prompt 98 — Reports & Analytics completion
-Real reports for any module still thin on analytics after its own completion campaign (24–84), using Prompt 20's foundation.
+Real reports for any module still thin on analytics after its own completion campaign (24–84), using Prompt 21's foundation.
 
 ### Prompt 99 — Automation completion
 Cross-module automation using the Prompt 13 scheduler foundation. Folds in the two explicitly-deferred Prompt 13/14 gaps: the worker's missing module-enablement check before running jobs (Part 34), and the webhook multi-subscription fan-out limitation (Part 66) — both were deliberately left open at the time, this is their scheduled fix point.

@@ -45,7 +45,7 @@ export default function QualityDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workspace">
+    <div className="module-workbench">
       <section className="panel">
         <p className="eyebrow">Quality</p>
         <h1>Inspection and corrective-action control</h1>
@@ -70,7 +70,7 @@ export default function QualityDashboard({
         ))}
       </section>
 
-      <section className="resource-grid">
+      <section className="resource-cards">
         {resources.map(([title, href, description]) => (
           <Link className="resource-card" href={href} key={href}>
             <span className="eyebrow">Quality workflow</span>

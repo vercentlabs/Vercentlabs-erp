@@ -30,7 +30,7 @@ export default async function HrPayrollResourcePage({
       <p className="eyebrow">HR &amp; Payroll</p>
       <h1>{resource.replaceAll("-", " ")}</h1>
       <p>{rows.length} records</p>
-      <div className="table-shell">
+      <div className="table-panel">
         <table>
           <thead>
             <tr>

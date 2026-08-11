@@ -33,6 +33,7 @@ export default function NavigationLink({
       aria-current={active ? "page" : undefined}
       className={`nav-link${active ? " active" : ""}${mobile ? " mobile" : ""}${nested ? " nested" : ""}`}
       href={href}
+      title={label}
     >
       <span className="nav-link-icon" aria-hidden="true">
         <AppIcon name={icon} size={nested ? 17 : 19} />

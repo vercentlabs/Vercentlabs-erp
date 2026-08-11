@@ -190,9 +190,31 @@ const GRID_ITEM_SPAN_CLASSES: Record<NonNullable<GridProps["columns"]>, string> 
   12: "col-span-12 sm:col-span-1",
 };
 
+/**
+ * Grid-only gap scale (not GAP_CLASSES, which Stack/Inline/Cluster also use and
+ * doesn't have this failure mode). A grid item spanning N tracks has a hard
+ * minimum width of (N-1) x gap, because minmax(0,1fr) lets the tracks
+ * themselves shrink to 0 but the fixed-px gaps between them cannot — at
+ * gap-10 a col-span-12 item has an unshrinkable 11 x 40px = 440px floor,
+ * which is wider than every phone viewport this site supports and forces
+ * real, confirmed horizontal body overflow (see
+ * tests/e2e/mobile-conversion.spec.ts and the Prompt 16 UI/UX audit, bug
+ * LAND-001). Scaling the gap down until there's room for the full value
+ * keeps that floor under the viewport at every tier.
+ */
+const GRID_GAP_CLASSES: Record<NonNullable<GridProps["gap"]>, string> = {
+  1: "gap-1",
+  2: "gap-2",
+  3: "gap-3",
+  4: "gap-4",
+  6: "gap-4 sm:gap-6",
+  8: "gap-4 sm:gap-6 lg:gap-8",
+  10: "gap-4 sm:gap-6 lg:gap-10",
+};
+
 export function Grid({ children, className, columns = 3, gap = 6 }: GridProps) {
   return (
-    <div className={cx("grid grid-cols-12", GAP_CLASSES[gap], className)}>
+    <div className={cx("grid grid-cols-12", GRID_GAP_CLASSES[gap], className)}>
       {Children.map(children, (child) => (
         <div className={GRID_ITEM_SPAN_CLASSES[columns]}>{child}</div>
       ))}

@@ -30,6 +30,15 @@ const REPRESENTATIVE_ROUTES = [
 
 for (const route of REPRESENTATIVE_ROUTES) {
   test(`axe: ${route} has no serious or critical violations`, async ({ page }) => {
+    // Prompt 16 UI/UX audit (bug A11Y-001): under this project's default
+    // fullyParallel concurrency, page.goto(networkidle) + a full axe-core
+    // scan against one production server can exceed the default 30s budget
+    // purely from resource contention — 8/13 tests here failed with "Test
+    // timeout of 30000ms exceeded" at default concurrency, while all 13
+    // passed cleanly (zero violations) re-run serially. Tripling the
+    // timeout keeps a real hang failing loudly while absorbing normal
+    // parallel-worker contention.
+    test.slow();
     await page.goto(route, { waitUntil: "networkidle" });
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
 

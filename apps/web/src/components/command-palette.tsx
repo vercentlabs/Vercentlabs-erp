@@ -58,6 +58,7 @@ export default function CommandPalette({
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
   const requestTokenRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -234,6 +235,35 @@ export default function CommandPalette({
         const selected = flatResults[selectedIndex];
         if (selected) activate(selected);
       }
+
+      // Focus trap: a portaled role="dialog" claims aria-modal="true" but
+      // nothing enforced that until now — Tab/Shift+Tab could previously
+      // walk a keyboard user straight out into the page behind it. Computed
+      // fresh on every Tab press (not cached) since the result list, and
+      // therefore the set of focusable elements, changes as the user types.
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusable = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((element) => element.offsetParent !== null);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const activeElement = document.activeElement;
+        if (event.shiftKey && activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        } else if (!dialogRef.current.contains(activeElement)) {
+          // Focus somehow escaped (e.g. a programmatic focus() elsewhere) —
+          // pull it back in rather than letting Tab compound the problem.
+          event.preventDefault();
+          first.focus();
+        }
+      }
     }
 
     document.addEventListener("keydown", handleKeydown);
@@ -243,6 +273,30 @@ export default function CommandPalette({
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  // Body scroll lock while open — a true modal must not let the page behind
+  // it scroll via wheel/touch/keyboard, only the dialog's own results list.
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  // Lets other components (e.g. the mobile bottom navigation's Search
+  // action) open the palette without needing direct access to its
+  // internal state — matches this file's own existing "single global
+  // Ctrl/Cmd+K listener" precedent instead of prop-drilling open-state
+  // through unrelated topbar/shell components.
+  useEffect(() => {
+    function handleExternalOpen() {
+      openPalette();
+    }
+    window.addEventListener("vercentlabs:open-command-palette", handleExternalOpen);
+    return () => window.removeEventListener("vercentlabs:open-command-palette", handleExternalOpen);
+  }, [openPalette]);
 
   // Reset selection whenever the query text changes — render-time
   // adjustment (React's documented pattern), not an effect, for the same
@@ -278,6 +332,7 @@ export default function CommandPalette({
       if (event.target === event.currentTarget) closePalette();
     }}>
       <div
+        ref={dialogRef}
         className="command-palette"
         role="dialog"
         aria-modal="true"

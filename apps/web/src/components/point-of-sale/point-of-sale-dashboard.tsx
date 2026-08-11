@@ -49,7 +49,7 @@ export default function PointOfSaleDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workspace">
+    <div className="module-workbench">
       <section className="panel">
         <p className="eyebrow">Point of Sale</p>
         <h1>Retail checkout and shift control</h1>
@@ -73,7 +73,7 @@ export default function PointOfSaleDashboard({
         ))}
       </section>
 
-      <section className="resource-grid">
+      <section className="resource-cards">
         {resources.map(([title, href, description]) => (
           <Link className="resource-card" href={href} key={href}>
             <span className="eyebrow">POS workflow</span>

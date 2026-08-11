@@ -59,7 +59,7 @@ export default function HrPayrollDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workspace">
+    <div className="module-workbench">
       <section className="panel">
         <p className="eyebrow">HR &amp; Payroll</p>
         <h1>Workforce and payroll control</h1>
@@ -84,7 +84,7 @@ export default function HrPayrollDashboard({
         ))}
       </section>
 
-      <section className="resource-grid">
+      <section className="resource-cards">
         {resources.map(([title, href, description]) => (
           <Link className="resource-card" href={href} key={href}>
             <span className="eyebrow">HR workflow</span>

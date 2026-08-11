@@ -33,7 +33,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             suite then found WebKit doesn't reliably honor this native
             behavior either — see components/layout/skip-link.tsx and
             docs/landing-redesign/phase-8/decision-log.md. */}
-        <main id="main-content" tabIndex={-1} className="focus:outline-none">
+        {/* No focus:outline-none here: the global :focus-visible base rule
+            in globals.css already gives this element a visible ring when it
+            receives programmatic focus from the skip link. A Tailwind
+            focus:outline-none utility was previously used to suppress the
+            mouse-click outline, but Tailwind's default variant order emits
+            `focus:` after `focus-visible:` in the compiled CSS, so it would
+            have won the cascade over an equal-specificity focus-visible
+            utility too and re-hidden the skip-link's focus ring. */}
+        <main id="main-content" tabIndex={-1}>
           {children}
         </main>
         <Footer />

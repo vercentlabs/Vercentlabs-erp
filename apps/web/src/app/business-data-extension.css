@@ -304,6 +304,11 @@
   color: var(--color-muted);
 }
 
+.master-data-search:focus-within {
+  border-color: var(--color-primary-border);
+  box-shadow: var(--shadow-focus);
+}
+
 .master-data-search input {
   flex: 1;
   border: none;

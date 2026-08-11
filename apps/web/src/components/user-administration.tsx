@@ -551,7 +551,7 @@ export default function UserAdministration({
       <section className="panel">
         <p className="eyebrow">Invitations</p>
         <h2>Pending and historical invitations</h2>
-        <div className="resource-grid">
+        <div className="resource-cards">
           {invitations.map((invitation) => (
             <article className="resource-card" key={invitation.id}>
               <strong>{invitation.email}</strong>
@@ -560,7 +560,7 @@ export default function UserAdministration({
                 Expires {dateFormatter.format(new Date(invitation.expiresAt))}
               </small>
               {!invitation.acceptedAt && !invitation.revokedAt && canManage ? (
-                <div className="button-row">
+                <div className="action-row">
                   <button
                     type="button"
                     className="secondary-button"

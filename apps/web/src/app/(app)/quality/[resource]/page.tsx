@@ -30,7 +30,7 @@ export default async function QualityResourcePage({
       <p className="eyebrow">Quality</p>
       <h1>{resource.replaceAll("-", " ")}</h1>
       <p>{rows.length} records</p>
-      <div className="table-shell">
+      <div className="table-panel">
         <table>
           <thead>
             <tr>

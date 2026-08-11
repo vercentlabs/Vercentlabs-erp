@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import AppIcon from "@/components/app-icon";
+import BottomNav from "@/components/bottom-nav";
 import Breadcrumbs from "@/components/breadcrumbs";
 import CommandPalette from "@/components/command-palette";
 import ContextSwitcher from "@/components/context-switcher";
 import LogoutButton from "@/components/logout-button";
+import MobileDrawer from "@/components/mobile-drawer";
 import ModuleContextBar from "@/components/module-context-bar";
 import NavigationLink from "@/components/navigation-link";
 import NavigationSection from "@/components/navigation-section";
@@ -12,6 +14,7 @@ import NotificationsControl from "@/components/notifications-control";
 import ProfileMenu from "@/components/profile-menu";
 import QuickCreateButton from "@/components/quick-create-button";
 import SidebarModules from "@/components/sidebar-modules";
+import SidebarShell from "@/components/sidebar-shell";
 import type { SessionContext } from "@/lib/auth";
 import type { ResolvedNavigationWithSettings } from "@/lib/navigation/resolve-navigation";
 import type { NavigationItem } from "@/lib/navigation/types";
@@ -129,7 +132,7 @@ export default function AppShell({
         Skip to main content
       </a>
 
-      <aside className="sidebar" aria-label="Primary workspace navigation">
+      <SidebarShell>
         <div className="sidebar-brand-row">
           <Link
             href="/dashboard"
@@ -172,7 +175,9 @@ export default function AppShell({
           </dl>
         </section>
 
-        <nav className="sidebar-navigation">{navigationTree()}</nav>
+        <nav className="sidebar-navigation" aria-label="Primary navigation">
+          {navigationTree()}
+        </nav>
 
         <div className="sidebar-user">
           <Link className="sidebar-profile" href="/profile">
@@ -186,20 +191,12 @@ export default function AppShell({
           </Link>
           <LogoutButton iconOnly />
         </div>
-      </aside>
+      </SidebarShell>
 
       <div className="workspace-main">
         <header className="topbar">
-          <details className="mobile-menu">
-            <summary aria-label="Open navigation menu">
-              <span aria-hidden="true" className="menu-lines">
-                <i />
-                <i />
-                <i />
-              </span>
-              <span>Menu</span>
-            </summary>
-            <div className="mobile-menu-panel">
+          <MobileDrawer
+            brand={
               <div className="mobile-menu-brand">
                 <span className="brand-symbol" aria-hidden="true">
                   V
@@ -209,11 +206,10 @@ export default function AppShell({
                   <small>{session.organizationName}</small>
                 </div>
               </div>
-              <nav aria-label="Mobile workspace navigation">
-                {navigationTree(true)}
-              </nav>
-            </div>
-          </details>
+            }
+          >
+            {navigationTree(true)}
+          </MobileDrawer>
 
           <CommandPalette
             navigation={navigation}
@@ -269,6 +265,8 @@ export default function AppShell({
           {children}
         </main>
       </div>
+
+      <BottomNav />
     </div>
   );
 }

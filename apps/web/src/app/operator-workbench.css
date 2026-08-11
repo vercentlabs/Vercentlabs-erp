@@ -1347,6 +1347,16 @@ tbody tr:hover td,
     grid-template-columns: minmax(240px, 1fr) auto auto;
   }
 
+  /* This file's unconditional .global-search { width: min(100%, 620px) }
+     rule below otherwise wins the cascade at every viewport (equal
+     specificity, loaded after globals.css) and defeats globals.css's own
+     max-width:1240px rule that shrinks the search bar to an icon-only
+     launcher — without this, the topbar overflows the viewport at tablet
+     and mobile widths. */
+  .global-search {
+    width: auto;
+  }
+
   .context-switcher {
     grid-column: auto;
   }

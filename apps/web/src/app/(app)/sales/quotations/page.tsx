@@ -112,6 +112,7 @@ export default async function QuotationsPage({
             name="search"
             defaultValue={filters.search}
             placeholder="Search quotation or customer"
+            aria-label="Search quotation or customer"
           />
           <DownwardSelect
             name="status"
@@ -138,30 +139,31 @@ export default async function QuotationsPage({
           />
           <button className="secondary-button">Apply</button>
         </form>
-        <div className="sales-table">
-          <div className="sales-table-row sales-table-head">
-            <span>Quotation</span>
-            <span>Customer</span>
-            <span>Status</span>
-            <span>Valid until</span>
-            <span>Total</span>
+        <div className="sales-table" role="table" aria-label="Quotations">
+          <div className="sales-table-row sales-table-head" role="row">
+            <span role="columnheader">Quotation</span>
+            <span role="columnheader">Customer</span>
+            <span role="columnheader">Status</span>
+            <span role="columnheader">Valid until</span>
+            <span role="columnheader">Total</span>
           </div>
           {visibleRows.map((row) => (
             <Link
               className="sales-table-row"
               href={`/sales/quotations/${row.id}`}
               key={row.id}
+              role="row"
             >
-              <span>
+              <span role="cell">
                 <strong>{row.quotation_number}</strong>
                 <small>Revision {row.version_number}</small>
               </span>
-              <span>{row.customer_name}</span>
-              <span>
+              <span role="cell">{row.customer_name}</span>
+              <span role="cell">
                 <i className="status-badge neutral">{row.lifecycle_status}</i>
               </span>
-              <span>{String(row.valid_until).slice(0, 10)}</span>
-              <span>
+              <span role="cell">{String(row.valid_until).slice(0, 10)}</span>
+              <span role="cell">
                 {row.currency_code} {row.grand_total}
               </span>
             </Link>

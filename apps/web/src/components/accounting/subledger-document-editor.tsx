@@ -263,6 +263,7 @@ export default function SubledgerDocumentEditor({
             <button
               className="icon-button"
               type="button"
+              aria-label="Remove line"
               disabled={lines.length === 1}
               onClick={() => setLines((current) => current.filter((item) => item.key !== row.key))}
             >

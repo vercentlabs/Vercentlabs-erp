@@ -43,7 +43,7 @@ export default async function PointOfSaleResourcePage({
       <p className="eyebrow">Point of Sale</p>
       <h1>{resource.replaceAll("-", " ")}</h1>
       <p>{rows.length} records</p>
-      <div className="table-shell">
+      <div className="table-panel">
         <table>
           <thead>
             <tr>

@@ -44,7 +44,23 @@
 
   --control-height: 44px;
   --sidebar-width: 280px;
+  --sidebar-collapsed-width: 72px;
+  --bottom-nav-height: 60px;
   --content-max: 1520px;
+
+  /* Part 80 — a single documented layer scale. Every stacking-context
+     component in this file (or an extension file) should use one of
+     these tokens instead of an arbitrary literal, so "which sits above
+     what" stays answerable by reading this list rather than by
+     archaeology. Existing large/arbitrary literals (1000, 100, 40, 30,
+     25) are being migrated onto this scale incrementally as touched;
+     new work must not introduce another bare number. */
+  --z-base: 1;
+  --z-sticky: 20;
+  --z-dropdown: 30;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
 
   /* Compatibility aliases used by existing foundation screens. */
   --ink: var(--color-ink);
@@ -1368,7 +1384,7 @@ legend {
 .sidebar {
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: var(--z-sticky);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -1571,6 +1587,103 @@ legend {
   font-weight: 850;
 }
 
+/* Collapsed desktop rail (Part 14) — previously the sidebar had exactly
+   two states, full-width or display:none on mobile, nothing in between.
+   :has() lets the grid track react to a class on its own child without
+   lifting the toggle state up into a parent component; supported by every
+   evergreen browser this product targets. Desktop-only in effect: at the
+   ≤960px breakpoint below, .workspace-shell's grid already collapses to a
+   single column and .sidebar is hidden entirely (the drawer takes over),
+   so this rule is inert there regardless. */
+.workspace-shell:has(.sidebar.collapsed) {
+  grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+.sidebar.collapsed {
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
+/* Supplementary chrome (org/company/branch context card, section labels,
+   badge counts, profile name/role) is genuinely redundant once collapsed
+   — the same information is already available via the topbar's context
+   switcher and profile menu, so hiding it from everyone (including
+   assistive tech) here is a real declutter, not an information loss. */
+.sidebar.collapsed .brand-wordmark,
+.sidebar.collapsed .environment-badge,
+.sidebar.collapsed .workspace-context,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-count,
+.sidebar.collapsed .sidebar-user > a > span:last-child {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-brand-row {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-link,
+.sidebar.collapsed .sidebar nav > a,
+.sidebar.collapsed .nav-section > summary {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 5px 0;
+}
+
+/* Module group headers (<details><summary>CRM</summary>...) are a separate
+   component from .nav-link (operator-workbench.css's .nav-section), with
+   their own label/chevron elements the .nav-link-label rule below never
+   matched — without this, collapsed mode left every group's name wrapping
+   visibly inside the 72px rail instead of collapsing to just its icon. */
+.sidebar.collapsed .nav-section-chevron {
+  display: none;
+}
+
+/* The link's accessible NAME comes from this text — unlike the chrome
+   above, this must stay in the accessibility tree even though sighted
+   users only see the icon. Visually clipped (same technique as this
+   file's own .sr-only), not display:none. NavigationLink's `title`
+   attribute additionally gives sighted mouse/trackpad users a native
+   tooltip on hover. */
+.sidebar.collapsed .nav-link-label,
+.sidebar.collapsed .nav-section-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sidebar-collapse-toggle {
+  position: absolute;
+  top: 22px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-sidebar-line);
+  border-radius: 999px;
+  background: var(--color-sidebar-soft);
+  color: #c7d2fe;
+  cursor: pointer;
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+
+.sidebar.collapsed .sidebar-collapse-toggle {
+  transform: rotate(-90deg);
+}
+
+.sidebar-collapse-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
 .sidebar-user {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1687,10 +1800,21 @@ legend {
   backdrop-filter: blur(18px);
 }
 
-.topbar > .context-switcher,
 .topbar > .topbar-menu,
 .topbar > .topbar-actions {
   flex: 0 0 auto;
+}
+
+/* flex-shrink:0 (the .topbar-menu/.topbar-actions rule above) sizes a flex
+   item to its max-content width and never lets it compress — the grid's own
+   minmax(0, 1fr) tracks below never even get exercised in that case, since
+   the item's intrinsic width is computed from content, not from its tracks'
+   floors. The context-switcher carries real, non-decorative context (company/
+   branch/access) and must be allowed to shrink under space pressure instead
+   of forcing the topbar to overflow at tablet/mobile widths. */
+.topbar > .context-switcher {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* .global-search is now the command-palette launcher button (Part 42 —
@@ -1757,8 +1881,9 @@ legend {
 
 .context-switcher {
   min-height: var(--control-height);
+  min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) 1px minmax(100px, 0.8fr);
+  grid-template-columns: auto minmax(0, 1fr) 1px minmax(0, 0.8fr);
   align-items: center;
   gap: 7px;
   padding: 4px 7px;
@@ -1770,8 +1895,8 @@ legend {
 
 .context-switcher.has-organisation {
   grid-template-columns:
-    auto minmax(110px, 0.9fr) 1px minmax(110px, 1fr) 1px
-    minmax(90px, 0.8fr);
+    auto minmax(0, 0.9fr) 1px minmax(0, 1fr) 1px
+    minmax(0, 0.8fr);
 }
 
 .context-switcher-icon {
@@ -1787,19 +1912,24 @@ legend {
 .context-switcher label {
   display: grid;
   gap: 0;
+  min-width: 0;
 }
 
 .context-switcher label > span {
+  overflow: hidden;
   color: var(--color-muted);
   font-size: 8px;
   font-weight: 850;
   letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-transform: uppercase;
 }
 
 .context-switcher select {
   min-width: 0;
   min-height: 23px;
+  overflow: hidden;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1808,6 +1938,7 @@ legend {
   color: var(--color-ink-secondary);
   font-size: 11px;
   font-weight: 750;
+  text-overflow: ellipsis;
 }
 
 .context-switcher select:focus {
@@ -2061,7 +2192,7 @@ legend {
 .command-palette-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-modal);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -2215,8 +2346,146 @@ legend {
   transform: translateY(-1px);
 }
 
-.mobile-menu {
+/* Mobile drawer trigger (topbar hamburger) — hidden on desktop, shown at
+   the ≤960px breakpoint below alongside the sidebar's own display:none. */
+.mobile-menu-trigger {
   display: none;
+  min-height: var(--control-height);
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--color-ink-secondary);
+  cursor: pointer;
+}
+
+.menu-lines {
+  width: 18px;
+  display: grid;
+  gap: 3px;
+}
+
+.menu-lines i {
+  height: 2px;
+  display: block;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* Real dialog (MobileDrawer) replacing the old <details> hack — see
+   apps/web/src/components/mobile-drawer.tsx for why. */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  display: flex;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.mobile-drawer-panel {
+  width: min(360px, calc(100vw - 32px));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 12px;
+  background: #fff;
+  box-shadow: var(--shadow-elevated);
+}
+
+.mobile-drawer-panel:focus {
+  outline: none;
+}
+
+.mobile-drawer-panel:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 7px 12px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.mobile-drawer-close {
+  flex: none;
+  padding: 6px 9px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mobile-drawer-nav {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+}
+
+.mobile-menu-brand {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.mobile-menu-brand > div {
+  min-width: 0;
+  display: grid;
+}
+
+.mobile-menu-brand small {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile bottom navigation (Part 16 — documented target since the
+   original navigation spec, never implemented before now). Fixed, five
+   items, mobile-only (hidden by default here, shown at the ≤720px
+   breakpoint further below where the topbar itself gets tightest). */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-sticky);
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--color-line);
+  background: #fff;
+  box-shadow: 0 -8px 24px rgba(16, 24, 40, 0.06);
+}
+
+.bottom-nav-item {
+  height: var(--bottom-nav-height);
+  min-width: 44px;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.bottom-nav-item.active {
+  color: var(--color-primary);
 }
 
 .breadcrumb-row {
@@ -2266,6 +2535,11 @@ legend {
 .workspace-content:focus {
   outline: none;
   box-shadow: none;
+}
+
+.workspace-content:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 /* Page hierarchy */
@@ -2471,7 +2745,7 @@ legend {
 
 .audit-event-detail-label {
   margin: 6px 0 0;
-  color: var(--color-muted-light);
+  color: var(--color-muted);
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -2704,7 +2978,7 @@ legend {
 
 .metric-note {
   margin-top: 4px;
-  color: var(--color-muted-light);
+  color: var(--color-muted);
   font-size: 9px;
   font-weight: 500;
   line-height: 1.5;
@@ -2933,7 +3207,7 @@ legend {
 }
 
 .timeline-list small {
-  color: var(--color-muted-light);
+  color: var(--color-muted);
   font-size: 9px;
   white-space: nowrap;
 }
@@ -2973,7 +3247,7 @@ legend {
 .audit-list small {
   max-width: 100px;
   overflow: hidden;
-  color: var(--color-muted-light);
+  color: var(--color-muted);
   font-size: 9px;
   text-overflow: ellipsis;
   text-transform: capitalize;
@@ -3032,7 +3306,7 @@ legend {
 }
 
 .module-index {
-  color: var(--color-muted-light);
+  color: var(--color-muted);
   font-size: 9px;
   font-weight: 850;
   letter-spacing: 0.12em;
@@ -3579,9 +3853,13 @@ td {
 }
 
 th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  /* position:sticky was previously set here, but .table-panel (its scroll
+     ancestor) has no height cap anywhere in the app, so the sticky
+     positioning context it would need was never actually established --
+     it never engaged on any table. Adding a blanket max-height to
+     .table-panel to make it real would change scroll behavior on every
+     table page in the app, which is a bigger, unverified change than this
+     pass can safely make; dropping the dead rule instead. */
   background: #f8fafc;
   color: var(--color-ink-secondary);
   font-size: 9px;
@@ -3811,79 +4089,8 @@ td small {
     display: none;
   }
 
-  .mobile-menu {
-    position: relative;
-    display: block;
-  }
-
-  .mobile-menu summary {
-    min-height: var(--control-height);
+  .mobile-menu-trigger {
     display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 12px;
-    border: 1px solid var(--color-line);
-    border-radius: 11px;
-    background: #fff;
-    color: var(--color-ink-secondary);
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 800;
-    list-style: none;
-  }
-
-  .mobile-menu summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .menu-lines {
-    width: 18px;
-    display: grid;
-    gap: 3px;
-  }
-
-  .menu-lines i {
-    height: 2px;
-    display: block;
-    border-radius: 999px;
-    background: currentColor;
-  }
-
-  .mobile-menu-panel {
-    position: fixed;
-    top: 68px;
-    left: 12px;
-    z-index: 40;
-    width: min(360px, calc(100vw - 24px));
-    max-height: calc(100vh - 82px);
-    overflow-y: auto;
-    padding: 12px;
-    border: 1px solid var(--color-line);
-    border-radius: 18px;
-    background: #fff;
-    box-shadow: var(--shadow-elevated);
-  }
-
-  .mobile-menu-brand {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 10px;
-    align-items: center;
-    padding: 6px 7px 12px;
-    border-bottom: 1px solid var(--color-line);
-  }
-
-  .mobile-menu-brand > div {
-    min-width: 0;
-    display: grid;
-  }
-
-  .mobile-menu-brand small {
-    overflow: hidden;
-    color: var(--color-muted);
-    font-size: 10px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .nav-link.mobile {
@@ -3972,8 +4179,8 @@ td small {
     padding: 10px 12px;
   }
 
-  .mobile-menu summary > span:last-child {
-    display: none;
+  .bottom-nav {
+    display: flex;
   }
 
   .global-search input {
@@ -3982,15 +4189,6 @@ td small {
 
   .search-scope {
     display: none;
-  }
-
-  .context-switcher {
-    grid-template-columns: auto minmax(0, 1fr) 1px minmax(0, 1fr);
-  }
-
-  .context-switcher.has-organisation {
-    grid-template-columns:
-      auto minmax(0, 1fr) 1px minmax(0, 1fr) 1px minmax(0, 1fr);
   }
 
   .topbar-actions {
@@ -4006,7 +4204,9 @@ td small {
   }
 
   .workspace-content {
-    padding: 22px 16px 34px;
+    /* Bottom padding clears the fixed .bottom-nav (Part 77 — safe-area
+       aware) so the last row of real content is never hidden behind it. */
+    padding: 22px 16px calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 24px);
   }
 
   .page-heading {
