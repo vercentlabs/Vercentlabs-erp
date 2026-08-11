@@ -1,5 +1,7 @@
 # Vercentlabs ERP — Team UAT Scope (Prompt 11 of 102)
 
+> **Superseded by `ERP_TEAM_UAT_SCOPE_015.md`.** Prompt 15's exact 1,039-row classification produced an exact READY/LIMITED test list (273 individually-numbered requirements) replacing this document's estimated scope. Use the Prompt 15 version for active UAT; this document is retained for historical reference only.
+
 This document tells the Vercentlabs team what can genuinely be tested in the product **today**. It intentionally excludes every feature classified MISSING, NOT_READY, or BLOCKED in `ERP_FEATURE_RECONCILIATION_011.md` — sending those to testers would waste their time and produce noise, not signal. Full status detail for everything (including what's excluded and why) lives in `ERP_FEATURE_MATRIX_011.csv` / `ERP_ACCOUNTING_MATRIX_011.csv`.
 
 **Read this first — the single most important limitation across this entire scope**: eight modules (Manufacturing, Projects, Assets, Point of Sale, Quality, Support, HR & Payroll, and most of Stock) have real backend logic that is **not reachable through the product UI today** — only through a direct API call. A normal tester using the application cannot exercise these, no matter how "complete" the backend is. Those areas are therefore excluded from this checklist even where the reconciliation found genuinely correct backend code, and are called out explicitly per module below so the team understands *why* a module they know has real code isn't listed.

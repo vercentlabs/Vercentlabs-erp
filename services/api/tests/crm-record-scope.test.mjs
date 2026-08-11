@@ -278,6 +278,59 @@ test("CRM: organization_owner sees every lead via roleSlugs alone, with an EMPTY
   assert.equal(result.rows.length, 1);
 });
 
+// Regression guard for a real reported bug: a lead created while the
+// company switcher was set to Company A was visible while switched to
+// Company B, for organization_owner/system_administrator accounts (and
+// any other allowAllCompanies role). Root cause: recordScope() treated
+// allowAllCompanies as "skip company filtering unconditionally" instead
+// of "only skip it when no company is actively selected at all." This
+// mock, unlike crmClient() above, also inspects the company-scope
+// predicate's bound parameter, not just the owner-scope one — the fix
+// specifically changed that predicate's shape.
+const otherCompany = "66666666-6666-4666-8666-666666666666";
+function companyAwareCrmClient({ leadRow = ownedLead } = {}) {
+  function visible(sql, params) {
+    const companyMatch = sql.match(/company_id = \$(\d+)\)/);
+    if (companyMatch) {
+      const boundCompanyId = params[Number(companyMatch[1]) - 1];
+      if (leadRow.company_id != null && leadRow.company_id !== boundCompanyId) return false;
+    }
+    return true;
+  }
+  return {
+    async query(sql, params = []) {
+      if (sql.includes("FROM tenant.crm_leads record WHERE") && sql.includes("count(*)::int AS total")) {
+        return { rows: [{ total: visible(sql, params) ? 1 : 0 }] };
+      }
+      if (sql.includes("FROM tenant.crm_leads record WHERE")) {
+        return { rows: visible(sql, params) ? [leadRow] : [] };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+}
+
+test("CRM: an elevated (allowAllCompanies) user switched to Company A does NOT see a lead that belongs to Company B", async () => {
+  const leadInOtherCompany = { ...ownedLead, company_id: otherCompany };
+  const ctx = { ...managerContext, activeCompanyId: company, allowAllCompanies: true };
+  const result = await listCrmRecords(companyAwareCrmClient({ leadRow: leadInOtherCompany }), ctx, "leads", {});
+  assert.equal(result.rows.length, 0, "the active company selector must scope allowAllCompanies roles too, not just restricted ones");
+});
+
+test("CRM: an elevated (allowAllCompanies) user switched to Company A DOES see a lead that belongs to Company A", async () => {
+  const leadInActiveCompany = { ...ownedLead, company_id: company };
+  const ctx = { ...managerContext, activeCompanyId: company, allowAllCompanies: true };
+  const result = await listCrmRecords(companyAwareCrmClient({ leadRow: leadInActiveCompany }), ctx, "leads", {});
+  assert.equal(result.rows.length, 1);
+});
+
+test("CRM: an elevated (allowAllCompanies) user with NO company selected still sees a lead from any company (fallback preserved)", async () => {
+  const leadInOtherCompany = { ...ownedLead, company_id: otherCompany };
+  const ctx = { ...managerContext, activeCompanyId: null, allowAllCompanies: true };
+  const result = await listCrmRecords(companyAwareCrmClient({ leadRow: leadInOtherCompany }), ctx, "leads", {});
+  assert.equal(result.rows.length, 1, "allowAllCompanies must still mean something when no specific company is selected");
+});
+
 test("CRM: a context missing permissions/roleSlugs entirely fails CLOSED — canViewAllCrmRecords() must never default to open", async () => {
   const bareContext = {
     organizationId: org,

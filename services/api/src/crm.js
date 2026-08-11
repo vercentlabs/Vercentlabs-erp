@@ -1304,25 +1304,39 @@ function recordScope(definition, context, parameters, alias = "record") {
   if (definition.table === "tenant.crm_saved_views") {
     sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
   }
-  if (definition.companyScoped && !context.allowAllCompanies) {
-    // Prompt 14: must return `sql + " AND false"`, not a bare " AND false"
-    // — a bare return here discards any parameter(s) already bound above
-    // (e.g. the saved_views clause) while leaving them in the `parameters`
-    // array the caller still sends, producing a Postgres bind-parameter-
-    // count mismatch. Found via Part 44's live-database verification, not
-    // by the pre-existing mocked-client tests (which never execute real
-    // SQL and so could not have caught it).
-    if (!context.activeCompanyId) return sql + " AND false";
-    sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
+  if (definition.companyScoped) {
+    // `allowAllCompanies` (organization_owner/system_administrator) means
+    // "permitted to access every company," NOT "the active company
+    // selector should be ignored." Whenever a specific company is actually
+    // selected (the normal case for every role, including owners/admins —
+    // see apps/web/src/lib/auth.ts's session resolution, which always picks
+    // a real company), records outside it stay filtered out for everyone.
+    // allowAllCompanies only changes behavior when NO company is selected
+    // at all: a restricted user is denied (fail closed), an elevated user
+    // sees across every company (the genuine "no company chosen yet" case).
+    // Before this fix, allowAllCompanies skipped company filtering
+    // unconditionally, so an owner/admin's company switcher never actually
+    // scoped anything — e.g. a lead created while switched to Company A
+    // was still visible while switched to Company B, because the read path
+    // never applied the filter for that role at all.
+    if (context.activeCompanyId) {
+      sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
+    } else if (!context.allowAllCompanies) {
+      // Must return `sql + " AND false"`, not a bare " AND false" — a bare
+      // return here would discard any parameter(s) already bound above
+      // (e.g. the saved_views clause) while leaving them in the
+      // `parameters` array the caller still sends, producing a Postgres
+      // bind-parameter-count mismatch (Prompt 14, Part 44).
+      return sql + " AND false";
+    }
   }
-  if (definition.fields?.branchId && !context.allowAllCompanies) {
-    // Same fix as above: a real, live-reachable case for any restricted
-    // (non-allowAllCompanies) user in a branch-less company — activeCompanyId
-    // set, activeBranchId null — previously crashed every CRM list/detail
-    // query for that user with a parameter-count mismatch instead of
-    // correctly returning zero rows.
-    if (!context.activeBranchId) return sql + " AND false";
-    sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
+  if (definition.fields?.branchId) {
+    // Same reasoning as the company block above.
+    if (context.activeBranchId) {
+      sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
+    } else if (!context.allowAllCompanies) {
+      return sql + " AND false";
+    }
   }
   if (definition.ownerField && !canViewAllCrmRecords(context)) {
     const column = definition.fields[definition.ownerField];
@@ -3043,10 +3057,18 @@ export async function getCrmDashboard(client, context) {
     Boolean(canViewAllCrmRecords(context)),
     context.userId,
   ];
+  // As of the company-switcher fix below: the active company/branch, when
+  // selected, always scopes dashboard totals — for every role, including
+  // organization_owner/system_administrator. $4 (allowAllCompanies) only
+  // matters when no company is actively selected at all (the genuine
+  // "no company chosen" case), matching recordScope()'s corrected
+  // semantics. Previously $4 alone bypassed this filter unconditionally,
+  // so an owner/admin's dashboard totals never actually reflected which
+  // company was selected in the top bar.
   const companyVisible = (alias) =>
-    `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
+    `(($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)) OR ($2::uuid IS NULL AND $4::boolean))`;
   const branchVisible = (alias) =>
-    `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
+    `(($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)) OR ($3::uuid IS NULL AND $4::boolean))`;
   // Mirrors recordScope()'s owner-scoping rule so dashboard totals never
   // reveal counts/sums that include records a restricted caller could not
   // otherwise list or open individually (docs/implementation/
@@ -3102,10 +3124,13 @@ export async function getCrmReport(client, context, report, filters = {}) {
   ];
   const dateClause = (column) =>
     `AND ($5::date IS NULL OR ${column} >= $5::date) AND ($6::date IS NULL OR ${column} < $6::date + 1)`;
+  // See getCrmDashboard()'s identical fix: the active company/branch, when
+  // selected, scopes reports for every role — $4 (allowAllCompanies) only
+  // matters when no company is actively selected at all.
   const companyVisible = (alias) =>
-    `($4::boolean OR ($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)))`;
+    `(($2::uuid IS NOT NULL AND (${alias}.company_id IS NULL OR ${alias}.company_id = $2)) OR ($2::uuid IS NULL AND $4::boolean))`;
   const branchVisible = (alias) =>
-    `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
+    `(($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)) OR ($3::uuid IS NULL AND $4::boolean))`;
   // Same owner-scoping rule as recordScope()/getCrmDashboard() — reports
   // built from crm_leads/crm_opportunities/crm_activities (the three
   // resources with an ownerField, see Part 2 of docs/implementation/

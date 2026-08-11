@@ -1,5 +1,7 @@
 # ERP Feature Reconciliation (Prompt 11 of 102)
 
+> **Superseded for exact feature-counting by `ERP_EXACT_FEATURE_RECONCILIATION_015.md`.** Prompt 15 recovered the exact, individually-numbered 1,039-feature historical register (previously not found in the repository, correctly per this document's own Section 4 fallback) and produced an exact, row-by-row classification. This document remains valid as repository research — its 288 functional-area findings, evidence, and historical conclusions are unchanged and not rewritten — but is no longer the canonical source for the 1,039-row count, status distribution, or execution plan. See `ERP_EXACT_FEATURE_RECONCILIATION_015.md` Section 27 for exactly what changed and why once exact classification became possible.
+
 Reconciliation date: 2026-08-10
 Scope: full 1,039-feature historical baseline (945 module-specific across the original 11 modules + 94 shared platform) plus a separate Accounting reconciliation. No product code was modified to produce this document — see Section 33.
 

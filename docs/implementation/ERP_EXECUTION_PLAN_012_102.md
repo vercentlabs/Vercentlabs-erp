@@ -1,5 +1,7 @@
 # Vercentlabs ERP — Execution Plan, Prompts 12–102
 
+> **Prompts 12–14 of this plan were executed as originally planned (or close to it) and are historical fact — see the real Prompts 12/13/14 delivery docs.** Prompt 14 diverged from this plan's own "Prompt 14/15" entries (CRM automation trigger completion / telephony worker) because Prompt 13's own work surfaced a higher-priority, previously-unknown CRM authorization bug that took priority. **Everything from Prompt 15 onward in this plan is superseded by `ERP_EXECUTION_PLAN_016_102.md`**, rebuilt against the exact 1,039-feature register recovered in Prompt 15. Do not schedule work against this document's Prompt 15+ entries.
+
 Master roadmap produced by Prompt 11's reconciliation (`ERP_FEATURE_RECONCILIATION_011.md`). Allocates all 91 remaining prompts based on real gaps found via direct code inspection — not on the original, now-superseded estimated allocation. Every prompt number 12–102 appears exactly once (validated by `scripts/validation/verify-feature-matrix.mjs`). No product implementation occurred in Prompt 11; this is a plan only.
 
 Each entry references `feature_id`s from `ERP_FEATURE_MATRIX_011.csv` / `ERP_ACCOUNTING_MATRIX_011.csv` where useful — those are the evidence-backed functional areas the prompt is expected to close or improve.
