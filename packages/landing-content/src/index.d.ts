@@ -317,8 +317,7 @@ export const BREADTH_SECTION: BreadthSection;
 
 export interface FlagshipWorkflowSection extends HomepageSectionBase {
   workflowSlug: string;
-  screenshotIds: string[];
-  steps: { step: string; department: string; systemAction: string }[];
+  steps: { step: string; department: string; moduleKey: string; systemAction: string }[];
 }
 export const FLAGSHIP_WORKFLOW_SECTION: FlagshipWorkflowSection;
 

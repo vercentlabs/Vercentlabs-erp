@@ -142,5 +142,5 @@ export const IMPLEMENTATION_PAGE = Object.freeze({
     { question: "Will we lose data or have a gap in operations during migration?", answer: "Open transactions — open sales orders, open purchase orders, outstanding receivables and payables — are migrated alongside master data, and migrated data is reconciled against source-system totals before sign-off. The typical pattern is keeping the prior system read-only for a reconciliation window rather than an abrupt cutover." },
     { question: "Do we need an in-house IT team to manage this?", answer: "An IT/Ops resource is useful for data extraction and integration questions during discovery and migration, but implementation doesn't require a dedicated in-house administrator to run day to day — the role and permission model is designed during solution design specifically so business owners of each module can operate it themselves." },
   ],
-  conversion: { heading: "Talk through your real implementation scope.", ctaLabel: "Book a Product Demo" },
+  conversion: { heading: "Talk through your real implementation scope.", ctaLabel: "Book a Demo" },
 });

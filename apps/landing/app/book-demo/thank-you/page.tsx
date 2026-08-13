@@ -16,7 +16,7 @@ export default function ThankYouPage() {
   return (
     <Section tone="page" paddingTop={{ base: 14, sm: 20 }} className="flex min-h-[calc(100vh-4rem)] flex-col justify-center">
       <Container>
-        <div className="mx-auto max-w-[560px] text-center">
+        <div className="reveal-on-load mx-auto max-w-[560px] text-center">
           {/*
             The confirmation itself is server-rendered and visible immediately —
             it must never depend on client hydration completing first. Only the

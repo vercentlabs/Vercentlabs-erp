@@ -1,4 +1,4 @@
-import { Children, type ElementType, type ReactNode } from "react";
+import { Children, type ElementType, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "@/lib/utils";
 
 interface ContainerProps {
@@ -130,7 +130,7 @@ export function SectionHeader({ eyebrow, title, description, align = "left", cla
   );
 }
 
-interface StackProps {
+interface StackProps extends Omit<HTMLAttributes<HTMLElement>, "className"> {
   children: ReactNode;
   className?: string;
   gap?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10;
@@ -150,18 +150,30 @@ const GAP_CLASSES: Record<NonNullable<StackProps["gap"]>, string> = {
 };
 
 /** Vertical layout primitive. */
-export function Stack({ children, className, gap = 4, as: As = "div" }: StackProps) {
-  return <As className={cx("flex flex-col", GAP_CLASSES[gap], className)}>{children}</As>;
+export function Stack({ children, className, gap = 4, as: As = "div", ...rest }: StackProps) {
+  return (
+    <As className={cx("flex flex-col", GAP_CLASSES[gap], className)} {...rest}>
+      {children}
+    </As>
+  );
 }
 
 /** Horizontal layout primitive that wraps at narrow widths. */
-export function Inline({ children, className, gap = 3, as: As = "div" }: StackProps) {
-  return <As className={cx("flex flex-row flex-wrap items-center", GAP_CLASSES[gap], className)}>{children}</As>;
+export function Inline({ children, className, gap = 3, as: As = "div", ...rest }: StackProps) {
+  return (
+    <As className={cx("flex flex-row flex-wrap items-center", GAP_CLASSES[gap], className)} {...rest}>
+      {children}
+    </As>
+  );
 }
 
 /** Horizontal group of small, related items (tags, badges) — never wraps mid-item. */
-export function Cluster({ children, className, gap = 2, as: As = "div" }: StackProps) {
-  return <As className={cx("flex flex-row flex-wrap items-center content-start", GAP_CLASSES[gap], className)}>{children}</As>;
+export function Cluster({ children, className, gap = 2, as: As = "div", ...rest }: StackProps) {
+  return (
+    <As className={cx("flex flex-row flex-wrap items-center content-start", GAP_CLASSES[gap], className)} {...rest}>
+      {children}
+    </As>
+  );
 }
 
 interface GridProps {
@@ -169,6 +181,10 @@ interface GridProps {
   className?: string;
   columns?: 1 | 2 | 3 | 4 | 12;
   gap?: 1 | 2 | 3 | 4 | 6 | 8 | 10;
+  /** Arms each item as a `data-reveal-item` (capped, staggered transitionDelay)
+   *  for a `<Reveal group>` ancestor to trigger — see components/motion/reveal.tsx.
+   *  Default false: every existing call site is visually unchanged until opted in. */
+  reveal?: boolean;
 }
 
 /**
@@ -185,8 +201,12 @@ interface GridProps {
 const GRID_ITEM_SPAN_CLASSES: Record<NonNullable<GridProps["columns"]>, string> = {
   1: "col-span-12",
   2: "col-span-12 sm:col-span-6",
-  3: "col-span-12 sm:col-span-6 lg:col-span-4",
-  4: "col-span-12 sm:col-span-6 lg:col-span-3",
+  // md: tier added so 3- and 4-up grids don't stay stuck 2-across from 480px
+  // all the way to 1024px ("2-column purgatory" spanning tablet width) —
+  // see tests/e2e/mobile-conversion.spec.ts for the overflow regression test
+  // this must keep passing.
+  3: "col-span-12 sm:col-span-6 md:col-span-4 lg:col-span-4",
+  4: "col-span-12 sm:col-span-6 md:col-span-4 lg:col-span-3",
   12: "col-span-12 sm:col-span-1",
 };
 
@@ -212,11 +232,17 @@ const GRID_GAP_CLASSES: Record<NonNullable<GridProps["gap"]>, string> = {
   10: "gap-4 sm:gap-6 lg:gap-10",
 };
 
-export function Grid({ children, className, columns = 3, gap = 6 }: GridProps) {
+export function Grid({ children, className, columns = 3, gap = 6, reveal = false }: GridProps) {
   return (
     <div className={cx("grid grid-cols-12", GRID_GAP_CLASSES[gap], className)}>
-      {Children.map(children, (child) => (
-        <div className={GRID_ITEM_SPAN_CLASSES[columns]}>{child}</div>
+      {Children.map(children, (child, index) => (
+        <div
+          className={GRID_ITEM_SPAN_CLASSES[columns]}
+          data-reveal-item={reveal ? "" : undefined}
+          style={reveal ? { transitionDelay: `${Math.min(index, 4) * 60}ms` } : undefined}
+        >
+          {child}
+        </div>
       ))}
     </div>
   );

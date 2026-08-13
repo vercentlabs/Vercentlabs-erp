@@ -102,7 +102,7 @@ export const PRODUCT_OVERVIEW_PAGE = Object.freeze({
     { question: "How does Vercentlabs handle multiple companies or branches?", answer: "Multi-company and branch-level data isolation is structural, enforced at the database layer — not an application-layer filter that could be bypassed by a bug." },
     { question: "Can we adopt modules gradually instead of all at once?", answer: "Yes — module access is entitlement-gated per organisation, so you can start with the modules you need and add more as you grow, on the same underlying platform and data model." },
   ],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
 });
 
 export const PLATFORM_PAGE = Object.freeze({
@@ -163,7 +163,7 @@ export const PLATFORM_PAGE = Object.freeze({
     },
   ],
   connectedModuleKeys: ["crm", "sales", "accounting", "hr-payroll"],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
   finalCtaHeading: "See the platform architecture in a live demo.",
 });
 
@@ -224,7 +224,7 @@ export const AUTOMATION_PAGE = Object.freeze({
     },
   ],
   connectedModuleKeys: ["crm", "sales", "procurement", "manufacturing", "quality"],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
   finalCtaHeading: "See workflow automation in a live demo.",
 });
 
@@ -273,7 +273,7 @@ export const ANALYTICS_PAGE = Object.freeze({
     },
   ],
   connectedModuleKeys: ["crm", "accounting", "procurement"],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
   finalCtaHeading: "See real-time reporting in a live demo.",
 });
 
@@ -316,7 +316,7 @@ export const MOBILE_PAGE = Object.freeze({
     { question: "Can I run the full ERP from my phone?", answer: "Not today. CRM is native and offline-capable on mobile. Selected Procurement and platform workspaces use a secure-browser handoff. Manufacturing, Quality, Assets, Projects, Point of Sale, Support, Stock, and HR & Payroll have no mobile presence." },
     { question: "Is Point of Sale available on a tablet or phone?", answer: "No — Point of Sale is explicitly excluded from the mobile module catalog, not just missing. It's a desktop/terminal workflow." },
   ],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
   finalCtaHeading: "See what mobile access actually covers in a live demo.",
 });
 
@@ -369,7 +369,7 @@ export const INTEGRATIONS_PAGE = Object.freeze({
     },
   ],
   connectedModuleKeys: ["crm"],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
   finalCtaHeading: "See the integration options in a live demo.",
 });
 
@@ -441,7 +441,7 @@ export const SECURITY_PAGE = Object.freeze({
     { question: "How is one tenant's data kept separate from another's?", answer: "Isolation is structural — enforced at the database layer on every query — not an application-layer filter that a bug could bypass." },
     { question: "Can someone approve their own transaction?", answer: "No, for every governed action across Accounting, Sales, CRM, HR, Assets, Projects, POS, and Support — self-approval is blocked by the system itself, built on a shared, reusable command registry, not a per-module policy someone could forget to implement." },
   ],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
   finalCtaHeading: "See the security architecture in a live demo.",
 });
 
@@ -484,5 +484,5 @@ export const MODULES_INDEX_PAGE = Object.freeze({
       moduleKeys: ["projects", "crm", "sales", "accounting", "hr-payroll"],
     },
   ],
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo" },
 });

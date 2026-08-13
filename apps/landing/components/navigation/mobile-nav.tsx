@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import { MODULE_NAV_GROUPS, LANDING_MODULES, PRIMARY_NAV, CTAS } from "@vercentlabs/landing-content";
 import { ButtonLink } from "@/components/ui/button";
 import { APP_URL } from "@/lib/site";
+import { cx } from "@/lib/utils";
+import { useOpenTransition } from "@/components/motion/use-open-transition";
 
 const productItem = PRIMARY_NAV.find((item) => item.label === "Product");
 const simpleLinks = PRIMARY_NAV.filter((item) => item.label !== "Product" && item.label !== "Modules");
@@ -27,6 +29,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
+  const { rendered, visible } = useOpenTransition(open, 200);
 
   useEffect(() => {
     if (open) onClose();
@@ -34,11 +37,21 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Focus the close button once the panel has actually mounted (`rendered`),
+  // not merely once `open` is requested. On the render where `open` first
+  // flips true, `rendered` is still stale-false for one commit (state
+  // updates from useOpenTransition's own effect are async) — the portal, and
+  // therefore closeButtonRef.current, doesn't exist yet in that commit, so a
+  // focus() call keyed on `open` alone would silently no-op.
+  useEffect(() => {
+    if (!rendered) return;
+    closeButtonRef.current?.focus();
+  }, [rendered]);
+
   useEffect(() => {
     if (!open) return;
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    closeButtonRef.current?.focus();
     document.body.style.overflow = "hidden";
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -73,7 +86,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!rendered) return null;
 
   // Portalled to document.body: a dialog's `fixed` positioning must be relative
   // to the viewport, not whatever ancestor happens to render it. Rendering
@@ -83,10 +96,21 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
   // against that entire class of future ancestor-style regressions.
   return createPortal(
     <div id="mobile-nav" role="dialog" aria-modal="true" aria-label="Site navigation" className="fixed inset-0 z-50 lg:hidden">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden="true" />
+      <div
+        className={cx(
+          "absolute inset-0 bg-black/30 transition-opacity duration-(--duration-base) ease-(--ease-standard)",
+          visible ? "opacity-100" : "opacity-0",
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         ref={panelRef}
-        className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col overflow-y-auto bg-(--color-bg-elevated) shadow-(--shadow-panel)"
+        className={cx(
+          "absolute inset-y-0 right-0 flex w-full max-w-sm flex-col overflow-y-auto bg-(--color-bg-elevated) shadow-(--shadow-panel) transition-transform duration-(--duration-base) ease-(--ease-standard)",
+          visible ? "translate-x-0" : "translate-x-full",
+          !visible && "pointer-events-none",
+        )}
       >
         <div className="flex items-center justify-between border-b border-(--color-border-default) px-5 py-4">
           <span className="text-sm font-semibold text-(--color-text-primary)">Menu</span>

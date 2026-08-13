@@ -28,7 +28,7 @@ export function ContextualCta({
             {prompt}
           </Text>
           <TrackedCtaLink href={href} event={event} ctaLocation={ctaLocation} variant="secondary">
-            Book a Product Demo
+            Book a Demo
           </TrackedCtaLink>
         </Inline>
       </Container>

@@ -135,7 +135,7 @@ test.describe("navigation", () => {
 
   test("header CTA links to /book-demo", async ({ page }) => {
     await page.goto("/");
-    const cta = page.getByRole("link", { name: "Book a Product Demo" }).first();
+    const cta = page.getByRole("link", { name: "Book a Demo" }).first();
     await expect(cta).toHaveAttribute("href", "/book-demo");
   });
 

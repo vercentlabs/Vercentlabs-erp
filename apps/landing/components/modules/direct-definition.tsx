@@ -8,11 +8,12 @@ import { Text } from "@/components/ui/text";
  */
 export function DirectDefinition({ definition }: { definition: string }) {
   return (
-    <Section tone="subtle" paddingTop={{ base: 10, sm: 12 }} paddingBottom={{ base: 10, sm: 12 }}>
+    <Section tone="page" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 8, sm: 10 }}>
       <Container>
-        <Text variant="bodyLarge" className="max-w-[820px] font-medium">
-          {definition}
-        </Text>
+        <div className="grid grid-cols-1 gap-4 border-t border-(--color-border-default) pt-8 lg:grid-cols-[220px_minmax(0,820px)] lg:gap-12">
+          <Text variant="eyebrow">What it is</Text>
+          <Text variant="body" className="font-medium">{definition}</Text>
+        </div>
       </Container>
     </Section>
   );

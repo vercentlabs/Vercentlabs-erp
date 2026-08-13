@@ -24,7 +24,7 @@ Campaign, referral or search
 
 ## CTA hierarchy
 
-**Primary conversion (site-wide, every page):** Book a Product Demo.
+**Primary conversion (site-wide, every page):** Book a Demo.
 
 **Secondary conversions (context-dependent):**
 - Explore the Platform — from homepage/product pages, for visitors not yet ready to talk to sales.

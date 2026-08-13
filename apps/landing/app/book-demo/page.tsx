@@ -4,10 +4,11 @@ import { Heading, Text } from "@/components/ui/text";
 import { FeatureList } from "@/components/ui/card";
 import { DemoForm } from "@/components/marketing/demo-form";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 
 export const metadata = buildPageMetadata({
-  title: "Book a Product Demo",
+  title: "Book a Demo",
   description: "See Vercentlabs ERP adapted to your business — the modules and workflows you'd actually use, walked through by a specialist.",
   path: "/book-demo",
 });
@@ -77,7 +78,7 @@ export default async function BookDemoPage({
       <Container>
         <Breadcrumbs trail={[{ name: "Book a Demo", path: "/book-demo" }]} />
         <Grid columns={2} gap={10} className="mt-6 items-start">
-          <Stack gap={5} className="lg:sticky lg:top-24">
+          <Stack gap={5} className="reveal-on-load lg:sticky lg:top-24">
             <Heading level="h1">See how Vercentlabs would run in your business.</Heading>
             <Text variant="lead">
               {`${POSITIONING.heroSubhead} Book a demo and we'll walk through the modules and workflows relevant to your operation — not a generic product tour.`}
@@ -87,7 +88,7 @@ export default async function BookDemoPage({
                 <Text variant="label">{contextLabel}</Text>
               </div>
             ) : null}
-            <div>
+            <Reveal group>
               <Text variant="label">What to expect</Text>
               <FeatureList
                 className="mt-3"
@@ -98,7 +99,7 @@ export default async function BookDemoPage({
                   "No obligation, and no pressure to decide on the call.",
                 ]}
               />
-            </div>
+            </Reveal>
           </Stack>
           <div className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-panel) sm:p-8">
             <DemoForm initialModules={initialModuleNames} />

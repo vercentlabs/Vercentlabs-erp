@@ -106,6 +106,9 @@
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-slow: 400ms;
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --reveal-distance: 8px;
 }
 
 @layer base {
@@ -153,10 +156,109 @@
       transition-duration: 0.001ms !important;
       scroll-behavior: auto !important;
     }
+
+    /* Reveal must be a true no-op under reduced motion, not just fast — without
+       this, content still renders opacity:0/translated for one JS-gated frame
+       before the (now near-0ms) transition fires. */
+    [data-reveal],
+    [data-reveal-item],
+    .wf-connector-line,
+    .reveal-on-load {
+      opacity: 1 !important;
+      transform: none !important;
+      animation: none !important;
+    }
+
+    /* The blanket `*, *::before, *::after` selector above does not match the
+       ::details-content pseudo-element, so the FAQ accordion needs its own
+       explicit override or reduced-motion users get a full animated accordion. */
+    details.faq-item::details-content {
+      transition-duration: 0.001ms !important;
+    }
   }
 }
 
 @layer utilities {
+  /* Scroll/load-reveal system — see components/motion/reveal.tsx. Hidden by
+     default so real content must never get stuck this way: Reveal fails open
+     (marks revealed immediately) when IntersectionObserver is unavailable,
+     and the <noscript> fallback in app/layout.tsx covers the no-JS case. */
+  [data-reveal],
+  [data-reveal-item] {
+    opacity: 0;
+    transform: translateY(var(--reveal-distance));
+    transition:
+      opacity var(--duration-slow) var(--ease-entrance),
+      transform var(--duration-slow) var(--ease-entrance);
+  }
+  [data-reveal][data-revealed="true"],
+  [data-reveal-group][data-revealed="true"] [data-reveal-item] {
+    opacity: 1;
+    transform: none;
+  }
+
+  @keyframes reveal-in {
+    from {
+      opacity: 0;
+      transform: translateY(var(--reveal-distance));
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .reveal-on-load {
+    animation: reveal-in var(--duration-slow) var(--ease-entrance) both;
+  }
+  .reveal-on-load-delay-1 {
+    animation-delay: 120ms;
+  }
+
+  /* WorkflowConnector's connecting line — the one deliberate motion flourish
+     tied to actual content meaning (visualizing "connected system"), not
+     decoration. Axis matches WorkflowConnector's own sm:/md: layout switch. */
+  .wf-connector-line {
+    transform-origin: left center;
+    transform: scaleX(0);
+    transition: transform var(--duration-slow) var(--ease-entrance);
+  }
+  @media (min-width: 768px) {
+    .wf-connector-line {
+      transform-origin: top center;
+      transform: scaleY(0);
+    }
+  }
+  [data-reveal-group][data-revealed="true"] .wf-connector-line {
+    transform: none;
+  }
+
+  /* FAQ accordion smooth open/close — zero-JS, progressive enhancement.
+     Unsupported browsers keep the native <details> instant snap; no regression
+     either way. See components/marketing/faq-accordion.tsx. */
+  details.faq-item {
+    interpolate-size: allow-keywords;
+  }
+  details.faq-item::details-content {
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      height var(--duration-base) var(--ease-standard),
+      opacity var(--duration-base) var(--ease-standard),
+      content-visibility var(--duration-base) var(--ease-standard) allow-discrete;
+    transition-behavior: allow-discrete;
+  }
+  details.faq-item[open]::details-content {
+    height: auto;
+    opacity: 1;
+  }
+  @starting-style {
+    details.faq-item[open]::details-content {
+      height: 0;
+      opacity: 0;
+    }
+  }
+
   .skip-link {
     position: absolute;
     left: -9999px;
@@ -187,5 +289,14 @@
   footer,
   [data-sticky-mobile-cta] {
     display: none !important;
+  }
+
+  /* Printed output has no "scroll into view" — anything still gated behind
+     Reveal's data-revealed flip (see components/motion/reveal.tsx) at print
+     time must render, not stay invisible. */
+  [data-reveal],
+  [data-reveal-item] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

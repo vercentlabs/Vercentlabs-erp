@@ -17,15 +17,14 @@ import {
   LANDING_MODULES,
   CTAS,
 } from "@vercentlabs/landing-content";
-import { Container, Section, Stack, Inline, Grid, SplitLayout, SectionHeader } from "@/components/layout/container";
+import { Container, Section, Stack, Inline, SplitLayout, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { ButtonLink } from "@/components/ui/button";
 import { ModuleTag } from "@/components/ui/tag";
-import { Metric, FeatureList, InformationBand } from "@/components/ui/card";
 import { ProductScreenshot, WorkflowConnector } from "@/components/product/product-frame";
 import { getApprovedScreenshot } from "@/lib/product/screenshots";
+import { FlagshipWorkflow } from "@/components/workflows/flagship-workflow";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
-import { NumberedSteps } from "@/components/marketing/numbered-steps";
 import { TrackView } from "@/components/analytics/track-view";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { HomepageViewTracker } from "@/components/analytics/homepage-view-tracker";
@@ -60,10 +59,9 @@ const faqPageJsonLd = {
 
 export default function HomePage() {
   const hasHeroScreenshot = Boolean(getApprovedScreenshot(HERO.screenshotId));
-  const approvedWorkflowScreenshotIds = FLAGSHIP_WORKFLOW_SECTION.screenshotIds.filter((id) => getApprovedScreenshot(id));
 
   const heroCopy = (
-    <Stack gap={5} className={hasHeroScreenshot ? undefined : "max-w-[720px]"}>
+    <Stack gap={5} className={hasHeroScreenshot ? "reveal-on-load" : "reveal-on-load max-w-[720px]"}>
       <Text variant="eyebrow">{HERO.eyebrow}</Text>
       <Heading level="display">{HERO.heading}</Heading>
       <Text variant="lead">{HERO.supportingText}</Text>
@@ -75,11 +73,14 @@ export default function HomePage() {
           {HERO.secondaryCta.label}
         </TrackedCtaLink>
       </Inline>
-      <Inline gap={6} className="mt-2 flex-wrap">
+      <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) sm:grid-cols-4">
         {HERO.evidence.map((item) => (
-          <Metric key={item.label} label={item.label} value={item.value} />
+          <div key={item.label} className="bg-(--color-bg-elevated) px-4 py-4">
+            <p className="tabular-data text-lg font-semibold tracking-[-0.02em] text-(--color-text-primary)">{item.value}</p>
+            <p className="mt-1 text-[0.68rem] font-medium uppercase tracking-[0.08em] text-(--color-text-muted)">{item.label}</p>
+          </div>
         ))}
-      </Inline>
+      </div>
     </Stack>
   );
 
@@ -97,7 +98,11 @@ export default function HomePage() {
               <SplitLayout
                 ratio="primary-wide"
                 primary={heroCopy}
-                secondary={<ProductScreenshot id={HERO.screenshotId} moduleAccentColor="var(--color-brand)" priority />}
+                secondary={
+                  <div className="reveal-on-load reveal-on-load-delay-1">
+                    <ProductScreenshot id={HERO.screenshotId} moduleAccentColor="var(--color-brand)" priority />
+                  </div>
+                }
               />
             ) : (
               heroCopy
@@ -111,16 +116,18 @@ export default function HomePage() {
         <Section tone="page">
           <Container>
             <SectionHeader eyebrow={PROBLEM_SECTION.eyebrow} title={PROBLEM_SECTION.heading} description={PROBLEM_SECTION.supportingText} />
-            <Grid columns={4} gap={6} className="mt-10">
-              {PROBLEM_SECTION.items.map((item) => (
-                <div key={item.title}>
-                  <Text variant="label">{item.title}</Text>
-                  <Text variant="bodySmall" className="mt-1.5">
-                    {item.description}
-                  </Text>
+            <div className="mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) sm:grid-cols-2 xl:grid-cols-4">
+              {PROBLEM_SECTION.items.map((item, index) => (
+                <div key={item.title} className="bg-(--color-bg-elevated) p-5 sm:p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="tabular-data text-xs font-semibold tracking-[0.08em] text-(--color-text-muted)">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="h-2 w-2 rounded-full bg-(--color-state-warning)" aria-hidden="true" />
+                  </div>
+                  <p className="mt-7 text-sm font-semibold text-(--color-text-primary)">{item.title}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">{item.description}</p>
                 </div>
               ))}
-            </Grid>
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -134,27 +141,40 @@ export default function HomePage() {
               title={CONNECTED_SYSTEM_SECTION.heading}
               description={CONNECTED_SYSTEM_SECTION.supportingText}
             />
-            <div className="mt-10 overflow-x-auto">
-              <WorkflowConnector
-                className="min-w-0 sm:min-w-[760px] lg:min-w-0"
-                steps={CONNECTED_SYSTEM_SECTION.steps.map((step) => {
+            <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) shadow-(--shadow-subtle)">
+              <div className="bg-(--color-bg-elevated) px-5 py-6 sm:px-6 lg:px-8">
+                <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Connected system workflow steps">
+                  <WorkflowConnector
+                    reveal={false}
+                    className="min-w-[760px] lg:min-w-0"
+                    steps={CONNECTED_SYSTEM_SECTION.steps.map((step) => {
+                      const moduleInfo = LANDING_MODULES.find((candidate) => candidate.key === step.module);
+                      return { label: step.label, accentColor: moduleInfo?.accentColor.hex ?? "var(--color-brand)" };
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-px bg-(--color-border-default) sm:grid-cols-2 lg:grid-cols-4">
+                {CONNECTED_SYSTEM_SECTION.steps.map((step, index) => {
                   const moduleInfo = LANDING_MODULES.find((candidate) => candidate.key === step.module);
-                  return { label: step.label, accentColor: moduleInfo?.accentColor.hex ?? "var(--color-brand)" };
+                  return (
+                    <div key={step.label} className="bg-(--color-bg-elevated) p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="tabular-data text-xs font-semibold text-(--color-text-muted)">{String(index + 1).padStart(2, "0")}</span>
+                        {moduleInfo ? <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} /> : null}
+                      </div>
+                      <p className="mt-5 text-sm font-semibold text-(--color-text-primary)">{step.label}</p>
+                      <p className="mt-1.5 text-sm leading-relaxed text-(--color-text-secondary)">{step.detail}</p>
+                    </div>
+                  );
                 })}
-              />
+              </div>
+              <div className="flex justify-end bg-(--color-bg-elevated) px-5 py-4 sm:px-6 lg:px-8">
+                <ButtonLink href="/product/platform" variant="tertiary" prefetch={false}>
+                  See how the platform connects →
+                </ButtonLink>
+              </div>
             </div>
-            <Grid columns={4} gap={4} className="mt-8">
-              {CONNECTED_SYSTEM_SECTION.steps.map((step) => (
-                <Text key={step.label} variant="caption">
-                  <span className="font-medium text-(--color-text-primary)">{step.label}:</span> {step.detail}
-                </Text>
-              ))}
-            </Grid>
-            <Inline gap={4} className="mt-8 border-t border-(--color-border-default) pt-8">
-              <ButtonLink href="/product/platform" variant="tertiary" prefetch={false}>
-                See how the platform connects
-              </ButtonLink>
-            </Inline>
           </Container>
         </Section>
       </TrackView>
@@ -164,20 +184,22 @@ export default function HomePage() {
         <Section tone="page">
           <Container>
             <SectionHeader eyebrow={MODULE_ARCHITECTURE_SECTION.eyebrow} title={MODULE_ARCHITECTURE_SECTION.heading} description={MODULE_ARCHITECTURE_SECTION.supportingText} />
-            <div className="mt-10 flex flex-col">
-              {MODULE_NAV_GROUPS.map((group) => {
+            <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle)">
+              {MODULE_NAV_GROUPS.map((group, index) => {
                 const summary = MODULE_ARCHITECTURE_SECTION.groupSummaries.find((item) => item.groupKey === group.key);
                 return (
-                  <InformationBand key={group.key}>
-                    <div className="sm:w-1/3">
-                      <Text variant="label">{group.label}</Text>
+                  <div
+                    key={group.key}
+                    className="grid grid-cols-1 gap-5 border-t border-(--color-border-default) px-5 py-6 first:border-t-0 sm:px-6 lg:grid-cols-[56px_360px_1fr] lg:items-center lg:px-8"
+                  >
+                    <span className="tabular-data text-xs font-semibold tracking-[0.08em] text-(--color-text-muted)">{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-(--color-text-primary)">{group.label}</p>
                       {summary ? (
-                        <Text variant="bodySmall" className="mt-1">
-                          {summary.outcome}
-                        </Text>
+                        <p className="mt-1 text-sm leading-relaxed text-(--color-text-secondary)">{summary.outcome}</p>
                       ) : null}
                     </div>
-                    <div className="flex flex-1 flex-wrap gap-2 sm:justify-end">
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
                       {group.moduleKeys.map((key) => {
                         const moduleInfo = LANDING_MODULES.find((candidate) => candidate.key === key);
                         if (!moduleInfo) return null;
@@ -188,15 +210,15 @@ export default function HomePage() {
                         );
                       })}
                     </div>
-                  </InformationBand>
+                  </div>
                 );
               })}
+              <div className="flex justify-end border-t border-(--color-border-default) bg-(--color-bg-subtle) px-5 py-4 sm:px-6 lg:px-8">
+                <ButtonLink href="/modules" variant="tertiary" prefetch={false}>
+                  See all modules →
+                </ButtonLink>
+              </div>
             </div>
-            <Inline gap={4} className="mt-8 border-t border-(--color-border-default) pt-8">
-              <ButtonLink href="/modules" variant="tertiary" prefetch={false}>
-                See all modules
-              </ButtonLink>
-            </Inline>
           </Container>
         </Section>
       </TrackView>
@@ -211,15 +233,18 @@ export default function HomePage() {
               description={BREADTH_SECTION.supportingText}
               className="[&_h2]:text-(--color-text-inverse) [&_p]:text-white/70"
             />
-            <Grid columns={4} gap={6} className="mt-10">
-              {BREADTH_SECTION.breakdown.map((item) => (
-                <div key={item.label}>
-                  <p className="tabular-data text-3xl font-semibold text-(--color-text-inverse)">{item.value}</p>
-                  <p className="mt-1 text-sm font-medium text-white/80">{item.label}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-white/60">{item.description}</p>
+            <div className="mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-panel) border border-white/15 bg-white/15 sm:grid-cols-2 lg:grid-cols-4">
+              {BREADTH_SECTION.breakdown.map((item, index) => (
+                <div key={item.label} className="bg-(--color-bg-inverse) p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="tabular-data text-3xl font-semibold tracking-[-0.03em] text-(--color-text-inverse)">{item.value}</p>
+                    <span className="tabular-data text-xs font-semibold text-white/60">0{index + 1}</span>
+                  </div>
+                  <p className="mt-6 text-sm font-semibold text-white/85">{item.label}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-white/60">{item.description}</p>
                 </div>
               ))}
-            </Grid>
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -229,39 +254,7 @@ export default function HomePage() {
         <Section tone="page">
           <Container>
             <SectionHeader eyebrow={FLAGSHIP_WORKFLOW_SECTION.eyebrow} title={FLAGSHIP_WORKFLOW_SECTION.heading} description={FLAGSHIP_WORKFLOW_SECTION.supportingText} />
-            <Grid columns={approvedWorkflowScreenshotIds.length > 0 ? 2 : 1} gap={10} className="mt-10 items-start">
-              <ol className={`flex flex-col gap-0 ${approvedWorkflowScreenshotIds.length === 0 ? "max-w-[720px]" : ""}`}>
-                {FLAGSHIP_WORKFLOW_SECTION.steps.map((step, index) => (
-                  <li key={step.step} className={`flex gap-4 border-(--color-border-default) py-4 ${index > 0 ? "border-t" : ""}`}>
-                    <span className="tabular-data flex h-7 w-7 flex-none items-center justify-center rounded-(--radius-control) bg-(--color-bg-brand) text-xs font-semibold text-(--color-text-inverse)">
-                      {index + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-(--color-text-primary)">
-                        {step.step} <span className="font-normal text-(--color-text-muted)">— {step.department}</span>
-                      </p>
-                      <p className="mt-0.5 text-sm text-(--color-text-secondary)">{step.systemAction}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              {approvedWorkflowScreenshotIds.length > 0 ? (
-                <Stack gap={4}>
-                  {approvedWorkflowScreenshotIds.map((id) => (
-                    <ProductScreenshot key={id} id={id} moduleAccentColor="var(--color-brand)" />
-                  ))}
-                  <ButtonLink href={`/workflows/${FLAGSHIP_WORKFLOW_SECTION.workflowSlug}`} variant="secondary" prefetch={false}>
-                    See the full workflow
-                  </ButtonLink>
-                </Stack>
-              ) : (
-                <div className="mt-2">
-                  <ButtonLink href={`/workflows/${FLAGSHIP_WORKFLOW_SECTION.workflowSlug}`} variant="secondary" prefetch={false}>
-                    See the full workflow
-                  </ButtonLink>
-                </div>
-              )}
-            </Grid>
+            <FlagshipWorkflow steps={FLAGSHIP_WORKFLOW_SECTION.steps} workflowSlug={FLAGSHIP_WORKFLOW_SECTION.workflowSlug} />
           </Container>
         </Section>
       </TrackView>
@@ -271,16 +264,15 @@ export default function HomePage() {
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow={ROLE_VALUE_SECTION.eyebrow} title={ROLE_VALUE_SECTION.heading} />
-            <Grid columns={3} gap={6} className="mt-10">
-              {ROLE_VALUE_SECTION.roles.map((item) => (
-                <div key={item.role}>
-                  <Text variant="label">{item.role}</Text>
-                  <Text variant="bodySmall" className="mt-1.5">
-                    {item.gains}
-                  </Text>
+            <div className="mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) sm:grid-cols-2 lg:grid-cols-3">
+              {ROLE_VALUE_SECTION.roles.map((item, index) => (
+                <div key={item.role} className="bg-(--color-bg-elevated) p-5 sm:p-6">
+                  <span className="tabular-data text-xs font-semibold tracking-[0.08em] text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
+                  <p className="mt-6 text-sm font-semibold text-(--color-text-primary)">{item.role}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">{item.gains}</p>
                 </div>
               ))}
-            </Grid>
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -289,10 +281,20 @@ export default function HomePage() {
       <TrackView event="automation_section_view">
         <Section tone="page">
           <Container>
-            <Grid columns={2} gap={10} className="items-start">
-              <SectionHeader eyebrow={AUTOMATION_SECTION.eyebrow} title={AUTOMATION_SECTION.heading} className="max-w-none" />
-              <FeatureList items={AUTOMATION_SECTION.items.map((item) => <><strong className="text-(--color-text-primary)">{item.title}.</strong> {item.description}</>)} />
-            </Grid>
+            <SectionHeader eyebrow={AUTOMATION_SECTION.eyebrow} title={AUTOMATION_SECTION.heading} />
+            <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle)">
+              {AUTOMATION_SECTION.items.map((item) => (
+                <div key={item.title} className="grid grid-cols-[40px_1fr] gap-4 border-t border-(--color-border-default) px-5 py-5 first:border-t-0 sm:grid-cols-[56px_220px_1fr] sm:items-start sm:px-6 lg:grid-cols-[72px_280px_1fr] lg:px-8">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-(--radius-control) bg-(--color-bg-subtle) text-(--color-text-brand)" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                      <path d="M5 10.5 8.5 14 15 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <p className="text-sm font-semibold text-(--color-text-primary)">{item.title}</p>
+                  <p className="col-start-2 text-sm leading-relaxed text-(--color-text-secondary) sm:col-start-3">{item.description}</p>
+                </div>
+              ))}
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -302,21 +304,30 @@ export default function HomePage() {
         <Section tone="elevated">
           <Container>
             <SectionHeader eyebrow={SECURITY_SECTION.eyebrow} title={SECURITY_SECTION.heading} description={SECURITY_SECTION.supportingText} />
-            <Grid columns={3} gap={6} className="mt-10">
-              {SECURITY_SECTION.items.map((item) => (
-                <div key={item.title}>
-                  <Text variant="label">{item.title}</Text>
-                  <Text variant="bodySmall" className="mt-1.5">
-                    {item.description}
-                  </Text>
-                </div>
-              ))}
-            </Grid>
-            <Inline gap={4} className="mt-8 border-t border-(--color-border-default) pt-8">
-              <ButtonLink href="/security" variant="tertiary" prefetch={false}>
-                See the security architecture
-              </ButtonLink>
-            </Inline>
+            <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) shadow-(--shadow-subtle)">
+              <div className="grid grid-cols-1 gap-px bg-(--color-border-default) sm:grid-cols-2 lg:grid-cols-3">
+                {SECURITY_SECTION.items.map((item, index) => (
+                  <div key={item.title} className="bg-(--color-bg-elevated) p-5 sm:p-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-(--radius-control) bg-(--color-state-success-soft) text-(--color-state-success)" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                          <path d="M10 3.5 15 5.4v3.8c0 3.1-1.9 5.9-5 7.3-3.1-1.4-5-4.2-5-7.3V5.4L10 3.5Z" stroke="currentColor" strokeWidth="1.5" />
+                          <path d="m7.5 10 1.6 1.6 3.4-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                      <span className="tabular-data text-xs font-semibold text-(--color-text-muted)">{String(index + 1).padStart(2, "0")}</span>
+                    </div>
+                    <p className="mt-6 text-sm font-semibold text-(--color-text-primary)">{item.title}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">{item.description}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end bg-(--color-bg-subtle) px-5 py-4 sm:px-6 lg:px-8">
+                <ButtonLink href="/security" variant="tertiary" prefetch={false}>
+                  See the security architecture →
+                </ButtonLink>
+              </div>
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -325,17 +336,30 @@ export default function HomePage() {
       <TrackView event="implementation_section_view">
         <Section tone="page">
           <Container>
-            <Grid columns={2} gap={10} className="items-start">
-              <Stack gap={6}>
-                <SectionHeader eyebrow={IMPLEMENTATION_SECTION.eyebrow} title={IMPLEMENTATION_SECTION.heading} description={IMPLEMENTATION_SECTION.supportingText} className="max-w-none" />
-                <Inline gap={4}>
-                  <TrackedCtaLink href={CTAS.talkToSpecialist.href} event="implementation_specialist_cta_click" ctaLocation="implementation" variant="tertiary">
+            <SectionHeader eyebrow={IMPLEMENTATION_SECTION.eyebrow} title={IMPLEMENTATION_SECTION.heading} description={IMPLEMENTATION_SECTION.supportingText} />
+            <div className="mt-10 grid grid-cols-1 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle) lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+              <div className="flex flex-col justify-between bg-(--color-bg-subtle) p-6 sm:p-8">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)">Rollout model</p>
+                  <h3 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-(--color-text-primary)">Seven controlled phases from discovery to support.</h3>
+                  <p className="mt-4 text-sm leading-relaxed text-(--color-text-secondary)">Configure around real processes, validate with real transactions, then launch in controlled stages.</p>
+                </div>
+                <div className="mt-8">
+                  <TrackedCtaLink href={CTAS.talkToSpecialist.href} event="implementation_specialist_cta_click" ctaLocation="implementation" variant="secondary">
                     {CTAS.talkToSpecialist.label}
                   </TrackedCtaLink>
-                </Inline>
-              </Stack>
-              <NumberedSteps steps={IMPLEMENTATION_SECTION.steps} />
-            </Grid>
+                </div>
+              </div>
+              <ol className="border-t border-(--color-border-default) lg:border-l lg:border-t-0">
+                {IMPLEMENTATION_SECTION.steps.map((item) => (
+                  <li key={item.step} className="grid grid-cols-[44px_1fr] gap-4 border-t border-(--color-border-default) px-5 py-5 first:border-t-0 sm:grid-cols-[56px_180px_1fr] sm:px-6 lg:px-8">
+                    <span className="tabular-data text-xs font-semibold text-(--color-text-brand)">{item.step}</span>
+                    <p className="text-sm font-semibold text-(--color-text-primary)">{item.title}</p>
+                    <p className="col-start-2 text-sm leading-relaxed text-(--color-text-secondary) sm:col-start-3">{item.description}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -344,8 +368,10 @@ export default function HomePage() {
       <TrackView event="buyer_questions_view">
         <Section tone="subtle">
           <Container>
-            <SectionHeader eyebrow={BUYER_QUESTIONS_SECTION.eyebrow} title={BUYER_QUESTIONS_SECTION.heading} />
-            <FaqAccordion items={BUYER_QUESTIONS_SECTION.questions} className="mt-10 max-w-[820px]" />
+            <div className="grid grid-cols-1 gap-10 rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-subtle) sm:p-8 lg:grid-cols-[minmax(260px,0.75fr)_minmax(0,1.25fr)] lg:gap-16">
+              <SectionHeader eyebrow={BUYER_QUESTIONS_SECTION.eyebrow} title={BUYER_QUESTIONS_SECTION.heading} />
+              <FaqAccordion items={BUYER_QUESTIONS_SECTION.questions} reveal={false} />
+            </div>
           </Container>
         </Section>
       </TrackView>
@@ -354,14 +380,17 @@ export default function HomePage() {
       <TrackView event="final_cta_view">
         <Section tone="inverse">
           <Container>
-            <div className="mx-auto max-w-[640px] text-center">
-              <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
-                {FINAL_CTA_SECTION.heading}
-              </Heading>
-              <Text variant="lead" className="mt-3 text-white/70">
-                {FINAL_CTA_SECTION.supportingText}
-              </Text>
-              <div className="mt-6 flex justify-center">
+            <div className="grid grid-cols-1 items-center gap-8 rounded-(--radius-panel) border border-white/15 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:p-10">
+              <div className="max-w-[760px]">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">Built around your workflow</p>
+                <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">
+                  {FINAL_CTA_SECTION.heading}
+                </Heading>
+                <Text variant="lead" className="mt-3 text-white/70">
+                  {FINAL_CTA_SECTION.supportingText}
+                </Text>
+              </div>
+              <div className="flex lg:justify-end">
                 <TrackedCtaLink href={FINAL_CTA_SECTION.primaryCta.href} event={FINAL_CTA_SECTION.primaryCta.analyticsId} ctaLocation="final_cta">
                   {FINAL_CTA_SECTION.primaryCta.label}
                 </TrackedCtaLink>

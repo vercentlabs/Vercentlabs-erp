@@ -1,5 +1,5 @@
 import { PLATFORM_PAGE } from "@vercentlabs/landing-content";
-import { PlatformPageTemplate } from "@/components/platform/platform-page-template";
+import { PlatformArchitectureTemplate } from "@/components/platform/platform-architecture-template";
 import { buildPageMetadata } from "@/lib/metadata";
 
 export const metadata = buildPageMetadata({
@@ -8,9 +8,9 @@ export const metadata = buildPageMetadata({
   path: PLATFORM_PAGE.slug,
 });
 
-export default function PlatformArchitecturePage() {
+export default function PlatformPage() {
   return (
-    <PlatformPageTemplate
+    <PlatformArchitectureTemplate
       content={PLATFORM_PAGE}
       breadcrumbTrail={[
         { name: "Product", path: "/product" },

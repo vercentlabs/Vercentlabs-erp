@@ -14,6 +14,7 @@ import { DirectDefinition } from "@/components/modules/direct-definition";
 import { BeforeAfterSystem } from "@/components/solutions/before-after-system";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
@@ -86,7 +87,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -107,15 +108,19 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
         </div>
       </TrackView>
 
-      <DirectDefinition definition={solution.directDefinition} />
+      <Reveal>
+        <DirectDefinition definition={solution.directDefinition} />
+      </Reveal>
 
       {/* Before/after */}
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="What changes" title="Before and after" />
-          <div className="mt-10">
-            <BeforeAfterSystem before={solution.before} after={solution.after} />
-          </div>
+          <Reveal>
+            <div className="mt-10">
+              <BeforeAfterSystem before={solution.before} after={solution.after} />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -123,16 +128,18 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="How it actually works" title="What replaces the problem" />
-          <div className="mt-10">
-            <LabeledItemGrid items={solution.approach} columns={2} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={solution.approach} columns={2} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
       {platformPage ? (
         <Section tone="page">
           <Container>
-            <div className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 sm:p-8">
+            <Reveal className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 sm:p-8">
               <Text variant="label">Go deeper on the underlying capability</Text>
               <Heading level="h3" className="mt-2">
                 {platformPage.title}
@@ -143,7 +150,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
               <Link href={platformPage.slug} prefetch={false} className="mt-4 inline-block text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4">
                 See the {platformPage.title} capability page →
               </Link>
-            </div>
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -159,27 +166,31 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="Where this lives" title="Modules and workflows involved" />
-          <Inline gap={2} className="mt-6 flex-wrap">
-            {relatedModules.map((moduleInfo) => (
-              <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false}>
-                <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
-              </Link>
-            ))}
-          </Inline>
-          {relatedWorkflows.length > 0 ? (
-            <div className="mt-6 flex flex-wrap gap-4">
-              {relatedWorkflows.map((workflow) => (
-                <Link
-                  key={workflow.slug}
-                  href={`/workflows/${workflow.slug}`}
-                  prefetch={false}
-                  className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                >
-                  {workflow.name} workflow →
+          <Reveal group>
+            <Inline gap={2} className="mt-6 flex-wrap">
+              {relatedModules.map((moduleInfo, index) => (
+                <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
+                  <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
                 </Link>
               ))}
-            </div>
-          ) : null}
+            </Inline>
+            {relatedWorkflows.length > 0 ? (
+              <div className="mt-6 flex flex-wrap gap-4">
+                {relatedWorkflows.map((workflow, index) => (
+                  <Link
+                    key={workflow.slug}
+                    href={`/workflows/${workflow.slug}`}
+                    prefetch={false}
+                    data-reveal-item
+                    style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
+                    className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
+                  >
+                    {workflow.name} workflow →
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </Reveal>
         </Container>
       </Section>
 
@@ -187,7 +198,9 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Straight answers" title="Questions buyers ask" />
-          <FaqAccordion items={solution.faqs} className="mt-10 max-w-[820px]" />
+          <Reveal group>
+            <FaqAccordion items={solution.faqs} className="mt-10 max-w-[820px]" />
+          </Reveal>
         </Container>
       </Section>
 
@@ -209,7 +222,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
       {/* Final CTA */}
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               {solution.conversion.heading}
             </Heading>
@@ -218,7 +231,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
                 {solution.conversion.ctaLabel}
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

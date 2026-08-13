@@ -33,4 +33,4 @@ Per `product-intelligence.md`'s "Honest Limitations" section, the homepage never
 
 ## CTA label consistency
 
-Every primary CTA on the homepage (hero, final CTA) and the header/footer uses the exact label **"Book a Product Demo"** — matching `CLAUDE.md`'s stated conversion objective verbatim. This phase found and fixed one inconsistency: `packages/landing-content/src/navigation.js`'s `CTAS.primary.label` was still the shorter "Book a Demo," which had drifted out of sync with the homepage content model's CTAs. A single content-test (`no CTA uses a banned generic label`) now guards this from drifting again.
+Every primary CTA on the homepage (hero, final CTA) and the header/footer uses the exact label **"Book a Demo"** — matching `CLAUDE.md`'s stated conversion objective verbatim. This phase found and fixed one inconsistency: `packages/landing-content/src/navigation.js`'s `CTAS.primary.label` was still the shorter "Book a Demo," which had drifted out of sync with the homepage content model's CTAs. A single content-test (`no CTA uses a banned generic label`) now guards this from drifting again.

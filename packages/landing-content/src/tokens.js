@@ -55,9 +55,14 @@ export const BREAKPOINT_TOKENS = Object.freeze({
 
 export const MOTION_TOKENS = Object.freeze({
   hoverLiftPx: 2,
+  // Interaction easing/durations: anything the user directly triggers (press, open/close).
   durationFastMs: 120,
   durationBaseMs: 200,
   easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+  // Entrance easing/duration: passive content arrival (scroll reveals, hero on-load).
+  durationSlowMs: 400,
+  easingEntrance: "cubic-bezier(0.16, 1, 0.3, 1)",
+  revealDistancePx: 8,
   respectsReducedMotion: true,
 });
 

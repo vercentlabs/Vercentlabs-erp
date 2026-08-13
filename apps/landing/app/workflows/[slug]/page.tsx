@@ -14,6 +14,7 @@ import { WorkflowSequence } from "@/components/workflows/workflow-sequence";
 import { ProductScreenshot } from "@/components/product/product-frame";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { getApprovedScreenshot } from "@/lib/product/screenshots";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
@@ -86,7 +87,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -100,26 +101,30 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
             heroScreenshotId={workflow.screenshotId}
             connectedModuleKeys={workflow.modules}
             ctaHref={`/book-demo?workflow=${workflow.slug}`}
-            ctaLabel="Book a Product Demo"
+            ctaLabel="Book a Demo"
             ctaEvent="workflow_cta_click"
             ctaLocation={`workflow_hero_${workflow.slug}`}
           />
         </div>
       </TrackView>
 
-      <DirectDefinition definition={workflow.directDefinition ?? workflow.summary} />
+      <Reveal>
+        <DirectDefinition definition={workflow.directDefinition ?? workflow.summary} />
+      </Reveal>
 
       {/* Full sequence */}
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="How it actually runs" title="The real sequence, step by step" />
-          <div className="mt-10 max-w-[860px]">
-            <WorkflowSequence
-              workflow={workflow}
-              resolveModule={(key) => getLandingModule(key) ?? undefined}
-              sequenceMedia={useSequenceImagePlaceholder ? <ProductScreenshot id={screenshot!.id} moduleAccentColor="var(--color-brand)" /> : undefined}
-            />
-          </div>
+          <Reveal>
+            <div className="mt-10 max-w-[860px]">
+              <WorkflowSequence
+                workflow={workflow}
+                resolveModule={(key) => getLandingModule(key) ?? undefined}
+                sequenceMedia={useSequenceImagePlaceholder ? <ProductScreenshot id={screenshot!.id} moduleAccentColor="var(--color-brand)" /> : undefined}
+              />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -127,9 +132,11 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="See it in the product" title="A real screen from this workflow, not a diagram." />
-            <div className="mt-10 max-w-[900px]">
-              <ProductScreenshot id={screenshot.id} />
-            </div>
+            <Reveal>
+              <div className="mt-10 max-w-[900px]">
+                <ProductScreenshot id={screenshot.id} />
+              </div>
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -145,13 +152,15 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Every module involved" title="Modules this workflow runs across" />
-          <Inline gap={2} className="mt-6 flex-wrap">
-            {participatingModules.map((moduleInfo) => (
-              <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false}>
-                <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
-              </Link>
-            ))}
-          </Inline>
+          <Reveal group>
+            <Inline gap={2} className="mt-6 flex-wrap">
+              {participatingModules.map((moduleInfo, index) => (
+                <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
+                  <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
+                </Link>
+              ))}
+            </Inline>
+          </Reveal>
         </Container>
       </Section>
 
@@ -160,7 +169,9 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Straight answers" title="Questions buyers ask" />
-            <FaqAccordion items={workflow.faqs} className="mt-10 max-w-[820px]" />
+            <Reveal group>
+              <FaqAccordion items={workflow.faqs} className="mt-10 max-w-[820px]" />
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -184,16 +195,16 @@ export default async function WorkflowPage({ params }: { params: Promise<{ slug:
       {/* Final CTA */}
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               See the {workflow.name} workflow in a live demo.
             </Heading>
             <div className="mt-6 flex justify-center">
               <TrackedCtaLink href={`/book-demo?workflow=${workflow.slug}`} event="workflow_cta_click" ctaLocation={`workflow_final_${workflow.slug}`}>
-                Book a Product Demo
+                Book a Demo
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

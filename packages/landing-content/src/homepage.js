@@ -24,7 +24,7 @@ export const HERO = Object.freeze({
   heading: "The ERP for businesses that outgrew spreadsheets.",
   supportingText:
     "Vercentlabs connects sales, inventory, procurement, production, finance, employees, projects, and service on one live system — so the number your warehouse sees is the same one your finance team sees.",
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo", analyticsId: "hero_primary_cta_click" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo", analyticsId: "hero_primary_cta_click" },
   secondaryCta: { label: "Explore the Platform", href: "/product/platform", analyticsId: "hero_secondary_cta_click" },
   evidence: [
     { label: "Connected modules", value: "12" },
@@ -111,14 +111,13 @@ export const FLAGSHIP_WORKFLOW_SECTION = Object.freeze({
   supportingText:
     "This is the same sequence a real deal follows inside Vercentlabs, not a simplified diagram of how ERPs work in general.",
   workflowSlug: "lead-to-cash",
-  screenshotIds: ["crm-pipeline-board", "sales-quotation-detail", "sales-order-detail"],
   steps: [
-    { step: "Lead captured", department: "Marketing / Sales", systemAction: "Scored automatically and assigned by policy — no manual triage queue." },
-    { step: "Converted to opportunity", department: "Sales", systemAction: "Account and contact records created in one step; duplicate accounts are flagged, not silently created." },
-    { step: "Quotation issued", department: "Sales", systemAction: "Priced against the customer's price list and India GST rules automatically." },
-    { step: "Customer accepts", department: "Customer", systemAction: "Approves publicly with a typed signature — no separate e-signature tool." },
-    { step: "Order confirmed", department: "Sales / Finance", systemAction: "Checked against the customer's live credit exposure before confirmation is allowed." },
-    { step: "Invoice posted", department: "Finance", systemAction: "Generated from the order through an idempotent, auditable handoff — not re-keyed." },
+    { step: "Lead captured", department: "Marketing / Sales", moduleKey: "crm", systemAction: "Scored automatically and assigned by policy — no manual triage queue." },
+    { step: "Converted to opportunity", department: "Sales", moduleKey: "crm", systemAction: "Account and contact records created in one step; duplicate accounts are flagged, not silently created." },
+    { step: "Quotation issued", department: "Sales", moduleKey: "sales", systemAction: "Priced against the customer's price list and India GST rules automatically." },
+    { step: "Customer accepts", department: "Customer", moduleKey: "sales", systemAction: "Approves publicly with a typed signature — no separate e-signature tool." },
+    { step: "Order confirmed", department: "Sales / Finance", moduleKey: "sales", systemAction: "Checked against the customer's live credit exposure before confirmation is allowed." },
+    { step: "Invoice posted", department: "Finance", moduleKey: "accounting", systemAction: "Generated from the order through an idempotent, auditable handoff — not re-keyed." },
   ],
   analyticsId: "workflow_interaction",
 });
@@ -223,7 +222,7 @@ export const FINAL_CTA_SECTION = Object.freeze({
   id: "final-cta",
   heading: "See how your operations would run in one connected system.",
   supportingText: "The demo is adapted to your business — the modules and workflows you'd actually use, not a generic tour.",
-  primaryCta: { label: "Book a Product Demo", href: "/book-demo", analyticsId: "final_cta_click" },
+  primaryCta: { label: "Book a Demo", href: "/book-demo", analyticsId: "final_cta_click" },
   analyticsId: "final_cta_view",
 });
 

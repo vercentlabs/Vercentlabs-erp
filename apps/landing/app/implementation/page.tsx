@@ -8,7 +8,9 @@ import { TrackView } from "@/components/analytics/track-view";
 import { DirectDefinition } from "@/components/modules/direct-definition";
 import { ImplementationTimeline } from "@/components/implementation/implementation-timeline";
 import { ContextualCta } from "@/components/shared/contextual-cta";
+import { CollectionHero } from "@/components/shared/collection-hero";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
@@ -45,41 +47,36 @@ export default function ImplementationPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={[{ name: "Implementation", path: "/implementation" }]} />
             </Container>
           </Section>
 
-          <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className="flex flex-1 items-center">
-            <Container>
-              <Stack gap={5} className="max-w-[760px]">
-                <Text variant="eyebrow">{IMPLEMENTATION_PAGE.eyebrow}</Text>
-                <Heading level="display" as="h1">
-                  {IMPLEMENTATION_PAGE.heading}
-                </Heading>
-                <Text variant="lead">{IMPLEMENTATION_PAGE.supportingText}</Text>
-                <div>
-                  <TrackedCtaLink href="/book-demo" event="implementation_cta_click" ctaLocation="implementation_hero">
-                    {IMPLEMENTATION_PAGE.conversion.ctaLabel}
-                  </TrackedCtaLink>
-                </div>
-              </Stack>
-            </Container>
-          </Section>
+          <CollectionHero
+            eyebrow={IMPLEMENTATION_PAGE.eyebrow}
+            heading={IMPLEMENTATION_PAGE.heading}
+            supportingText={IMPLEMENTATION_PAGE.supportingText}
+            listLabel="Implementation phases"
+            items={IMPLEMENTATION_PAGE.phases.map((phase) => ({ label: phase.name, meta: `${phase.activities.length} activities` }))}
+          />
         </div>
       </TrackView>
 
-      <DirectDefinition definition={IMPLEMENTATION_PAGE.directDefinition} />
+      <Reveal>
+        <DirectDefinition definition={IMPLEMENTATION_PAGE.directDefinition} />
+      </Reveal>
 
       {/* 8-phase journey */}
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="The real methodology" title="Eight phases, discovery through post-launch." />
-          <div className="mt-10">
-            <ImplementationTimeline phases={IMPLEMENTATION_PAGE.phases} />
-          </div>
+          <Reveal>
+            <div className="mt-10">
+              <ImplementationTimeline phases={IMPLEMENTATION_PAGE.phases} />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -117,7 +114,7 @@ export default function ImplementationPage() {
       {/* Final CTA */}
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               {IMPLEMENTATION_PAGE.conversion.heading}
             </Heading>
@@ -128,7 +125,7 @@ export default function ImplementationPage() {
                 </TrackedCtaLink>
               </Inline>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

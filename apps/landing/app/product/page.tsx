@@ -1,4 +1,4 @@
-import { PRODUCT_OVERVIEW_PAGE } from "@vercentlabs/landing-content";
+import { LANDING_MODULES, PRODUCT_OVERVIEW_PAGE } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading } from "@/components/ui/text";
 import { LabeledItemGrid } from "@/components/ui/labeled-item-grid";
@@ -8,6 +8,7 @@ import { FaqAccordion } from "@/components/marketing/faq-accordion";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { PlatformHero } from "@/components/platform/platform-hero";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps } from "@/lib/seo/json-ld";
 
@@ -34,7 +35,7 @@ export default function ProductOverviewPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={[{ name: "Product", path: "/product" }]} />
@@ -46,6 +47,7 @@ export default function ProductOverviewPage() {
             heading={PRODUCT_OVERVIEW_PAGE.heading}
             supportingText={PRODUCT_OVERVIEW_PAGE.supportingText}
             heroScreenshotId={PRODUCT_OVERVIEW_PAGE.heroScreenshotId}
+            connectedModuleKeys={LANDING_MODULES.map((moduleInfo) => moduleInfo.key)}
             ctaHref={PRODUCT_OVERVIEW_PAGE.primaryCta.href}
             ctaLabel={PRODUCT_OVERVIEW_PAGE.primaryCta.label}
             ctaEvent="platform_cta_click"
@@ -54,16 +56,20 @@ export default function ProductOverviewPage() {
         </div>
       </TrackView>
 
-      <DirectDefinition definition={PRODUCT_OVERVIEW_PAGE.directDefinition} />
+      <Reveal>
+        <DirectDefinition definition={PRODUCT_OVERVIEW_PAGE.directDefinition} />
+      </Reveal>
 
       {PRODUCT_OVERVIEW_PAGE.sections.map((section, index) => (
         <Section key={section.id} tone={index % 2 === 0 ? "page" : "subtle"}>
           <Container>
             <SectionHeader eyebrow={section.eyebrow} title={section.heading} description={section.supportingText} />
             {section.items && section.items.length > 0 ? (
-              <div className="mt-10">
-                <LabeledItemGrid items={section.items} columns={section.items.length >= 5 ? 3 : 2} />
-              </div>
+              <Reveal group>
+                <div className="mt-10">
+                  <LabeledItemGrid items={section.items} columns={section.items.length >= 5 ? 3 : 2} reveal />
+                </div>
+              </Reveal>
             ) : null}
           </Container>
         </Section>
@@ -72,13 +78,15 @@ export default function ProductOverviewPage() {
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Straight answers" title="Questions buyers ask about the platform" />
-          <FaqAccordion items={PRODUCT_OVERVIEW_PAGE.faqs} className="mt-10 max-w-[820px]" />
+          <Reveal group>
+            <FaqAccordion items={PRODUCT_OVERVIEW_PAGE.faqs} className="mt-10 max-w-[820px]" />
+          </Reveal>
         </Container>
       </Section>
 
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               See the connected platform in a live demo.
             </Heading>
@@ -87,7 +95,7 @@ export default function ProductOverviewPage() {
                 {PRODUCT_OVERVIEW_PAGE.primaryCta.label}
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

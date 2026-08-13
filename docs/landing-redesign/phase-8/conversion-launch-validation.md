@@ -7,7 +7,7 @@ Executed against the live, final production build (port 3050), following the exa
 ```
 Campaign URL (?utm_source=launch_rehearsal&utm_medium=test&utm_campaign=phase8_rehearsal)
 → landing (homepage)
-→ internal navigation (clicked the real primary "Book a Product Demo" CTA)
+→ internal navigation (clicked the real primary "Book a Demo" CTA)
 → /book-demo
 → form fill (synthetic data: "Rehearsal Synthetic", a clearly-fake .invalid email domain, a placeholder phone number, "Synthetic Test Co", consent checked)
 → validation (passed — no client-side error)

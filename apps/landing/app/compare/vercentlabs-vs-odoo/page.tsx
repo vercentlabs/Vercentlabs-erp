@@ -10,6 +10,7 @@ import { SourceList } from "@/components/content/source-list";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
@@ -62,7 +63,7 @@ export default function VercentlabsVsOdooPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -81,39 +82,45 @@ export default function VercentlabsVsOdooPage() {
 
       <Section tone="page">
         <Container>
-          <Callout label="How to read this comparison">
-            Every claim about {VERCENTLABS_VS_ODOO.competitor} on this page traces to a real, live-fetched source (see Sources below), verified on {freshness.lastReviewedAt}. Where a claim couldn&apos;t be independently verified, this page says so explicitly rather than guessing.
-          </Callout>
+          <Reveal>
+            <Callout label="How to read this comparison">
+              Every claim about {VERCENTLABS_VS_ODOO.competitor} on this page traces to a real, live-fetched source (see Sources below), verified on {freshness.lastReviewedAt}. Where a claim couldn&apos;t be independently verified, this page says so explicitly rather than guessing.
+            </Callout>
+          </Reveal>
         </Container>
       </Section>
 
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="Side by side" title="Where they actually differ" />
-          <div className="mt-8">
-            <DecisionMatrix
-              rowHeader="Dimension"
-              columns={[VERCENTLABS_VS_ODOO.competitor, "Vercentlabs"]}
-              rows={VERCENTLABS_VS_ODOO.dimensions.map((dimension) => ({
-                label: dimension.title,
-                values: [dimension.odoo, dimension.vercentlabs],
-              }))}
-            />
-          </div>
+          <Reveal>
+            <div className="mt-8">
+              <DecisionMatrix
+                rowHeader="Dimension"
+                columns={[VERCENTLABS_VS_ODOO.competitor, "Vercentlabs"]}
+                rows={VERCENTLABS_VS_ODOO.dimensions.map((dimension) => ({
+                  label: dimension.title,
+                  values: [dimension.odoo, dimension.vercentlabs],
+                }))}
+              />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
       <Section tone="page">
         <Container>
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2">
-            <Stack gap={4}>
-              <Heading level="h2">Where {VERCENTLABS_VS_ODOO.competitor} may be the stronger fit</Heading>
-              <Checklist items={VERCENTLABS_VS_ODOO.strongerFitForOdoo} />
-            </Stack>
-            <Stack gap={4}>
-              <Heading level="h2">Where Vercentlabs may be the stronger fit</Heading>
-              <Checklist items={VERCENTLABS_VS_ODOO.strongerFitForVercentlabs} />
-            </Stack>
+            <Reveal group className="contents">
+              <Stack gap={4} data-reveal-item>
+                <Heading level="h2">Where {VERCENTLABS_VS_ODOO.competitor} may be the stronger fit</Heading>
+                <Checklist items={VERCENTLABS_VS_ODOO.strongerFitForOdoo} />
+              </Stack>
+              <Stack gap={4} data-reveal-item style={{ transitionDelay: "60ms" }}>
+                <Heading level="h2">Where Vercentlabs may be the stronger fit</Heading>
+                <Checklist items={VERCENTLABS_VS_ODOO.strongerFitForVercentlabs} />
+              </Stack>
+            </Reveal>
           </div>
         </Container>
       </Section>
@@ -123,13 +130,17 @@ export default function VercentlabsVsOdooPage() {
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="Straight answers" title="Questions buyers ask" />
-          <FaqAccordion items={VERCENTLABS_VS_ODOO.faqs} className="mt-10 max-w-[820px]" />
+          <Reveal group>
+            <FaqAccordion items={VERCENTLABS_VS_ODOO.faqs} className="mt-10 max-w-[820px]" />
+          </Reveal>
         </Container>
       </Section>
 
       <Section tone="page">
         <Container>
-          <SourceList sources={usedSources} className="max-w-[780px]" />
+          <Reveal>
+            <SourceList sources={usedSources} className="max-w-[780px]" />
+          </Reveal>
         </Container>
       </Section>
 
@@ -150,16 +161,16 @@ export default function VercentlabsVsOdooPage() {
 
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               See how Vercentlabs handles your specific requirements.
             </Heading>
             <div className="mt-6 flex justify-center">
               <TrackedCtaLink href="/book-demo" event="comparison_cta_click" ctaLocation="comparison_final_vercentlabs-vs-odoo">
-                Book a Product Demo
+                Book a Demo
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

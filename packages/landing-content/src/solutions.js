@@ -53,7 +53,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     ],
     metaDescription: "See what replaces your item, BOM, and pricing spreadsheets: one server-validated master data model, governed numbering series, and an immutable audit trail — not another file someone else has open.",
     searchIntent: "replace spreadsheets with ERP software",
-    conversion: { heading: "See your spreadsheet processes become one governed system.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See your spreadsheet processes become one governed system.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "connect-business-operations",
@@ -81,7 +81,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     ],
     metaDescription: "See how Vercentlabs connects CRM, Sales, Procurement, and Accounting as one real data model — a won opportunity becomes a quotation, an order, and an invoice without being re-typed at each handoff.",
     searchIntent: "connect business operations software",
-    conversion: { heading: "See a lead become an invoice without a single re-typed handoff.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See a lead become an invoice without a single re-typed handoff.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "multi-company-management",
@@ -108,7 +108,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     ],
     metaDescription: "See how Vercentlabs structurally isolates data by company and branch — scoped, time-bound roles, one shared numbering framework, and real multi-entity consolidation when you need a combined view.",
     searchIntent: "multi-company ERP software",
-    conversion: { heading: "See structural isolation across every company you run.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See structural isolation across every company you run.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "workflow-automation",
@@ -136,7 +136,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     ],
     metaDescription: "See what Vercentlabs automates without a human trigger: policy-routed approvals, code-enforced self-approval blocking, scheduled recurring financial postings, and automatic quality holds.",
     searchIntent: "business process automation software",
-    conversion: { heading: "See what stops needing a human to catch it.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See what stops needing a human to catch it.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "real-time-business-reporting",
@@ -164,7 +164,7 @@ export const LANDING_SOLUTIONS = Object.freeze([
     ],
     metaDescription: "See real-time reporting across Vercentlabs: live project margin while a project is still open, a 16-report Accounting registry, CRM forecast reporting, and Procurement spend analytics — all on live data.",
     searchIntent: "real-time business reporting software",
-    conversion: { heading: "See a number that's true right now, not at month-end.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See a number that's true right now, not at month-end.", ctaLabel: "Book a Demo" },
   },
 ]);
 

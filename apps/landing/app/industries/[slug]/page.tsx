@@ -13,6 +13,7 @@ import { RecommendedModuleStack } from "@/components/industries/recommended-modu
 import { RolePerspective } from "@/components/shared/role-perspective";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
@@ -73,7 +74,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -94,15 +95,19 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
         </div>
       </TrackView>
 
-      <DirectDefinition definition={industry.operatingModel} />
+      <Reveal>
+        <DirectDefinition definition={industry.operatingModel} />
+      </Reveal>
 
       {/* Challenges */}
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="The real pain" title={`What makes ${industry.name.toLowerCase()} operations hard without a connected system`} />
-          <div className="mt-10">
-            <LabeledItemGrid items={industry.challenges.map((challenge) => ({ title: challenge, description: "" }))} columns={2} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={industry.challenges.map((challenge) => ({ title: challenge, description: "" }))} columns={2} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -110,9 +115,11 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="The real module stack" title="Which modules, and why" />
-          <div className="mt-10">
-            <RecommendedModuleStack entries={industry.moduleStack} resolveModule={(key) => getLandingModule(key) ?? undefined} />
-          </div>
+          <Reveal>
+            <div className="mt-10">
+              <RecommendedModuleStack entries={industry.moduleStack} resolveModule={(key) => getLandingModule(key) ?? undefined} />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -120,13 +127,20 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Evidence, not a pitch" title="What's real today" />
-          <ul className="mt-10 flex flex-col gap-4">
-            {industry.evidenceHighlights.map((claim) => (
-              <li key={claim} className="border-t border-(--color-border-default) pt-4 text-base leading-relaxed text-(--color-text-primary) first:border-t-0 first:pt-0">
-                {claim}
-              </li>
-            ))}
-          </ul>
+          <Reveal group>
+            <ul className="mt-10 flex flex-col gap-4">
+              {industry.evidenceHighlights.map((claim, index) => (
+                <li
+                  key={claim}
+                  data-reveal-item
+                  style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
+                  className="border-t border-(--color-border-default) pt-4 text-base leading-relaxed text-(--color-text-primary) first:border-t-0 first:pt-0"
+                >
+                  {claim}
+                </li>
+              ))}
+            </ul>
+          </Reveal>
         </Container>
       </Section>
 
@@ -134,9 +148,11 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Who this is for" title="What each buyer in the room actually cares about" />
-            <div className="mt-10">
-              <RolePerspective roles={buyerRoles} />
-            </div>
+            <Reveal>
+              <div className="mt-10">
+                <RolePerspective roles={buyerRoles} />
+              </div>
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -152,7 +168,9 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Straight answers" title={`Questions ${industry.name.toLowerCase()} buyers ask`} />
-          <FaqAccordion items={industry.faqs} className="mt-10 max-w-[820px]" />
+          <Reveal group>
+            <FaqAccordion items={industry.faqs} className="mt-10 max-w-[820px]" />
+          </Reveal>
         </Container>
       </Section>
 
@@ -176,7 +194,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       {/* Final CTA */}
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               {industry.conversion.heading}
             </Heading>
@@ -187,7 +205,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
                 </TrackedCtaLink>
               </Inline>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

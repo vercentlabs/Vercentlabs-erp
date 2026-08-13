@@ -1,5 +1,5 @@
 import { ANALYTICS_PAGE } from "@vercentlabs/landing-content";
-import { PlatformPageTemplate } from "@/components/platform/platform-page-template";
+import { AnalyticsPageTemplate } from "@/components/platform/analytics-page-template";
 import { buildPageMetadata } from "@/lib/metadata";
 
 export const metadata = buildPageMetadata({
@@ -10,7 +10,7 @@ export const metadata = buildPageMetadata({
 
 export default function AnalyticsPage() {
   return (
-    <PlatformPageTemplate
+    <AnalyticsPageTemplate
       content={ANALYTICS_PAGE}
       breadcrumbTrail={[
         { name: "Product", path: "/product" },

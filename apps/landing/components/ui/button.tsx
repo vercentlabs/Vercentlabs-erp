@@ -6,7 +6,7 @@ export type ButtonVariant = "primary" | "secondary" | "tertiary" | "inverse";
 export type ButtonSize = "md" | "sm";
 
 const BASE_CLASSES =
-  "inline-flex items-center justify-center gap-2 rounded-(--radius-control) font-medium transition-colors duration-(--duration-fast) ease-(--ease-standard) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus) disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-(--radius-control) font-medium transition-[color,background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-standard) active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus) disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
   md: "h-11 px-5 text-sm",
@@ -127,7 +127,7 @@ export function IconButton({
       type="button"
       aria-label={label}
       className={cx(
-        "inline-flex h-10 w-10 items-center justify-center rounded-(--radius-control) text-(--color-text-primary) transition-colors hover:bg-(--color-bg-subtle) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)",
+        "inline-flex h-10 w-10 items-center justify-center rounded-(--radius-control) text-(--color-text-primary) transition-[color,background-color,transform] duration-(--duration-fast) ease-(--ease-standard) hover:bg-(--color-bg-subtle) active:scale-[0.94] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)",
         className,
       )}
       {...rest}

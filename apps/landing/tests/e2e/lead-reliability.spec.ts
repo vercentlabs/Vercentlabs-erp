@@ -131,7 +131,7 @@ test.describe("client-level failure handling", () => {
     await page.getByLabel("Company name").fill("Reliability Co");
     await page.getByLabel("What are you most interested in?").selectOption({ label: "CRM & Sales" });
     await page.getByLabel(/I agree to be contacted/i).check();
-    await page.getByRole("button", { name: "Book a Product Demo" }).click();
+    await page.getByRole("button", { name: "Book a Demo" }).click();
 
     await expect(page.getByText(/couldn't submit your request/i)).toBeVisible();
     // The form must still be usable — fields aren't cleared, a retry is possible.
@@ -147,7 +147,7 @@ test.describe("client-level failure handling", () => {
     await page.getByLabel("Company name").fill("Reliability Co");
     await page.getByLabel("What are you most interested in?").selectOption({ label: "CRM & Sales" });
     await page.getByLabel(/I agree to be contacted/i).check();
-    await page.getByRole("button", { name: "Book a Product Demo" }).click();
+    await page.getByRole("button", { name: "Book a Demo" }).click();
 
     await expect(page.getByText(/couldn't reach the server/i)).toBeVisible();
   });
@@ -173,7 +173,7 @@ test.describe("client-level failure handling", () => {
     // to catch has already been decided one way or the other). Dispatching
     // both native click events in the same tick is what actually exercises
     // demo-form.tsx's `if (submitting) return;` guard under real contention.
-    const submitButton = page.getByRole("button", { name: "Book a Product Demo" });
+    const submitButton = page.getByRole("button", { name: "Book a Demo" });
     await submitButton.evaluate((el: HTMLButtonElement) => {
       el.click();
       el.click();

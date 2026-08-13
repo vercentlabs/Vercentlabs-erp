@@ -33,7 +33,7 @@ export function ModuleHero({ landingModule, className }: { landingModule: Landin
             : "People & Service";
 
   const copy = (
-    <Stack gap={5} className={primaryScreenshot ? "h-full" : "h-full max-w-[720px]"}>
+    <Stack gap={5} className="reveal-on-load h-full max-w-[720px]">
       <Text variant="eyebrow">{navGroupLabel} module</Text>
       <Heading level="display" as="h1">
         {landingModule.name}
@@ -41,7 +41,7 @@ export function ModuleHero({ landingModule, className }: { landingModule: Landin
       <Text variant="lead">{landingModule.bestAngle}</Text>
       <Inline gap={3}>
         <TrackedCtaLink href={`/book-demo?module=${landingModule.key}`} event="module_hero_cta_click" ctaLocation={`module_hero_${landingModule.key}`}>
-          Book a Product Demo
+          Book a Demo
         </TrackedCtaLink>
         <TrackedCtaLink href="/product/platform" event="platform_cta_click" ctaLocation={`module_hero_${landingModule.key}`} variant="secondary">
           Explore the Platform
@@ -66,12 +66,42 @@ export function ModuleHero({ landingModule, className }: { landingModule: Landin
   );
 
   return (
-    <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className={cx("flex flex-1 flex-col justify-center", className)}>
+    <Section
+      tone="page"
+      paddingTop={{ base: 10, sm: 14 }}
+      paddingBottom={{ base: 12, sm: 16 }}
+      className={cx(className)}
+    >
       <Container>
         <SplitLayout
           ratio="primary-wide"
           primary={copy}
-          secondary={primaryScreenshot ? <ProductScreenshot id={primaryScreenshot.id} moduleAccentColor={landingModule.accentColor.hex} /> : null}
+          secondary={
+            primaryScreenshot ? (
+              <div className="reveal-on-load reveal-on-load-delay-1">
+                <ProductScreenshot id={primaryScreenshot.id} moduleAccentColor={landingModule.accentColor.hex} />
+              </div>
+            ) : (
+              <div className="reveal-on-load reveal-on-load-delay-1 border-t border-(--color-border-strong)">
+                <div className="flex items-end justify-between border-b border-(--color-border-default) py-4">
+                  <Text variant="caption">Capability map</Text>
+                  <span className="tabular-data text-4xl font-semibold tracking-[-0.04em] text-(--color-text-primary)">
+                    {String(landingModule.capabilityGroups.length).padStart(2, "0")}
+                  </span>
+                </div>
+                <ol>
+                  {landingModule.capabilityGroups.slice(0, 5).map((group, index) => (
+                    <li key={group.name} className="grid grid-cols-[2rem_1fr] items-center gap-3 border-b border-(--color-border-default) py-3.5">
+                      <span className="tabular-data text-xs font-medium" style={{ color: landingModule.accentColor.hex }}>
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="text-sm font-medium text-(--color-text-primary)">{group.name}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )
+          }
         />
       </Container>
     </Section>

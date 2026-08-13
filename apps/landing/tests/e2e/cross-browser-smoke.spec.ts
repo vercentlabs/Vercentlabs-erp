@@ -45,7 +45,7 @@ test.describe("cross-browser interaction checks", () => {
     await page.goto("/book-demo");
     await page.getByLabel("First name").fill("Test");
     await page.getByLabel("Work email").fill("not-an-email");
-    await page.getByRole("button", { name: "Book a Product Demo" }).click();
+    await page.getByRole("button", { name: "Book a Demo" }).click();
     await expect(page.getByText(/attention below/i)).toBeVisible();
   });
 

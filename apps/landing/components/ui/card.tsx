@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cx } from "@/lib/utils";
+import { Reveal } from "@/components/motion/reveal";
 
 /**
  * Control Surface deliberately avoids "excessive card grids" (docs/landing-redesign/
@@ -11,7 +12,7 @@ export function Card({ children, className, accentColor }: { children: ReactNode
   return (
     <div
       className={cx(
-        "rounded-(--radius-card) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-subtle) transition-shadow hover:shadow-(--shadow-panel)",
+        "rounded-(--radius-card) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-subtle) transition-[box-shadow,transform] duration-(--duration-base) ease-(--ease-standard) hover:-translate-y-0.5 hover:shadow-(--shadow-panel)",
         className,
       )}
       style={accentColor ? { borderTopColor: accentColor, borderTopWidth: 3 } : undefined}
@@ -29,24 +30,43 @@ export function BorderedPanel({ children, className }: { children: ReactNode; cl
 }
 
 /** Full-width horizontal band — the Control Surface alternative to a card grid. */
-export function InformationBand({ children, className }: { children: ReactNode; className?: string }) {
+export function InformationBand({
+  children,
+  className,
+  ...rest
+}: { children: ReactNode; className?: string } & Omit<HTMLAttributes<HTMLDivElement>, "children" | "className">) {
   return (
     <div
       className={cx(
-        "flex flex-col gap-4 border-t border-(--color-border-default) py-6 first:border-t-0 first:pt-0 sm:flex-row sm:items-start sm:justify-between",
+        "group flex flex-col gap-4 border-t border-(--color-border-default) px-0 py-7 transition-colors duration-(--duration-base) first:border-t-0 sm:flex-row sm:items-center sm:justify-between sm:hover:bg-(--color-bg-subtle) sm:hover:px-5",
         className,
       )}
+      {...rest}
     >
       {children}
     </div>
   );
 }
 
+/**
+ * Self-wraps in its own <Reveal group> — items carry data-reveal-item
+ * unconditionally, so without a reveal-group ancestor they'd stay stuck at
+ * opacity:0 forever (a real bug found in two call sites during the sitewide
+ * motion rollout). Making the component self-sufficient beats relying on
+ * every caller remembering to wrap it; an outer Reveal/Reveal group at the
+ * call site still works fine alongside this, just redundantly.
+ */
 export function FeatureList({ items, className }: { items: ReactNode[]; className?: string }) {
   return (
+    <Reveal group>
     <ul className={cx("flex flex-col gap-3", className)}>
       {items.map((item, index) => (
-        <li key={index} className="flex items-start gap-2.5 text-sm text-(--color-text-primary)">
+        <li
+          key={index}
+          data-reveal-item
+          style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
+          className="flex items-start gap-2.5 text-sm text-(--color-text-primary)"
+        >
           <svg viewBox="0 0 20 20" fill="none" className="mt-0.5 h-4 w-4 flex-none text-(--color-text-brand)" aria-hidden="true">
             <path d="M5 10.5 8.5 14 15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -54,6 +74,7 @@ export function FeatureList({ items, className }: { items: ReactNode[]; classNam
         </li>
       ))}
     </ul>
+    </Reveal>
   );
 }
 

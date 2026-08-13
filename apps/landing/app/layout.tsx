@@ -22,8 +22,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        {/* Belt-and-braces alongside Reveal's own fail-open branch (see
+            components/motion/reveal.tsx): guarantees scroll-revealed content
+            is visible for any client that never runs the bundle at all. */}
+        <noscript>
+          <style>{`[data-reveal],[data-reveal-item]{opacity:1 !important;transform:none !important}`}</style>
+        </noscript>
         <SkipLink />
         <AnnouncementBanner />
+        {/* Sentinel watched by Header's scroll-elevation IntersectionObserver
+            (components/navigation/header.tsx) — an observer, not a raw scroll
+            listener, matching the idiom already used by track-view.tsx. */}
+        <div data-header-sentinel aria-hidden="true" className="h-px" />
         <Header />
         {/* tabIndex={-1}: without it, the skip link scrolls the viewport to
             #main-content but never moves keyboard focus there (an <a

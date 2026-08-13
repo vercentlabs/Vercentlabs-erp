@@ -276,7 +276,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
       ) : null}
 
       <Button type="submit" loading={submitting} disabled={submitting} className="w-full sm:w-auto">
-        {submitting ? "Submitting…" : "Book a Product Demo"}
+        {submitting ? "Submitting…" : "Book a Demo"}
       </Button>
     </form>
   );

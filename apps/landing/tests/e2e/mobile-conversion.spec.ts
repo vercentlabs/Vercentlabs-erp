@@ -53,7 +53,7 @@ test.describe("sticky mobile CTA behavior", () => {
     for (const width of MOBILE_WIDTHS) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/");
-      const headerCtaVisible = await page.locator("header a", { hasText: "Book a Product Demo" }).first().isVisible().catch(() => false);
+      const headerCtaVisible = await page.locator("header a", { hasText: "Book a Demo" }).first().isVisible().catch(() => false);
       const stickyCtaVisible = await page.locator("[data-sticky-mobile-cta]").first().isVisible().catch(() => false);
       expect(headerCtaVisible && stickyCtaVisible, `both header and sticky CTA visible simultaneously at ${width}px`).toBe(false);
     }
@@ -71,7 +71,7 @@ test.describe("demo form mobile usability", () => {
   test("submit button reaches the minimum WCAG 2.2 AA target size at 320px", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 700 });
     await page.goto("/book-demo");
-    const submit = page.getByRole("button", { name: "Book a Product Demo" });
+    const submit = page.getByRole("button", { name: "Book a Demo" });
     const box = await submit.boundingBox();
     expect(box).toBeTruthy();
     expect(box!.height).toBeGreaterThanOrEqual(24);

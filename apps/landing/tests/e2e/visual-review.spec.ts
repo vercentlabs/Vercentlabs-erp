@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test, type Page } from "@playwright/test";
 import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS, ROUTED_WORKFLOW_SLUGS, VERCENTLABS_VS_ODOO } from "@vercentlabs/landing-content";
 
 /**
@@ -7,6 +7,28 @@ import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS,
  * responsive-validation.md's required list. Run with:
  * pnpm --filter @vercentlabs/landing exec playwright test visual-review
  */
+
+/**
+ * Scroll-triggered entrances (components/motion/reveal.tsx) only reveal once
+ * a real IntersectionObserver fires — Playwright's `fullPage` screenshot
+ * captures the whole document height by expanding the render surface, not by
+ * moving `window.scrollY`, so without an actual scroll first every section
+ * below the initial viewport would photograph as permanently blank (real
+ * users scrolling normally are unaffected; this is purely a capture-tool
+ * fix). Call this immediately before every `fullPage: true` screenshot.
+ */
+async function scrollThroughPage(page: Page) {
+  await page.evaluate(async () => {
+    const step = window.innerHeight;
+    const height = document.body.scrollHeight;
+    for (let y = 0; y < height; y += step) {
+      window.scrollTo(0, y);
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    window.scrollTo(0, 0);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  });
+}
 const VIEWPORTS = {
   w320: { width: 320, height: 568 },
   w360: { width: 360, height: 800 },
@@ -23,6 +45,7 @@ test.describe("visual review captures — homepage across required viewports", (
     test(`homepage — ${name}`, async ({ page }) => {
       await page.setViewportSize(size);
       await page.goto("/");
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-homepage-${name}.png`, fullPage: true });
     });
   }
@@ -53,26 +76,30 @@ test.describe("visual review captures — other pages and states", () => {
   test("book-demo — desktop", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/book-demo");
+    await scrollThroughPage(page);
     await page.screenshot({ path: "test-results/review-book-demo-desktop.png", fullPage: true });
   });
 
   test("book-demo — mobile 375", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/book-demo");
+    await scrollThroughPage(page);
     await page.screenshot({ path: "test-results/review-book-demo-mobile.png", fullPage: true });
   });
 
   test("book-demo — mobile 320", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto("/book-demo");
+    await scrollThroughPage(page);
     await page.screenshot({ path: "test-results/review-book-demo-320.png", fullPage: true });
   });
 
   test("book-demo validation errors", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/book-demo");
-    await page.getByRole("button", { name: "Book a Product Demo" }).click();
+    await page.getByRole("button", { name: "Book a Demo" }).click();
     await page.waitForTimeout(300);
+    await scrollThroughPage(page);
     await page.screenshot({ path: "test-results/review-book-demo-errors.png", fullPage: true });
   });
 
@@ -91,6 +118,7 @@ test.describe("visual review captures — other pages and states", () => {
   test("design-system — desktop", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1200 });
     await page.goto("/design-system");
+    await scrollThroughPage(page);
     await page.screenshot({ path: "test-results/review-design-system.png", fullPage: true });
   });
 
@@ -120,6 +148,7 @@ test.describe("visual review captures — Phase 4 module and platform routes", (
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-desktop.png`, fullPage: true });
     });
 
@@ -127,6 +156,7 @@ test.describe("visual review captures — Phase 4 module and platform routes", (
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
     });
   }
@@ -150,6 +180,7 @@ test.describe("visual review captures — Phase 5 industry, solution, workflow, 
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-desktop.png`, fullPage: true });
     });
 
@@ -157,6 +188,7 @@ test.describe("visual review captures — Phase 5 industry, solution, workflow, 
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
     });
   }
@@ -184,6 +216,7 @@ test.describe("visual review captures — Phase 6 resource hub, requirements che
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-desktop.png`, fullPage: true });
     });
 
@@ -191,6 +224,7 @@ test.describe("visual review captures — Phase 6 resource hub, requirements che
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-mobile.png`, fullPage: true });
     });
 
@@ -198,6 +232,7 @@ test.describe("visual review captures — Phase 6 resource hub, requirements che
       await page.setViewportSize({ width: 320, height: 568 });
       await page.goto(route.path, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
+      await scrollThroughPage(page);
       await page.screenshot({ path: `test-results/review-${route.name}-320.png`, fullPage: true });
     });
   }

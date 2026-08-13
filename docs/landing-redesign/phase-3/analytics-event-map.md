@@ -32,9 +32,9 @@ The full set of valid event names is `AnalyticsEventName` (`apps/landing/lib/ana
 
 | Event | Trigger |
 |---|---|
-| `hero_primary_cta_click` | Hero "Book a Product Demo" |
+| `hero_primary_cta_click` | Hero "Book a Demo" |
 | `hero_secondary_cta_click` | Hero "Explore the Platform" |
-| `final_cta_click` | Final CTA "Book a Product Demo" |
+| `final_cta_click` | Final CTA "Book a Demo" |
 | `implementation_specialist_cta_click` | Implementation section "Talk to an ERP Specialist" |
 | `sticky_mobile_cta_click` | Mobile-only sticky bottom bar CTA (new this phase — see `implementation-summary.md`) |
 

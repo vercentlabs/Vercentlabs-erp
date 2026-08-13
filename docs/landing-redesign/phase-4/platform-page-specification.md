@@ -21,7 +21,7 @@ Not a `PlatformPageContent` — a dedicated `ProductOverviewPage` shape with 10 
 
 Breadcrumbs → `PlatformHero` (screenshot-led split layout if the page has a `heroScreenshotId` that resolves to an approved screenshot, otherwise single-column) → `DirectDefinition` → N content sections (each a `SectionHeader` + `LabeledItemGrid` of `{title, description}` items) → "Modules built on this capability" (tag row linking to real module pages, only rendered if `connectedModuleKeys` is non-empty) → FAQ accordion (only if the page has FAQs — `/product/mobile` and `/security` do; the automation/analytics/integrations pages don't, to avoid manufacturing FAQ content for content's sake) → final CTA.
 
-Every page's `primaryCta` is `{ label: "Book a Product Demo", href: "/book-demo" }` — platform pages don't carry module-specific query context (that's the module pages' job); a mistaken `?module=platform` was caught and removed during this phase's content-integrity testing (see `decision-log.md`).
+Every page's `primaryCta` is `{ label: "Book a Demo", href: "/book-demo" }` — platform pages don't carry module-specific query context (that's the module pages' job); a mistaken `?module=platform` was caught and removed during this phase's content-integrity testing (see `decision-log.md`).
 
 ## Analytics
 

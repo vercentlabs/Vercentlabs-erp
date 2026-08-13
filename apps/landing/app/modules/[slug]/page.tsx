@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { LANDING_MODULES, getLandingModule, getIndustriesForModule, getWorkflowsForModule, getSolutionsForModule, getResourceGuidesForModule, ROUTED_WORKFLOW_SLUGS } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Grid, Stack, Inline } from "@/components/layout/container";
+import { Container, Section, SectionHeader, Stack, Inline } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Checklist } from "@/components/ui/card";
 import { LabeledItemGrid } from "@/components/ui/labeled-item-grid";
@@ -16,6 +16,7 @@ import { ProductEvidenceSection } from "@/components/modules/product-evidence-se
 import { ContextualCta } from "@/components/modules/contextual-cta";
 import { ConnectedModules } from "@/components/modules/connected-modules";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
@@ -94,7 +95,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
             a screenshot yet still get this: the hero renders copy-only with the
             secondary column left empty, reserved for the screenshot/video each will
             get — see module-hero.tsx. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -105,15 +106,19 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         </div>
       </TrackView>
 
-      <DirectDefinition definition={landingModule.directDefinition} />
+      <Reveal>
+        <DirectDefinition definition={landingModule.directDefinition} />
+      </Reveal>
 
       {/* Business problems */}
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="The problem" title={`What makes ${landingModule.name} hard without a connected system`} />
-          <div className="mt-10">
-            <LabeledItemGrid items={landingModule.businessProblems} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={landingModule.businessProblems} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -121,9 +126,11 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="What changes" title={`What ${landingModule.name} makes possible`} />
-          <div className="mt-10">
-            <LabeledItemGrid items={landingModule.businessOutcomes} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={landingModule.businessOutcomes} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -135,9 +142,11 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
             title="What's actually in the module"
             description={`${landingModule.capabilityGroups.length} capability groups, organised the way the product is actually built — not a flat feature list.`}
           />
-          <div className="mt-10">
-            <CapabilityGrid groups={landingModule.capabilityGroups} />
-          </div>
+          <Reveal>
+            <div className="mt-10">
+              <CapabilityGrid groups={landingModule.capabilityGroups} />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -146,9 +155,11 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="See it work" title={landingModule.primaryWorkflow.name} description={`The same sequence a real ${landingModule.name} process follows inside Vercentlabs.`} />
-            <div className="mt-10 max-w-[820px]">
-              <ModuleWorkflow workflow={landingModule.primaryWorkflow} accentColor={landingModule.accentColor.hex} connectedModules={connectedModules} />
-            </div>
+            <Reveal>
+              <div className="mt-10 max-w-[820px]">
+                <ModuleWorkflow workflow={landingModule.primaryWorkflow} accentColor={landingModule.accentColor.hex} connectedModules={connectedModules} />
+              </div>
+            </Reveal>
           </Container>
         </Section>
       </TrackView>
@@ -166,9 +177,11 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="How it connects" title={`${landingModule.name} and the rest of the platform`} />
-          <div className="mt-10">
-            <ConnectedModules links={landingModule.connectedModules} resolveModule={(key) => getLandingModule(key) ?? undefined} />
-          </div>
+          <Reveal>
+            <div className="mt-10">
+              <ConnectedModules links={landingModule.connectedModules} resolveModule={(key) => getLandingModule(key) ?? undefined} />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -176,9 +189,11 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="Reporting" title={`What ${landingModule.name} tells you`} />
-          <div className="mt-10">
-            <LabeledItemGrid items={landingModule.reporting.map((r) => ({ title: r.name, description: `${r.measures} — for ${r.audience}.` }))} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={landingModule.reporting.map((r) => ({ title: r.name, description: `${r.measures} — for ${r.audience}.` }))} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -186,9 +201,11 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Automation" title="What runs on its own" />
-          <div className="mt-10">
-            <LabeledItemGrid items={landingModule.automation} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={landingModule.automation} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -200,19 +217,25 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
             title={`How ${landingModule.name} is controlled`}
             description="Full platform-wide security architecture is covered on the security page — this is what governance specifically means inside this module."
           />
-          <div className="mt-10">
-            <LabeledItemGrid items={landingModule.governance} />
-          </div>
+          <Reveal group>
+            <div className="mt-10">
+              <LabeledItemGrid items={landingModule.governance} reveal />
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
       {/* Implementation considerations */}
       <Section tone="page">
         <Container>
-          <Grid columns={2} gap={10} className="items-start">
-            <SectionHeader eyebrow="Getting live" title="What to plan for" className="max-w-none" />
-            <Checklist items={landingModule.implementationConsiderations} />
-          </Grid>
+          <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
+            <Reveal group className="contents">
+              <div data-reveal-item>
+                <SectionHeader eyebrow="Getting live" title="What to plan for" className="max-w-none" />
+              </div>
+              <Checklist items={landingModule.implementationConsiderations} />
+            </Reveal>
+          </div>
         </Container>
       </Section>
 
@@ -221,7 +244,9 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Straight answers" title={`Questions buyers ask about ${landingModule.name}`} />
-            <FaqAccordion items={landingModule.faqs} className="mt-10 max-w-[820px]" />
+            <Reveal group>
+              <FaqAccordion items={landingModule.faqs} className="mt-10 max-w-[820px]" />
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -249,7 +274,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       {/* Final CTA */}
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               {landingModule.conversion.heading}
             </Heading>
@@ -260,7 +285,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
                 </TrackedCtaLink>
               </Inline>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

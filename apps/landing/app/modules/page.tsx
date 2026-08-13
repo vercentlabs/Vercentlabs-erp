@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { MODULES_INDEX_PAGE, MODULE_NAV_GROUPS, LANDING_MODULES, getLandingModule } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Stack, Inline, Grid } from "@/components/layout/container";
+import { Container, Section, SectionHeader, Inline, Grid } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { InformationBand, BorderedPanel } from "@/components/ui/card";
 import { ModuleTag } from "@/components/ui/tag";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { CollectionHero } from "@/components/shared/collection-hero";
 import { DirectDefinition } from "@/components/modules/direct-definition";
+import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
@@ -38,33 +40,26 @@ export default function ModulesIndexPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={[{ name: "Modules", path: "/modules" }]} />
             </Container>
           </Section>
 
-          <Section tone="page" paddingTop={{ base: 8, sm: 10 }} className="flex flex-1 items-center">
-            <Container>
-              <Stack gap={5} className="max-w-[760px]">
-                <Text variant="eyebrow">{MODULES_INDEX_PAGE.eyebrow}</Text>
-                <Heading level="display" as="h1">
-                  {MODULES_INDEX_PAGE.heading}
-                </Heading>
-                <Text variant="lead">{MODULES_INDEX_PAGE.supportingText}</Text>
-                <div>
-                  <TrackedCtaLink href={MODULES_INDEX_PAGE.primaryCta.href} event="platform_cta_click" ctaLocation="modules_index_hero">
-                    {MODULES_INDEX_PAGE.primaryCta.label}
-                  </TrackedCtaLink>
-                </div>
-              </Stack>
-            </Container>
-          </Section>
+          <CollectionHero
+            eyebrow={MODULES_INDEX_PAGE.eyebrow}
+            heading={MODULES_INDEX_PAGE.heading}
+            supportingText={MODULES_INDEX_PAGE.supportingText}
+            listLabel="Connected modules"
+            items={LANDING_MODULES.map((moduleInfo) => ({ label: moduleInfo.name, meta: moduleInfo.navGroup }))}
+          />
         </div>
       </TrackView>
 
-      <DirectDefinition definition={MODULES_INDEX_PAGE.directDefinition} />
+      <Reveal>
+        <DirectDefinition definition={MODULES_INDEX_PAGE.directDefinition} />
+      </Reveal>
 
       {/* Category-grouped module list */}
       <Section tone="page">
@@ -72,14 +67,14 @@ export default function ModulesIndexPage() {
           <SectionHeader eyebrow="The complete map" title="Twelve modules, five operational categories." description="Grouped the way your teams actually think about the business — not by internal engineering structure." />
           <div className="mt-10 flex flex-col">
             {MODULE_NAV_GROUPS.map((group) => (
-              <div key={group.key} className="border-t border-(--color-border-default) py-8 first:border-t-0 first:pt-0">
+              <Reveal key={group.key} group className="block border-t border-(--color-border-default) py-8 first:border-t-0 first:pt-0">
                 <Text variant="label">{group.label}</Text>
                 <div className="mt-4 flex flex-col">
-                  {group.moduleKeys.map((key) => {
+                  {group.moduleKeys.map((key, index) => {
                     const moduleInfo = getLandingModule(key);
                     if (!moduleInfo) return null;
                     return (
-                      <InformationBand key={key}>
+                      <InformationBand key={key} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
                         <div className="sm:w-2/5">
                           <Link href={`/modules/${moduleInfo.key}`} prefetch={false}>
                             <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
@@ -107,7 +102,7 @@ export default function ModulesIndexPage() {
                     );
                   })}
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </Container>
@@ -117,34 +112,36 @@ export default function ModulesIndexPage() {
       <Section tone="subtle">
         <Container>
           <SectionHeader eyebrow="Adopt what you need" title="Real operating stacks, not a generic bundle." description="Module access is entitlement-gated per organisation — start with the modules your operation actually needs." />
-          <Grid columns={2} gap={6} className="mt-10">
-            {MODULES_INDEX_PAGE.operatingStacks.map((stack) => (
-              <BorderedPanel key={stack.id}>
-                <Heading level="h3">{stack.name}</Heading>
-                <Text variant="bodySmall" className="mt-2">
-                  {stack.description}
-                </Text>
-                <Inline gap={2} className="mt-4 flex-wrap">
-                  {stack.moduleKeys.map((key) => {
-                    const moduleInfo = getLandingModule(key);
-                    if (!moduleInfo) return null;
-                    return (
-                      <Link key={key} href={`/modules/${key}`} prefetch={false}>
-                        <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
-                      </Link>
-                    );
-                  })}
-                </Inline>
-              </BorderedPanel>
-            ))}
-          </Grid>
+          <Reveal group>
+            <Grid columns={2} gap={6} className="mt-10" reveal>
+              {MODULES_INDEX_PAGE.operatingStacks.map((stack) => (
+                <BorderedPanel key={stack.id}>
+                  <Heading level="h3">{stack.name}</Heading>
+                  <Text variant="bodySmall" className="mt-2">
+                    {stack.description}
+                  </Text>
+                  <Inline gap={2} className="mt-4 flex-wrap">
+                    {stack.moduleKeys.map((key) => {
+                      const moduleInfo = getLandingModule(key);
+                      if (!moduleInfo) return null;
+                      return (
+                        <Link key={key} href={`/modules/${key}`} prefetch={false}>
+                          <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
+                        </Link>
+                      );
+                    })}
+                  </Inline>
+                </BorderedPanel>
+              ))}
+            </Grid>
+          </Reveal>
         </Container>
       </Section>
 
       {/* Final CTA */}
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               See which modules fit your operation.
             </Heading>
@@ -153,7 +150,7 @@ export default function ModulesIndexPage() {
                 {MODULES_INDEX_PAGE.primaryCta.label}
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

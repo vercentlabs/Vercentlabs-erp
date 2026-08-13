@@ -14,10 +14,10 @@ Each surface scored 1 (weak) – 5 (strong) on: **Message clarity**, **Buyer rel
 - **Message clarity (5):** "The ERP for businesses that outgrew spreadsheets." — a specific, falsifiable positioning statement, not generic "all-in-one platform" copy. **OBSERVED**, `homepage.js:24`.
 - **Buyer relevance (4):** Names a real trigger (outgrowing spreadsheets) that matches the ICP research's documented buyer moment.
 - **Proof (4):** 4 real stat tiles (12 connected modules, 1,039 implemented capabilities, multi-company, role-based) — all traceable to real, settled product facts (per `product-intelligence.md`), not invented numbers.
-- **CTA clarity (5):** One primary ("Book a Product Demo") + one secondary ("Explore the Platform") — exactly two choices, clearly differentiated by commitment level.
+- **CTA clarity (5):** One primary ("Book a Demo") + one secondary ("Explore the Platform") — exactly two choices, clearly differentiated by commitment level.
 - **CTA competition (5 = low competition, good):** Only 2 CTAs in the hero, no visual competition.
 - **Mobile usability:** Verified via `tests/e2e/mobile-conversion.spec.ts` — no horizontal overflow, correct target sizing across 320-412px.
-- **Next-step expectation (4):** "Book a Product Demo" clearly implies a scheduled call, not a vague "Get Started."
+- **Next-step expectation (4):** "Book a Demo" clearly implies a scheduled call, not a vague "Get Started."
 
 ### Homepage final CTA
 - **Message clarity (4):** "See how your operations would run in one connected system." — reframes the demo as operationally concrete rather than generic.

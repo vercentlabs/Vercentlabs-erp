@@ -78,7 +78,7 @@
 **Decision:** Single-step demo form (name, work email, company, phone required; segment/interest fields optional), no multi-step wizard.
 **Evidence:** [[conversion-architecture]] — mid-market B2B buyers measurably abandon multi-step forms at a higher rate; qualification is deferred to sales follow-up rather than form gating.
 **Alternatives considered:** a multi-step qualification wizard (company size → module interest → budget → contact info) common on some enterprise SaaS sites.
-**Reason selected:** the primary conversion action is explicitly "Book a Product Demo," not "complete a qualification survey" — friction at this step directly opposes the stated core business objective.
+**Reason selected:** the primary conversion action is explicitly "Book a Demo," not "complete a qualification survey" — friction at this step directly opposes the stated core business objective.
 **Risks:** sales may receive some lower-quality leads that a wizard would have filtered.
 **Mitigation:** optional qualification fields (company size band, module of interest, current tools) still capture useful signal without gating submission; pre-fill from referring page context (e.g. arriving from `/modules/manufacturing`) recovers some qualification value for free.
 

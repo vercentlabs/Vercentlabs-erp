@@ -56,7 +56,7 @@ test("no PII appears in any analytics event payload across a full demo-form subm
   await page.getByLabel("What are you most interested in?").selectOption({ label: "CRM & Sales" });
   await page.getByLabel(/I agree to be contacted/i).check();
 
-  await page.getByRole("button", { name: "Book a Product Demo" }).click();
+  await page.getByRole("button", { name: "Book a Demo" }).click();
   await page.waitForURL(/\/book-demo\/thank-you/);
 
   const capturedEvents = await page.evaluate(() => (window as unknown as { __capturedAnalyticsEvents: unknown[] }).__capturedAnalyticsEvents);
@@ -85,7 +85,7 @@ test("analytics payloads contain no PII even on a validation error", async ({ pa
   await page.getByLabel("Work email").fill(PII.email);
   await page.getByLabel("First name").fill(PII.firstName);
   // Deliberately leave required fields (phone, company, consent) empty to trigger validation errors.
-  await page.getByRole("button", { name: "Book a Product Demo" }).click();
+  await page.getByRole("button", { name: "Book a Demo" }).click();
   // "One field needs attention" (singular) vs "N fields need attention" (plural, no S) — match both.
   await expect(page.getByText(/attention below/i)).toBeVisible();
 

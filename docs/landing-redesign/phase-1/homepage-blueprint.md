@@ -12,7 +12,7 @@
 7. **What outcomes can buyers expect?** Stated in operational terms tied to real capability, never invented percentages — e.g. "see production cost as it happens, not at month-end," not "40% faster close."
 8. **How is risk reduced?** A dedicated, specific security section and a named implementation methodology, not vague trust badges.
 9. **How is implementation handled?** Addressed honestly and specifically enough to counter the category's #1 objection ("ERPs fail to implement") — full detail lives on `/implementation`, the homepage gives the confidence-building summary.
-10. **What should the visitor do next?** Book a Product Demo (primary), or self-route into their module/industry via the module-architecture and industry sections (secondary).
+10. **What should the visitor do next?** Book a Demo (primary), or self-route into their module/industry via the module-architecture and industry sections (secondary).
 
 ## Section sequence
 

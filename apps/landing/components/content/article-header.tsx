@@ -25,7 +25,12 @@ export function ArticleHeader({
   className?: string;
 }) {
   return (
-    <Section tone="page" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 0 }} className={cx("flex flex-1 flex-col justify-center", className)}>
+    <Section
+      tone="page"
+      paddingTop={{ base: 8, sm: 12 }}
+      paddingBottom={{ base: 12, sm: 16 }}
+      className={cx(className)}
+    >
       <Container>
         <Stack gap={5} className="max-w-[780px]">
           <Text variant="eyebrow">{eyebrow}</Text>

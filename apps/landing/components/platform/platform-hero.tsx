@@ -44,7 +44,7 @@ export function PlatformHero({
   const relatedModules = !screenshot && connectedModuleKeys ? connectedModuleKeys.map((key) => getLandingModule(key)).filter((m): m is NonNullable<typeof m> => Boolean(m)) : [];
 
   const copy = (
-    <Stack gap={5} className={screenshot ? undefined : "max-w-[720px]"}>
+    <Stack gap={5} className={screenshot ? "reveal-on-load" : "reveal-on-load max-w-[720px]"}>
       <Text variant="eyebrow">{eyebrow}</Text>
       <Heading level="display" as="h1">
         {heading}
@@ -59,26 +59,55 @@ export function PlatformHero({
   );
 
   return (
-    <Section tone="page" paddingTop={{ base: 12, sm: 16 }} className={cx("flex flex-1 flex-col justify-center", className)}>
+    <Section
+      tone="page"
+      paddingTop={{ base: 10, sm: 14 }}
+      paddingBottom={{ base: 12, sm: 16 }}
+      className={cx(className)}
+    >
       <Container>
         {screenshot ? (
-          <SplitLayout ratio="primary-wide" primary={copy} secondary={<ProductScreenshot id={screenshot.id} priority />} />
-        ) : (
-          <Stack gap={8}>
-            {copy}
-            {relatedModules.length > 0 ? (
-              <div className="border-t border-(--color-border-default) pt-6">
-                <Text variant="caption">Built into</Text>
-                <Inline gap={2} className="mt-3 flex-wrap">
-                  {relatedModules.map((moduleInfo) => (
-                    <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false}>
+          <SplitLayout
+            ratio="primary-wide"
+            primary={copy}
+            secondary={
+              <div className="reveal-on-load reveal-on-load-delay-1">
+                <ProductScreenshot id={screenshot.id} priority />
+              </div>
+            }
+          />
+        ) : relatedModules.length > 0 ? (
+          <SplitLayout
+            ratio="primary-wide"
+            primary={copy}
+            secondary={
+              <div className="reveal-on-load reveal-on-load-delay-1 border-t border-(--color-border-strong)">
+                <div className="flex items-end justify-between border-b border-(--color-border-default) py-4">
+                  <Text variant="caption">Connected modules</Text>
+                  <span className="tabular-data text-4xl font-semibold tracking-[-0.04em] text-(--color-text-primary)">
+                    {String(relatedModules.length).padStart(2, "0")}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  {relatedModules.slice(0, 6).map((moduleInfo, index) => (
+                    <Link
+                      key={moduleInfo.key}
+                      href={`/modules/${moduleInfo.key}`}
+                      prefetch={false}
+                      className="grid grid-cols-[2rem_1fr] items-center gap-3 border-b border-(--color-border-default) py-3.5"
+                    >
+                      <span className="tabular-data text-xs font-medium" style={{ color: moduleInfo.accentColor.hex }}>
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
                       <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
                     </Link>
                   ))}
-                </Inline>
+                </div>
               </div>
-            ) : null}
-          </Stack>
+            }
+          />
+        ) : (
+          copy
         )}
       </Container>
     </Section>

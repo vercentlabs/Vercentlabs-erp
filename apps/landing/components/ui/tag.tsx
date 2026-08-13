@@ -28,10 +28,21 @@ export function Tag({ children, tone = "neutral", className }: { children: React
 /** Same visual treatment as Tag — kept as a distinct export for semantic clarity at call sites. */
 export const Badge = Tag;
 
-/** A small color swatch + label used for the module accent legend (never a decorative pill). */
+/**
+ * A small color swatch + label used for the module accent legend (never a
+ * decorative pill). Always rendered inside a <Link> at every call site — the
+ * hover treatment lives here so it's free everywhere, relying on the parent
+ * anchor's native :hover propagating to this child span (no `group` class
+ * needed).
+ */
 export function ModuleTag({ name, accentColor, className }: { name: string; accentColor: string; className?: string }) {
   return (
-    <span className={cx("inline-flex items-center gap-1.5 rounded-(--radius-control) border border-(--color-border-default) px-2 py-1 text-xs font-medium text-(--color-text-primary)", className)}>
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 rounded-(--radius-control) border border-(--color-border-default) px-2 py-1 text-xs font-medium text-(--color-text-primary) transition-colors duration-(--duration-fast) ease-(--ease-standard) hover:border-(--color-border-brand) hover:bg-(--color-bg-subtle)",
+        className,
+      )}
+    >
       <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: accentColor }} aria-hidden="true" />
       {name}
     </span>

@@ -37,7 +37,7 @@ export const PRIMARY_NAV = Object.freeze([
  * ("Learn More"/"Get Started") — always name the action and, where relevant, the object.
  */
 export const CTAS = Object.freeze({
-  primary: { label: "Book a Product Demo", href: "/book-demo" },
+  primary: { label: "Book a Demo", href: "/book-demo" },
   exploreProduct: { label: "Explore the Platform", href: "/product/platform" },
   exploreModules: { label: "Explore Modules", href: "/modules" },
   watchTour: { label: "Watch Product Tour", href: "/product-tour" },
@@ -57,7 +57,7 @@ export const CTAS = Object.freeze({
 export const ANNOUNCEMENT_BANNER = Object.freeze({
   id: "launch-2026-08",
   message: "Vercentlabs ERP is live — see it running your workflows.",
-  ctaLabel: "Book a Product Demo",
+  ctaLabel: "Book a Demo",
   href: "/book-demo",
 });
 

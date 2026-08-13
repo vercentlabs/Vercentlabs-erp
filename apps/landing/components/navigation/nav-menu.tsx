@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { cx } from "@/lib/utils";
+import { useOpenTransition } from "@/components/motion/use-open-transition";
 
 interface NavMenuProps {
   label: string;
@@ -25,6 +26,7 @@ export function NavMenu({ label, children, panelClassName }: NavMenuProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
   const pathname = usePathname();
+  const { rendered, visible } = useOpenTransition(open, 120);
 
   // Close on route change without an effect: adjusting state during render (the
   // pattern React itself recommends over useEffect+setState for "reset on prop
@@ -83,7 +85,7 @@ export function NavMenu({ label, children, panelClassName }: NavMenuProps) {
           <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {open ? (
+      {rendered ? (
         <div
           id={panelId}
           ref={panelRef}
@@ -92,8 +94,12 @@ export function NavMenu({ label, children, panelClassName }: NavMenuProps) {
           className={cx(
             // Centered under the trigger (not left-anchored) so wide panels like
             // the Modules mega menu don't overflow the viewport when their
-            // trigger isn't near the left edge of the header.
-            "absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-5 shadow-(--shadow-panel)",
+            // trigger isn't near the left edge of the header. Tailwind composes
+            // translate-x/translate-y into one transform, so the entrance
+            // translate-y coexists with this centering translate-x.
+            "absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-5 shadow-(--shadow-panel) transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-standard)",
+            visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
+            !visible && "pointer-events-none",
             panelClassName,
           )}
         >

@@ -53,7 +53,7 @@ export const LANDING_INDUSTRIES = Object.freeze([
     ],
     metaDescription: "See how Vercentlabs ERP runs manufacturing operations: BOM-driven work orders, real-time stock movements, quality holds, and procurement synchronised with production — not a paper tracker beside a separate inventory system.",
     searchIntent: "manufacturing ERP software",
-    conversion: { heading: "See your BOM become a costed, stock-linked work order.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See your BOM become a costed, stock-linked work order.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "distribution",
@@ -92,7 +92,7 @@ export const LANDING_INDUSTRIES = Object.freeze([
     ],
     metaDescription: "Vercentlabs ERP gives distributors one real-time stock number across every warehouse, procurement driven by live inventory data, and 2/3/4-way matching that gates AP posting on unresolved variance.",
     searchIntent: "distribution management system",
-    conversion: { heading: "See one real stock number across every warehouse you run.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See one real stock number across every warehouse you run.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "retail",
@@ -131,7 +131,7 @@ export const LANDING_INDUSTRIES = Object.freeze([
     ],
     metaDescription: "Vercentlabs Point of Sale deducts real inventory in the same transaction as checkout, enforces one open shift per terminal, and computes cash variance automatically — no nightly stock sync required.",
     searchIntent: "retail ERP with POS",
-    conversion: { heading: "See a checkout deduct real inventory in real time.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See a checkout deduct real inventory in real time.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "professional-services",
@@ -170,7 +170,7 @@ export const LANDING_INDUSTRIES = Object.freeze([
     ],
     metaDescription: "Vercentlabs Projects computes live gross margin from approved labor, expenses, and procurement actuals against contracted revenue — see project profitability before the project ends, not after.",
     searchIntent: "ERP for professional services",
-    conversion: { heading: "See project profitability before the project ends.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See project profitability before the project ends.", ctaLabel: "Book a Demo" },
   },
 ]);
 

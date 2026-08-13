@@ -11,6 +11,7 @@ import { TableOfContents } from "@/components/content/table-of-contents";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
@@ -87,7 +88,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -102,19 +103,27 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
         <Container>
           <SidebarLayout
             content={
-              <Stack gap={10} className="max-w-[70ch]">
-                <KeyTakeaways items={guide.keyTakeaways} />
-                {guide.sections.map((section) => (
-                  <div key={section.id} id={section.id} className="scroll-mt-24 flex flex-col gap-3">
-                    <Heading level="h2">{section.heading}</Heading>
-                    {section.paragraphs.map((paragraph, index) => (
-                      <Text key={index} variant="body">
-                        {paragraph}
-                      </Text>
-                    ))}
-                  </div>
-                ))}
-              </Stack>
+              <Reveal group>
+                <Stack gap={10} className="max-w-[70ch]">
+                  <KeyTakeaways items={guide.keyTakeaways} />
+                  {guide.sections.map((section, sectionIndex) => (
+                    <div
+                      key={section.id}
+                      id={section.id}
+                      className="scroll-mt-24 flex flex-col gap-3"
+                      data-reveal-item
+                      style={{ transitionDelay: `${Math.min(sectionIndex, 4) * 60}ms` }}
+                    >
+                      <Heading level="h2">{section.heading}</Heading>
+                      {section.paragraphs.map((paragraph, index) => (
+                        <Text key={index} variant="body">
+                          {paragraph}
+                        </Text>
+                      ))}
+                    </div>
+                  ))}
+                </Stack>
+              </Reveal>
             }
             sidebar={
               <div className="sticky top-24 flex flex-col gap-8">
@@ -145,13 +154,22 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Where this lives" title="Related workflow" />
-            <Inline gap={4} className="mt-6 flex-wrap">
-              {relatedWorkflows.map((workflow) => (
-                <Link key={workflow.slug} href={`/workflows/${workflow.slug}`} prefetch={false} className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4">
-                  {workflow.name} workflow →
-                </Link>
-              ))}
-            </Inline>
+            <Reveal group>
+              <Inline gap={4} className="mt-6 flex-wrap">
+                {relatedWorkflows.map((workflow, index) => (
+                  <Link
+                    key={workflow.slug}
+                    href={`/workflows/${workflow.slug}`}
+                    prefetch={false}
+                    className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
+                    data-reveal-item
+                    style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
+                  >
+                    {workflow.name} workflow →
+                  </Link>
+                ))}
+              </Inline>
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -159,7 +177,9 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Straight answers" title="Questions buyers ask" />
-          <FaqAccordion items={guide.faqs} className="mt-10 max-w-[820px]" />
+          <Reveal group>
+            <FaqAccordion items={guide.faqs} className="mt-10 max-w-[820px]" />
+          </Reveal>
         </Container>
       </Section>
 
@@ -181,7 +201,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
 
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               {guide.conversion.heading}
             </Heading>
@@ -190,7 +210,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
                 {guide.conversion.ctaLabel}
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { VERCENTLABS_VS_ODOO } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Stack } from "@/components/layout/container";
+import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DirectDefinition } from "@/components/modules/direct-definition";
 import { ContextualCta } from "@/components/shared/contextual-cta";
+import { CollectionHero } from "@/components/shared/collection-hero";
+import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
@@ -35,44 +37,42 @@ export default function CompareIndexPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
             </Container>
           </Section>
 
-          <Section tone="page" paddingTop={{ base: 10, sm: 12 }} className="flex flex-1 items-center">
-            <Container>
-              <Stack gap={5} className="max-w-[780px]">
-                <Text variant="eyebrow">Compare</Text>
-                <Heading level="display" as="h1">
-                  Compare Vercentlabs
-                </Heading>
-                <Text variant="lead">
-                  Every comparison here is built from real, live-verified sources — never &ldquo;Vercentlabs is better,&rdquo; always where each platform may actually be the stronger fit.
-                </Text>
-              </Stack>
-            </Container>
-          </Section>
+          <CollectionHero
+            eyebrow="Compare"
+            heading="Compare Vercentlabs"
+            supportingText="Evidence-led comparisons that show where each platform may be the stronger fit, with every material claim sourced and dated."
+            listLabel="Live comparisons"
+            items={[{ label: `Vercentlabs vs. ${VERCENTLABS_VS_ODOO.competitor}`, meta: "Evidence checked" }]}
+          />
         </div>
       </TrackView>
 
-      <DirectDefinition definition="This page indexes Vercentlabs' evidence-based ERP comparisons — currently one, against Odoo, with more added only where real intent, verifiable evidence, and a maintainable difference exist. See docs/landing-redesign/phase-6/comparison-policy.md for the standard every comparison here has to clear." />
+      <Reveal>
+        <DirectDefinition definition="This page indexes Vercentlabs' evidence-based ERP comparisons — currently one, against Odoo, with more added only where real intent, verifiable evidence, and a maintainable difference exist. See docs/landing-redesign/phase-6/comparison-policy.md for the standard every comparison here has to clear." />
+      </Reveal>
 
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Comparisons" title="1 comparison" />
-          <div className="mt-8 flex flex-col divide-y divide-(--color-border-default) border-t border-(--color-border-default)">
-            <Link href={`/compare/${VERCENTLABS_VS_ODOO.slug}`} prefetch={false} className="group py-6">
-              <Heading level="h3" className="group-hover:text-(--color-text-brand)">
-                Vercentlabs vs. {VERCENTLABS_VS_ODOO.competitor}
-              </Heading>
-              <Text variant="body" className="mt-2 max-w-[70ch]">
-                {VERCENTLABS_VS_ODOO.directAnswer}
-              </Text>
-            </Link>
-          </div>
+          <Reveal>
+            <div className="mt-8 flex flex-col divide-y divide-(--color-border-default) border-t border-(--color-border-default)">
+              <Link href={`/compare/${VERCENTLABS_VS_ODOO.slug}`} prefetch={false} className="group py-6">
+                <Heading level="h3" className="group-hover:text-(--color-text-brand)">
+                  Vercentlabs vs. {VERCENTLABS_VS_ODOO.competitor}
+                </Heading>
+                <Text variant="body" className="mt-2 max-w-[70ch]">
+                  {VERCENTLABS_VS_ODOO.directAnswer}
+                </Text>
+              </Link>
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -85,16 +85,16 @@ export default function CompareIndexPage() {
 
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               Ready to see it running on your own data?
             </Heading>
             <div className="mt-6 flex justify-center">
               <TrackedCtaLink href="/book-demo" event="comparison_cta_click" ctaLocation="compare_index_final">
-                Book a Product Demo
+                Book a Demo
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { ROUTED_WORKFLOW_SLUGS, getWorkflow } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Stack, Inline } from "@/components/layout/container";
+import { Container, Section, SectionHeader, Inline } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { InformationBand } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { CollectionHero } from "@/components/shared/collection-hero";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
+import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
@@ -38,77 +40,72 @@ export default function WorkflowsIndexPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={[{ name: "Workflows", path: "/workflows" }]} />
             </Container>
           </Section>
 
-          <Section tone="page" paddingTop={{ base: 8, sm: 10 }} className="flex flex-1 items-center">
-            <Container>
-              <Stack gap={5} className="max-w-[760px]">
-                <Text variant="eyebrow">Cross-module workflows</Text>
-                <Heading level="display" as="h1">
-                  See the real sequence, not a marketing diagram.
-                </Heading>
-                <Text variant="lead">
-                  Every workflow below is a real, cited sequence — trigger, steps, approvals, automation, and honest exceptions —
-                  not an illustrative arrow diagram.
-                </Text>
-              </Stack>
-            </Container>
-          </Section>
+          <CollectionHero
+            eyebrow="Cross-module workflows"
+            heading="See the real sequence, not a marketing diagram."
+            supportingText="Every workflow is a real sequence — trigger, steps, approvals, automation, and honest exceptions across connected modules."
+            listLabel="End-to-end flows"
+            items={workflows.map((workflow) => ({ label: workflow.name, meta: `${workflow.modules.length} modules` }))}
+          />
         </div>
       </TrackView>
 
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow="Choose a workflow" title="Six real, cross-module sequences." />
-          <div className="mt-10 flex flex-col">
-            {workflows.map((workflow) => (
-              <InformationBand key={workflow.slug}>
-                <div className="sm:w-3/5">
-                  <Link href={`/workflows/${workflow.slug}`} prefetch={false}>
-                    <Heading level="h3">{workflow.name}</Heading>
+          <Reveal group>
+            <div className="mt-10 flex flex-col">
+              {workflows.map((workflow, index) => (
+                <InformationBand key={workflow.slug} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
+                  <div className="sm:w-3/5">
+                    <Link href={`/workflows/${workflow.slug}`} prefetch={false}>
+                      <Heading level="h3">{workflow.name}</Heading>
+                    </Link>
+                    <Text variant="bodySmall" className="mt-2 max-w-[60ch]">
+                      {workflow.summary}
+                    </Text>
+                  </div>
+                  <div className="sm:w-1/5">
+                    <Text variant="caption">Modules</Text>
+                    <Text variant="bodySmall" className="mt-1">
+                      {workflow.modules.join(", ")}
+                    </Text>
+                  </div>
+                  <Link
+                    href={`/workflows/${workflow.slug}`}
+                    prefetch={false}
+                    className="flex-none text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
+                  >
+                    View workflow →
                   </Link>
-                  <Text variant="bodySmall" className="mt-2 max-w-[60ch]">
-                    {workflow.summary}
-                  </Text>
-                </div>
-                <div className="sm:w-1/5">
-                  <Text variant="caption">Modules</Text>
-                  <Text variant="bodySmall" className="mt-1">
-                    {workflow.modules.join(", ")}
-                  </Text>
-                </div>
-                <Link
-                  href={`/workflows/${workflow.slug}`}
-                  prefetch={false}
-                  className="flex-none text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                >
-                  View workflow →
-                </Link>
-              </InformationBand>
-            ))}
-          </div>
+                </InformationBand>
+              ))}
+            </div>
+          </Reveal>
         </Container>
       </Section>
 
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               See a real workflow run end to end.
             </Heading>
             <div className="mt-6 flex justify-center">
               <Inline gap={3}>
                 <TrackedCtaLink href="/book-demo" event="workflow_cta_click" ctaLocation="workflows_index_final">
-                  Book a Product Demo
+                  Book a Demo
                 </TrackedCtaLink>
               </Inline>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

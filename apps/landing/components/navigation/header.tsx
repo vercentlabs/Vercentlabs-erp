@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PRIMARY_NAV, CTAS } from "@vercentlabs/landing-content";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
@@ -9,20 +9,40 @@ import { NavMenu } from "@/components/navigation/nav-menu";
 import { ModuleMegaMenuContent } from "@/components/navigation/module-mega-menu";
 import { MobileNav } from "@/components/navigation/mobile-nav";
 import { APP_URL } from "@/lib/site";
+import { cx } from "@/lib/utils";
 
 const productItem = PRIMARY_NAV.find((item) => item.label === "Product");
 const simpleLinks = PRIMARY_NAV.filter((item) => item.label !== "Product" && item.label !== "Modules");
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Scroll-elevation via an IntersectionObserver watching a 1px sentinel
+  // (app/layout.tsx, immediately before <Header/>) — the observer idiom
+  // already established by components/analytics/track-view.tsx, not a raw
+  // scroll listener (table-of-contents.tsx explicitly rejects that approach).
+  useEffect(() => {
+    const sentinel = document.querySelector("[data-header-sentinel]");
+    if (!sentinel || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting), { threshold: 0 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   // No backdrop-filter here (e.g. backdrop-blur/backdrop-saturate): Control
   // Surface explicitly rejects glass/blur effects, and a backdrop-filter on an
   // ancestor also creates a new CSS containing block — which broke MobileNav's
   // `fixed inset-0` positioning (it collapsed to the header's own 64px height
-  // instead of the viewport). Solid background only.
+  // instead of the viewport). Solid background only — scroll state adds a
+  // shadow, never opacity/blur.
   return (
-    <header className="sticky top-0 z-50 border-b border-(--color-border-default) bg-(--color-bg-elevated)">
+    <header
+      className={cx(
+        "sticky top-0 z-50 border-b border-(--color-border-default) bg-(--color-bg-elevated) transition-shadow duration-(--duration-base) ease-(--ease-standard)",
+        scrolled ? "shadow-(--shadow-panel)" : "shadow-none",
+      )}
+    >
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-5 sm:px-6 lg:px-10">
         <Logo />
 
@@ -78,7 +98,7 @@ export function Header() {
           */}
           <div className="hidden sm:block">
             <ButtonLink href={CTAS.primary.href} size="sm">
-              {CTAS.primary.label}
+              Book a Demo
             </ButtonLink>
           </div>
 

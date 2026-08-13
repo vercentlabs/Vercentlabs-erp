@@ -44,7 +44,7 @@ Per `CLAUDE.md`'s roadmap: "5. Industry, solution, workflow, and implementation 
 4. **`ProductCallout` (in-image numbered annotations)**: built, demonstrated on `/design-system`, never applied to a real screenshot — a deliberate Phase 4 scope decision (`decision-log.md` item 10), worth picking up once more screenshots exist to annotate.
 5. **`WorkflowConnector` mobile polish**: the horizontal-to-mobile fallback leaves a trailing line artifact instead of a clean connector between steps — minor, but this component will likely see even more use on workflow pages specifically, so worth fixing before it's the primary visual on 6 new pages.
 6. **Per-page freshness signal**: `sitemap.ts` currently reuses one global `lastReviewed` date across all 22+ entries. A per-page (or per-content-file) `lastReviewed` field would give search engines and buyers a more honest freshness signal — worth introducing as part of whatever content model Phase 5 builds for industry/workflow pages, so it doesn't have to be retrofitted a third time.
-7. **Header CTA analytics gap**: the header's primary "Book a Product Demo" button still uses a plain link, not the tracked variant, so its click-through is unmeasurable — pre-existing since Phase 2, low urgency, but worth a one-line fix whenever the header is next touched.
+7. **Header CTA analytics gap**: the header's primary "Book a Demo" button still uses a plain link, not the tracked variant, so its click-through is unmeasurable — pre-existing since Phase 2, low urgency, but worth a one-line fix whenever the header is next touched.
 
 ## Definition of done for Phase 5
 

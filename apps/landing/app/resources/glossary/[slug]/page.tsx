@@ -10,6 +10,7 @@ import { ArticleHeader } from "@/components/content/article-header";
 import { DefinitionBlock } from "@/components/content/definition-block";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
@@ -74,7 +75,7 @@ export default async function GlossaryTermPage({ params }: { params: Promise<{ s
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -87,47 +88,49 @@ export default async function GlossaryTermPage({ params }: { params: Promise<{ s
 
       <Section tone="page">
         <Container>
-          <Stack gap={10} className="max-w-[820px]">
-            <DefinitionBlock term={entry.term} definition={entry.definition} />
+          <Reveal>
+            <Stack gap={10} className="max-w-[820px]">
+              <DefinitionBlock term={entry.term} definition={entry.definition} />
 
-            <Stack gap={3}>
-              <Heading level="h2">Why it matters</Heading>
-              <Text variant="body">{entry.whyItMatters}</Text>
-            </Stack>
+              <Stack gap={3}>
+                <Heading level="h2">Why it matters</Heading>
+                <Text variant="body">{entry.whyItMatters}</Text>
+              </Stack>
 
-            <Stack gap={3}>
-              <Heading level="h2">How it works</Heading>
-              <Text variant="body">{entry.howItWorks}</Text>
-            </Stack>
+              <Stack gap={3}>
+                <Heading level="h2">How it works</Heading>
+                <Text variant="body">{entry.howItWorks}</Text>
+              </Stack>
 
-            <Stack gap={3}>
-              <Heading level="h2">Example</Heading>
-              <Text variant="body">{entry.example}</Text>
-            </Stack>
+              <Stack gap={3}>
+                <Heading level="h2">Example</Heading>
+                <Text variant="body">{entry.example}</Text>
+              </Stack>
 
-            <BorderedPanel>
-              <Text variant="label">How Vercentlabs handles it</Text>
-              <Text variant="body" className="mt-2">
-                {entry.vercentlabsHandling}
-              </Text>
-              <Inline gap={2} className="mt-4 flex-wrap">
-                {relatedModules.map((moduleInfo) => (
-                  <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false}>
-                    <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
+              <BorderedPanel>
+                <Text variant="label">How Vercentlabs handles it</Text>
+                <Text variant="body" className="mt-2">
+                  {entry.vercentlabsHandling}
+                </Text>
+                <Inline gap={2} className="mt-4 flex-wrap">
+                  {relatedModules.map((moduleInfo) => (
+                    <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false}>
+                      <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
+                    </Link>
+                  ))}
+                </Inline>
+                {relatedWorkflow ? (
+                  <Link
+                    href={`/workflows/${relatedWorkflow.slug}`}
+                    prefetch={false}
+                    className="mt-4 inline-block text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
+                  >
+                    See the {relatedWorkflow.name} workflow →
                   </Link>
-                ))}
-              </Inline>
-              {relatedWorkflow ? (
-                <Link
-                  href={`/workflows/${relatedWorkflow.slug}`}
-                  prefetch={false}
-                  className="mt-4 inline-block text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                >
-                  See the {relatedWorkflow.name} workflow →
-                </Link>
-              ) : null}
-            </BorderedPanel>
-          </Stack>
+                ) : null}
+              </BorderedPanel>
+            </Stack>
+          </Reveal>
         </Container>
       </Section>
 
@@ -135,18 +138,22 @@ export default async function GlossaryTermPage({ params }: { params: Promise<{ s
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Keep exploring" title="Related terms" />
-            <Inline gap={4} className="mt-6 flex-wrap">
-              {relatedTermEntries.map((related) => (
-                <Link
-                  key={related.slug}
-                  href={`/resources/glossary/${related.slug}`}
-                  prefetch={false}
-                  className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                >
-                  {related.term} →
-                </Link>
-              ))}
-            </Inline>
+            <Reveal group>
+              <Inline gap={4} className="mt-6 flex-wrap">
+                {relatedTermEntries.map((related, index) => (
+                  <Link
+                    key={related.slug}
+                    href={`/resources/glossary/${related.slug}`}
+                    prefetch={false}
+                    className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
+                    data-reveal-item
+                    style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
+                  >
+                    {related.term} →
+                  </Link>
+                ))}
+              </Inline>
+            </Reveal>
           </Container>
         </Section>
       ) : null}

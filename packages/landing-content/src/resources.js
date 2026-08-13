@@ -80,7 +80,7 @@ export const RESOURCE_GUIDES = Object.freeze([
     relatedResourceSlugs: ["erp-requirements-checklist", "erp-implementation-checklist", "erp-vs-spreadsheets"],
     metaDescription: "A vendor-neutral ERP buying guide: how to evaluate ERP software based on real operational pain, which modules to implement first, and the questions worth asking any vendor.",
     searchIntent: "how to choose ERP software",
-    conversion: { heading: "See whether Vercentlabs fits the framework above.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See whether Vercentlabs fits the framework above.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "erp-requirements-checklist",
@@ -112,7 +112,7 @@ export const RESOURCE_GUIDES = Object.freeze([
     relatedResourceSlugs: ["erp-buying-guide", "erp-implementation-checklist"],
     metaDescription: "A structured, filterable ERP requirements checklist covering 1,039 real requirements across 12 modules and a shared platform layer — no login required, nothing transmitted.",
     searchIntent: "ERP requirements checklist",
-    conversion: { heading: "See the checklist items you cared about most, live in the product.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See the checklist items you cared about most, live in the product.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "erp-implementation-checklist",
@@ -281,7 +281,7 @@ export const RESOURCE_GUIDES = Object.freeze([
     relatedResourceSlugs: ["erp-vs-spreadsheets", "erp-buying-guide"],
     metaDescription: "What manufacturing ERP actually needs to cover — bills of materials, work order release gating, material requirements planning — and how Vercentlabs implements each piece, honestly.",
     searchIntent: "manufacturing ERP software",
-    conversion: { heading: "See real bill-of-materials and work-order governance in a live demo.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See real bill-of-materials and work-order governance in a live demo.", ctaLabel: "Book a Demo" },
   },
   {
     slug: "erp-vs-spreadsheets",
@@ -332,7 +332,7 @@ export const RESOURCE_GUIDES = Object.freeze([
     relatedResourceSlugs: ["erp-buying-guide", "manufacturing-erp-guide"],
     metaDescription: "A nuanced comparison of ERP and spreadsheets — where spreadsheets remain the right tool, where they genuinely break down, and the concrete questions worth asking before deciding.",
     searchIntent: "ERP vs spreadsheets",
-    conversion: { heading: "See what replaces your spreadsheet processes in Vercentlabs.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See what replaces your spreadsheet processes in Vercentlabs.", ctaLabel: "Book a Demo" },
   },
 ]);
 

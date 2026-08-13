@@ -6,7 +6,7 @@ Single source of truth: `packages/landing-content/src/homepage.js` (plain JS + h
 
 | # | Section (`id`) | Purpose | Key content |
 |---|---|---|---|
-| 1 | `hero` | First-screen orientation + primary conversion | Eyebrow naming the audience ("manufacturers and distributors"), headline, sub-head, primary CTA (Book a Product Demo → `/book-demo`), secondary CTA (Explore the Platform → `/product/platform`), 4 evidence metrics (12 modules / 1,039 capabilities / multi-company / role-based), real screenshot (`crm-pipeline-board`) |
+| 1 | `hero` | First-screen orientation + primary conversion | Eyebrow naming the audience ("manufacturers and distributors"), headline, sub-head, primary CTA (Book a Demo → `/book-demo`), secondary CTA (Explore the Platform → `/product/platform`), 4 evidence metrics (12 modules / 1,039 capabilities / multi-company / role-based), real screenshot (`crm-pipeline-board`) |
 | 2 | `problem` | Establish the cost of disconnected tools before pitching the solution | 8 pain points: duplicate data, manual reconciliation, delayed approvals, inventory uncertainty, inconsistent reporting, weak process ownership, departmental silos, limited auditability |
 | 3 | `connected-system` | Explain *why this is an ERP, not five apps with one login* | 8-step pipeline diagram (Lead → Opportunity → Quotation → Sales order → Warehouse & production → Quality → Invoice → Support), each step tagged to its owning module with the real module accent color |
 | 4 | `modules` | Show full breadth without a card-grid feature dump | 5 nav groups (Revenue, Operations, Finance, People & Service, Delivery) as full-width "information band" rows, each listing its modules as color-tagged links to `/modules/{key}` |
@@ -17,7 +17,7 @@ Single source of truth: `packages/landing-content/src/homepage.js` (plain JS + h
 | 9 | `security` | Answer the buying-committee security questions directly | Role-based access, time-bound & scoped roles, approval workflows, immutable audit trail, multi-company isolation, tenant isolation |
 | 10 | `implementation` | Set honest expectations about rollout, not just the product | 7-step rollout (discovery → configuration → data migration → validation → team training → controlled launch → post-launch support); paired with a "Talk to an ERP Specialist" CTA |
 | 11 | `buyer-questions` | Direct-answer FAQ, also serves as `FAQPage` structured data | 6 real buyer questions (multi-company support, module adoption model, workflow configurability, data migration, industry fit, access control) |
-| 12 | `final-cta` | Closing conversion moment | Single primary CTA (Book a Product Demo → `/book-demo`) |
+| 12 | `final-cta` | Closing conversion moment | Single primary CTA (Book a Demo → `/book-demo`) |
 
 ## Cross-cutting rules enforced by content tests
 

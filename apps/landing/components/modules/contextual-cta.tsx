@@ -21,7 +21,7 @@ export function ContextualCta({ moduleName, moduleSlug }: { moduleName: string; 
             Ready to see {moduleName} running on your own data?
           </Text>
           <TrackedCtaLink href={`/book-demo?module=${moduleSlug}`} event="module_mid_cta_click" ctaLocation={`module_mid_${moduleSlug}`} variant="secondary">
-            Book a Product Demo
+            Book a Demo
           </TrackedCtaLink>
         </Inline>
       </Container>

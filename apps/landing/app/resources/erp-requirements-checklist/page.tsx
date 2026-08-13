@@ -7,6 +7,7 @@ import { RequirementsChecklist, type ChecklistGroup } from "@/components/resourc
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
 import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
+import { Reveal } from "@/components/motion/reveal";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
@@ -93,7 +94,7 @@ export default function RequirementsChecklistPage() {
         {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
             remaining viewport height, so the hero neither leaves dead space
             above the next section nor requires a scroll to see all of it. */}
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+        <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
             <Container>
               <Breadcrumbs trail={breadcrumbTrail} />
@@ -106,24 +107,32 @@ export default function RequirementsChecklistPage() {
 
       <Section tone="page">
         <Container>
-          <Stack gap={4} className="max-w-[780px]">
-            {guide.sections.map((section) => (
-              <Stack key={section.id} gap={3}>
-                <Heading level="h2">{section.heading}</Heading>
-                {section.paragraphs.map((paragraph, index) => (
-                  <Text key={index} variant="body">
-                    {paragraph}
-                  </Text>
-                ))}
-              </Stack>
-            ))}
-            <Text variant="bodySmall" className="font-medium">
-              {totalRequirements} requirements across {groups.length} capability groups.
-            </Text>
-          </Stack>
+          <Reveal group>
+            <Stack gap={4} className="max-w-[780px]">
+              {guide.sections.map((section, sectionIndex) => (
+                <Stack key={section.id} gap={3} data-reveal-item style={{ transitionDelay: `${Math.min(sectionIndex, 4) * 60}ms` }}>
+                  <Heading level="h2">{section.heading}</Heading>
+                  {section.paragraphs.map((paragraph, index) => (
+                    <Text key={index} variant="body">
+                      {paragraph}
+                    </Text>
+                  ))}
+                </Stack>
+              ))}
+              <Text variant="bodySmall" className="font-medium">
+                {totalRequirements} requirements across {groups.length} capability groups.
+              </Text>
+            </Stack>
+          </Reveal>
         </Container>
       </Section>
 
+      {/* RequirementsChecklist is deliberately left without Reveal treatment:
+          it's the interactive, printable checklist (see its own print:hidden
+          rules), and globals.css has no @media print override for
+          [data-reveal]/[data-reveal-item] opacity. Wrapping it risks the
+          checklist printing invisible if a user prints before it has scrolled
+          into view and been marked revealed. */}
       <Section tone="subtle">
         <Container>
           <RequirementsChecklist groups={groups} filters={filters} />
@@ -135,7 +144,9 @@ export default function RequirementsChecklistPage() {
       <Section tone="page">
         <Container>
           <Heading level="h2">Questions buyers ask</Heading>
-          <FaqAccordion items={guide.faqs} className="mt-10 max-w-[820px]" />
+          <Reveal group>
+            <FaqAccordion items={guide.faqs} className="mt-10 max-w-[820px]" />
+          </Reveal>
         </Container>
       </Section>
 

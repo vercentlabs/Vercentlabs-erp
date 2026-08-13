@@ -50,7 +50,7 @@ Rank 4 is retained as the **homepage and top-of-funnel frame** (the platform-bre
 
 **Search behaviour:** "manufacturing ERP software", "ERP for small manufacturers India", "BOM and work order software", "manufacturing inventory management system".
 
-**Best conversion offer:** Book a Product Demo, framed around "see your BOM become a costed work order."
+**Best conversion offer:** Book a Demo, framed around "see your BOM become a costed work order."
 
 **Qualification criteria:** Has a BOM-driven production process (not pure job-shop/one-off); currently using spreadsheets or an aging point tool for at least one of production/inventory/quality.
 
@@ -84,7 +84,7 @@ Rank 4 is retained as the **homepage and top-of-funnel frame** (the platform-bre
 
 **Search behaviour:** "multi-location inventory management software", "retail ERP with POS", "distribution management system", "inventory and billing software for wholesalers".
 
-**Best conversion offer:** Book a Product Demo, framed around "one stock number across every location."
+**Best conversion offer:** Book a Demo, framed around "one stock number across every location."
 
 **Qualification criteria:** Operates 3+ locations or warehouses; currently reconciling stock/sales manually across them.
 
@@ -118,7 +118,7 @@ Rank 4 is retained as the **homepage and top-of-funnel frame** (the platform-bre
 
 **Search behaviour:** "project accounting software", "ERP for professional services", "project profitability software", "timesheet to invoice software".
 
-**Best conversion offer:** Book a Product Demo, framed around "see project profitability before the project ends."
+**Best conversion offer:** Book a Demo, framed around "see project profitability before the project ends."
 
 **Qualification criteria:** Delivers billable, budgeted projects (not purely internal work); currently disconnects project tracking from financials.
 

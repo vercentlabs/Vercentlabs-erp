@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { cx } from "@/lib/utils";
 import { getApprovedScreenshot } from "@/lib/product/screenshots";
+import { Reveal } from "@/components/motion/reveal";
 
 /**
  * Thin, plain-chrome frame — deliberately NOT a fake browser/OS window (Control
@@ -115,30 +116,52 @@ export interface WorkflowStep {
   href?: string;
 }
 
-/** Horizontal, module-coloured pipeline — the Control Surface way to show cross-module workflows. */
-export function WorkflowConnector({ steps, className }: { steps: WorkflowStep[]; className?: string }) {
-  return (
-    <ol className={cx("flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-0", className)}>
-      {steps.map((step, index) => (
-        <li key={step.label} className="flex flex-1 items-center gap-3 sm:flex-none sm:flex-col sm:items-stretch sm:gap-0">
-          <div className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-2">
+/**
+ * Horizontal, module-coloured pipeline — the Control Surface way to show
+ * cross-module workflows. Reveal remains the default, while callers rendering
+ * the connector inside another structured surface can opt out for an always-
+ * visible, motion-independent diagram.
+ */
+export function WorkflowConnector({ steps, className, reveal = true }: { steps: WorkflowStep[]; className?: string; reveal?: boolean }) {
+  // Stays stacked through tablet width so a long workflow never gets cramped.
+  const connector = (
+    <ol className={cx("flex flex-col gap-3 md:flex-row md:items-stretch md:justify-between md:gap-0", className)}>
+      {steps.map((step, index) => {
+        const delay = `${Math.min(index, 4) * 60}ms`;
+        return (
+          <li
+            key={step.label}
+            data-reveal-item={reveal ? "" : undefined}
+            style={reveal ? { transitionDelay: delay } : undefined}
+            className="flex flex-1 items-center gap-3 md:flex-none md:flex-col md:items-stretch md:gap-0"
+          >
+            <div className="flex items-center gap-3 md:flex-col md:items-start md:gap-2">
+              <span
+                className="flex h-8 w-8 flex-none items-center justify-center rounded-(--radius-control) text-xs font-semibold text-(--color-text-inverse)"
+                style={{ backgroundColor: step.accentColor }}
+                aria-hidden="true"
+              >
+                {index + 1}
+              </span>
+              <span className="text-sm font-medium text-(--color-text-primary)">{step.label}</span>
+            </div>
+            {/* Renders for every step including the last: it's a per-item marker (a row
+                divider below `md`, a small tick beside/under each node at `md` and up),
+                not a literal line connecting to the next node — so omitting it only for
+                the last step just made that one item look broken/inconsistent with its
+                siblings rather than signalling "end of chain". `wf-connector-line`
+                (globals.css) draws it in on the same delay as this item's own reveal,
+                so the node and "its" segment of line arrive together. */}
             <span
-              className="flex h-8 w-8 flex-none items-center justify-center rounded-(--radius-control) text-xs font-semibold text-(--color-text-inverse)"
-              style={{ backgroundColor: step.accentColor }}
+              className="wf-connector-line mx-2 h-px flex-1 bg-(--color-border-default) md:my-3 md:ml-4 md:h-8 md:w-px md:flex-none"
+              style={{ transitionDelay: reveal ? delay : undefined, transform: reveal ? undefined : "none" }}
               aria-hidden="true"
-            >
-              {index + 1}
-            </span>
-            <span className="text-sm font-medium text-(--color-text-primary)">{step.label}</span>
-          </div>
-          {/* Renders for every step including the last: it's a per-item marker (a row
-              divider below `sm`, a small tick beside/under each node at `sm` and up),
-              not a literal line connecting to the next node — so omitting it only for
-              the last step just made that one item look broken/inconsistent with its
-              siblings rather than signalling "end of chain". */}
-          <span className="mx-2 h-px flex-1 bg-(--color-border-default) sm:my-3 sm:ml-4 sm:h-8 sm:w-px sm:flex-none" aria-hidden="true" />
-        </li>
-      ))}
+            />
+          </li>
+        );
+      })}
     </ol>
   );
+
+  return reveal ? <Reveal group>{connector}</Reveal> : connector;
 }

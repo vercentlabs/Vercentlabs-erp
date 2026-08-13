@@ -13,6 +13,7 @@ import { TrackView } from "@/components/analytics/track-view";
 import { PlatformHero } from "@/components/platform/platform-hero";
 import { DirectDefinition } from "@/components/modules/direct-definition";
 import { jsonLdScriptProps } from "@/lib/seo/json-ld";
+import { Reveal } from "@/components/motion/reveal";
 
 /**
  * One shared template rendering any of the 6 approved platform pages
@@ -63,16 +64,20 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
         </div>
       </TrackView>
 
-      <DirectDefinition definition={content.directDefinition} />
+      <Reveal>
+        <DirectDefinition definition={content.directDefinition} />
+      </Reveal>
 
       {content.sections.map((section, index) => (
         <Section key={section.id} tone={index % 2 === 0 ? "page" : "subtle"}>
           <Container>
             <SectionHeader eyebrow={section.eyebrow} title={section.heading} description={section.supportingText} />
             {section.items.length > 0 ? (
-              <div className="mt-10">
-                <LabeledItemGrid items={section.items} />
-              </div>
+              <Reveal group>
+                <div className="mt-10">
+                  <LabeledItemGrid items={section.items} reveal />
+                </div>
+              </Reveal>
             ) : null}
           </Container>
         </Section>
@@ -80,12 +85,12 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
 
       <Section tone="elevated" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 8, sm: 10 }}>
         <Container>
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <Reveal className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-base font-medium text-(--color-text-primary)">See {content.title} running in a live demo.</p>
             <TrackedCtaLink href={content.primaryCta.href} event="platform_cta_click" ctaLocation={`platform_mid_${content.slug}`} variant="secondary">
               {content.primaryCta.label}
             </TrackedCtaLink>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 
@@ -93,7 +98,7 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
         <Section tone="page">
           <Container>
             <SectionHeader eyebrow="Where this shows up" title="Modules built on this capability" />
-            <div className="mt-6 flex flex-wrap gap-2">
+            <Reveal className="mt-6 flex flex-wrap gap-2">
               {content.connectedModuleKeys.map((key) => {
                 const moduleInfo = getLandingModule(key);
                 if (!moduleInfo) return null;
@@ -103,7 +108,7 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
                   </Link>
                 );
               })}
-            </div>
+            </Reveal>
           </Container>
         </Section>
       ) : null}
@@ -112,14 +117,16 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Straight answers" title="Questions buyers ask" />
-            <FaqAccordion items={content.faqs} className="mt-10 max-w-[820px]" />
+            <Reveal group>
+              <FaqAccordion items={content.faqs} className="mt-10 max-w-[820px]" />
+            </Reveal>
           </Container>
         </Section>
       ) : null}
 
       <Section tone="inverse">
         <Container>
-          <div className="mx-auto max-w-[640px] text-center">
+          <Reveal className="mx-auto max-w-[640px] text-center">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
               {content.finalCtaHeading}
             </Heading>
@@ -128,7 +135,7 @@ export function PlatformPageTemplate({ content, breadcrumbTrail }: { content: Pl
                 {content.primaryCta.label}
               </TrackedCtaLink>
             </div>
-          </div>
+          </Reveal>
         </Container>
       </Section>
 

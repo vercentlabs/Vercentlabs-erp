@@ -156,7 +156,7 @@ test("HOMEPAGE_SECTIONS has exactly 12 sections, each with a unique id, heading,
 
 test("hero and final CTA use the approved primary CTA destination", () => {
   assert.equal(HERO.primaryCta.href, "/book-demo");
-  assert.equal(HERO.primaryCta.label, "Book a Product Demo");
+  assert.equal(HERO.primaryCta.label, "Book a Demo");
 });
 
 test("connected-system steps reference only real module keys", () => {

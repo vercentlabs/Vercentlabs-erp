@@ -169,7 +169,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "How is customer data-privacy handled?", answer: "GDPR-style data-subject requests go through a preview-before-execute step, so a deletion or export request can be reviewed before it runs." },
     ],
     screenshots: { primary: "crm-pipeline-board", secondary: "crm-leads-list" },
-    conversion: { heading: "See how Vercentlabs CRM would manage your lead-to-opportunity process.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs CRM would manage your lead-to-opportunity process.", ctaLabel: "Book a Demo" },
   },
 
   sales: {
@@ -303,7 +303,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does confirming a Sales order automatically deduct stock?", answer: "Not today — order lines carry a warehouse reference, but standard Sales-order fulfillment does not yet post an automatic stock movement. Manufacturing and Point of Sale do post real stock movements; see the Stock module page for the honest current state." },
     ],
     screenshots: { primary: "sales-quotation-detail", secondary: "sales-order-detail" },
-    conversion: { heading: "See how Vercentlabs Sales would manage your quote-to-order process.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Sales would manage your quote-to-order process.", ctaLabel: "Book a Demo" },
   },
 
   accounting: {
@@ -450,7 +450,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     // not a stylistic one. See docs/landing-redesign/phase-4/decision-log.md).
     // Phase 5 closed the gap with a dedicated Accounting dashboard capture.
     screenshots: { primary: "accounting-dashboard" },
-    conversion: { heading: "See how Vercentlabs Accounting would run your bill-matching and close process.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Accounting would run your bill-matching and close process.", ctaLabel: "Book a Demo" },
   },
 
   procurement: {
@@ -569,7 +569,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is Procurement available on mobile?", answer: "No dedicated mobile navigation entry exists for Procurement — only a generic fallback resource list. Treat it as a desktop/browser workflow today." },
     ],
     screenshots: { primary: "procurement-orders-list" },
-    conversion: { heading: "See how Vercentlabs Procurement would run your requisition-to-payment chain.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Procurement would run your requisition-to-payment chain.", ctaLabel: "Book a Demo" },
   },
 
   stock: {
@@ -682,7 +682,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is Stock accessible on mobile?", answer: "No — Stock has zero entries in the mobile navigation today. It's a desktop/browser workflow." },
     ],
     screenshots: { primary: "stock-overview" },
-    conversion: { heading: "See how Vercentlabs Stock would run your warehouse and inventory ledger.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Stock would run your warehouse and inventory ledger.", ctaLabel: "Book a Demo" },
   },
 
   manufacturing: {
@@ -803,7 +803,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is there a scheduler that runs MRP automatically?", answer: "No — planning runs are triggered manually and produce recommended actions; there is no background scheduler running them on a cadence today." },
     ],
     screenshots: { primary: "manufacturing-dashboard" },
-    conversion: { heading: "See how Vercentlabs Manufacturing would run your demand-to-production process.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Manufacturing would run your demand-to-production process.", ctaLabel: "Book a Demo" },
   },
 
   projects: {
@@ -919,7 +919,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is there a mobile app for logging project time in the field?", answer: "Not today — Projects has no native mobile presence, which is a real gap for field-based time entry. Time tracking is a browser workflow." },
     ],
     screenshots: { primary: "projects-dashboard" },
-    conversion: { heading: "See how Vercentlabs Projects would track your delivery and profitability.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Projects would track your delivery and profitability.", ctaLabel: "Book a Demo" },
   },
 
   assets: {
@@ -1040,7 +1040,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is the Assets module connected to Accounting's fixed-asset depreciation?", answer: "Identity fields align but the two are not foreign-key joined — they're independent data models. Don't assume a single unified capitalization-to-depreciation pipeline." },
     ],
     screenshots: { primary: "assets-dashboard" },
-    conversion: { heading: "See how Vercentlabs Assets would govern your equipment lifecycle.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Assets would govern your equipment lifecycle.", ctaLabel: "Book a Demo" },
   },
 
   "point-of-sale": {
@@ -1150,7 +1150,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is Point of Sale available on a mobile phone?", answer: "No — Point of Sale is explicitly excluded from the mobile module catalog. It's a desktop/terminal workflow." },
     ],
     screenshots: { primary: "point-of-sale-dashboard" },
-    conversion: { heading: "See how Vercentlabs Point of Sale would connect checkout to your live inventory.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Point of Sale would connect checkout to your live inventory.", ctaLabel: "Book a Demo" },
   },
 
   quality: {
@@ -1270,7 +1270,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Does Quality only cover incoming receiving?", answer: "No — quality plans are typed by stage and span incoming, in-process manufacturing, final inspection, stock audits, supplier quality, and customer returns. It's a genuine cross-module framework, not a receiving-only checklist." },
     ],
     screenshots: { primary: "quality-dashboard" },
-    conversion: { heading: "See how Vercentlabs Quality would govern inspection and release across your operations.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Quality would govern inspection and release across your operations.", ctaLabel: "Book a Demo" },
   },
 
   support: {
@@ -1389,7 +1389,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is escalation fully automated?", answer: "Not yet — the escalation data model exists, but automated escalation triggering has not been found in the codebase. Treat escalation tracking as a schema-ready, not fully automated, capability today." },
     ],
     screenshots: { primary: "support-dashboard" },
-    conversion: { heading: "See how Vercentlabs Support would connect tickets to your customer's commercial history.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs Support would connect tickets to your customer's commercial history.", ctaLabel: "Book a Demo" },
   },
 
   "hr-payroll": {
@@ -1502,7 +1502,7 @@ const MODULE_ENRICHMENT = Object.freeze({
       { question: "Is HR & Payroll accessible on mobile?", answer: "No — it's cataloged in the platform's module list but explicitly excluded from the enabled mobile modules, alongside Stock, as one of the two notable mobile-access gaps." },
     ],
     screenshots: { primary: "hr-payroll-dashboard" },
-    conversion: { heading: "See how Vercentlabs HR & Payroll would run your attendance-to-payroll process.", ctaLabel: "Book a Product Demo" },
+    conversion: { heading: "See how Vercentlabs HR & Payroll would run your attendance-to-payroll process.", ctaLabel: "Book a Demo" },
   },
 });
 
