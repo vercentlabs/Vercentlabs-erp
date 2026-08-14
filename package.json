@@ -2,9 +2,10 @@
   "name": "vercentlabs-erp",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "pnpm@11.21.0",
   "scripts": {
     "start": "node server.js",
+    "build": "corepack pnpm build:landing",
     "dev": "corepack pnpm --parallel --filter @vercentlabs/landing --filter @vercentlabs/web dev",
     "dev:mobile": "corepack pnpm --filter @vercentlabs/mobile dev",
     "dev:landing": "corepack pnpm --filter @vercentlabs/landing dev",
@@ -59,6 +60,6 @@
   },
   "engines": {
     "node": ">=24 <25",
-    "pnpm": "11.17.0"
+    "pnpm": "11.21.0"
   }
 }

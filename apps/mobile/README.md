@@ -8,7 +8,7 @@ with Expo SDK 57, Expo Router, strict TypeScript and the versioned
 
 ## Local setup
 
-1. Use Node 24 and pnpm 11.17.0.
+1. Use Node 24 and pnpm 11.21.0.
 2. Copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and set the
    public API origin.
 3. Complete the root web setup and start the authenticated application on an
