@@ -18,6 +18,7 @@ declare global {
   interface Window {
     dataLayer?: unknown[];
     gtag?: (...args: GtagArgs) => void;
+    __vercentlabsGa4Configured?: boolean;
   }
 }
 
@@ -34,7 +35,7 @@ function persistConsent(choice: Exclude<ConsentChoice, null>) {
   try {
     window.localStorage.setItem(CONSENT_KEY, choice);
   } catch {
-    // If storage is unavailable, the choice simply lasts for this page load.
+    // If storage is unavailable, the choice lasts for this page session only.
   }
 }
 
@@ -54,50 +55,42 @@ function toGaParameters(properties?: SafeAnalyticsProperties): Record<string, st
   if (!properties) return {};
 
   const result: Record<string, string | number> = {};
-
   for (const [key, value] of Object.entries(properties)) {
     if (typeof value !== "string" && typeof value !== "number") continue;
-
     const snakeCaseKey = key.replace(/[A-Z]/g, (character) => `_${character.toLowerCase()}`);
     result[snakeCaseKey] = value;
   }
-
   return result;
 }
 
+/**
+ * Use Google's canonical gtag queue shape. Google documents this as
+ * `function gtag(){dataLayer.push(arguments);}`. The previous adapter pushed a
+ * rest-parameter Array instead of the function's `arguments` object.
+ */
 function prepareGtag() {
   window.dataLayer = window.dataLayer ?? [];
 
-  window.gtag =
-    window.gtag ??
-    ((...args: GtagArgs) => {
-      window.dataLayer?.push(args);
-    });
+  if (!window.gtag) {
+    window.gtag = function gtag() {
+      // eslint-disable-next-line prefer-rest-params -- Google requires the canonical Arguments queue shape.
+      window.dataLayer?.push(arguments);
+    } as (...args: GtagArgs) => void;
+  }
 }
 
-function loadGoogleAnalytics() {
+function setDefaultConsent() {
   prepareGtag();
-
   window.gtag?.("consent", "default", {
     analytics_storage: "denied",
     ad_storage: "denied",
     ad_user_data: "denied",
     ad_personalization: "denied",
   });
+}
 
-  window.gtag?.("consent", "update", {
-    analytics_storage: "granted",
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
-  });
-
-  window.gtag?.("js", new Date());
-
-  window.gtag?.("config", GA_MEASUREMENT_ID, {
-    allow_google_signals: false,
-    allow_ad_personalization_signals: false,
-  });
+function loadGoogleAnalytics() {
+  prepareGtag();
 
   if (!document.querySelector(`script[data-vercentlabs-ga4="${GA_MEASUREMENT_ID}"]`)) {
     const script = document.createElement("script");
@@ -107,8 +100,28 @@ function loadGoogleAnalytics() {
     document.head.appendChild(script);
   }
 
+  window.gtag?.("consent", "update", {
+    analytics_storage: "granted",
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied",
+  });
+
+  if (!window.__vercentlabsGa4Configured) {
+    window.__vercentlabsGa4Configured = true;
+
+    window.gtag?.("js", new Date());
+    window.gtag?.("config", GA_MEASUREMENT_ID, {
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+    });
+  }
+
   installAnalyticsSink((event: AnalyticsEventName, properties?: SafeAnalyticsProperties) => {
-    window.gtag?.("event", event, toGaParameters(properties));
+    window.gtag?.("event", event, {
+      ...toGaParameters(properties),
+      send_to: GA_MEASUREMENT_ID,
+    });
   });
 }
 
@@ -121,6 +134,11 @@ export function GoogleAnalyticsAdapter() {
   const storedConsent = useSyncExternalStore(subscribeToConsent, readConsent, () => null);
   const [selectedConsent, setSelectedConsent] = useState<ConsentChoice>(null);
   const consent = selectedConsent ?? storedConsent;
+
+  // Initialize the consent default before Google Analytics is ever loaded.
+  useEffect(() => {
+    setDefaultConsent();
+  }, []);
 
   useEffect(() => {
     if (consent === "granted") {
