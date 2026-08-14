@@ -8,15 +8,15 @@ const contentSecurityPolicy = [
   "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "img-src 'self' data:",
+  "img-src 'self' data: https://*.google-analytics.com https://www.googletagmanager.com",
   "object-src 'none'",
   // 'unsafe-inline' is required in every environment, matching apps/web's proven
   // CSP: Next.js emits its own inline bootstrap/hydration <script> tags on every
   // page. A stricter nonce-based policy needs middleware to mint a per-request
   // nonce — out of scope for this phase's foundation; see docs/landing-redesign/phase-2/phase-3-brief.md.
-  "script-src 'self' 'unsafe-inline'" + (isProduction ? "" : " 'unsafe-eval'"),
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com" + (isProduction ? "" : " 'unsafe-eval'"),
   "style-src 'self' 'unsafe-inline'",
-  "connect-src 'self'",
+  "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
   "worker-src 'self'",
 ].join("; ");
 

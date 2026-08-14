@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/footer";
 import { SkipLink } from "@/components/layout/skip-link";
 import { AttributionInit } from "@/components/analytics/attribution-init";
 import { WebVitalsReporter } from "@/components/analytics/web-vitals-reporter";
+import { GoogleAnalyticsAdapter } from "@/components/analytics/google-analytics-adapter";
 import { StickyMobileCta } from "@/components/marketing/sticky-mobile-cta";
 import { RouteScrollManager } from "@/components/navigation/route-scroll-manager";
 import "./globals.css";
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script {...jsonLdScriptProps(websiteJsonLd())} />
         <AttributionInit />
         <WebVitalsReporter />
+        <GoogleAnalyticsAdapter />
       </body>
     </html>
   );

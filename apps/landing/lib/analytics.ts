@@ -45,21 +45,63 @@ export interface SafeAnalyticsProperties {
   navigationType?: string;
 }
 
+export interface QueuedAnalyticsEvent {
+  event: AnalyticsEventName;
+  properties?: SafeAnalyticsProperties;
+}
+
 declare global {
   interface Window {
     __vercentlabsAnalyticsSink?: (event: AnalyticsEventName, properties?: SafeAnalyticsProperties) => void;
+    __vercentlabsAnalyticsQueue?: QueuedAnalyticsEvent[];
   }
 }
+
+const MAX_ANALYTICS_QUEUE = 100;
 
 export function track(event: AnalyticsEventName, properties?: SafeAnalyticsProperties): void {
   try {
     if (typeof window === "undefined") return;
+
     if (process.env.NODE_ENV !== "production") {
       console.debug("[analytics]", event, properties ?? {});
     }
-    window.__vercentlabsAnalyticsSink?.(event, properties);
+
+    if (window.__vercentlabsAnalyticsSink) {
+      window.__vercentlabsAnalyticsSink(event, properties);
+      return;
+    }
+
+    const queue = (window.__vercentlabsAnalyticsQueue ??= []);
+    if (queue.length < MAX_ANALYTICS_QUEUE) {
+      queue.push({ event, properties });
+    }
   } catch {
     // Analytics must never throw into the caller — a broken sink should never
     // break the page or block a conversion action.
   }
+}
+
+export function installAnalyticsSink(
+  sink: (event: AnalyticsEventName, properties?: SafeAnalyticsProperties) => void,
+): void {
+  if (typeof window === "undefined") return;
+
+  window.__vercentlabsAnalyticsSink = sink;
+
+  const queued = window.__vercentlabsAnalyticsQueue ?? [];
+  delete window.__vercentlabsAnalyticsQueue;
+
+  for (const item of queued) {
+    try {
+      sink(item.event, item.properties);
+    } catch {
+      // A provider failure must never affect the application.
+    }
+  }
+}
+
+export function clearQueuedAnalytics(): void {
+  if (typeof window === "undefined") return;
+  delete window.__vercentlabsAnalyticsQueue;
 }
