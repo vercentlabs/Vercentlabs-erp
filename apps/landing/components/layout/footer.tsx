@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LANDING_MODULES, LANDING_INDUSTRIES, CTAS } from "@vercentlabs/landing-content";
+import { LANDING_MODULES, LANDING_INDUSTRIES, CTAS, COMPANY_IDENTITY } from "@vercentlabs/landing-content";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
@@ -26,6 +26,15 @@ const RESOURCE_LINKS = [
   { label: "Glossary", href: "/resources/glossary" },
   { label: "Compare Vercentlabs", href: "/compare" },
   { label: "All resources", href: "/resources" },
+];
+
+const CONTACT_LINKS = [
+  { label: "Sales", email: COMPANY_IDENTITY.salesContactEmail },
+  { label: "Support", email: COMPANY_IDENTITY.supportContactEmail },
+  { label: "Careers", email: COMPANY_IDENTITY.careersContactEmail },
+  { label: "Billing", email: COMPANY_IDENTITY.billingContactEmail },
+  { label: "Security", email: COMPANY_IDENTITY.securityContactEmail },
+  { label: "Privacy", email: COMPANY_IDENTITY.privacyContactEmail },
 ];
 
 export function Footer() {
@@ -56,6 +65,14 @@ export function Footer() {
             <Link href={APP_URL.toString()} className="mt-5 block text-sm font-semibold text-white/75 hover:text-white">Sign in →</Link>
           </div>
         </div>
+
+        <nav aria-label="Contact Vercentlabs" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 border-b border-white/15 pb-8">
+          {CONTACT_LINKS.map((contact) => (
+            <a key={contact.email} href={`mailto:${contact.email}`} className="text-xs text-white/58 transition-colors hover:text-white">
+              {contact.label}: {contact.email}
+            </a>
+          ))}
+        </nav>
 
         <div className="mt-8 flex flex-col gap-4 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <p>© {year} Vercentlabs. All rights reserved.</p>

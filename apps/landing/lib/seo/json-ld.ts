@@ -1,4 +1,5 @@
 import { SITE, absoluteUrl } from "../site.ts";
+import { COMPANY_IDENTITY } from "@vercentlabs/landing-content";
 
 /**
  * JSON-LD builders. Every field here must trace to something real — no invented
@@ -12,6 +13,24 @@ export function organizationJsonLd() {
     name: SITE.productName,
     url: SITE.url.toString(),
     logo: absoluteUrl("/icons/icon.svg"),
+    email: COMPANY_IDENTITY.salesContactEmail,
+    contactPoint: [
+      {
+        "@type": "ContactPoint",
+        contactType: "sales",
+        email: COMPANY_IDENTITY.salesContactEmail,
+      },
+      {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: COMPANY_IDENTITY.supportContactEmail,
+      },
+      {
+        "@type": "ContactPoint",
+        contactType: "security",
+        email: COMPANY_IDENTITY.securityContactEmail,
+      },
+    ],
   };
 }
 

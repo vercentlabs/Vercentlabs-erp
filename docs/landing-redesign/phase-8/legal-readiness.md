@@ -45,7 +45,7 @@ Both pages are written to read as complete and professional — no visible "TODO
 |---|---|---|
 | Registered office address | Not stated on either page (no address exists anywhere in the repo) | A real, confirmed registered address from Vercentlabs |
 | LLPIN | Not stated | The real LLP Identification Number |
-| Contact mailbox **existence/monitoring** | `privacy@vercentlabs.com`/`support@vercentlabs.com` **now actually render on the live page** (fixed above), but their real-world existence and monitoring status is still unconfirmed | Confirm these inboxes exist and are actively monitored, or provide the correct ones — this is now the one remaining piece of this specific gap, not the rendering itself |
+| Contact mailbox **existence/monitoring** | **Resolved 2026-08-14:** the approved Workspace role addresses are provisioned and recorded in `docs/operations/WORKSPACE_EMAIL_DIRECTORY.md` | Keep group membership, external posting, and monitoring ownership current |
 | Governing-law venue (specific courts) | States "the laws of India" generally; specific court jurisdiction marked as pending confirmation directly in the Terms text | Company/counsel to specify the exact venue |
 | Limitation-of-liability and disclaimer wording | Conservative, standard draft language; the page itself states this section is intended for counsel review | Qualified legal review before treating as final for a specific commercial launch |
 | Data retention specifics | States retention is "for as long as reasonably necessary," a deliberately conservative formulation avoiding an invented specific period | Company to confirm/refine if a specific retention period is decided |

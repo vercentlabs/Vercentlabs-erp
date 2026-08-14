@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CTAS, PRIMARY_NAV, LANDING_MODULES } from "@vercentlabs/landing-content";
+import { CTAS, PRIMARY_NAV, LANDING_MODULES, COMPANY_IDENTITY } from "@vercentlabs/landing-content";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.join(here, "..");
@@ -39,6 +39,35 @@ test("every module resolves to a unique /modules/{key} route", () => {
 test("footer source contains no '#' placeholder links", () => {
   const footerSource = readFileSync(path.join(appDir, "components", "layout", "footer.tsx"), "utf8");
   assert.ok(!/href="#"/.test(footerSource), "footer.tsx contains a href=\"#\" placeholder link");
+});
+
+test("provisioned company contact addresses stay on the verified domain", () => {
+  const expected = {
+    salesContactEmail: "sales@vercentlabs.com",
+    supportContactEmail: "support@vercentlabs.com",
+    privacyContactEmail: "privacy@vercentlabs.com",
+    securityContactEmail: "security@vercentlabs.com",
+    careersContactEmail: "careers@vercentlabs.com",
+    billingContactEmail: "billing@vercentlabs.com",
+  };
+
+  for (const [field, email] of Object.entries(expected)) {
+    assert.equal(COMPANY_IDENTITY[field], email);
+  }
+});
+
+test("footer exposes every approved customer-facing role address", () => {
+  const footerSource = readFileSync(path.join(appDir, "components", "layout", "footer.tsx"), "utf8");
+  for (const field of [
+    "salesContactEmail",
+    "supportContactEmail",
+    "privacyContactEmail",
+    "securityContactEmail",
+    "careersContactEmail",
+    "billingContactEmail",
+  ]) {
+    assert.ok(footerSource.includes(field), `footer.tsx does not expose COMPANY_IDENTITY.${field}`);
+  }
 });
 
 test("footer source never claims a certification, social profile, or review badge", () => {

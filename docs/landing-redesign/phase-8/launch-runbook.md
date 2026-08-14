@@ -5,7 +5,7 @@ Every step below reuses this repository's own real commands (`package.json` scri
 ## T-24 hours
 
 - [ ] Run the full release-verification suite (`pnpm build:landing`, full Playwright including cross-browser, axe, Lighthouse — or trigger `.github/workflows/landing-release-verification.yml` manually) against the exact commit intended for release.
-- [ ] Confirm legal review status of `/privacy` and `/terms` — see `legal-readiness.md`'s open-items table (registered address, LLPIN, contact-mailbox confirmation, governing-law venue, limitation-of-liability wording).
+- [ ] Confirm legal review status of `/privacy` and `/terms` — see `legal-readiness.md`'s open-items table (registered address, LLPIN, governing-law venue, and limitation-of-liability wording). Workspace contact mailboxes were confirmed on 2026-08-14.
 - [ ] Confirm production environment variables are set correctly — **specifically `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_APP_URL`**, the one real "silently falls back to localhost" risk identified in `environment-contract.md`.
 - [ ] Confirm the production canonical domain resolves and DNS is configured (out of this session's ability to verify directly — flagged, not assumed).
 - [ ] Confirm `CRM_CAPTURE_FORM_KEY`/`CRM_CAPTURE_PROXY_SECRET` are set to real production values matching `apps/web`'s configuration for the correct receiving organization.

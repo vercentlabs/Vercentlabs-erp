@@ -32,10 +32,10 @@ export const POSITIONING = Object.freeze({
  * accurate placeholder language rather than an invented address, and the gap
  * is flagged explicitly, not hidden.
  *
- * contactEmails use the verified real production domain (vercentlabs.com,
- * per NEXT_PUBLIC_SITE_URL) with standard, conventional inbox names — these
- * are NOT confirmed as live/monitored mailboxes and must be provisioned (or
- * corrected) by Vercentlabs before launch; flagged in the same doc.
+ * Contact emails use provisioned, monitored Google Workspace addresses on the
+ * verified production domain (vercentlabs.com). Role addresses stay distinct
+ * so buyer, customer, legal, security, hiring, and billing messages reach the
+ * responsible team without exposing a person's mailbox.
  */
 export const COMPANY_IDENTITY = Object.freeze({
   legalName: "Vercentlabs LLP",
@@ -43,6 +43,10 @@ export const COMPANY_IDENTITY = Object.freeze({
   country: "India",
   registeredAddress: null,
   llpin: null,
+  salesContactEmail: "sales@vercentlabs.com",
   privacyContactEmail: "privacy@vercentlabs.com",
   supportContactEmail: "support@vercentlabs.com",
+  securityContactEmail: "security@vercentlabs.com",
+  careersContactEmail: "careers@vercentlabs.com",
+  billingContactEmail: "billing@vercentlabs.com",
 });

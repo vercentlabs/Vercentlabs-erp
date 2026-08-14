@@ -247,8 +247,12 @@ export const COMPANY_IDENTITY: {
   country: string;
   registeredAddress: string | null;
   llpin: string | null;
+  salesContactEmail: string;
   privacyContactEmail: string;
   supportContactEmail: string;
+  securityContactEmail: string;
+  careersContactEmail: string;
+  billingContactEmail: string;
 };
 
 // --- Homepage content model (homepage.js) ---

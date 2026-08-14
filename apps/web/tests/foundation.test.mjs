@@ -19,6 +19,23 @@ test("verification flow includes resend and token-aware continuation", () => {
   );
 });
 
+test("authentication email has a monitored support reply-to address", () => {
+  const mailer = read("src/lib/mailer.ts");
+  const environment = read(".env.example");
+
+  assert.match(mailer, /AUTH_EMAIL_REPLY_TO/);
+  assert.match(mailer, /replyTo: smtp\.replyTo/);
+  assert.match(environment, /SMTP_USER=auth@vercentlabs\.com/);
+  assert.match(
+    environment,
+    /AUTH_EMAIL_FROM="Vercentlabs Security <auth@vercentlabs\.com>"/,
+  );
+  assert.match(
+    environment,
+    /AUTH_EMAIL_REPLY_TO=support@vercentlabs\.com/,
+  );
+});
+
 test("password reset returns to login and invalidates sessions", () => {
   const source = read("src/app/api/auth/reset-password/route.ts");
   assert.match(source, /UPDATE sessions SET revoked_at/);

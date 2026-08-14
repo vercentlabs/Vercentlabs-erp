@@ -25,8 +25,12 @@ export const COMPANY_IDENTITY = Object.freeze({
   country: "India",
   registeredAddress: null,   // real gap, see below
   llpin: null,               // real gap, see below
+  salesContactEmail: "sales@vercentlabs.com",
   privacyContactEmail: "privacy@vercentlabs.com",
   supportContactEmail: "support@vercentlabs.com",
+  securityContactEmail: "security@vercentlabs.com",
+  careersContactEmail: "careers@vercentlabs.com",
+  billingContactEmail: "billing@vercentlabs.com",
 });
 ```
 
@@ -36,8 +40,8 @@ Per the governing brief's explicit instruction ("Do not invent corporate details
 
 1. **Registered office address.** No address exists anywhere in this repository. `/privacy` and `/terms` do not state a specific registered address — this is a real gap for full legal completeness (many jurisdictions' privacy-policy conventions expect one) and is listed as a launch blocker candidate in `legal-readiness.md`.
 2. **LLPIN (LLP Identification Number).** India's Ministry of Corporate Affairs assigns a unique LLPIN to every registered LLP; none exists anywhere in this codebase. Not fabricated. Same blocker-candidate status.
-3. **Contact email inbox confirmation.** `privacy@vercentlabs.com` and `support@vercentlabs.com` use the verified real domain (`vercentlabs.com`, per `NEXT_PUBLIC_SITE_URL`) with conventional, standard inbox-naming — but their actual existence and monitoring status is unconfirmed. This is explicitly a proposed convention pending company confirmation, not a claim that these inboxes are live today.
+3. **Contact email inbox confirmation — resolved 2026-08-14.** Vercentlabs confirmed that the Sales, Support, Privacy, Security, Careers, Billing, Operations, DMARC, authentication, and named administrator Workspace addresses are provisioned. Public role addresses now come from `COMPANY_IDENTITY`; operational ownership is recorded in `docs/operations/WORKSPACE_EMAIL_DIRECTORY.md`.
 
 ## Recommendation
 
-Before this site is treated as launch-final, Vercentlabs should confirm (or correct) these 3 fields directly — at which point updating `COMPANY_IDENTITY` in the one file above propagates correctly to every page that references it, with no risk of missing a hardcoded copy elsewhere.
+Before this site is treated as legally launch-final, Vercentlabs should confirm the remaining registered-address and LLPIN fields directly. Updating `COMPANY_IDENTITY` in the one file above propagates correctly to every page that references it.

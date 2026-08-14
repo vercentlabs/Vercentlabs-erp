@@ -53,6 +53,8 @@ function getSmtpConfiguration() {
   const user = process.env.SMTP_USER?.trim();
   const password = process.env.SMTP_PASSWORD?.trim();
   const from = process.env.AUTH_EMAIL_FROM?.trim();
+  const replyTo =
+    process.env.AUTH_EMAIL_REPLY_TO?.trim() || "support@vercentlabs.com";
 
   if (!host && !user && !password && !from) {
     return null;
@@ -79,6 +81,7 @@ function getSmtpConfiguration() {
     user,
     password,
     from,
+    replyTo,
   };
 }
 
@@ -111,6 +114,7 @@ function getSmtpTransporter() {
   return {
     transporter: smtpTransporter,
     from: configuration.from,
+    replyTo: configuration.replyTo,
   };
 }
 
@@ -249,6 +253,7 @@ async function deliverWithSmtp(input: AuthMessageInput) {
 
   await smtp.transporter.sendMail({
     from: smtp.from,
+    replyTo: smtp.replyTo,
     to: input.email,
     subject: content.subject,
     text: content.text,
@@ -283,6 +288,9 @@ async function deliverWithWebhook(input: AuthMessageInput) {
     body: JSON.stringify({
       source: "vercentlabs-erp-web",
       sentAt: new Date().toISOString(),
+      replyTo:
+        process.env.AUTH_EMAIL_REPLY_TO?.trim() ||
+        "support@vercentlabs.com",
       ...input,
     }),
     cache: "no-store",
