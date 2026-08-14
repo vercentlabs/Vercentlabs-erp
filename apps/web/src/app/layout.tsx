@@ -7,6 +7,8 @@ import "./billing-extension.css";
 import "./operator-workbench.css";
 import "./enterprise-modules.css";
 import "./crm-product.css";
+import "./navigation-v2.css";
+import "./workspace-redesign-v3.css";
 
 export const metadata: Metadata = {
   title: { default: "Vercentlabs ERP", template: "%s | Vercentlabs ERP" },

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 
 import AppIcon from "@/components/app-icon";
+import SemanticNavigationIcon from "@/components/semantic-navigation-icon";
 import type { QuickCreateAction } from "@/lib/quick-create/actions";
 import type { ResolvedNavigationWithSettings } from "@/lib/navigation/resolve-navigation";
 import { moduleIdForPath } from "@/lib/navigation/route-map";
@@ -314,6 +315,7 @@ export default function CommandPalette({
       onClick={openPalette}
       aria-haspopup="dialog"
       aria-expanded={open}
+      aria-label="Search navigation, records and actions"
     >
       <span className="global-search-icon" aria-hidden="true">
         <AppIcon name="search" size={18} />
@@ -391,7 +393,7 @@ export default function CommandPalette({
                     >
                       {result.icon ? (
                         <span className="command-palette-result-icon" aria-hidden="true">
-                          <AppIcon name={result.icon} size={17} />
+                          <SemanticNavigationIcon href={result.href} fallback={result.icon} size={17} />
                         </span>
                       ) : null}
                       <span className="command-palette-result-copy">

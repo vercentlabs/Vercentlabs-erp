@@ -1,15 +1,50 @@
+import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import Link from "next/link";
 
 import AppIcon, { type AppIconName } from "@/components/app-icon";
+import OpenCommandPaletteButton from "@/components/open-command-palette-button";
 import WorkItemList from "@/components/work-item-list";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { query } from "@/lib/db";
 import { listFavourites } from "@/lib/favourites";
+import { getAccessibleModules } from "@/lib/module-access";
 import { getMyWorkSummary } from "@/lib/my-work/aggregate";
+import { MODULE_ROUTE_ROOTS } from "@/lib/navigation/route-map";
+import type { ModuleId } from "@/lib/navigation/types";
 import { listRecentRecords } from "@/lib/recent-records";
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Home" };
+
+const MODULE_ICONS: Record<ModuleId, AppIconName> = {
+  crm: "crm",
+  sales: "sales",
+  accounting: "accounting",
+  procurement: "procurement",
+  stock: "stock",
+  manufacturing: "manufacturing",
+  projects: "projects",
+  assets: "assets",
+  "point-of-sale": "point-of-sale",
+  quality: "quality",
+  support: "support",
+  "hr-payroll": "hr-payroll",
+};
+
+const MODULE_DESCRIPTIONS: Record<ModuleId, string> = {
+  crm: "Customers, pipeline, activities and engagement.",
+  sales: "Quotations, sales orders and commercial reporting.",
+  accounting: "Ledger, receivables, payables, banking, tax and close.",
+  procurement: "Requisitions, sourcing, suppliers, purchasing and matching.",
+  stock: "Inventory, warehouse movement, traceability and replenishment.",
+  manufacturing: "BOMs, work orders, resources and material planning.",
+  projects: "Projects, milestones, tasks, time, cost and profitability.",
+  assets: "Asset register, assignment, maintenance and financial lifecycle.",
+  "point-of-sale": "Checkout, store operations, returns and reconciliation.",
+  quality: "Plans, inspections, holds, non-conformance and CAPA.",
+  support: "Tickets, queues, service levels, engagement and knowledge.",
+  "hr-payroll": "People, attendance, leave, expenses, compensation and payroll.",
+};
 
 function formatTime(value: Date) {
   return new Intl.DateTimeFormat("en-IN", {
@@ -21,11 +56,28 @@ function formatTime(value: Date) {
 export default async function DashboardPage() {
   const session = await requireWorkspace();
   const organizationId = session.organizationId as string;
-  const [myWork, favourites, recent] = await Promise.all([
+
+  const [myWork, favourites, recent, moduleAccess] = await Promise.all([
     getMyWorkSummary(session, 5),
     listFavourites(session, 5),
     listRecentRecords(session, 5),
+    getAccessibleModules(session),
   ]);
+
+  const accessibleModules = moduleAccess
+    .filter((module) => module.accessible)
+    .map((module) => {
+      const id = module.moduleId as ModuleId;
+      const definition = ERP_MODULE_CATALOG.find((item) => item.key === id);
+      return {
+        id,
+        name: definition?.name ?? module.name,
+        description: MODULE_DESCRIPTIONS[id] ?? definition?.description ?? "",
+        href: MODULE_ROUTE_ROOTS[id],
+        icon: MODULE_ICONS[id],
+      };
+    });
+
   const [counts] = await query<{
     companies: number;
     branches: number;
@@ -180,26 +232,26 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <section className="dashboard-hero">
-        <div className="dashboard-hero-copy">
+      <section className="erp-home-hero">
+        <div className="erp-home-hero__copy">
           <p className="dashboard-date">{today}</p>
-          <p className="eyebrow">ERP workspace</p>
+          <p className="eyebrow">Operating workspace</p>
           <h1>Welcome back, {session.fullName.split(" ")[0]}.</h1>
-          <p>
-            Review what needs attention, maintain the organisation foundation
-            and move into the right operating context.
+          <p className="erp-home-hero__lede">
+            Start with what needs attention, continue recent work, or move
+            directly into the right business area.
           </p>
-          <div className="dashboard-hero-actions">
-            <Link className="secondary-button inverse" href="/settings">
-              <AppIcon name="settings" size={18} /> Workspace settings
+          <div className="erp-home-hero__actions">
+            <OpenCommandPaletteButton />
+            <Link className="secondary-button" href="/my-work">
+              <AppIcon name="approvals" size={17} />
+              Open My work
             </Link>
           </div>
         </div>
-        <aside
-          className="dashboard-context-card"
-          aria-label="Current operating context"
-        >
-          <div className="dashboard-context-heading">
+
+        <aside className="erp-home-context" aria-label="Current operating context">
+          <div className="erp-home-context__heading">
             <span aria-hidden="true">
               <AppIcon name="organisation" size={20} />
             </span>
@@ -224,10 +276,13 @@ export default async function DashboardPage() {
                   session.membershipRole}
               </dd>
             </div>
+            <div>
+              <dt>Modules available</dt>
+              <dd>
+                {accessibleModules.length} of {ERP_MODULE_CATALOG.length}
+              </dd>
+            </div>
           </dl>
-          <span className="status-badge success">
-            <span aria-hidden="true" /> Platform foundation active
-          </span>
         </aside>
       </section>
 
@@ -241,7 +296,7 @@ export default async function DashboardPage() {
             Open My work <AppIcon name="arrow-right" size={16} />
           </Link>
         </div>
-        <div className="metric-grid">
+        <div className="metric-grid erp-home-attention-grid">
           {[
             {
               label: "Tasks overdue or due today",
@@ -265,7 +320,7 @@ export default async function DashboardPage() {
               label: "Pending approvals",
               value: myWork.counts.approvalsPending,
               href: "/approvals",
-              icon: "approvals" as const,
+              icon: "check" as const,
             },
           ].map((metric) => (
             <Link
@@ -286,10 +341,119 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <section
+        className="dashboard-section erp-home-modules"
+        aria-labelledby="business-areas-title"
+      >
+        <div className="section-title-row">
+          <div>
+            <p className="eyebrow">Business areas</p>
+            <h2 id="business-areas-title">Move through the ERP by module</h2>
+            <p>
+              Each module opens its own focused workspace navigation instead of
+              exposing hundreds of feature actions at once.
+            </p>
+          </div>
+          <span className="erp-home-module-count">
+            {accessibleModules.length} available
+          </span>
+        </div>
+
+        {accessibleModules.length ? (
+          <div className="erp-module-launch-grid">
+            {accessibleModules.map((module) => (
+              <Link
+                className={`erp-module-launch-card module-${module.id}`}
+                href={module.href}
+                key={module.id}
+              >
+                <span className="erp-module-launch-card__icon" aria-hidden="true">
+                  <AppIcon name={module.icon} size={23} />
+                </span>
+                <span className="erp-module-launch-card__copy">
+                  <strong>{module.name}</strong>
+                  <small>{module.description}</small>
+                </span>
+                <AppIcon
+                  className="erp-module-launch-card__arrow"
+                  name="arrow-right"
+                  size={17}
+                />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <span className="empty-state-icon" aria-hidden="true">
+              <AppIcon name="modules" size={21} />
+            </span>
+            <div>
+              <strong>No business modules are available</strong>
+              <p>
+                Module visibility follows your workspace enablement,
+                subscription and role permissions.
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="content-grid dashboard-panels erp-home-continue">
+        <article className="panel activity-panel">
+          <div className="card-title-row">
+            <div>
+              <p className="eyebrow">Continue where you left off</p>
+              <h2>Recent records</h2>
+            </div>
+            <Link href="/recent">
+              View all <AppIcon name="arrow-right" size={16} />
+            </Link>
+          </div>
+          <WorkItemList
+            items={recent.map((item) => ({
+              id: item.id,
+              kind: "task" as const,
+              source: item.moduleKey || item.targetType,
+              title: item.label,
+              urgency: "none" as const,
+              href: item.href,
+            }))}
+            emptyTitle="Nothing viewed yet"
+            emptyDescription="Records you open will be listed here."
+            emptyIcon="search"
+          />
+        </article>
+
+        <article className="panel activity-panel">
+          <div className="card-title-row">
+            <div>
+              <p className="eyebrow">Saved by you</p>
+              <h2>Favourites</h2>
+            </div>
+            <Link href="/favourites">
+              View all <AppIcon name="arrow-right" size={16} />
+            </Link>
+          </div>
+          <WorkItemList
+            items={favourites.map((item) => ({
+              id: item.id,
+              kind: "task" as const,
+              source: item.moduleKey || item.targetType,
+              title: item.label,
+              urgency: "none" as const,
+              href: item.href,
+            }))}
+            emptyTitle="No favourites yet"
+            emptyDescription="Star a record from its page to pin it here."
+            emptyIcon="sparkles"
+          />
+        </article>
+      </section>
+
       <section className="dashboard-section" aria-labelledby="overview-title">
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">At a glance</p>
+            <p className="eyebrow">Workspace foundation</p>
             <h2 id="overview-title">Organisation overview</h2>
           </div>
           {canViewAudit ? (
@@ -334,7 +498,7 @@ export default async function DashboardPage() {
       >
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">Common actions</p>
+            <p className="eyebrow">Workspace administration</p>
             <h2 id="quick-actions-title">Keep the foundation current</h2>
           </div>
         </div>
@@ -356,7 +520,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="content-grid dashboard-panels">
+      <section className="content-grid dashboard-panels erp-home-operations">
         <article className="panel activity-panel">
           <div className="card-title-row">
             <div>
@@ -439,58 +603,6 @@ export default async function DashboardPage() {
             </Link>
           </article>
         ) : null}
-      </section>
-
-      <section className="content-grid dashboard-panels">
-        <article className="panel activity-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Continue where you left off</p>
-              <h2>Recent records</h2>
-            </div>
-            <Link href="/recent">
-              View all <AppIcon name="arrow-right" size={16} />
-            </Link>
-          </div>
-          <WorkItemList
-            items={recent.map((item) => ({
-              id: item.id,
-              kind: "task" as const,
-              source: item.moduleKey || item.targetType,
-              title: item.label,
-              urgency: "none" as const,
-              href: item.href,
-            }))}
-            emptyTitle="Nothing viewed yet"
-            emptyDescription="Records you open will be listed here."
-            emptyIcon="search"
-          />
-        </article>
-
-        <article className="panel activity-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Saved by you</p>
-              <h2>Favourites</h2>
-            </div>
-            <Link href="/favourites">
-              View all <AppIcon name="arrow-right" size={16} />
-            </Link>
-          </div>
-          <WorkItemList
-            items={favourites.map((item) => ({
-              id: item.id,
-              kind: "task" as const,
-              source: item.moduleKey || item.targetType,
-              title: item.label,
-              urgency: "none" as const,
-              href: item.href,
-            }))}
-            emptyTitle="No favourites yet"
-            emptyDescription="Star a record from its page to pin it here."
-            emptyIcon="sparkles"
-          />
-        </article>
       </section>
     </>
   );

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import AppIcon, { type AppIconName } from "@/components/app-icon";
+import type { AppIconName } from "@/components/app-icon";
+import SemanticNavigationIcon from "@/components/semantic-navigation-icon";
 import { matchesPath } from "@/lib/navigation/match-path";
 
 export default function NavigationLink({
@@ -36,7 +37,11 @@ export default function NavigationLink({
       title={label}
     >
       <span className="nav-link-icon" aria-hidden="true">
-        <AppIcon name={icon} size={nested ? 17 : 19} />
+        <SemanticNavigationIcon
+          href={href}
+          fallback={icon}
+          size={nested ? 17 : 19}
+        />
       </span>
       <span className="nav-link-label">{label}</span>
       {badge ? (

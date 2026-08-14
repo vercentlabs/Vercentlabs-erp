@@ -231,7 +231,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "Stock",
     moduleId: "stock",
-    icon: "modules",
+    icon: "stock",
     keywords: ["inventory", "warehouse"],
     items: [
       {
@@ -288,7 +288,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "HR & Payroll",
     moduleId: "hr-payroll",
-    icon: "users",
+    icon: "hr-payroll",
     keywords: ["hr", "employee", "salary", "payroll", "people"],
     items: [
       {
@@ -404,7 +404,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "Quality",
     moduleId: "quality",
-    icon: "check",
+    icon: "quality",
     keywords: ["qa", "inspection"],
     items: [
       {
@@ -462,7 +462,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "Point of Sale",
     moduleId: "point-of-sale",
-    icon: "sales",
+    icon: "point-of-sale",
     keywords: ["pos", "retail", "terminal", "checkout"],
     items: [
       {
@@ -520,7 +520,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "Assets",
     moduleId: "assets",
-    icon: "modules",
+    icon: "assets",
     keywords: ["fixed assets", "equipment"],
     items: [
       {
@@ -578,7 +578,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "Projects",
     moduleId: "projects",
-    icon: "modules",
+    icon: "projects",
     keywords: ["tasks", "timesheet"],
     items: [
       {
@@ -636,7 +636,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
   {
     label: "Manufacturing",
     moduleId: "manufacturing",
-    icon: "modules",
+    icon: "manufacturing",
     keywords: ["production", "mrp"],
     items: [
       {

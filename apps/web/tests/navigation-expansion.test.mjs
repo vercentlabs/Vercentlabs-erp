@@ -46,14 +46,12 @@ test("expansion: initial/ongoing expansion is route-derived via moduleIdForPath,
   assert.match(source, /if \(routeModuleId\) setExpanded\(routeModuleId\);/);
 });
 
-test("expansion: global sections (Workspace settings) are not coordinated by SidebarModules — they remain independently self-managed", () => {
+test("expansion: the new HCI shell moves global/module presentation out of the legacy expanding module accordion without changing its authorization source", () => {
   const appShell = read("apps/web/src/components/app-shell.tsx");
-  // The Workspace settings NavigationSection usage has no open/onOpenChange
-  // props — it falls back to NavigationSection's own uncontrolled
-  // route-active default, independent of the module coordination state.
-  const settingsUsage = appShell.match(/<NavigationSection\s+icon="settings"[\s\S]*?\/>/);
-  assert.ok(settingsUsage, "expected a Workspace settings NavigationSection usage in app-shell.tsx");
-  assert.doesNotMatch(settingsUsage[0], /open=|onOpenChange=/);
+  assert.match(appShell, /<PrimaryNavigationRail/);
+  assert.match(appShell, /<ContextSecondarySidebar/);
+  assert.match(appShell, /<MobileWorkspaceNavigation/);
+  assert.doesNotMatch(appShell, /<SidebarShell|<ModuleContextBar/, "the old single-sidebar/module-tab presentation must not be mounted by AppShell");
 });
 
 test("expansion: NavigationSection supports both controlled (module sidebar) and uncontrolled (auto route-active) modes without duplicating active-match logic", () => {

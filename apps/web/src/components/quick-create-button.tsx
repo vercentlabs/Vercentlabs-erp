@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import AppIcon from "@/components/app-icon";
+import SemanticNavigationIcon from "@/components/semantic-navigation-icon";
 import { moduleIdForPath } from "@/lib/navigation/route-map";
 import type { QuickCreateAction } from "@/lib/quick-create/actions";
 import { useOutsideDismiss } from "@/lib/use-outside-dismiss";
@@ -50,7 +50,7 @@ export default function QuickCreateButton({ actions }: { actions: QuickCreateAct
               role="menuitem"
               onClick={() => setOpen(false)}
             >
-              <AppIcon name={action.icon} size={16} />
+              <SemanticNavigationIcon href={action.href} fallback={action.icon} size={16} />
               {action.label}
             </Link>
           ))}
