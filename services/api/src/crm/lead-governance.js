@@ -152,24 +152,162 @@ export async function findLeadDuplicates(
   );
   return r.rows;
 }
+async function activeTerritoryUserIds(client, context, territoryId) {
+  if (!territoryId) return [];
+  const result = await client.query(
+    `SELECT DISTINCT assignment.assignee_id AS user_id
+       FROM tenant.crm_territory_assignments assignment
+       JOIN public.organization_memberships membership
+         ON membership.organization_id=assignment.organization_id
+        AND membership.user_id=assignment.assignee_id
+        AND membership.status='active'
+      WHERE assignment.organization_id=$1
+        AND assignment.territory_id=$2
+        AND assignment.assignee_type='user'
+        AND assignment.effective_from<=current_date
+        AND (assignment.effective_to IS NULL OR assignment.effective_to>=current_date)
+      UNION
+      SELECT territory.manager_user_id AS user_id
+        FROM tenant.crm_territories territory
+        JOIN public.organization_memberships membership
+          ON membership.organization_id=territory.organization_id
+         AND membership.user_id=territory.manager_user_id
+         AND membership.status='active'
+       WHERE territory.organization_id=$1
+         AND territory.id=$2
+         AND territory.manager_user_id IS NOT NULL`,
+    [context.organizationId, territoryId],
+  );
+  return result.rows.map((row) => String(row.user_id)).filter(Boolean);
+}
+
+async function leastLoadedLeadOwner(client, context, candidateIds) {
+  const candidates = [...new Set((candidateIds || []).map(String).filter(Boolean))];
+  if (!candidates.length) return null;
+  const result = await client.query(
+    `WITH candidate(user_id) AS (SELECT unnest($2::uuid[]))
+     SELECT candidate.user_id,count(lead.id)::int AS active_leads
+       FROM candidate
+       JOIN public.organization_memberships membership
+         ON membership.organization_id=$1
+        AND membership.user_id=candidate.user_id
+        AND membership.status='active'
+       LEFT JOIN tenant.crm_leads lead
+         ON lead.organization_id=$1
+        AND lead.owner_user_id=candidate.user_id
+        AND lead.status NOT IN ('converted','archived')
+      GROUP BY candidate.user_id
+      ORDER BY count(lead.id) ASC,candidate.user_id ASC
+      LIMIT 1`,
+    [context.organizationId, candidates],
+  );
+  return result.rows[0]?.user_id ? String(result.rows[0].user_id) : null;
+}
+
+async function ownerForLeadPolicy(client, context, policy) {
+  if (policy.mode === 'fixed') return policy.assignee_user_id || null;
+  if (policy.mode === 'round_robin') {
+    const members = policy.member_user_ids || [];
+    if (!members.length) return null;
+    const state = await client.query(
+      `INSERT INTO tenant.crm_lead_assignment_state(organization_id,policy_id,next_index)
+       VALUES($1,$2,1)
+       ON CONFLICT(organization_id,policy_id)
+       DO UPDATE SET next_index=tenant.crm_lead_assignment_state.next_index+1,updated_at=now()
+       RETURNING next_index`,
+      [context.organizationId,policy.id],
+    );
+    return members[(Number(state.rows[0]?.next_index || 1)-1)%members.length] || null;
+  }
+  if (policy.mode === 'workload')
+    return leastLoadedLeadOwner(client,context,policy.member_user_ids || []);
+  if (policy.mode === 'territory') {
+    const members=await activeTerritoryUserIds(client,context,policy.territory_id);
+    return leastLoadedLeadOwner(client,context,members);
+  }
+  return null;
+}
+
 export async function resolveLeadOwner(client, context, input) {
-  const r = await client.query(
-    `SELECT * FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id FOR UPDATE`,
+  const result=await client.query(
+    `SELECT * FROM tenant.crm_lead_assignment_policies
+      WHERE organization_id=$1 AND status='active'
+      ORDER BY sequence,id FOR UPDATE`,
     [context.organizationId],
   );
-  for (const policy of r.rows) {
-    if (!matches(policy.criteria, input)) continue;
-    if (policy.mode === "fixed") return policy.assignee_user_id;
-    if (policy.mode === "round_robin") {
-      const members = policy.member_user_ids || [];
-      const s = await client.query(
-        `INSERT INTO tenant.crm_lead_assignment_state(organization_id,policy_id,next_index) VALUES($1,$2,1) ON CONFLICT(organization_id,policy_id) DO UPDATE SET next_index=tenant.crm_lead_assignment_state.next_index+1,updated_at=now() RETURNING next_index`,
-        [context.organizationId, policy.id],
-      );
-      return (
-        members[(Number(s.rows[0].next_index) - 1) % members.length] || null
-      );
-    }
+  for (const policy of result.rows) {
+    if (!matches(policy.criteria,input)) continue;
+    const owner=await ownerForLeadPolicy(client,context,policy);
+    if (owner) return owner;
   }
   return input.ownerUserId || input.owner_user_id || null;
+}
+
+export async function listLeadAssignmentPolicies(client, context) {
+  const result=await client.query(
+    `SELECT policy.*,assignee.full_name AS assignee_name,territory.name AS territory_name
+       FROM tenant.crm_lead_assignment_policies policy
+       LEFT JOIN public.users assignee ON assignee.id=policy.assignee_user_id
+       LEFT JOIN tenant.crm_territories territory
+         ON territory.organization_id=policy.organization_id
+        AND territory.id=policy.territory_id
+      WHERE policy.organization_id=$1 AND policy.status='active'
+      ORDER BY policy.sequence,policy.name`,
+    [context.organizationId],
+  );
+  return result.rows;
+}
+
+export async function saveLeadAssignmentPolicy(client, context, input = {}) {
+  const id=text(input.id);
+  const name=text(input.name).slice(0,160);
+  const mode=text(input.mode);
+  const sequence=Number.isFinite(Number(input.sequence)) ? Number(input.sequence) : 100;
+  const criteria=input.criteria && typeof input.criteria==='object' && !Array.isArray(input.criteria) ? input.criteria : {};
+  const assigneeUserId=text(input.assigneeUserId) || null;
+  const memberUserIds=Array.isArray(input.memberUserIds)
+    ? [...new Set(input.memberUserIds.map(text).filter(Boolean))]
+    : [];
+  const territoryId=text(input.territoryId) || null;
+  if (!name) throw new LeadGovernanceError(400,'Assignment-policy name is required.');
+  if (!['fixed','round_robin','territory','workload'].includes(mode))
+    throw new LeadGovernanceError(400,'Unsupported lead-assignment mode.');
+  if (mode==='fixed' && !assigneeUserId)
+    throw new LeadGovernanceError(400,'Fixed assignment requires an assignee.');
+  if (['round_robin','workload'].includes(mode) && !memberUserIds.length)
+    throw new LeadGovernanceError(400,`${mode.replace('_',' ')} assignment requires at least one member.`);
+  if (mode==='territory' && !territoryId)
+    throw new LeadGovernanceError(400,'Territory assignment requires a territory.');
+  const result=id
+    ? await client.query(
+        `UPDATE tenant.crm_lead_assignment_policies
+            SET name=$3,sequence=$4,criteria=$5::jsonb,mode=$6,
+                assignee_user_id=$7,member_user_ids=$8::uuid[],territory_id=$9,
+                updated_by=$2,updated_at=now()
+          WHERE organization_id=$1 AND id=$10 AND status='active'
+          RETURNING *`,
+        [context.organizationId,context.userId,name,sequence,JSON.stringify(criteria),mode,assigneeUserId,memberUserIds,territoryId,id],
+      )
+    : await client.query(
+        `INSERT INTO tenant.crm_lead_assignment_policies(
+           organization_id,name,sequence,criteria,mode,assignee_user_id,
+           member_user_ids,territory_id,status,created_by,updated_by
+         ) VALUES($1,$3,$4,$5::jsonb,$6,$7,$8::uuid[],$9,'active',$2,$2)
+         RETURNING *`,
+        [context.organizationId,context.userId,name,sequence,JSON.stringify(criteria),mode,assigneeUserId,memberUserIds,territoryId],
+      );
+  if (!result.rows[0]) throw new LeadGovernanceError(404,'Assignment policy not found.');
+  return result.rows[0];
+}
+
+export async function archiveLeadAssignmentPolicy(client, context, policyId) {
+  const result=await client.query(
+    `UPDATE tenant.crm_lead_assignment_policies
+        SET status='inactive',updated_by=$2,updated_at=now()
+      WHERE organization_id=$1 AND id=$3 AND status='active'
+      RETURNING *`,
+    [context.organizationId,context.userId,policyId],
+  );
+  if (!result.rows[0]) throw new LeadGovernanceError(404,'Assignment policy not found.');
+  return result.rows[0];
 }

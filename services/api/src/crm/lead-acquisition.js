@@ -1,4 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { resolveLeadOwner } from "./lead-governance.js";
 
 export const CRM_LEAD_ACQUISITION_CAPABILITY_IDS = Object.freeze([
   "CRM-054",
@@ -221,7 +222,9 @@ export function normalizeLeadAcquisitionEvent(provider, payload = {}) {
       ? "social"
       : source === "website_chat"
         ? "chat"
-        : "other";
+        : source === "inbound_email"
+          ? "email"
+          : "other";
   return {
     provider: source,
     providerEventId,
@@ -243,6 +246,14 @@ export function normalizeLeadAcquisitionEvent(provider, payload = {}) {
         text(lead.companyName || lead.company_name || lead.company, 240) ||
         null,
       jobTitle: text(lead.jobTitle || lead.job_title, 160) || null,
+      website: text(lead.website, 500) || null,
+      industry: text(lead.industry, 160) || null,
+      city: text(lead.city, 160) || null,
+      state: text(lead.state, 160) || null,
+      countryCode: text(lead.countryCode || lead.country_code, 2).toUpperCase() || null,
+      productInterest: text(lead.productInterest || lead.product_interest, 500) || null,
+      estimatedValue: Number(lead.estimatedValue || lead.estimated_value || 0),
+      currencyCode: text(lead.currencyCode || lead.currency_code, 3).toUpperCase() || null,
       consentEmail: boolean(lead.consentEmail || lead.consent_email),
       consentSms: boolean(lead.consentSms || lead.consent_sms),
       consentWhatsapp: boolean(lead.consentWhatsapp || lead.consent_whatsapp),
@@ -354,63 +365,47 @@ async function findDuplicate(client, context, lead) {
 async function createLead(client, context, lead, options = {}) {
   const duplicateId = await findDuplicate(client, context, lead);
   if (duplicateId && options.duplicateStrategy === "block")
-    throw new CrmLeadAcquisitionError(
-      409,
-      "A matching lead already exists.",
-      "CRM_LEAD_DUPLICATE",
-    );
+    throw new CrmLeadAcquisitionError(409, "A matching lead already exists.", "CRM_LEAD_DUPLICATE");
   if (duplicateId && ["skip", "warn"].includes(options.duplicateStrategy))
     return { leadId: duplicateId, action: "skip" };
   if (duplicateId && options.duplicateStrategy === "update") {
     const updated = await client.query(
-      `UPDATE tenant.crm_leads SET first_name=COALESCE(NULLIF($3,''),first_name),last_name=COALESCE($4,last_name),
-       company_name=COALESCE($5,company_name),job_title=COALESCE($6,job_title),updated_by=$2,updated_at=now()
-       WHERE organization_id=$1 AND id=$7 RETURNING id`,
-      [
-        context.organizationId,
-        context.userId,
-        lead.firstName,
-        lead.lastName,
-        lead.companyName,
-        lead.jobTitle,
-        duplicateId,
-      ],
+      `UPDATE tenant.crm_leads
+          SET first_name=COALESCE(NULLIF($3,''),first_name),last_name=COALESCE($4,last_name),
+              company_name=COALESCE($5,company_name),job_title=COALESCE($6,job_title),
+              updated_by=$2,updated_at=now()
+        WHERE organization_id=$1 AND id=$7 RETURNING id`,
+      [context.organizationId,context.userId,lead.firstName,lead.lastName,lead.companyName,lead.jobTitle,duplicateId],
     );
     return { leadId: updated.rows[0].id, action: "update" };
   }
+  const ownerUserId = lead.ownerUserId || options.ownerUserId ||
+    (await resolveLeadOwner(client, context, {
+      ...lead,
+      companyId: options.companyId || context.activeCompanyId,
+      branchId: options.branchId || context.activeBranchId,
+      sourceId: options.sourceId || lead.sourceId || null,
+      campaignId: options.campaignId || lead.campaignId || null,
+    })) || context.userId;
   const inserted = await client.query(
     `INSERT INTO tenant.crm_leads(
-      organization_id,company_id,branch_id,code,first_name,last_name,email,phone,mobile,company_name,job_title,website,industry,
-      owner_user_id,estimated_value,currency_code,city,state,country_code,product_interest,consent_email,consent_sms,consent_whatsapp,custom_data,created_by,updated_by)
-     VALUES($1,$2,$3,'LEAD-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$13,$13)
-     RETURNING id`,
-    [
-      context.organizationId,
-      options.companyId || context.activeCompanyId,
-      options.branchId || context.activeBranchId,
-      lead.firstName,
-      lead.lastName,
-      lead.email,
-      lead.phone,
-      lead.mobile,
-      lead.companyName,
-      lead.jobTitle,
-      lead.website,
-      lead.industry,
-      context.userId,
-      Number(lead.estimatedValue || 0),
-      lead.currencyCode,
-      lead.city,
-      lead.state,
-      lead.countryCode,
-      lead.productInterest,
-      Boolean(lead.consentEmail),
-      Boolean(lead.consentSms),
-      Boolean(lead.consentWhatsapp),
-      JSON.stringify(lead.customData || {}),
-    ],
+       organization_id,company_id,branch_id,code,first_name,last_name,email,phone,mobile,
+       company_name,job_title,website,industry,source_id,campaign_id,owner_user_id,
+       estimated_value,currency_code,city,state,country_code,product_interest,
+       consent_email,consent_sms,consent_whatsapp,custom_data,created_by,updated_by
+     ) VALUES(
+       $1,$2,$3,'LEAD-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),
+       $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+       $22,$23,$24,$25::jsonb,$26,$26
+     ) RETURNING id`,
+    [context.organizationId,options.companyId||context.activeCompanyId,options.branchId||context.activeBranchId,
+     lead.firstName,lead.lastName,lead.email,lead.phone,lead.mobile,lead.companyName,lead.jobTitle,
+     lead.website,lead.industry,options.sourceId||lead.sourceId||null,options.campaignId||lead.campaignId||null,
+     ownerUserId,Number(lead.estimatedValue||0),lead.currencyCode,lead.city,lead.state,lead.countryCode,
+     lead.productInterest,Boolean(lead.consentEmail),Boolean(lead.consentSms),Boolean(lead.consentWhatsapp),
+     JSON.stringify(lead.customData||{}),context.userId],
   );
-  return { leadId: inserted.rows[0].id, action: "create" };
+  return { leadId: inserted.rows[0].id, action: "create", ownerUserId };
 }
 
 export async function previewLeadImport(client, context, input = {}) {
@@ -690,6 +685,9 @@ export async function submitPublishedLeadForm(
     duplicateStrategy: form.duplicate_strategy || "warn",
     companyId: form.company_id,
     branchId: form.branch_id,
+    sourceId: form.source_id,
+    campaignId: form.campaign_id,
+    ownerUserId: form.owner_user_id,
   });
   await client.query(
     `INSERT INTO tenant.crm_lead_provenance(organization_id,lead_id,source_channel,source_record_id,provider,external_id,original_payload,attribution,consent_evidence,content_hash,created_by) VALUES($1,$2,'form',$3,'capture_form',$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9) ON CONFLICT DO NOTHING`,
@@ -733,6 +731,7 @@ export async function createLeadAcquisitionConnection(
       "facebook",
       "whatsapp",
       "website_chat",
+      "inbound_email",
       "custom",
       "mock",
     ].includes(provider)
@@ -746,7 +745,11 @@ export async function createLeadAcquisitionConnection(
       provider,
       text(input.displayName || provider, 160),
       text(input.credentialReference, 500) || null,
-      JSON.stringify(input.configuration || {}),
+      JSON.stringify({
+        ...(input.configuration && typeof input.configuration === "object" ? input.configuration : {}),
+        ...(input.webhookSecretReference ? { webhookSecretReference: text(input.webhookSecretReference, 500) } : {}),
+        ...(input.metadata && typeof input.metadata === "object" ? { metadata: input.metadata } : {}),
+      }),
       text(input.status || "sandbox", 20),
       context.userId,
     ],
@@ -762,6 +765,18 @@ export async function ingestLeadAcquisitionWebhook(
   payload = {},
 ) {
   assertUuid(connectionId, "Acquisition connection");
+  const connectionResult = await client.query(
+    `SELECT company_id,provider,configuration,status
+       FROM tenant.crm_lead_acquisition_connections
+      WHERE organization_id=$1 AND id=$2 AND status IN ('sandbox','connected')`,
+    [context.organizationId, connectionId],
+  );
+  const connection = connectionResult.rows[0];
+  if (!connection)
+    throw new CrmLeadAcquisitionError(404, "Acquisition connection is not active.", "CRM_ACQUISITION_CONNECTION_NOT_FOUND");
+  if (String(connection.provider) !== String(provider))
+    throw new CrmLeadAcquisitionError(409, "Provider does not match the registered acquisition connection.", "CRM_ACQUISITION_PROVIDER_MISMATCH");
+  const configuration = connection.configuration || {};
   const normalized = normalizeLeadAcquisitionEvent(provider, payload);
   const hash = crmLeadAcquisitionHash(payload);
   const inserted = await client.query(
@@ -782,6 +797,10 @@ export async function ingestLeadAcquisitionWebhook(
   try {
     const result = await createLead(client, context, normalized.lead, {
       duplicateStrategy: "skip",
+      companyId: connection.company_id || context.activeCompanyId,
+      sourceId: configuration.sourceId || configuration.source_id || null,
+      campaignId: configuration.campaignId || configuration.campaign_id || null,
+      ownerUserId: configuration.ownerUserId || configuration.owner_user_id || null,
     });
     await client.query(
       `UPDATE tenant.crm_lead_acquisition_events SET status='processed',lead_id=$3,processed_at=now() WHERE organization_id=$1 AND id=$2`,

@@ -15,6 +15,7 @@ const providers = [
   "facebook",
   "whatsapp",
   "website_chat",
+  "inbound_email",
   "custom",
   "mock",
 ];

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DownwardSelect from "@/components/downward-select";
+import CrmLeadCreateWorkspace from "@/components/crm-lead-create-workspace";
+import CrmLeadsWorkspace from "@/components/crm-leads-workspace";
 import PaginationControls from "@/components/pagination-controls";
 import StructuredFieldEditor from "@/components/structured-field-editor";
 import type { CrmDefinition, CrmField } from "@/lib/crm";
@@ -66,6 +68,9 @@ export default function CrmResourceManager({
   startCreating = false,
   canImport,
   canExport,
+  leadDashboard = null,
+  leadFilters = {},
+  leadBoardRows = [],
 }: {
   definition: CrmDefinition;
   rows: Row[];
@@ -79,6 +84,9 @@ export default function CrmResourceManager({
   startCreating?: boolean;
   canImport: boolean;
   canExport: boolean;
+  leadDashboard?: Record<string, unknown> | null;
+  leadFilters?: Record<string, string>;
+  leadBoardRows?: Row[];
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -245,6 +253,50 @@ export default function CrmResourceManager({
       setImportPending(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  if (definition.key === "leads" && editing && !editing.id && canManage) {
+    return (
+      <CrmLeadCreateWorkspace
+        options={options}
+        onCancel={() => {
+          setEditing(null);
+          if (startCreating) router.replace("/crm/leads");
+        }}
+      />
+    );
+  }
+
+  if (definition.key === "leads") {
+    return (
+      <CrmLeadsWorkspace
+        rows={rows}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        initialSearch={initialSearch}
+        initialStatus={initialStatus}
+        options={options}
+        canManage={canManage}
+        canImport={canImport}
+        canExport={canExport}
+        pending={pending}
+        importPending={importPending}
+        message={message}
+        editing={editing}
+        fields={definition.fields}
+        leadDashboard={leadDashboard}
+        leadFilters={leadFilters}
+        boardRows={leadBoardRows}
+        onNavigate={navigate}
+        onCreate={() => setEditing({})}
+        onEdit={(row) => setEditing(row)}
+        onArchive={(id) => void archive(id)}
+        onImport={(file) => void importCsv(file)}
+        onCloseEdit={() => setEditing(null)}
+        onSubmitEdit={submit}
+      />
+    );
   }
 
   return (

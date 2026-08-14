@@ -175,6 +175,20 @@ export function resolveLeadOwner(
   context: CrmFoundationContext,
   input: Record<string, unknown>,
 ): Promise<string | null>;
+export function listLeadAssignmentPolicies(
+  client: QueryClient,
+  context: CrmFoundationContext,
+): Promise<Array<Record<string, unknown>>>;
+export function saveLeadAssignmentPolicy(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input?: Record<string, unknown>,
+): Promise<Record<string, unknown>>;
+export function archiveLeadAssignmentPolicy(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  policyId: string,
+): Promise<Record<string, unknown>>;
 
 export * from "./crm/lead-operations.js";
 

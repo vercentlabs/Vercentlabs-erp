@@ -6,15 +6,6 @@ import { useEffect, useRef, useState } from "react";
 
 const crmAreas = [
   {
-    label: "Lead workspace",
-    paths: ["/crm/leads", "/crm/lead-acquisition", "/crm/lead-intelligence"],
-    items: [
-      { href: "/crm/leads", label: "All leads" },
-      { href: "/crm/lead-acquisition", label: "Acquisition" },
-      { href: "/crm/lead-intelligence", label: "Scoring, SLA & nurture" },
-    ],
-  },
-  {
     label: "Opportunity workspace",
     paths: ["/crm/opportunities", "/crm/pipeline", "/crm/opportunity-revenue"],
     items: [

@@ -1,4 +1,5 @@
 import { CRM_RESOURCE_KEYS } from "@vercentlabs/shared-types";
+import { resolveLeadOwner as resolveGovernedLeadOwner } from "./crm/lead-governance.js";
 
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
@@ -1500,6 +1501,17 @@ function buildFilters(definition, filters, parameters, alias = "record") {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
   }
+  if (definition.table === "tenant.crm_leads") {
+    for (const [key, column] of [["priority", "priority"], ["rating", "rating"]]) {
+      if (filters[key] && filters[key] !== "all")
+        sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
+    }
+    const followup = filters.followup || "all";
+    if (followup === "overdue") sql += ` AND ${alias}.next_follow_up_at < now()`;
+    if (followup === "today") sql += ` AND ${alias}.next_follow_up_at >= current_date AND ${alias}.next_follow_up_at < current_date + interval '1 day'`;
+    if (followup === "upcoming") sql += ` AND ${alias}.next_follow_up_at >= now()`;
+    if (followup === "none") sql += ` AND ${alias}.next_follow_up_at IS NULL`;
+  }
   if (definition.table === "tenant.crm_activities") {
     const due = filters.due || "all";
     if (due === "today")
@@ -1791,7 +1803,7 @@ export async function createCrmRecord(client, context, resource, input) {
   )
     prepared.branchId = context.activeBranchId;
   if (resource === "leads" && !prepared.ownerUserId)
-    prepared.ownerUserId = await resolveLeadOwner(client, context, prepared);
+    prepared.ownerUserId = await resolveGovernedLeadOwner(client, context, prepared);
   if (
     resource === "opportunities" &&
     (!prepared.pipelineId || !prepared.stageId)

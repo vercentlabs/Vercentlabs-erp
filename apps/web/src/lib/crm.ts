@@ -134,6 +134,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
           "unqualified",
         ),
       },
+      { name: "unqualifiedReason", label: "Disqualification reason", type: "textarea" },
       {
         name: "priority",
         label: "Priority",

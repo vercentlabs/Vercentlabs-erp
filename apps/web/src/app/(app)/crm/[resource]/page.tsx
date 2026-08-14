@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getCrmOptions, listCrmRecords } from "@vercentlabs/api";
+import { getCrmDashboard, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 import CrmResourceManager from "@/components/crm-resource-manager";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
@@ -9,6 +9,20 @@ import { canViewCrmResource } from "@/lib/crm-api";
 import { tenantTransaction } from "@/lib/db";
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 10;
+const LEAD_PRIORITIES = ["all", "low", "medium", "high", "urgent"] as const;
+const LEAD_RATINGS = ["all", "cold", "warm", "hot"] as const;
+const LEAD_FOLLOWUPS = ["all", "none", "overdue", "today", "upcoming"] as const;
+
+function enumFilter<const T extends readonly string[]>(
+  value: string | undefined,
+  allowed: T,
+  fallback: T[number],
+): T[number] {
+  const normalized = String(value || fallback).trim().slice(0, 40);
+  return allowed.includes(normalized as T[number])
+    ? (normalized as T[number])
+    : fallback;
+}
 
 function pageUrl(
   resource: string,
@@ -43,6 +57,11 @@ export default async function CrmResourcePage({
     page?: string;
     search?: string;
     status?: string;
+    ownerId?: string;
+    sourceId?: string;
+    priority?: string;
+    rating?: string;
+    followup?: string;
   }>;
 }) {
   const [{ resource }, query] = await Promise.all([params, searchParams]);
@@ -67,48 +86,84 @@ export default async function CrmResourcePage({
     String(query.status || "all")
       .trim()
       .slice(0, 80) || "all";
+  const ownerId = String(query.ownerId || "").trim().slice(0, 80);
+  const sourceId = String(query.sourceId || "").trim().slice(0, 80);
+  const priority = enumFilter(query.priority, LEAD_PRIORITIES, "all");
+  const rating = enumFilter(query.rating, LEAD_RATINGS, "all");
+  const followup = enumFilter(query.followup, LEAD_FOLLOWUPS, "all");
+  const pageSize = resource === "leads" ? 50 : PAGE_SIZE;
   const result = await tenantTransaction(
     context.organizationId,
     async (client) => ({
       records: await listCrmRecords(client, context, resource, {
-        limit: PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
         search,
         status,
+        ownerId: resource === "leads" ? ownerId : undefined,
+        sourceId: resource === "leads" ? sourceId : undefined,
+        priority: resource === "leads" ? priority : undefined,
+        rating: resource === "leads" ? rating : undefined,
+        followup: resource === "leads" ? followup : undefined,
       }),
       options: await getCrmOptions(client, context),
+      leadDashboard:
+        resource === "leads" ? await getCrmDashboard(client, context) : null,
+      leadBoard:
+        resource === "leads"
+          ? await listCrmRecords(client, context, "leads", {
+              limit: 500,
+              offset: 0,
+              search,
+              status,
+              ownerId,
+              sourceId,
+              priority,
+              rating,
+              followup,
+            })
+          : null,
     }),
   );
-  const totalPages = Math.max(1, Math.ceil(result.records.total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(result.records.total / pageSize));
   if (page > totalPages)
     redirect(pageUrl(resource, totalPages, search, status));
   const definition = crmDefinitions[resource];
+  const canManage = hasPermission(session, definition.permission);
+  const dedicatedLeadWorkspace = resource === "leads";
+  const dedicatedLeadCreate =
+    dedicatedLeadWorkspace && query.create === "1" && canManage;
   return (
     <>
-      <section className="page-heading">
-        <div>
-          <p className="eyebrow">CRM · {definition.group}</p>
-          <h1>{definition.title}</h1>
-          <p>{definition.description}</p>
-        </div>
-        <span className="status-badge neutral">
-          {session.companyName || "Organisation-wide"}
-        </span>
-      </section>
+      {!dedicatedLeadWorkspace ? (
+        <section className="page-heading">
+          <div>
+            <p className="eyebrow">CRM · {definition.group}</p>
+            <h1>{definition.title}</h1>
+            <p>{definition.description}</p>
+          </div>
+          <span className="status-badge neutral">
+            {session.companyName || "Organisation-wide"}
+          </span>
+        </section>
+      ) : null}
       <CrmResourceManager
         key={`${resource}:${search}:${status}`}
         definition={definition}
         rows={JSON.parse(JSON.stringify(result.records.rows))}
         total={result.records.total}
         page={page}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
         initialSearch={search}
         initialStatus={status}
         options={JSON.parse(JSON.stringify(result.options))}
-        canManage={hasPermission(session, definition.permission)}
-        startCreating={query.create === "1"}
+        canManage={canManage}
+        startCreating={dedicatedLeadCreate}
         canImport={hasPermission(session, PERMISSIONS.crmImport)}
         canExport={hasPermission(session, PERMISSIONS.crmExport)}
+        leadDashboard={JSON.parse(JSON.stringify(result.leadDashboard))}
+        leadFilters={{ ownerId, sourceId, priority, rating, followup }}
+        leadBoardRows={JSON.parse(JSON.stringify(result.leadBoard?.rows || []))}
       />
     </>
   );
