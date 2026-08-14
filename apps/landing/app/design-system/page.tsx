@@ -1,3 +1,5 @@
+
+
 import {
   COLOR_TOKENS,
   SEMANTIC_STATE,
@@ -11,13 +13,13 @@ import { Card, BorderedPanel, InformationBand, FeatureList, Checklist, Metric } 
 import { Tag, ModuleTag } from "@/components/ui/tag";
 import { FieldWrapper, FormAlert } from "@/components/forms/field";
 import { Input, Textarea, Select, Checkbox, RadioGroup } from "@/components/forms/inputs";
-import { ProductScreenshot, ProductCallout, WorkflowConnector } from "@/components/product/product-frame";
+import { ProductCallout, WorkflowConnector } from "@/components/product/product-frame";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { buildPageMetadata } from "@/lib/metadata";
 
 export const metadata = buildPageMetadata({
   title: "Design System Review",
-  description: "Internal, non-public review environment for the Control Surface component library.",
+  description: "Internal, non-public review environment for the Operational Ledger component library.",
   path: "/design-system",
   index: false,
 });
@@ -32,7 +34,7 @@ export default function DesignSystemPage() {
         Internal review route — not indexed, not linked from public navigation. Not for customer viewing.
       </div>
 
-      <Heading level="display">Control Surface — Design System</Heading>
+      <Heading level="display">Operational Ledger — Design System</Heading>
       <Text variant="lead" className="mt-3 max-w-[70ch]">
         Every reusable primitive shipped in Phase 2, in every state it supports. See{" "}
         <InlineCode>docs/landing-redesign/phase-2/component-inventory.md</InlineCode> for the full written spec.
@@ -175,7 +177,7 @@ export default function DesignSystemPage() {
         <Stack gap={0} className="mt-8">
           <InformationBand>
             <Text variant="label">Information band item one</Text>
-            <Text variant="bodySmall">A full-width row — the Control Surface alternative to a card grid.</Text>
+            <Text variant="bodySmall">A full-width row — the Operational Ledger alternative to a card grid.</Text>
           </InformationBand>
           <InformationBand>
             <Text variant="label">Information band item two</Text>
@@ -257,17 +259,22 @@ export default function DesignSystemPage() {
       <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
         <SectionHeader
           eyebrow="Product"
-          title="Product screenshot framework"
-          description="No screenshots are approved for marketing yet — the honest placeholder state below is what's shown here on purpose (see lib/product/screenshots.ts). It never renders on a public, indexable page."
+          title="Homepage-only product evidence"
+          description="The public homepage is the one deliberate place where product imagery carries visual proof. Inner pages use operating registers, process sequences, evidence tables, and structured text instead of screenshots."
         />
-        <Grid columns={2} gap={6} className="mt-6">
-          <ProductScreenshot id="crm-pipeline" moduleAccentColor={COLOR_TOKENS.brandAccent} allowPlaceholder />
-          <div className="flex flex-col gap-3">
-            <ProductCallout number={1} label="Lead captured from public form" />
-            <ProductCallout number={2} label="Scored and SLA-tracked automatically" />
-            <ProductCallout number={3} label="Converts to account + opportunity in one step" />
+        <div className="mt-6 border-y border-(--color-border-strong) py-6">
+          <div className="grid gap-6 md:grid-cols-[220px_1fr]">
+            <div>
+              <span className="vl-index">Evidence policy / 01</span>
+              <p className="mt-3 text-sm font-semibold text-(--color-text-primary)">One visual proof surface. No screenshot wallpaper.</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <ProductCallout number={1} label="Homepage establishes the product visually" />
+              <ProductCallout number={2} label="Inner pages explain the system structurally" />
+              <ProductCallout number={3} label="Workflows remain readable without imagery" />
+            </div>
           </div>
-        </Grid>
+        </div>
 
         <Text variant="label" className="mt-10 block">
           Workflow connector — {LANDING_WORKFLOWS[0].name}
@@ -279,6 +286,30 @@ export default function DesignSystemPage() {
             return { label: moduleInfo?.name ?? key, accentColor: moduleInfo?.accentColor.hex ?? COLOR_TOKENS.brandAccent };
           })}
         />
+      </Section>
+
+      <Divider />
+
+      <Section tone="page" paddingTop={{ base: 12 }} paddingBottom={{ base: 12 }}>
+        <SectionHeader eyebrow="Page families" title="One brand system. Ten distinct reading modes." description="The landing no longer treats every route as the same grid with different copy." />
+        <div className="mt-8 border-t border-(--color-border-strong)">
+          {[
+            ["01", "Module Atlas", "Operating records, capabilities, runbooks, output and control registers."],
+            ["02", "Industry Field Notes", "Operating pressures, recommended stacks, evidence and buyer roles."],
+            ["03", "Solution Diagnostic", "Current state, intervention, system map and expected state change."],
+            ["04", "Workflow Runbook", "Continuous process spine with controls, handoffs and exceptions."],
+            ["05", "Platform Blueprint", "Control-plane architecture and inherited system layers."],
+            ["06", "Resource Journal", "Editorial references with folios, section numbers and evidence metadata."],
+            ["07", "Comparison Docket", "Neutral decision evidence, fit profiles and source ledger."],
+            ["08", "Implementation Rollout", "Phased rollout plan and readiness checkpoints."],
+            ["09", "Demo Intake", "Enterprise working-session request, not a generic lead form."],
+            ["10", "Policy Register", "Clause-indexed legal documents and system-status states."],
+          ].map(([number, name, description]) => (
+            <div key={number} className="grid gap-3 border-b border-(--color-border-default) py-5 md:grid-cols-[3rem_220px_minmax(0,1fr)] md:gap-7">
+              <span className="vl-index">{number}</span><Text variant="label">{name}</Text><Text variant="bodySmall">{description}</Text>
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Divider />

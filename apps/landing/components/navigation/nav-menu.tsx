@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
@@ -70,8 +71,8 @@ export function NavMenu({ label, children, panelClassName }: NavMenuProps) {
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
         className={cx(
-          "flex items-center gap-1.5 rounded-(--radius-control) px-3 py-2 text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-bg-subtle) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)",
-          open && "bg-(--color-bg-subtle)",
+          "flex items-center gap-1.5 border-b border-transparent px-3 py-2 text-sm font-semibold text-(--color-text-primary) transition-colors hover:border-(--color-text-primary) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)",
+          open && "border-(--color-text-primary) text-(--color-text-brand)",
         )}
       >
         {label}
@@ -97,7 +98,7 @@ export function NavMenu({ label, children, panelClassName }: NavMenuProps) {
             // trigger isn't near the left edge of the header. Tailwind composes
             // translate-x/translate-y into one transform, so the entrance
             // translate-y coexists with this centering translate-x.
-            "absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-5 shadow-(--shadow-panel) transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-standard)",
+            "absolute left-1/2 top-full z-40 mt-3 -translate-x-1/2 border border-(--color-border-strong) bg-(--color-bg-elevated) p-6 shadow-[0_18px_45px_rgba(23,24,23,.12)] transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-standard)",
             visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
             !visible && "pointer-events-none",
             panelClassName,

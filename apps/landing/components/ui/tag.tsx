@@ -4,46 +4,33 @@ import { cx } from "@/lib/utils";
 type TagTone = "neutral" | "brand" | "success" | "warning" | "error" | "info";
 
 const TAG_CLASSES: Record<TagTone, string> = {
-  neutral: "bg-(--color-bg-subtle) text-(--color-text-secondary)",
-  brand: "bg-(--color-bg-brand) text-(--color-text-inverse)",
-  success: "bg-(--color-state-success-soft) text-(--color-state-success)",
-  warning: "bg-(--color-state-warning-soft) text-(--color-state-warning)",
-  error: "bg-(--color-state-error-soft) text-(--color-state-error)",
-  info: "bg-(--color-state-info-soft) text-(--color-signal-cyan)",
+  neutral: "border-(--color-border-default) bg-transparent text-(--color-text-secondary)",
+  brand: "border-(--color-border-brand) bg-transparent text-(--color-text-brand)",
+  success: "border-(--color-state-success) bg-transparent text-(--color-state-success)",
+  warning: "border-(--color-state-warning) bg-transparent text-(--color-state-warning)",
+  error: "border-(--color-state-error) bg-transparent text-(--color-state-error)",
+  info: "border-(--color-state-info) bg-transparent text-(--color-state-info)",
 };
 
-/**
- * Rectangular tag — deliberately NOT pill-shaped (Control Surface rejects the
- * product's own pill-badge overuse; see docs/landing-redesign/phase-1/
- * creative-direction.md Part 1).
- */
 export function Tag({ children, tone = "neutral", className }: { children: ReactNode; tone?: TagTone; className?: string }) {
   return (
-    <span className={cx("inline-flex items-center rounded-(--radius-control) px-2 py-1 text-xs font-medium", TAG_CLASSES[tone], className)}>
+    <span className={cx("inline-flex items-center rounded-[3px] border px-2 py-1 text-[0.68rem] font-bold uppercase tracking-[0.08em]", TAG_CLASSES[tone], className)}>
       {children}
     </span>
   );
 }
 
-/** Same visual treatment as Tag — kept as a distinct export for semantic clarity at call sites. */
 export const Badge = Tag;
 
-/**
- * A small color swatch + label used for the module accent legend (never a
- * decorative pill). Always rendered inside a <Link> at every call site — the
- * hover treatment lives here so it's free everywhere, relying on the parent
- * anchor's native :hover propagating to this child span (no `group` class
- * needed).
- */
 export function ModuleTag({ name, accentColor, className }: { name: string; accentColor: string; className?: string }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-(--radius-control) border border-(--color-border-default) px-2 py-1 text-xs font-medium text-(--color-text-primary) transition-colors duration-(--duration-fast) ease-(--ease-standard) hover:border-(--color-border-brand) hover:bg-(--color-bg-subtle)",
+        "inline-flex items-center gap-2 border-b border-(--color-border-default) py-1 text-xs font-semibold text-(--color-text-primary) transition-[border-color,color] duration-(--duration-fast) hover:border-(--color-text-primary)",
         className,
       )}
     >
-      <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: accentColor }} aria-hidden="true" />
+      <span className="h-2.5 w-[3px] flex-none" style={{ backgroundColor: accentColor }} aria-hidden="true" />
       {name}
     </span>
   );

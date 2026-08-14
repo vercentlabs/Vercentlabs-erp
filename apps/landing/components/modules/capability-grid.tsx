@@ -1,36 +1,25 @@
 import type { CapabilityGroup } from "@vercentlabs/landing-content";
-import { InformationBand } from "@/components/ui/card";
 import { Text, Heading } from "@/components/ui/text";
-import { Stack } from "@/components/layout/container";
 
-/**
- * Full-width information bands, not an accordion of hundreds of
- * uncontextualised bullets — every capability stays in server-rendered HTML
- * (progressive disclosure isn't used here since the content is short enough
- * per group to just show).
- */
 export function CapabilityGrid({ groups }: { groups: readonly CapabilityGroup[] }) {
   return (
-    <div className="flex flex-col">
-      {groups.map((group) => (
-        <InformationBand key={group.id} className="sm:flex-col sm:items-start">
-          <Stack gap={3}>
-            <div>
-              <Heading level="h3">{group.name}</Heading>
-              <Text variant="bodySmall" className="mt-1.5 max-w-[70ch]">
-                {group.description}
-              </Text>
-            </div>
-            <ul className="flex flex-col gap-1.5">
-              {group.capabilities.map((capability) => (
-                <li key={capability} className="flex items-start gap-2 text-sm text-(--color-text-primary)">
-                  <span className="mt-1.5 h-1 w-1 flex-none rounded-full bg-(--color-text-brand)" aria-hidden="true" />
-                  {capability}
-                </li>
-              ))}
-            </ul>
-          </Stack>
-        </InformationBand>
+    <div className="border-t border-(--color-border-strong)">
+      {groups.map((group, groupIndex) => (
+        <section key={group.id} className="grid grid-cols-[48px_1fr] gap-4 border-b border-(--color-border-default) py-6 sm:grid-cols-[70px_260px_1fr] lg:grid-cols-[90px_320px_1fr] lg:py-8">
+          <span className="vl-index text-(--color-text-brand)">{String(groupIndex + 1).padStart(2, "0")}</span>
+          <div>
+            <Heading level="h3">{group.name}</Heading>
+            <Text variant="bodySmall" className="mt-2 max-w-[34ch]">{group.description}</Text>
+          </div>
+          <ol className="col-start-2 mt-5 border-t border-(--color-border-default) sm:col-start-3 sm:mt-0">
+            {group.capabilities.map((capability, index) => (
+              <li key={capability} className="grid grid-cols-[2rem_1fr] gap-3 border-b border-(--color-border-default) py-2.5 text-sm text-(--color-text-primary) last:border-b-0">
+                <span className="vl-index">{String(index + 1).padStart(2, "0")}</span>
+                <span>{capability}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
       ))}
     </div>
   );

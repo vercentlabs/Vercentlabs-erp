@@ -3,34 +3,27 @@ import { TrackedLink } from "@/components/analytics/tracked-cta-link";
 import type { EditorialSource } from "@vercentlabs/landing-content";
 
 const SOURCE_TYPE_LABEL: Record<EditorialSource["sourceType"], string> = {
-  government: "Government",
-  standard: "Standards body",
-  vendor: "Vendor (primary source)",
-  "industry-body": "Industry body",
-  research: "Research",
-  documentation: "Documentation",
+  government: "Government", standard: "Standards body", vendor: "Vendor (primary source)",
+  "industry-body": "Industry body", research: "Research", documentation: "Documentation",
 };
 
-/**
- * Real, tiered citations only — every entry here must be a live
- * EDITORIAL_SOURCES record with a retrievedAt date, never a fabricated
- * or unlinked "source." See .claude/rules/landing-content.md rule 2.
- */
 export function SourceList({ sources, className }: { sources: EditorialSource[]; className?: string }) {
   if (sources.length === 0) return null;
   return (
     <div className={className}>
-      <Text variant="label" as="p" className="mb-3">
-        Sources
-      </Text>
-      <ol className="flex flex-col gap-2 text-sm">
-        {sources.map((source) => (
-          <li key={source.id} className="text-(--color-text-secondary)">
-            <TrackedLink href={source.url} event="source_link_click" ctaLocation={`source_${source.id}`} external>
-              {source.title}
-            </TrackedLink>
-            {" — "}
-            {source.publisher} · {SOURCE_TYPE_LABEL[source.sourceType]} · retrieved {source.retrievedAt}
+      <div className="flex items-end justify-between border-b border-(--color-border-strong) pb-4">
+        <Text variant="dataLabel" as="p">Sources / evidence register</Text>
+        <span className="tabular-data text-4xl font-semibold tracking-[-0.06em] text-(--color-text-primary)">{String(sources.length).padStart(2, "0")}</span>
+      </div>
+      <ol>
+        {sources.map((source, index) => (
+          <li key={source.id} className="grid grid-cols-[2rem_1fr] gap-3 border-b border-(--color-border-default) py-4 sm:grid-cols-[3rem_1fr_auto]">
+            <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
+            <div>
+              <TrackedLink href={source.url} event="source_link_click" ctaLocation={`source_${source.id}`} external className="font-semibold">{source.title}</TrackedLink>
+              <p className="mt-1 text-xs text-(--color-text-muted)">{source.publisher} · {SOURCE_TYPE_LABEL[source.sourceType]}</p>
+            </div>
+            <span className="col-start-2 text-xs text-(--color-text-muted) sm:col-start-3">Retrieved {source.retrievedAt}</span>
           </li>
         ))}
       </ol>

@@ -1,3 +1,4 @@
+
 import { cx } from "@/lib/utils";
 import { Reveal } from "@/components/motion/reveal";
 
@@ -22,7 +23,7 @@ interface FaqItem {
  */
 export function FaqAccordion({ items, className, reveal = true }: { items: FaqItem[]; className?: string; reveal?: boolean }) {
   const accordion = (
-    <div className={cx("flex flex-col divide-y divide-(--color-border-default) border-t border-(--color-border-default)", className)}>
+    <div className={cx("flex flex-col border-t border-(--color-border-strong)", className)}>
         {items.map((item, index) => (
           <details
             key={item.question}
@@ -32,21 +33,21 @@ export function FaqAccordion({ items, className, reveal = true }: { items: FaqIt
             // globals.css (::details-content + @starting-style) — zero-JS,
             // progressive enhancement; unsupported browsers keep the native
             // instant snap, no regression either way.
-            className="group faq-item py-4"
+            className="group faq-item border-b border-(--color-border-default) py-5 sm:py-6"
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-(--color-text-primary) marker:content-none">
+            <summary className="grid cursor-pointer list-none grid-cols-[1fr_2rem] items-center gap-5 text-base font-semibold tracking-[-0.025em] text-(--color-text-primary) marker:content-none">
               {item.question}
               <svg
                 viewBox="0 0 12 12"
                 width="12"
                 height="12"
-                className="flex-none text-(--color-text-muted) transition-transform duration-(--duration-fast) group-open:rotate-180"
+                className="flex-none text-(--color-text-muted) transition-transform duration-(--duration-fast) group-open:rotate-45"
                 aria-hidden="true"
               >
-                <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M2 6h8M6 2v8" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
               </svg>
             </summary>
-            <p className="mt-3 max-w-[70ch] text-sm leading-relaxed text-(--color-text-secondary)">{item.answer}</p>
+            <p className="mt-4 max-w-[72ch] border-l border-(--color-border-default) pl-4 text-sm leading-[1.75] text-(--color-text-secondary)">{item.answer}</p>
           </details>
         ))}
     </div>

@@ -7,23 +7,10 @@ import { track } from "@/lib/analytics";
 
 const STORAGE_KEY = `vercentlabs_announcement_dismissed_${ANNOUNCEMENT_BANNER.id}`;
 
-/**
- * Site-wide top announcement bar, mounted once above the header in the root
- * layout. Renders nothing on the server and during the initial client render
- * (so there's no hydration mismatch), then decides whether to show itself
- * from localStorage once mounted — dismissing it is remembered per browser,
- * keyed to ANNOUNCEMENT_BANNER.id so a future, different announcement isn't
- * silently suppressed by an old dismissal.
- */
 export function AnnouncementBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // Reads a browser-only value (localStorage) that's expected to legitimately
-    // differ from the server-rendered default (hidden) once mounted — there's no
-    // way to know the dismissal state during SSR or the initial hydration pass
-    // without risking a real markup mismatch, so this can't be restructured into
-    // a lazy useState initializer or useSyncExternalStore's server-snapshot path.
     const dismissed = window.localStorage.getItem(STORAGE_KEY) === "1";
     if (!dismissed) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -41,14 +28,14 @@ export function AnnouncementBanner() {
   }
 
   return (
-    <div className="flex items-center justify-center gap-3 border-b border-(--color-border-default) bg-(--color-bg-brand) px-4 py-2.5 text-center">
-      <p className="text-sm font-medium text-(--color-text-inverse)">
+    <div className="grid min-h-9 grid-cols-[1fr_auto] items-center border-b border-(--color-border-strong) bg-(--vl-night) px-3 text-white sm:px-5">
+      <p className="px-2 py-2 text-center text-xs font-semibold text-white/82 sm:text-sm">
         {ANNOUNCEMENT_BANNER.message}{" "}
         <Link
           href={ANNOUNCEMENT_BANNER.href}
           prefetch={false}
           onClick={() => track("announcement_banner_cta_click", { ctaLocation: "announcement_banner", ctaDestination: ANNOUNCEMENT_BANNER.href })}
-          className="font-semibold underline underline-offset-2 hover:no-underline"
+          className="vl-editorial-link ml-1 text-white"
         >
           {ANNOUNCEMENT_BANNER.ctaLabel}
         </Link>
@@ -57,11 +44,9 @@ export function AnnouncementBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss announcement"
-        className="flex-none rounded-(--radius-control) p-1 text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        className="flex h-8 w-8 items-center justify-center border-l border-white/15 text-white/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
       >
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
-          <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
       </button>
     </div>
   );

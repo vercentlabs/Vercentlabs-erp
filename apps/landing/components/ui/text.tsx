@@ -12,11 +12,11 @@ const HEADING_TAG: Record<HeadingLevel, ElementType> = {
 };
 
 const HEADING_CLASSES: Record<HeadingLevel, string> = {
-  display: "text-4xl font-semibold tracking-[-0.045em] sm:text-5xl lg:text-6xl",
-  h1: "text-3xl font-semibold tracking-[-0.045em] sm:text-4xl",
-  h2: "text-2xl font-semibold tracking-[-0.04em] sm:text-3xl",
-  h3: "text-xl font-semibold tracking-[-0.03em]",
-  h4: "text-base font-semibold tracking-[-0.02em]",
+  display: "text-[clamp(3.35rem,7vw,6.9rem)] font-semibold leading-[0.91] tracking-[-0.068em] text-balance",
+  h1: "text-[clamp(2.6rem,5vw,4.9rem)] font-semibold leading-[0.95] tracking-[-0.062em] text-balance",
+  h2: "text-[clamp(2.05rem,3.5vw,3.6rem)] font-semibold leading-[0.99] tracking-[-0.058em] text-balance",
+  h3: "text-[clamp(1.35rem,2vw,2rem)] font-semibold leading-[1.1] tracking-[-0.04em] text-balance",
+  h4: "text-base font-semibold leading-tight tracking-[-0.025em]",
 };
 
 interface HeadingProps {
@@ -24,7 +24,6 @@ interface HeadingProps {
   children: ReactNode;
   className?: string;
   id?: string;
-  /** Override the rendered tag without changing the visual style (e.g. a "display" styled h2). */
   as?: ElementType;
   tabIndex?: number;
 }
@@ -34,13 +33,6 @@ export const Heading = forwardRef(function Heading(
   ref: Ref<HTMLElement>,
 ) {
   const As = as ?? HEADING_TAG[level];
-  // No hardcoded default color here: `body` already sets color: var(--color-text-primary)
-  // globally (app/globals.css), so headings inherit it for free. Baking the same utility
-  // class in here too would sit alongside any caller-supplied color override (e.g.
-  // text-(--color-text-inverse) on dark sections) with identical specificity — which one
-  // wins is then decided by Tailwind's generated stylesheet order, not by this component,
-  // and was silently losing to the hardcoded default, making inverse-toned headings
-  // invisible against dark backgrounds.
   return (
     <As ref={ref} id={id} tabIndex={tabIndex} className={cx(HEADING_CLASSES[level], className)}>
       {children}
@@ -61,16 +53,16 @@ type TextVariant =
   | "caption";
 
 const TEXT_CLASSES: Record<TextVariant, string> = {
-  lead: "text-lg leading-relaxed text-(--color-text-secondary) sm:text-xl",
-  bodyLarge: "text-lg leading-relaxed text-(--color-text-primary)",
-  body: "text-base leading-relaxed text-(--color-text-primary)",
-  bodySmall: "text-sm leading-relaxed text-(--color-text-secondary)",
-  label: "text-sm font-medium text-(--color-text-primary)",
-  eyebrow: "text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)",
-  navigation: "text-sm font-medium text-(--color-text-primary)",
-  dataValue: "tabular-data text-2xl font-semibold tracking-[-0.02em] text-(--color-text-primary)",
-  dataLabel: "text-xs font-medium uppercase tracking-[0.08em] text-(--color-text-muted)",
-  caption: "text-xs text-(--color-text-muted)",
+  lead: "max-w-[66ch] text-[1.08rem] leading-[1.72] text-(--color-text-secondary) sm:text-xl sm:leading-[1.68]",
+  bodyLarge: "text-lg leading-[1.72] text-(--color-text-primary)",
+  body: "text-base leading-[1.72] text-(--color-text-primary)",
+  bodySmall: "text-sm leading-[1.68] text-(--color-text-secondary)",
+  label: "text-sm font-semibold tracking-[-0.01em] text-(--color-text-primary)",
+  eyebrow: "vl-kicker",
+  navigation: "text-sm font-semibold tracking-[-0.01em] text-(--color-text-primary)",
+  dataValue: "tabular-data text-3xl font-semibold leading-none tracking-[-0.055em] text-(--color-text-primary)",
+  dataLabel: "text-[0.67rem] font-bold uppercase tracking-[0.14em] text-(--color-text-muted)",
+  caption: "text-[0.72rem] leading-relaxed tracking-[0.015em] text-(--color-text-muted)",
 };
 
 interface TextProps {
@@ -94,7 +86,7 @@ export function InlineCode({ children, className }: { children: ReactNode; class
   return (
     <code
       className={cx(
-        "rounded-(--radius-control) bg-(--color-bg-subtle) px-1.5 py-0.5 font-mono text-[0.85em] text-(--color-text-brand)",
+        "rounded-[3px] border border-(--color-border-default) bg-(--color-bg-elevated) px-1.5 py-0.5 font-mono text-[0.85em] text-(--color-text-brand)",
         className,
       )}
     >
@@ -103,17 +95,16 @@ export function InlineCode({ children, className }: { children: ReactNode; class
   );
 }
 
-/** Long-form marketing/article copy — applies consistent spacing to nested block elements. */
 export function Prose({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cx(
-        "max-w-[70ch] text-base leading-relaxed text-(--color-text-primary)",
-        "[&>p]:mt-4 [&>p:first-child]:mt-0",
-        "[&>h2]:mt-10 [&>h2]:text-2xl [&>h2]:font-semibold",
-        "[&>h3]:mt-8 [&>h3]:text-xl [&>h3]:font-semibold",
-        "[&>ul]:mt-4 [&>ul]:list-disc [&>ul]:pl-6",
-        "[&_a]:text-(--color-text-link) [&_a]:underline [&_a]:underline-offset-2",
+        "max-w-[72ch] text-[1.02rem] leading-[1.82] text-(--color-text-primary)",
+        "[&>p]:mt-5 [&>p:first-child]:mt-0",
+        "[&>h2]:mt-14 [&>h2]:border-t [&>h2]:border-(--color-border-default) [&>h2]:pt-8 [&>h2]:text-3xl [&>h2]:font-semibold [&>h2]:tracking-[-0.05em]",
+        "[&>h3]:mt-10 [&>h3]:text-xl [&>h3]:font-semibold [&>h3]:tracking-[-0.035em]",
+        "[&>ul]:mt-5 [&>ul]:list-disc [&>ul]:space-y-2 [&>ul]:pl-6",
+        "[&_a]:text-(--color-text-link) [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-4",
         className,
       )}
     >

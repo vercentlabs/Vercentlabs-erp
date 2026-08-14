@@ -1,17 +1,12 @@
 import Link from "next/link";
 import { cx } from "@/lib/utils";
 
-/**
- * Placeholder brand mark — see public/brand/README.md. Reuses the same "V"
- * letterform as the product's own mark, rendered flat (no gradient) per the
- * Control Surface direction, since no exported brand asset file exists to reuse
- * verbatim.
- */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 40 40" width="28" height="28" className={className} aria-hidden="true">
-      <rect width="40" height="40" rx="10" fill="var(--color-brand)" />
-      <path d="M10 12h5.2l4.8 14.2L24.8 12H30l-8.1 20h-3.8L10 12Z" fill="white" />
+    <svg viewBox="0 0 40 40" width="30" height="30" className={className} aria-hidden="true">
+      <rect x="1" y="1" width="38" height="38" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M9.5 10.5h5.4l5.1 15 5.1-15h5.4L22 31h-4L9.5 10.5Z" fill="currentColor" />
+      <path d="M5 5h6M5 5v6M35 35h-6M35 35v-6" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -21,15 +16,14 @@ export function Logo({ inverse = false, className }: { inverse?: boolean; classN
     <Link
       href="/"
       className={cx(
-        "inline-flex items-center gap-2 rounded-(--radius-control) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)",
+        "inline-flex items-center gap-2.5 rounded-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)",
+        inverse ? "text-white" : "text-(--color-text-primary)",
         className,
       )}
       aria-label="Vercentlabs — go to homepage"
     >
       <LogoMark />
-      <span className={cx("text-base font-semibold tracking-[-0.02em]", inverse ? "text-(--color-text-inverse)" : "text-(--color-text-primary)")}>
-        Vercentlabs
-      </span>
+      <span className="text-[0.98rem] font-bold tracking-[-0.035em]">Vercentlabs</span>
     </Link>
   );
 }

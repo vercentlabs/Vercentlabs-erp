@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -98,7 +99,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
     <div id="mobile-nav" role="dialog" aria-modal="true" aria-label="Site navigation" className="fixed inset-0 z-50 lg:hidden">
       <div
         className={cx(
-          "absolute inset-0 bg-black/30 transition-opacity duration-(--duration-base) ease-(--ease-standard)",
+          "absolute inset-0 bg-black/45 transition-opacity duration-(--duration-base) ease-(--ease-standard)",
           visible ? "opacity-100" : "opacity-0",
         )}
         onClick={onClose}
@@ -107,18 +108,18 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
       <div
         ref={panelRef}
         className={cx(
-          "absolute inset-y-0 right-0 flex w-full max-w-sm flex-col overflow-y-auto bg-(--color-bg-elevated) shadow-(--shadow-panel) transition-transform duration-(--duration-base) ease-(--ease-standard)",
+          "absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto border-l border-(--color-border-strong) bg-(--color-bg-elevated) shadow-[-18px_0_45px_rgba(23,24,23,.12)] transition-transform duration-(--duration-base) ease-(--ease-standard)",
           visible ? "translate-x-0" : "translate-x-full",
           !visible && "pointer-events-none",
         )}
       >
-        <div className="flex items-center justify-between border-b border-(--color-border-default) px-5 py-4">
-          <span className="text-sm font-semibold text-(--color-text-primary)">Menu</span>
+        <div className="flex min-h-[68px] items-center justify-between border-b border-(--color-border-strong) px-5 py-4">
+          <span className="vl-kicker before:hidden">Navigation</span>
           <button
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-(--radius-control) text-(--color-text-primary) hover:bg-(--color-bg-subtle) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-[3px] border border-(--color-border-default) text-(--color-text-primary) hover:border-(--color-border-strong) hover:bg-(--color-bg-subtle) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)"
           >
             <span className="sr-only">Close menu</span>
             <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true">
@@ -127,19 +128,19 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
           </button>
         </div>
 
-        <nav className="flex-1 px-5 py-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">Product</p>
+        <nav className="flex-1 px-5 py-6">
+          <p className="mb-3 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-(--color-text-muted)">Product</p>
           <ul className="mb-6 flex flex-col gap-1">
             {productItem?.children?.map((child) => (
               <li key={child.href}>
-                <Link href={child.href} prefetch={false} className="block rounded-(--radius-control) px-2 py-2.5 text-sm font-medium text-(--color-text-primary) hover:bg-(--color-bg-subtle)">
+                <Link href={child.href} prefetch={false} className="block border-b border-(--color-border-subtle) px-0 py-3 text-sm font-semibold text-(--color-text-primary) hover:text-(--color-text-brand)">
                   {child.label}
                 </Link>
               </li>
             ))}
           </ul>
 
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">Modules</p>
+          <p className="mb-3 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-(--color-text-muted)">Modules</p>
           <ul className="mb-6 flex flex-col gap-1">
             {MODULE_NAV_GROUPS.map((group) => {
               const isExpanded = expandedGroup === group.key;
@@ -150,7 +151,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                     aria-expanded={isExpanded}
                     aria-controls={`mobile-group-${group.key}`}
                     onClick={() => setExpandedGroup(isExpanded ? null : group.key)}
-                    className="flex w-full items-center justify-between rounded-(--radius-control) px-2 py-2.5 text-left text-sm font-medium text-(--color-text-primary) hover:bg-(--color-bg-subtle)"
+                    className="flex w-full items-center justify-between border-b border-(--color-border-subtle) px-0 py-3 text-left text-sm font-semibold text-(--color-text-primary) hover:text-(--color-text-brand)"
                   >
                     {group.label}
                     <svg viewBox="0 0 12 12" width="10" height="10" className={isExpanded ? "rotate-180" : ""} aria-hidden="true">
@@ -167,7 +168,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                             <Link
                               href={`/modules/${moduleInfo.key}`}
                               prefetch={false}
-                              className="flex min-h-11 items-center gap-2 rounded-(--radius-control) px-2 py-2 text-sm text-(--color-text-secondary) hover:bg-(--color-bg-subtle) hover:text-(--color-text-brand)"
+                              className="flex min-h-11 items-center gap-3 border-b border-(--color-border-subtle) px-0 py-2 text-sm text-(--color-text-secondary) hover:text-(--color-text-brand)"
                             >
                               <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ backgroundColor: moduleInfo.accentColor.hex }} aria-hidden="true" />
                               {moduleInfo.name}
@@ -185,20 +186,20 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
           <ul className="flex flex-col gap-1">
             {simpleLinks.map((item) => (
               <li key={item.href}>
-                <Link href={item.href} prefetch={false} className="block min-h-11 rounded-(--radius-control) px-2 py-2.5 text-sm font-medium text-(--color-text-primary) hover:bg-(--color-bg-subtle)">
+                <Link href={item.href} prefetch={false} className="block min-h-11 border-b border-(--color-border-subtle) px-0 py-3 text-sm font-semibold text-(--color-text-primary) hover:text-(--color-text-brand)">
                   {item.label}
                 </Link>
               </li>
             ))}
             <li>
-              <Link href={APP_URL.toString()} className="block min-h-11 rounded-(--radius-control) px-2 py-2.5 text-sm font-medium text-(--color-text-secondary) hover:bg-(--color-bg-subtle)">
+              <Link href={APP_URL.toString()} className="block min-h-11 border-b border-(--color-border-subtle) px-0 py-3 text-sm font-semibold text-(--color-text-secondary) hover:text-(--color-text-brand)">
                 Sign in
               </Link>
             </li>
           </ul>
         </nav>
 
-        <div className="border-t border-(--color-border-default) px-5 py-4">
+        <div className="border-t border-(--color-border-strong) bg-(--color-bg-subtle) px-5 py-5">
           <ButtonLink href={CTAS.primary.href} className="w-full">
             {CTAS.primary.label}
           </ButtonLink>

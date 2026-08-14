@@ -1,22 +1,28 @@
+
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PRIMARY_NAV, CTAS } from "@vercentlabs/landing-content";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { NavMenu } from "@/components/navigation/nav-menu";
 import { ModuleMegaMenuContent } from "@/components/navigation/module-mega-menu";
+import { ProductMegaMenuContent } from "@/components/navigation/product-mega-menu";
 import { MobileNav } from "@/components/navigation/mobile-nav";
 import { APP_URL } from "@/lib/site";
 import { cx } from "@/lib/utils";
 
-const productItem = PRIMARY_NAV.find((item) => item.label === "Product");
 const simpleLinks = PRIMARY_NAV.filter((item) => item.label !== "Product" && item.label !== "Modules");
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeMobileNav = useCallback(() => {
+    setMobileOpen(false);
+    requestAnimationFrame(() => mobileMenuButtonRef.current?.focus());
+  }, []);
 
   // Scroll-elevation via an IntersectionObserver watching a 1px sentinel
   // (app/layout.tsx, immediately before <Header/>) — the observer idiom
@@ -39,31 +45,19 @@ export function Header() {
   return (
     <header
       className={cx(
-        "sticky top-0 z-50 border-b border-(--color-border-default) bg-(--color-bg-elevated) transition-shadow duration-(--duration-base) ease-(--ease-standard)",
-        scrolled ? "shadow-(--shadow-panel)" : "shadow-none",
+        "sticky top-0 z-50 border-b border-(--color-border-default) bg-(--color-bg-page) transition-[box-shadow,background-color] duration-(--duration-base) ease-(--ease-standard)",
+        scrolled ? "shadow-[0_6px_24px_rgba(23,24,23,.07)]" : "shadow-none",
       )}
     >
-      <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-5 sm:px-6 lg:px-10">
+      <div className="mx-auto flex h-[72px] max-w-[1480px] items-center justify-between px-5 sm:px-7 lg:px-12 xl:px-14">
         <Logo />
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
-          <NavMenu label="Product" panelClassName="w-64">
-            <ul className="flex flex-col gap-1">
-              {productItem?.children?.map((child) => (
-                <li key={child.href}>
-                  <Link
-                    href={child.href}
-                    prefetch={false}
-                    className="block rounded-(--radius-control) px-3 py-2 text-sm font-medium text-(--color-text-primary) hover:bg-(--color-bg-subtle) hover:text-(--color-text-brand)"
-                  >
-                    {child.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+        <nav aria-label="Primary" className="hidden items-center gap-0 lg:flex">
+          <NavMenu label="Product" panelClassName="h-[70vh] overflow-hidden">
+            <ProductMegaMenuContent />
           </NavMenu>
 
-          <NavMenu label="Modules">
+          <NavMenu label="Modules" panelClassName="h-[70vh] overflow-hidden">
             <ModuleMegaMenuContent />
           </NavMenu>
 
@@ -72,7 +66,7 @@ export function Header() {
               key={item.href}
               href={item.href}
               prefetch={false}
-              className="rounded-(--radius-control) px-3 py-2 text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-bg-subtle)"
+              className="border-b border-transparent px-3 py-2 text-sm font-semibold text-(--color-text-primary) transition-colors hover:border-(--color-text-primary)"
             >
               {item.label}
             </Link>
@@ -82,7 +76,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           <Link
             href={APP_URL.toString()}
-            className="hidden rounded-(--radius-control) px-3 py-2 text-sm font-medium text-(--color-text-secondary) hover:text-(--color-text-brand) sm:inline-flex"
+            className="hidden px-2 py-2 text-sm font-semibold text-(--color-text-secondary) hover:text-(--color-text-brand) sm:inline-flex"
           >
             Sign in
           </Link>
@@ -103,6 +97,7 @@ export function Header() {
           </div>
 
           <button
+            ref={mobileMenuButtonRef}
             type="button"
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
@@ -117,7 +112,7 @@ export function Header() {
         </div>
       </div>
 
-      <MobileNav open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <MobileNav open={mobileOpen} onClose={closeMobileNav} />
     </header>
   );
 }

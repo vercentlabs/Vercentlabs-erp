@@ -1,25 +1,5 @@
-import { Container } from "@/components/layout/container";
+import { Container, Section } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { ButtonLink } from "@/components/ui/button";
 import { CTAS } from "@vercentlabs/landing-content";
-
-export default function NotFound() {
-  return (
-    <Container className="flex min-h-[60vh] flex-col items-start justify-center py-24">
-      <Text variant="eyebrow">404</Text>
-      <Heading level="h1" className="mt-3">
-        We couldn&apos;t find that page.
-      </Heading>
-      <Text variant="lead" className="mt-4 max-w-[52ch]">
-        This section of the site is still being built out. Head back to the homepage, or book a demo and we&apos;ll
-        walk you through it directly.
-      </Text>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <ButtonLink href="/">Back to homepage</ButtonLink>
-        <ButtonLink href={CTAS.primary.href} variant="secondary">
-          {CTAS.primary.label}
-        </ButtonLink>
-      </div>
-    </Container>
-  );
-}
+export default function NotFound() { return <Section tone="page" className="flex min-h-[70vh] items-center"><Container><div className="grid grid-cols-1 gap-10 border-y border-(--color-border-strong) py-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-16"><div><span className="vl-folio">ROUTE STATUS</span><p className="mt-5 tabular-data text-8xl font-semibold tracking-[-0.08em] text-(--color-text-primary)">404</p><Text variant="caption">No matching record</Text></div><div><Text variant="eyebrow">Page not found</Text><Heading level="display" as="h1" className="mt-4 max-w-[10ch]">This route is outside the operating map.</Heading><Text variant="lead" className="mt-5 max-w-[55ch]">We couldn&apos;t find that page. Return to the main system map or book a working session and we&apos;ll take you directly to the relevant area.</Text><div className="mt-8 flex flex-wrap gap-3"><ButtonLink href="/">Back to homepage</ButtonLink><ButtonLink href={CTAS.primary.href} variant="secondary">{CTAS.primary.label}</ButtonLink></div></div></div></Container></Section>; }

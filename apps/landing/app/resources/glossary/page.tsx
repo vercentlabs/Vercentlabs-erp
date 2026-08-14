@@ -26,12 +26,7 @@ function glossaryHref(entry: (typeof GLOSSARY_TERMS)[number]): string | null {
 
 export default function GlossaryIndexPage() {
   const sorted = [...GLOSSARY_TERMS].sort((a, b) => a.term.localeCompare(b.term));
-
-  const breadcrumbTrail = [
-    { name: "Resources", path: "/resources" },
-    { name: "Glossary", path: "/resources/glossary" },
-  ];
-
+  const breadcrumbTrail = [{ name: "Resources", path: "/resources" }, { name: "Glossary", path: "/resources/glossary" }];
   const webPageJsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -43,12 +38,7 @@ export default function GlossaryIndexPage() {
       "@type": "ItemList",
       itemListElement: sorted.map((entry, index) => {
         const href = glossaryHref(entry);
-        return {
-          "@type": "ListItem",
-          position: index + 1,
-          name: entry.term,
-          ...(href ? { item: absoluteUrl(href) } : {}),
-        };
+        return { "@type": "ListItem", position: index + 1, name: entry.term, ...(href ? { item: absoluteUrl(href) } : {}) };
       }),
     },
   };
@@ -56,79 +46,61 @@ export default function GlossaryIndexPage() {
   return (
     <>
       <TrackView event="glossary_index_view">
-        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
-            remaining viewport height, so the hero neither leaves dead space
-            above the next section nor requires a scroll to see all of it. */}
-        <div>
-          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-            <Container>
-              <Breadcrumbs trail={breadcrumbTrail} />
-            </Container>
-          </Section>
-
-          <CollectionHero
-            eyebrow="Resources"
-            heading="ERP Glossary"
-            supportingText="Plain-language definitions for the ERP and operations terms that come up most — from ERP and MRP to RBAC and maker-checker."
-            listLabel="Reference terms"
-            items={sorted.map((entry) => ({ label: entry.term, meta: entry.standalone ? "Full guide" : "Definition" }))}
-          />
-        </div>
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+          <Container><Breadcrumbs trail={breadcrumbTrail} /></Container>
+        </Section>
+        <CollectionHero
+          eyebrow="Resources"
+          heading="ERP Glossary"
+          supportingText="Plain-language definitions for the ERP and operations terms that come up most — from ERP and MRP to RBAC and maker-checker."
+          listLabel="Reference terms"
+          items={sorted.map((entry) => ({ label: entry.term, meta: entry.standalone ? "Full guide" : "Definition" }))}
+          variant="glossary"
+        />
       </TrackView>
 
-      <Reveal>
-        <DirectDefinition definition="This glossary defines the ERP, manufacturing, and operations terminology referenced throughout Vercentlabs' product and content — general industry definitions first, with real, cited detail on how Vercentlabs specifically implements the subset that connects directly to the product." />
-      </Reveal>
+      <Reveal><DirectDefinition definition="This glossary defines the ERP, manufacturing, and operations terminology referenced throughout Vercentlabs' product and content — general industry definitions first, with real, cited detail on how Vercentlabs specifically implements the subset that connects directly to the product." /></Reveal>
 
-      <Section tone="page">
+      <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
         <Container>
-          <SectionHeader eyebrow="A to Z" title={`${sorted.length} terms`} description="Terms with a full write-up link through; the rest link straight to the real product or workflow page that covers them." />
+          <SectionHeader eyebrow="Lexicon" title={`${sorted.length} terms, one operating language.`} description="Standalone terms open a full definition sheet. Index-only terms route to the product or workflow page that actually owns the concept." />
           <Reveal group>
-            <dl className="mt-10 flex flex-col divide-y divide-(--color-border-default) border-t border-(--color-border-default)">
+            <div className="mt-10 border-y border-(--color-border-strong)">
               {sorted.map((entry, index) => {
                 const href = glossaryHref(entry);
-                return (
-                  <div key={entry.term} className="py-5" data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
-                    <dt className="text-base font-semibold text-(--color-text-primary)">
-                      {href ? (
-                        <Link
-                          href={href}
-                          prefetch={false}
-                          className="underline decoration-(--color-border-strong) underline-offset-4 hover:text-(--color-text-brand) hover:decoration-(--color-text-brand)"
-                        >
-                          {entry.term}
-                        </Link>
-                      ) : (
-                        entry.term
-                      )}
-                    </dt>
-                    <dd className="mt-1.5 max-w-[70ch] text-sm leading-relaxed text-(--color-text-secondary)">{entry.shortDefinition}</dd>
+                const initial = entry.term.charAt(0).toUpperCase();
+                const row = (
+                  <div className="group grid gap-4 border-t border-(--color-border-default) py-5 first:border-t-0 sm:grid-cols-[60px_minmax(190px,.6fr)_minmax(0,1fr)_110px] sm:items-start sm:gap-6 sm:py-6">
+                    <span className="font-mono text-2xl font-semibold leading-none tracking-[-0.05em] text-(--color-border-strong)">{initial}</span>
+                    <div>
+                      <dt className="text-base font-semibold text-(--color-text-primary) group-hover:text-(--color-text-brand)">{entry.term}</dt>
+                      <span className="vl-index mt-1 block">{entry.standalone ? "TERM / FULL SHEET" : "TERM / ROUTED"}</span>
+                    </div>
+                    <dd className="max-w-[76ch] text-sm leading-relaxed text-(--color-text-secondary)">{entry.shortDefinition}</dd>
+                    <span className="vl-index sm:text-right">{String(index + 1).padStart(2, "0")} {href ? "→" : ""}</span>
                   </div>
                 );
+                return href ? (
+                  <Link key={entry.term} href={href} prefetch={false} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 40}ms` }} className="block">{row}</Link>
+                ) : (
+                  <div key={entry.term} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 40}ms` }}>{row}</div>
+                );
               })}
-            </dl>
+            </div>
           </Reveal>
         </Container>
       </Section>
 
-      <ContextualCta
-        prompt="See these terms in the actual product, not just a definition."
-        href="/book-demo"
-        event="resource_cta_click"
-        ctaLocation="glossary_index_mid"
-      />
+      <ContextualCta prompt="See these terms in the actual product, not just a definition." href="/book-demo" event="resource_cta_click" ctaLocation="glossary_index_mid" />
 
-      <Section tone="inverse">
+      <Section tone="inverse" paddingTop={{ base: 14, sm: 18 }} paddingBottom={{ base: 14, sm: 18 }}>
         <Container>
-          <Reveal className="mx-auto max-w-[640px] text-center">
-            <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
-              Ready to see it running on your own data?
-            </Heading>
-            <div className="mt-6 flex justify-center">
-              <TrackedCtaLink href="/book-demo" event="resource_cta_click" ctaLocation="glossary_index_final">
-                Book a Demo
-              </TrackedCtaLink>
+          <Reveal className="grid items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
+            <div className="max-w-[820px]">
+              <span className="vl-index text-white/50">LEXICON → PRODUCT</span>
+              <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">Ready to see it running on your own data?</Heading>
             </div>
+            <TrackedCtaLink href="/book-demo" event="resource_cta_click" ctaLocation="glossary_index_final">Book a Demo</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

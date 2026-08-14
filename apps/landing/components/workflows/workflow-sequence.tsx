@@ -1,17 +1,29 @@
 import type { ReactNode } from "react";
 import type { LandingModule, LandingWorkflow } from "@vercentlabs/landing-content";
-import { Stack, Grid, Inline } from "@/components/layout/container";
 import { Text, Heading } from "@/components/ui/text";
 import { ModuleTag } from "@/components/ui/tag";
 
-/**
- * The workflow page's full 14-part body: trigger, participants, the numbered
- * cross-module sequence, automated actions, approvals, exceptions,
- * visibility, and business value. Modeled on ModuleWorkflow
- * (components/modules/module-workflow.tsx) but reads the richer routed-
- * workflow shape (packages/landing-content/src/workflows.js) instead of a
- * module's single primaryWorkflow.
- */
+function LedgerList({ title, items, marker }: { title: string; items: readonly string[]; marker: string }) {
+  return (
+    <section className="border-t border-(--color-border-strong) py-6">
+      <div className="grid grid-cols-[44px_1fr] gap-4 sm:grid-cols-[70px_1fr]">
+        <span className="vl-index text-(--color-text-brand)">{marker}</span>
+        <div>
+          <Heading level="h3">{title}</Heading>
+          <ol className="mt-4 border-t border-(--color-border-default)">
+            {items.map((item, index) => (
+              <li key={item} className="grid grid-cols-[2rem_1fr] gap-3 border-b border-(--color-border-default) py-3 text-sm leading-relaxed text-(--color-text-secondary)">
+                <span className="vl-index">{String(index + 1).padStart(2, "0")}</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function WorkflowSequence({
   workflow,
   resolveModule,
@@ -19,122 +31,79 @@ export function WorkflowSequence({
 }: {
   workflow: LandingWorkflow;
   resolveModule: (key: string) => LandingModule | undefined;
-  /** When provided, replaces the numbered step-by-step list with this single media
-   * element instead — e.g. one screenshot standing in for a not-yet-recorded product
-   * video walking through the flow. Everything else (trigger, participants,
-   * approvals, automated actions, exceptions, visibility, business value) still
-   * renders normally; this only swaps out the long text breakdown specifically. */
   sequenceMedia?: ReactNode;
 }) {
+  const approvals = workflow.approvals && workflow.approvals.length > 0
+    ? workflow.approvals
+    : ["No explicit approval gate in this workflow — governed by the release/status checks in its sequence above."];
+
   return (
-    <Stack gap={10}>
-      <div>
-        <Text variant="label">Trigger</Text>
-        <Text variant="body" className="mt-1">
-          {workflow.trigger}
-        </Text>
+    <div>
+      <div className="grid border-y border-(--color-border-strong) py-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-10">
+        <div className="border-b border-(--color-border-default) pb-5 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-10">
+          <Text variant="dataLabel">Trigger</Text>
+          <Text variant="body" className="mt-3 font-semibold">{workflow.trigger}</Text>
+        </div>
+        {workflow.participants && workflow.participants.length > 0 ? (
+          <div className="pt-5 sm:pt-0">
+            <Text variant="dataLabel">Participants</Text>
+            <Text variant="bodySmall" className="mt-3">{workflow.participants.join(" · ")}</Text>
+          </div>
+        ) : <div className="hidden sm:block" />}
       </div>
 
-      {workflow.participants && workflow.participants.length > 0 ? (
-        <div>
-          <Text variant="label">Participants</Text>
-          <Text variant="bodySmall" className="mt-1">
-            {workflow.participants.join(" · ")}
-          </Text>
-        </div>
-      ) : null}
-
-      {sequenceMedia ?? (
-        <ol className="flex flex-col gap-0">
-          {(workflow.sequence ?? []).map((step, index) => {
-            const stepModule = resolveModule(step.moduleKey);
-            return (
-              <li key={step.step} className={`flex gap-4 border-(--color-border-default) py-4 ${index > 0 ? "border-t" : ""}`}>
-                <span
-                  className="tabular-data flex h-7 w-7 flex-none items-center justify-center rounded-(--radius-control) bg-(--color-bg-brand) text-xs font-semibold text-(--color-text-inverse)"
-                  aria-hidden="true"
-                >
-                  {index + 1}
-                </span>
-                <div className="flex-1">
-                  <Inline gap={2} className="items-baseline">
+      <div className="mt-12">
+        {sequenceMedia ?? (
+          <ol className="relative">
+            <span className="absolute bottom-0 left-[19px] top-0 w-px bg-(--color-border-strong) sm:left-[27px]" aria-hidden="true" />
+            {(workflow.sequence ?? []).map((step, index) => {
+              const stepModule = resolveModule(step.moduleKey);
+              const accent = stepModule?.accentColor.hex ?? "var(--color-brand)";
+              return (
+                <li key={step.step} className="relative grid grid-cols-[40px_1fr] gap-4 py-3 sm:grid-cols-[56px_220px_1fr] sm:gap-6 sm:py-4">
+                  <span className="relative z-10 flex h-10 w-10 items-center justify-center border border-(--color-border-strong) bg-(--color-bg-page) text-[0.62rem] font-bold tracking-[0.12em] sm:h-14 sm:w-14" style={{ color: accent }} aria-hidden="true">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="border-t border-(--color-border-default) pt-3 sm:pt-4">
                     <Text variant="label">{step.step}</Text>
-                    {stepModule ? <ModuleTag name={stepModule.name} accentColor={stepModule.accentColor.hex} /> : null}
-                  </Inline>
-                  <Text variant="bodySmall" className="mt-0.5">
-                    {step.detail}
-                  </Text>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-
-      <Grid columns={2} gap={8}>
-        <div>
-          <Heading level="h3">Approvals</Heading>
-          {workflow.approvals && workflow.approvals.length > 0 ? (
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {workflow.approvals.map((item) => (
-                <li key={item} className="text-sm text-(--color-text-secondary)">
-                  {item}
+                    {stepModule ? <div className="mt-2"><ModuleTag name={stepModule.name} accentColor={stepModule.accentColor.hex} /></div> : null}
+                  </div>
+                  <Text variant="bodySmall" className="col-start-2 border-t border-(--color-border-default) pt-3 sm:col-start-3 sm:pt-4">{step.detail}</Text>
                 </li>
-              ))}
-            </ul>
-          ) : (
-            <Text variant="bodySmall" className="mt-2">
-              No explicit approval gate in this workflow — governed by the release/status checks in its sequence above.
-            </Text>
-          )}
-        </div>
-        <div>
-          <Heading level="h3">Automated actions</Heading>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {(workflow.automatedActions ?? []).map((item) => (
-              <li key={item} className="text-sm text-(--color-text-secondary)">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Grid>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+
+      <div className="mt-12 grid gap-x-12 lg:grid-cols-2">
+        <LedgerList title="Approvals" items={approvals} marker="A" />
+        <LedgerList title="Automated actions" items={workflow.automatedActions ?? []} marker="B" />
+      </div>
 
       {workflow.exceptions && workflow.exceptions.length > 0 ? (
-        <div className="rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-subtle) p-5">
-          <Text variant="label">Exceptions &amp; honest limits</Text>
-          <ul className="mt-2 flex flex-col gap-2">
-            {workflow.exceptions.map((item) => (
-              <li key={item} className="text-sm leading-relaxed text-(--color-text-secondary)">
-                {item}
-              </li>
-            ))}
-          </ul>
+        <div className="mt-8 border-y border-(--color-border-strong) py-6">
+          <div className="grid grid-cols-[6px_1fr] gap-5">
+            <span className="bg-(--color-state-warning)" aria-hidden="true" />
+            <div>
+              <Text variant="dataLabel">Exceptions & honest limits</Text>
+              <ol className="mt-4 border-t border-(--color-border-default)">
+                {workflow.exceptions.map((item, index) => (
+                  <li key={item} className="grid grid-cols-[2rem_1fr] gap-3 border-b border-(--color-border-default) py-3 text-sm leading-relaxed text-(--color-text-secondary)">
+                    <span className="vl-index">{String(index + 1).padStart(2, "0")}</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
         </div>
       ) : null}
 
-      <Grid columns={2} gap={8}>
-        <div>
-          <Heading level="h3">Visibility</Heading>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {(workflow.visibility ?? []).map((item) => (
-              <li key={item} className="text-sm text-(--color-text-secondary)">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <Heading level="h3">Business value</Heading>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {(workflow.businessValue ?? []).map((item) => (
-              <li key={item} className="text-sm text-(--color-text-secondary)">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Grid>
-    </Stack>
+      <div className="mt-8 grid gap-x-12 lg:grid-cols-2">
+        <LedgerList title="Visibility" items={workflow.visibility ?? []} marker="C" />
+        <LedgerList title="Business value" items={workflow.businessValue ?? []} marker="D" />
+      </div>
+    </div>
   );
 }

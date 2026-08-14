@@ -1,3 +1,4 @@
+
 import { Children, type ElementType, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "@/lib/utils";
 
@@ -9,12 +10,12 @@ interface ContainerProps {
 
 /** Standard content container — max-width matches CONTAINER_TOKENS.maxWidth (1600px). */
 export function Container({ children, className, as: As = "div" }: ContainerProps) {
-  return <As className={cx("mx-auto w-full max-w-[1600px] px-5 sm:px-6 lg:px-10", className)}>{children}</As>;
+  return <As className={cx("mx-auto w-full max-w-[1480px] px-5 sm:px-7 lg:px-12 xl:px-14", className)}>{children}</As>;
 }
 
 /** Narrower container for long-form reading content (module/workflow body copy). */
 export function NarrowContainer({ children, className, as: As = "div" }: ContainerProps) {
-  return <As className={cx("mx-auto w-full max-w-[760px] px-5 sm:px-6", className)}>{children}</As>;
+  return <As className={cx("mx-auto w-full max-w-[820px] px-5 sm:px-7", className)}>{children}</As>;
 }
 
 /**
@@ -24,7 +25,7 @@ export function NarrowContainer({ children, className, as: As = "div" }: Contain
  * discover classes it can see spelled out in source, not ones assembled at runtime
  * via `pt-${n}` string interpolation.
  */
-export type SectionSpacing = 0 | 6 | 8 | 10 | 12 | 14 | 16 | 20 | 24;
+export type SectionSpacing = 0 | 6 | 7 | 8 | 9 | 10 | 12 | 14 | 16 | 18 | 20 | 24;
 
 /** A padding value that can grow at wider breakpoints; unset tiers fall back to the previous one. */
 export interface ResponsiveSpacing {
@@ -34,22 +35,22 @@ export interface ResponsiveSpacing {
 }
 
 const PADDING_TOP_CLASSES: Record<SectionSpacing, string> = {
-  0: "pt-0", 6: "pt-6", 8: "pt-8", 10: "pt-10", 12: "pt-12", 14: "pt-14", 16: "pt-16", 20: "pt-20", 24: "pt-24",
+  0: "pt-0", 6: "pt-6", 7: "pt-7", 8: "pt-8", 9: "pt-9", 10: "pt-10", 12: "pt-12", 14: "pt-14", 16: "pt-16", 18: "pt-18", 20: "pt-20", 24: "pt-24",
 };
 const PADDING_TOP_SM_CLASSES: Record<SectionSpacing, string> = {
-  0: "sm:pt-0", 6: "sm:pt-6", 8: "sm:pt-8", 10: "sm:pt-10", 12: "sm:pt-12", 14: "sm:pt-14", 16: "sm:pt-16", 20: "sm:pt-20", 24: "sm:pt-24",
+  0: "sm:pt-0", 6: "sm:pt-6", 7: "sm:pt-7", 8: "sm:pt-8", 9: "sm:pt-9", 10: "sm:pt-10", 12: "sm:pt-12", 14: "sm:pt-14", 16: "sm:pt-16", 18: "sm:pt-18", 20: "sm:pt-20", 24: "sm:pt-24",
 };
 const PADDING_TOP_LG_CLASSES: Record<SectionSpacing, string> = {
-  0: "lg:pt-0", 6: "lg:pt-6", 8: "lg:pt-8", 10: "lg:pt-10", 12: "lg:pt-12", 14: "lg:pt-14", 16: "lg:pt-16", 20: "lg:pt-20", 24: "lg:pt-24",
+  0: "lg:pt-0", 6: "lg:pt-6", 7: "lg:pt-7", 8: "lg:pt-8", 9: "lg:pt-9", 10: "lg:pt-10", 12: "lg:pt-12", 14: "lg:pt-14", 16: "lg:pt-16", 18: "lg:pt-18", 20: "lg:pt-20", 24: "lg:pt-24",
 };
 const PADDING_BOTTOM_CLASSES: Record<SectionSpacing, string> = {
-  0: "pb-0", 6: "pb-6", 8: "pb-8", 10: "pb-10", 12: "pb-12", 14: "pb-14", 16: "pb-16", 20: "pb-20", 24: "pb-24",
+  0: "pb-0", 6: "pb-6", 7: "pb-7", 8: "pb-8", 9: "pb-9", 10: "pb-10", 12: "pb-12", 14: "pb-14", 16: "pb-16", 18: "pb-18", 20: "pb-20", 24: "pb-24",
 };
 const PADDING_BOTTOM_SM_CLASSES: Record<SectionSpacing, string> = {
-  0: "sm:pb-0", 6: "sm:pb-6", 8: "sm:pb-8", 10: "sm:pb-10", 12: "sm:pb-12", 14: "sm:pb-14", 16: "sm:pb-16", 20: "sm:pb-20", 24: "sm:pb-24",
+  0: "sm:pb-0", 6: "sm:pb-6", 7: "sm:pb-7", 8: "sm:pb-8", 9: "sm:pb-9", 10: "sm:pb-10", 12: "sm:pb-12", 14: "sm:pb-14", 16: "sm:pb-16", 18: "sm:pb-18", 20: "sm:pb-20", 24: "sm:pb-24",
 };
 const PADDING_BOTTOM_LG_CLASSES: Record<SectionSpacing, string> = {
-  0: "lg:pb-0", 6: "lg:pb-6", 8: "lg:pb-8", 10: "lg:pb-10", 12: "lg:pb-12", 14: "lg:pb-14", 16: "lg:pb-16", 20: "lg:pb-20", 24: "lg:pb-24",
+  0: "lg:pb-0", 6: "lg:pb-6", 7: "lg:pb-7", 8: "lg:pb-8", 9: "lg:pb-9", 10: "lg:pb-10", 12: "lg:pb-12", 14: "lg:pb-14", 16: "lg:pb-16", 18: "lg:pb-18", 20: "lg:pb-20", 24: "lg:pb-24",
 };
 
 const DEFAULT_SECTION_PADDING: ResponsiveSpacing = { base: 16, sm: 20, lg: 24 };
@@ -78,7 +79,7 @@ interface SectionProps {
   children: ReactNode;
   className?: string;
   /** Renders the section background band; "page" is transparent (inherits page canvas). */
-  tone?: "page" | "subtle" | "inverse" | "elevated";
+  tone?: "page" | "subtle" | "inverse" | "elevated" | "brand";
   as?: ElementType;
   id?: string;
   /** Overrides the default `{ base: 16, sm: 20, lg: 24 }` vertical rhythm for this edge only. */
@@ -89,8 +90,9 @@ interface SectionProps {
 const TONE_CLASSES: Record<NonNullable<SectionProps["tone"]>, string> = {
   page: "bg-transparent",
   subtle: "bg-(--color-bg-subtle)",
-  inverse: "bg-(--color-bg-inverse) text-(--color-text-inverse)",
-  elevated: "bg-(--color-bg-elevated) border-y border-(--color-border-default)",
+  inverse: "vl-night-grid bg-(--color-bg-inverse) text-(--color-text-inverse)",
+  elevated: "bg-(--color-bg-elevated)",
+  brand: "bg-(--color-bg-brand) text-white",
 };
 
 /** Full-bleed section band with standard vertical rhythm. */
@@ -115,17 +117,39 @@ interface SectionHeaderProps {
   title: ReactNode;
   description?: ReactNode;
   align?: "left" | "center";
+  /** Use inside split-column layouts where the full-width editorial grid would be too wide. */
+  compact?: boolean;
   className?: string;
 }
 
-export function SectionHeader({ eyebrow, title, description, align = "left", className }: SectionHeaderProps) {
+export function SectionHeader({ eyebrow, title, description, align = "left", compact = false, className }: SectionHeaderProps) {
+  if (align === "center") {
+    return (
+      <div className={cx("mx-auto max-w-[900px] text-center", className)}>
+        {eyebrow ? <p className="vl-kicker justify-center before:hidden">{eyebrow}</p> : null}
+        <h2 className="mt-5 text-[clamp(2rem,4vw,4rem)] font-semibold leading-[1] tracking-[-0.06em] text-(--color-text-primary)">{title}</h2>
+        {description ? <p className="mx-auto mt-5 max-w-[68ch] text-base leading-[1.75] text-(--color-text-secondary)">{description}</p> : null}
+      </div>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className={cx("border-t border-(--color-border-strong) pt-4", className)}>
+        {eyebrow ? <p className="vl-kicker">{eyebrow}</p> : null}
+        <h2 className="mt-5 max-w-[16ch] text-[clamp(2.1rem,3vw,3.25rem)] font-semibold leading-[1] tracking-[-0.055em] text-(--color-text-primary)">{title}</h2>
+        {description ? <p className="mt-5 max-w-[52ch] text-[0.98rem] leading-[1.72] text-(--color-text-secondary)">{description}</p> : null}
+      </div>
+    );
+  }
+
   return (
-    <div className={cx("max-w-[720px]", align === "center" && "mx-auto text-center", className)}>
-      {eyebrow ? (
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)">{eyebrow}</p>
-      ) : null}
-      <h2 className="mt-3 text-2xl font-semibold text-(--color-text-primary) sm:text-3xl">{title}</h2>
-      {description ? <p className="mt-4 text-base leading-relaxed text-(--color-text-secondary)">{description}</p> : null}
+    <div className={cx("grid grid-cols-1 gap-5 border-t border-(--color-border-strong) pt-4 lg:grid-cols-[150px_minmax(0,1fr)] lg:gap-12", className)}>
+      <div>{eyebrow ? <p className="vl-kicker">{eyebrow}</p> : null}</div>
+      <div className={cx("grid min-w-0 gap-5", description ? "xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,.75fr)] xl:gap-12" : "max-w-[900px]")}>
+        <h2 className="max-w-[18ch] text-[clamp(2.1rem,4vw,4.15rem)] font-semibold leading-[0.99] tracking-[-0.061em] text-(--color-text-primary)">{title}</h2>
+        {description ? <p className="max-w-[64ch] self-end text-[0.98rem] leading-[1.72] text-(--color-text-secondary)">{description}</p> : null}
+      </div>
     </div>
   );
 }
@@ -265,7 +289,7 @@ interface SplitLayoutProps {
 export function SplitLayout({ primary, secondary, className, ratio = "even" }: SplitLayoutProps) {
   const [primarySpan, secondarySpan] = ratio === "primary-wide" ? ["lg:col-span-7", "lg:col-span-5"] : ["lg:col-span-6", "lg:col-span-6"];
   return (
-    <div className={cx("grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-16", className)}>
+    <div className={cx("grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-14 xl:gap-20", className)}>
       <div className={primarySpan}>{primary}</div>
       <div className={secondarySpan}>{secondary}</div>
     </div>
@@ -281,7 +305,7 @@ interface SidebarLayoutProps {
 /** Content + narrow rail layout (e.g. resource article + related-links rail). */
 export function SidebarLayout({ content, sidebar, className }: SidebarLayoutProps) {
   return (
-    <div className={cx("grid grid-cols-1 gap-10 lg:grid-cols-[1fr_280px]", className)}>
+    <div className={cx("grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-16", className)}>
       <div>{content}</div>
       <aside>{sidebar}</aside>
     </div>

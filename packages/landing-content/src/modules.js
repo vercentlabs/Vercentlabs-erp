@@ -582,7 +582,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "One shared, race-safe inventory ledger that Manufacturing and Point of Sale both post into live, with row-locked balance updates that prevent over-issuing.",
-    accentColor: { hex: "#b45309", soft: "#fef3e2", sourcedFromProduct: false },
+    accentColor: { hex: "#a16207", soft: "#fefce8", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Stock module is a real-time, multi-location inventory ledger that tracks on-hand quantity, reservation, and valuation per item, warehouse, bin, and batch — one shared ledger that Manufacturing and Point of Sale post real movements into.",
     heroVariant: "dashboard-led",
@@ -816,7 +816,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "Live gross margin, computed from approved labor, expense, and procurement actuals against contracted revenue, while the project is still open.",
-    accentColor: { hex: "#7e22ce", soft: "#f6edfe", sourcedFromProduct: false },
+    accentColor: { hex: "#0e7490", soft: "#ecfeff", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Projects module plans, staffs, executes, and financially tracks billable and internal projects, connecting tasks and timesheets to real project cost and margin as the work happens, not after close.",
     heroVariant: "operational-sequence",
@@ -1163,7 +1163,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "The inspector cannot release their own inspection, and a failed inspection automatically places an inventory hold — spanning receiving, production, stock, and returns.",
-    accentColor: { hex: "#15803d", soft: "#eaf8ef", sourcedFromProduct: false },
+    accentColor: { hex: "#166534", soft: "#f0fdf4", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Quality module enforces inspection checkpoints and disposition control across incoming receipts, in-process manufacturing, stock, and returns, with governed release and CAPA-driven resolution — a genuine cross-module inspection framework, not a module-local checklist.",
     heroVariant: "operational-sequence",

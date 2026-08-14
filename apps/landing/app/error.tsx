@@ -1,30 +1,6 @@
 "use client";
-
 import { useEffect } from "react";
-import { Container } from "@/components/layout/container";
+import { Container, Section } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-
-export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
-  return (
-    <Container className="flex min-h-[60vh] flex-col items-start justify-center py-24">
-      <Text variant="eyebrow">Something went wrong</Text>
-      <Heading level="h1" className="mt-3">
-        This page hit an unexpected error.
-      </Heading>
-      <Text variant="lead" className="mt-4 max-w-[52ch]">
-        Nothing on your end broke it — try again, or head back to the homepage.
-      </Text>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Button onClick={() => reset()}>Try again</Button>
-        <Button variant="secondary" onClick={() => window.location.assign("/")}>
-          Back to homepage
-        </Button>
-      </div>
-    </Container>
-  );
-}
+export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) { useEffect(() => { console.error(error); }, [error]); return <Section tone="page" className="flex min-h-[70vh] items-center"><Container><div className="grid grid-cols-1 gap-10 border-y border-(--color-border-strong) py-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-16"><div><span className="vl-folio">SYSTEM STATUS</span><p className="mt-5 tabular-data text-7xl font-semibold tracking-[-0.07em] text-(--color-state-error)">ERR</p><Text variant="caption">Unexpected page failure</Text></div><div><Text variant="eyebrow">Recovery available</Text><Heading level="display" as="h1" className="mt-4 max-w-[11ch]">This page hit an unexpected error.</Heading><Text variant="lead" className="mt-5 max-w-[55ch]">Try the request again. If the route still fails, return to the homepage and continue from the main operating map.</Text><div className="mt-8 flex flex-wrap gap-3"><Button onClick={() => reset()}>Try again</Button><Button variant="secondary" onClick={() => window.location.assign("/")}>Back to homepage</Button></div></div></div></Container></Section>; }

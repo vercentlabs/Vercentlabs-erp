@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { LANDING_SOLUTIONS } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Inline } from "@/components/layout/container";
+import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
-import { InformationBand } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CollectionHero } from "@/components/shared/collection-hero";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
@@ -35,68 +34,73 @@ export default function SolutionsIndexPage() {
   return (
     <>
       <TrackView event="solutions_index_view">
-        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
-            remaining viewport height, so the hero neither leaves dead space
-            above the next section nor requires a scroll to see all of it. */}
-        <div>
-          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-            <Container>
-              <Breadcrumbs trail={[{ name: "Solutions", path: "/solutions" }]} />
-            </Container>
-          </Section>
-
-          <CollectionHero
-            eyebrow="Solutions"
-            heading="Five real business problems, five real answers."
-            supportingText="Each solution starts from the actual operating problem, then shows the connected capability that resolves it."
-            listLabel="Business outcomes"
-            items={LANDING_SOLUTIONS.map((solution) => ({ label: solution.name }))}
-          />
-        </div>
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+          <Container><Breadcrumbs trail={[{ name: "Solutions", path: "/solutions" }]} /></Container>
+        </Section>
+        <CollectionHero
+          eyebrow="Solutions"
+          heading="Five real business problems, five real answers."
+          supportingText="Each solution starts from the actual operating problem, then shows the connected capability that resolves it."
+          listLabel="Business outcomes"
+          items={LANDING_SOLUTIONS.map((solution) => ({ label: solution.name }))}
+          variant="solutions"
+        />
       </TrackView>
 
-      <Section tone="page">
+      <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
         <Container>
-          <SectionHeader eyebrow="Choose your problem" title="Start from what's actually broken." />
+          <SectionHeader eyebrow="Diagnostic register" title="Start with the failure mode, not the software category." description="These are operating problems buyers can recognise immediately. Each case file explains the intervention, the systems involved and the evidence behind it." />
           <Reveal group>
-            <div className="mt-10 flex flex-col">
+            <ol className="mt-10 border-y border-(--color-border-strong)">
               {LANDING_SOLUTIONS.map((solution, index) => (
-                <InformationBand key={solution.slug} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
-                  <div className="sm:w-3/5">
-                    <Link href={`/solutions/${solution.slug}`} prefetch={false}>
-                      <Heading level="h3">{solution.name}</Heading>
-                    </Link>
-                    <Text variant="bodySmall" className="mt-2 max-w-[60ch]">
-                      {solution.problemStatement}
-                    </Text>
-                  </div>
-                  <Link
-                    href={`/solutions/${solution.slug}`}
-                    prefetch={false}
-                    className="flex-none text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                  >
-                    View solution →
+                <li key={solution.slug} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
+                  <Link href={`/solutions/${solution.slug}`} prefetch={false} className="group grid gap-5 border-t border-(--color-border-default) py-7 first:border-t-0 sm:grid-cols-[72px_minmax(240px,.8fr)_minmax(0,1.2fr)_auto] sm:items-start sm:gap-7 sm:py-9">
+                    <span className="font-mono text-3xl font-semibold leading-none tracking-[-0.06em] text-(--vl-signal)">{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <span className="vl-index">Problem file</span>
+                      <Heading level="h3" className="mt-2 group-hover:text-(--color-text-brand)">{solution.name}</Heading>
+                    </div>
+                    <div className="border-l-[3px] border-l-(--vl-signal) pl-5">
+                      <Text variant="bodySmall">{solution.problemStatement}</Text>
+                    </div>
+                    <span className="vl-hover-arrow pt-1 text-lg text-(--color-text-brand)" aria-hidden="true">→</span>
                   </Link>
-                </InformationBand>
+                </li>
               ))}
-            </div>
+            </ol>
           </Reveal>
         </Container>
       </Section>
 
-      <Section tone="inverse">
+      <Section tone="subtle" paddingTop={{ base: 12, sm: 16 }} paddingBottom={{ base: 12, sm: 16 }}>
         <Container>
-          <Reveal className="mx-auto max-w-[640px] text-center">
-            <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
-              See your real problem solved in a live demo.
-            </Heading>
-            <div className="mt-6 flex justify-center">
-              <Inline gap={3}>
-                <TrackedCtaLink href="/book-demo" event="solution_cta_click" ctaLocation="solutions_index_final">
-                  Book a Demo
-                </TrackedCtaLink>
-              </Inline>
+          <div className="grid gap-8 border-y border-(--color-border-strong) py-8 lg:grid-cols-[170px_1fr] lg:gap-12">
+            <div><span className="vl-index">Method / 01</span></div>
+            <div className="grid gap-8 md:grid-cols-3">
+              {[
+                ["Observe", "Name the operating failure in plain business terms."],
+                ["Connect", "Map the modules, workflow and shared controls that change it."],
+                ["Verify", "Show only capability that has real product or implementation evidence."],
+              ].map(([title, copy], index) => (
+                <div key={title} className="border-t border-(--color-border-default) pt-4">
+                  <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
+                  <p className="mt-3 text-base font-semibold text-(--color-text-primary)">{title}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">{copy}</p>
+                </div>
+              ))}
             </div>
+          </div>
+        </Container>
+      </Section>
+
+      <Section tone="inverse" paddingTop={{ base: 14, sm: 18 }} paddingBottom={{ base: 14, sm: 18 }}>
+        <Container>
+          <Reveal className="grid items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
+            <div className="max-w-[820px]">
+              <span className="vl-index text-white/50">DIAGNOSTIC SESSION / LIVE</span>
+              <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">See your real problem solved in a live demo.</Heading>
+            </div>
+            <TrackedCtaLink href="/book-demo" event="solution_cta_click" ctaLocation="solutions_index_final">Book a Demo</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

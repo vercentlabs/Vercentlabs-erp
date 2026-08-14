@@ -1,3 +1,4 @@
+
 import type { ReactNode } from "react";
 import { cx } from "@/lib/utils";
 
@@ -21,19 +22,19 @@ export function FieldWrapper({ id, label, description, error, required, children
   const describedBy = [descriptionId, errorId].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={cx("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-sm font-medium text-(--color-text-primary)">
+    <div className={cx("flex flex-col gap-2", className)}>
+      <label htmlFor={id} className="text-[0.72rem] font-bold uppercase tracking-[0.08em] text-(--color-text-primary)">
         {label}
         {required ? (
           <span aria-hidden="true" className="ml-0.5 text-(--color-state-error)">
             *
           </span>
         ) : (
-          <span className="ml-1.5 text-xs font-normal text-(--color-text-muted)">Optional</span>
+          <span className="ml-2 text-[0.63rem] font-semibold normal-case tracking-normal text-(--color-text-muted)">Optional</span>
         )}
       </label>
       {description ? (
-        <p id={descriptionId} className="text-xs text-(--color-text-muted)">
+        <p id={descriptionId} className="text-xs leading-relaxed text-(--color-text-muted)">
           {description}
         </p>
       ) : null}
@@ -54,7 +55,7 @@ export function FormAlert({ tone = "error", children }: { tone?: "error" | "succ
       ? "border-(--color-state-error) bg-(--color-state-error-soft) text-(--color-state-error)"
       : "border-(--color-state-success) bg-(--color-state-success-soft) text-(--color-state-success)";
   return (
-    <div role="alert" className={cx("rounded-(--radius-control) border px-4 py-3 text-sm", toneClasses)}>
+    <div role="alert" className={cx("border-l-[3px] border-y border-r px-4 py-3 text-sm", toneClasses)}>
       {children}
     </div>
   );

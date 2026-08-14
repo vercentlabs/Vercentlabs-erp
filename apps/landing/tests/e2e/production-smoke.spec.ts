@@ -133,6 +133,21 @@ test.describe("navigation", () => {
     await expect(page.getByRole("region", { name: "Product" })).toBeHidden();
   });
 
+  test("product mega menu presents a grouped product system map", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Product" }).click();
+
+    const panel = page.getByRole("region", { name: "Product" });
+    await expect(panel.getByText("Product system map", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Core platform", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Experience & trust", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Adoption & operations", { exact: true })).toBeVisible();
+
+    for (const label of ["Platform", "Automation", "Analytics", "Mobile", "Security", "Integrations", "Implementation", "Solutions", "Workflows"]) {
+      await expect(panel.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
+    }
+  });
+
   test("header CTA links to /book-demo", async ({ page }) => {
     await page.goto("/");
     const cta = page.getByRole("link", { name: "Book a Demo" }).first();

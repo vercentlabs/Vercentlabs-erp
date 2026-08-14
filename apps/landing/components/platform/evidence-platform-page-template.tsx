@@ -1,3 +1,5 @@
+
+
 import Link from "next/link";
 import { getLandingModule, type PlatformPageContent } from "@vercentlabs/landing-content";
 import { TrackView } from "@/components/analytics/track-view";
@@ -31,6 +33,7 @@ export function EvidencePlatformPageTemplate({
   breadcrumbTrail: BreadcrumbEntry[];
   visual: EvidenceVisual;
 }) {
+  const familyLabel = content.slug === "/security" ? "CONTROL LEDGER / SECURITY" : content.slug.includes("mobile") ? "FIELD MANUAL / MOBILE" : content.slug.includes("integrations") ? "INTERFACE CONTRACT / INTEGRATIONS" : "PLATFORM EVIDENCE / REGISTER";
   const connectedModules = content.connectedModuleKeys
     .map((key) => getLandingModule(key))
     .filter((module): module is NonNullable<typeof module> => Boolean(module));
@@ -60,6 +63,7 @@ export function EvidencePlatformPageTemplate({
               ratio="primary-wide"
               primary={
                 <Stack gap={5} className="reveal-on-load">
+                  <span className="vl-folio">{familyLabel}</span>
                   <Text variant="eyebrow">{content.eyebrow}</Text>
                   <Heading level="display" as="h1">{content.heading}</Heading>
                   <Text variant="lead">{content.supportingText}</Text>
@@ -83,7 +87,7 @@ export function EvidencePlatformPageTemplate({
                     {visual.items.map((item, index) => (
                       <li key={item.label} className="relative py-3 pl-9 first:pt-0 last:pb-0">
                         <span
-                          className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-(--radius-control) text-[0.68rem] font-semibold text-(--color-text-inverse) ${index === 0 ? "top-0" : "top-3"}`}
+                          className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-[3px] text-[0.68rem] font-semibold text-(--color-text-inverse) ${index === 0 ? "top-0" : "top-3"}`}
                           style={{ backgroundColor: item.color }}
                           aria-hidden="true"
                         >
@@ -120,7 +124,7 @@ export function EvidencePlatformPageTemplate({
       <Section tone="page">
         <Container>
           <SectionHeader eyebrow={visual.bodyEyebrow} title={visual.bodyTitle} description={visual.bodyDescription} />
-          <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle)">
+          <div className="mt-10 border-y border-(--color-border-strong) bg-(--color-bg-elevated)">
             {content.sections.map((section, index) => (
               <section key={section.id} id={section.id} className="grid grid-cols-1 gap-5 border-t border-(--color-border-default) px-5 py-7 first:border-t-0 sm:px-6 lg:grid-cols-[64px_320px_minmax(0,1fr)] lg:gap-8 lg:px-8">
                 <span className="tabular-data text-xs font-semibold tracking-[0.08em] text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
@@ -129,10 +133,10 @@ export function EvidencePlatformPageTemplate({
                   {section.supportingText && section.items.length > 0 ? <p className="mt-2 text-sm leading-relaxed text-(--color-text-secondary)">{section.supportingText}</p> : null}
                 </div>
                 {section.items.length > 0 ? (
-                  <div className={`grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-control) border border-(--color-border-default) bg-(--color-border-default) lg:self-start ${section.items.length > 2 ? "xl:grid-cols-3" : section.items.length > 1 ? "sm:grid-cols-2" : ""}`}>
+                  <div className={`grid grid-cols-1 gap-px border-l border-t border-(--color-border-default) bg-(--color-border-default) lg:self-start ${section.items.length > 2 ? "xl:grid-cols-3" : section.items.length > 1 ? "sm:grid-cols-2" : ""}`}>
                     {section.items.map((item) => (
                       <div key={item.title} className="bg-(--color-bg-subtle) p-4">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-(--radius-control) bg-(--color-bg-elevated) text-(--color-text-brand)" aria-hidden="true">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-(--color-bg-elevated) text-(--color-text-brand)" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5"><path d="m5 10 3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </span>
                         <h3 className="mt-4 text-sm font-semibold text-(--color-text-primary)">{item.title}</h3>
@@ -155,7 +159,7 @@ export function EvidencePlatformPageTemplate({
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow={visual.moduleEyebrow} title={visual.moduleTitle} />
-            <div className={`mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) ${connectedModules.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            <div className={`mt-10 grid grid-cols-1 gap-px border-l border-t border-(--color-border-strong) bg-(--color-border-default) ${connectedModules.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
               {connectedModules.map((module, index) => (
                 <Link key={module.key} href={`/modules/${module.key}`} prefetch={false} className="group bg-(--color-bg-elevated) p-5 transition-colors hover:bg-(--color-bg-subtle) sm:p-6">
                   <div className="flex items-center justify-between gap-3">
@@ -173,7 +177,7 @@ export function EvidencePlatformPageTemplate({
       {content.faqs?.length ? (
         <Section tone="page">
           <Container>
-            <div className="grid grid-cols-1 gap-10 rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) p-6 shadow-(--shadow-subtle) sm:p-8 lg:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)] lg:gap-16">
+            <div className="grid grid-cols-1 gap-10 border-y border-(--color-border-strong) bg-(--color-bg-elevated) py-8 lg:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)] lg:gap-16">
               <SectionHeader eyebrow="Straight answers" title={`Questions about ${content.title.toLowerCase()}`} />
               <FaqAccordion items={content.faqs} reveal={false} />
             </div>
@@ -183,7 +187,7 @@ export function EvidencePlatformPageTemplate({
 
       <Section tone="inverse">
         <Container>
-          <div className="grid grid-cols-1 items-center gap-8 rounded-(--radius-panel) border border-white/15 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:p-10">
+          <div className="grid grid-cols-1 items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
             <Heading level="h1" as="h2" className="text-(--color-text-inverse)">{content.finalCtaHeading}</Heading>
             <TrackedCtaLink href={content.primaryCta.href} event="platform_cta_click" ctaLocation={`${content.slug}_final`}>{content.primaryCta.label}</TrackedCtaLink>
           </div>

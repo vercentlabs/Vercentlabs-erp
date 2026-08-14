@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
@@ -120,7 +121,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
   const errorCount = Object.keys(errors).length;
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
       {errorCount > 0 ? (
         <FormAlert tone="error">
           {errorCount === 1 ? "One field needs attention below." : `${errorCount} fields need attention below.`}
@@ -209,19 +210,19 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
         )}
       </FieldWrapper>
 
-      <Stack gap={2}>
-        <Text variant="label">Modules you&apos;re curious about (optional)</Text>
+      <Stack gap={3} className="border-y border-(--color-border-default) py-5">
+        <Text variant="dataLabel">Modules you&apos;re curious about (optional)</Text>
         {/* role="group"+aria-label: a screen-reader user tabbing through 12
             unrelated-sounding checkboxes ("CRM", "Sales", ...) otherwise gets
             no group context — the visible <Text> label above isn't
             programmatically associated with the checkboxes without this.
             Matches the same pattern already used in requirements-checklist.tsx. */}
-        <div className="flex flex-wrap gap-x-5 gap-y-2" role="group" aria-label="Modules you're curious about (optional)">
+        <div className="grid grid-cols-2 border-l border-t border-(--color-border-default) sm:grid-cols-3" role="group" aria-label="Modules you're curious about (optional)">
           {LANDING_MODULES.map((module) => (
-            <label key={module.key} className="flex items-center gap-2 text-sm text-(--color-text-secondary)">
+            <label key={module.key} className="flex min-h-11 items-center gap-2 border-b border-r border-(--color-border-default) px-3 py-2 text-sm text-(--color-text-secondary)">
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded-[4px] border-(--color-border-strong) text-(--color-bg-brand)"
+                className="h-4 w-4 rounded-[2px] border-(--color-border-strong) text-(--color-bg-brand)"
                 checked={modulesOfInterest.includes(module.name)}
                 onChange={(e) =>
                   setModulesOfInterest((current) => (e.target.checked ? [...current, module.name] : current.filter((item) => item !== module.name)))
@@ -275,7 +276,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
         </p>
       ) : null}
 
-      <Button type="submit" loading={submitting} disabled={submitting} className="w-full sm:w-auto">
+      <Button type="submit" loading={submitting} disabled={submitting} className="w-full sm:w-auto sm:min-w-40">
         {submitting ? "Submitting…" : "Book a Demo"}
       </Button>
     </form>

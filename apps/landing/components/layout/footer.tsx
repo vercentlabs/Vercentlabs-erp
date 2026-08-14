@@ -5,12 +5,6 @@ import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import { APP_URL } from "@/lib/site";
 
-/**
- * Only destinations approved in docs/landing-redesign/phase-1/information-architecture.md
- * appear here. No "#" placeholders, no invented social profiles, no certification
- * badges, no status link (none exists yet) — per the governing brief and the
- * Evidence and Honesty Rules.
- */
 const PRODUCT_LINKS = [
   { label: "Platform", href: "/product/platform" },
   { label: "Automation", href: "/product/automation" },
@@ -38,79 +32,36 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-(--color-border-default) bg-(--color-bg-elevated)">
-      <Container className="py-14">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-7">
-          <div className="sm:col-span-2 lg:col-span-2">
-            <Logo />
-            <p className="mt-4 max-w-[32ch] text-sm leading-relaxed text-(--color-text-secondary)">
+    <footer className="vl-night-grid border-t border-white/15 bg-(--color-bg-inverse) text-white">
+      <Container className="py-14 sm:py-16">
+        <div className="mb-12 grid grid-cols-1 items-end gap-8 border-b border-white/15 pb-10 lg:grid-cols-[1fr_auto]">
+          <div>
+            <Logo inverse />
+            <p className="mt-5 max-w-[52ch] text-sm leading-[1.75] text-white/58">
               An operational ERP for growing, multi-location businesses — sales, inventory, procurement, production,
               and finance on one live system.
             </p>
-            <ButtonLink href={CTAS.primary.href} size="sm" variant="secondary" className="mt-5">
-              {CTAS.primary.label}
-            </ButtonLink>
           </div>
-
-          <FooterColumn title="Product" links={PRODUCT_LINKS} />
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">Modules</p>
-            <ul className="mt-3 flex flex-col gap-2.5">
-              {LANDING_MODULES.slice(0, 6).map((moduleInfo) => (
-                <li key={moduleInfo.key}>
-                  <Link href={`/modules/${moduleInfo.key}`} prefetch={false} className="text-sm text-(--color-text-secondary) hover:text-(--color-text-brand)">
-                    {moduleInfo.name}
-                  </Link>
-                </li>
-              ))}
-              <li>
-                <Link href="/modules" prefetch={false} className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4">
-                  All modules
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">Industries</p>
-            <ul className="mt-3 flex flex-col gap-2.5">
-              {LANDING_INDUSTRIES.map((industry) => (
-                <li key={industry.slug}>
-                  <Link href={`/industries/${industry.slug}`} prefetch={false} className="text-sm text-(--color-text-secondary) hover:text-(--color-text-brand)">
-                    {industry.name}
-                  </Link>
-                </li>
-              ))}
-              <li>
-                <Link href="/industries" prefetch={false} className="text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4">
-                  All industries
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <FooterColumn title="Platform" links={PLATFORM_LINKS} />
-          <FooterColumn title="Resources" links={RESOURCE_LINKS} />
+          <ButtonLink href={CTAS.primary.href} size="sm" variant="inverse">{CTAS.primary.label}</ButtonLink>
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-(--color-border-default) pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-(--color-text-muted)">© {year} Vercentlabs. All rights reserved.</p>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {/* Privacy/Terms restored in Phase 8 now that real pages exist at
-                /privacy and /terms (Phase 7 removed the old /legal/privacy
-                and /legal/terms links, which pointed at pages that never
-                existed — see docs/landing-redesign/phase-7/decision-log.md
-                items 16-17 and docs/landing-redesign/phase-8/legal-readiness.md). */}
-            <Link href="/privacy" prefetch={false} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" prefetch={false} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
-              Terms of Use
-            </Link>
-            <Link href={APP_URL.toString()} className="text-xs text-(--color-text-muted) hover:text-(--color-text-brand)">
-              Sign in
-            </Link>
+        <div className="grid grid-cols-2 border-l border-t border-white/15 sm:grid-cols-3 lg:grid-cols-6">
+          <FooterColumn title="Product" index="01" links={PRODUCT_LINKS} />
+          <FooterColumn title="Modules" index="02" links={LANDING_MODULES.slice(0, 6).map((moduleInfo) => ({ label: moduleInfo.name, href: `/modules/${moduleInfo.key}` })).concat({ label: "All modules", href: "/modules" })} />
+          <FooterColumn title="Industries" index="03" links={LANDING_INDUSTRIES.map((industry) => ({ label: industry.name, href: `/industries/${industry.slug}` })).concat({ label: "All industries", href: "/industries" })} />
+          <FooterColumn title="Platform" index="04" links={PLATFORM_LINKS} />
+          <FooterColumn title="Resources" index="05" links={RESOURCE_LINKS} />
+          <div className="border-b border-r border-white/15 p-5">
+            <div className="flex items-center justify-between"><p className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-white/45">Account</p><span className="vl-index text-white/35">06</span></div>
+            <Link href={APP_URL.toString()} className="mt-5 block text-sm font-semibold text-white/75 hover:text-white">Sign in →</Link>
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-4 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {year} Vercentlabs. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Link href="/privacy" prefetch={false} className="hover:text-white">Privacy Policy</Link>
+            <Link href="/terms" prefetch={false} className="hover:text-white">Terms of Use</Link>
           </div>
         </div>
       </Container>
@@ -118,16 +69,17 @@ export function Footer() {
   );
 }
 
-function FooterColumn({ title, links }: { title: string; links: { label: string; href: string }[] }) {
+function FooterColumn({ title, index, links }: { title: string; index: string; links: { label: string; href: string }[] }) {
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-(--color-text-muted)">{title}</p>
-      <ul className="mt-3 flex flex-col gap-2.5">
+    <div className="border-b border-r border-white/15 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-white/45">{title}</p>
+        <span className="vl-index text-white/35">{index}</span>
+      </div>
+      <ul className="mt-5 flex flex-col gap-3">
         {links.map((link) => (
           <li key={link.href}>
-            <Link href={link.href} prefetch={false} className="text-sm text-(--color-text-secondary) hover:text-(--color-text-brand)">
-              {link.label}
-            </Link>
+            <Link href={link.href} prefetch={false} className="text-sm text-white/68 transition-colors hover:text-white">{link.label}</Link>
           </li>
         ))}
       </ul>

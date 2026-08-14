@@ -1,68 +1,22 @@
 import { ImageResponse } from "next/og";
-import { POSITIONING, SITE_IDENTITY, COLOR_TOKENS } from "@vercentlabs/landing-content";
+import { POSITIONING, SITE_IDENTITY } from "@vercentlabs/landing-content";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-/**
- * Generated through code (Next.js's built-in next/og ImageResponse), not a
- * remote design service — per docs/landing-redesign/phase-1/
- * seo-aeo-geo-architecture.md's Open Graph requirement. Uses only real brand
- * colour/wordmark and the approved hero headline — no invented metrics, no
- * screenshot crammed into an unreadable size.
- */
 export default async function OpengraphImage() {
   return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          backgroundColor: "#f9fafb",
-          padding: "72px",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              backgroundColor: "#4338ca",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#ffffff",
-              fontSize: 32,
-              fontWeight: 700,
-            }}
-          >
-            V
-          </div>
-          <div style={{ fontSize: 30, fontWeight: 600, color: "#101828" }}>{SITE_IDENTITY.name}</div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 980 }}>
-          <div style={{ fontSize: 60, fontWeight: 700, color: "#101828", lineHeight: 1.1, letterSpacing: -1 }}>
-            {POSITIONING.heroHeadline}
-          </div>
-          <div style={{ fontSize: 28, color: COLOR_TOKENS.mutedInk, lineHeight: 1.4 }}>{SITE_IDENTITY.category}</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 40 }}>
-          {["12 connected modules", "1,039 implemented capabilities", "Role-based access"].map((label) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: "#4338ca" }} />
-              <div style={{ fontSize: 22, color: "#101828" }}>{label}</div>
-            </div>
-          ))}
-        </div>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", backgroundColor: "#f5f3ee", padding: "58px 64px", fontFamily: "sans-serif", color: "#17191d" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "2px solid #17191d", paddingTop: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 13 }}><div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#4338ca", color: "white", fontSize: 19, fontWeight: 700 }}>V</div><div style={{ fontSize: 24, fontWeight: 650 }}>{SITE_IDENTITY.name}</div></div>
+        <div style={{ fontSize: 14, letterSpacing: 2.3, color: "#69707a" }}>OPERATIONS / ERP / SYSTEM</div>
       </div>
-    ),
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 48 }}>
+        <div style={{ display: "flex", flexDirection: "column", width: 820 }}><div style={{ fontSize: 72, fontWeight: 680, lineHeight: 0.98, letterSpacing: -3.7 }}>{POSITIONING.heroHeadline}</div><div style={{ marginTop: 24, width: 650, fontSize: 22, lineHeight: 1.45, color: "#5e6570" }}>{SITE_IDENTITY.category}</div></div>
+        <div style={{ width: 190, borderTop: "1px solid #a5a8ad", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}><div style={{ fontSize: 12, letterSpacing: 1.7, color: "#6b7280" }}>OPERATING INDEX</div>{["CONNECTED", "GOVERNED", "TRACEABLE"].map((label, index) => <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #d5d2ca", paddingBottom: 7, fontSize: 13 }}><span>{label}</span><span style={{ color: "#4338ca" }}>0{index + 1}</span></div>)}</div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #17191d", paddingBottom: 14, fontSize: 13, letterSpacing: 1.5, color: "#6b7280" }}><span>VERCENTLABS / OPERATIONAL LEDGER</span><span>vercentlabs.com</span></div>
+    </div>,
     { ...size },
   );
 }

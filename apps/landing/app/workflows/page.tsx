@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { ROUTED_WORKFLOW_SLUGS, getWorkflow } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Inline } from "@/components/layout/container";
+import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
-import { InformationBand } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CollectionHero } from "@/components/shared/collection-hero";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
@@ -27,84 +26,72 @@ export default function WorkflowsIndexPage() {
     name: "Cross-Module Workflows",
     description: "Vercentlabs ERP's real, cited cross-module workflows.",
     url: absoluteUrl("/workflows"),
-    hasPart: workflows.map((workflow) => ({
-      "@type": "WebPage",
-      name: workflow.name,
-      url: absoluteUrl(`/workflows/${workflow.slug}`),
-    })),
+    hasPart: workflows.map((workflow) => ({ "@type": "WebPage", name: workflow.name, url: absoluteUrl(`/workflows/${workflow.slug}`) })),
   };
 
   return (
     <>
       <TrackView event="workflows_index_view">
-        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
-            remaining viewport height, so the hero neither leaves dead space
-            above the next section nor requires a scroll to see all of it. */}
-        <div>
-          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-            <Container>
-              <Breadcrumbs trail={[{ name: "Workflows", path: "/workflows" }]} />
-            </Container>
-          </Section>
-
-          <CollectionHero
-            eyebrow="Cross-module workflows"
-            heading="See the real sequence, not a marketing diagram."
-            supportingText="Every workflow is a real sequence — trigger, steps, approvals, automation, and honest exceptions across connected modules."
-            listLabel="End-to-end flows"
-            items={workflows.map((workflow) => ({ label: workflow.name, meta: `${workflow.modules.length} modules` }))}
-          />
-        </div>
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+          <Container><Breadcrumbs trail={[{ name: "Workflows", path: "/workflows" }]} /></Container>
+        </Section>
+        <CollectionHero
+          eyebrow="Cross-module workflows"
+          heading="See the real sequence, not a marketing diagram."
+          supportingText="Every workflow is a real sequence — trigger, steps, approvals, automation, and honest exceptions across connected modules."
+          listLabel="End-to-end flows"
+          items={workflows.map((workflow) => ({ label: workflow.name, meta: `${workflow.modules.length} modules` }))}
+          variant="workflows"
+        />
       </TrackView>
 
-      <Section tone="page">
+      <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
         <Container>
-          <SectionHeader eyebrow="Choose a workflow" title="Six real, cross-module sequences." />
+          <SectionHeader eyebrow="Runbook index" title="Six sequences. Every handoff visible." description="Open a runbook to inspect its trigger, participants, module handoffs, approval gates, automated actions, exceptions and business value." />
           <Reveal group>
-            <div className="mt-10 flex flex-col">
+            <ol className="mt-10 border-y border-(--color-border-strong)">
               {workflows.map((workflow, index) => (
-                <InformationBand key={workflow.slug} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
-                  <div className="sm:w-3/5">
-                    <Link href={`/workflows/${workflow.slug}`} prefetch={false}>
-                      <Heading level="h3">{workflow.name}</Heading>
-                    </Link>
-                    <Text variant="bodySmall" className="mt-2 max-w-[60ch]">
-                      {workflow.summary}
-                    </Text>
-                  </div>
-                  <div className="sm:w-1/5">
-                    <Text variant="caption">Modules</Text>
-                    <Text variant="bodySmall" className="mt-1">
-                      {workflow.modules.join(", ")}
-                    </Text>
-                  </div>
-                  <Link
-                    href={`/workflows/${workflow.slug}`}
-                    prefetch={false}
-                    className="flex-none text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                  >
-                    View workflow →
+                <li key={workflow.slug} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
+                  <Link href={`/workflows/${workflow.slug}`} prefetch={false} className="group grid gap-5 border-t border-(--color-border-default) py-7 first:border-t-0 md:grid-cols-[90px_minmax(260px,.8fr)_minmax(0,1.2fr)_120px] md:items-center md:gap-8 md:py-9">
+                    <div className="flex items-center gap-3 md:block">
+                      <span className="flex h-12 w-12 items-center justify-center border border-(--color-border-strong) bg-(--color-bg-elevated) font-mono text-xs font-bold text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="vl-index md:mt-2 md:block">RUN / {String(workflow.modules.length).padStart(2, "0")}</span>
+                    </div>
+                    <div>
+                      <Heading level="h3" className="group-hover:text-(--color-text-brand)">{workflow.name}</Heading>
+                      <Text variant="bodySmall" className="mt-2 max-w-[56ch]">{workflow.summary}</Text>
+                    </div>
+                    <div>
+                      <span className="vl-index">Module path</span>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {workflow.modules.map((moduleKey, moduleIndex) => (
+                          <span key={`${moduleKey}-${moduleIndex}`} className="flex items-center gap-2">
+                            <span className="text-[0.67rem] font-bold uppercase tracking-[0.08em] text-(--color-text-primary)">{moduleKey}</span>
+                            {moduleIndex < workflow.modules.length - 1 ? <span className="text-xs text-(--color-text-muted)" aria-hidden="true">→</span> : null}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="md:text-right">
+                      <span className="vl-index">Open runbook</span>
+                      <span className="vl-hover-arrow mt-2 block text-xl text-(--color-text-brand)" aria-hidden="true">→</span>
+                    </div>
                   </Link>
-                </InformationBand>
+                </li>
               ))}
-            </div>
+            </ol>
           </Reveal>
         </Container>
       </Section>
 
-      <Section tone="inverse">
+      <Section tone="inverse" paddingTop={{ base: 14, sm: 18 }} paddingBottom={{ base: 14, sm: 18 }}>
         <Container>
-          <Reveal className="mx-auto max-w-[640px] text-center">
-            <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
-              See a real workflow run end to end.
-            </Heading>
-            <div className="mt-6 flex justify-center">
-              <Inline gap={3}>
-                <TrackedCtaLink href="/book-demo" event="workflow_cta_click" ctaLocation="workflows_index_final">
-                  Book a Demo
-                </TrackedCtaLink>
-              </Inline>
+          <Reveal className="grid items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
+            <div className="max-w-[820px]">
+              <span className="vl-index text-white/50">RUNBOOK / LIVE SESSION</span>
+              <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">See a real workflow run end to end.</Heading>
             </div>
+            <TrackedCtaLink href="/book-demo" event="workflow_cta_click" ctaLocation="workflows_index_final">Book a Demo</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

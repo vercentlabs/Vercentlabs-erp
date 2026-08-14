@@ -1,3 +1,5 @@
+
+
 import Link from "next/link";
 import { getLandingModule, type PlatformPageContent } from "@vercentlabs/landing-content";
 import { TrackView } from "@/components/analytics/track-view";
@@ -40,6 +42,7 @@ export function AnalyticsPageTemplate({
               ratio="primary-wide"
               primary={
                 <Stack gap={5} className="reveal-on-load">
+                  <span className="vl-folio">SIGNAL BOARD / REPORTING REGISTRY</span>
                   <Text variant="eyebrow">{content.eyebrow}</Text>
                   <Heading level="display" as="h1">
                     {content.heading}
@@ -56,8 +59,8 @@ export function AnalyticsPageTemplate({
                 <div className="reveal-on-load reveal-on-load-delay-1 lg:pl-6">
                   <div className="flex items-end justify-between gap-4 border-b border-(--color-border-default) pb-4">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)">Live report registries</p>
-                      <p className="mt-1 text-sm text-(--color-text-secondary)">Three evidenced module catalogs.</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)">Signal registry</p>
+                      <p className="mt-1 text-sm text-(--color-text-secondary)">Operational records translated into decision-ready views.</p>
                     </div>
                     <div className="text-right">
                       <p className="tabular-data text-3xl font-semibold tracking-[-0.04em] text-(--color-text-primary)">42</p>
@@ -103,7 +106,7 @@ export function AnalyticsPageTemplate({
 
       <Section tone="subtle">
         <Container>
-          <div className="overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle)">
+          <div className="border-y border-(--color-border-strong) bg-(--color-bg-elevated)">
             <div className="grid grid-cols-1 gap-px bg-(--color-border-default) sm:grid-cols-2 lg:grid-cols-4">
               {[
                 ["01", "Operational data", "The same records teams update every day."],
@@ -130,7 +133,7 @@ export function AnalyticsPageTemplate({
             description="Dashboards, report registries, cross-module visibility, and governed exports all read from the same live system."
           />
 
-          <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle)">
+          <div className="mt-10 border-y border-(--color-border-strong) bg-(--color-bg-elevated)">
             {content.sections.map((section, index) => (
               <section
                 key={section.id}
@@ -144,10 +147,10 @@ export function AnalyticsPageTemplate({
                 </div>
 
                 {section.items.length > 0 ? (
-                  <div className={`grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-control) border border-(--color-border-default) bg-(--color-border-default) lg:self-start ${section.items.length > 2 ? "xl:grid-cols-3" : "sm:grid-cols-2"}`}>
+                  <div className={`grid grid-cols-1 gap-px border-l border-t border-(--color-border-default) bg-(--color-border-default) lg:self-start ${section.items.length > 2 ? "xl:grid-cols-3" : "sm:grid-cols-2"}`}>
                     {section.items.map((item) => (
                       <div key={item.title} className="bg-(--color-bg-subtle) p-4">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-(--radius-control) bg-(--color-bg-elevated) text-(--color-text-brand)" aria-hidden="true">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-[3px] bg-(--color-bg-elevated) text-(--color-text-brand)" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                             <path d="M4 15V9m4 6V5m4 10v-4m4 4V3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                           </svg>
@@ -186,7 +189,7 @@ export function AnalyticsPageTemplate({
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Module depth, shared data" title="Purpose-built reports without separate reporting silos." description="Each module contributes domain-specific views while access and export controls remain consistent across the platform." />
-            <div className="mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) sm:grid-cols-3">
+            <div className="mt-10 grid grid-cols-1 gap-px border-l border-t border-(--color-border-strong) bg-(--color-border-default) sm:grid-cols-3">
               {connectedModules.map((module, index) => (
                 <Link key={module.key} href={`/modules/${module.key}`} prefetch={false} className="group bg-(--color-bg-elevated) p-5 transition-colors hover:bg-(--color-bg-subtle) sm:p-6">
                   <div className="flex items-center justify-between gap-3">
@@ -203,7 +206,7 @@ export function AnalyticsPageTemplate({
 
       <Section tone="inverse">
         <Container>
-          <div className="grid grid-cols-1 items-center gap-8 rounded-(--radius-panel) border border-white/15 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:p-10">
+          <div className="grid grid-cols-1 items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
             <div className="max-w-[760px]">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Live data, scoped answers</p>
               <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">

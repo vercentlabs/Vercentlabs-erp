@@ -1,3 +1,4 @@
+
 import { PRIVACY_PAGE } from "@vercentlabs/landing-content";
 import { LegalPageBody } from "@/components/legal/legal-page-body";
 import { buildPageMetadata } from "@/lib/metadata";
@@ -9,5 +10,5 @@ export const metadata = buildPageMetadata({
 });
 
 export default function PrivacyPage() {
-  return <LegalPageBody content={PRIVACY_PAGE} />;
+  return <LegalPageBody content={PRIVACY_PAGE} documentCode="PRIVACY" />;
 }

@@ -1,108 +1,85 @@
 import type { LandingModule } from "@vercentlabs/landing-content";
 import { cx } from "@/lib/utils";
-import { Container, Section, Stack, Inline, SplitLayout } from "@/components/layout/container";
+import { Container, Section, Inline } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
-import { Metric } from "@/components/ui/card";
 import { ModuleTag } from "@/components/ui/tag";
-import { ProductScreenshot } from "@/components/product/product-frame";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
-import { getApprovedScreenshot } from "@/lib/product/screenshots";
 
-/**
- * Every module hero fills a full viewport-height section — this used to be
- * conditional on having a real screenshot (a bare copy-only hero reads fine full
- * height; a short numbered-step list stretched the same way left 150-200px of dead
- * space). The 10 modules without a screenshot yet no longer render that step list in
- * the hero at all (it was redundant with the fuller "See it work" section further
- * down the page anyway) — just the copy, centered, with the right side reserved for
- * the real product screenshot/video each of these modules will get. Once
- * screenshots.primary is set and approved for a module, it renders there automatically.
- */
 export function ModuleHero({ landingModule, className }: { landingModule: LandingModule; className?: string }) {
-  const primaryScreenshot = landingModule.screenshots.primary ? getApprovedScreenshot(landingModule.screenshots.primary) : null;
-
   const navGroupLabel =
-    landingModule.navGroup === "revenue"
-      ? "Revenue"
-      : landingModule.navGroup === "operations"
-        ? "Operations"
-        : landingModule.navGroup === "finance"
-          ? "Finance"
-          : landingModule.navGroup === "delivery"
-            ? "Delivery"
-            : "People & Service";
+    landingModule.navGroup === "revenue" ? "Revenue" :
+    landingModule.navGroup === "operations" ? "Operations" :
+    landingModule.navGroup === "finance" ? "Finance" :
+    landingModule.navGroup === "delivery" ? "Delivery" : "People & Service";
 
-  const copy = (
-    <Stack gap={5} className="reveal-on-load h-full max-w-[720px]">
-      <Text variant="eyebrow">{navGroupLabel} module</Text>
-      <Heading level="display" as="h1">
-        {landingModule.name}
-      </Heading>
-      <Text variant="lead">{landingModule.bestAngle}</Text>
-      <Inline gap={3}>
-        <TrackedCtaLink href={`/book-demo?module=${landingModule.key}`} event="module_hero_cta_click" ctaLocation={`module_hero_${landingModule.key}`}>
-          Book a Demo
-        </TrackedCtaLink>
-        <TrackedCtaLink href="/product/platform" event="platform_cta_click" ctaLocation={`module_hero_${landingModule.key}`} variant="secondary">
-          Explore the Platform
-        </TrackedCtaLink>
-      </Inline>
-      <Inline gap={6} className="mt-1 flex-wrap sm:mt-auto">
-        <Metric label="Capability groups" value={String(landingModule.capabilityGroups.length)} />
-        <Metric label="Connected modules" value={String(landingModule.connectedModules.length)} />
-        {/* ModuleTag is a color legend, not a provenance claim about where the
-            accent color came from — shown for all 12 modules for hero-row
-            rhythm consistency (a Phase 4 Cycle 2 brand review found the
-            product-sourced-only gate here was an unintended side effect of
-            the "don't claim landing-original colors are product colors" copy
-            rule leaking into a layout decision it doesn't actually apply to).
-            Hidden from `sm` up: the module name is already the H1 right above
-            it, so on anything wider than mobile this tag is pure repetition —
-            on mobile it still earns its place as a compact colour anchor next
-            to the metrics once the heading has scrolled out of view. */}
-        <ModuleTag name={landingModule.name} accentColor={landingModule.accentColor.hex} className="sm:hidden" />
-      </Inline>
-    </Stack>
-  );
+  const operatingIndex = [
+    { label: "Capability groups", value: String(landingModule.capabilityGroups.length).padStart(2, "0") },
+    { label: "Workflow steps", value: String(landingModule.primaryWorkflow.steps.length).padStart(2, "0") },
+    { label: "Connected modules", value: String(landingModule.connectedModules.length).padStart(2, "0") },
+    { label: "Reporting views", value: String(landingModule.reporting.length).padStart(2, "0") },
+  ];
 
   return (
-    <Section
-      tone="page"
-      paddingTop={{ base: 10, sm: 14 }}
-      paddingBottom={{ base: 12, sm: 16 }}
-      className={cx(className)}
-    >
+    <Section tone="page" paddingTop={{ base: 10, sm: 14 }} paddingBottom={{ base: 12, sm: 18 }} className={cx("overflow-hidden", className)}>
       <Container>
-        <SplitLayout
-          ratio="primary-wide"
-          primary={copy}
-          secondary={
-            primaryScreenshot ? (
-              <div className="reveal-on-load reveal-on-load-delay-1">
-                <ProductScreenshot id={primaryScreenshot.id} moduleAccentColor={landingModule.accentColor.hex} />
+        <div className="reveal-on-load border-t border-(--color-border-strong) pt-5">
+          <div className="flex items-center justify-between gap-4">
+            <Text variant="eyebrow">{navGroupLabel} module</Text>
+            <span className="vl-folio">{landingModule.key.toUpperCase()} / MODULE</span>
+          </div>
+
+          <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,.65fr)] lg:items-end lg:gap-16">
+            <div>
+              <Heading level="display" as="h1" className="max-w-[10ch]">{landingModule.name}</Heading>
+              <Text variant="lead" className="mt-6 max-w-[60ch]">{landingModule.bestAngle}</Text>
+              <Inline gap={3} className="mt-7">
+                <TrackedCtaLink href={`/book-demo?module=${landingModule.key}`} event="module_hero_cta_click" ctaLocation={`module_hero_${landingModule.key}`}>Book a Demo</TrackedCtaLink>
+                <TrackedCtaLink href="/product/platform" event="platform_cta_click" ctaLocation={`module_hero_${landingModule.key}`} variant="secondary">Explore the Platform</TrackedCtaLink>
+              </Inline>
+            </div>
+
+            <aside className="border-t border-(--color-border-strong) pt-4" aria-label={`${landingModule.name} operating index`}>
+              <div className="mb-2 flex items-end justify-between gap-4">
+                <span className="vl-index">Operating index</span>
+                <span className="h-[3px] w-14" style={{ backgroundColor: landingModule.accentColor.hex }} aria-hidden="true" />
               </div>
-            ) : (
-              <div className="reveal-on-load reveal-on-load-delay-1 border-t border-(--color-border-strong)">
-                <div className="flex items-end justify-between border-b border-(--color-border-default) py-4">
-                  <Text variant="caption">Capability map</Text>
-                  <span className="tabular-data text-4xl font-semibold tracking-[-0.04em] text-(--color-text-primary)">
-                    {String(landingModule.capabilityGroups.length).padStart(2, "0")}
-                  </span>
-                </div>
-                <ol>
-                  {landingModule.capabilityGroups.slice(0, 5).map((group, index) => (
-                    <li key={group.name} className="grid grid-cols-[2rem_1fr] items-center gap-3 border-b border-(--color-border-default) py-3.5">
-                      <span className="tabular-data text-xs font-medium" style={{ color: landingModule.accentColor.hex }}>
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span className="text-sm font-medium text-(--color-text-primary)">{group.name}</span>
-                    </li>
-                  ))}
-                </ol>
+              <dl>
+                {operatingIndex.map((item, index) => (
+                  <div key={item.label} className="grid grid-cols-[2rem_1fr_auto] items-end gap-3 border-b border-(--color-border-default) py-3.5">
+                    <dt className="contents">
+                      <span className="vl-index" style={{ color: landingModule.accentColor.hex }}>{String(index + 1).padStart(2, "0")}</span>
+                      <span className="text-sm font-semibold text-(--color-text-primary)">{item.label}</span>
+                    </dt>
+                    <dd className="tabular-data text-2xl font-semibold leading-none tracking-[-0.05em] text-(--color-text-primary)">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </aside>
+          </div>
+
+          <div className="mt-12 border-y border-(--color-border-strong)">
+            <div className="grid gap-0 md:grid-cols-[180px_1fr]">
+              <div className="border-b border-(--color-border-default) py-5 md:border-b-0 md:border-r md:pr-6">
+                <span className="vl-index">Primary sequence</span>
+                <p className="mt-2 text-sm font-semibold text-(--color-text-primary)">{landingModule.primaryWorkflow.name}</p>
               </div>
-            )
-          }
-        />
+              <ol className="grid sm:grid-cols-2 lg:grid-cols-4">
+                {landingModule.primaryWorkflow.steps.slice(0, 4).map((step, index) => (
+                  <li key={step.step} className="border-b border-(--color-border-default) px-0 py-5 sm:px-5 lg:border-b-0 lg:border-l">
+                    <span className="vl-index" style={{ color: landingModule.accentColor.hex }}>{String(index + 1).padStart(2, "0")}</span>
+                    <p className="mt-3 text-sm font-semibold leading-snug text-(--color-text-primary)">{step.step}</p>
+                    <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-(--color-text-muted)">{step.detail}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <ModuleTag name={landingModule.name} accentColor={landingModule.accentColor.hex} />
+            <span className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">Shared data model · structured controls · connected workflow</span>
+          </div>
+        </div>
       </Container>
     </Section>
   );

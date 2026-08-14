@@ -1,3 +1,5 @@
+
+
 import Link from "next/link";
 import { getLandingModule, type PlatformPageContent } from "@vercentlabs/landing-content";
 import { TrackView } from "@/components/analytics/track-view";
@@ -41,6 +43,7 @@ export function AutomationPageTemplate({
               ratio="primary-wide"
               primary={
                 <Stack gap={5} className="reveal-on-load">
+                  <span className="vl-folio">AUTOMATION CONTROL LOOP / RULE ENGINE</span>
                   <Text variant="eyebrow">{content.eyebrow}</Text>
                   <Heading level="display" as="h1">
                     {content.heading}
@@ -57,15 +60,15 @@ export function AutomationPageTemplate({
                 <div className="reveal-on-load reveal-on-load-delay-1 lg:pl-6">
                   <div className="flex items-end justify-between gap-4 border-b border-(--color-border-default) pb-4">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)">Governed automation</p>
-                      <p className="mt-1 text-sm text-(--color-text-secondary)">Every action passes through policy.</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-text-brand)">Control-loop register</p>
+                      <p className="mt-1 text-sm text-(--color-text-secondary)">Trigger → evaluate → govern → execute.</p>
                     </div>
                     <span className="tabular-data text-3xl font-semibold tracking-[-0.04em] text-(--color-text-primary)">04</span>
                   </div>
                   <ol className="relative mt-6 border-l-2 border-(--color-border-brand)">
                   {AUTOMATION_LOOP.map((stage, index) => (
                     <li key={stage.label} className="relative py-3 pl-9 first:pt-0 last:pb-0">
-                      <span className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-(--radius-control) text-[0.68rem] font-semibold text-(--color-text-inverse) ${index === 0 ? "top-0" : "top-3"}`} style={{ backgroundColor: stage.color }} aria-hidden="true">
+                      <span className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-[3px] text-[0.68rem] font-semibold text-(--color-text-inverse) ${index === 0 ? "top-0" : "top-3"}`} style={{ backgroundColor: stage.color }} aria-hidden="true">
                           {index + 1}
                       </span>
                       <div className="flex items-baseline justify-between gap-4">
@@ -112,7 +115,7 @@ export function AutomationPageTemplate({
             description="Each example below is already evidenced in the product. The system makes the decision path explicit instead of hiding it inside an ad hoc script."
           />
 
-          <div className="mt-10 overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-bg-elevated) shadow-(--shadow-subtle)">
+          <div className="mt-10 border-y border-(--color-border-strong) bg-(--color-bg-elevated)">
             {content.sections.map((section, sectionIndex) => (
               <section key={section.id} id={section.id} className="border-t border-(--color-border-default) first:border-t-0">
                 <div className="flex flex-col gap-3 bg-(--color-bg-subtle) px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
@@ -127,7 +130,7 @@ export function AutomationPageTemplate({
                   {section.items.map((item, itemIndex) => (
                     <div key={item.title} className="bg-(--color-bg-elevated) p-5 sm:p-6">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-(--radius-control) bg-(--color-bg-subtle) text-(--color-text-brand)" aria-hidden="true">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-[3px] bg-(--color-bg-subtle) text-(--color-text-brand)" aria-hidden="true">
                           <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                             <path d="M10 2.8v2.1m0 10.2v2.1M2.8 10h2.1m10.2 0h2.1M4.9 4.9l1.5 1.5m7.2 7.2 1.5 1.5m0-10.2-1.5 1.5m-7.2 7.2-1.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                             <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5" />
@@ -164,7 +167,7 @@ export function AutomationPageTemplate({
         <Section tone="subtle">
           <Container>
             <SectionHeader eyebrow="Cross-module by design" title="Rules that follow the work, not the application boundary." description="Automation uses the same governed primitives while each module contributes its own business events and state transitions." />
-            <div className="mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-(--radius-panel) border border-(--color-border-default) bg-(--color-border-default) sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-10 grid grid-cols-1 gap-px border-l border-t border-(--color-border-strong) bg-(--color-border-default) sm:grid-cols-2 lg:grid-cols-5">
               {connectedModules.map((module, index) => (
                 <Link key={module.key} href={`/modules/${module.key}`} prefetch={false} className="group bg-(--color-bg-elevated) p-5 transition-colors hover:bg-(--color-bg-subtle)">
                   <div className="flex items-center justify-between gap-3">
@@ -181,7 +184,7 @@ export function AutomationPageTemplate({
 
       <Section tone="inverse">
         <Container>
-          <div className="grid grid-cols-1 items-center gap-8 rounded-(--radius-panel) border border-white/15 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:p-10">
+          <div className="grid grid-cols-1 items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
             <div className="max-w-[760px]">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Governed from trigger to outcome</p>
               <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">

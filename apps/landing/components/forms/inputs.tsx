@@ -1,8 +1,9 @@
+
 import type { ChangeEvent, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cx } from "@/lib/utils";
 
 const FIELD_BASE =
-  "h-11 w-full rounded-(--radius-control) border border-(--color-border-default) bg-(--color-bg-elevated) px-3.5 text-sm text-(--color-text-primary) placeholder:text-(--color-text-muted) transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus) disabled:cursor-not-allowed disabled:bg-(--color-bg-subtle) disabled:text-(--color-text-disabled) aria-[invalid=true]:border-(--color-border-error)";
+  "min-h-12 w-full rounded-[3px] border border-(--color-border-strong) bg-(--color-bg-elevated) px-3.5 text-sm text-(--color-text-primary) shadow-[inset_0_1px_0_rgba(23,24,23,.03)] placeholder:text-(--color-text-muted) transition-[border-color,box-shadow,background-color] focus:border-(--color-border-focus) focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_rgba(72,67,168,.10)] disabled:cursor-not-allowed disabled:bg-(--color-bg-subtle) disabled:text-(--color-text-disabled) aria-[invalid=true]:border-(--color-border-error)";
 
 type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"> & {
   invalid?: boolean;
@@ -67,7 +68,7 @@ export function Checkbox({ id, label, name, required, defaultChecked, checked, o
         required={required}
         aria-invalid={invalid || undefined}
         {...(isControlled ? { checked, onChange } : { defaultChecked, onChange })}
-        className="mt-0.5 h-4 w-4 flex-none rounded-[4px] border-(--color-border-strong) text-(--color-bg-brand) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)"
+        className="mt-0.5 h-4 w-4 flex-none rounded-[2px] border-(--color-border-strong) text-(--color-bg-brand) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus)"
       />
       <span>{label}</span>
     </label>

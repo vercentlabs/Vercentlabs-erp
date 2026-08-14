@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -77,15 +79,15 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-(--color-border-default) pb-6 print:hidden">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by module">
+      <div className="grid grid-cols-1 gap-5 border-b border-(--color-border-strong) pb-6 print:hidden lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="grid grid-cols-2 border-l border-t border-(--color-border-default) sm:grid-cols-3 lg:flex lg:flex-wrap lg:border-0" role="group" aria-label="Filter by module">
           <button
             type="button"
             onClick={() => handleFilterChange("all")}
             aria-pressed={activeFilter === "all"}
             className={cx(
-              "rounded-(--radius-control) border px-3 py-1.5 text-xs font-medium transition-colors",
-              activeFilter === "all" ? "border-(--color-text-brand) bg-(--color-bg-brand) text-(--color-text-inverse)" : "border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-text-brand)",
+              "min-h-9 border-b border-r border-(--color-border-default) px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.06em] transition-colors lg:rounded-[3px] lg:border",
+              activeFilter === "all" ? "border-(--color-text-brand) bg-(--color-bg-brand) text-white" : "border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-text-brand)",
             )}
           >
             All ({groups.length})
@@ -97,8 +99,8 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
               onClick={() => handleFilterChange(filter.key)}
               aria-pressed={activeFilter === filter.key}
               className={cx(
-                "rounded-(--radius-control) border px-3 py-1.5 text-xs font-medium transition-colors",
-                activeFilter === filter.key ? "border-(--color-text-brand) bg-(--color-bg-brand) text-(--color-text-inverse)" : "border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-text-brand)",
+                "min-h-9 border-b border-r border-(--color-border-default) px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.06em] transition-colors lg:rounded-[3px] lg:border",
+                activeFilter === filter.key ? "border-(--color-text-brand) bg-(--color-bg-brand) text-white" : "border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-text-brand)",
               )}
             >
               {filter.label}
@@ -107,35 +109,37 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
         </div>
         <div className="flex items-center gap-4">
           <Text variant="caption">{hydrated ? `${checkedCount} of ${groups.length} groups reviewed` : null}</Text>
-          <button type="button" onClick={handlePrint} className="text-xs font-medium text-(--color-text-brand) hover:underline underline-offset-4">
+          <button type="button" onClick={handlePrint} className="vl-editorial-link text-xs font-bold text-(--color-text-brand)">
             Print this checklist
           </button>
         </div>
       </div>
 
-      <ul className="mt-6 flex flex-col divide-y divide-(--color-border-default)">
+      <ul className="mt-6 border-x border-t border-(--color-border-strong) bg-(--color-bg-elevated)">
         {visibleGroups.map((group) => (
-          <li key={group.id} className="flex items-start gap-3 py-4">
+          <li key={group.id} className="grid grid-cols-[2.5rem_1fr] gap-4 border-b border-(--color-border-default) px-4 py-5 sm:grid-cols-[2.5rem_1fr_150px] sm:px-5">
             <input
               type="checkbox"
               checked={Boolean(checked[group.id])}
               onChange={(event) => setChecked((prev) => ({ ...prev, [group.id]: event.target.checked }))}
               aria-label={`Mark ${group.name} as evaluated`}
-              className="mt-1 h-4 w-4 flex-none accent-(--color-text-brand)"
+              className="mt-1 h-4 w-4 flex-none rounded-[2px] accent-(--color-text-brand)"
             />
-            <div>
-              <Heading level="h4" as="h3">
-                {group.name}
-                <span className="ml-2 text-xs font-normal text-(--color-text-muted)">
-                  {group.requirementCount} requirement{group.requirementCount === 1 ? "" : "s"} · {group.filterLabel}
-                </span>
-              </Heading>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <Heading level="h4" as="h3">{group.name}</Heading>
+                <span className="vl-index sm:hidden">{group.requirementCount} REQ</span>
+              </div>
               <Text variant="bodySmall" className="mt-1">
                 {group.description}
               </Text>
-              <Link href={group.publicPage} prefetch={false} className="mt-1.5 inline-block text-xs font-medium text-(--color-text-brand) hover:underline underline-offset-4 print:hidden">
+              <Link href={group.publicPage} prefetch={false} className="vl-editorial-link mt-2 inline-block text-xs font-bold text-(--color-text-brand) print:hidden">
                 See how Vercentlabs implements this →
               </Link>
+            </div>
+            <div className="hidden border-l border-(--color-border-default) pl-5 sm:block">
+              <span className="vl-index">{group.requirementCount} REQ</span>
+              <p className="mt-2 text-xs font-semibold text-(--color-text-secondary)">{group.filterLabel}</p>
             </div>
           </li>
         ))}

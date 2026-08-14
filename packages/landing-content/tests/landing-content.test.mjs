@@ -68,6 +68,11 @@ test("every released ERP module has a landing enrichment entry", () => {
   }
 });
 
+test("all 12 released modules have distinct accent colours", () => {
+  const accents = LANDING_MODULES.map((module) => module.accentColor.hex.toLowerCase());
+  assert.equal(new Set(accents).size, LANDING_MODULES.length);
+});
+
 test("modules.js never overrides the canonical catalog name/description", () => {
   for (const module of LANDING_MODULES) {
     const canonical = getLandingModule(module.key);

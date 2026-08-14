@@ -1,14 +1,8 @@
-import { Container, Section, Inline } from "@/components/layout/container";
+import { Container, Section } from "@/components/layout/container";
 import { Text } from "@/components/ui/text";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import type { AnalyticsEventName } from "@/lib/analytics";
 
-/**
- * The mid-page conversion touchpoint (per conversion-architecture.md's
- * 3-touchpoint CTA requirement), generalized from components/modules/
- * contextual-cta.tsx for industry/solution/workflow/implementation pages
- * rather than duplicating it four times.
- */
 export function ContextualCta({
   prompt,
   href,
@@ -23,14 +17,13 @@ export function ContextualCta({
   return (
     <Section tone="elevated" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 8, sm: 10 }}>
       <Container>
-        <Inline gap={4} className="flex-wrap items-center justify-between">
-          <Text variant="body" className="font-medium">
-            {prompt}
-          </Text>
-          <TrackedCtaLink href={href} event={event} ctaLocation={ctaLocation} variant="secondary">
+        <div className="grid grid-cols-[44px_1fr] items-center gap-4 border-y border-(--color-border-strong) py-5 sm:grid-cols-[70px_1fr_auto] sm:gap-6">
+          <span className="vl-index text-(--color-text-brand)">CTA</span>
+          <Text variant="body" className="font-semibold tracking-[-0.02em]">{prompt}</Text>
+          <TrackedCtaLink href={href} event={event} ctaLocation={ctaLocation} variant="secondary" className="col-start-2 sm:col-start-3">
             Book a Demo
           </TrackedCtaLink>
-        </Inline>
+        </div>
       </Container>
     </Section>
   );

@@ -1,3 +1,4 @@
+
 @import "tailwindcss";
 
 /*
@@ -68,12 +69,12 @@
   --color-module-sales: #2468d7;
   --color-module-accounting: #31566f;
   --color-module-procurement: #087f6a;
-  --color-module-stock: #b45309;
+  --color-module-stock: #a16207;
   --color-module-manufacturing: #c2410c;
-  --color-module-projects: #7e22ce;
+  --color-module-projects: #0e7490;
   --color-module-assets: #4d7c0f;
   --color-module-point-of-sale: #be185d;
-  --color-module-quality: #15803d;
+  --color-module-quality: #166534;
   --color-module-support: #b91c1c;
   --color-module-hr-payroll: #a21caf;
 
@@ -298,5 +299,262 @@
   [data-reveal-item] {
     opacity: 1 !important;
     transform: none !important;
+  }
+}
+
+/* ==========================================================================
+   VERCENTLABS — Operational Ledger
+   A restrained editorial system inspired by transaction ledgers, operating
+   manuals, and control-room schematics. Historical @theme values above stay
+   untouched because the token-sync test intentionally verifies them. Public
+   rendering is remapped through semantic variables here.
+   ========================================================================== */
+:root {
+  --vl-canvas: #f2f0e9;
+  --vl-paper: #fbfaf6;
+  --vl-paper-strong: #ffffff;
+  --vl-ink: #171713;
+  --vl-ink-soft: #62625b;
+  --vl-ink-faint: #7b7a72;
+  --vl-rule: #d0cdc3;
+  --vl-rule-strong: #aaa69a;
+  --vl-brand: #4a46a3;
+  --vl-brand-dark: #353176;
+  --vl-brand-wash: #e8e6f4;
+  --vl-night: #151613;
+  --vl-night-soft: #1e1f1b;
+  --vl-signal: #d95632;
+  --vl-grid: rgba(23, 23, 19, 0.045);
+
+  --color-bg-page: var(--vl-canvas);
+  --color-bg-subtle: #e9e6de;
+  --color-bg-inverse: var(--vl-night);
+  --color-bg-elevated: var(--vl-paper);
+  --color-bg-brand: var(--vl-brand);
+  --color-bg-selected: var(--vl-brand-wash);
+  --color-text-primary: var(--vl-ink);
+  --color-text-secondary: var(--vl-ink-soft);
+  --color-text-muted: var(--vl-ink-faint);
+  --color-text-brand: var(--vl-brand-dark);
+  --color-text-link: var(--vl-brand-dark);
+  --color-border-default: var(--vl-rule);
+  --color-border-strong: var(--vl-rule-strong);
+  --color-border-subtle: #e4e1d9;
+  --color-border-brand: var(--vl-brand);
+  --color-border-focus: var(--vl-brand);
+  --color-product-frame: #bdb9ae;
+  --color-product-chrome: #efede7;
+  --color-product-canvas: #ffffff;
+  --color-product-annotation: var(--vl-brand);
+  --shadow-subtle: 0 1px 0 rgba(23, 23, 19, 0.05);
+  --shadow-panel: 0 24px 70px rgba(23, 23, 19, 0.12), 0 2px 8px rgba(23, 23, 19, 0.05);
+  --radius-control: 3px;
+  --radius-card: 4px;
+  --radius-panel: 6px;
+  --tracking-headline: -0.058em;
+}
+
+@layer base {
+  html {
+    background: var(--vl-canvas);
+    scroll-padding-top: 6rem;
+  }
+
+  body {
+    background: var(--vl-canvas);
+  }
+
+  ::selection {
+    background: var(--vl-brand);
+    color: #fff;
+  }
+
+  a,
+  button,
+  summary,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  /* Small operational label: useful as a navigation cue, never decoration. */
+  .vl-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-size: 0.66rem;
+    line-height: 1.1;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: 0.155em;
+    color: var(--color-text-brand);
+  }
+
+  .vl-kicker::before {
+    content: "";
+    width: 2rem;
+    height: 1.5px;
+    flex: 0 0 auto;
+    background: currentColor;
+  }
+
+  .vl-index {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.64rem;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: 0.125em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .vl-folio {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid var(--color-border-strong);
+    padding-top: 0.72rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.62rem;
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .vl-section-rule {
+    border-top: 1px solid var(--color-border-strong);
+  }
+
+  .vl-paper {
+    background: var(--vl-paper);
+  }
+
+  .vl-paper-strong {
+    background: var(--vl-paper-strong);
+  }
+
+  .vl-night {
+    background: var(--vl-night);
+    color: #fff;
+  }
+
+  /* A grid is used only where the concept is literally structural — it is no
+     longer painted behind every hero/section. */
+  .vl-operational-grid {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .vl-operational-grid::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: linear-gradient(to right, var(--vl-grid) 1px, transparent 1px);
+    background-size: calc(100% / 12) 100%;
+  }
+
+  .vl-night-grid {
+    background-color: var(--vl-night);
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 72px 72px;
+  }
+
+  /* Product evidence is allowed one unmistakable brand gesture: an offset
+     indigo field. The interface itself stays flat and undistorted. */
+  .vl-product-stage {
+    position: relative;
+    isolation: isolate;
+    padding: 0.9rem 0.9rem 0 0;
+  }
+
+  .vl-product-stage::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    right: 0;
+    top: 0;
+    width: 34%;
+    height: 64%;
+    background: var(--vl-brand);
+  }
+
+  .vl-product-stage > * {
+    box-shadow: var(--shadow-panel);
+  }
+
+  .vl-editorial-link {
+    text-decoration: none;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0 1px;
+    transition: background-size var(--duration-base) var(--ease-standard);
+  }
+
+  .vl-editorial-link:hover {
+    background-size: 100% 1px;
+  }
+
+  .vl-hover-arrow {
+    transition: transform var(--duration-base) var(--ease-standard);
+  }
+
+  .group:hover .vl-hover-arrow {
+    transform: translateX(0.2rem);
+  }
+
+  .vl-signal-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--vl-brand);
+  }
+
+  .vl-signal-dot {
+    width: 0.48rem;
+    height: 0.48rem;
+    border-radius: 999px;
+    background: currentColor;
+    flex: 0 0 auto;
+  }
+
+  .vl-measure {
+    max-width: 68ch;
+  }
+
+  .vl-measure-tight {
+    max-width: 52ch;
+  }
+
+  .vl-noise-free {
+    background-image: none !important;
+  }
+
+  @media (max-width: 767px) {
+    .vl-product-stage {
+      padding: 0.55rem 0.55rem 0 0;
+    }
+
+    .vl-product-stage::before {
+      width: 42%;
+      height: 56%;
+    }
   }
 }

@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { LANDING_INDUSTRIES } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Inline } from "@/components/layout/container";
+import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
-import { InformationBand } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CollectionHero } from "@/components/shared/collection-hero";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
@@ -35,74 +34,67 @@ export default function IndustriesIndexPage() {
   return (
     <>
       <TrackView event="industries_index_view">
-        {/* Header is a sticky h-16 (4rem) bar — this wrapper fills exactly the
-            remaining viewport height, so the hero neither leaves dead space
-            above the next section nor requires a scroll to see all of it. */}
-        <div>
-          <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-            <Container>
-              <Breadcrumbs trail={[{ name: "Industries", path: "/industries" }]} />
-            </Container>
-          </Section>
-
-          <CollectionHero
-            eyebrow="Industries"
-            heading="Built for how your industry actually operates."
-            supportingText="A real operating model, module stack, and evidence specific to each industry — never generic ERP copy with the industry name swapped in."
-            listLabel="Operating models"
-            items={LANDING_INDUSTRIES.map((industry) => ({ label: industry.name, meta: `${industry.moduleStack.length} modules` }))}
-          />
-        </div>
+        <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
+          <Container><Breadcrumbs trail={[{ name: "Industries", path: "/industries" }]} /></Container>
+        </Section>
+        <CollectionHero
+          eyebrow="Industries"
+          heading="Built for how your industry actually operates."
+          supportingText="A real operating model, module stack, and evidence specific to each industry — never generic ERP copy with the industry name swapped in."
+          listLabel="Operating models"
+          items={LANDING_INDUSTRIES.map((industry) => ({ label: industry.name, meta: `${industry.moduleStack.length} modules` }))}
+          variant="industries"
+        />
       </TrackView>
 
-      <Section tone="page">
+      <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
         <Container>
-          <SectionHeader eyebrow="Choose your industry" title="Four operating models, each grounded in real capability." />
+          <SectionHeader eyebrow="Field notes" title="Four businesses. Four different operating pressures." description="Each industry page starts from the operating environment, then maps the modules, controls and evidence that actually matter there." />
           <Reveal group>
-            <div className="mt-10 flex flex-col">
+            <div className="mt-10 grid border-l border-t border-(--color-border-strong) md:grid-cols-2">
               {LANDING_INDUSTRIES.map((industry, index) => (
-                <InformationBand key={industry.slug} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}>
-                  <div className="sm:w-2/5">
-                    <Link href={`/industries/${industry.slug}`} prefetch={false}>
-                      <Heading level="h3">{industry.name}</Heading>
-                    </Link>
-                    <Text variant="bodySmall" className="mt-2 max-w-[52ch]">
-                      {industry.directDefinition}
-                    </Text>
+                <Link
+                  key={industry.slug}
+                  href={`/industries/${industry.slug}`}
+                  prefetch={false}
+                  data-reveal-item
+                  style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
+                  className="group relative min-h-[360px] border-b border-r border-(--color-border-strong) bg-(--color-bg-elevated) p-6 transition-colors hover:bg-(--color-bg-subtle) sm:p-8 lg:min-h-[420px] lg:p-10"
+                >
+                  <div className="flex items-start justify-between gap-6">
+                    <span className="font-mono text-6xl font-semibold leading-none tracking-[-0.08em] text-(--color-border-strong)">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="vl-index">FIELD / {industry.slug.toUpperCase()}</span>
                   </div>
-                  <div className="sm:w-1/4">
-                    <Text variant="caption">Primary modules</Text>
-                    <Text variant="bodySmall" className="mt-1">
-                      {industry.moduleStack.slice(0, 3).map((entry) => entry.moduleKey).join(", ")}
-                    </Text>
+                  <div className="mt-16 max-w-[620px] lg:mt-24">
+                    <Heading level="h2" as="h2" className="max-w-[12ch]">{industry.name}</Heading>
+                    <Text variant="body" className="mt-5 max-w-[58ch] text-(--color-text-secondary)">{industry.directDefinition}</Text>
                   </div>
-                  <Link
-                    href={`/industries/${industry.slug}`}
-                    prefetch={false}
-                    className="flex-none text-sm font-medium text-(--color-text-brand) hover:underline underline-offset-4"
-                  >
-                    View industry →
-                  </Link>
-                </InformationBand>
+                  <div className="absolute inset-x-6 bottom-6 flex items-end justify-between gap-6 border-t border-(--color-border-default) pt-4 sm:inset-x-8 sm:bottom-8 lg:inset-x-10 lg:bottom-10">
+                    <div>
+                      <span className="vl-index">Primary stack</span>
+                      <p className="mt-2 text-xs font-semibold text-(--color-text-primary)">{industry.moduleStack.slice(0, 3).map((entry) => entry.moduleKey).join(" · ")}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-mono text-2xl font-semibold leading-none text-(--color-text-primary)">{String(industry.moduleStack.length).padStart(2, "0")}</span>
+                      <p className="mt-1 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">modules</p>
+                    </div>
+                  </div>
+                  <span className="vl-hover-arrow absolute right-6 top-1/2 text-lg text-(--color-text-brand) sm:right-8 lg:right-10" aria-hidden="true">→</span>
+                </Link>
               ))}
             </div>
           </Reveal>
         </Container>
       </Section>
 
-      <Section tone="inverse">
+      <Section tone="inverse" paddingTop={{ base: 14, sm: 18 }} paddingBottom={{ base: 14, sm: 18 }}>
         <Container>
-          <Reveal className="mx-auto max-w-[640px] text-center">
-            <Heading level="h1" as="h2" className="text-(--color-text-inverse)">
-              See your industry&rsquo;s real operating model in a live demo.
-            </Heading>
-            <div className="mt-6 flex justify-center">
-              <Inline gap={3}>
-                <TrackedCtaLink href="/book-demo" event="industry_final_cta_click" ctaLocation="industries_index_final">
-                  Book a Demo
-                </TrackedCtaLink>
-              </Inline>
+          <Reveal className="grid items-end gap-8 border-y border-white/20 py-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
+            <div className="max-w-[820px]">
+              <span className="vl-index text-white/50">FIELD SESSION / LIVE</span>
+              <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">See your industry&rsquo;s operating model in a live demo.</Heading>
             </div>
+            <TrackedCtaLink href="/book-demo" event="industry_final_cta_click" ctaLocation="industries_index_final">Book a Demo</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

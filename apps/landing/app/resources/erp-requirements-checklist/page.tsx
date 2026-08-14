@@ -1,3 +1,4 @@
+
 import { CAPABILITY_GROUPS, LANDING_MODULES, getResourceGuide, getFreshness, getTotalRequirementCount, CONTENT_AUTHORS } from "@vercentlabs/landing-content";
 import { Container, Section, Stack } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
@@ -101,29 +102,27 @@ export default function RequirementsChecklistPage() {
             </Container>
           </Section>
 
-          <ArticleHeader eyebrow={guide.category} title={guide.title} dek={guide.dek} author={AUTHOR} freshness={freshness} />
+          <ArticleHeader eyebrow={guide.category} title={guide.title} dek={guide.dek} author={AUTHOR} freshness={freshness} variant="resource" />
         </div>
       </TrackView>
 
       <Section tone="page">
         <Container>
-          <Reveal group>
-            <Stack gap={4} className="max-w-[780px]">
+          <div className="grid grid-cols-1 gap-10 border-y border-(--color-border-strong) py-8 lg:grid-cols-[220px_minmax(0,820px)] lg:gap-16">
+            <div>
+              <span className="vl-folio">BUYER WORKSHEET / 01</span>
+              <p className="mt-6 tabular-data text-6xl font-semibold tracking-[-0.06em] text-(--color-text-primary)">{groups.length}</p>
+              <Text variant="caption">capability groups / {totalRequirements} source requirements</Text>
+            </div>
+            <div className="border-t border-(--color-border-default)">
               {guide.sections.map((section, sectionIndex) => (
-                <Stack key={section.id} gap={3} data-reveal-item style={{ transitionDelay: `${Math.min(sectionIndex, 4) * 60}ms` }}>
-                  <Heading level="h2">{section.heading}</Heading>
-                  {section.paragraphs.map((paragraph, index) => (
-                    <Text key={index} variant="body">
-                      {paragraph}
-                    </Text>
-                  ))}
-                </Stack>
+                <section key={section.id} className="grid grid-cols-[3rem_1fr] gap-5 border-b border-(--color-border-default) py-6">
+                  <span className="vl-index">{String(sectionIndex + 1).padStart(2, "0")}</span>
+                  <div><Heading level="h3" as="h2">{section.heading}</Heading><div className="mt-3 space-y-3">{section.paragraphs.map((paragraph, index) => <Text key={index} variant="bodySmall">{paragraph}</Text>)}</div></div>
+                </section>
               ))}
-              <Text variant="bodySmall" className="font-medium">
-                {totalRequirements} requirements across {groups.length} capability groups.
-              </Text>
-            </Stack>
-          </Reveal>
+            </div>
+          </div>
         </Container>
       </Section>
 
@@ -135,6 +134,10 @@ export default function RequirementsChecklistPage() {
           into view and been marked revealed. */}
       <Section tone="subtle">
         <Container>
+          <div className="mb-8 flex flex-col justify-between gap-4 border-b border-(--color-border-strong) pb-5 sm:flex-row sm:items-end">
+            <div><span className="vl-folio">PROCUREMENT WORKSHEET</span><Heading level="h2" className="mt-3">Mark what your ERP must support.</Heading></div>
+            <Text variant="caption" className="max-w-[34ch]">Progress stays in this browser. Nothing you check is transmitted.</Text>
+          </div>
           <RequirementsChecklist groups={groups} filters={filters} />
         </Container>
       </Section>
