@@ -148,6 +148,22 @@ test.describe("navigation", () => {
     }
   });
 
+  test("forward route navigation starts at the top while Back restores position", async ({ page }) => {
+    await page.goto("/modules/accounting");
+    await page.evaluate(() => window.scrollTo(0, 2200));
+    const previousScroll = await page.evaluate(() => window.scrollY);
+    expect(previousScroll).toBeGreaterThan(1000);
+
+    await page.getByRole("button", { name: "Product" }).click();
+    await page.getByRole("region", { name: "Product" }).getByRole("link", { name: /^Security/ }).click();
+    await page.waitForURL("**/security");
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+    await page.goBack();
+    await page.waitForURL("**/modules/accounting");
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+  });
+
   test("header CTA links to /book-demo", async ({ page }) => {
     await page.goto("/");
     const cta = page.getByRole("link", { name: "Book a Demo" }).first();

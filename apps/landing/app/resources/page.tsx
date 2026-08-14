@@ -45,7 +45,7 @@ export default function ResourcesIndexPage() {
           heading="ERP buying, implementation, and reference guides"
           supportingText="Evidence-grounded guidance for evaluating and implementing ERP software — vendor-neutral where the topic calls for it, specific where that is genuinely useful."
           listLabel="Published guides"
-          items={RESOURCE_GUIDES.map((guide) => ({ label: guide.title, meta: guide.category }))}
+          items={RESOURCE_GUIDES.map((guide) => ({ label: guide.title, meta: guide.category, href: `/resources/${guide.slug}` }))}
           variant="resources"
         />
       </TrackView>

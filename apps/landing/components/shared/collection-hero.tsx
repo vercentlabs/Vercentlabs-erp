@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cx } from "@/lib/utils";
 import { Container, Section } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
@@ -16,6 +17,7 @@ export type CollectionHeroVariant =
 interface CollectionHeroItem {
   label: string;
   meta?: string;
+  href?: string;
 }
 
 const VARIANT_FOLIO: Record<CollectionHeroVariant, string> = {
@@ -77,22 +79,40 @@ function HeroRegister({ items, label, variant }: { items: CollectionHeroItem[]; 
   if (variant === "resources") {
     return (
       <div className="border-y border-(--color-border-strong) bg-(--color-bg-elevated)">
-        <div className="grid md:grid-cols-[170px_1fr]">
-          <div className="border-b border-(--color-border-default) p-5 md:border-b-0 md:border-r md:p-6">
+        <div className="grid md:grid-cols-[212px_1fr]">
+          <div className="border-b border-(--color-border-default) p-6 md:border-b-0 md:border-r md:px-8 md:py-10">
             <span className="vl-index">{label}</span>
-            <p className="mt-8 font-mono text-[3.4rem] font-semibold leading-none tracking-[-0.08em] text-(--color-text-primary)">{String(items.length).padStart(2, "0")}</p>
-            <p className="mt-2 text-[0.66rem] font-bold uppercase tracking-[0.13em] text-(--color-text-muted)">published references</p>
+            <p className="mt-12 font-mono text-[3.8rem] font-semibold leading-none tracking-[-0.09em] text-(--color-text-primary)">{String(items.length).padStart(2, "0")}</p>
+            <p className="mt-4 max-w-[12ch] text-[0.72rem] font-bold uppercase leading-[1.65] tracking-[0.13em] text-(--color-text-muted)">published references</p>
           </div>
           <ol className="grid sm:grid-cols-2">
-            {items.slice(0, 6).map((item, index) => (
-              <li key={item.label} className="grid grid-cols-[2.2rem_1fr] gap-3 border-b border-(--color-border-default) p-5 sm:odd:border-r">
-                <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
-                <div>
-                  <p className="text-sm font-semibold text-(--color-text-primary)">{item.label}</p>
-                  {item.meta ? <p className="mt-1 text-[0.66rem] uppercase tracking-[0.09em] text-(--color-text-muted)">{item.meta}</p> : null}
-                </div>
-              </li>
-            ))}
+            {items.slice(0, 6).map((item, index) => {
+              const content = (
+                <>
+                  <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
+                  <span>
+                    <span className="block text-[1.05rem] font-semibold leading-[1.45] text-(--color-text-primary)">{item.label}</span>
+                    {item.meta ? <span className="mt-2 block text-[0.68rem] uppercase tracking-[0.11em] text-(--color-text-muted)">{item.meta}</span> : null}
+                  </span>
+                </>
+              );
+
+              return (
+                <li key={item.href ?? item.label} className="min-h-[9.5rem] border-b border-(--color-border-default) sm:odd:border-r">
+                  {item.href ? (
+                    <Link
+                      href={item.href}
+                      prefetch={false}
+                      className="group grid h-full grid-cols-[2.5rem_1fr] gap-4 p-6 transition-colors hover:bg-(--color-bg-subtle) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-(--color-border-focus)"
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className="grid h-full grid-cols-[2.5rem_1fr] gap-4 p-6">{content}</div>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
       </div>
@@ -185,7 +205,7 @@ export function CollectionHero({
           </div>
 
           {editorialResource ? (
-            <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)] lg:items-end lg:gap-16">
+            <div className="mt-8 grid gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(560px,.9fr)] xl:items-end xl:gap-16">
               <div>
                 <span className="vl-index">VERCENTLABS / REFERENCE EDITION</span>
                 <Heading level="display" as="h1" className="mt-4 max-w-[10ch]">{heading}</Heading>

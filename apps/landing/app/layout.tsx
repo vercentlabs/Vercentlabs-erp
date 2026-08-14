@@ -8,6 +8,7 @@ import { SkipLink } from "@/components/layout/skip-link";
 import { AttributionInit } from "@/components/analytics/attribution-init";
 import { WebVitalsReporter } from "@/components/analytics/web-vitals-reporter";
 import { StickyMobileCta } from "@/components/marketing/sticky-mobile-cta";
+import { RouteScrollManager } from "@/components/navigation/route-scroll-manager";
 import "./globals.css";
 
 export const metadata = ROOT_METADATA;
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             listener, matching the idiom already used by track-view.tsx. */}
         <div data-header-sentinel aria-hidden="true" className="h-px" />
         <Header />
+        <RouteScrollManager />
         {/* tabIndex={-1}: without it, the skip link scrolls the viewport to
             #main-content but never moves keyboard focus there (an <a
             href="#fragment"> only focuses the target if it's natively
