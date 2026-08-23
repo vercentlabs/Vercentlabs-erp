@@ -112,48 +112,6 @@ test("access-control.ts: Auditor gains all three new view permissions (read-only
 });
 
 // ---------------------------------------------------------------------
-// Part 19-23 — Automation workspace: truthful engine status, no fake
-// triggers/builder, redacted execution logs.
-// ---------------------------------------------------------------------
-
-test("automation page: gated by automation.view, fails closed via notFound()", () => {
-  const source = read("apps/web/src/app/(app)/automation/page.tsx");
-  assert.match(source, /PERMISSIONS\.automationView/);
-  assert.match(source, /notFound\(\)/);
-});
-
-// Updated by Prompt 13 (Worker & Scheduler Foundation): a real scheduled
-// worker tick now makes "activity.overdue" genuinely live (4 of 7), while
-// "lead.updated"/"lead.qualified"/"campaign.member_responded" remain
-// dormant for an unrelated reason (missing synchronous call sites in CRM
-// mutation code, not a scheduling gap — see automation.ts's own comment).
-test("automation page: exactly the 4 confirmed-live event triggers (including the new scheduled activity.overdue) are labeled live; the other 3 remain explicitly called out as not yet firing", () => {
-  const lib = read("apps/web/src/lib/automation.ts");
-  assert.match(lib, /"lead\.created"/);
-  assert.match(lib, /"opportunity\.created"/);
-  assert.match(lib, /"opportunity\.stage_changed"/);
-  const liveSetBlock = lib.split("LIVE_AUTOMATION_EVENT_TYPES = new Set([")[1]?.split("]);")[0] ?? "";
-  assert.match(liveSetBlock, /"activity\.overdue"/, "activity.overdue is now genuinely live via the scheduled worker tick");
-  assert.doesNotMatch(liveSetBlock, /campaign\.member_responded|lead\.updated|lead\.qualified/);
-});
-
-test("automation page: explicitly documents the absence of a cross-module workflow builder rather than staying silent or claiming one", () => {
-  const source = read("apps/web/src/app/(app)/automation/page.tsx");
-  assert.doesNotMatch(source, /drag.and.drop/i);
-  assert.match(source, /no cross-module\s+workflow builder/i);
-});
-
-test("automation page: execution-history error/result detail is redacted before rendering", () => {
-  const source = read("apps/web/src/app/(app)/automation/page.tsx");
-  assert.match(source, /redactAuditPayload\(/);
-});
-
-test("automation.ts: adds no new mutation path — only SELECT queries, rule management stays entirely in the existing CRM settings UI", () => {
-  const source = read("apps/web/src/lib/automation.ts");
-  assert.doesNotMatch(source, /INSERT INTO|UPDATE tenant\.|DELETE FROM/);
-});
-
-// ---------------------------------------------------------------------
 // Part 26-30 — Reports & Analytics: real catalogue only, no fake builder.
 // ---------------------------------------------------------------------
 
@@ -286,7 +244,6 @@ test("security page: field-level access summary lists exactly the 3 real protect
 // ---------------------------------------------------------------------
 
 const NEW_FILES = [
-  "apps/web/src/app/(app)/automation/page.tsx",
   "apps/web/src/app/(app)/reports/page.tsx",
   "apps/web/src/app/(app)/integrations/page.tsx",
   "apps/web/src/app/(app)/data-management/page.tsx",
@@ -315,14 +272,13 @@ test("no new Administration page AFFIRMATIVELY claims SSO, SCIM, SIEM, SOC2/ISO 
 // Part 87 — navigation.
 // ---------------------------------------------------------------------
 
-test("navigation: administration.ts declares Security, Automation, Reports & analytics, Integrations, Data management with real hrefs and correct permission gates", () => {
+test("navigation: administration.ts declares Security, Reports & analytics, Integrations, and Data management with real hrefs and correct permission gates", () => {
   const source = read("apps/web/src/lib/navigation/administration.ts");
   assert.match(source, /href: "\/security"/);
-  assert.match(source, /href: "\/automation"/);
+  assert.doesNotMatch(source, /href: "\/automation"/);
   assert.match(source, /href: "\/reports"/);
   assert.match(source, /href: "\/integrations"/);
   assert.match(source, /href: "\/data-management"/);
-  assert.match(source, /permission: PERMISSIONS\.automationView/);
   assert.match(source, /permission: PERMISSIONS\.integrationsView/);
   assert.match(source, /permission: PERMISSIONS\.dataManagementView/);
 });
@@ -339,11 +295,11 @@ test("navigation: no duplicate hrefs exist across workspaceSettingsNavigation an
   assert.equal(new Set(hrefs).size, hrefs.length, "duplicate href found in administration.ts");
 });
 
-test("settings hub: the new Platform group links to Security/Compliance/Automation/Reports/Integrations/Data-management, each permission-filtered", () => {
+test("settings hub: the Platform group links to Security/Reports/Integrations/Data-management and omits retired shared workspaces", () => {
   const source = read("apps/web/src/app/(app)/settings/page.tsx");
   assert.match(source, /href: "\/security"/);
-  assert.match(source, /href: "\/compliance"/);
-  assert.match(source, /href: "\/automation"/);
+  assert.doesNotMatch(source, /href: "\/compliance"/);
+  assert.doesNotMatch(source, /href: "\/automation"/);
   assert.match(source, /href: "\/reports"/);
   assert.match(source, /href: "\/integrations"/);
   assert.match(source, /href: "\/data-management"/);
@@ -365,8 +321,8 @@ test("security regression: audit_events immutability trigger is untouched", () =
   assert.match(source, /RAISE EXCEPTION 'audit_events are immutable'/);
 });
 
-test("security regression: automation/integrations lib files read tenant data exclusively through crmContext()/listCrmRecords()/tenantTransaction() — no raw cross-tenant query", () => {
-  for (const file of ["apps/web/src/lib/automation.ts", "apps/web/src/lib/integrations.ts"]) {
+test("security regression: integrations reads tenant data exclusively through tenantTransaction() — no raw cross-tenant query", () => {
+  for (const file of ["apps/web/src/lib/integrations.ts"]) {
     const source = read(file);
     assert.match(source, /tenantTransaction\(/, `${file} does not use tenantTransaction`);
     assert.match(source, /organization_id\s*=\s*\$1|session\.organizationId/, `${file} is not organization-scoped`);
@@ -376,11 +332,4 @@ test("security regression: automation/integrations lib files read tenant data ex
 test("security regression: the new Security overview's org-wide session count is scoped through organization_memberships, never a bare cross-tenant sessions query", () => {
   const source = read("apps/web/src/app/(app)/security/page.tsx");
   assert.match(source, /JOIN organization_memberships om ON om\.user_id = s\.user_id AND om\.organization_id = \$1/);
-});
-
-test("security regression: redaction is reused (redactAuditPayload), not reimplemented, in Automation's execution-history view", () => {
-  const automationSource = read("apps/web/src/app/(app)/automation/page.tsx");
-  const redactSource = read("apps/web/src/lib/audit/redact.ts");
-  assert.match(automationSource, /from "@\/lib\/audit\/redact"/);
-  assert.match(redactSource, /export function redactAuditPayload/);
 });

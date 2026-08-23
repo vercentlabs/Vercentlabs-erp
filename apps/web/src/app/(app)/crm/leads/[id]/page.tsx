@@ -6,8 +6,6 @@ import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { crmContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
-import { isFavourited } from "@/lib/favourites";
-import { trackRecentRecord } from "@/lib/recent-records";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +30,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       return { lead, activities: activities.rows, communications: communications.rows, notes: notes.rows, scoreHistory: scoreHistory.rows, opportunities: opportunities.rows, duplicates, options };
     });
   } catch { return notFound(); }
-  const lead = data.lead as Record<string, unknown>; const href = `/crm/leads/${id}`; const label = String(lead.fullName || lead.companyName || "Lead");
-  await trackRecentRecord(session, { targetType: "crm-lead", href, label, moduleKey: "crm" });
-  const favourited = await isFavourited(session, href);
-  return <CrmLeadDetailWorkspace
+  const lead = data.lead as Record<string, unknown>;
+return <CrmLeadDetailWorkspace
     lead={JSON.parse(JSON.stringify(lead))}
     activities={JSON.parse(JSON.stringify(data.activities))}
     communications={JSON.parse(JSON.stringify(data.communications))}
@@ -47,6 +43,5 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     canManage={hasPermission(session, PERMISSIONS.crmLeadsManage)}
     canManageActivities={hasPermission(session, PERMISSIONS.crmActivitiesManage)}
     canManageCommunications={hasPermission(session, PERMISSIONS.crmCommunicationsManage)}
-    initialFavourited={favourited}
   />;
 }

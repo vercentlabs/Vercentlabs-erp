@@ -392,8 +392,8 @@ export const SEMANTIC_PRODUCT: Record<"frame" | "chrome" | "canvas" | "annotatio
  * One real, evidence-grounded capability group (module-specific or shared-platform)
  * carrying an honest requirement-count allocation. See
  * docs/landing-redesign/phase-4/capability-traceability.md for the methodology —
- * this is a structural allocation consistent with the settled 1,039 total
- * (CLAUDE.md), not an independently re-derived count.
+ * this is a structural allocation for the retained 991-requirement registry,
+ * not an independently re-derived implementation-completion claim.
  */
 export interface CapabilityGroupRecord {
   id: string;

@@ -214,17 +214,12 @@ export * from "./crm/account-intelligence.js";
 
 export * from "./release/governance.js";
 
-export * from "./crm/customer-success.js";
 
 export * from "./crm/communications.js";
 
-export * from "./crm/conversation-intelligence.js";
 export * from "./crm/lead-acquisition.js";
-export * from "./crm/marketing-execution.js";
 export * from "./crm/lead-intelligence.js";
 export * from "./crm/opportunity-revenue-intelligence.js";
-export * from "./crm/partner-engagement.js";
-export * from "./crm/ai-intelligence.js";
 export * from "./crm/offline-sync.js";
 export * from "./stock/index.js";
 export * from "./manufacturing/index.js";

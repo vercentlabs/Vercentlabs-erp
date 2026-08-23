@@ -4,7 +4,6 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import FavouriteToggle from "@/components/favourite-toggle";
 import { requestJson } from "@/lib/client-request";
 
 type Row = Record<string, unknown>;
@@ -46,7 +45,6 @@ export default function CrmLeadDetailWorkspace({
   canManage,
   canManageActivities,
   canManageCommunications,
-  initialFavourited,
 }: {
   lead: Row;
   activities: Row[];
@@ -59,7 +57,6 @@ export default function CrmLeadDetailWorkspace({
   canManage: boolean;
   canManageActivities: boolean;
   canManageCommunications: boolean;
-  initialFavourited: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState("overview");
@@ -241,13 +238,6 @@ export default function CrmLeadDetailWorkspace({
             <span>Score {String(lead.score || 0)}</span>
             <span>{nice(lead.leadGrade || lead.rating || "ungraded")}</span>
           </div>
-          <FavouriteToggle
-            href={`/crm/leads/${id}`}
-            label={name}
-            targetType="crm-lead"
-            moduleKey="crm"
-            initialFavourited={initialFavourited}
-          />
           {canManage &&
           lead.status !== "converted" &&
           lead.status !== "archived" ? (

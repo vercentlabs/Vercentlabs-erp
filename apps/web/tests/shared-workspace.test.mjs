@@ -49,16 +49,13 @@ test("classifyDueAt: null/undefined/invalid input is 'none', never a crash or a 
 });
 
 // ---------------------------------------------------------------------
-// Part 8 — Favourites/Recent Records target validation. A stored href is
-// never itself authorization, but it must at least be shaped like a real
-// internal destination before it's ever written.
+// Internal destination validation for shared workspace links.
 // ---------------------------------------------------------------------
 
 test("isValidInternalHref: accepts real internal module and shared-workspace paths, including record-level sub-paths", () => {
   assert.equal(hrefModule.isValidInternalHref("/crm/leads/abc-123"), true);
   assert.equal(hrefModule.isValidInternalHref("/accounting/receivables/xyz"), true);
   assert.equal(hrefModule.isValidInternalHref("/tasks"), true);
-  assert.equal(hrefModule.isValidInternalHref("/favourites"), true);
   assert.equal(hrefModule.isValidInternalHref("/master-data/items"), true);
 });
 
@@ -71,6 +68,8 @@ test("isValidInternalHref: rejects external URLs, protocol-relative paths, and j
 
 test("isValidInternalHref: rejects a top-level segment that isn't a real module or shared-workspace area", () => {
   assert.equal(hrefModule.isValidInternalHref("/not-a-real-area/whatever"), false);
+  assert.equal(hrefModule.isValidInternalHref("/recent"), false);
+  assert.equal(hrefModule.isValidInternalHref("/favourites"), false);
   assert.equal(hrefModule.isValidInternalHref("/"), false);
   assert.equal(hrefModule.isValidInternalHref(""), false);
 });
@@ -82,12 +81,13 @@ test("isValidInternalHref: rejects non-string input and whitespace/quote injecti
   assert.equal(hrefModule.isValidInternalHref("/crm/leads/\" onclick=\"x()"), false);
 });
 
-test("isValidInternalHref: the allowlist covers all 12 catalogue modules plus the new shared-workspace routes, sourced from ERP_MODULE_CATALOG (not a second hand-maintained module list)", () => {
+test("isValidInternalHref: the allowlist covers all 12 catalogue modules plus retained shared-workspace routes, sourced from ERP_MODULE_CATALOG", () => {
   const source = read("apps/web/src/lib/internal-href.ts");
   assert.match(source, /ERP_MODULE_CATALOG\.map\(\(module\) => module\.key\)/);
-  for (const area of ["my-work", "tasks", "follow-ups", "exceptions", "recent", "favourites"]) {
+  for (const area of ["my-work", "tasks", "follow-ups", "exceptions"]) {
     assert.match(source, new RegExp(`"${area}"`));
   }
+  assert.doesNotMatch(source, /"recent"|"favourites"/);
 });
 
 // ---------------------------------------------------------------------
@@ -159,71 +159,25 @@ test("aggregate.ts: counts are derived from the same classified item lists retur
 });
 
 // ---------------------------------------------------------------------
-// Part 8 — Favourites/Recent Records access re-validation. A stored href
-// is never itself authorization.
-// ---------------------------------------------------------------------
-
-test("favourites.ts: listFavourites re-validates module accessibility for every row before returning it, rather than trusting the stored row", () => {
-  const source = read("apps/web/src/lib/favourites.ts");
-  assert.match(source, /resolveModuleAccess\(session, row\.module_key\)/);
-  assert.match(source, /if \(!access\.accessible\) continue;/);
-});
-
-test("favourites.ts: addFavourite rejects an invalid/external href before it ever reaches the database", () => {
-  const source = read("apps/web/src/lib/favourites.ts");
-  assert.match(source, /if \(!isValidInternalHref\(input\.href\)\)/);
-});
-
-test("recent-records.ts: listRecentRecords re-validates module accessibility for every row, same as favourites", () => {
-  const source = read("apps/web/src/lib/recent-records.ts");
-  assert.match(source, /resolveModuleAccess\(session, row\.module_key\)/);
-  assert.match(source, /if \(!access\.accessible\) continue;/);
-});
-
-test("recent-records.ts: trackRecentRecord is best-effort — wrapped so a tracking failure can never break the page that called it", () => {
-  const source = read("apps/web/src/lib/recent-records.ts");
-  const body = source.split("export async function trackRecentRecord")[1] ?? "";
-  assert.match(body, /try \{/);
-  assert.match(body, /catch \{/);
-});
-
-test("favourites/recent-records: both are scoped per (organization_id, user_id) in every query — no cross-user or cross-tenant read path", () => {
-  for (const file of ["apps/web/src/lib/favourites.ts", "apps/web/src/lib/recent-records.ts"]) {
-    const source = read(file);
-    assert.match(source, /WHERE organization_id=\$1 AND user_id=\$2/);
-  }
-});
-
-test("api/favourites route: every handler requires an authenticated session and mutating methods assert same-origin", () => {
-  const source = read("apps/web/src/app/api/favourites/route.ts");
-  assert.match(source, /if \(!session\?\.organizationId\)/g);
-  const postHandler = source.split("export async function POST")[1]?.split("export async function DELETE")[0] ?? "";
-  const deleteHandler = source.split("export async function DELETE")[1] ?? "";
-  assert.match(postHandler, /assertSameOrigin\(request\)/);
-  assert.match(deleteHandler, /assertSameOrigin\(request\)/);
-  assert.doesNotMatch(source, /export async function PUT/, "favourites API must stay GET/POST/DELETE only, no unnecessary PUT/PATCH");
-});
-
-// ---------------------------------------------------------------------
 // Part 10 — navigation registry: the 6 new destinations are present,
 // route to real pages (verify-routes.mjs covers resolution), and carry
 // the documented command-palette keyword aliases.
 // ---------------------------------------------------------------------
 
-test("navigation: my-work.ts registers My work, Tasks, Follow-ups & reminders, Exceptions, Recent records and Favourites", () => {
+test("navigation: my-work.ts registers retained workspaces and omits Recent records and Favourites", () => {
   const source = read("apps/web/src/lib/navigation/my-work.ts");
-  for (const href of ["/my-work", "/tasks", "/follow-ups", "/exceptions", "/recent", "/favourites"]) {
+  for (const href of ["/my-work", "/tasks", "/follow-ups", "/exceptions"]) {
     assert.match(source, new RegExp(`href: "${href.replace(/[/-]/g, "\\$&")}"`));
   }
+  assert.doesNotMatch(source, /href: "\/(recent|favourites)"/);
 });
 
-test("navigation: the documented command-palette keyword aliases (todo, reminder, issues, recent, saved) are present", () => {
+test("navigation: the retained command-palette keyword aliases are present", () => {
   const source = read("apps/web/src/lib/navigation/my-work.ts");
   assert.match(source, /"todo"/);
   assert.match(source, /"reminder"/);
   assert.match(source, /"issues"/);
-  assert.match(source, /"recent"/);
-  assert.match(source, /"saved"/);
+  assert.doesNotMatch(source, /"recent"|"saved"/);
 });
 
 test("navigation: none of the 6 new items declare a permission gate — each aggregates only what its own per-source adapters already allow, so the nav item itself must not add a redundant blanket gate", () => {

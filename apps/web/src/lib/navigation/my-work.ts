@@ -2,7 +2,7 @@ import { PERMISSIONS } from "@/lib/permissions-catalog";
 import type { NavigationItem } from "@/lib/navigation/types";
 
 // MY WORK. Prompt 8 (Shared Workspace Foundation) adds My Work, Tasks,
-// Follow-ups & Reminders, Exceptions, Recent Records and Favourites — real
+// Follow-ups & Reminders and Exceptions — real
 // routes backed by read-oriented cross-module aggregation adapters (see
 // apps/web/src/lib/my-work/*). No permission gate on these: each aggregates
 // only what the caller's existing module/permission/record-scope access
@@ -28,18 +28,6 @@ export const myWorkNavigation: NavigationItem[] = [
     label: "Exceptions",
     icon: "security",
     keywords: ["issues", "issue"],
-  },
-  {
-    href: "/recent",
-    label: "Recent records",
-    icon: "search",
-    keywords: ["recent"],
-  },
-  {
-    href: "/favourites",
-    label: "Favourites",
-    icon: "sparkles",
-    keywords: ["saved", "favorites", "starred"],
   },
   { href: "/notifications", label: "Notifications", icon: "notifications" },
   {

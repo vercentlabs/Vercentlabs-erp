@@ -7,12 +7,10 @@ import WorkItemList from "@/components/work-item-list";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { query } from "@/lib/db";
-import { listFavourites } from "@/lib/favourites";
 import { getAccessibleModules } from "@/lib/module-access";
 import { getMyWorkSummary } from "@/lib/my-work/aggregate";
 import { MODULE_ROUTE_ROOTS } from "@/lib/navigation/route-map";
 import type { ModuleId } from "@/lib/navigation/types";
-import { listRecentRecords } from "@/lib/recent-records";
 
 export const metadata = { title: "Home" };
 
@@ -57,10 +55,8 @@ export default async function DashboardPage() {
   const session = await requireWorkspace();
   const organizationId = session.organizationId as string;
 
-  const [myWork, favourites, recent, moduleAccess] = await Promise.all([
+  const [myWork, moduleAccess] = await Promise.all([
     getMyWorkSummary(session, 5),
-    listFavourites(session, 5),
-    listRecentRecords(session, 5),
     getAccessibleModules(session),
   ]);
 
@@ -238,8 +234,8 @@ export default async function DashboardPage() {
           <p className="eyebrow">Operating workspace</p>
           <h1>Welcome back, {session.fullName.split(" ")[0]}.</h1>
           <p className="erp-home-hero__lede">
-            Start with what needs attention, continue recent work, or move
-            directly into the right business area.
+            Start with what needs attention or move directly into the right
+            business area.
           </p>
           <div className="erp-home-hero__actions">
             <OpenCommandPaletteButton />
@@ -396,58 +392,6 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
-      </section>
-
-      <section className="content-grid dashboard-panels erp-home-continue">
-        <article className="panel activity-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Continue where you left off</p>
-              <h2>Recent records</h2>
-            </div>
-            <Link href="/recent">
-              View all <AppIcon name="arrow-right" size={16} />
-            </Link>
-          </div>
-          <WorkItemList
-            items={recent.map((item) => ({
-              id: item.id,
-              kind: "task" as const,
-              source: item.moduleKey || item.targetType,
-              title: item.label,
-              urgency: "none" as const,
-              href: item.href,
-            }))}
-            emptyTitle="Nothing viewed yet"
-            emptyDescription="Records you open will be listed here."
-            emptyIcon="search"
-          />
-        </article>
-
-        <article className="panel activity-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Saved by you</p>
-              <h2>Favourites</h2>
-            </div>
-            <Link href="/favourites">
-              View all <AppIcon name="arrow-right" size={16} />
-            </Link>
-          </div>
-          <WorkItemList
-            items={favourites.map((item) => ({
-              id: item.id,
-              kind: "task" as const,
-              source: item.moduleKey || item.targetType,
-              title: item.label,
-              urgency: "none" as const,
-              href: item.href,
-            }))}
-            emptyTitle="No favourites yet"
-            emptyDescription="Star a record from its page to pin it here."
-            emptyIcon="sparkles"
-          />
-        </article>
       </section>
 
       <section className="dashboard-section" aria-labelledby="overview-title">

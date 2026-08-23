@@ -28,7 +28,7 @@ export const HERO = Object.freeze({
   secondaryCta: { label: "Explore the Platform", href: "/product/platform", analyticsId: "hero_secondary_cta_click" },
   evidence: [
     { label: "Connected modules", value: "12" },
-    { label: "Implemented capabilities", value: "1,039" },
+    { label: "Documented requirements", value: "991" },
     { label: "Operating model", value: "Multi-company" },
     { label: "Access model", value: "Role-based" },
   ],
@@ -92,11 +92,11 @@ export const MODULE_ARCHITECTURE_SECTION = Object.freeze({
 export const BREADTH_SECTION = Object.freeze({
   id: "breadth",
   eyebrow: "Depth without the feature dump",
-  heading: "1,039 implemented capabilities, organised around the workflows your teams use every day.",
+  heading: "991 documented requirements, organised around the workflows your teams use every day.",
   supportingText:
-    "Not a roadmap — a working system. The count is large because a real ERP has to cover a lot of ground; here's how it breaks down.",
+    "This is an evidence registry, not a feature-completion claim. It shows how the retained ERP scope breaks down across operational modules and the shared platform.",
   breakdown: [
-    { label: "Operational modules", value: "945", description: "Capabilities specific to the 12 modules above — from lead scoring to production costing." },
+    { label: "Operational modules", value: "897", description: "Requirements specific to the 12 modules above — from lead scoring to production costing." },
     { label: "Shared platform", value: "94", description: "Multi-tenancy, roles and permissions, approvals, audit, reporting, and mobile access — used by every module." },
     { label: "Governed automation", value: "Built in", description: "Approval routing, separation-of-duties enforcement, and SLA tracking, not bolted on after the fact." },
     { label: "Audit trail", value: "Immutable", description: "Every record change is logged at the database level — even an application bug can't alter history." },

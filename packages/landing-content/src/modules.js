@@ -16,8 +16,8 @@ import { ERP_MODULE_CATALOG, getErpModule } from "@vercentlabs/shared-types";
  * primaryWorkflow, connectedModules, reporting, automation, governance) is
  * sourced directly from docs/landing-redesign/phase-1/product-intelligence.md's
  * per-module profile — not independently re-researched. requirementCount values
- * are a structural allocation of the settled 945 module-specific requirements
- * (CLAUDE.md), not an independent re-count — see
+ * are a structural allocation of the retained 897 module-specific requirements,
+ * not an independent completion claim — see
  * docs/landing-redesign/phase-4/capability-traceability.md for the methodology.
  */
 const MODULE_ENRICHMENT = Object.freeze({
@@ -77,48 +77,14 @@ const MODULE_ENRICHMENT = Object.freeze({
       },
       {
         id: "crm-communications",
-        name: "Communications & conversation intelligence",
+        name: "Communications",
         description: "Every touchpoint with a prospect stays attached to their record instead of living in someone's personal inbox.",
         capabilities: [
           "OAuth-connected email and calendar sync",
           "Meeting booking tied to the opportunity",
-          "Signed telephony webhooks with click-to-call and call transcription",
+          "Shared engagement history attached to the customer record",
         ],
         requirementCount: 18,
-      },
-      {
-        id: "crm-marketing-execution",
-        name: "Marketing execution",
-        description: "Segment and nurture without exporting the list to a separate marketing tool.",
-        capabilities: [
-          "SQL-compiled audience segments",
-          "Branching, multi-step nurture journeys",
-          "A/B variant testing with frequency caps",
-          "In-product surveys",
-        ],
-        requirementCount: 16,
-      },
-      {
-        id: "crm-customer-success",
-        name: "Customer success & account intelligence",
-        description: "What happens after the deal closes — retention, health, and the compliance work that comes with holding customer data.",
-        capabilities: [
-          "Account health scoring and churn-risk workflow",
-          "A unified Customer 360 view",
-          "GDPR-style data-subject request handling with a preview-before-execute step",
-        ],
-        requirementCount: 18,
-      },
-      {
-        id: "crm-partner-ai",
-        name: "Partner engagement & AI",
-        description: "Channel-partner workflows and AI assistance, both built with the same governance discipline as the rest of the module.",
-        capabilities: [
-          "Deal registration with conflict detection",
-          "Market development fund (MDF) tracking",
-          "Next-best-action suggestions and PII-redacted AI-drafted replies",
-        ],
-        requirementCount: 14,
       },
     ],
     primaryWorkflow: {

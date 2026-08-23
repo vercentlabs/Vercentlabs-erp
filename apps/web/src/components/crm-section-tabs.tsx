@@ -16,13 +16,9 @@ const crmAreas = [
   },
   {
     label: "Communication workspace",
-    paths: ["/crm/communications", "/crm/conversation-intelligence"],
+    paths: ["/crm/communications"],
     items: [
       { href: "/crm/communications", label: "Inbox, email & calendar" },
-      {
-        href: "/crm/conversation-intelligence",
-        label: "Calls & conversations",
-      },
     ],
   },
   {

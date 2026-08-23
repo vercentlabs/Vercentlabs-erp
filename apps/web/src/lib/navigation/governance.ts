@@ -1,7 +1,7 @@
 import { PERMISSIONS } from "@/lib/permissions-catalog";
 import type { NavigationItem } from "@/lib/navigation/types";
 
-// GOVERNANCE > Billing, Audit Logs, Compliance (Prompt 9). Compliance now
+// GOVERNANCE > Billing, Audit Logs (Prompt 9). Compliance now
 // has a real route (/compliance) — the gap Prompt 6/8 explicitly left
 // open pending this prompt. Each item's `keywords` cover its real
 // sub-destinations (in-page tabs/sections, not separate sidebar entries —
@@ -22,12 +22,5 @@ export const governanceNavigation: NavigationItem[] = [
     icon: "audit",
     permission: PERMISSIONS.auditView,
     keywords: ["audit events", "record history", "user activity", "security events", "export"],
-  },
-  {
-    href: "/compliance",
-    label: "Compliance",
-    icon: "security",
-    permission: PERMISSIONS.complianceView,
-    keywords: ["retention", "consent", "privacy", "privacy requests", "data governance"],
   },
 ];

@@ -42,9 +42,7 @@ export default async function DataManagementPage() {
           <h1>Data management</h1>
           <p>
             Operate on real data — import, export, bulk-update and
-            deduplicate. For governance status (retention/archiving/
-            ownership policy), see{" "}
-            <Link href="/compliance/data-governance">Data governance</Link>.
+            deduplicate with organisation-scoped controls and auditability.
           </p>
         </div>
       </section>

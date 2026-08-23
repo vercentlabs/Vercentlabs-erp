@@ -3,8 +3,8 @@ import { LANDING_MODULES } from "./modules.js";
 /**
  * Capability-group traceability registry — see docs/landing-redesign/phase-4/
  * capability-traceability.md for the full methodology. Two things this file is
- * NOT: (1) an independent re-audit of the 945+94=1,039 requirement count
- * (CLAUDE.md treats that as settled); (2) a literal list of 1,039 individually
+ * NOT: (1) an independent implementation-completion audit of the retained
+ * 897+94=991 requirement allocation; (2) a literal list of 991 individually
  * named requirements (no such list exists anywhere in the repository — the one
  * static feature register is flagged unreliable, see docs/landing-redesign/
  * phase-1/decision-log.md item 3). This registry operates at the granularity
@@ -12,11 +12,11 @@ import { LANDING_MODULES } from "./modules.js";
  * grounded capability groups, each carrying an honest requirementCount
  * allocation of the settled total. docs/landing-redesign/phase-1/
  * information-architecture.md's own anti-cannibalisation rule confirms this is
- * the right granularity: "No feature-level URL exists for any of the 1,039
+ * the right granularity: "No feature-level URL exists for the individual
  * individual requirements — they live as capability-group content inside their
  * module page."
  *
- * Module-specific groups (945 total) are read directly from each module's
+ * Module-specific groups (897 requirements) are read directly from each module's
  * `capabilityGroups` in modules.js — the single source of truth — so this file
  * can never drift out of sync with what a module page actually renders.
  */

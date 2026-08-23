@@ -66,8 +66,7 @@ test("workspace v3: Home derives module launchers from canonical module access, 
 test("workspace v3: Home preserves real work and governance sections", () => {
   const source = read("apps/web/src/app/(app)/dashboard/page.tsx");
   assert.match(source, /getMyWorkSummary\(session, 5\)/);
-  assert.match(source, /listFavourites\(session, 5\)/);
-  assert.match(source, /listRecentRecords\(session, 5\)/);
+  assert.doesNotMatch(source, /listFavourites|listRecentRecords/);
   assert.match(source, /Organisation overview/);
   assert.match(source, /Latest audit events/);
   assert.doesNotMatch(source, /Math\.random|dummy|sample data|fake KPI/i);

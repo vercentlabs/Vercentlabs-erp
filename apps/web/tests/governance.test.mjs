@@ -238,77 +238,6 @@ test("billing: module entitlement resolution (isModuleEntitled) is untouched —
 });
 
 // ---------------------------------------------------------------------
-// Part 18/29/63 — Compliance workspace.
-// ---------------------------------------------------------------------
-
-const COMPLIANCE_PAGES = [
-  "apps/web/src/app/(app)/compliance/page.tsx",
-  "apps/web/src/app/(app)/compliance/retention/page.tsx",
-  "apps/web/src/app/(app)/compliance/consent/page.tsx",
-  "apps/web/src/app/(app)/compliance/privacy-requests/page.tsx",
-  "apps/web/src/app/(app)/compliance/data-governance/page.tsx",
-];
-
-test("compliance: every page is gated by the new compliance.view permission, not authentication alone", () => {
-  for (const file of COMPLIANCE_PAGES) {
-    const source = read(file);
-    assert.match(source, /PERMISSIONS\.complianceView/, `${file} is not gated by complianceView`);
-    assert.match(source, /notFound\(\)/, `${file} does not fail closed via notFound()`);
-  }
-});
-
-test("compliance.view exists in the canonical permission catalogue and is distinct from crm.privacy.manage", () => {
-  const source = read("packages/permissions/src/index.js");
-  assert.match(source, /complianceView: "compliance\.view"/);
-  const crmSource = read("packages/permissions/src/crm.js");
-  assert.match(crmSource, /privacyManage: "crm\.privacy\.manage"/);
-});
-
-test("compliance retention/consent/privacy-requests pages reuse the existing CRM privacy service functions verbatim — no parallel schema was invented", () => {
-  const retention = read("apps/web/src/app/(app)/compliance/retention/page.tsx");
-  assert.match(retention, /getPrivacyRetentionDashboard/);
-  const consent = read("apps/web/src/app/(app)/compliance/consent/page.tsx");
-  assert.match(consent, /"consent-events"/);
-  const requests = read("apps/web/src/app/(app)/compliance/privacy-requests/page.tsx");
-  assert.match(requests, /"privacy-requests"/);
-});
-
-test("compliance privacy-requests: reviewing a request links to the existing CRM privacy-request detail/action page rather than duplicating its execute/approve/reject UI", () => {
-  const source = read("apps/web/src/app/(app)/compliance/privacy-requests/page.tsx");
-  assert.match(source, /\/crm\/privacy-requests\/\$\{row\.id\}/);
-});
-
-test("compliance: no page claims an unsupported certification (GDPR/SOC 2/ISO/HIPAA compliant)", () => {
-  for (const file of [...COMPLIANCE_PAGES, "apps/web/src/app/(app)/compliance/data-governance/page.tsx"]) {
-    const source = read(file);
-    assert.doesNotMatch(source, /GDPR compliant|SOC ?2 compliant|ISO certified|HIPAA compliant/i);
-  }
-});
-
-test("data governance: capability statuses are derived from real queries/facts, not a fabricated compliance score", () => {
-  const source = read("apps/web/src/app/(app)/compliance/data-governance/page.tsx");
-  const capabilitiesBlock = source.split("const capabilities:")[1]?.split("return (")[0] ?? "";
-  assert.doesNotMatch(capabilitiesBlock, /score|percentage|Math\.random/i);
-  assert.match(source, /getPrivacyRetentionDashboard/);
-});
-
-test("data governance: import templates (confirmed absent from the repository) are not listed as a capability card", () => {
-  const source = read("apps/web/src/app/(app)/compliance/data-governance/page.tsx");
-  const capabilitiesBlock = source.split("const capabilities:")[1]?.split("return (")[0] ?? "";
-  assert.doesNotMatch(capabilitiesBlock, /[Ii]mport template/);
-});
-
-test("data governance: record-ownership copy explicitly caveats CRM-only scope, not a global ownership engine", () => {
-  const source = read("apps/web/src/app/(app)/compliance/data-governance/page.tsx");
-  assert.match(source, /Not a global ownership engine/);
-});
-
-test("compliance overview: governance activity feed uses a fixed, non-client-controlled event-type prefix allowlist", () => {
-  const source = read("apps/web/src/app/(app)/compliance/page.tsx");
-  assert.match(source, /GOVERNANCE_EVENT_PREFIXES = \["crm\.privacy\.", "billing\.", "module\.", "access\."\]/);
-});
-
-// ---------------------------------------------------------------------
 // Part 30/64 — permissions/roles migration and navigation.
 // ---------------------------------------------------------------------
 
@@ -324,39 +253,17 @@ test("access-control.ts: the Auditor role explicitly gains compliance.view (read
   assert.match(auditorBlock, /"compliance\.view"/);
 });
 
-test("navigation: governance.ts declares exactly Billing, Audit logs and Compliance, each with real hrefs and command-palette keywords", () => {
+test("navigation: governance.ts declares Billing and Audit logs and omits the retired shared Compliance workspace", () => {
   const source = read("apps/web/src/lib/navigation/governance.ts");
   assert.match(source, /href: "\/billing"/);
   assert.match(source, /href: "\/audit-logs"/);
-  assert.match(source, /href: "\/compliance"/);
-  assert.match(source, /permission: PERMISSIONS\.complianceView/);
-  assert.match(source, /keywords: \["retention", "consent", "privacy", "privacy requests", "data governance"\]/);
-});
-
-test("navigation: Compliance's permission gate is the new complianceView, not the CRM-scoped crmPrivacyManage (Compliance is a shared platform surface, not a CRM sub-page)", () => {
-  const source = read("apps/web/src/lib/navigation/governance.ts");
-  const complianceItem = source.split('href: "/compliance"')[1]?.split("},")[0] ?? "";
-  assert.match(complianceItem, /complianceView/);
-  assert.doesNotMatch(complianceItem, /crmPrivacyManage/);
+  assert.doesNotMatch(source, /href: "\/compliance"/);
 });
 
 // ---------------------------------------------------------------------
 // Part 65 — security regression: this prompt must not weaken Prompt 3-8
 // protections it touches or reads from.
 // ---------------------------------------------------------------------
-
-test("security regression: compliance pages read CRM privacy data exclusively through crmContext()/listCrmRecords()/getPrivacyRetentionDashboard() — no raw tenant.crm_privacy_* query bypasses the existing service layer", () => {
-  for (const file of [
-    "apps/web/src/app/(app)/compliance/page.tsx",
-    "apps/web/src/app/(app)/compliance/retention/page.tsx",
-    "apps/web/src/app/(app)/compliance/consent/page.tsx",
-    "apps/web/src/app/(app)/compliance/privacy-requests/page.tsx",
-    "apps/web/src/app/(app)/compliance/data-governance/page.tsx",
-  ]) {
-    const source = read(file);
-    assert.doesNotMatch(source, /client\.query\(\s*`[^`]*tenant\.crm_privacy/s, `${file} bypasses the CRM privacy service layer with a raw query`);
-  }
-});
 
 test("security regression: audit_events immutability trigger is untouched by this prompt", () => {
   const source = read("database/control-plane/migrations/002_platform_foundation.sql");
@@ -366,7 +273,6 @@ test("security regression: audit_events immutability trigger is untouched by thi
 test("security regression: HR/Procurement/Support module data is never queried by any new governance page or lib file", () => {
   const files = [
     ...AUDIT_PAGES,
-    ...COMPLIANCE_PAGES,
     "apps/web/src/lib/audit/query.ts",
     "apps/web/src/lib/audit/redact.ts",
     "apps/web/src/app/api/audit-logs/export/route.ts",

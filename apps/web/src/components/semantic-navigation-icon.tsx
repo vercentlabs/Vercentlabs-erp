@@ -55,30 +55,6 @@ const routeGlyph: Record<string, React.ReactNode> = {
       <path d="M8 9h8M8 12h5" />
     </>
   ),
-  "/crm/marketing": (
-    <>
-      <path d="m4 13 12-6v10L4 13Z" />
-      <path d="M16 9h2a3 3 0 0 1 0 6h-2M7 14l1 6h4l-2-5" />
-    </>
-  ),
-  "/crm/customer-success": (
-    <>
-      <path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.7A4 4 0 0 1 19 11c0 5.6-7 10-7 10Z" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  ),
-  "/crm/partner-engagement": (
-    <>
-      <path d="m7 12 3 3 4-4 3 3" />
-      <path d="M3 10l4-4 4 2 2-1 4 4M5 12l-2 2 4 4 2-2M19 12l2 2-4 4-2-2" />
-    </>
-  ),
-  "/crm/ai-intelligence": (
-    <>
-      <path d="M8 4a4 4 0 0 0-2 7 4 4 0 0 0 2 7h8a4 4 0 0 0 2-7 4 4 0 0 0-2-7H8Z" />
-      <path d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01M12 6v12M6 12h12" />
-    </>
-  ),
   "/sales/quotations": (
     <>
       <path d="M6 3h9l3 3v15H6V3Z" />

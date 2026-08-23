@@ -2,15 +2,10 @@ import { randomUUID } from "node:crypto";
 import {
   getCrmDashboard,
   getCrmReport,
-  getCustomerSuccessDashboard,
   getCommunicationsDashboard,
-  getConversationIntelligenceDashboard,
   getLeadAcquisitionDashboard,
   getLeadIntelligenceDashboard,
-  getMarketingDashboard,
   getOpportunityRevenueDashboard,
-  getPartnerEngagementDashboard,
-  getCrmAiDashboard,
   getProcurementDashboard,
 } from "@vercentlabs/api";
 
@@ -52,30 +47,15 @@ const copy = {
     "Turn every enquiry into accountable revenue",
     "Capture leads, plan follow-ups, manage opportunities, attribute campaigns and preserve the complete customer journey.",
   ],
-  "crm-customer-success": [
-    "Customer success",
-    "Adoption, health and renewals",
-    "Review onboarding milestones, customer health, renewal risk and churn interventions.",
-  ],
   "crm-communications": [
     "CRM communications",
     "Inbox, email and calendar",
     "Review shared conversations, provider health, engagement events and meeting bookings.",
   ],
-  "crm-conversation-intelligence": [
-    "CRM conversation intelligence",
-    "Calls, recordings and transcripts",
-    "Review telephony provider health, governed recordings, transcript jobs and conversation actions.",
-  ],
   "crm-lead-acquisition": [
     "CRM lead acquisition",
     "Imports, forms, channels and enrichment",
     "Review governed imports, published forms, provider events, open chats and enrichment proposals.",
-  ],
-  "crm-marketing": [
-    "CRM marketing",
-    "Segments, journeys and attribution",
-    "Review governed audiences, campaign runs, journeys, events, surveys and influenced revenue.",
   ],
   "crm-lead-intelligence": [
     "CRM lead intelligence",
@@ -86,16 +66,6 @@ const copy = {
     "CRM opportunity intelligence",
     "Revenue, action plans and forecast",
     "Review recurring revenue, team splits, customer commitments, quota seasonality and predictive forecast.",
-  ],
-  "crm-partner-engagement": [
-    "CRM partner and engagement",
-    "Partners, field sales and coaching",
-    "Review deal registration, MDF, visits, sequence branches, coaching and gamification.",
-  ],
-  "crm-ai-intelligence": [
-    "Governed CRM AI",
-    "Recommendations, relationships and deal risk",
-    "Review explainable actions, relationship health, assistant drafts and risk signals.",
   ],
   "crm-mobile-readiness": [
     "CRM final readiness",
@@ -180,15 +150,6 @@ export async function GET(
           dashboard: await getCrmDashboard(client, context),
         }),
       );
-    } else if (area === "crm-customer-success") {
-      requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = await crmApiContext(session);
-      data = await tenantTransaction(
-        context.organizationId,
-        async (client) => ({
-          dashboard: await getCustomerSuccessDashboard(client, context),
-        }),
-      );
     } else if (area === "crm-communications") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
       const context = await crmApiContext(session);
@@ -198,18 +159,6 @@ export async function GET(
           dashboard: await getCommunicationsDashboard(client, context),
         }),
       );
-    } else if (area === "crm-conversation-intelligence") {
-      requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = await crmApiContext(session);
-      data = await tenantTransaction(
-        context.organizationId,
-        async (client) => ({
-          dashboard: await getConversationIntelligenceDashboard(
-            client,
-            context,
-          ),
-        }),
-      );
     } else if (area === "crm-lead-acquisition") {
       requirePermissionFromSession(session, PERMISSIONS.crmView);
       const context = await crmApiContext(session);
@@ -217,15 +166,6 @@ export async function GET(
         context.organizationId,
         async (client) => ({
           dashboard: await getLeadAcquisitionDashboard(client, context),
-        }),
-      );
-    } else if (area === "crm-marketing") {
-      requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = await crmApiContext(session);
-      data = await tenantTransaction(
-        context.organizationId,
-        async (client) => ({
-          dashboard: await getMarketingDashboard(client, context),
         }),
       );
     } else if (area === "crm-lead-intelligence") {
@@ -244,24 +184,6 @@ export async function GET(
         context.organizationId,
         async (client) => ({
           dashboard: await getOpportunityRevenueDashboard(client, context),
-        }),
-      );
-    } else if (area === "crm-partner-engagement") {
-      requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = await crmApiContext(session);
-      data = await tenantTransaction(
-        context.organizationId,
-        async (client) => ({
-          dashboard: await getPartnerEngagementDashboard(client, context),
-        }),
-      );
-    } else if (area === "crm-ai-intelligence") {
-      requirePermissionFromSession(session, PERMISSIONS.crmView);
-      const context = await crmApiContext(session);
-      data = await tenantTransaction(
-        context.organizationId,
-        async (client) => ({
-          dashboard: await getCrmAiDashboard(client, context),
         }),
       );
     } else if (area === "crm-mobile-readiness") {
@@ -283,15 +205,8 @@ export async function GET(
         "sources",
         "activities",
         "forecast",
-        "campaigns",
         "revenue-operations",
-        "account-health",
-        "privacy",
         "pipeline-intelligence",
-        "engagement-intelligence",
-        "relationship-coverage",
-        "partner-pipeline",
-        "ai-governance",
       ] as const;
       const visible = names.filter((name) => canViewCrmReport(session, name));
       const context = await crmApiContext(session);

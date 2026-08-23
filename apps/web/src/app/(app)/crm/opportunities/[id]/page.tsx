@@ -2,13 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCrmOptions, getCrmRecord } from "@vercentlabs/api";
 import CrmOpportunityActions from "@/components/crm-opportunity-actions";
-import FavouriteToggle from "@/components/favourite-toggle";
 import { requireWorkspace } from "@/lib/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/authorization";
 import { crmContext } from "@/lib/crm";
 import { tenantTransaction } from "@/lib/db";
-import { isFavourited } from "@/lib/favourites";
-import { trackRecentRecord } from "@/lib/recent-records";
 export const dynamic = "force-dynamic";
 const nice = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
@@ -68,16 +65,8 @@ export default async function OpportunityDetailPage({
     return notFound();
   }
   const record = data.opportunity as Record<string, unknown>;
-  const href = `/crm/opportunities/${id}`;
   const label = String(record.name || "Opportunity");
-  await trackRecentRecord(session, {
-    targetType: "crm-opportunity",
-    href,
-    label,
-    moduleKey: "crm",
-  });
-  const favourited = await isFavourited(session, href);
-  return (
+return (
     <>
       <section className="page-heading">
         <div>
@@ -91,13 +80,6 @@ export default async function OpportunityDetailPage({
             )}
           </p>
         </div>
-        <FavouriteToggle
-          href={href}
-          label={label}
-          targetType="crm-opportunity"
-          moduleKey="crm"
-          initialFavourited={favourited}
-        />
         <span className="status-badge neutral">
           {nice(String(record.status))} · {String(record.probability)}%
         </span>

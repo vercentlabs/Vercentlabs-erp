@@ -26,7 +26,7 @@ const PLATFORM_AREA_LABELS: Record<string, string> = {
 
 export const metadata = buildPageMetadata({
   title: "The ERP Requirements Checklist",
-  description: "A structured, filterable ERP requirements checklist covering 1,039 real requirements across 12 modules and a shared platform layer — no login required, nothing transmitted.",
+  description: "A structured, filterable ERP requirements checklist covering 991 documented requirements across 12 modules and a shared platform layer — no login required, nothing transmitted.",
   path: "/resources/erp-requirements-checklist",
 });
 

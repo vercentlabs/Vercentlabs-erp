@@ -58,7 +58,7 @@ const faqPageJsonLd = {
 
 export default function HomePage() {
   const hasHeroScreenshot = Boolean(getApprovedScreenshot(HERO.screenshotId));
-  const implementedCapabilities = HERO.evidence.find((item) => item.label === "Implemented capabilities")?.value;
+  const documentedRequirements = HERO.evidence.find((item) => item.label === "Documented requirements")?.value;
 
   return (
     <>
@@ -253,9 +253,9 @@ export default function HomePage() {
             <div className="mt-14 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,.6fr)] lg:items-end lg:gap-16">
               <div>
                 <p className="tabular-data text-[clamp(5.4rem,14vw,11.5rem)] font-semibold leading-[0.72] tracking-[-0.085em] text-(--color-text-primary)">
-                  {implementedCapabilities}
+                  {documentedRequirements}
                 </p>
-                <p className="vl-index mt-8">{HERO.evidence.find((item) => item.label === "Implemented capabilities")?.label}</p>
+                <p className="vl-index mt-8">{HERO.evidence.find((item) => item.label === "Documented requirements")?.label}</p>
               </div>
               <dl className="border-t border-(--color-border-strong)">
                 {BREADTH_SECTION.breakdown.map((item) => (

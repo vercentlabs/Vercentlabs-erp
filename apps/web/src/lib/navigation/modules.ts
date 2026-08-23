@@ -72,28 +72,6 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
         label: "Communications",
         icon: "notifications",
         group: "Engagement",
-        activePrefixes: ["/crm/conversation-intelligence"],
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/marketing",
-        label: "Marketing",
-        icon: "sparkles",
-        group: "Engagement",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/customer-success",
-        label: "Customer success",
-        icon: "companies",
-        group: "Engagement",
-        permission: PERMISSIONS.crmView,
-      },
-      {
-        href: "/crm/partner-engagement",
-        label: "Partner management",
-        icon: "teams",
-        group: "Engagement",
         permission: PERMISSIONS.crmView,
       },
       {
@@ -102,13 +80,6 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
         icon: "audit",
         group: "Insights",
         permission: PERMISSIONS.crmReportsView,
-      },
-      {
-        href: "/crm/ai-intelligence",
-        label: "CRM intelligence",
-        icon: "sparkles",
-        group: "Insights",
-        permission: PERMISSIONS.crmView,
       },
       {
         href: "/crm/settings",

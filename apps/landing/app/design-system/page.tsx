@@ -101,7 +101,7 @@ export default function DesignSystemPage() {
           <Text variant="eyebrow">Eyebrow label</Text>
           <Text variant="caption">Caption text, for image captions and fine print.</Text>
           <Text variant="dataValue" className="tabular-data">
-            1,039
+            991
           </Text>
           <Text variant="dataLabel">Data label</Text>
           <Text variant="body">

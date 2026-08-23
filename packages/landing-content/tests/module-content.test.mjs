@@ -32,9 +32,9 @@ test("every module has a non-empty, non-generic direct definition", () => {
   }
 });
 
-test("every module has at least 5 capability groups, each with capabilities and a positive requirement count", () => {
+test("every module has at least 3 retained capability groups, each with capabilities and a positive requirement count", () => {
   for (const module of LANDING_MODULES) {
-    assert.ok(module.capabilityGroups.length >= 5, `${module.key} has fewer than 5 capability groups`);
+    assert.ok(module.capabilityGroups.length >= 3, `${module.key} has fewer than 3 capability groups`);
     for (const group of module.capabilityGroups) {
       assert.ok(group.capabilities.length > 0, `${module.key}'s group ${group.id} has no capabilities listed`);
       assert.ok(group.requirementCount > 0, `${module.key}'s group ${group.id} has a non-positive requirement count`);
@@ -114,10 +114,10 @@ test("every capability group's workflowSlug (if set) resolves to a real workflow
   }
 });
 
-test("capability registry sums to exactly 1,039 (945 module + 94 platform), matching the settled CLAUDE.md total", () => {
-  assert.equal(getModuleRequirementTotal(), 945);
+test("capability registry matches the retained ERP-510 scope allocation", () => {
+  assert.equal(getModuleRequirementTotal(), 897);
   assert.equal(getPlatformRequirementTotal(), 94);
-  assert.equal(getTotalRequirementCount(), 1039);
+  assert.equal(getTotalRequirementCount(), 991);
 });
 
 test("no duplicate capability group IDs, and every group has a resolvable public page", () => {

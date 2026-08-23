@@ -4,19 +4,13 @@ import AppIcon from "@/components/app-icon";
 import WorkItemList from "@/components/work-item-list";
 import { requireWorkspace } from "@/lib/auth";
 import { getMyWorkSummary } from "@/lib/my-work/aggregate";
-import { listFavourites } from "@/lib/favourites";
-import { listRecentRecords } from "@/lib/recent-records";
 
 export const metadata = { title: "My work" };
 export const dynamic = "force-dynamic";
 
 export default async function MyWorkPage() {
   const session = await requireWorkspace();
-  const [summary, favourites, recent] = await Promise.all([
-    getMyWorkSummary(session, 5),
-    listFavourites(session, 5),
-    listRecentRecords(session, 5),
-  ]);
+  const summary = await getMyWorkSummary(session, 5);
 
   const metrics = [
     {
@@ -153,73 +147,6 @@ export default async function MyWorkPage() {
         </article>
       </section>
 
-      <section className="content-grid dashboard-panels">
-        <article className="panel activity-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Continue where you left off</p>
-              <h2>Recent records</h2>
-            </div>
-            <Link href="/recent">
-              View all <AppIcon name="arrow-right" size={16} />
-            </Link>
-          </div>
-          <div className="stack-list">
-            {recent.map((item) => (
-              <Link href={item.href} key={item.id}>
-                <div>
-                  <strong>{item.label}</strong>
-                  <span>{item.moduleKey || item.targetType}</span>
-                </div>
-              </Link>
-            ))}
-            {!recent.length ? (
-              <div className="empty-state compact">
-                <span className="empty-state-icon" aria-hidden="true">
-                  <AppIcon name="check" size={20} />
-                </span>
-                <div>
-                  <strong>Nothing viewed yet</strong>
-                  <p>Records you open will be listed here.</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </article>
-
-        <article className="panel activity-panel">
-          <div className="card-title-row">
-            <div>
-              <p className="eyebrow">Saved by you</p>
-              <h2>Favourites</h2>
-            </div>
-            <Link href="/favourites">
-              View all <AppIcon name="arrow-right" size={16} />
-            </Link>
-          </div>
-          <div className="stack-list">
-            {favourites.map((item) => (
-              <Link href={item.href} key={item.id}>
-                <div>
-                  <strong>{item.label}</strong>
-                  <span>{item.moduleKey || item.targetType}</span>
-                </div>
-              </Link>
-            ))}
-            {!favourites.length ? (
-              <div className="empty-state compact">
-                <span className="empty-state-icon" aria-hidden="true">
-                  <AppIcon name="check" size={20} />
-                </span>
-                <div>
-                  <strong>No favourites yet</strong>
-                  <p>Star a record from its page to pin it here.</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </article>
-      </section>
     </>
   );
 }

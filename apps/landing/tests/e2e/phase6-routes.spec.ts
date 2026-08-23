@@ -75,9 +75,9 @@ test.describe("ERP requirements checklist", () => {
     const response = await page.goto("/resources/erp-requirements-checklist");
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    await expect(page.getByText("1039 requirements across 73 capability groups.")).toBeVisible();
+    await expect(page.getByText("991 requirements across 70 capability groups.")).toBeVisible();
     const checkboxes = page.locator('input[type="checkbox"]');
-    await expect(checkboxes).toHaveCount(73);
+    await expect(checkboxes).toHaveCount(70);
     expect(consoleErrors).toEqual([]);
   });
 

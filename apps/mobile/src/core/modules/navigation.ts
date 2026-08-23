@@ -25,13 +25,6 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm",
   },
   {
-    key: "crm-customer-success",
-    label: "Customer success",
-    icon: "pulse-outline",
-    permission: "crm.view",
-    href: "/(protected)/workspace/crm-customer-success",
-  },
-  {
     key: "crm-communications",
     label: "Communications",
     icon: "mail-unread-outline",
@@ -39,25 +32,11 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/crm-communications",
   },
   {
-    key: "crm-conversation-intelligence",
-    label: "Calls & transcripts",
-    icon: "call-outline",
-    permission: "crm.view",
-    href: "/(protected)/workspace/crm-conversation-intelligence",
-  },
-  {
     key: "crm-lead-acquisition",
     label: "Lead acquisition",
     icon: "funnel-outline",
     permission: "crm.view",
     href: "/(protected)/workspace/crm-lead-acquisition",
-  },
-  {
-    key: "crm-marketing",
-    label: "Marketing",
-    icon: "megaphone-outline",
-    permission: "crm.view",
-    href: "/(protected)/workspace/crm-marketing",
   },
   {
     key: "crm-lead-intelligence",
@@ -72,20 +51,6 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     icon: "trending-up-outline",
     permission: "crm.view",
     href: "/(protected)/workspace/crm-opportunity-revenue",
-  },
-  {
-    key: "crm-partner-engagement",
-    label: "Partner & engagement",
-    icon: "people-circle-outline",
-    permission: "crm.view",
-    href: "/(protected)/workspace/crm-partner-engagement",
-  },
-  {
-    key: "crm-ai-intelligence",
-    label: "CRM AI",
-    icon: "sparkles-outline",
-    permission: "crm.view",
-    href: "/(protected)/workspace/crm-ai-intelligence",
   },
   {
     key: "crm-mobile-readiness",

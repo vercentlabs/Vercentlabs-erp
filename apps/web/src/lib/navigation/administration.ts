@@ -2,7 +2,7 @@ import { PERMISSIONS } from "@/lib/permissions-catalog";
 import type { NavigationItem, NavigationSectionData } from "@/lib/navigation/types";
 
 // ADMINISTRATION > Workspace Settings (existing /settings/* sub-pages,
-// unchanged) + Security, Automation, Reports & Analytics, Integrations,
+// unchanged) + Security, Reports & Analytics, Integrations,
 // Data Management (Prompt 10 — all six target destinations now have a
 // real route). Each new item's `keywords` cover its real in-page
 // sub-destinations (same "one flat destination per workspace, no
@@ -85,13 +85,6 @@ export const administrationNavigation: NavigationItem[] = [
       "maker-checker",
       "security logs",
     ],
-  },
-  {
-    href: "/automation",
-    label: "Automation",
-    icon: "modules",
-    permission: PERMISSIONS.automationView,
-    keywords: ["workflow", "rules", "triggers", "actions", "execution history"],
   },
   {
     href: "/reports",

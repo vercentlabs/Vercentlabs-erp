@@ -158,7 +158,7 @@ test("crm: no API route under apps/web/src/app/api/crm or api/mobile/v1/**crm** 
       );
     }
   }
-  assert.ok(checked >= 90, `expected to check ~97 CRM-context-using API files, only checked ${checked}`);
+  assert.ok(checked >= 70, `expected to check the retained CRM API surface, only checked ${checked}`);
 });
 
 test("crm: the approval-command registry's CRM mutations (opportunity stage change, activity completion) are module-gated too", () => {

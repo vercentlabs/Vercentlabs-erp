@@ -96,22 +96,6 @@ const items: Array<{
     permission: PERMISSIONS.workspaceView,
   },
   {
-    label: "Compliance",
-    href: "/compliance",
-    description: "Retention, consent, privacy requests and data governance",
-    icon: "security",
-    group: "Platform",
-    permission: PERMISSIONS.complianceView,
-  },
-  {
-    label: "Automation",
-    href: "/automation",
-    description: "CRM automation rules and execution history",
-    icon: "modules",
-    group: "Platform",
-    permission: PERMISSIONS.automationView,
-  },
-  {
     label: "Reports & analytics",
     href: "/reports",
     description: "Discover real reports across accessible modules",

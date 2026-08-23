@@ -849,69 +849,6 @@ export function WorkspacePage({ area }: { area: string }) {
         </View>
       );
     }
-    if (area === "crm-marketing") {
-      const dashboard = (data.dashboard || {}) as Row;
-      const summary = (dashboard.summary || {}) as Row;
-      return (
-        <View style={{ gap: spacing.xl }}>
-          <View
-            style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}
-          >
-            <Metric
-              label="Active segments"
-              value={summary.active_segments || 0}
-              icon="filter-outline"
-            />
-            <Metric
-              label="Active journeys"
-              value={summary.active_enrollments || 0}
-              icon="git-branch-outline"
-            />
-            <Metric
-              label="Delivered"
-              value={summary.delivered || 0}
-              icon="send-outline"
-            />
-            <Metric
-              label="Survey responses"
-              value={summary.survey_responses || 0}
-              icon="chatbox-ellipses-outline"
-            />
-          </View>
-          <Text style={{ ...type.heading, color: colors.text }}>
-            Campaign execution
-          </Text>
-          {((dashboard.campaigns || []) as Row[]).map((row) => (
-            <RecordCard
-              key={String(row.id)}
-              row={row}
-              fields={[
-                "status",
-                "runs",
-                "sent",
-                "responses",
-                "attribution_model",
-              ]}
-            />
-          ))}
-          <Text style={{ ...type.heading, color: colors.text }}>
-            Audience segments
-          </Text>
-          {((dashboard.segments || []) as Row[]).map((row) => (
-            <RecordCard
-              key={String(row.id)}
-              row={row}
-              fields={[
-                "subject_type",
-                "segment_type",
-                "member_count",
-                "refresh_status",
-              ]}
-            />
-          ))}
-        </View>
-      );
-    }
     if (area === "crm-lead-intelligence") {
       const dashboard = (data.dashboard || {}) as Row;
       const summary = (dashboard.summary || {}) as Row;

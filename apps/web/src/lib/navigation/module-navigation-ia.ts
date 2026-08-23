@@ -27,11 +27,7 @@ const GROUP_BY_HREF: Partial<Record<ModuleId, Record<string, string>>> = {
     "/crm/activities": "Sales",
     "/crm/pipeline": "Sales",
     "/crm/communications": "Engagement",
-    "/crm/marketing": "Engagement",
-    "/crm/customer-success": "Engagement",
-    "/crm/partner-engagement": "Engagement",
     "/crm/reports": "Insights",
-    "/crm/ai-intelligence": "Insights",
     "/crm/settings": "Administration",
   },
   sales: {
