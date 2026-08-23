@@ -36,13 +36,14 @@ test("navigation v2: local navigation search is in-memory over authorized items,
   assert.doesNotMatch(secondary, /fetch\(|client\.query|useSWR|axios/i);
 });
 
-test("navigation v2: rail hover/focus expansion overlays a fixed-width grid track rather than resizing workspace columns", () => {
+test("navigation v2: rail hover/keyboard-focus expansion overlays a fixed-width grid track without mouse clicks pinning it open", () => {
   const css = read("apps/web/src/app/navigation-v2.css");
   assert.match(css, /--v2-primary-rail-width:\s*68px/);
   assert.match(css, /--v2-primary-rail-expanded-width:\s*244px/);
   assert.match(css, /grid-template-columns:\s*var\(--v2-primary-rail-width\)/);
   assert.match(css, /primary-navigation-rail:hover \.primary-navigation-rail__surface/);
-  assert.match(css, /primary-navigation-rail:focus-within \.primary-navigation-rail__surface/);
+  assert.match(css, /primary-navigation-rail:has\(:focus-visible\) \.primary-navigation-rail__surface/);
+  assert.doesNotMatch(css, /primary-navigation-rail:focus-within/);
 });
 
 test("navigation v2: mobile uses a two-step context model instead of rendering two fixed sidebars", () => {

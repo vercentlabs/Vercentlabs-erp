@@ -70,7 +70,7 @@
 }
 
 .primary-navigation-rail:hover .primary-navigation-rail__surface,
-.primary-navigation-rail:focus-within .primary-navigation-rail__surface {
+.primary-navigation-rail:has(:focus-visible) .primary-navigation-rail__surface {
   width: var(--v2-primary-rail-expanded-width);
   box-shadow: 18px 0 42px rgba(15, 23, 42, 0.18);
 }
@@ -118,9 +118,9 @@
 }
 
 .primary-navigation-rail:hover .v2-rail-brand__copy,
-.primary-navigation-rail:focus-within .v2-rail-brand__copy,
+.primary-navigation-rail:has(:focus-visible) .v2-rail-brand__copy,
 .primary-navigation-rail:hover .v2-rail-profile__copy,
-.primary-navigation-rail:focus-within .v2-rail-profile__copy {
+.primary-navigation-rail:has(:focus-visible) .v2-rail-profile__copy {
   opacity: 1;
   transform: translateX(0);
 }
@@ -169,7 +169,7 @@
 }
 
 .primary-navigation-rail:hover .v2-rail-group__label,
-.primary-navigation-rail:focus-within .v2-rail-group__label {
+.primary-navigation-rail:has(:focus-visible) .v2-rail-group__label {
   opacity: 1;
 }
 
@@ -243,7 +243,7 @@
 }
 
 .primary-navigation-rail:hover .v2-rail-link__label,
-.primary-navigation-rail:focus-within .v2-rail-link__label {
+.primary-navigation-rail:has(:focus-visible) .v2-rail-link__label {
   opacity: 1;
   transform: translateX(0);
 }
@@ -263,7 +263,7 @@
 }
 
 .primary-navigation-rail:hover .v2-rail-link__badge,
-.primary-navigation-rail:focus-within .v2-rail-link__badge {
+.primary-navigation-rail:has(:focus-visible) .v2-rail-link__badge {
   opacity: 1;
 }
 
