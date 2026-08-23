@@ -106,7 +106,6 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
         name: "mobile",
         label: "Mobile number",
         type: "text",
-        required: true,
       },
       { name: "phone", label: "Alternate number", type: "text" },
       {

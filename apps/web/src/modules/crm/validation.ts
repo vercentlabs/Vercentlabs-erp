@@ -19,12 +19,18 @@ function normalize(field: CrmField, value: unknown) {
       throw new Error(`${field.label} must be a number.`);
     return number;
   }
-  if (Boolean(field.structuredKind || getStructuredFieldConfig(field.name, field.label))) {
+  if (
+    Boolean(
+      field.structuredKind || getStructuredFieldConfig(field.name, field.label),
+    )
+  ) {
     if (typeof value !== "string") return value;
     try {
       return JSON.parse(value);
     } catch {
-      throw new Error(`${field.label} contains an invalid advanced configuration.`);
+      throw new Error(
+        `${field.label} contains an invalid advanced configuration.`,
+      );
     }
   }
   return String(value).trim();
@@ -126,7 +132,10 @@ function buildCrmSchemas(requireRequiredFields: boolean) {
             }
             if (
               !empty &&
-              Boolean(field.structuredKind || getStructuredFieldConfig(field.name, field.label)) &&
+              Boolean(
+                field.structuredKind ||
+                getStructuredFieldConfig(field.name, field.label),
+              ) &&
               typeof value === "string"
             ) {
               try {
@@ -178,6 +187,13 @@ function buildCrmSchemas(requireRequiredFields: boolean) {
               context.addIssue({ code: "custom", path: fields, message });
             }
           };
+
+          if (key === "leads" && requireRequiredFields) {
+            requireOneOf(
+              ["email", "mobile", "phone"],
+              "Provide at least one contact method: email, mobile number or alternate number.",
+            );
+          }
 
           if (key === "quota-plans")
             requireOneOf(

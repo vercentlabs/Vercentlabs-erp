@@ -1,17 +1,16 @@
 # Current Mandatory Feature
 
-No mandatory feature is currently active.
-
-When implementation begins this file must contain:
-
-- Feature ID
-- Feature Name
-- Module
-- Priority
-- Status
-- Dependencies
-- Specification path
-- Relevant tests
-- Current blocker
-
-We will implement the mandatory features one by one.
+- Feature ID: F001
+- Feature Name: Leads
+- Module: CRM
+- Priority: P0
+- Status: TESTING
+- UAT: NOT_READY
+- Dependencies: Protected core foundation (authentication, tenant/company/branch access, module entitlement, permissions, audit)
+- Specification path: `02-feature-specs/ERP-001.md`
+- Relevant tests:
+  - `services/api/tests/crm-leads-f001.test.mjs`
+  - `services/api/tests/crm-core.test.mjs`
+  - `services/api/tests/crm-record-scope.test.mjs`
+  - `apps/web/tests/crm-leads-f001.test.mjs`
+- Current blocker: manual UAT evidence has not yet been executed and recorded; automated verification and live F001 constraint checks pass.

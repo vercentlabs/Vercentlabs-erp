@@ -1,1 +1,2 @@
 feature_id,module,feature_name,uat_status,tester,test_date,scenario,evidence,notes
+F001,CRM,Leads,NOT_READY,,,"Create email-only and phone-only leads; reject no-contact lead; search/open/edit; reject removal of final contact method; verify owner/manager scope; archive and verify audit event.",,"Automated and live constraint checks pass; manual UAT tester, date and evidence remain pending."

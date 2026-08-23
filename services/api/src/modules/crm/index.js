@@ -1,5 +1,9 @@
 import { CRM_RESOURCE_KEYS } from "@vercentlabs/shared-types";
 import { resolveLeadOwner as resolveGovernedLeadOwner } from "./lead-governance.js";
+import {
+  normalizeLeadRecordInput,
+  validateLeadRecord,
+} from "./features/leads/record-validation.js";
 
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
@@ -1389,7 +1393,8 @@ function assertWritableScope(definition, context, input) {
 // docs/implementation/ERP_SECURITY_HARDENING_003.md.
 function assertOwnerAssignmentAllowed(definition, context, input) {
   if (!definition.ownerField || canViewAllCrmRecords(context)) return;
-  if (!Object.prototype.hasOwnProperty.call(input, definition.ownerField)) return;
+  if (!Object.prototype.hasOwnProperty.call(input, definition.ownerField))
+    return;
   const requested = input[definition.ownerField];
   if (requested && requested !== context.userId) {
     throw new CrmError(
@@ -1502,14 +1507,20 @@ function buildFilters(definition, filters, parameters, alias = "record") {
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
   }
   if (definition.table === "tenant.crm_leads") {
-    for (const [key, column] of [["priority", "priority"], ["rating", "rating"]]) {
+    for (const [key, column] of [
+      ["priority", "priority"],
+      ["rating", "rating"],
+    ]) {
       if (filters[key] && filters[key] !== "all")
         sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
     }
     const followup = filters.followup || "all";
-    if (followup === "overdue") sql += ` AND ${alias}.next_follow_up_at < now()`;
-    if (followup === "today") sql += ` AND ${alias}.next_follow_up_at >= current_date AND ${alias}.next_follow_up_at < current_date + interval '1 day'`;
-    if (followup === "upcoming") sql += ` AND ${alias}.next_follow_up_at >= now()`;
+    if (followup === "overdue")
+      sql += ` AND ${alias}.next_follow_up_at < now()`;
+    if (followup === "today")
+      sql += ` AND ${alias}.next_follow_up_at >= current_date AND ${alias}.next_follow_up_at < current_date + interval '1 day'`;
+    if (followup === "upcoming")
+      sql += ` AND ${alias}.next_follow_up_at >= now()`;
     if (followup === "none") sql += ` AND ${alias}.next_follow_up_at IS NULL`;
   }
   if (definition.table === "tenant.crm_activities") {
@@ -1781,7 +1792,15 @@ export async function createCrmRecord(client, context, resource, input) {
   const definition = definitionFor(resource);
   assertWritableScope(definition, context, input);
   assertOwnerAssignmentAllowed(definition, context, input);
-  const prepared = { ...input };
+  const prepared =
+    resource === "leads" ? normalizeLeadRecordInput(input) : { ...input };
+  if (resource === "leads") {
+    const leadErrors = validateLeadRecord(prepared, { mode: "create" });
+    if (leadErrors.length) {
+      const first = leadErrors[0];
+      throw new CrmError(400, first.message, first.code);
+    }
+  }
   if (resource === "saved-views") prepared.userId = context.userId;
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
@@ -1803,7 +1822,11 @@ export async function createCrmRecord(client, context, resource, input) {
   )
     prepared.branchId = context.activeBranchId;
   if (resource === "leads" && !prepared.ownerUserId)
-    prepared.ownerUserId = await resolveGovernedLeadOwner(client, context, prepared);
+    prepared.ownerUserId = await resolveGovernedLeadOwner(
+      client,
+      context,
+      prepared,
+    );
   if (
     resource === "opportunities" &&
     (!prepared.pipelineId || !prepared.stageId)
@@ -1911,12 +1934,22 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   assertOwnerAssignmentAllowed(definition, context, input);
   if (resource === "saved-views") delete input.userId;
   assertLifecycleUpdate(resource, before, input);
-  const prepared = { ...input };
-  if (resource === "leads")
+  const prepared =
+    resource === "leads" ? normalizeLeadRecordInput(input) : { ...input };
+  if (resource === "leads") {
+    const leadErrors = validateLeadRecord(prepared, {
+      mode: "update",
+      existing: before,
+    });
+    if (leadErrors.length) {
+      const first = leadErrors[0];
+      throw new CrmError(400, first.message, first.code);
+    }
     prepared.score = await calculateLeadScore(client, context.organizationId, {
       ...before,
       ...prepared,
     });
+  }
   if (resource === "custom-records") {
     prepared.objectDefinitionId ??= before.objectDefinitionId;
     prepared.companyId ??= before.companyId;
@@ -3262,7 +3295,11 @@ export async function findCrmDuplicates(
   // would silently stop seeing colleagues' duplicates (see Part 12,
   // "adversarial review", in docs/implementation/
   // ERP_SECURITY_HARDENING_003.md).
-  const duplicateScope = recordScope({ ...resources.leads, ownerField: undefined }, context, parameters);
+  const duplicateScope = recordScope(
+    { ...resources.leads, ownerField: undefined },
+    context,
+    parameters,
+  );
   const result = await client.query(
     `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.status NOT IN ('converted','archived') AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${duplicateScope} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
     parameters,

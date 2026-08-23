@@ -1,5 +1,5 @@
 feature_id,module,feature_name,priority,status,uat_status,dependencies,implementation_doc,test_evidence,notes
-ERP-001,,,TBD,NOT_STARTED,NOT_READY,,02-feature-specs/ERP-001.md,,
+F001,CRM,Leads,P0,TESTING,NOT_READY,"core foundation","02-feature-specs/ERP-001.md","services/api/tests/crm-leads-f001.test.mjs; services/api/tests/crm-core.test.mjs; services/api/tests/crm-record-scope.test.mjs; apps/web/tests/crm-leads-f001.test.mjs","Core lead workflow implemented; automated checks and live F001 constraint verification pass; manual UAT pending."
 ERP-002,,,TBD,NOT_STARTED,NOT_READY,,02-feature-specs/ERP-002.md,,
 ERP-003,,,TBD,NOT_STARTED,NOT_READY,,02-feature-specs/ERP-003.md,,
 ERP-004,,,TBD,NOT_STARTED,NOT_READY,,02-feature-specs/ERP-004.md,,

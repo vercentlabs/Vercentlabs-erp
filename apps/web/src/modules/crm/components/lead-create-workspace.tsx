@@ -66,7 +66,8 @@ const CHECKBOX_FIELDS = [
   "doNotContact",
 ] as const;
 
-type FieldName = (typeof LEAD_FIELDS)[number] | (typeof CHECKBOX_FIELDS)[number];
+type FieldName =
+  (typeof LEAD_FIELDS)[number] | (typeof CHECKBOX_FIELDS)[number];
 
 function formBody(form: HTMLFormElement): Record<string, unknown> {
   const data = new FormData(form);
@@ -148,8 +149,7 @@ export default function CrmLeadCreateWorkspace({
 
   useEffect(() => {
     const email = duplicateInputs.email.trim();
-    const validEmail =
-      email === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const validEmail = email === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const mobileDigits = duplicateInputs.mobile.replace(/\D+/g, "");
     const phoneDigits = duplicateInputs.phone.replace(/\D+/g, "");
 
@@ -209,10 +209,7 @@ export default function CrmLeadCreateWorkspace({
     return `lead-${name}-error`;
   }
 
-  function duplicateInput(
-    key: keyof typeof duplicateInputs,
-    value: string,
-  ) {
+  function duplicateInput(key: keyof typeof duplicateInputs, value: string) {
     setDuplicates([]);
     setDuplicateStatus("idle");
     setDuplicateInputs((current) =>
@@ -281,8 +278,8 @@ export default function CrmLeadCreateWorkspace({
           <h1>Create lead</h1>
           <p>
             Capture enough context to make the enquiry actionable now. Scoring,
-            assignment, qualification, nurture and conversion continue after
-            the lead is saved.
+            assignment, qualification, nurture and conversion continue after the
+            lead is saved.
           </p>
         </div>
 
@@ -407,8 +404,9 @@ export default function CrmLeadCreateWorkspace({
                 <p className="eyebrow">02 · Reachability</p>
                 <h2 id="lead-contact-title">Contact details</h2>
                 <p>
-                  Provide reliable channels for follow-up and duplicate
-                  protection.
+                  Provide at least one reliable channel for follow-up. Work
+                  email, mobile number or alternate number can satisfy this
+                  requirement.
                 </p>
               </div>
             </div>
@@ -441,14 +439,11 @@ export default function CrmLeadCreateWorkspace({
               </label>
 
               <label>
-                <span>
-                  Mobile number <b aria-hidden="true">*</b>
-                </span>
+                <span>Mobile number</span>
                 <input
                   autoComplete="tel"
                   inputMode="tel"
                   name="mobile"
-                  required
                   aria-invalid={Boolean(errorFor("mobile"))}
                   aria-describedby={
                     errorFor("mobile") ? errorId("mobile") : undefined
@@ -782,7 +777,10 @@ export default function CrmLeadCreateWorkspace({
           </div>
         </form>
 
-        <aside className="crm-lead-create-rail" aria-label="Lead creation guidance">
+        <aside
+          className="crm-lead-create-rail"
+          aria-label="Lead creation guidance"
+        >
           <section className="crm-lead-rail-card">
             <p className="eyebrow">Lead lifecycle</p>
             <h2>Built for the complete lead journey</h2>
@@ -819,7 +817,9 @@ export default function CrmLeadCreateWorkspace({
                 <span>5</span>
                 <div>
                   <strong>Convert</strong>
-                  <small>Create account, contact and opportunity when ready.</small>
+                  <small>
+                    Create account, contact and opportunity when ready.
+                  </small>
                 </div>
               </li>
             </ol>
@@ -862,8 +862,8 @@ export default function CrmLeadCreateWorkspace({
 
             {duplicateStatus === "error" ? (
               <p>
-                Duplicate preview is temporarily unavailable. The lead can
-                still be validated by the server when you save.
+                Duplicate preview is temporarily unavailable. The lead can still
+                be validated by the server when you save.
               </p>
             ) : null}
 
@@ -872,7 +872,9 @@ export default function CrmLeadCreateWorkspace({
                 {duplicates.slice(0, 4).map((duplicate, index) => {
                   const id = String(duplicate.id || "");
                   return (
-                    <article key={id || `${duplicateTitle(duplicate)}-${index}`}>
+                    <article
+                      key={id || `${duplicateTitle(duplicate)}-${index}`}
+                    >
                       <div>
                         <strong>{duplicateTitle(duplicate)}</strong>
                         <small>
