@@ -598,12 +598,12 @@ export async function getPayablesGovernanceDashboard(client, context) {
     procurementValues.push(context.activeCompanyId);
     procurementScope = ` AND purchase_order.company_id=$${procurementValues.length}`;
   }
-  const [policy, bills, exceptionCases, proposals, importQueue] =
-    await Promise.all([
-      loadPolicy(client, context),
-      loadPayableRows(client, context),
-      client.query(
-        `SELECT exception_case.*,bill.bill_number,bill.supplier_invoice_number,
+  // A transaction-bound pg PoolClient must execute its query stream in order.
+  // Parallel reads here trigger pg's "client is already executing" warning.
+  const policy = await loadPolicy(client, context);
+  const bills = await loadPayableRows(client, context);
+  const exceptionCases = await client.query(
+    `SELECT exception_case.*,bill.bill_number,bill.supplier_invoice_number,
                 bill.currency_code,bill.outstanding_amount,bill.due_date,
                 party.display_name AS supplier_name
            FROM tenant.accounting_payables_exception_cases exception_case
@@ -620,11 +620,11 @@ export async function getPayablesGovernanceDashboard(client, context) {
                    exception_case.next_action_at NULLS FIRST,
                    exception_case.updated_at
           LIMIT 200`,
-        scopedValues,
-      ),
-      listVendorPaymentProposals(client, context),
-      client.query(
-        `SELECT matching.id,matching.status,matching.updated_at,
+    scopedValues,
+  );
+  const proposals = await listVendorPaymentProposals(client, context);
+  const importQueue = await client.query(
+    `SELECT matching.id,matching.status,matching.updated_at,
                 purchase_order.id AS purchase_order_id,
                 purchase_order.data->>'orderNumber' AS purchase_order_number,
                 purchase_order.data->>'supplierName' AS supplier_name,
@@ -639,9 +639,8 @@ export async function getPayablesGovernanceDashboard(client, context) {
             AND COALESCE(matching.data->>'accountingVendorBillId','')=''${procurementScope}
           ORDER BY matching.updated_at
           LIMIT 100`,
-        procurementValues,
-      ),
-    ]);
+    procurementValues,
+  );
   const summary = buildPayablesGovernanceSummary(bills, policy);
   const assessed = bills.map((bill) => ({
     ...bill,

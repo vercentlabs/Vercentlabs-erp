@@ -558,14 +558,14 @@ export async function getProcurementGovernanceDashboard(client, context) {
     "procurement.suppliers.view",
   ]);
   const policy = defaultPolicy(await getPolicy(client, context));
-  const [suppliers, requisitions, sourcingEvents, purchaseOrders, receipts] =
-    await Promise.all([
-      loadSuppliers(client, context, policy),
-      loadRequisitions(client, context, policy),
-      loadSourcing(client, context, policy),
-      loadPurchaseOrders(client, context, policy),
-      loadReceipts(client, context, policy),
-    ]);
+  // These loaders share the transaction's single pg PoolClient. Execute them
+  // in sequence; overlapping client.query() calls are deprecated and will be
+  // unsupported in pg 9.
+  const suppliers = await loadSuppliers(client, context, policy);
+  const requisitions = await loadRequisitions(client, context, policy);
+  const sourcingEvents = await loadSourcing(client, context, policy);
+  const purchaseOrders = await loadPurchaseOrders(client, context, policy);
+  const receipts = await loadReceipts(client, context, policy);
   const exceptionValues = [context.organizationId];
   const exceptionScope = companyScope(
     context,

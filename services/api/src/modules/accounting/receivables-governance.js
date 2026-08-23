@@ -468,11 +468,13 @@ export async function getReceivablesGovernanceDashboard(client, context) {
     requestValues.push(context.activeCompanyId);
     requestCompanyScope = ` AND sales_order.company_id=$${requestValues.length}`;
   }
-  const [policy, invoices, importQueue, collectionCases] = await Promise.all([
-    loadPolicy(client, context),
-    loadReceivableRows(client, context),
-    client.query(
-      `SELECT request.id,request.request_number,request.status,request.retry_count,
+  // A transaction-bound pg PoolClient has one query stream. Keep these reads
+  // sequential so callers do not queue overlapping client.query() calls, a
+  // pattern deprecated by pg and rejected in pg 9.
+  const policy = await loadPolicy(client, context);
+  const invoices = await loadReceivableRows(client, context);
+  const importQueue = await client.query(
+    `SELECT request.id,request.request_number,request.status,request.retry_count,
               request.last_error,request.requested_at,sales_order.sales_order_number
          FROM tenant.sales_invoice_requests request
          JOIN tenant.sales_orders sales_order
@@ -482,10 +484,10 @@ export async function getReceivablesGovernanceDashboard(client, context) {
           AND request.status IN ('pending','processing','failed')${requestCompanyScope}
         ORDER BY request.status='failed' DESC,request.requested_at
         LIMIT 100`,
-      requestValues,
-    ),
-    client.query(
-      `SELECT collection.*,invoice.invoice_number,invoice.currency_code,
+    requestValues,
+  );
+  const collectionCases = await client.query(
+    `SELECT collection.*,invoice.invoice_number,invoice.currency_code,
               invoice.outstanding_amount,invoice.due_date,
               party.display_name AS customer_name
          FROM tenant.accounting_collection_cases collection
@@ -502,9 +504,8 @@ export async function getReceivablesGovernanceDashboard(client, context) {
                  collection.next_action_at NULLS FIRST,
                  invoice.due_date
         LIMIT 200`,
-      scopedValues,
-    ),
-  ]);
+    scopedValues,
+  );
   const summary = buildReceivablesGovernanceSummary(invoices, policy);
   const assessed = invoices.map((invoice) => ({
     ...invoice,
@@ -544,10 +545,8 @@ export async function assessCustomerInvoiceReadiness(
   invoiceId,
 ) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
-  const [policy, rows] = await Promise.all([
-    loadPolicy(client, context),
-    loadReceivableRows(client, context, invoiceId),
-  ]);
+  const policy = await loadPolicy(client, context);
+  const rows = await loadReceivableRows(client, context, invoiceId);
   const invoice = rows[0];
   if (!invoice)
     throw new ReceivablesGovernanceError(404, "Customer invoice not found.");
