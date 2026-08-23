@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 type Conflict = {
   key: string;

@@ -4,7 +4,7 @@ import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 import DownwardSelect from "@/shared/components/downward-select";
 import PaginationControls from "@/shared/components/pagination-controls";
 

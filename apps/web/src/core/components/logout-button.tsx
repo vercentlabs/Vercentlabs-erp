@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import AppIcon from "@/shared/components/app-icon";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 export default function LogoutButton({
   iconOnly = false,

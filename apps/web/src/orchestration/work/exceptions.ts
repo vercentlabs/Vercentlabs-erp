@@ -29,7 +29,7 @@ import { accountingContext } from "@/modules/accounting";
 import type { WorkspaceSessionContext } from "@/core/auth";
 import { tenantTransaction } from "@/core/db";
 import { assertModuleAccessible } from "@/core/module-access";
-import { classifyDueAt, type WorkItem } from "@/core/work/types";
+import { classifyDueAt, type WorkItem } from "@/shared/work/types";
 import { procurementContext } from "@/modules/procurement";
 import { qualityContext } from "@/modules/quality";
 import { supportContext } from "@/modules/support";

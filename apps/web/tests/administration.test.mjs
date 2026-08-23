@@ -11,7 +11,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 // my-work/types.ts has no @/core/auth or @/core/db dependency (only a
 // type-only import, elided by transpileModule) — safe to execute directly
 // for real timezone-aware behavioral coverage.
-const typesModule = await loadTsModule("apps/web/src/core/work/types.ts");
+const typesModule = await loadTsModule("apps/web/src/shared/work/types.ts");
 
 // ---------------------------------------------------------------------
 // Part 13 — the one Prompt 8 gap that belongs in Prompt 10: due-date
@@ -60,9 +60,9 @@ test("classifyDueAt: omitting the timezone entirely still works (backward-compat
 
 test("my-work adapters: every classifyDueAt call site threads session.timezone through (Part 13 fix applied everywhere it was missing)", () => {
   for (const file of [
-    "apps/web/src/core/work/tasks.ts",
-    "apps/web/src/core/work/follow-ups.ts",
-    "apps/web/src/core/work/exceptions.ts",
+    "apps/web/src/orchestration/work/tasks.ts",
+    "apps/web/src/orchestration/work/follow-ups.ts",
+    "apps/web/src/orchestration/work/exceptions.ts",
   ]) {
     const source = read(file);
     const calls = source.match(/classifyDueAt\([^)]*\)/g) ?? [];
@@ -176,7 +176,7 @@ test("integrations page: delivery is genuinely automated (Prompt 13), but the pa
 });
 
 test("integrations.ts: never reads or exposes a webhook secret value — only secretReference (a pointer), matching Part 36/67's redaction requirement", () => {
-  const source = read("apps/web/src/core/integrations.ts");
+  const source = read("apps/web/src/orchestration/integrations.ts");
   assert.doesNotMatch(source, /secret_value|secretValue/);
   assert.match(source, /secretReference/);
 });
@@ -322,7 +322,7 @@ test("security regression: audit_events immutability trigger is untouched", () =
 });
 
 test("security regression: integrations reads tenant data exclusively through tenantTransaction() — no raw cross-tenant query", () => {
-  for (const file of ["apps/web/src/core/integrations.ts"]) {
+  for (const file of ["apps/web/src/orchestration/integrations.ts"]) {
     const source = read(file);
     assert.match(source, /tenantTransaction\(/, `${file} does not use tenantTransaction`);
     assert.match(source, /organization_id\s*=\s*\$1|session\.organizationId/, `${file} is not organization-scoped`);

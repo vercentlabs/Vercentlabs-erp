@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 function safeWorkspaceHref(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return null;

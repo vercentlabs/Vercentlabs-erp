@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import PasswordField from "@/core/components/password-field";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 import { MIN_PASSWORD_LENGTH } from "@/core/password-policy";
 
 export default function ChangePasswordForm() {

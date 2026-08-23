@@ -1,7 +1,7 @@
 import { getSessionContext, type WorkspaceSessionContext } from "@/core/auth";
 import { query } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { listMyNotifications } from "@/core/work/notifications";
+import { listMyNotifications } from "@/orchestration/work/notifications";
 import { assertSameOrigin } from "@/core/security";
 import { notificationActionSchema } from "@/core/validation";
 

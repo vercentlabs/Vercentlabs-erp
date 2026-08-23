@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 export default function ResendVerificationForm({
   defaultEmail = "",

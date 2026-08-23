@@ -10,7 +10,19 @@ import {
 } from "@vercentlabs/shared-types";
 import { useRef, useState } from "react";
 
-import type { CrmField } from "@/modules/crm";
+export type StructuredFieldDescriptor = {
+  name: string;
+  label: string;
+  required?: boolean;
+  helpText?: string;
+  structuredKind?:
+    | "list"
+    | "key-value"
+    | "actions"
+    | "schedule"
+    | "value";
+  structuredOptionsKey?: string;
+};
 
 type Option = { id: string; name: string };
 type Pair = { id: string; key: string; value: string };
@@ -418,7 +430,7 @@ export default function StructuredFieldEditor({
   initialValue,
   options,
 }: {
-  field: CrmField;
+  field: StructuredFieldDescriptor;
   initialValue: unknown;
   options: Record<string, Option[]>;
 }) {

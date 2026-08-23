@@ -9,7 +9,7 @@ import CrmLeadsWorkspace from "@/modules/crm/components/leads-workspace";
 import PaginationControls from "@/shared/components/pagination-controls";
 import StructuredFieldEditor from "@/shared/components/structured-field-editor";
 import type { CrmDefinition, CrmField } from "@/modules/crm";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 type Row = Record<string, unknown>;
 type Option = { id: string; name: string; pipelineId?: string };

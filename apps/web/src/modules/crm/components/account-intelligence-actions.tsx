@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 type AccountOption = { id: string; name: string };
 type Duplicate = { id: string; displayName: string; matchScore: number };

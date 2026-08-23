@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
 import PaginationControls from "@/shared/components/pagination-controls";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 import type { CrmField } from "@/modules/crm";
 
 type Row = Record<string, unknown>;

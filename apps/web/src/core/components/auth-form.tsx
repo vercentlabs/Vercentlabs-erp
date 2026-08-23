@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import PasswordField from "@/core/components/password-field";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 import { MIN_PASSWORD_LENGTH } from "@/core/password-policy";
 
 type Mode = "login" | "forgot" | "reset" | "verify";

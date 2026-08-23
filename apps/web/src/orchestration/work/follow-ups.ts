@@ -8,7 +8,7 @@ import { listCrmRecords } from "@vercentlabs/api";
 import type { WorkspaceSessionContext } from "@/core/auth";
 import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
-import { classifyDueAt, type WorkItem } from "@/core/work/types";
+import { classifyDueAt, type WorkItem } from "@/shared/work/types";
 
 export async function listMyFollowUps(
   session: WorkspaceSessionContext,

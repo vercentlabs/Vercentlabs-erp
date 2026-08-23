@@ -3,7 +3,7 @@ import Link from "next/link";
 import AppIcon from "@/shared/components/app-icon";
 import WorkItemList from "@/shared/components/work-item-list";
 import { requireWorkspace } from "@/core/auth";
-import { getMyWorkSummary } from "@/core/work/aggregate";
+import { getMyWorkSummary } from "@/orchestration/work/aggregate";
 
 export const metadata = { title: "My work" };
 export const dynamic = "force-dynamic";

@@ -4,7 +4,7 @@
 // minimal — only what's safe to surface in a shared list (title/subtitle/
 // due date/priority/href), never a full record payload. See
 // docs/implementation/ERP_SHARED_WORKSPACE_008.md Section 6.
-import type { ModuleId } from "@/core/navigation/types";
+import type { ModuleId } from "@/shared/modules/types";
 
 export type WorkItemKind =
   | "task"

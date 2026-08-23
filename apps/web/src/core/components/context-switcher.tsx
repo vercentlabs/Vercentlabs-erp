@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import AppIcon from "@/shared/components/app-icon";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 type ContextSwitcherProps = {
   organizations: Array<{ id: string; name: string }>;

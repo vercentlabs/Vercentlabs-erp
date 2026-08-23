@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import AppIcon from "@/shared/components/app-icon";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 
 const months = Array.from({ length: 12 }, (_, index) => ({
   value: index + 1,

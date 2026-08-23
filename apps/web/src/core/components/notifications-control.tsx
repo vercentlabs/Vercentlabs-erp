@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
-import { requestJson } from "@/core/client-request";
+import { requestJson } from "@/shared/http/client-request";
 import { useOutsideDismiss } from "@/shared/use-outside-dismiss";
 
 type NotificationPreview = {

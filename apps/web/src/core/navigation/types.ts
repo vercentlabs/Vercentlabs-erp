@@ -3,26 +3,14 @@
 // config, not scattered JSX" — this registry formalizes that, it does not
 // invent a new pattern). See docs/implementation/ERP_NAVIGATION_FOUNDATION_006.md.
 import type { AppIconName } from "@/shared/components/app-icon";
+export type { ModuleId } from "@/shared/modules/types";
+import type { ModuleId } from "@/shared/modules/types";
 
 // Deliberately a local, exhaustive-checkable union — packages/shared-types's
 // ErpModule.key is plain `string` (see modules.d.ts), so this is the
 // navigation layer's own stricter view of the same 12 canonical keys
 // resolveModuleAccess() already accepts. Keep in sync with
 // ERP_MODULE_CATALOG; navigation-registry.test.mjs enforces that.
-export type ModuleId =
-  | "crm"
-  | "sales"
-  | "accounting"
-  | "procurement"
-  | "stock"
-  | "manufacturing"
-  | "projects"
-  | "assets"
-  | "point-of-sale"
-  | "quality"
-  | "support"
-  | "hr-payroll";
-
 export type NavigationItem = {
   href: string;
   label: string;

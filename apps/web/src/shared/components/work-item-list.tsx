@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
-import type { WorkItem } from "@/core/work/types";
+import type { WorkItem } from "@/shared/work/types";
 
 function formatDue(dueAt?: string) {
   if (!dueAt) return "";

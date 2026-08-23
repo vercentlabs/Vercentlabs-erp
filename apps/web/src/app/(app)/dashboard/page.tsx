@@ -8,7 +8,7 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { query } from "@/core/db";
 import { getAccessibleModules } from "@/core/module-access";
-import { getMyWorkSummary } from "@/core/work/aggregate";
+import { getMyWorkSummary } from "@/orchestration/work/aggregate";
 import { MODULE_ROUTE_ROOTS } from "@/core/navigation/route-map";
 import type { ModuleId } from "@/core/navigation/types";
 

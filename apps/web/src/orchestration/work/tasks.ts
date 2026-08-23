@@ -11,7 +11,7 @@ import type { WorkspaceSessionContext } from "@/core/auth";
 import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { assertModuleAccessible } from "@/core/module-access";
-import { classifyDueAt, type WorkItem } from "@/core/work/types";
+import { classifyDueAt, type WorkItem } from "@/shared/work/types";
 import { projectsContext } from "@/modules/projects";
 
 const CRM_ENTITY_HREF: Record<string, string> = {

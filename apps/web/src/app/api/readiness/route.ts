@@ -1,61 +1,48 @@
+
 import { query } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
 
 export const dynamic = "force-dynamic";
 
-const EXPECTED_CONTROL_MIGRATION = "017_billing_state_machine_and_recovery.sql";
-const EXPECTED_TENANT_MIGRATION = "029_crm_account_intelligence_privacy.sql";
-const REQUIRED_RELEASE_FOUNDATION = Object.freeze({
-  control: "014_procurement_module_release.sql",
-  tenant: "013_procurement_enterprise_completion.sql",
-  accounting: "011_accounting_integrity_and_compliance.sql",
-});
+type ReadinessRow = {
+  role_name: string;
+  organizations_table: boolean;
+  roles_table: boolean;
+  tenant_schema: boolean;
+  background_jobs_table: boolean;
+};
 
 export async function GET() {
   try {
-    const rows = await query<{
-      control_ready: boolean;
-      tenant_ready: boolean;
-      release_control_ready: boolean;
-      release_tenant_ready: boolean;
-      accounting_ready: boolean;
-    }>(
+    const rows = await query<ReadinessRow>(
       `
-        SELECT
-          EXISTS (
-            SELECT 1 FROM schema_migrations WHERE name = $1
-          ) AS control_ready,
-          EXISTS (
-            SELECT 1 FROM tenant_schema_migrations WHERE name = $2
-          ) AS tenant_ready,
-          EXISTS (
-            SELECT 1 FROM schema_migrations WHERE name = $3
-          ) AS release_control_ready,
-          EXISTS (
-            SELECT 1 FROM tenant_schema_migrations WHERE name = $4
-          ) AS release_tenant_ready,
-          EXISTS (
-            SELECT 1 FROM tenant_schema_migrations WHERE name = $5
-          ) AS accounting_ready
+      SELECT
+        current_user AS role_name,
+        to_regclass('public.organizations') IS NOT NULL
+          AS organizations_table,
+        to_regclass('public.roles') IS NOT NULL
+          AS roles_table,
+        EXISTS (
+          SELECT 1
+          FROM pg_namespace
+          WHERE nspname = 'tenant'
+        ) AS tenant_schema,
+        to_regclass('tenant.background_jobs') IS NOT NULL
+          AS background_jobs_table
       `,
-      [
-        REQUIRED_RELEASE_FOUNDATION.control,
-        REQUIRED_RELEASE_FOUNDATION.tenant,
-        EXPECTED_CONTROL_MIGRATION,
-        EXPECTED_TENANT_MIGRATION,
-        REQUIRED_RELEASE_FOUNDATION.accounting,
-      ],
     );
 
     const state = rows[0];
+
     if (
-      !state?.control_ready ||
-      !state?.tenant_ready ||
-      !state?.release_control_ready ||
-      !state?.release_tenant_ready ||
-      !state?.accounting_ready
+      !state?.organizations_table ||
+      !state?.roles_table ||
+      !state?.tenant_schema
     ) {
-      throw new HttpError(503, "The service schema is not ready.");
+      throw new HttpError(
+        503,
+        "The service database foundation is not ready.",
+      );
     }
 
     return ok({
@@ -65,16 +52,28 @@ export async function GET() {
         process.env.VERCENTLABS_RELEASE_SHA ||
         process.env.VERCEL_GIT_COMMIT_SHA ||
         null,
-      schema: {
-        control: EXPECTED_CONTROL_MIGRATION,
-        tenant: EXPECTED_TENANT_MIGRATION,
+      database: {
+        connected: true,
+        runtimeRole: state.role_name,
+      },
+      platform: {
+        organizations: state.organizations_table,
+        roles: state.roles_table,
+        tenantSchema: state.tenant_schema,
+        workerQueueSchema: state.background_jobs_table,
       },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    if (error instanceof HttpError) return errorResponse(error);
+    if (error instanceof HttpError) {
+      return errorResponse(error);
+    }
+
     return errorResponse(
-      new HttpError(503, "The service dependencies are not ready."),
+      new HttpError(
+        503,
+        "The service dependencies are not ready.",
+      ),
     );
   }
 }

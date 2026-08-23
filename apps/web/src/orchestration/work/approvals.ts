@@ -7,7 +7,7 @@
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import type { WorkspaceSessionContext } from "@/core/auth";
 import { query } from "@/core/db";
-import type { WorkItem } from "@/core/work/types";
+import type { WorkItem } from "@/shared/work/types";
 
 export type ApprovalRequestRow = {
   id: string;

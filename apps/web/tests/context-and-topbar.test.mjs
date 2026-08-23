@@ -57,7 +57,7 @@ test("topbar: notifications preview is scoped to the caller's own row — the GE
   const route = read("apps/web/src/app/api/notifications/route.ts");
   const getHandler = route.split("export async function GET")[1]?.split("export async function PATCH")[0] ?? "";
   assert.match(getHandler, /listMyNotifications\(/);
-  const helper = read("apps/web/src/core/work/notifications.ts");
+  const helper = read("apps/web/src/orchestration/work/notifications.ts");
   assert.match(helper, /WHERE organization_id=\$1 AND user_id=\$2/);
 });
 

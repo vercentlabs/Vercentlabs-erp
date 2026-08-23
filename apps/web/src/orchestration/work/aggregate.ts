@@ -7,12 +7,12 @@ import type { WorkspaceSessionContext } from "@/core/auth";
 import {
   listMyApprovals,
   pendingApprovalsAsWorkItems,
-} from "@/core/work/approvals";
-import { listMyExceptions } from "@/core/work/exceptions";
-import { listMyFollowUps } from "@/core/work/follow-ups";
-import { countUnreadNotifications } from "@/core/work/notifications";
-import { listMyTasks } from "@/core/work/tasks";
-import type { WorkItem } from "@/core/work/types";
+} from "@/orchestration/work/approvals";
+import { listMyExceptions } from "@/orchestration/work/exceptions";
+import { listMyFollowUps } from "@/orchestration/work/follow-ups";
+import { countUnreadNotifications } from "@/orchestration/work/notifications";
+import { listMyTasks } from "@/orchestration/work/tasks";
+import type { WorkItem } from "@/shared/work/types";
 
 export type MyWorkSummary = {
   tasks: WorkItem[];

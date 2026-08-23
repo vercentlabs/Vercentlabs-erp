@@ -22,8 +22,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const crmSource = () => read("apps/web/src/modules/crm/index.ts");
 const crmContextTypeSource = () => read("packages/shared-types/src/crm.d.ts");
-const followUpsSource = () => read("apps/web/src/core/work/follow-ups.ts");
-const tasksSource = () => read("apps/web/src/core/work/tasks.ts");
+const followUpsSource = () => read("apps/web/src/orchestration/work/follow-ups.ts");
+const tasksSource = () => read("apps/web/src/orchestration/work/tasks.ts");
 const systemContextSource = () => read("services/worker/src/system-context.js");
 
 test("crmContext(): propagates the real session's permissions and roleSlugs into the CRM context", () => {

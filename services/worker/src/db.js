@@ -17,22 +17,82 @@ let roleVerified;
 // running with a superuser/BYPASSRLS credential is exactly as dangerous
 // as apps/web running with one.
 async function verifyRuntimeRole(runtimePool) {
-  if (process.env.NODE_ENV !== "production" && process.env.ENFORCE_RESTRICTED_DB_ROLE !== "true") {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.ENFORCE_RESTRICTED_DB_ROLE !== "true"
+  ) {
     return;
   }
-  const { rows } = await runtimePool.query(
-    `SELECT current_user AS role_name, role.rolsuper AS is_superuser, role.rolbypassrls AS bypasses_rls,
-            role.rolcreatedb AS can_create_database, role.rolcreaterole AS can_create_roles,
-            role.rolreplication AS can_replicate
-       FROM pg_roles role WHERE role.rolname = current_user`,
-    [],
-  );
+
+  const { rows } = await runtimePool.query(`
+    SELECT
+      current_user AS role_name,
+      role.rolsuper AS is_superuser,
+      role.rolbypassrls AS bypasses_rls,
+      role.rolinherit AS inherits_roles,
+      role.rolcreatedb AS can_create_database,
+      role.rolcreaterole AS can_create_roles,
+      role.rolreplication AS can_replicate,
+
+      EXISTS (
+        SELECT 1
+        FROM pg_class relation
+        JOIN pg_namespace namespace
+          ON namespace.oid = relation.relnamespace
+        WHERE relation.relowner = role.oid
+          AND namespace.nspname IN ('public', 'tenant')
+      ) AS owns_relations,
+
+      EXISTS (
+        SELECT 1
+        FROM pg_namespace namespace
+        WHERE namespace.nspname IN ('public', 'tenant')
+          AND has_schema_privilege(
+            current_user,
+            namespace.oid,
+            'CREATE'
+          )
+      ) AS can_create_schema_objects,
+
+      EXISTS (
+        SELECT 1
+        FROM pg_auth_members membership
+        JOIN pg_roles granted_role
+          ON granted_role.oid = membership.roleid
+        WHERE membership.member = role.oid
+          AND (
+            granted_role.rolsuper
+            OR granted_role.rolbypassrls
+            OR granted_role.rolcreatedb
+            OR granted_role.rolcreaterole
+            OR granted_role.rolreplication
+          )
+      ) AS has_dangerous_membership
+
+    FROM pg_roles role
+    WHERE role.rolname = current_user
+  `);
+
   const role = rows[0];
-  if (!role) throw new Error("Unable to verify the worker's database role.");
-  const unsafe = role.is_superuser || role.bypasses_rls || role.can_create_database || role.can_create_roles || role.can_replicate;
-  if (unsafe) {
+
+  if (
+    !role ||
+    role.is_superuser ||
+    role.bypasses_rls ||
+    role.inherits_roles ||
+    role.can_create_database ||
+    role.can_create_roles ||
+    role.can_replicate ||
+    role.owns_relations ||
+    role.can_create_schema_objects ||
+    role.has_dangerous_membership
+  ) {
     throw new Error(
-      `WORKER DATABASE_URL must use a restricted NOSUPERUSER, NOBYPASSRLS, NOCREATEDB, NOCREATEROLE, NOREPLICATION runtime role (current role "${role.role_name}" fails this check).`,
+      'WORKER DATABASE_URL must use a restricted ' +
+      'NOINHERIT, NOSUPERUSER, NOBYPASSRLS runtime role ' +
+      'that owns no application relations, has no CREATE ' +
+      'privilege on public/tenant schemas, and has no ' +
+      'privileged role memberships.',
     );
   }
 }

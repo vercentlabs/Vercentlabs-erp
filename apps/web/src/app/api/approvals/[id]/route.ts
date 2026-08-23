@@ -6,7 +6,7 @@ import {
 } from "@vercentlabs/workflows";
 import { z } from "zod";
 
-import { getApprovalCommand } from "@/core/approvals";
+import { getApprovalCommand } from "@/orchestration/approvals";
 import {
   requireApiPermission,
   requirePermissionFromSession,

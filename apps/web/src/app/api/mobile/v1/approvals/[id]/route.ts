@@ -6,7 +6,7 @@ import {
 } from "@vercentlabs/workflows";
 import { z } from "zod";
 
-import { getApprovalCommand } from "@/core/approvals";
+import { getApprovalCommand } from "@/orchestration/approvals";
 import { requirePermissionFromSession } from "@/core/authorization";
 import { requireBillingWriteAccess } from "@/core/billing";
 import { rethrowCrmError } from "@/modules/crm";

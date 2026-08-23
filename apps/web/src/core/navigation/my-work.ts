@@ -4,7 +4,7 @@ import type { NavigationItem } from "@/core/navigation/types";
 // MY WORK. Prompt 8 (Shared Workspace Foundation) adds My Work, Tasks,
 // Follow-ups & Reminders and Exceptions — real
 // routes backed by read-oriented cross-module aggregation adapters (see
-// apps/web/src/core/work/*). No permission gate on these: each aggregates
+// apps/web/src/orchestration/work/*). No permission gate on these: each aggregates
 // only what the caller's existing module/permission/record-scope access
 // already allows, so an unentitled user simply sees an empty state rather
 // than being blocked at the nav level (see docs/implementation/

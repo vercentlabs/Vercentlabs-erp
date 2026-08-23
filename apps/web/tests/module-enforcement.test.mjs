@@ -162,7 +162,7 @@ test("crm: no API route under apps/web/src/app/api/crm or api/mobile/v1/**crm** 
 });
 
 test("crm: the approval-command registry's CRM mutations (opportunity stage change, activity completion) are module-gated too", () => {
-  const source = read("apps/web/src/core/approvals.ts");
+  const source = read("apps/web/src/orchestration/approvals.ts");
   assert.doesNotMatch(source, /[^.\w]crmContext\(/, "approval-commands.ts must not call the unguarded crmContext()");
   const crmExecuteCount = (source.match(/await crmApiContext\(session\)/g) ?? []).length;
   assert.equal(crmExecuteCount, 2, "expected both CRM approval commands (opportunity.stage_change, activity.complete) to use crmApiContext");

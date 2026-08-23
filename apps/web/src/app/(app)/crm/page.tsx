@@ -8,7 +8,7 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
-import { classifyDueAt } from "@/core/work/types";
+import { classifyDueAt } from "@/shared/work/types";
 
 export const metadata = { title: "CRM" };
 export const dynamic = "force-dynamic";

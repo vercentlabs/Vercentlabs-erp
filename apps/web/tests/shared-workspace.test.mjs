@@ -13,7 +13,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 // elides; internal-href.ts only imports the plain-data shared-types
 // package) — safe to actually execute for real behavioral coverage, same
 // precedent as command-palette.test.mjs's score.ts/navigation-search.ts.
-const typesModule = await loadTsModule("apps/web/src/core/work/types.ts");
+const typesModule = await loadTsModule("apps/web/src/shared/work/types.ts");
 const hrefModule = await loadTsModule("apps/web/src/core/internal-href.ts");
 
 // ---------------------------------------------------------------------
@@ -98,9 +98,9 @@ test("isValidInternalHref: the allowlist covers all 12 catalogue modules plus re
 // ---------------------------------------------------------------------
 
 const adapterFiles = [
-  "apps/web/src/core/work/tasks.ts",
-  "apps/web/src/core/work/follow-ups.ts",
-  "apps/web/src/core/work/exceptions.ts",
+  "apps/web/src/orchestration/work/tasks.ts",
+  "apps/web/src/orchestration/work/follow-ups.ts",
+  "apps/web/src/orchestration/work/exceptions.ts",
 ];
 
 test("my-work adapters: every source function is wrapped in try/catch returning an empty array on failure (fail-closed, never fail-open)", () => {
@@ -115,24 +115,24 @@ test("my-work adapters: every source function is wrapped in try/catch returning 
 });
 
 test("my-work adapters: reuse each module's existing module-gated session/context builder — no bespoke session or SQL bypass", () => {
-  const tasks = read("apps/web/src/core/work/tasks.ts");
+  const tasks = read("apps/web/src/orchestration/work/tasks.ts");
   assert.match(tasks, /crmApiContext\(session\)/);
   assert.match(tasks, /assertModuleAccessible\(session, "projects"\)/);
   assert.match(tasks, /projectsContext\(session\)/);
 
-  const followUps = read("apps/web/src/core/work/follow-ups.ts");
+  const followUps = read("apps/web/src/orchestration/work/follow-ups.ts");
   assert.match(followUps, /crmApiContext\(session\)/);
 
-  const exceptions = read("apps/web/src/core/work/exceptions.ts");
+  const exceptions = read("apps/web/src/orchestration/work/exceptions.ts");
   for (const moduleId of ["accounting", "procurement", "support", "quality"]) {
     assert.match(exceptions, new RegExp(`assertModuleAccessible\\(session, "${moduleId}"\\)`));
   }
 });
 
 test("my-work adapters: none write raw ad-hoc SQL against the CRM/project tables directly — every read goes through an existing service-layer list/dashboard function", () => {
-  const tasks = read("apps/web/src/core/work/tasks.ts");
-  const followUps = read("apps/web/src/core/work/follow-ups.ts");
-  const exceptions = read("apps/web/src/core/work/exceptions.ts");
+  const tasks = read("apps/web/src/orchestration/work/tasks.ts");
+  const followUps = read("apps/web/src/orchestration/work/follow-ups.ts");
+  const exceptions = read("apps/web/src/orchestration/work/exceptions.ts");
   for (const source of [tasks, followUps]) {
     assert.doesNotMatch(source, /client\.query\(/, "adapter issues a raw client.query() instead of reusing a service-layer function");
   }
@@ -140,19 +140,19 @@ test("my-work adapters: none write raw ad-hoc SQL against the CRM/project tables
 });
 
 test("my-work adapters: exceptions.ts documents the deliberately-omitted categories rather than fabricating a source for them", () => {
-  const source = read("apps/web/src/core/work/exceptions.ts");
+  const source = read("apps/web/src/orchestration/work/exceptions.ts");
   assert.match(source, /low-stock/);
   assert.match(source, /NOT implemented/);
 });
 
 test("aggregate.ts: uses Promise.allSettled across sources, not Promise.all (one failing source cannot fail the whole summary)", () => {
-  const source = read("apps/web/src/core/work/aggregate.ts");
+  const source = read("apps/web/src/orchestration/work/aggregate.ts");
   assert.match(source, /Promise\.allSettled/);
   assert.doesNotMatch(source, /Promise\.all\(/);
 });
 
 test("aggregate.ts: counts are derived from the same classified item lists returned to callers, not a separately invented number (summary must match the filtered list view)", () => {
-  const source = read("apps/web/src/core/work/aggregate.ts");
+  const source = read("apps/web/src/orchestration/work/aggregate.ts");
   assert.match(source, /countUrgent\(tasksList\)/);
   assert.match(source, /countUrgent\(followUpsList\)/);
   assert.doesNotMatch(source, /Math\.random/);
@@ -203,7 +203,7 @@ test("my-work/approvals.ts and my-work/notifications.ts are the single shared so
 });
 
 test("my-work/approvals.ts: listMyApprovals requires approvals.manage before querying, matching the pre-existing API route's own gate", () => {
-  const source = read("apps/web/src/core/work/approvals.ts");
+  const source = read("apps/web/src/orchestration/work/approvals.ts");
   assert.match(source, /hasPermission\(session, PERMISSIONS\.approvalsManage\)/);
 });
 
@@ -257,19 +257,19 @@ test("master data: the workspace search never widens what's visible — it filte
 // ---------------------------------------------------------------------
 
 test("security regression: CRM ownership scoping is untouched — my-work/tasks.ts and follow-ups.ts still call listCrmRecords()/crmApiContext(), never a raw crm_activities/crm_leads query", () => {
-  for (const file of ["apps/web/src/core/work/tasks.ts", "apps/web/src/core/work/follow-ups.ts"]) {
+  for (const file of ["apps/web/src/orchestration/work/tasks.ts", "apps/web/src/orchestration/work/follow-ups.ts"]) {
     const source = read(file);
     assert.doesNotMatch(source, /FROM tenant\.crm_/, `${file}: bypasses listCrmRecords() with a raw CRM table query`);
   }
 });
 
 test("security regression: exceptions.ts never queries HR/payroll data — HR/payroll exceptions must stay invisible to non-HR shared-workspace views", () => {
-  const source = read("apps/web/src/core/work/exceptions.ts");
+  const source = read("apps/web/src/orchestration/work/exceptions.ts");
   assert.doesNotMatch(source, /hr[-_]?payroll/i);
 });
 
 test("security regression: exceptions.ts's support adapter respects the existing private-note redaction inside listSupportResource — it does not select support_communications directly", () => {
-  const source = read("apps/web/src/core/work/exceptions.ts");
+  const source = read("apps/web/src/orchestration/work/exceptions.ts");
   assert.doesNotMatch(source, /support_communications/);
 });
 

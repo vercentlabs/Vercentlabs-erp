@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { getApprovalCommand } from "@/core/approvals";
+import { getApprovalCommand } from "@/orchestration/approvals";
 import { getSessionContext } from "@/core/auth";
 import {
   requireApiPermission,
@@ -11,7 +11,7 @@ import {
 import { requireBillingWriteAccess } from "@/core/billing";
 import { transaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { listMyApprovals } from "@/core/work/approvals";
+import { listMyApprovals } from "@/orchestration/work/approvals";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 const createApprovalSchema = z.object({

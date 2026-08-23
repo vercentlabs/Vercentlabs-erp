@@ -2,8 +2,8 @@ import Link from "next/link";
 
 import WorkItemList from "@/shared/components/work-item-list";
 import { requireWorkspace } from "@/core/auth";
-import { listMyExceptions } from "@/core/work/exceptions";
-import type { WorkItem } from "@/core/work/types";
+import { listMyExceptions } from "@/orchestration/work/exceptions";
+import type { WorkItem } from "@/shared/work/types";
 
 export const metadata = { title: "Exceptions" };
 export const dynamic = "force-dynamic";

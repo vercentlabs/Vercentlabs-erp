@@ -1,59 +1,6 @@
 {
-  "description": "Legacy platform-boundary imports and cross-module DML present at the platform freeze. Module feature work must remove these entries over time. The platform gate rejects any new boundary debt.",
-  "imports": [
-    {
-      "path": "apps/web/src/shared/components/resource-manager.tsx",
-      "specifier": "@/core/client-request"
-    },
-    {
-      "path": "apps/web/src/shared/components/structured-field-editor.tsx",
-      "specifier": "@/modules/crm"
-    },
-    {
-      "path": "apps/web/src/shared/components/work-item-list.tsx",
-      "specifier": "@/core/work/types"
-    },
-    {
-      "path": "apps/web/src/core/approvals.ts",
-      "specifier": "@/modules/crm"
-    },
-    {
-      "path": "apps/web/src/core/approvals.ts",
-      "specifier": "@/modules/accounting"
-    },
-    {
-      "path": "apps/web/src/core/integrations.ts",
-      "specifier": "@/modules/crm"
-    },
-    {
-      "path": "apps/web/src/core/work/exceptions.ts",
-      "specifier": "@/modules/accounting"
-    },
-    {
-      "path": "apps/web/src/core/work/exceptions.ts",
-      "specifier": "@/modules/procurement"
-    },
-    {
-      "path": "apps/web/src/core/work/exceptions.ts",
-      "specifier": "@/modules/quality"
-    },
-    {
-      "path": "apps/web/src/core/work/exceptions.ts",
-      "specifier": "@/modules/support"
-    },
-    {
-      "path": "apps/web/src/core/work/follow-ups.ts",
-      "specifier": "@/modules/crm"
-    },
-    {
-      "path": "apps/web/src/core/work/tasks.ts",
-      "specifier": "@/modules/crm"
-    },
-    {
-      "path": "apps/web/src/core/work/tasks.ts",
-      "specifier": "@/modules/projects"
-    }
-  ],
+  "description": "Legacy cross-module DML present at the platform freeze. Module feature work must remove these entries over time. The platform gate rejects any new boundary debt.",
+  "imports": [],
   "entries": [
     {
       "sourceModule": "accounting",

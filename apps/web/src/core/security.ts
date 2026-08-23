@@ -1,3 +1,4 @@
+import { redactAuditPayload } from "@/shared/security/redaction";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import type { PoolClient } from "pg";
@@ -218,9 +219,9 @@ export async function audit(input: {
       input.eventType,
       input.entityType,
       input.entityId || null,
-      JSON.stringify(input.metadata || {}),
-      input.beforeData === undefined ? null : JSON.stringify(input.beforeData),
-      input.afterData === undefined ? null : JSON.stringify(input.afterData),
+      JSON.stringify(redactAuditPayload(input.metadata || {})),
+      input.beforeData === undefined ? null : JSON.stringify(redactAuditPayload(input.beforeData)),
+      input.afterData === undefined ? null : JSON.stringify(redactAuditPayload(input.afterData)),
       input.request ? clientIp(input.request) : null,
       input.request?.headers.get("user-agent")?.slice(0, 500) || null,
     ];

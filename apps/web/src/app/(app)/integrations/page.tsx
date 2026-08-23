@@ -9,7 +9,7 @@ import {
   isSystemEmailConfigured,
   listRecentWebhookDeliveries,
   listWebhookSubscriptions,
-} from "@/core/integrations";
+} from "@/orchestration/integrations";
 
 export const metadata = { title: "Integrations" };
 export const dynamic = "force-dynamic";
