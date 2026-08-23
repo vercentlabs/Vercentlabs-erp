@@ -1,10 +1,10 @@
 import { activateBillOfMaterial } from "@vercentlabs/api";
 import { NextResponse } from "next/server";
 
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { manufacturingContext } from "@/lib/manufacturing";
-import { requireModuleWorkspace } from "@/lib/module-access";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { manufacturingContext } from "@/modules/manufacturing";
+import { requireModuleWorkspace } from "@/core/module-access";
 
 export async function POST(
   _request: Request,

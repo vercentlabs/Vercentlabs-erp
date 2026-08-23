@@ -2,18 +2,18 @@ import {
   assertOrganizationLimit,
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
-import { getSessionContext } from "@/lib/auth";
-import { transaction } from "@/lib/db";
-import { requirePermissionFromSession } from "@/lib/authorization";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
+} from "@/core/billing";
+import { getSessionContext } from "@/core/auth";
+import { transaction } from "@/core/db";
+import { requirePermissionFromSession } from "@/core/authorization";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import {
   createResource,
   isResourceKey,
   resourceDefinitions,
-} from "@/lib/resources";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { resourceSchemas } from "@/lib/validation";
+} from "@/core/resources";
+import { assertSameOrigin, audit } from "@/core/security";
+import { resourceSchemas } from "@/core/validation";
 
 export async function POST(
   request: Request,

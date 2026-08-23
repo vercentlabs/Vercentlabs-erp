@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { findCrmDuplicates, getCrmOptions, getCrmRecord } from "@vercentlabs/api";
 
-import CrmLeadDetailWorkspace from "@/components/crm-lead-detail-workspace";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
+import CrmLeadDetailWorkspace from "@/modules/crm/components/lead-detail-workspace";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 

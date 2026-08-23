@@ -15,12 +15,12 @@ const listFiles = (dir, matches = []) => {
 };
 
 // ---------------------------------------------------------------------
-// Core primitive: apps/web/src/lib/module-access.ts's server-boundary
+// Core primitive: apps/web/src/core/module-access.ts's server-boundary
 // guards (Prompt 5 additions on top of Prompt 4's resolveModuleAccess).
 // ---------------------------------------------------------------------
 
 test("module-access: assertModuleAccessible fails closed — throws on any non-accessible result, never swallows", () => {
-  const source = read("apps/web/src/lib/module-access.ts");
+  const source = read("apps/web/src/core/module-access.ts");
   assert.match(
     source,
     /export async function assertModuleAccessible[\s\S]*?if \(access\.accessible\) return;[\s\S]*?throw new HttpError/,
@@ -29,7 +29,7 @@ test("module-access: assertModuleAccessible fails closed — throws on any non-a
 });
 
 test("module-access: every ModuleAccessReason maps to a distinct machine-readable code", () => {
-  const source = read("apps/web/src/lib/module-access.ts");
+  const source = read("apps/web/src/core/module-access.ts");
   for (const [reason, code] of [
     ["not_released", "MODULE_NOT_AVAILABLE"],
     ["disabled", "MODULE_DISABLED"],
@@ -45,7 +45,7 @@ test("module-access: every ModuleAccessReason maps to a distinct machine-readabl
 });
 
 test("module-access: requireModuleWorkspace composes requireApiWorkspace + assertModuleAccessible (no bespoke session logic)", () => {
-  const source = read("apps/web/src/lib/module-access.ts");
+  const source = read("apps/web/src/core/module-access.ts");
   assert.match(
     source,
     /export async function requireModuleWorkspace[\s\S]*?requireApiWorkspace\(\)[\s\S]*?assertModuleAccessible\(session, moduleId\)/,
@@ -53,7 +53,7 @@ test("module-access: requireModuleWorkspace composes requireApiWorkspace + asser
 });
 
 test("http: HttpError carries an optional machine-readable code, and errorResponse surfaces it without touching any of the 279 route catch blocks", () => {
-  const httpSource = read("apps/web/src/lib/http.ts");
+  const httpSource = read("apps/web/src/core/http.ts");
   assert.match(httpSource, /public readonly code\?:\s*string/);
   assert.match(httpSource, /export function errorResponse[\s\S]*?failWithCode\(error\)/);
   assert.match(
@@ -69,10 +69,10 @@ test("http: HttpError carries an optional machine-readable code, and errorRespon
 // ---------------------------------------------------------------------
 
 const groupA = [
-  ["apps/web/src/lib/accounting-route.ts", "accounting"],
-  ["apps/web/src/lib/procurement-route.ts", "procurement"],
-  ["apps/web/src/lib/stock-route.ts", "stock"],
-  ["apps/web/src/lib/sales-route.ts", "sales"],
+  ["apps/web/src/modules/accounting/server.ts", "accounting"],
+  ["apps/web/src/modules/procurement/server.ts", "procurement"],
+  ["apps/web/src/modules/stock/server.ts", "stock"],
+  ["apps/web/src/modules/sales/server.ts", "sales"],
 ];
 
 for (const [file, moduleId] of groupA) {
@@ -135,7 +135,7 @@ for (const [dir, moduleId, expectedFileCount] of groupC) {
 // ---------------------------------------------------------------------
 
 test("crm: crmApiContext wraps crmContext with assertModuleAccessible(\"crm\") and is exported alongside the untouched sync crmContext", () => {
-  const source = read("apps/web/src/lib/crm.ts");
+  const source = read("apps/web/src/modules/crm/index.ts");
   assert.match(source, /export function crmContext\(session: SessionContext\): CrmContext/);
   assert.match(
     source,
@@ -162,7 +162,7 @@ test("crm: no API route under apps/web/src/app/api/crm or api/mobile/v1/**crm** 
 });
 
 test("crm: the approval-command registry's CRM mutations (opportunity stage change, activity completion) are module-gated too", () => {
-  const source = read("apps/web/src/lib/approval-commands.ts");
+  const source = read("apps/web/src/core/approvals.ts");
   assert.doesNotMatch(source, /[^.\w]crmContext\(/, "approval-commands.ts must not call the unguarded crmContext()");
   const crmExecuteCount = (source.match(/await crmApiContext\(session\)/g) ?? []).length;
   assert.equal(crmExecuteCount, 2, "expected both CRM approval commands (opportunity.stage_change, activity.complete) to use crmApiContext");

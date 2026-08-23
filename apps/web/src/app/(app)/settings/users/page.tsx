@@ -2,10 +2,10 @@ import { notFound } from "next/navigation";
 
 import UserAdministration, {
   type UserRow,
-} from "@/components/user-administration";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { query } from "@/lib/db";
+} from "@/core/components/user-administration";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { query } from "@/core/db";
 
 type UserDatabaseRow = {
   user_id: string;

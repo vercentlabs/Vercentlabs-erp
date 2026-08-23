@@ -10,14 +10,14 @@ test("Lead route family has dedicated implementations",()=>{
     "apps/web/src/app/(app)/crm/lead-acquisition/page.tsx",
     "apps/web/src/app/(app)/crm/lead-intelligence/page.tsx",
     "apps/web/src/app/(app)/crm/leads/[id]/page.tsx",
-    "apps/web/src/components/crm-lead-acquisition-workspace.tsx",
-    "apps/web/src/components/crm-lead-intelligence-workspace.tsx",
-    "apps/web/src/components/crm-lead-detail-workspace.tsx",
+    "apps/web/src/modules/crm/components/lead-acquisition-workspace.tsx",
+    "apps/web/src/modules/crm/components/lead-intelligence-workspace.tsx",
+    "apps/web/src/modules/crm/components/lead-detail-workspace.tsx",
   ]) assert.ok(fs.existsSync(path.join(root,file)),file);
 });
 
 test("Kanban lifecycle mutation uses a governed endpoint and accessible select fallback",()=>{
-  const source=read("apps/web/src/components/crm-leads-workspace.tsx");
+  const source=read("apps/web/src/modules/crm/components/leads-workspace.tsx");
   assert.match(source,/onDrop=/);
   assert.match(source,/crm-lead-kanban-move/);
   assert.match(source,/\/api\/crm\/leads\/\$\{id\}\/status/);
@@ -31,7 +31,7 @@ test("Lead board is separately loaded with scoped listCrmRecords data",()=>{
 });
 
 test("Acquisition supports CSV, XLSX, XLS, forms, channels, events and enrichment",()=>{
-  const source=read("apps/web/src/components/crm-lead-acquisition-workspace.tsx");
+  const source=read("apps/web/src/modules/crm/components/lead-acquisition-workspace.tsx");
   assert.match(source,/from "xlsx"/);
   assert.match(source,/\.csv,.xlsx,.xls/);
   for(const tab of ["imports","forms","channels","events","enrichment"]) assert.match(source,new RegExp(`"${tab}"`));
@@ -42,7 +42,7 @@ test("Acquisition supports CSV, XLSX, XLS, forms, channels, events and enrichmen
 
 test("CRM-014 has a real app-side inbound-email acquisition route",()=>{
   const route=read("apps/web/src/app/api/crm/lead-acquisition/public/email/[token]/route.ts");
-  const service=read("services/api/src/crm/lead-acquisition.js");
+  const service=read("services/api/src/modules/crm/lead-acquisition.js");
   assert.match(route,/ingestLeadAcquisitionWebhook/);
   assert.match(route,/tenant\.crm_communications/);
   assert.match(route,/provider_message_id/);
@@ -50,7 +50,7 @@ test("CRM-014 has a real app-side inbound-email acquisition route",()=>{
 });
 
 test("CRM-017 routing implements fixed, round robin, workload and territory",()=>{
-  const source=read("services/api/src/crm/lead-governance.js");
+  const source=read("services/api/src/modules/crm/lead-governance.js");
   for(const mode of ["fixed","round_robin","workload","territory"])
     assert.match(source,new RegExp(`policy\\.mode === ['"]${mode}['"]`));
   assert.match(source,/leastLoadedLeadOwner/);
@@ -58,12 +58,12 @@ test("CRM-017 routing implements fixed, round robin, workload and territory",()=
 });
 
 test("Manual and acquisition Lead creation share the governed assignment engine",()=>{
-  assert.match(read("services/api/src/crm.js"),/resolveGovernedLeadOwner/);
-  assert.match(read("services/api/src/crm/lead-acquisition.js"),/resolveLeadOwner\(client, context/);
+  assert.match(read("services/api/src/modules/crm/index.js"),/resolveGovernedLeadOwner/);
+  assert.match(read("services/api/src/modules/crm/lead-acquisition.js"),/resolveLeadOwner\(client, context/);
 });
 
 test("Bulk Lead update enforces record scope and cannot perform conversion/archive",()=>{
-  const source=read("services/api/src/crm/lead-operations.js");
+  const source=read("services/api/src/modules/crm/lead-operations.js");
   assert.match(source,/crm\.records\.view_all/);
   assert.match(source,/owner_user_id IS NULL OR owner_user_id/);
   assert.match(source,/company_id IS NULL OR company_id/);
@@ -72,14 +72,14 @@ test("Bulk Lead update enforces record scope and cannot perform conversion/archi
 });
 
 test("Lead Intelligence never labels deterministic score as AI",()=>{
-  const source=read("apps/web/src/components/crm-lead-intelligence-workspace.tsx");
+  const source=read("apps/web/src/modules/crm/components/lead-intelligence-workspace.tsx");
   assert.match(source,/deterministic, explainable scoring/);
   assert.match(source,/Rule-based\s+scoring\s+is\s+not\s+presented\s+as\s+AI/);
   assert.doesNotMatch(source,/AI lead scoring|machine learning score/i);
 });
 
 test("Lead Intelligence exposes scoring, SLA, nurture and assignment routing",()=>{
-  const source=read("apps/web/src/components/crm-lead-intelligence-workspace.tsx");
+  const source=read("apps/web/src/modules/crm/components/lead-intelligence-workspace.tsx");
   assert.match(source,/lead-intelligence\/scores/);
   assert.match(source,/lead-intelligence\/sla/);
   assert.match(source,/lead-intelligence\/nurture/);
@@ -87,7 +87,7 @@ test("Lead Intelligence exposes scoring, SLA, nurture and assignment routing",()
 });
 
 test("Lead detail covers lifecycle, timeline, activities, communications, notes, opportunity, score and duplicates",()=>{
-  const source=read("apps/web/src/components/crm-lead-detail-workspace.tsx");
+  const source=read("apps/web/src/modules/crm/components/lead-detail-workspace.tsx");
   for(const tab of ["overview","timeline","activities","communications","notes","opportunities","score","duplicates"])
     assert.match(source,new RegExp(`"${tab}"`));
   assert.match(source,/\/convert/);

@@ -79,7 +79,7 @@ test("business-data service builds allowlisted item inserts", async () => {
 
 test("business-data foundation passes an explicit base-currency boolean", () => {
   const source = readFileSync(
-    new URL("../src/index.js", import.meta.url),
+    new URL("../src/core/master-data.js", import.meta.url),
     "utf8",
   );
 

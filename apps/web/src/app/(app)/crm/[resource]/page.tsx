@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCrmDashboard, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
-import CrmResourceManager from "@/components/crm-resource-manager";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext, crmDefinitions, isCrmDefinition } from "@/lib/crm";
-import { canViewCrmResource } from "@/lib/crm-api";
-import { tenantTransaction } from "@/lib/db";
+import CrmResourceManager from "@/modules/crm/components/resource-manager";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext, crmDefinitions, isCrmDefinition } from "@/modules/crm";
+import { canViewCrmResource } from "@/modules/crm/api";
+import { tenantTransaction } from "@/core/db";
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 10;
 const LEAD_PRIORITIES = ["all", "low", "medium", "high", "urgent"] as const;

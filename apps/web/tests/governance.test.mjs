@@ -13,8 +13,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 // sanitizers FROM sanitize.ts rather than defining them locally, exactly
 // so this split is possible) — safe to execute directly for real
 // behavioral coverage.
-const redactModule = await loadTsModule("apps/web/src/lib/audit/redact.ts");
-const sanitizeModule = await loadTsModule("apps/web/src/lib/audit/sanitize.ts");
+const redactModule = await loadTsModule("apps/web/src/core/audit/redact.ts");
+const sanitizeModule = await loadTsModule("apps/web/src/core/audit/sanitize.ts");
 
 // ---------------------------------------------------------------------
 // Part 42/43 — redaction, real execution.
@@ -91,7 +91,7 @@ test("sanitizePageSize: bounds page size to a safe maximum, never unbounded", ()
 // ---------------------------------------------------------------------
 
 test("audit/query.ts: every WHERE condition pushed onto `conditions` references a bound $N placeholder, never a raw filter value spliced into SQL text", () => {
-  const source = read("apps/web/src/lib/audit/query.ts");
+  const source = read("apps/web/src/core/audit/query.ts");
   const conditionPushes = source.match(/conditions\.push\(`[^`]*`\)/g) ?? [];
   assert.ok(conditionPushes.length >= 5, "expected several conditions.push(...) calls");
   for (const push of conditionPushes) {
@@ -105,17 +105,17 @@ test("audit/query.ts: every WHERE condition pushed onto `conditions` references 
 });
 
 test("audit/sanitize.ts: eventTypePrefix is validated against a strict character allowlist before use", () => {
-  const source = read("apps/web/src/lib/audit/sanitize.ts");
+  const source = read("apps/web/src/core/audit/sanitize.ts");
   assert.match(source, /\^\[a-z0-9_\.\-\]\+\$/i);
 });
 
 test("audit/query.ts: listSecurityAuditEvents' event-type category filter is a hardcoded literal, never client-controlled", () => {
-  const source = read("apps/web/src/lib/audit/query.ts");
+  const source = read("apps/web/src/core/audit/query.ts");
   assert.match(source, /event_type LIKE 'auth\.%' OR a\.event_type LIKE 'access\.%' OR a\.event_type = 'module\.status_changed'/);
 });
 
 test("audit/query.ts: listLoginEvents is tenant-scoped via an INNER JOIN to organization_memberships, never by email domain guessing", () => {
-  const source = read("apps/web/src/lib/audit/query.ts");
+  const source = read("apps/web/src/core/audit/query.ts");
   assert.match(source, /JOIN organization_memberships om ON om\.user_id = le\.user_id AND om\.organization_id = \$1/);
 });
 
@@ -143,7 +143,7 @@ test("audit logs: every list view is bounded/paginated, never loads full history
     const source = read(file);
     assert.match(source, /page/i, `${file} has no pagination concept`);
   }
-  const query = read("apps/web/src/lib/audit/query.ts");
+  const query = read("apps/web/src/core/audit/query.ts");
   assert.match(query, /LIMIT \$/);
 });
 
@@ -178,7 +178,7 @@ test("audit history: entity lookup requires both entityType and entityId before 
 });
 
 test("audit event table: sensitive JSON detail is collapsed by default (no megabytes of visible JSON rendered per page load)", () => {
-  const source = read("apps/web/src/components/audit-event-table.tsx");
+  const source = read("apps/web/src/core/components/audit-event-table.tsx");
   assert.match(source, /<details/);
 });
 
@@ -187,8 +187,8 @@ test("audit event table: sensitive JSON detail is collapsed by default (no megab
 // ---------------------------------------------------------------------
 
 test("billing: subscription status values are read from the real DB CHECK constraint / shared-types union, not invented", () => {
-  const migration = read("database/control-plane/migrations/005_billing_and_razorpay.sql");
-  const types = read("packages/shared-types/src/billing.d.ts");
+  const migration = read("database/platform/migrations/005_billing_and_razorpay.sql");
+  const types = read("packages/shared-types/src/core/billing.d.ts");
   for (const status of ["trialing", "checkout_pending", "authenticated", "active", "past_due", "halted", "cancelled", "completed", "expired", "internal"]) {
     assert.match(migration, new RegExp(`'${status}'`), `subscription CHECK constraint is missing '${status}'`);
     assert.match(types, new RegExp(`"${status}"`), `BillingSubscriptionStatus type is missing "${status}"`);
@@ -196,13 +196,13 @@ test("billing: subscription status values are read from the real DB CHECK constr
 });
 
 test("billing: the Plan view's module-entitlement grid is derived from ERP_MODULE_CATALOG + plan.modules, not a hardcoded module list", () => {
-  const source = read("apps/web/src/components/billing-workspace.tsx");
+  const source = read("apps/web/src/core/components/billing-workspace.tsx");
   assert.match(source, /ERP_MODULE_CATALOG\.map\(\(module\)/);
   assert.match(source, /plan\.modules\.includes\("\*"\) \|\| plan\.modules\.includes\(module\.key\)/);
 });
 
 test("billing: the Usage section only lists the two dimensions incrementBillingUsage actually increments (api_requests_monthly, imports_rows_monthly) — no fabricated storage/automation/message metrics", () => {
-  const source = read("apps/web/src/components/billing-workspace.tsx");
+  const source = read("apps/web/src/core/components/billing-workspace.tsx");
   const dimensionsBlock = source.split("METERED_USAGE_DIMENSIONS")[1]?.split("];")[0] ?? "";
   assert.match(dimensionsBlock, /api_requests_monthly/);
   assert.match(dimensionsBlock, /imports_rows_monthly/);
@@ -210,7 +210,7 @@ test("billing: the Usage section only lists the two dimensions incrementBillingU
 });
 
 test("billing: usage rendering uses real summary.usage values, never Math.random or a static placeholder number", () => {
-  const source = read("apps/web/src/components/billing-workspace.tsx");
+  const source = read("apps/web/src/core/components/billing-workspace.tsx");
   assert.doesNotMatch(source, /Math\.random/);
   assert.match(source, /summary\.usage\[dimension\.key\]/);
 });
@@ -225,15 +225,15 @@ test("billing: mutating routes remain permission-gated (checkout/cancel require 
 });
 
 test("billing: the Razorpay webhook idempotency key (provider, provider_event_id) is untouched by this prompt", () => {
-  const migration = read("database/control-plane/migrations/005_billing_and_razorpay.sql");
+  const migration = read("database/platform/migrations/005_billing_and_razorpay.sql");
   assert.match(migration, /UNIQUE\s*\(\s*provider\s*,\s*provider_event_id\s*\)/);
 });
 
 test("billing: module entitlement resolution (isModuleEntitled) is untouched — Billing's new UI reads the same getBillingSummary() service, it does not reimplement entitlement logic", () => {
-  const moduleAccess = read("apps/web/src/lib/module-access.ts");
+  const moduleAccess = read("apps/web/src/core/module-access.ts");
   assert.match(moduleAccess, /export async function isModuleEntitled/);
   assert.match(moduleAccess, /getBillingSummary\(/);
-  const workspace = read("apps/web/src/components/billing-workspace.tsx");
+  const workspace = read("apps/web/src/core/components/billing-workspace.tsx");
   assert.doesNotMatch(workspace, /isModuleEntitled|resolveModuleAccess/, "billing-workspace.tsx must not reimplement entitlement resolution");
 });
 
@@ -242,19 +242,19 @@ test("billing: module entitlement resolution (isModuleEntitled) is untouched —
 // ---------------------------------------------------------------------
 
 test("migration 030 registers compliance.view and grants it only to governance-appropriate existing roles (organization_owner, system_administrator, company_administrator, auditor)", () => {
-  const migration = read("database/control-plane/migrations/030_compliance_permission.sql");
+  const migration = read("database/platform/migrations/030_compliance_permission.sql");
   assert.match(migration, /INSERT INTO permissions \(key, name, category, description\) VALUES\s*\n\s*\('compliance\.view'/);
   assert.match(migration, /slug IN \('organization_owner', 'system_administrator', 'company_administrator', 'auditor'\)/);
 });
 
 test("access-control.ts: the Auditor role explicitly gains compliance.view (read-only governance visibility), consistent with its existing audit.view/billing.audit grants", () => {
-  const source = read("apps/web/src/lib/access-control.ts");
+  const source = read("apps/web/src/core/access-control.ts");
   const auditorBlock = source.split('slug: "auditor"')[1]?.split("},\n  {")[0] ?? "";
   assert.match(auditorBlock, /"compliance\.view"/);
 });
 
 test("navigation: governance.ts declares Billing and Audit logs and omits the retired shared Compliance workspace", () => {
-  const source = read("apps/web/src/lib/navigation/governance.ts");
+  const source = read("apps/web/src/core/navigation/governance.ts");
   assert.match(source, /href: "\/billing"/);
   assert.match(source, /href: "\/audit-logs"/);
   assert.doesNotMatch(source, /href: "\/compliance"/);
@@ -266,15 +266,15 @@ test("navigation: governance.ts declares Billing and Audit logs and omits the re
 // ---------------------------------------------------------------------
 
 test("security regression: audit_events immutability trigger is untouched by this prompt", () => {
-  const source = read("database/control-plane/migrations/002_platform_foundation.sql");
+  const source = read("database/platform/migrations/002_platform_foundation.sql");
   assert.match(source, /RAISE EXCEPTION 'audit_events are immutable'/);
 });
 
 test("security regression: HR/Procurement/Support module data is never queried by any new governance page or lib file", () => {
   const files = [
     ...AUDIT_PAGES,
-    "apps/web/src/lib/audit/query.ts",
-    "apps/web/src/lib/audit/redact.ts",
+    "apps/web/src/core/audit/query.ts",
+    "apps/web/src/core/audit/redact.ts",
     "apps/web/src/app/api/audit-logs/export/route.ts",
   ];
   for (const file of files) {

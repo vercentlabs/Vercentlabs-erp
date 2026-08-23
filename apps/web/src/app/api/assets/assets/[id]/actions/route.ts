@@ -6,11 +6,11 @@ import {
 } from "@vercentlabs/api";
 import { NextResponse } from "next/server";
 
-import { assetsContext } from "@/lib/assets";
-import { assetActionSchema } from "@/lib/assets-validation";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { requireModuleWorkspace } from "@/lib/module-access";
+import { assetsContext } from "@/modules/assets";
+import { assetActionSchema } from "@/modules/assets/validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { requireModuleWorkspace } from "@/core/module-access";
 
 export async function POST(
   request: Request,

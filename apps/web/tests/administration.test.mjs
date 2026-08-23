@@ -11,7 +11,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 // my-work/types.ts has no @/lib/auth or @/lib/db dependency (only a
 // type-only import, elided by transpileModule) — safe to execute directly
 // for real timezone-aware behavioral coverage.
-const typesModule = await loadTsModule("apps/web/src/lib/my-work/types.ts");
+const typesModule = await loadTsModule("apps/web/src/core/work/types.ts");
 
 // ---------------------------------------------------------------------
 // Part 13 — the one Prompt 8 gap that belongs in Prompt 10: due-date
@@ -60,9 +60,9 @@ test("classifyDueAt: omitting the timezone entirely still works (backward-compat
 
 test("my-work adapters: every classifyDueAt call site threads session.timezone through (Part 13 fix applied everywhere it was missing)", () => {
   for (const file of [
-    "apps/web/src/lib/my-work/tasks.ts",
-    "apps/web/src/lib/my-work/follow-ups.ts",
-    "apps/web/src/lib/my-work/exceptions.ts",
+    "apps/web/src/core/work/tasks.ts",
+    "apps/web/src/core/work/follow-ups.ts",
+    "apps/web/src/core/work/exceptions.ts",
   ]) {
     const source = read(file);
     const calls = source.match(/classifyDueAt\([^)]*\)/g) ?? [];
@@ -93,7 +93,7 @@ test("no new 'manage' permission was added for automation/integrations/data-mana
 });
 
 test("migration 031 registers the three permissions and grants them to organization_owner/system_administrator/company_administrator/auditor for every existing organization, plus automation.view to crm_administrator", () => {
-  const migration = read("database/control-plane/migrations/031_administration_permissions.sql");
+  const migration = read("database/platform/migrations/031_administration_permissions.sql");
   assert.match(migration, /'automation\.view'/);
   assert.match(migration, /'integrations\.view'/);
   assert.match(migration, /'data_management\.view'/);
@@ -102,7 +102,7 @@ test("migration 031 registers the three permissions and grants them to organizat
 });
 
 test("access-control.ts: Auditor gains all three new view permissions (read-only governance oversight), and CRM Administrator gains automation.view (automation is a CRM-owned capability today)", () => {
-  const source = read("apps/web/src/lib/access-control.ts");
+  const source = read("apps/web/src/core/access-control.ts");
   const auditorBlock = source.split('slug: "auditor"')[1]?.split("},\n  {")[0] ?? "";
   assert.match(auditorBlock, /"automation\.view"/);
   assert.match(auditorBlock, /"integrations\.view"/);
@@ -116,13 +116,13 @@ test("access-control.ts: Auditor gains all three new view permissions (read-only
 // ---------------------------------------------------------------------
 
 test("report catalogue covers exactly the 4 modules with a real report implementation (CRM, Sales, Procurement, Accounting) — no fabricated routes for the other 8", () => {
-  const source = read("apps/web/src/lib/reports/catalogue.ts");
+  const source = read("apps/web/src/core/reports/catalogue.ts");
   const moduleIds = [...source.matchAll(/moduleId: "([a-z-]+)" as ModuleId/g)].map((m) => m[1]);
   assert.deepEqual(new Set(moduleIds), new Set(["crm", "sales", "procurement", "accounting"]));
 });
 
 test("report catalogue: every entry's route resolves to a real page.tsx (cross-checked structurally — the same 4 module report pages already verified by verify-routes.mjs)", () => {
-  const source = read("apps/web/src/lib/reports/catalogue.ts");
+  const source = read("apps/web/src/core/reports/catalogue.ts");
   const routes = [...source.matchAll(/route: "(\/[a-z/]+)"/g)].map((m) => m[1]);
   const uniqueRoutes = new Set(routes);
   assert.deepEqual(
@@ -176,7 +176,7 @@ test("integrations page: delivery is genuinely automated (Prompt 13), but the pa
 });
 
 test("integrations.ts: never reads or exposes a webhook secret value — only secretReference (a pointer), matching Part 36/67's redaction requirement", () => {
-  const source = read("apps/web/src/lib/integrations.ts");
+  const source = read("apps/web/src/core/integrations.ts");
   assert.doesNotMatch(source, /secret_value|secretValue/);
   assert.match(source, /secretReference/);
 });
@@ -273,7 +273,7 @@ test("no new Administration page AFFIRMATIVELY claims SSO, SCIM, SIEM, SOC2/ISO 
 // ---------------------------------------------------------------------
 
 test("navigation: administration.ts declares Security, Reports & analytics, Integrations, and Data management with real hrefs and correct permission gates", () => {
-  const source = read("apps/web/src/lib/navigation/administration.ts");
+  const source = read("apps/web/src/core/navigation/administration.ts");
   assert.match(source, /href: "\/security"/);
   assert.doesNotMatch(source, /href: "\/automation"/);
   assert.match(source, /href: "\/reports"/);
@@ -284,13 +284,13 @@ test("navigation: administration.ts declares Security, Reports & analytics, Inte
 });
 
 test("navigation: Reports & analytics has no permission gate at the nav-item level (matches the page's own no-blanket-gate design)", () => {
-  const source = read("apps/web/src/lib/navigation/administration.ts");
+  const source = read("apps/web/src/core/navigation/administration.ts");
   const reportsItem = source.split('href: "/reports"')[1]?.split("},")[0] ?? "";
   assert.doesNotMatch(reportsItem, /permission:/);
 });
 
 test("navigation: no duplicate hrefs exist across workspaceSettingsNavigation and administrationNavigation", () => {
-  const source = read("apps/web/src/lib/navigation/administration.ts");
+  const source = read("apps/web/src/core/navigation/administration.ts");
   const hrefs = [...source.matchAll(/href: "([^"]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(hrefs).size, hrefs.length, "duplicate href found in administration.ts");
 });
@@ -317,12 +317,12 @@ test("settings hub: empty groups (zero visible items for the caller) are not ren
 // ---------------------------------------------------------------------
 
 test("security regression: audit_events immutability trigger is untouched", () => {
-  const source = read("database/control-plane/migrations/002_platform_foundation.sql");
+  const source = read("database/platform/migrations/002_platform_foundation.sql");
   assert.match(source, /RAISE EXCEPTION 'audit_events are immutable'/);
 });
 
 test("security regression: integrations reads tenant data exclusively through tenantTransaction() — no raw cross-tenant query", () => {
-  for (const file of ["apps/web/src/lib/integrations.ts"]) {
+  for (const file of ["apps/web/src/core/integrations.ts"]) {
     const source = read(file);
     assert.match(source, /tenantTransaction\(/, `${file} does not use tenantTransaction`);
     assert.match(source, /organization_id\s*=\s*\$1|session\.organizationId/, `${file} is not organization-scoped`);

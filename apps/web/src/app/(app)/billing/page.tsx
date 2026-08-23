@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
-import BillingWorkspace from "@/components/billing-workspace";
+import BillingWorkspace from "@/core/components/billing-workspace";
 import {
   hasPermission,
   PERMISSIONS,
   requirePermission,
-} from "@/lib/authorization";
-import { getBillingSummary, listBillingPlans } from "@/lib/billing";
-import { query } from "@/lib/db";
+} from "@/core/authorization";
+import { getBillingSummary, listBillingPlans } from "@/core/billing";
+import { query } from "@/core/db";
 
 export const metadata: Metadata = { title: "Billing" };
 export const dynamic = "force-dynamic";

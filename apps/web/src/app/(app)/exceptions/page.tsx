@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import WorkItemList from "@/components/work-item-list";
-import { requireWorkspace } from "@/lib/auth";
-import { listMyExceptions } from "@/lib/my-work/exceptions";
-import type { WorkItem } from "@/lib/my-work/types";
+import WorkItemList from "@/shared/components/work-item-list";
+import { requireWorkspace } from "@/core/auth";
+import { listMyExceptions } from "@/core/work/exceptions";
+import type { WorkItem } from "@/core/work/types";
 
 export const metadata = { title: "Exceptions" };
 export const dynamic = "force-dynamic";

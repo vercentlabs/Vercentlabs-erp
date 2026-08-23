@@ -1,16 +1,16 @@
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
+} from "@/core/billing";
 import { completeCrmActivity } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { assertCrmIdentifier } from "@/lib/crm-api";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { completeActivitySchema } from "@/lib/crm-validation";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { assertCrmIdentifier } from "@/modules/crm/api";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { completeActivitySchema } from "@/modules/crm/validation";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
 export async function POST(
   request: Request,
   route: { params: Promise<{ id: string }> },

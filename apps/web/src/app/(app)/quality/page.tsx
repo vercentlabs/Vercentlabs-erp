@@ -1,11 +1,11 @@
 import { getQualityDashboard } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import QualityDashboard from "@/components/quality/quality-dashboard";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { qualityContext } from "@/lib/quality";
+import AccessDenied from "@/shared/components/access-denied";
+import QualityDashboard from "@/modules/quality/components/quality-dashboard";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { qualityContext } from "@/modules/quality";
 
 export const metadata = { title: "Quality" };
 export const dynamic = "force-dynamic";

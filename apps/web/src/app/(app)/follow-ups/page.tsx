@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import WorkItemList from "@/components/work-item-list";
-import { requireWorkspace } from "@/lib/auth";
-import { listMyFollowUps } from "@/lib/my-work/follow-ups";
-import type { WorkItem, WorkItemUrgency } from "@/lib/my-work/types";
+import WorkItemList from "@/shared/components/work-item-list";
+import { requireWorkspace } from "@/core/auth";
+import { listMyFollowUps } from "@/core/work/follow-ups";
+import type { WorkItem, WorkItemUrgency } from "@/core/work/types";
 
 export const metadata = { title: "Follow-ups & reminders" };
 export const dynamic = "force-dynamic";

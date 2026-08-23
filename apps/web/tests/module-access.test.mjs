@@ -17,7 +17,7 @@ const sharedTypes = await import(
 );
 
 async function loadAccessControl() {
-  const sourcePath = path.join(root, "apps/web/src/lib/access-control.ts");
+  const sourcePath = path.join(root, "apps/web/src/core/access-control.ts");
   const source = fs.readFileSync(sourcePath, "utf8");
   const permissionsUrl = pathToFileURL(
     path.join(root, "packages/permissions/src/index.js"),
@@ -139,7 +139,7 @@ test("invariant: every released business module resolves through catalogue -> pe
 // ---------------------------------------------------------------------
 
 test("resolver: every catalogue module has a base view-permission mapping (no silent fall-through)", () => {
-  const source = read("apps/web/src/lib/module-access.ts");
+  const source = read("apps/web/src/core/module-access.ts");
   for (const erpModule of sharedTypes.ERP_MODULE_CATALOG) {
     const escaped = erpModule.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Valid-identifier keys are written bare (crm:), hyphenated keys are
@@ -153,7 +153,7 @@ test("resolver: every catalogue module has a base view-permission mapping (no si
 });
 
 test("resolver: fails closed on lookup errors rather than defaulting to access", () => {
-  const source = read("apps/web/src/lib/module-access.ts");
+  const source = read("apps/web/src/core/module-access.ts");
   // Every catch block touching enabled/entitled must resolve to a
   // denying value, never true/entitled/accessible.
   const catchBlocks = source.match(/catch \{[^}]*\}/g) ?? [];
@@ -174,7 +174,7 @@ test("resolver: fails closed on lookup errors rather than defaulting to access",
 });
 
 test("resolver: company/branch scope is never consulted by module access resolution (module access is not record access)", () => {
-  const source = read("apps/web/src/lib/module-access.ts");
+  const source = read("apps/web/src/core/module-access.ts");
   // Checks actual field access (session.activeCompanyId), not prose — this
   // file's own doc comment legitimately names both fields when explaining
   // why they're deliberately out of scope (Part 10).
@@ -220,7 +220,7 @@ test("no runtime code special-cases the four originally-launched modules as un-d
 
 test("a later migration re-enables organization_modules rows still stuck in their pristine, never-enabled post-009-seed state, and backfills any that are missing outright, for all 8 modules released after the original four-module cohort", () => {
   const migration = read(
-    "database/control-plane/migrations/028_organization_modules_backfill.sql",
+    "database/platform/migrations/028_organization_modules_backfill.sql",
   );
   for (const moduleKey of [
     "stock", "manufacturing", "projects", "assets",
@@ -250,7 +250,7 @@ test("a later migration re-enables organization_modules rows still stuck in thei
 // ---------------------------------------------------------------------
 
 test("organization provisioning seeds roles from the canonical ROLE_TEMPLATES, not a separate hand-maintained list", () => {
-  const source = read("apps/web/src/lib/platform.ts");
+  const source = read("apps/web/src/core/platform.ts");
   assert.match(source, /import \{ ROLE_TEMPLATES \} from "@\/lib\/access-control"/);
   assert.doesNotMatch(source, /const roleSeed = \[/, "platform.ts must not keep its own duplicate role seed list");
   assert.doesNotMatch(source, /function permissionsForRole/, "platform.ts must not keep its own duplicate permission resolver");

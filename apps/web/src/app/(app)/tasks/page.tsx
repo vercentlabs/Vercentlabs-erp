@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import WorkItemList from "@/components/work-item-list";
-import { requireWorkspace } from "@/lib/auth";
-import { listMyTasks } from "@/lib/my-work/tasks";
-import type { WorkItem, WorkItemUrgency } from "@/lib/my-work/types";
+import WorkItemList from "@/shared/components/work-item-list";
+import { requireWorkspace } from "@/core/auth";
+import { listMyTasks } from "@/core/work/tasks";
+import type { WorkItem, WorkItemUrgency } from "@/core/work/types";
 
 export const metadata = { title: "Tasks" };
 export const dynamic = "force-dynamic";

@@ -1,11 +1,11 @@
 import { completePointOfSale } from "@vercentlabs/api";
 import { NextResponse } from "next/server";
 
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { requireModuleWorkspace } from "@/lib/module-access";
-import { pointOfSaleContext } from "@/lib/point-of-sale";
-import { posSaleCompleteSchema } from "@/lib/point-of-sale-validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { requireModuleWorkspace } from "@/core/module-access";
+import { pointOfSaleContext } from "@/modules/point-of-sale";
+import { posSaleCompleteSchema } from "@/modules/point-of-sale/validation";
 
 export async function POST(request: Request) {
   try {

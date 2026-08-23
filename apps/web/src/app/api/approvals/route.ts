@@ -2,17 +2,17 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { getApprovalCommand } from "@/lib/approval-commands";
-import { getSessionContext } from "@/lib/auth";
+import { getApprovalCommand } from "@/core/approvals";
+import { getSessionContext } from "@/core/auth";
 import {
   requireApiPermission,
   requirePermissionFromSession,
-} from "@/lib/authorization";
-import { requireBillingWriteAccess } from "@/lib/billing";
-import { transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { listMyApprovals } from "@/lib/my-work/approvals";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+} from "@/core/authorization";
+import { requireBillingWriteAccess } from "@/core/billing";
+import { transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { listMyApprovals } from "@/core/work/approvals";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 const createApprovalSchema = z.object({
   commandKey: z.string().trim().min(3).max(120),

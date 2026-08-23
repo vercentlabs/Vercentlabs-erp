@@ -1,10 +1,10 @@
 import { findCrmDuplicates } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requireCrmView } from "@/lib/crm-api";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { duplicateSchema } from "@/lib/crm-validation";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { requireCrmView } from "@/modules/crm/api";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { duplicateSchema } from "@/modules/crm/validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
 export async function GET(request: Request) {
   try {
     const session = await getSessionContext();

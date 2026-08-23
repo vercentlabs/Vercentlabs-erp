@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import AppIcon from "@/components/app-icon";
-import WorkItemList from "@/components/work-item-list";
-import { requireWorkspace } from "@/lib/auth";
-import { getMyWorkSummary } from "@/lib/my-work/aggregate";
+import AppIcon from "@/shared/components/app-icon";
+import WorkItemList from "@/shared/components/work-item-list";
+import { requireWorkspace } from "@/core/auth";
+import { getMyWorkSummary } from "@/core/work/aggregate";
 
 export const metadata = { title: "My work" };
 export const dynamic = "force-dynamic";

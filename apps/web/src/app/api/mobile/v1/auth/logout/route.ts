@@ -1,9 +1,9 @@
-import { audit } from "@/lib/security";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
+import { audit } from "@/core/security";
+import { mobileError, mobileOk } from "@/core/mobile-http";
 import {
   requireMobileSession,
   revokeMobileSession,
-} from "@/lib/mobile-session";
+} from "@/core/mobile-session";
 
 export async function POST(request: Request) {
   try {

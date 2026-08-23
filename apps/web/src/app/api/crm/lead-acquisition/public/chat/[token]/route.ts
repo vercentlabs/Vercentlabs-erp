@@ -1,7 +1,7 @@
 import { appendLeadChatMessage, startLeadChatSession } from "@vercentlabs/api";
-import { crmLeadAcquisitionErrorResponse } from "@/lib/crm-lead-acquisition-route";
-import { query, tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
+import { crmLeadAcquisitionErrorResponse } from "@/modules/crm/server/lead-acquisition";
+import { query, tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
 
 export async function POST(
   request: Request,

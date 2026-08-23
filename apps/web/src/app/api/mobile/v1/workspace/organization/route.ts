@@ -1,13 +1,13 @@
-import { getShellData } from "@/lib/platform";
-import { query } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
+import { getShellData } from "@/core/platform";
+import { query } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
 import {
   publicSession,
   requireMobileSession,
-} from "@/lib/mobile-session";
-import { audit } from "@/lib/security";
-import { organizationContextSchema } from "@/lib/validation";
+} from "@/core/mobile-session";
+import { audit } from "@/core/security";
+import { organizationContextSchema } from "@/core/validation";
 
 export async function PATCH(request: Request) {
   try {

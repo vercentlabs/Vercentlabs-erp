@@ -20,7 +20,7 @@ test("verification flow includes resend and token-aware continuation", () => {
 });
 
 test("authentication email has a monitored support reply-to address", () => {
-  const mailer = read("src/lib/mailer.ts");
+  const mailer = read("src/core/mailer.ts");
   const environment = read(".env.example");
 
   assert.match(mailer, /AUTH_EMAIL_REPLY_TO/);
@@ -45,7 +45,7 @@ test("password reset returns to login and invalidates sessions", () => {
 
 test("platform schema includes access, audit and shared services", () => {
   const sql = read(
-    "../../database/control-plane/migrations/002_platform_foundation.sql",
+    "../../database/platform/migrations/002_platform_foundation.sql",
   );
   for (const table of [
     "roles",

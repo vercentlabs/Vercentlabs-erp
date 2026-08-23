@@ -13,7 +13,7 @@ No durable worker/scheduler process existed anywhere in this repository before t
 
 This prompt replaces that model with one new package, `services/worker`, built on PostgreSQL (the only database this repository provisions anywhere — no Redis reference exists in the codebase, confirmed by repository-wide search) using the `FOR UPDATE SKIP LOCKED` pattern for safe multi-worker concurrency. Two real, independently-verified data structures were found and reused rather than reinvented: `tenant.crm_outbox_events` (already a complete, purpose-built webhook-delivery queue with lease columns, retry metadata, and a `dead_letter` terminal state — just never consumed) is used as-is for webhook delivery; a new, minimal `tenant.background_jobs` table handles everything else, currently just the one scheduled CRM automation tick.
 
-**A significant, independent finding surfaced during this work, outside this prompt's own scope**: `apps/web/src/lib/crm.ts`'s `crmContext()` never copies `permissions`/`roleSlugs` from the real session onto the CRM context object it builds, even though `SessionContext` genuinely carries both. This means `canViewAllCrmRecords()` — the function Prompt 3 built and Prompt 12 just fixed the permission-catalogue registration for — evaluates `false` for every real request today, including for `organization_owner`. It fails toward *more* restriction (no security leak: nobody gets elevated visibility they shouldn't), but the "manager sees the team's records" feature Prompt 3 shipped and tested is non-functional in production for everyone. This is unrelated to worker/scheduler work and was **not fixed** in this prompt (real scope creep, and CRM authorization code deserves its own careful, dedicated fix) — see Section 26.
+**A significant, independent finding surfaced during this work, outside this prompt's own scope**: `apps/web/src/modules/crm/index.ts`'s `crmContext()` never copies `permissions`/`roleSlugs` from the real session onto the CRM context object it builds, even though `SessionContext` genuinely carries both. This means `canViewAllCrmRecords()` — the function Prompt 3 built and Prompt 12 just fixed the permission-catalogue registration for — evaluates `false` for every real request today, including for `organization_owner`. It fails toward *more* restriction (no security leak: nobody gets elevated visibility they shouldn't), but the "manager sees the team's records" feature Prompt 3 shipped and tested is non-functional in production for everyone. This is unrelated to worker/scheduler work and was **not fixed** in this prompt (real scope creep, and CRM authorization code deserves its own careful, dedicated fix) — see Section 26.
 
 Two genuine bugs were found and fixed **within** this prompt's own new code, caught by writing real (not merely mocked) tests against local HTTP servers rather than trusting the implementation: `validateWebhookUrl()` never actually accepted or used its `allowPrivate` override, and the SSRF pre-check ran outside the function's own try/catch, so a blocked destination surfaced as a raw, unclassified error instead of a proper `WebhookDeliveryError`. Both are fixed and covered by dedicated regression tests (Section 23).
 
@@ -25,7 +25,7 @@ Directly re-audited, not trusted from Prompt 10's summary (per this prompt's own
 
 | Structure | Location | Producer | Consumer before this prompt | Persisted? |
 |---|---|---|---|---|
-| `tenant.crm_automation_rules`/`crm_automation_runs` | `002_crm_module.sql` | `runCrmAutomation()` (`services/api/src/crm.js`), called synchronously for 3 of 7 defined event types | The 3 live event types' own synchronous call sites | Yes |
+| `tenant.crm_automation_rules`/`crm_automation_runs` | `002_crm_module.sql` | `runCrmAutomation()` (`services/api/src/modules/crm/index.js`), called synchronously for 3 of 7 defined event types | The 3 live event types' own synchronous call sites | Yes |
 | `tenant.crm_outbox_events` | `002_crm_module.sql`, extended by `004_enterprise_tenant_integrity.sql` (added `locked_at`, `provider_message_id`, `delivery_receipt`) and `007_crm_outbox_leases.sql` (added `locked_by`) | `queueOutboxEvent()`, called at 8 real sites in `crm.js` including one automation action type (`emit_event`) | **None** — confirmed by exhaustive grep, no route/script/worker ever read this table before this prompt |
 | `tenant.crm_webhook_subscriptions` | `002_crm_module.sql` | CRM Settings UI (real CRUD, a registered CRM resource) | **None** — subscriptions could be created but nothing ever consulted them for delivery |
 | `infrastructure/docker/Dockerfile.worker` | — | — | `CMD ["node", "scripts/process-crm-jobs.mjs"]` — the referenced script does not exist anywhere in the repository |
@@ -199,7 +199,7 @@ Response/error classification (`src/webhook-delivery.js`): 2xx → success; 408/
 
 ### Outbox
 
-Reused as-is (Section 4) — `tenant.crm_outbox_events`, written at 8 real call sites in `services/api/src/crm.js`, now genuinely consumed for the first time.
+Reused as-is (Section 4) — `tenant.crm_outbox_events`, written at 8 real call sites in `services/api/src/modules/crm/index.js`, now genuinely consumed for the first time.
 
 ### Delivery
 
@@ -357,7 +357,7 @@ No other row in `ERP_FEATURE_MATRIX_011.csv` or `ERP_ACCOUNTING_MATRIX_011.csv` 
 **Modified**:
 - `packages/config/src/index.js` — `validateRuntimeEnvironment("worker", ...)` extended with worker-specific tuning knobs (`WORKER_ENABLED`/`CONCURRENCY`/`POLL_INTERVAL_MS`/`LEASE_MS`/`BATCH_SIZE`/`SCHEDULER_TICK_MS`/`WEBHOOK_TIMEOUT_MS`/`ALLOW_PRIVATE_WEBHOOK_TARGETS`).
 - `apps/web/src/lib/automation.ts` — `LIVE_AUTOMATION_EVENT_TYPES` gained `activity.overdue`; new `getScheduledAutomationStatus()`.
-- `apps/web/src/lib/integrations.ts` — new `listRecentWebhookDeliveries()`.
+- `apps/web/src/core/integrations.ts` — new `listRecentWebhookDeliveries()`.
 - `apps/web/src/app/(app)/automation/page.tsx` — updated copy, real scheduled-job metric card.
 - `apps/web/src/app/(app)/integrations/page.tsx` — updated copy, real delivery status badge, new recent-deliveries table.
 - `apps/web/tests/administration.test.mjs` — 3 stale Prompt 10 assertions updated to match genuinely-changed, honestly-disclosed new behavior.
@@ -366,7 +366,7 @@ No other row in `ERP_FEATURE_MATRIX_011.csv` or `ERP_ACCOUNTING_MATRIX_011.csv` 
 - `package.json` — `dev:worker`/`start:worker`/`test:worker`/`verify:worker` added; `verify:worker` wired into `pnpm verify`; `test:worker` wired into `test:all`.
 - `pnpm-lock.yaml` — `undici` added as a real dependency of `services/worker` (DNS-rebinding-resistant HTTP client, Section 17).
 
-**Unchanged (confirmed, not merely assumed)**: every Prompt 3/12 CRM ownership/security file (`services/api/src/crm.js`'s `recordScope`/`assertOwnerAssignmentAllowed`, unchanged — only `runCrmAutomation` is *called* from a new source, never modified itself); `services/api/src/{manufacturing,point-of-sale,stock}/index.js` (Prompt 12's stock-integrity fix, unaffected); billing code; every other Administration workspace.
+**Unchanged (confirmed, not merely assumed)**: every Prompt 3/12 CRM ownership/security file (`services/api/src/modules/crm/index.js`'s `recordScope`/`assertOwnerAssignmentAllowed`, unchanged — only `runCrmAutomation` is *called* from a new source, never modified itself); `services/api/src/{manufacturing,point-of-sale,stock}/index.js` (Prompt 12's stock-integrity fix, unaffected); billing code; every other Administration workspace.
 
 ---
 

@@ -1,18 +1,18 @@
 import { listBusinessDataRecords } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   businessDataContext,
   businessDataDefinitions,
   isBusinessDataDefinition,
   rethrowBusinessDataError,
-} from "@/lib/business-data";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError } from "@/lib/http";
-import { audit } from "@/lib/security";
+} from "@/core/master-data";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError } from "@/core/http";
+import { audit } from "@/core/security";
 
-import { csvCell } from "@/lib/csv";
+import { csvCell } from "@/core/csv";
 
 export async function GET(
   request: Request,

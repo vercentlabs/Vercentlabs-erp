@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import { getMobileSessionContext, verifyPasswordOrDummy } from "@/lib/auth";
-import { query } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
+import { getMobileSessionContext, verifyPasswordOrDummy } from "@/core/auth";
+import { query } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
 import {
   enforceLoginRateLimits,
   GENERIC_LOGIN_FAILURE,
@@ -12,9 +12,9 @@ import {
   loginFailureReason,
   recordFailedPasswordAttempt,
   recordSuccessfulLogin,
-} from "@/lib/login-policy";
-import { createMobileSession } from "@/lib/mobile-session";
-import { audit, recordLoginEvent } from "@/lib/security";
+} from "@/core/login-policy";
+import { createMobileSession } from "@/core/mobile-session";
+import { audit, recordLoginEvent } from "@/core/security";
 
 const inputSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),

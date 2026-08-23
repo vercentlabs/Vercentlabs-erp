@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateLeadScore, isCrmResource } from "../src/crm.js";
+import { calculateLeadScore, isCrmResource } from "../src/modules/crm/index.js";
 
 test("CRM rejects unknown resources", () =>
   assert.equal(isCrmResource("anything"), false));

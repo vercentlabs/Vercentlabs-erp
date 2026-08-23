@@ -1,7 +1,7 @@
-import { getSessionContext, setSessionOrganization } from "@/lib/auth";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { organizationContextSchema } from "@/lib/validation";
+import { getSessionContext, setSessionOrganization } from "@/core/auth";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { organizationContextSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

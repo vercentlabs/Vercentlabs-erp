@@ -1,10 +1,10 @@
 import { getCrmReport } from "@vercentlabs/api";
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
-import { getSessionContext } from "@/lib/auth";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { requireCrmReportView } from "@/lib/crm-api";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { requireCrmReportView } from "@/modules/crm/api";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
 function reportLabel(value: string) {
   return value
     .replaceAll("-", " ")

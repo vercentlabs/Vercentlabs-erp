@@ -1,11 +1,11 @@
 import { listBusinessDataRecords, listCrmRecords } from "@vercentlabs/api";
 import Link from "next/link";
 
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { businessDataContext } from "@/lib/business-data";
-import { crmContext } from "@/lib/crm";
-import { query, tenantTransaction } from "@/lib/db";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { businessDataContext } from "@/core/master-data";
+import { crmContext } from "@/modules/crm";
+import { query, tenantTransaction } from "@/core/db";
 
 export const metadata = { title: "Search" };
 

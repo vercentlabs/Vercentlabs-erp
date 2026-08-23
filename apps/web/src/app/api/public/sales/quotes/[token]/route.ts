@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { recordPublicQuoteDecision, resolvePublicQuoteToken } from "@vercentlabs/api";
-import { query, tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { clientIp } from "@/lib/security";
-import { rethrowSalesError } from "@/lib/sales";
-import { salesActionSchema } from "@/lib/sales-validation";
+import { query, tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { clientIp } from "@/core/security";
+import { rethrowSalesError } from "@/modules/sales";
+import { salesActionSchema } from "@/modules/sales/validation";
 function hash(token: string) { return createHash("sha256").update(token).digest("hex"); }
 async function mapping(token: string) { const tokenHash = hash(token); const rows = await query<{ organization_id: string }>(`SELECT organization_id FROM sales_public_quote_tokens WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now()`, [tokenHash]); if (!rows[0]) throw new HttpError(410, "This quotation link has expired or was revoked."); return { tokenHash, organizationId: rows[0].organization_id }; }
 export async function GET(_request: Request, route: { params: Promise<{ token: string }> }) { try { const { token } = await route.params; const map = await mapping(token); const context = { organizationId: map.organizationId, userId: null, activeCompanyId: null, activeBranchId: null, allowAllCompanies: false, permissions: [], roleSlugs: [] }; const result = await tenantTransaction(map.organizationId, (client) => resolvePublicQuoteToken(client, context, map.tokenHash, true)); return ok({ quotation: result.quotation }); } catch (error) { try { rethrowSalesError(error); } catch (mapped) { return errorResponse(mapped); } } }

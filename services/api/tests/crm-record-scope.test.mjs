@@ -10,7 +10,7 @@ import {
   getCrmDashboard,
   getCrmReport,
   findCrmDuplicates,
-} from "../src/crm.js";
+} from "../src/modules/crm/index.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const company = "22222222-2222-4222-8222-222222222222";
@@ -391,7 +391,7 @@ test("CRM: duplicate detection is NOT owner-scoped — a restricted rep still se
   // recordScope(resources.leads, ...) here would silently narrow it to
   // "duplicates I own," defeating its purpose — this was caught during the
   // Part 12 adversarial review and fixed by stripping ownerField for this
-  // one query only (see services/api/src/crm.js, findCrmDuplicates).
+  // one query only (see services/api/src/modules/crm/index.js, findCrmDuplicates).
   const colleaguesLead = {
     id: leadId,
     code: "LEAD-1",

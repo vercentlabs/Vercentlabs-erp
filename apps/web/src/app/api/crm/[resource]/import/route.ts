@@ -3,18 +3,18 @@ import { createHash } from "node:crypto";
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
+} from "@/core/billing";
 import { createCrmRecord } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
-import { requireCrmManage } from "@/lib/crm-api";
-import { crmSchemas } from "@/lib/crm-validation";
-import { parseCsv } from "@/lib/csv";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
-import { assertSameOrigin, audit, readRequestBytes } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
+import { requireCrmManage } from "@/modules/crm/api";
+import { crmSchemas } from "@/modules/crm/validation";
+import { parseCsv } from "@/core/csv";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
+import { assertSameOrigin, audit, readRequestBytes } from "@/core/security";
 
 export async function POST(
   request: Request,

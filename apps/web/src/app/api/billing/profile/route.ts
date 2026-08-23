@@ -1,9 +1,9 @@
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { billingProfileSchema } from "@/lib/billing-validation";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { billingProfileSchema } from "@/core/billing-validation";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 export async function PATCH(request: Request) {
   try {

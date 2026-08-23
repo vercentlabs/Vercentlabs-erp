@@ -10,10 +10,10 @@ import {
   saveQuotationView,
 } from "@vercentlabs/api";
 
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { rethrowSalesError } from "@/lib/sales";
-import { salesSession, tenantTransaction } from "@/lib/sales-route";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { rethrowSalesError } from "@/modules/sales";
+import { salesSession, tenantTransaction } from "@/modules/sales/server";
 
 function required(value: string | null, label: string) {
   const result = String(value || "").trim();

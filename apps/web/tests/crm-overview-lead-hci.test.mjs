@@ -13,10 +13,10 @@ test("CRM overview remains driven by scoped getCrmDashboard data",()=>{
 });
 
 test("Lead create remains a dedicated full-page create workflow",()=>{
-  const manager=read("apps/web/src/components/crm-resource-manager.tsx");
+  const manager=read("apps/web/src/modules/crm/components/resource-manager.tsx");
   assert.match(manager,/CrmLeadCreateWorkspace/);
   assert.match(manager,/definition\.key === "leads" && editing && !editing\.id && canManage/);
-  const create=read("apps/web/src/components/crm-lead-create-workspace.tsx");
+  const create=read("apps/web/src/modules/crm/components/lead-create-workspace.tsx");
   assert.match(create,/\/api\/crm\/leads\/duplicates\?/);
   assert.match(create,/requestJson<CreateResponse>\("\/api\/crm\/leads"/);
 });

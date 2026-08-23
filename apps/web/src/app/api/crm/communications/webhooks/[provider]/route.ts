@@ -4,10 +4,10 @@ import {
   recordEmailEngagementEvent,
   verifyCrmProviderWebhookSignature,
 } from "@vercentlabs/api";
-import { crmCommunicationsErrorResponse } from "@/lib/crm-communications-route";
-import { query, tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
-import { readRequestBytes } from "@/lib/security";
+import { crmCommunicationsErrorResponse } from "@/modules/crm/server/communications";
+import { query, tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
+import { readRequestBytes } from "@/core/security";
 
 export async function POST(
   request: Request,

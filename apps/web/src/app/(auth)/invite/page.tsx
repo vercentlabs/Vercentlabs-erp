@@ -1,8 +1,8 @@
 import Link from "next/link";
-import AuthCard from "@/components/auth-card";
-import AcceptInvitationForm from "@/components/accept-invitation-form";
-import { tokenHash } from "@/lib/auth";
-import { query } from "@/lib/db";
+import AuthCard from "@/core/components/auth-card";
+import AcceptInvitationForm from "@/core/components/accept-invitation-form";
+import { tokenHash } from "@/core/auth";
+import { query } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Accept invitation" };

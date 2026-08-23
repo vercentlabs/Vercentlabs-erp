@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { completePointOfSale } from "../src/point-of-sale/index.js";
+import { completePointOfSale } from "../src/modules/point-of-sale/index.js";
 
 // Prompt 12 (Emergency P0 Integrity Fixes) — regression coverage for the
 // confirmed-live defect documented in docs/implementation/
@@ -11,7 +11,7 @@ import { completePointOfSale } from "../src/point-of-sale/index.js";
 // touched stock_balances at all — a completed sale never actually
 // decremented on-hand inventory. This test proves completePointOfSale now
 // routes through Stock's canonical postStockMovement
-// (services/api/src/stock/index.js).
+// (services/api/src/modules/stock/index.js).
 
 const org = "11111111-1111-4111-8111-111111111111";
 const company = "22222222-2222-4222-8222-222222222222";

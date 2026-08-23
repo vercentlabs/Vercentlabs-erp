@@ -2,22 +2,22 @@ import {
   assertOrganizationLimit,
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
-import { requirePermissionFromSession } from "@/lib/authorization";
-import { transaction } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { withMobileIdempotency } from "@/lib/mobile-idempotency";
-import { requireMobileSession } from "@/lib/mobile-session";
+} from "@/core/billing";
+import { requirePermissionFromSession } from "@/core/authorization";
+import { transaction } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { withMobileIdempotency } from "@/core/mobile-idempotency";
+import { requireMobileSession } from "@/core/mobile-session";
 import {
   createResource,
   isResourceKey,
   listResource,
   resourceDefinitions,
   resourceOptions,
-} from "@/lib/resources";
-import { audit } from "@/lib/security";
-import { resourceSchemas } from "@/lib/validation";
+} from "@/core/resources";
+import { audit } from "@/core/security";
+import { resourceSchemas } from "@/core/validation";
 
 async function context(request: Request, resource: string) {
   const session = await requireMobileSession(request);

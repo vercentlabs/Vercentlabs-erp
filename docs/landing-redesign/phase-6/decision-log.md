@@ -41,7 +41,7 @@ This log is written incrementally as decisions happen, not reconstructed at the 
 
 ## 6. `apps/web` bugs found during Phase 5 evidence-gathering — recorded only, not fixed
 
-**BigInt journal serialization:** `services/api/src/accounting/journals.js`'s `createJournalEntry` fails to serialize a BigInt value when creating a journal entry via the real product API, discovered while seeding demo-org accounting data for screenshot capture. Reproducible against the real dev database, not a landing-content issue.
+**BigInt journal serialization:** `services/api/src/modules/accounting/journals.js`'s `createJournalEntry` fails to serialize a BigInt value when creating a journal entry via the real product API, discovered while seeding demo-org accounting data for screenshot capture. Reproducible against the real dev database, not a landing-content issue.
 **Quality-plan activation:** A real gap in `apps/web`'s Quality module blocked seeding an activated inspection plan (quality-plan activation flow), limiting the quality-dashboard screenshot's evidence depth (documented in Phase 5's `product-evidence-update.md`).
 **Decision:** Both recorded here (and previously in Phase 5 docs) as real product bugs for the `apps/web` team to address — no `apps/web` code was touched, per this phase's explicit scope boundary ("record-only, no apps/web changes").
 **Risk:** None to the landing site itself — the affected screenshots/pages already account for the resulting evidence gaps honestly (e.g. the quality-dashboard screenshot's alt text and the module page's copy do not overclaim inspection depth beyond what's real).

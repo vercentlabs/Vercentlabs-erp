@@ -3,8 +3,8 @@ import { getReleaseGovernanceTimeline } from "@vercentlabs/api";
 import {
   releaseGovernanceSession,
   tenantTransaction,
-} from "@/lib/release-governance-route";
-import { errorResponse, fail, ok } from "@/lib/http";
+} from "@/core/release-server";
+import { errorResponse, fail, ok } from "@/core/http";
 
 function releaseError(error: unknown) {
   if (

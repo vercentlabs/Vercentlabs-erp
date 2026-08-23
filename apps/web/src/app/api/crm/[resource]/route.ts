@@ -1,20 +1,20 @@
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
+} from "@/core/billing";
 import { createCrmRecord, listCrmRecords } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
+import { getSessionContext } from "@/core/auth";
+import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
 import {
   crmApiContext,
   crmDefinitions,
   isCrmDefinition,
   rethrowCrmError,
-} from "@/lib/crm";
-import { crmSchemas } from "@/lib/crm-validation";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+} from "@/modules/crm";
+import { crmSchemas } from "@/modules/crm/validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
 
 export async function GET(
   request: Request,

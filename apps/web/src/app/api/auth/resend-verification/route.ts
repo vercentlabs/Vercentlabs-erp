@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
 
-import { createOpaqueToken, tokenHash } from "@/lib/auth";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { deliverAuthMessage } from "@/lib/mailer";
+import { createOpaqueToken, tokenHash } from "@/core/auth";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { deliverAuthMessage } from "@/core/mailer";
 import {
   assertSameOrigin,
   audit,
   clientIp,
   enforceRateLimit,
-} from "@/lib/security";
-import { resendVerificationSchema } from "@/lib/validation";
+} from "@/core/security";
+import { resendVerificationSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

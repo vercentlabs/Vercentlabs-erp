@@ -1,15 +1,15 @@
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
-import { requirePermissionFromSession } from "@/lib/authorization";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
+import { requirePermissionFromSession } from "@/core/authorization";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
 import {
   isResourceKey,
   resourceDefinitions,
   updateResource,
-} from "@/lib/resources";
-import { audit } from "@/lib/security";
-import { resourceSchemas } from "@/lib/validation";
+} from "@/core/resources";
+import { audit } from "@/core/security";
+import { resourceSchemas } from "@/core/validation";
 
 export async function PATCH(
   request: Request,

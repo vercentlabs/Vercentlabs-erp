@@ -3,11 +3,11 @@ import {
   createSalesOrder,
   listSalesOrders,
 } from "@vercentlabs/api";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { rethrowSalesError } from "@/lib/sales";
-import { salesDocumentSchema } from "@/lib/sales-validation";
-import { salesSession, tenantTransaction } from "@/lib/sales-route";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { rethrowSalesError } from "@/modules/sales";
+import { salesDocumentSchema } from "@/modules/sales/validation";
+import { salesSession, tenantTransaction } from "@/modules/sales/server";
 export async function GET(request: Request) {
   try {
     const { context } = await salesSession();

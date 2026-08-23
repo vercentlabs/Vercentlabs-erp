@@ -1,9 +1,9 @@
 import { ingestLeadAcquisitionWebhook } from "@vercentlabs/api";
 
-import { crmLeadAcquisitionErrorResponse } from "@/lib/crm-lead-acquisition-route";
-import { query, tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
-import { readRequestBytes } from "@/lib/security";
+import { crmLeadAcquisitionErrorResponse } from "@/modules/crm/server/lead-acquisition";
+import { query, tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
+import { readRequestBytes } from "@/core/security";
 
 type Params = { params: Promise<{ token: string }> };
 function text(value: unknown, max = 20_000) { return String(value ?? "").trim().slice(0, max); }

@@ -90,7 +90,7 @@ test("search security: mapped results never include a raw row — only an explic
 });
 
 test("Quick Create security: /crm/leads?create=1 etc. are gated by the same server-resolved permission set as the underlying create action, not merely hidden client-side", () => {
-  const resolverSource = read("apps/web/src/lib/quick-create/resolve-quick-create.ts");
+  const resolverSource = read("apps/web/src/core/quick-create/resolve-quick-create.ts");
   assert.match(resolverSource, /accessibleModuleIds\.has\(action\.moduleId\)/);
   assert.match(resolverSource, /hasPermission\(session, action\.permission\)/);
   // Fail-closed on a lookup error, same contract as resolveNavigation.

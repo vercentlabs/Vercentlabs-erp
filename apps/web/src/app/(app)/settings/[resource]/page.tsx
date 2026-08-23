@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import ResourceManager from "@/components/resource-manager";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission } from "@/lib/authorization";
+import ResourceManager from "@/shared/components/resource-manager";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission } from "@/core/authorization";
 import {
   isResourceKey,
   listResource,
   resourceDefinitions,
   resourceOptions,
-} from "@/lib/resources";
+} from "@/core/resources";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata({

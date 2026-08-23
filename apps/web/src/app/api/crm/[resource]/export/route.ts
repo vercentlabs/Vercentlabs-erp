@@ -1,13 +1,13 @@
 import { listCrmRecords } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
-import { requireCrmResourceView } from "@/lib/crm-api";
-import { csvCell } from "@/lib/csv";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError } from "@/lib/http";
-import { audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
+import { requireCrmResourceView } from "@/modules/crm/api";
+import { csvCell } from "@/core/csv";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError } from "@/core/http";
+import { audit } from "@/core/security";
 
 const EXPORT_BATCH_SIZE = 500;
 

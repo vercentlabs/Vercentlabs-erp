@@ -1,4 +1,4 @@
-import { ok } from "@/lib/http";
+import { ok } from "@/core/http";
 
 export const dynamic = "force-dynamic";
 

@@ -1,19 +1,19 @@
 import { listBusinessDataRecords, listCrmRecords } from "@vercentlabs/api";
 
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   businessDataContext,
   businessDataDefinitions,
   isBusinessDataDefinition,
-} from "@/lib/business-data";
-import { crmApiContext, isCrmDefinition } from "@/lib/crm";
-import { requireCrmResourceView } from "@/lib/crm-api";
-import { csvCell } from "@/lib/csv";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { audit } from "@/lib/security";
+} from "@/core/master-data";
+import { crmApiContext, isCrmDefinition } from "@/modules/crm";
+import { requireCrmResourceView } from "@/modules/crm/api";
+import { csvCell } from "@/core/csv";
+import { tenantTransaction } from "@/core/db";
+import { HttpError } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
+import { audit } from "@/core/security";
 
 export async function GET(
   request: Request,

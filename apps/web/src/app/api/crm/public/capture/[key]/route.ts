@@ -3,16 +3,16 @@ import { captureCrmLead } from "@vercentlabs/api";
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
-import { rethrowCrmError } from "@/lib/crm";
-import { publicCaptureSchema } from "@/lib/crm-validation";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
+} from "@/core/billing";
+import { rethrowCrmError } from "@/modules/crm";
+import { publicCaptureSchema } from "@/modules/crm/validation";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
 import {
   directCaptureFingerprint,
   readRequestBytes,
   verifiedCaptureProxyFingerprint,
-} from "@/lib/security";
+} from "@/core/security";
 
 export async function POST(
   request: Request,

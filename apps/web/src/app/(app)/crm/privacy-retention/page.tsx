@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { getPrivacyRetentionDashboard } from "@vercentlabs/api";
-import CrmPrivacyRetentionManager from "@/components/crm-privacy-retention-manager";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
+import CrmPrivacyRetentionManager from "@/modules/crm/components/privacy-retention-manager";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

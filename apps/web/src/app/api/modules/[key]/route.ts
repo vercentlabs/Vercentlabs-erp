@@ -2,13 +2,13 @@ import {
   assertModuleEntitlement,
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
-import { requireApiPermission } from "@/lib/authorization";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { moduleCatalog } from "@/lib/platform";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
-import { moduleStatusSchema } from "@/lib/validation";
+} from "@/core/billing";
+import { requireApiPermission } from "@/core/authorization";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { moduleCatalog } from "@/core/platform";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
+import { moduleStatusSchema } from "@/core/validation";
 
 export async function PATCH(
   request: Request,

@@ -13,7 +13,7 @@
 // own copies of the same company-visibility logic) treated
 // allowAllCompanies as "skip company filtering unconditionally" instead
 // of "only skip it when no company is actively selected at all." Fixed
-// in services/api/src/crm.js.
+// in services/api/src/modules/crm/index.js.
 //
 // Run manually: node services/worker/tests/crm-company-scope-live.manual.mjs
 // Requires DATABASE_URL pointed at a real Postgres with all migrations

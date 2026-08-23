@@ -1,7 +1,7 @@
-import StockDashboard from "@/components/stock/stock-dashboard";
-import AccessDenied from "@/components/access-denied";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import StockDashboard from "@/modules/stock/components/stock-dashboard";
+import AccessDenied from "@/shared/components/access-denied";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 export const dynamic = "force-dynamic";
 export default async function Page() {
   const s = await requireWorkspace();

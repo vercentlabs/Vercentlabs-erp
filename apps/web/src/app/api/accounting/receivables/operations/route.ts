@@ -11,10 +11,10 @@ import {
   upsertReceivablesCollectionCase,
 } from "@vercentlabs/api";
 
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 function requiredId(value: unknown, label: string) {
   const result = String(value || "").trim();

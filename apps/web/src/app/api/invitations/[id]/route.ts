@@ -1,15 +1,15 @@
-import { assertInvitationWithinAdministrationScope } from "@/lib/access-administration";
-import { createOpaqueToken, getSessionContext, tokenHash } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { assertInvitationWithinAdministrationScope } from "@/core/access-admin";
+import { createOpaqueToken, getSessionContext, tokenHash } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
-import { transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { deliverAuthMessage } from "@/lib/mailer";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
-import { invitationActionSchema } from "@/lib/validation";
+} from "@/core/billing";
+import { transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { deliverAuthMessage } from "@/core/mailer";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
+import { invitationActionSchema } from "@/core/validation";
 
 export async function PATCH(
   request: Request,

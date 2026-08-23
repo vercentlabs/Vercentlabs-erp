@@ -31,7 +31,7 @@ const root = path.resolve(webRoot, "../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 async function loadAccessControl() {
-  const sourcePath = path.join(webRoot, "src/lib/access-control.ts");
+  const sourcePath = path.join(webRoot, "src/core/access-control.ts");
   const source = fs.readFileSync(sourcePath, "utf8");
   const permissionsUrl = pathToFileURL(path.join(root, "packages/permissions/src/index.js")).href;
   const transpiled = ts
@@ -51,7 +51,7 @@ const templates = accessControl.ROLE_TEMPLATES;
 const templateBySlug = new Map(templates.map((role) => [role.slug, role]));
 
 function allControlPlaneMigrationFiles() {
-  const dir = path.join(root, "database/control-plane/migrations");
+  const dir = path.join(root, "database/platform/migrations");
   return fs
     .readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
@@ -124,7 +124,7 @@ test("crm.records.view_all: a control-plane migration registers it in the permis
 
 test("crm.records.view_all: migration 032 exists, is transaction-wrapped, and uses ON CONFLICT DO NOTHING for both the permission row and the backfill grants (safe to re-run, matches migrations 018/027/030/031's established pattern)", () => {
   const migration = migrationFiles.find((m) => m.name.startsWith("032_"));
-  assert.ok(migration, "expected database/control-plane/migrations/032_*.sql to exist");
+  assert.ok(migration, "expected database/platform/migrations/032_*.sql to exist");
   assert.match(migration.text, /^BEGIN;/);
   assert.match(migration.text, /COMMIT;\s*$/);
   assert.match(migration.text, /INSERT INTO permissions[\s\S]*'crm\.records\.view_all'[\s\S]*ON CONFLICT \(key\) DO NOTHING/);
@@ -206,7 +206,7 @@ test("role_permissions.permission_key still has a hard foreign key to permission
 // (recordScope/assertOwnerAssignmentAllowed) is untouched by this prompt.
 // ---------------------------------------------------------------------
 test("seedOrganizationFoundation iterates every ROLE_TEMPLATES permission unconditionally with no try/catch around the role_permissions insert (confirms the onboarding failure is deterministic for any org seeding an affected role, not merely possible)", () => {
-  const platform = read("apps/web/src/lib/platform.ts");
+  const platform = read("apps/web/src/core/platform.ts");
   const seedFunction = platform.split("export async function seedOrganizationFoundation")[1] ?? "";
   assert.match(seedFunction, /for \(const template of ROLE_TEMPLATES\)/);
   assert.match(seedFunction, /for \(const permission of template\.permissions\)/);
@@ -217,7 +217,7 @@ test("seedOrganizationFoundation iterates every ROLE_TEMPLATES permission uncond
 });
 
 test("Prompt 3's CRM record-ownership scope (recordScope/assertOwnerAssignmentAllowed) is unchanged by this prompt's permission-catalogue fix", () => {
-  const crm = read("services/api/src/crm.js");
+  const crm = read("services/api/src/modules/crm/index.js");
   assert.match(crm, /function recordScope/);
   assert.match(crm, /assertOwnerAssignmentAllowed/);
   assert.match(crm, /ownerField/);

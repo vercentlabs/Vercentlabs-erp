@@ -1,11 +1,11 @@
 import { getHrPayrollDashboard } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import HrPayrollDashboard from "@/components/hr-payroll/hr-payroll-dashboard";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { hrPayrollContext } from "@/lib/hr-payroll";
+import AccessDenied from "@/shared/components/access-denied";
+import HrPayrollDashboard from "@/modules/hr-payroll/components/hr-payroll-dashboard";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { hrPayrollContext } from "@/modules/hr-payroll";
 
 export const metadata = { title: "HR & Payroll" };
 export const dynamic = "force-dynamic";

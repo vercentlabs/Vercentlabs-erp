@@ -1,6 +1,6 @@
-import ProfileForm from "@/components/profile-form";
-import { requireWorkspace } from "@/lib/auth";
-import { query } from "@/lib/db";
+import ProfileForm from "@/core/components/profile-form";
+import { requireWorkspace } from "@/core/auth";
+import { query } from "@/core/db";
 
 export const metadata = { title: "Profile" };
 

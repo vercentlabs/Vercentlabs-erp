@@ -3,17 +3,17 @@ import {
   runPrivacyRetention,
   updatePrivacyRetentionPolicy,
 } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   requireBillingWriteAccess,
   incrementBillingUsage,
-} from "@/lib/billing";
-import { crmAccountIntelligenceErrorResponse } from "@/lib/crm-account-intelligence-route";
-import { crmApiContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+} from "@/core/billing";
+import { crmAccountIntelligenceErrorResponse } from "@/modules/crm/server/account-intelligence";
+import { crmApiContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok, readJson } from "@/core/http";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 export async function GET() {
   try {

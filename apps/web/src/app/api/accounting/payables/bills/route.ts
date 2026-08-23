@@ -1,11 +1,11 @@
 import { createVendorBill, listVendorBills } from "@vercentlabs/api";
 
-import { rethrowAccountingError } from "@/lib/accounting";
-import { accountingSession } from "@/lib/accounting-route";
-import { vendorBillSchema } from "@/lib/accounting-validation";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { accountingSession } from "@/modules/accounting/server";
+import { vendorBillSchema } from "@/modules/accounting/validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function GET(request: Request) {
   try {

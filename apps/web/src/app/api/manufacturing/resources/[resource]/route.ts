@@ -5,14 +5,14 @@ import {
 } from "@vercentlabs/api";
 import { NextRequest, NextResponse } from "next/server";
 
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { manufacturingContext } from "@/lib/manufacturing";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { manufacturingContext } from "@/modules/manufacturing";
 import {
   bomCreateSchema,
   workOrderCreateSchema,
-} from "@/lib/manufacturing-validation";
-import { requireModuleWorkspace } from "@/lib/module-access";
+} from "@/modules/manufacturing/validation";
+import { requireModuleWorkspace } from "@/core/module-access";
 
 export async function GET(
   request: NextRequest,

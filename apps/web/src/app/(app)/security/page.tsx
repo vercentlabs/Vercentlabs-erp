@@ -1,12 +1,12 @@
 import Link from "next/link";
 
-import AppIcon from "@/components/app-icon";
-import ChangePasswordForm from "@/components/change-password-form";
-import SessionManager from "@/components/session-manager";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { query } from "@/lib/db";
-import { listSecurityAuditEvents } from "@/lib/audit/query";
+import AppIcon from "@/shared/components/app-icon";
+import ChangePasswordForm from "@/core/components/change-password-form";
+import SessionManager from "@/core/components/session-manager";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { query } from "@/core/db";
+import { listSecurityAuditEvents } from "@/core/audit/query";
 
 export const metadata = { title: "Account security" };
 export const dynamic = "force-dynamic";

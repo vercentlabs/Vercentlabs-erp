@@ -13,7 +13,7 @@ Per `ERP_NAVIGATION_FOUNDATION_006.md`, Administration had exactly 2 real destin
 ## 3. Workspace Settings
 
 ### Organisation, Companies, Branches, Departments, Teams, Cost Centres
-Unchanged — confirmed real, working admin CRUD (`apps/web/src/lib/resources.ts`, 7 resource types).
+Unchanged — confirmed real, working admin CRUD (`apps/web/src/core/resources.ts`, 7 resource types).
 
 ### Branding
 **Confirmed absent.** No logo/favicon/accent-color/email-identity column exists anywhere in `organizations` or any other control-plane table. Not built — documented as a gap (Section 19).
@@ -22,7 +22,7 @@ Unchanged — confirmed real, working admin CRUD (`apps/web/src/lib/resources.ts
 Unchanged — confirmed mature. `PATCH /api/users/[userId]` enforces a genuine **grant-ceiling** check (`permissionsOutsideGrantCeiling`): a `company_administrator` cannot grant `system_administrator`-level permissions because the requested role's permission set isn't a subset of the actor's own. The organisation owner cannot be edited directly (must use a dedicated ownership-transfer path). Role/scope changes revoke the target's active sessions and are recorded to `access_assignment_events` + `audit()`.
 
 ### Invitations
-Unchanged — confirmed to send **real email**, not a stub. `apps/web/src/lib/mailer.ts` tries SMTP (`nodemailer`) first, falls back to a configurable outbound webhook, and **hard-fails with 503 in production** if neither is configured (never silently creates an undeliverable invitation).
+Unchanged — confirmed to send **real email**, not a stub. `apps/web/src/core/mailer.ts` tries SMTP (`nodemailer`) first, falls back to a configurable outbound webhook, and **hard-fails with 503 in production** if neither is configured (never silently creates an undeliverable invitation).
 
 ### Roles & Permissions
 Unchanged — confirmed a genuine, working custom-role capability: system/template roles are read-only (`PATCH /api/roles/[id]` explicitly rejects `is_system` rows — "Clone or create a custom role instead"), but the UI supports creating a brand-new custom role from a blank form or by cloning a template. No role `DELETE` exists anywhere (roles can only be created/edited).
@@ -68,7 +68,7 @@ Rules execute **synchronously, in-process**, inside the same transaction as the 
 ## 5. Reports & Analytics
 
 ### Report Catalogue
-`apps/web/src/lib/reports/catalogue.ts` — 42 real report entries across exactly the 4 modules with a genuine implementation (CRM 14, Sales 9, Procurement 5, Accounting 15 hand-coded SQL reports). The other 8 modules have an `xxxReportsView` permission defined in the catalogue but zero report implementation behind it — confirmed by direct audit, listed honestly on the page rather than hidden or faked.
+`apps/web/src/core/reports/catalogue.ts` — 42 real report entries across exactly the 4 modules with a genuine implementation (CRM 14, Sales 9, Procurement 5, Accounting 15 hand-coded SQL reports). The other 8 modules have an `xxxReportsView` permission defined in the catalogue but zero report implementation behind it — confirmed by direct audit, listed honestly on the page rather than hidden or faked.
 
 ### Saved Views
 Real, but per-module and non-generic — 10 separate saved-view tables across CRM/Sales/Accounting/Procurement, each with its own migration and API surface. No cross-module saved-view capability exists; not duplicated or unified in this prompt.
@@ -164,13 +164,13 @@ Granted to `organization_owner`/`system_administrator`/`company_administrator` (
 
 ## 10. Tenant / Company / Branch Scope
 
-**Part 13's fix**: `classifyDueAt()` (`apps/web/src/lib/my-work/types.ts`) now accepts an optional IANA timezone string and computes "today" using it — via a standard `Intl.DateTimeFormat`-based offset calculation, falling back to the server process's own local calendar day (the pre-Prompt-10 behavior) if no timezone is supplied or it's invalid, never throwing. Every call site (`tasks.ts`, `follow-ups.ts`, `exceptions.ts`) now passes `session.timezone` — the real, already-resolved value `getSessionContext()` has produced since before this prompt (`COALESCE(user_preferences.timezone, organizations.timezone, 'UTC')`), previously consumed only for display formatting in 2 unrelated pages. This closes the exact gap Prompt 8 documented: "due-date classification uses server-local time rather than per-user timezone." Verified with a real, deterministic, timezone-boundary-crossing test (not just a source-pattern match) using an injectable `now` parameter added specifically for this purpose.
+**Part 13's fix**: `classifyDueAt()` (`apps/web/src/core/work/types.ts`) now accepts an optional IANA timezone string and computes "today" using it — via a standard `Intl.DateTimeFormat`-based offset calculation, falling back to the server process's own local calendar day (the pre-Prompt-10 behavior) if no timezone is supplied or it's invalid, never throwing. Every call site (`tasks.ts`, `follow-ups.ts`, `exceptions.ts`) now passes `session.timezone` — the real, already-resolved value `getSessionContext()` has produced since before this prompt (`COALESCE(user_preferences.timezone, organizations.timezone, 'UTC')`), previously consumed only for display formatting in 2 unrelated pages. This closes the exact gap Prompt 8 documented: "due-date classification uses server-local time rather than per-user timezone." Verified with a real, deterministic, timezone-boundary-crossing test (not just a source-pattern match) using an injectable `now` parameter added specifically for this purpose.
 
 Every other new query in this prompt is organization-scoped as `$1` (automation runs, webhook subscriptions, outbox status, security overview counts); the session-count query is additionally scoped through `organization_memberships` to avoid any cross-tenant session leak.
 
 ## 11. Navigation Changes
 
-`apps/web/src/lib/navigation/administration.ts` now has 6 flat items: Security (unchanged href, new keywords), Automation, Reports & analytics, Integrations, Data management (all 4 new, each with real hrefs and `keywords` covering their in-page sub-content). `apps/web/src/app/(app)/settings/page.tsx` gained a 4th group, "Platform," linking to Security/Compliance/Automation/Reports/Integrations/Data-management — permission-filtered per item, with a fix so an empty group (zero visible items for the caller) is no longer rendered at all.
+`apps/web/src/core/navigation/administration.ts` now has 6 flat items: Security (unchanged href, new keywords), Automation, Reports & analytics, Integrations, Data management (all 4 new, each with real hrefs and `keywords` covering their in-page sub-content). `apps/web/src/app/(app)/settings/page.tsx` gained a 4th group, "Platform," linking to Security/Compliance/Automation/Reports/Integrations/Data-management — permission-filtered per item, with a fix so an empty group (zero visible items for the caller) is no longer rendered at all.
 
 ## 12. Command Palette Integration
 
@@ -186,7 +186,7 @@ Automation's execution-history detail (result/error) reuses Prompt 9's `redactAu
 
 ## 15. Database Changes
 
-One new migration: `database/control-plane/migrations/031_administration_permissions.sql` — registers `automation.view`/`integrations.view`/`data_management.view`, grants all three to every existing organization's `organization_owner`/`system_administrator`/`company_administrator`/`auditor` role rows, and grants `automation.view` additionally to `crm_administrator`. Applied to the live local database (`docker exec vercentlabs-postgres psql ...`): `INSERT 0 3` (permissions) + `INSERT 0 192` (16 orgs × 4 roles × 3 permissions) + `INSERT 0 0` (the `crm_administrator` grant found zero matching role rows in this specific local dev database — that role template has never been instantiated for any of its test organizations; harmless, not a bug — the migration is correct for any organization that does have it). No new tables were needed anywhere — every workspace reuses existing schema.
+One new migration: `database/platform/migrations/031_administration_permissions.sql` — registers `automation.view`/`integrations.view`/`data_management.view`, grants all three to every existing organization's `organization_owner`/`system_administrator`/`company_administrator`/`auditor` role rows, and grants `automation.view` additionally to `crm_administrator`. Applied to the live local database (`docker exec vercentlabs-postgres psql ...`): `INSERT 0 3` (permissions) + `INSERT 0 192` (16 orgs × 4 roles × 3 permissions) + `INSERT 0 0` (the `crm_administrator` grant found zero matching role rows in this specific local dev database — that role template has never been instantiated for any of its test organizations; harmless, not a bug — the migration is correct for any organization that does have it). No new tables were needed anywhere — every workspace reuses existing schema.
 
 ## 16. Tests Added
 
@@ -224,9 +224,9 @@ Every shared-platform layer a future module-completion prompt will want to reuse
 
 ## 21. Files Changed
 
-**New**: `database/control-plane/migrations/031_administration_permissions.sql`; `apps/web/src/lib/{automation,integrations}.ts`; `apps/web/src/lib/reports/catalogue.ts`; `apps/web/src/app/(app)/{automation,reports,integrations,data-management}/page.tsx`; `apps/web/tests/administration.test.mjs`; `docs/implementation/ERP_ADMINISTRATION_010.md`.
+**New**: `database/platform/migrations/031_administration_permissions.sql`; `apps/web/src/lib/{automation,integrations}.ts`; `apps/web/src/core/reports/catalogue.ts`; `apps/web/src/app/(app)/{automation,reports,integrations,data-management}/page.tsx`; `apps/web/tests/administration.test.mjs`; `docs/implementation/ERP_ADMINISTRATION_010.md`.
 
-**Modified**: `packages/permissions/src/{index.js,index.d.ts}` (3 new permissions); `apps/web/src/lib/access-control.ts` (Auditor + CRM Administrator grants); `apps/web/src/lib/navigation/administration.ts` (4 new items + keywords); `apps/web/src/app/(app)/settings/page.tsx` (Platform group + empty-group fix); `apps/web/src/app/(app)/security/page.tsx` (org-wide overview section, MFA copy correction); `apps/web/src/lib/my-work/types.ts` (timezone-aware `classifyDueAt`); `apps/web/src/lib/my-work/{tasks,follow-ups,exceptions}.ts` (thread `session.timezone` through); `apps/web/tests/context-and-topbar.test.mjs` (updated, not weakened, to match `/security`'s legitimate new conditional check); `apps/web/src/app/globals.css`, `apps/web/src/app/{billing-extension,business-data-extension}.css` (supporting styles).
+**Modified**: `packages/permissions/src/{index.js,index.d.ts}` (3 new permissions); `apps/web/src/core/access-control.ts` (Auditor + CRM Administrator grants); `apps/web/src/core/navigation/administration.ts` (4 new items + keywords); `apps/web/src/app/(app)/settings/page.tsx` (Platform group + empty-group fix); `apps/web/src/app/(app)/security/page.tsx` (org-wide overview section, MFA copy correction); `apps/web/src/core/work/types.ts` (timezone-aware `classifyDueAt`); `apps/web/src/core/work/{tasks,follow-ups,exceptions}.ts` (thread `session.timezone` through); `apps/web/tests/context-and-topbar.test.mjs` (updated, not weakened, to match `/security`'s legitimate new conditional check); `apps/web/src/app/globals.css`, `apps/web/src/app/{billing-extension,business-data-extension}.css` (supporting styles).
 
 ## 22. Verification Results
 

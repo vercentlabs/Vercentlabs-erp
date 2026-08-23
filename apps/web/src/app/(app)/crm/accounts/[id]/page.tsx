@@ -4,11 +4,11 @@ import {
   getAccountHierarchy,
   getCustomer360,
 } from "@vercentlabs/api";
-import CrmAccountIntelligenceActions from "@/components/crm-account-intelligence-actions";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
+import CrmAccountIntelligenceActions from "@/modules/crm/components/account-intelligence-actions";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

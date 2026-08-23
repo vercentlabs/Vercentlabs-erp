@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { postProduction } from "../src/manufacturing/index.js";
+import { postProduction } from "../src/modules/manufacturing/index.js";
 
 // Prompt 12 (Emergency P0 Integrity Fixes) — regression coverage for the
 // confirmed-live defect documented in docs/implementation/
@@ -10,7 +10,7 @@ import { postProduction } from "../src/manufacturing/index.js";
 // a LOCAL postStockMovement() that only inserted into stock_movements and
 // never touched stock_balances at all. This test proves postProduction
 // now routes through Stock's canonical postStockMovement
-// (services/api/src/stock/index.js), which locks the balance row, applies
+// (services/api/src/modules/stock/index.js), which locks the balance row, applies
 // moving-average costing, and upserts stock_balances for real.
 
 const org = "11111111-1111-4111-8111-111111111111";

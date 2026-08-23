@@ -1,8 +1,8 @@
 import { bookMeeting } from "@vercentlabs/api";
-import { crmCommunicationsErrorResponse } from "@/lib/crm-communications-route";
-import { query, tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
-import { clientIp } from "@/lib/security";
+import { crmCommunicationsErrorResponse } from "@/modules/crm/server/communications";
+import { query, tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
+import { clientIp } from "@/core/security";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 

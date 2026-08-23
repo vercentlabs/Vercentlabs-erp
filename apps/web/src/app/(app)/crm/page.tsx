@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 import { getCrmDashboard } from "@vercentlabs/api";
 import { formatDateTime, formatMoney } from "@vercentlabs/localization";
 
-import AppIcon from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { classifyDueAt } from "@/lib/my-work/types";
+import AppIcon from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { classifyDueAt } from "@/core/work/types";
 
 export const metadata = { title: "CRM" };
 export const dynamic = "force-dynamic";

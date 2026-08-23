@@ -2,10 +2,10 @@ import {
   captureProcurementGovernanceSnapshot,
   transitionProcurementRecord,
 } from "@vercentlabs/api";
-import { procurementSession, tenantTransaction } from "@/lib/procurement-route";
-import { assertSameOriginOrMobile } from "@/lib/security";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { procurementActionSchema } from "@/lib/procurement-validation";
+import { procurementSession, tenantTransaction } from "@/modules/procurement/server";
+import { assertSameOriginOrMobile } from "@/core/security";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { procurementActionSchema } from "@/modules/procurement/validation";
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ resource: string; id: string }> },

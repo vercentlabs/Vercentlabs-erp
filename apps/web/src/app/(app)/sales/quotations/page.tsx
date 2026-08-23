@@ -4,13 +4,13 @@ import {
 } from "@vercentlabs/api";
 import Link from "next/link";
 
-import AccessDenied from "@/components/access-denied";
-import DownwardSelect from "@/components/downward-select";
-import PaginationLinks from "@/components/pagination-links";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { salesContext } from "@/lib/sales";
+import AccessDenied from "@/shared/components/access-denied";
+import DownwardSelect from "@/shared/components/downward-select";
+import PaginationLinks from "@/shared/components/pagination-links";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { salesContext } from "@/modules/sales";
 
 export const dynamic = "force-dynamic";
 

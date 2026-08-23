@@ -4,12 +4,12 @@ import {
   getOpportunityDashboard,
   getOpportunityTimeline,
 } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requireCrmManage } from "@/lib/crm-api";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requireCrmManage } from "@/modules/crm/api";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 export async function GET(request: Request) {
   try {
     const session = await getSessionContext();

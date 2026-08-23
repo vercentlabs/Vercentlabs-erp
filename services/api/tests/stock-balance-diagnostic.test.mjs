@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { diagnoseStockBalanceDrift, postStockMovement, createStockTransfer, completeStockTransfer } from "../src/stock/index.js";
+import { diagnoseStockBalanceDrift, postStockMovement, createStockTransfer, completeStockTransfer } from "../src/modules/stock/index.js";
 
 // Prompt 12 (Emergency P0 Integrity Fixes) — regression coverage for
 // diagnoseStockBalanceDrift(), the safe, dry-run-by-default, tenant-scoped

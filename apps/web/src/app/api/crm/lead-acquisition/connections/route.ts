@@ -1,10 +1,10 @@
 import { createLeadAcquisitionConnection } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmApiContext } from "@/lib/crm";
-import { crmLeadAcquisitionErrorResponse } from "@/lib/crm-lead-acquisition-route";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { crmApiContext } from "@/modules/crm";
+import { crmLeadAcquisitionErrorResponse } from "@/modules/crm/server/lead-acquisition";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
 
 export async function POST(request: Request) {
   try {

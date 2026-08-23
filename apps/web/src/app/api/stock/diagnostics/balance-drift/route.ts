@@ -1,7 +1,7 @@
 import { diagnoseStockBalanceDrift } from "@vercentlabs/api";
 
-import { errorResponse, ok } from "@/lib/http";
-import { stockSession, tenantTransaction } from "@/lib/stock-route";
+import { errorResponse, ok } from "@/core/http";
+import { stockSession, tenantTransaction } from "@/modules/stock/server";
 
 // GET: dry-run diagnosis only, never mutates. POST: explicit, opt-in repair
 // (requires stock.adjust, enforced inside diagnoseStockBalanceDrift itself)

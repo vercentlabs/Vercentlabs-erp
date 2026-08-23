@@ -2374,7 +2374,7 @@ legend {
 }
 
 /* Real dialog (MobileDrawer) replacing the old <details> hack — see
-   apps/web/src/components/mobile-drawer.tsx for why. */
+   apps/web/src/core/components/mobile-drawer.tsx for why. */
 .mobile-drawer-overlay {
   position: fixed;
   inset: 0;

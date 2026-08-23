@@ -5,9 +5,9 @@ import {
   upsertProcurementExceptionCase,
 } from "@vercentlabs/api";
 
-import { procurementSession, tenantTransaction } from "@/lib/procurement-route";
-import { assertSameOriginOrMobile } from "@/lib/security";
-import { errorResponse, fail, ok, readJson } from "@/lib/http";
+import { procurementSession, tenantTransaction } from "@/modules/procurement/server";
+import { assertSameOriginOrMobile } from "@/core/security";
+import { errorResponse, fail, ok, readJson } from "@/core/http";
 
 function inputObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

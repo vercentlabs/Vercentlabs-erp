@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import AuditEventTable, { type AuditEventDisplayRow } from "@/components/audit-event-table";
-import GovernancePagination from "@/components/governance-pagination";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { redactAuditPayload } from "@/lib/audit/redact";
-import { listAuditEvents } from "@/lib/audit/query";
-import { query } from "@/lib/db";
+import AuditEventTable, { type AuditEventDisplayRow } from "@/core/components/audit-event-table";
+import GovernancePagination from "@/core/components/governance-pagination";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { redactAuditPayload } from "@/core/audit/redact";
+import { listAuditEvents } from "@/core/audit/query";
+import { query } from "@/core/db";
 
 export const metadata = { title: "User activity" };
 export const dynamic = "force-dynamic";

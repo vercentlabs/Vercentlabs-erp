@@ -1,9 +1,9 @@
 import { getCrmDashboard } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requireCrmView } from "@/lib/crm-api";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { requireCrmView } from "@/modules/crm/api";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
 export async function GET() {
   try {
     const session = await getSessionContext();

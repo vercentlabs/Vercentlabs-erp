@@ -1,4 +1,4 @@
-import { mobileOk } from "@/lib/mobile-http";
+import { mobileOk } from "@/core/mobile-http";
 
 export async function GET(request: Request) {
   return mobileOk(request, {

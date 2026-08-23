@@ -11,19 +11,19 @@
 // inherited automatically, not reimplemented here. This route never writes
 // raw SQL and never returns a full record — only the minimal safe fields
 // mapped into a SearchResult (Part 5/6).
-import { requireApiWorkspace, type WorkspaceSessionContext } from "@/lib/auth";
-import { hasPermission } from "@/lib/authorization";
-import { requireCrmResourceView } from "@/lib/crm-api";
-import { crmApiContext } from "@/lib/crm";
-import { businessDataContext } from "@/lib/business-data";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, ok } from "@/lib/http";
-import { accountingSession } from "@/lib/accounting-route";
-import { procurementSession } from "@/lib/procurement-route";
-import { salesSession } from "@/lib/sales-route";
-import { PERMISSIONS } from "@/lib/permissions-catalog";
-import { enforceRateLimit } from "@/lib/security";
-import type { SearchResult } from "@/lib/search/types";
+import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/auth";
+import { hasPermission } from "@/core/authorization";
+import { requireCrmResourceView } from "@/modules/crm/api";
+import { crmApiContext } from "@/modules/crm";
+import { businessDataContext } from "@/core/master-data";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, ok } from "@/core/http";
+import { accountingSession } from "@/modules/accounting/server";
+import { procurementSession } from "@/modules/procurement/server";
+import { salesSession } from "@/modules/sales/server";
+import { PERMISSIONS } from "@/core/permissions";
+import { enforceRateLimit } from "@/core/security";
+import type { SearchResult } from "@/core/search/types";
 import {
   listCrmRecords,
   listBusinessDataRecords,

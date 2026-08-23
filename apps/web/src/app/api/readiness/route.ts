@@ -1,5 +1,5 @@
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
 
 export const dynamic = "force-dynamic";
 

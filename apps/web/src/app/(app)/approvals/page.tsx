@@ -1,7 +1,7 @@
-import { requirePermission } from "@/lib/authorization";
-import { query } from "@/lib/db";
+import { requirePermission } from "@/core/authorization";
+import { query } from "@/core/db";
 import { formatDateTime } from "@vercentlabs/localization";
-import ApprovalActions from "@/components/approval-actions";
+import ApprovalActions from "@/core/components/approval-actions";
 
 export const metadata = { title: "Approvals" };
 export default async function ApprovalsPage() {

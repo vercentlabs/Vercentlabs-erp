@@ -1,10 +1,10 @@
 import { getCrmReport } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { canViewCrmReport } from "@/lib/crm-api";
-import { tenantTransaction } from "@/lib/db";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { canViewCrmReport } from "@/modules/crm/api";
+import { tenantTransaction } from "@/core/db";
 export const metadata = { title: "CRM reports" };
 export const dynamic = "force-dynamic";
 const names = [

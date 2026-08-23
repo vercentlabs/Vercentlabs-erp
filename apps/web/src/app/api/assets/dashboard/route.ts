@@ -1,10 +1,10 @@
 import { getAssetsDashboard } from "@vercentlabs/api";
 import { NextResponse } from "next/server";
 
-import { assetsContext } from "@/lib/assets";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { requireModuleWorkspace } from "@/lib/module-access";
+import { assetsContext } from "@/modules/assets";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { requireModuleWorkspace } from "@/core/module-access";
 
 export async function GET() {
   try {

@@ -1,9 +1,9 @@
 import { createRecurringTemplate, listRecurringTemplates } from "@vercentlabs/api";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { recurringTemplateSchema } from "@/lib/accounting-validation";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { recurringTemplateSchema } from "@/modules/accounting/validation";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function GET(request: Request) {
   try { const { context } = await accountingSession(); const filters = Object.fromEntries(new URL(request.url).searchParams.entries()); return ok({ templates: await tenantTransaction(context.organizationId, (client) => listRecurringTemplates(client, context, filters)) }); }

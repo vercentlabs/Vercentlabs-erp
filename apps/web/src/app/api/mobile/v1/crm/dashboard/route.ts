@@ -1,9 +1,9 @@
 import { getCrmDashboard } from "@vercentlabs/api";
-import { requireCrmView } from "@/lib/crm-api";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
+import { requireCrmView } from "@/modules/crm/api";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
 
 export async function GET(request: Request) {
   try {

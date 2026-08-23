@@ -7,7 +7,7 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 test("Lead Kanban paginates every lifecycle column instead of rendering the full 500-row board", () => {
-  const source = read("apps/web/src/components/crm-leads-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/components/leads-workspace.tsx");
   assert.match(source, /const KANBAN_PAGE_SIZE = 10/);
   assert.match(source, /kanbanPages/);
   assert.match(source, /visibleRows = stageRows\.slice/);
@@ -18,14 +18,14 @@ test("Lead Kanban paginates every lifecycle column instead of rendering the full
 });
 
 test("The server-backed table pagination is not misleadingly shown in Kanban", () => {
-  const source = read("apps/web/src/components/crm-leads-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/components/leads-workspace.tsx");
   assert.match(source, /view === "table" \? \([\s\S]*crm-leads-pagination/);
   assert.match(source, /Each lifecycle column shows/);
   assert.match(source, /\{KANBAN_PAGE_SIZE\} cards at a time/);
 });
 
 test("The lead suite has an explicit readability layer with human-sized operating text", () => {
-  const source = read("apps/web/src/components/crm-leads-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/components/leads-workspace.tsx");
   const css = read("apps/web/src/app/crm-lead-suite-enterprise.css");
   assert.match(css, /VERCENTLABS CRM READABILITY PASS START/);
   assert.match(css, /\.crm-suite-page,[\s\S]*font-size: 14px/);

@@ -15,9 +15,9 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 // behavioral coverage, unlike anything that touches session/DB (Prompt
 // 4-6's established precedent). load-ts-module.mjs recursively resolves
 // same-package "@/..." imports (e.g. navigation-search.ts -> score.ts).
-const scoreModule = await loadTsModule("apps/web/src/lib/search/score.ts");
-const navSearchModule = await loadTsModule("apps/web/src/lib/search/navigation-search.ts");
-const recentModule = await loadTsModule("apps/web/src/lib/search/recent.ts");
+const scoreModule = await loadTsModule("apps/web/src/core/search/score.ts");
+const navSearchModule = await loadTsModule("apps/web/src/core/search/navigation-search.ts");
+const recentModule = await loadTsModule("apps/web/src/core/search/recent.ts");
 
 // ---------------------------------------------------------------------
 // Part 29 — fuzzy-match scoring priority.
@@ -96,7 +96,7 @@ test("navigation search: results are capped at the requested limit", () => {
 });
 
 test("navigation search: never queries a server — flattenNavigation and searchNavigation are pure, synchronous functions", () => {
-  const source = read("apps/web/src/lib/search/navigation-search.ts");
+  const source = read("apps/web/src/core/search/navigation-search.ts");
   assert.doesNotMatch(source, /fetch\(|await /);
 });
 
@@ -110,7 +110,7 @@ test("recent destinations: degrades to empty/no-op outside a browser (no window)
 });
 
 test("recent destinations: storage schema only ever carries label/href/icon/moduleId metadata, never a query string or record payload field", () => {
-  const source = read("apps/web/src/lib/search/recent.ts");
+  const source = read("apps/web/src/core/search/recent.ts");
   // Check the actual stored-field allowlist (the type alias and the
   // object literal that gets persisted), not prose — this file's own
   // comments legitimately discuss "query"/"payload" while explaining why
@@ -137,42 +137,42 @@ test("command palette: exactly one Ctrl/Cmd+K listener exists in the app (the ol
 });
 
 test("command palette: ignores the shortcut while IME composition is active", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   assert.match(source, /isComposing/);
 });
 
 test("command palette: Escape, ArrowUp/ArrowDown, Enter, Home and End are all handled", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   for (const key of ["Escape", "ArrowDown", "ArrowUp", "Home", "End", "Enter"]) {
     assert.match(source, new RegExp(`event\\.key === "${key}"`), `missing handling for ${key}`);
   }
 });
 
 test("command palette: stale server-search responses cannot overwrite newer results (request token comparison before every setState)", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   const tokenChecks = source.match(/token !== requestTokenRef\.current/g) ?? [];
   assert.ok(tokenChecks.length >= 3, "expected the token guard before each async setState in the fetch callback");
 });
 
 test("command palette: focus is restored to the previously-focused element on close", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   assert.match(source, /lastFocusedRef\.current\?\.focus\(\)/);
 });
 
 test("command palette: navigation happens via router.push with a result's own href, never by constructing a path from raw query text", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   assert.match(source, /router\.push\(result\.href\)/);
   assert.doesNotMatch(source, /router\.push\(`.*\$\{query/);
 });
 
 test("command palette: dialog is a real role=\"dialog\" with aria-modal, not a bare div", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
 });
 
 test("command palette: company/branch context switch clears cached record results (Part 39/41)", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   assert.match(source, /contextKey = `\$\{activeCompanyId/);
   assert.match(source, /setRecordResults\(\[\]\);/);
 });

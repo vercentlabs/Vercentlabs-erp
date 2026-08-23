@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCrmClient } from "../src/crm.js";
+import { createCrmClient } from "../src/modules/crm/index.js";
 test("CRM client builds list filters", async () => {
   let request;
   const client = createCrmClient({

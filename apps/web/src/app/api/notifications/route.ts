@@ -1,9 +1,9 @@
-import { getSessionContext, type WorkspaceSessionContext } from "@/lib/auth";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { listMyNotifications } from "@/lib/my-work/notifications";
-import { assertSameOrigin } from "@/lib/security";
-import { notificationActionSchema } from "@/lib/validation";
+import { getSessionContext, type WorkspaceSessionContext } from "@/core/auth";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { listMyNotifications } from "@/core/work/notifications";
+import { assertSameOrigin } from "@/core/security";
+import { notificationActionSchema } from "@/core/validation";
 
 // A compact preview for the topbar's notification popover (Part 16) — same
 // query shape as apps/web/src/app/(app)/notifications/page.tsx, just

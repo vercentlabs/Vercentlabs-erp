@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { asDatabaseDecimal, decimal, div, mul, roundMoney } from "../src/accounting/money.js";
-import { allocateInstallments } from "../src/accounting/schedules.js";
+import { asDatabaseDecimal, decimal, div, mul, roundMoney } from "../src/modules/accounting/money.js";
+import { allocateInstallments } from "../src/modules/accounting/schedules.js";
 import { ACCOUNTING_REPORT_KEYS } from "@vercentlabs/shared-types";
 import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -38,7 +38,7 @@ test("accounting contracts expose financial reports and governed permissions", (
   assert.equal(ACCOUNTING_PERMISSIONS.consolidationManage, "accounting.consolidation.manage");
 });
 
-import { importProcurementMatchAsVendorBill } from "../src/accounting/payables.js";
+import { importProcurementMatchAsVendorBill } from "../src/modules/accounting/payables.js";
 
 test("Procurement matches cannot enter payables without Accounting permission", async () => {
   let queried = false;

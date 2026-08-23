@@ -9,7 +9,7 @@ import {
   format,
   mul,
   roundMoney,
-} from "../src/financial-decimal.js";
+} from "../src/core/decimal.js";
 
 test("financial decimals round positive and negative multiplication symmetrically", () => {
   assert.equal(asDatabaseDecimal(mul("1", "0.5")), "0.500000");

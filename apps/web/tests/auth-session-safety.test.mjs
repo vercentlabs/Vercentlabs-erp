@@ -7,7 +7,7 @@ const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("browser and mobile login use one anti-lockout policy", () => {
-  const policy = read("src/lib/login-policy.ts");
+  const policy = read("src/core/login-policy.ts");
   const browser = read("src/app/api/auth/login/route.ts");
   const mobile = read("src/app/api/mobile/v1/auth/login/route.ts");
 
@@ -25,7 +25,7 @@ test("browser and mobile login use one anti-lockout policy", () => {
 });
 
 test("direct Sales routes render a permission-safe state instead of blank output", () => {
-  const accessDenied = read("src/components/access-denied.tsx");
+  const accessDenied = read("src/shared/components/access-denied.tsx");
   const orders = read("src/app/(app)/sales/orders/page.tsx");
   const quotations = read("src/app/(app)/sales/quotations/page.tsx");
 

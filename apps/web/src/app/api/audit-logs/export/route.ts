@@ -1,10 +1,10 @@
-import { getSessionContext } from "@/lib/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { listAuditEvents } from "@/lib/audit/query";
-import { redactAuditPayload } from "@/lib/audit/redact";
-import { csvCell } from "@/lib/csv";
-import { errorResponse, HttpError } from "@/lib/http";
-import { audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { listAuditEvents } from "@/core/audit/query";
+import { redactAuditPayload } from "@/core/audit/redact";
+import { csvCell } from "@/core/csv";
+import { errorResponse, HttpError } from "@/core/http";
+import { audit } from "@/core/security";
 
 // Prompt 9, Part 16/43: permission-protected, tenant-scoped, server-side
 // filtered (the exact same filters the Audit Events page applies — no

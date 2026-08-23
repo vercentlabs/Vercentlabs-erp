@@ -1,11 +1,11 @@
 import { assessSalesOrderReadiness, getSalesOrder } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
-import SalesDocumentActions from "@/components/sales-document-actions";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { salesContext } from "@/lib/sales";
+import SalesDocumentActions from "@/modules/sales/components/document-actions";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { salesContext } from "@/modules/sales";
 
 export const dynamic = "force-dynamic";
 

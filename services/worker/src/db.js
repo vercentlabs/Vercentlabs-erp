@@ -9,7 +9,7 @@ const logger = createLogger("worker-db");
 let pool;
 let roleVerified;
 
-// Mirrors apps/web/src/lib/db.ts's own verifyRuntimeRole() check
+// Mirrors apps/web/src/core/db.ts's own verifyRuntimeRole() check
 // independently rather than importing it, because the worker is a
 // genuinely separate deployable process with its own DATABASE_URL/
 // credential in production — trusting apps/web to have already checked

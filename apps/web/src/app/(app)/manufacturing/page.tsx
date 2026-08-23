@@ -1,11 +1,11 @@
 import { getManufacturingDashboard } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import ManufacturingDashboard from "@/components/manufacturing/manufacturing-dashboard";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { manufacturingContext } from "@/lib/manufacturing";
+import AccessDenied from "@/shared/components/access-denied";
+import ManufacturingDashboard from "@/modules/manufacturing/components/manufacturing-dashboard";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { manufacturingContext } from "@/modules/manufacturing";
 
 export const metadata = { title: "Manufacturing" };
 export const dynamic = "force-dynamic";

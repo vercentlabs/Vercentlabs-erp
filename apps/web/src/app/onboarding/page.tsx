@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 
-import AppIcon from "@/components/app-icon";
-import OnboardingForm from "@/components/onboarding-form";
-import { requireVerifiedUser } from "@/lib/auth";
+import AppIcon from "@/shared/components/app-icon";
+import OnboardingForm from "@/core/components/onboarding-form";
+import { requireVerifiedUser } from "@/core/auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Organisation setup" };

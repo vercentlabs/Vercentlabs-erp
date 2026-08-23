@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import AppIcon from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { businessDataDefinitions } from "@/lib/business-data";
+import AppIcon from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { businessDataDefinitions } from "@/core/master-data";
 
 export const metadata = { title: "Data management" };
 export const dynamic = "force-dynamic";

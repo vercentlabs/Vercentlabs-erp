@@ -1,28 +1,28 @@
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
+} from "@/core/billing";
 import {
   completeImportJob,
   createBusinessDataRecord,
   createImportJob,
 } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   businessDataContext,
   businessDataDefinitions,
   isBusinessDataDefinition,
   rethrowBusinessDataError,
-} from "@/lib/business-data";
+} from "@/core/master-data";
 import {
   businessDataImportEnvelopeSchema,
   businessDataSchemas,
-} from "@/lib/business-data-validation";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, fail, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+} from "@/core/master-data-validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, fail, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
 
 export async function POST(
   request: Request,

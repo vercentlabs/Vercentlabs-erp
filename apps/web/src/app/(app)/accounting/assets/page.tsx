@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { listAssetCategories, listAssets } from "@vercentlabs/api";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { accountingContext } from "@/lib/accounting";
-import { tenantTransaction } from "@/lib/db";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { accountingContext } from "@/modules/accounting";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

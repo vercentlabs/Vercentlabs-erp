@@ -1,5 +1,5 @@
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { publicSession, requireMobileSession } from "@/lib/mobile-session";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { publicSession, requireMobileSession } from "@/core/mobile-session";
 
 export async function GET(request: Request) {
   try {

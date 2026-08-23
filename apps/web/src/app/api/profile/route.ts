@@ -1,8 +1,8 @@
-import { requireApiPermission } from "@/lib/authorization";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { profileSchema } from "@/lib/validation";
+import { requireApiPermission } from "@/core/authorization";
+import { query, transaction } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { profileSchema } from "@/core/validation";
 
 export async function PATCH(request: Request) {
   try {

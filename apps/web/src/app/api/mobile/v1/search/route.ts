@@ -1,12 +1,12 @@
 import { listBusinessDataRecords, listCrmRecords } from "@vercentlabs/api";
 
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { businessDataContext } from "@/lib/business-data";
-import { crmApiContext } from "@/lib/crm";
-import { query, tenantTransaction } from "@/lib/db";
-import { HttpError } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { businessDataContext } from "@/core/master-data";
+import { crmApiContext } from "@/modules/crm";
+import { query, tenantTransaction } from "@/core/db";
+import { HttpError } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
 
 type Result = {
   resource: string;

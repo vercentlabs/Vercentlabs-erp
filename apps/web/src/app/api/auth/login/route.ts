@@ -3,10 +3,10 @@ import {
   nextPath,
   setSessionCookie,
   verifyPasswordOrDummy,
-} from "@/lib/auth";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit, recordLoginEvent } from "@/lib/security";
+} from "@/core/auth";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit, recordLoginEvent } from "@/core/security";
 import {
   enforceLoginRateLimits,
   GENERIC_LOGIN_FAILURE,
@@ -15,8 +15,8 @@ import {
   loginFailureReason,
   recordFailedPasswordAttempt,
   recordSuccessfulLogin,
-} from "@/lib/login-policy";
-import { loginSchema } from "@/lib/validation";
+} from "@/core/login-policy";
+import { loginSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

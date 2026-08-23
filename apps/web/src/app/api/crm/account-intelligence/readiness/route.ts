@@ -1,10 +1,10 @@
 import { getCrmAccountIntelligenceReadiness } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmApiContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
-import { crmAccountIntelligenceErrorResponse } from "@/lib/crm-account-intelligence-route";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { crmApiContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
+import { crmAccountIntelligenceErrorResponse } from "@/modules/crm/server/account-intelligence";
 
 export async function GET() {
   try {

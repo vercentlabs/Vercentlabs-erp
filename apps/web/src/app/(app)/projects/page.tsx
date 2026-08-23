@@ -1,11 +1,11 @@
 import { getProjectsDashboard } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import ProjectsDashboard from "@/components/projects/projects-dashboard";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { projectsContext } from "@/lib/projects";
+import AccessDenied from "@/shared/components/access-denied";
+import ProjectsDashboard from "@/modules/projects/components/projects-dashboard";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { projectsContext } from "@/modules/projects";
 
 export const metadata = { title: "Projects" };
 export const dynamic = "force-dynamic";

@@ -7,9 +7,9 @@ import {
 import {
   crmCoreAcceptanceSession,
   tenantTransaction,
-} from "@/lib/crm-core-acceptance-route";
-import { errorResponse, fail, ok, readJson } from "@/lib/http";
-import { assertSameOriginOrMobile } from "@/lib/security";
+} from "@/modules/crm/server/core-acceptance";
+import { errorResponse, fail, ok, readJson } from "@/core/http";
+import { assertSameOriginOrMobile } from "@/core/security";
 
 function inputObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

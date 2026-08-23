@@ -18,7 +18,7 @@ const sharedTypes = await import(
 
 // match-path.ts and route-map.ts have zero imports beyond their own types
 // (no auth/db/next dependency), so — unlike the registry data files, which
-// transitively import apps/web/src/lib/auth.ts's `next/headers` usage —
+// transitively import apps/web/src/core/auth.ts's `next/headers` usage —
 // they're safe to actually transpile and execute, giving real behavioral
 // coverage rather than only source-pattern checks.
 async function loadPureModule(relativePath) {
@@ -34,8 +34,8 @@ async function loadPureModule(relativePath) {
   return import(`${pathToFileURL(file).href}?v=${Date.now()}`);
 }
 
-const matchPath = await loadPureModule("apps/web/src/lib/navigation/match-path.ts");
-const routeMap = await loadPureModule("apps/web/src/lib/navigation/route-map.ts");
+const matchPath = await loadPureModule("apps/web/src/core/navigation/match-path.ts");
+const routeMap = await loadPureModule("apps/web/src/core/navigation/route-map.ts");
 
 // ---------------------------------------------------------------------
 // Part 29 — registry invariants (static source checks for the data files
@@ -45,7 +45,7 @@ const routeMap = await loadPureModule("apps/web/src/lib/navigation/route-map.ts"
 // ---------------------------------------------------------------------
 
 test("registry: modules.ts declares exactly the 12 canonical moduleIds, matching ERP_MODULE_CATALOG 1:1", () => {
-  const source = read("apps/web/src/lib/navigation/modules.ts");
+  const source = read("apps/web/src/core/navigation/modules.ts");
   const declared = [...source.matchAll(/moduleId:\s*"([^"]+)"/g)].map((m) => m[1]);
   assert.equal(declared.length, 12, "expected exactly 12 moduleId declarations");
   assert.equal(new Set(declared).size, 12, "duplicate moduleId declared in modules.ts");
@@ -54,7 +54,7 @@ test("registry: modules.ts declares exactly the 12 canonical moduleIds, matching
 });
 
 test("registry: every module group's items array starts with an exact-match Overview item", () => {
-  const source = read("apps/web/src/lib/navigation/modules.ts");
+  const source = read("apps/web/src/core/navigation/modules.ts");
   const groupBodies = source.split(/\{\s*\n\s*label: "/).slice(1);
   assert.equal(groupBodies.length, 12);
   for (const body of groupBodies) {
@@ -67,11 +67,11 @@ test("registry: every module group's items array starts with an exact-match Over
 
 test("registry: no navigation data file promotes a CRUD verb into a top-level label", () => {
   const files = [
-    "apps/web/src/lib/navigation/modules.ts",
-    "apps/web/src/lib/navigation/workspace.ts",
-    "apps/web/src/lib/navigation/my-work.ts",
-    "apps/web/src/lib/navigation/governance.ts",
-    "apps/web/src/lib/navigation/administration.ts",
+    "apps/web/src/core/navigation/modules.ts",
+    "apps/web/src/core/navigation/workspace.ts",
+    "apps/web/src/core/navigation/my-work.ts",
+    "apps/web/src/core/navigation/governance.ts",
+    "apps/web/src/core/navigation/administration.ts",
   ];
   const verbPattern = /label:\s*"(Create|Edit|Delete|Convert|Merge|Duplicate|Remove) /i;
   for (const file of files) {
@@ -87,7 +87,7 @@ test("registry: platform capability areas (Billing, Audit logs, Security, Settin
 });
 
 test("registry: resolve-navigation.ts fails closed on a module-access lookup failure (hides all modules, never shows all)", () => {
-  const source = read("apps/web/src/lib/navigation/resolve-navigation.ts");
+  const source = read("apps/web/src/core/navigation/resolve-navigation.ts");
   assert.match(
     source,
     /catch \{[\s\S]*?accessibleModuleIds = new Set\(\);[\s\S]*?\}/,
@@ -96,13 +96,13 @@ test("registry: resolve-navigation.ts fails closed on a module-access lookup fai
 });
 
 test("registry: resolve-navigation.ts filters module groups by accessibleModuleIds and prunes empty groups", () => {
-  const source = read("apps/web/src/lib/navigation/resolve-navigation.ts");
+  const source = read("apps/web/src/core/navigation/resolve-navigation.ts");
   assert.match(source, /accessibleModuleIds\.has\(group\.moduleId\)/);
   assert.match(source, /\.filter\(\(group\) => group\.items\.length > 0\)/);
 });
 
 test("registry: resolve-navigation.ts uses Prompt 4/5's canonical getAccessibleModules() rather than re-deriving module access", () => {
-  const source = read("apps/web/src/lib/navigation/resolve-navigation.ts");
+  const source = read("apps/web/src/core/navigation/resolve-navigation.ts");
   assert.match(source, /import \{ getAccessibleModules \} from "@\/lib\/module-access";/);
   assert.doesNotMatch(source, /organization_modules|getBillingSummary\(/, "must not re-implement module-access.ts's own DB/billing logic");
 });
@@ -176,14 +176,14 @@ test("MODULE_ROUTE_ROOTS: exactly the 12 canonical modules, each a distinct root
 
 test("client-bundle safety: navigation data files reachable from breadcrumbs.tsx never import @/lib/auth or @/lib/authorization directly", () => {
   const files = [
-    "apps/web/src/lib/navigation/workspace.ts",
-    "apps/web/src/lib/navigation/my-work.ts",
-    "apps/web/src/lib/navigation/governance.ts",
-    "apps/web/src/lib/navigation/administration.ts",
-    "apps/web/src/lib/navigation/modules.ts",
-    "apps/web/src/lib/navigation/breadcrumb-labels.ts",
-    "apps/web/src/lib/navigation/match-path.ts",
-    "apps/web/src/lib/navigation/route-map.ts",
+    "apps/web/src/core/navigation/workspace.ts",
+    "apps/web/src/core/navigation/my-work.ts",
+    "apps/web/src/core/navigation/governance.ts",
+    "apps/web/src/core/navigation/administration.ts",
+    "apps/web/src/core/navigation/modules.ts",
+    "apps/web/src/core/navigation/breadcrumb-labels.ts",
+    "apps/web/src/core/navigation/match-path.ts",
+    "apps/web/src/core/navigation/route-map.ts",
   ];
   for (const file of files) {
     const source = read(file);
@@ -196,13 +196,13 @@ test("client-bundle safety: navigation data files reachable from breadcrumbs.tsx
 });
 
 test("permissions-catalog.ts (the PERMISSIONS source navigation data files use) has no @/lib/auth dependency", () => {
-  const source = read("apps/web/src/lib/permissions-catalog.ts");
+  const source = read("apps/web/src/core/permissions.ts");
   assert.doesNotMatch(source, /from "@\/lib\//);
   assert.match(source, /from "@vercentlabs\/permissions"/);
 });
 
 test("authorization.ts re-exports PERMISSIONS from permissions-catalog.ts rather than redefining it (single source of truth)", () => {
-  const source = read("apps/web/src/lib/authorization.ts");
+  const source = read("apps/web/src/core/authorization.ts");
   assert.match(source, /import \{ PERMISSIONS \} from "@\/lib\/permissions-catalog";/);
   assert.match(source, /export \{ PERMISSIONS \};/);
 });

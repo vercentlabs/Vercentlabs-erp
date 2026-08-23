@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionContext, nextPath } from "@/lib/auth";
+import { getSessionContext, nextPath } from "@/core/auth";
 
 export const dynamic = "force-dynamic";
 

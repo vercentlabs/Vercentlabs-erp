@@ -89,7 +89,7 @@ export type CrmContext = {
   activeCompanyId: string | null;
   activeBranchId: string | null;
   allowAllCompanies?: boolean;
-  // Prompt 14: canViewAllCrmRecords() (services/api/src/crm.js) reads these
+  // Prompt 14: canViewAllCrmRecords() (services/api/src/modules/crm/index.js) reads these
   // to decide record-ownership scope. Always populated — from the real
   // authenticated session for human requests (crmContext()), or from a
   // least-privilege system actor (services/worker's buildSystemContext()).

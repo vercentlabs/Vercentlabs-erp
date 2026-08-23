@@ -8,7 +8,7 @@ Prompt 8 adds a shared-workspace layer on top of the module-gated foundation est
 
 ## 2. Non-Negotiable Architectural Principle (restated, and how it was enforced)
 
-`SOURCE MODULE DATA → MODULE ACCESS → ACTION PERMISSION → COMPANY/BRANCH/RECORD SCOPE → SHARED WORKSPACE AGGREGATION`. Concretely: every adapter in `apps/web/src/lib/my-work/*` calls `assertModuleAccessible()` (directly or via a module's own `*Context()`/`*Session()` helper) before touching data, then calls that module's own already-secured list/dashboard function (`listCrmRecords`, `listProjectResource`, `listSupportResource`, `listQualityResource`, `getReceivablesGovernanceDashboard`, `getPayablesGovernanceDashboard`, `getBankingGovernanceDashboard`, `getProcurementGovernanceDashboard`). No adapter issues a raw `client.query()` against a module's own tables (enforced by `tests/shared-workspace.test.mjs`). Favourites/Recent Records add one more link: a stored href is re-validated for current module accessibility on every read (`resolveModuleAccess`), never trusted as authorization by itself.
+`SOURCE MODULE DATA → MODULE ACCESS → ACTION PERMISSION → COMPANY/BRANCH/RECORD SCOPE → SHARED WORKSPACE AGGREGATION`. Concretely: every adapter in `apps/web/src/core/work/*` calls `assertModuleAccessible()` (directly or via a module's own `*Context()`/`*Session()` helper) before touching data, then calls that module's own already-secured list/dashboard function (`listCrmRecords`, `listProjectResource`, `listSupportResource`, `listQualityResource`, `getReceivablesGovernanceDashboard`, `getPayablesGovernanceDashboard`, `getBankingGovernanceDashboard`, `getProcurementGovernanceDashboard`). No adapter issues a raw `client.query()` against a module's own tables (enforced by `tests/shared-workspace.test.mjs`). Favourites/Recent Records add one more link: a stored href is re-validated for current module accessibility on every read (`resolveModuleAccess`), never trusted as authorization by itself.
 
 ## 3. Why the New Nav Items Carry No Permission Gate
 
@@ -38,9 +38,9 @@ The pre-existing Organisation overview, Quick actions, Your open activities, and
 
 ## 5. Master Data — What Changed
 
-`apps/web/src/lib/business-data.ts`'s 16-resource registry and CRUD architecture are unchanged. Two additions to `apps/web/src/app/(app)/master-data/page.tsx`:
+`apps/web/src/core/master-data.ts`'s 16-resource registry and CRUD architecture are unchanged. Two additions to `apps/web/src/app/(app)/master-data/page.tsx`:
 
-1. **Client-side catalogue search** (`apps/web/src/components/master-data-catalogue.tsx`) — filters the already-fetched, already-permission-scoped `entries` array by title/description/group. No server round-trip per keystroke; the component never re-derives `businessDataDefinitions` itself, it only filters the props the server passed down.
+1. **Client-side catalogue search** (`apps/web/src/core/components/master-data-catalogue.tsx`) — filters the already-fetched, already-permission-scoped `entries` array by title/description/group. No server round-trip per keystroke; the component never re-derives `businessDataDefinitions` itself, it only filters the props the server passed down.
 2. **Permission-aware "Manage access" / "View only" badge per card** — all 16 resources share one read gate (`businessDataView`, confirmed uniform by audit — there is no per-resource *view* permission to split further on), but their *manage* permissions genuinely differ (`partiesManage`, `itemsManage`, `inventorySetupManage`, `financeSetupManage`). Each card now reflects `hasPermission(session, definition.managePermission)` individually rather than assuming uniform write access.
 
 Module-specific workflows (Procurement supplier onboarding/risk/approvals, etc.) were not touched or duplicated into Master Data — Master Data still exposes only the shared record.
@@ -91,7 +91,7 @@ Categories tabs on `/exceptions` are computed client-side (server-rendered) from
 
 ## 10. Approvals and Notifications — Integration, Not Rebuild
 
-`apps/web/src/lib/my-work/approvals.ts` (`listMyApprovals`) and `apps/web/src/lib/my-work/notifications.ts` (`listMyNotifications`, `countUnreadNotifications`) extract the exact SQL `apps/web/src/app/api/approvals/route.ts`'s GET and `apps/web/src/app/api/notifications/route.ts`'s GET already ran inline, so both the existing API routes and the new My Work/Home pages call one shared, still-identically-scoped function. Scoping is unchanged: approvals to `(assigned_to = me OR assigned_to IS NULL)` gated by `approvals.manage`; notifications to `(organization_id, user_id)`. Neither endpoint gained new capabilities.
+`apps/web/src/core/work/approvals.ts` (`listMyApprovals`) and `apps/web/src/core/work/notifications.ts` (`listMyNotifications`, `countUnreadNotifications`) extract the exact SQL `apps/web/src/app/api/approvals/route.ts`'s GET and `apps/web/src/app/api/notifications/route.ts`'s GET already ran inline, so both the existing API routes and the new My Work/Home pages call one shared, still-identically-scoped function. Scoping is unchanged: approvals to `(assigned_to = me OR assigned_to IS NULL)` gated by `approvals.manage`; notifications to `(organization_id, user_id)`. Neither endpoint gained new capabilities.
 
 ## 11. Recent Records — `/recent`
 
@@ -105,7 +105,7 @@ Reads are bounded (`LIMIT 30`, capped at 50 in the query), re-validate module ac
 
 **Persistence decision**: a new control-plane table, `favourites` (migration 029), same `(organization_id, user_id)` ownership pattern as `user_preferences`, same reasoning for not reusing existing tables as §11.
 
-**Target validation** (`apps/web/src/lib/internal-href.ts`, shared by both Favourites and Recent Records): `isValidInternalHref()` rejects anything that isn't a same-origin relative path starting with a single `/`, containing no whitespace/quote/angle-bracket characters, no `scheme:` prefix (blocks `/javascript:...`), and whose first path segment is one of the 12 real module keys (sourced from `ERP_MODULE_CATALOG`, not a second hand-maintained list) or a known shared-workspace/platform area. This runs at **write** time, independent of the writing user's current access (per-user accessibility is re-checked separately on every read).
+**Target validation** (`apps/web/src/core/internal-href.ts`, shared by both Favourites and Recent Records): `isValidInternalHref()` rejects anything that isn't a same-origin relative path starting with a single `/`, containing no whitespace/quote/angle-bracket characters, no `scheme:` prefix (blocks `/javascript:...`), and whose first path segment is one of the 12 real module keys (sourced from `ERP_MODULE_CATALOG`, not a second hand-maintained list) or a known shared-workspace/platform area. This runs at **write** time, independent of the writing user's current access (per-user accessibility is re-checked separately on every read).
 
 **API**: `GET /api/favourites`, `POST /api/favourites`, `DELETE /api/favourites` only — no PUT/PATCH. `POST`/`DELETE` assert same-origin; all three require an authenticated session.
 
@@ -113,15 +113,15 @@ Reads are bounded (`LIMIT 30`, capped at 50 in the query), re-validate module ac
 
 ## 13. Database Migration
 
-`database/control-plane/migrations/029_shared_workspace_favourites_and_recents.sql` — two tables, `favourites` and `recent_records`, both `(organization_id, user_id)`-owned, both with a `UNIQUE (organization_id, user_id, target_href)` constraint and a supporting index. Applied directly to the running local Postgres (`docker exec vercentlabs-postgres psql ... < 029_...sql`) — confirmed `CREATE TABLE`/`CREATE INDEX` x2/`COMMIT`.
+`database/platform/migrations/029_shared_workspace_favourites_and_recents.sql` — two tables, `favourites` and `recent_records`, both `(organization_id, user_id)`-owned, both with a `UNIQUE (organization_id, user_id, target_href)` constraint and a supporting index. Applied directly to the running local Postgres (`docker exec vercentlabs-postgres psql ... < 029_...sql`) — confirmed `CREATE TABLE`/`CREATE INDEX` x2/`COMMIT`.
 
 ## 14. Navigation Registry
 
-`apps/web/src/lib/navigation/my-work.ts` gained 6 items (`/my-work`, `/tasks`, `/follow-ups`, `/exceptions`, `/recent`, `/favourites`) ahead of the existing Notifications/Approvals items, each with the documented command-palette keyword aliases: `todo`/`to-do` → Tasks, `reminder`/`reminders` → Follow-ups, `issues`/`issue` → Exceptions, `recent` → Recent records, `saved`/`favorites`/`starred` → Favourites. `apps/web/scripts/verify-routes.mjs`'s existing href-resolution check (unmodified) confirms all 6 resolve to a real `page.tsx` — 127 navigation hrefs checked, 0 failures.
+`apps/web/src/core/navigation/my-work.ts` gained 6 items (`/my-work`, `/tasks`, `/follow-ups`, `/exceptions`, `/recent`, `/favourites`) ahead of the existing Notifications/Approvals items, each with the documented command-palette keyword aliases: `todo`/`to-do` → Tasks, `reminder`/`reminders` → Follow-ups, `issues`/`issue` → Exceptions, `recent` → Recent records, `saved`/`favorites`/`starred` → Favourites. `apps/web/scripts/verify-routes.mjs`'s existing href-resolution check (unmodified) confirms all 6 resolve to a real `page.tsx` — 127 navigation hrefs checked, 0 failures.
 
 ## 15. WorkItem Aggregation Architecture
 
-`apps/web/src/lib/my-work/types.ts` defines the shared `WorkItem` shape (`id, kind, moduleId?, source, title, subtitle?, dueAt?, urgency, priority?, status?, href`) and `classifyDueAt()` — a plain three-way overdue/due_today/upcoming/none classifier using the server's local calendar day boundaries (not a blind UTC-midnight comparison). Every adapter (`tasks.ts`, `follow-ups.ts`, `exceptions.ts`) maps its module's rows into this shape; `aggregate.ts`'s `getMyWorkSummary()` composes all sources plus approvals/notifications via `Promise.allSettled`, slices each to a small preview count, and derives its summary counts (`tasksOverdue`, `followUpsDueToday`, `exceptionsOpen`, `approvalsPending`) from the exact same classified lists returned to callers — so Home's counts and `/tasks`/`/follow-ups`/`/exceptions`'s own filtered views can never disagree (both filter the same `listMyTasks()`/`listMyFollowUps()`/`listMyExceptions()` output by the same `urgency` field). No "attention score" — plain counts only.
+`apps/web/src/core/work/types.ts` defines the shared `WorkItem` shape (`id, kind, moduleId?, source, title, subtitle?, dueAt?, urgency, priority?, status?, href`) and `classifyDueAt()` — a plain three-way overdue/due_today/upcoming/none classifier using the server's local calendar day boundaries (not a blind UTC-midnight comparison). Every adapter (`tasks.ts`, `follow-ups.ts`, `exceptions.ts`) maps its module's rows into this shape; `aggregate.ts`'s `getMyWorkSummary()` composes all sources plus approvals/notifications via `Promise.allSettled`, slices each to a small preview count, and derives its summary counts (`tasksOverdue`, `followUpsDueToday`, `exceptionsOpen`, `approvalsPending`) from the exact same classified lists returned to callers — so Home's counts and `/tasks`/`/follow-ups`/`/exceptions`'s own filtered views can never disagree (both filter the same `listMyTasks()`/`listMyFollowUps()`/`listMyExceptions()` output by the same `urgency` field). No "attention score" — plain counts only.
 
 ## 16. Query Parameter Validation
 
@@ -148,10 +148,10 @@ Every adapter function is wrapped in its own `try/catch`, returning `[]` on any 
 ## 21. Files Changed
 
 **New:**
-- `database/control-plane/migrations/029_shared_workspace_favourites_and_recents.sql`
-- `apps/web/src/lib/internal-href.ts`
+- `database/platform/migrations/029_shared_workspace_favourites_and_recents.sql`
+- `apps/web/src/core/internal-href.ts`
 - `apps/web/src/lib/favourites.ts`, `apps/web/src/lib/recent-records.ts`
-- `apps/web/src/lib/my-work/{types,tasks,follow-ups,exceptions,approvals,notifications,aggregate}.ts`
+- `apps/web/src/core/work/{types,tasks,follow-ups,exceptions,approvals,notifications,aggregate}.ts`
 - `apps/web/src/app/(app)/{my-work,tasks,follow-ups,exceptions,recent,favourites}/page.tsx`
 - `apps/web/src/app/api/favourites/route.ts`
 - `apps/web/src/components/{work-item-list,favourite-toggle,favourites-list,master-data-catalogue}.tsx`
@@ -162,7 +162,7 @@ Every adapter function is wrapped in its own `try/catch`, returning `[]` on any 
 - `apps/web/src/app/(app)/master-data/page.tsx` — delegates card rendering to `MasterDataCatalogue`
 - `apps/web/src/app/(app)/crm/leads/[id]/page.tsx`, `.../crm/opportunities/[id]/page.tsx` — Favourite toggle + Recent tracking wired in
 - `apps/web/src/app/api/approvals/route.ts`, `apps/web/src/app/api/notifications/route.ts` — delegate to shared `my-work/*` helpers
-- `apps/web/src/lib/navigation/my-work.ts` — 6 new items + keyword aliases
+- `apps/web/src/core/navigation/my-work.ts` — 6 new items + keyword aliases
 - `apps/web/src/app/globals.css`, `apps/web/src/app/business-data-extension.css` — supporting styles (`.timeline-list > a`, `.tab-strip`, `.favourite-toggle`, `.master-data-search`, `.master-data-card-access`)
 - `apps/web/tests/context-and-topbar.test.mjs` — updated to follow the notifications-route refactor
 

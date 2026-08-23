@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const directories = [
-  { label: "control-plane", dir: path.join(root, "database/control-plane/migrations") },
+  { label: "platform", dir: path.join(root, "database/platform/migrations") },
   { label: "tenant", dir: path.join(root, "database/tenant/migrations") },
 ];
 

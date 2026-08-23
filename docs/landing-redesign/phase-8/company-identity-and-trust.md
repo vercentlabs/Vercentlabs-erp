@@ -8,9 +8,9 @@ Rather than inventing company details for the new `/privacy` and `/terms` pages,
 
 A repo-wide search (`grep -rn "LLP\|Private Limited\|Pvt Ltd" --include="*.md" --include="*.tsx" --include="*.ts" --include="*.json"`) found:
 
-- `apps/web/src/components/auth-card.tsx:91` — the real account/auth UI literally renders `"Vercentlabs LLP"`.
-- `apps/web/src/components/onboarding-form.tsx:81` — uses `"Vercentlabs LLP"` as a placeholder example.
-- `apps/web/src/lib/mailer.ts:133,221` — real, production transactional email templates (security/auth emails) sign off as `"Vercentlabs LLP"` and describe the company as `"Vercentlabs LLP · Enterprise software platform"`.
+- `apps/web/src/core/components/auth-card.tsx:91` — the real account/auth UI literally renders `"Vercentlabs LLP"`.
+- `apps/web/src/core/components/onboarding-form.tsx:81` — uses `"Vercentlabs LLP"` as a placeholder example.
+- `apps/web/src/core/mailer.ts:133,221` — real, production transactional email templates (security/auth emails) sign off as `"Vercentlabs LLP"` and describe the company as `"Vercentlabs LLP · Enterprise software platform"`.
 
 This confirms **"Vercentlabs LLP"** as the real, already-in-production legal entity name — not invented for this phase.
 

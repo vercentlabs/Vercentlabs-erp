@@ -1,9 +1,9 @@
 import { addConsolidationAdjustment, finalizeConsolidationRun } from "@vercentlabs/api";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { consolidationActionSchema } from "@/lib/accounting-validation";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { consolidationActionSchema } from "@/modules/accounting/validation";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
   try {

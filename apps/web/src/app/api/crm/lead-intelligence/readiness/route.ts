@@ -1,10 +1,10 @@
 import { getCrmLeadIntelligenceReadiness } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmApiContext } from "@/lib/crm";
-import { crmLeadIntelligenceErrorResponse } from "@/lib/crm-lead-intelligence-route";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { crmApiContext } from "@/modules/crm";
+import { crmLeadIntelligenceErrorResponse } from "@/modules/crm/server/lead-intelligence";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
 export async function GET(request: Request) {
   try {
     const session = await getSessionContext();

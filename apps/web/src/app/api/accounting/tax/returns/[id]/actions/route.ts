@@ -3,11 +3,11 @@ import {
   updateTaxReturnStatus,
 } from "@vercentlabs/api";
 
-import { rethrowAccountingError } from "@/lib/accounting";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { taxReturnActionSchema } from "@/lib/accounting-validation";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { taxReturnActionSchema } from "@/modules/accounting/validation";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
 
 export async function POST(
   request: Request,

@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { getCloseRun } from "@vercentlabs/api";
-import AccountingActionButton from "@/components/accounting/accounting-action-button";
-import CloseTaskActions from "@/components/accounting/close-task-actions";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { accountingContext } from "@/lib/accounting";
-import { tenantTransaction } from "@/lib/db";
+import AccountingActionButton from "@/modules/accounting/components/accounting-action-button";
+import CloseTaskActions from "@/modules/accounting/components/close-task-actions";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { accountingContext } from "@/modules/accounting";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

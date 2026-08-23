@@ -4,13 +4,13 @@ import {
   saveLeadAssignmentPolicy,
 } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
-import { crmApiContext, rethrowCrmError } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function GET() {
   try {

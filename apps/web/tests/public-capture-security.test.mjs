@@ -38,7 +38,7 @@ test("both public CRM lead-capture routes derive their rate-limit fingerprint fr
 });
 
 test("the trusted-proxy fingerprint helper verifies an HMAC signature rather than trusting client-supplied headers", () => {
-  const source = read("src/lib/security.ts");
+  const source = read("src/core/security.ts");
   assert.match(source, /export function verifiedCaptureProxyFingerprint/);
   assert.match(source, /CRM_CAPTURE_PROXY_SECRET/);
   assert.match(source, /createHmac\("sha256", secret\)/);
@@ -58,7 +58,7 @@ test("the lead-acquisition public form route no longer bypasses its origin allow
 });
 
 test("the public capture schema rejects unknown fields and bounds custom-data payload size", () => {
-  const source = read("src/lib/crm-validation.ts");
+  const source = read("src/modules/crm/validation.ts");
   const schemaStart = source.indexOf("export const publicCaptureSchema");
   assert.ok(schemaStart !== -1, "publicCaptureSchema must exist");
   const schemaSource = source.slice(schemaStart, schemaStart + 2000);

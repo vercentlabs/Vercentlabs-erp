@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 
 import { mapProviderSubscriptionStatus } from "@vercentlabs/api";
 
-import { replaceOrganizationSubscriptionWithClient } from "@/lib/billing";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
-import { readRequestBytes, sha256 } from "@/lib/security";
-import { verifyRazorpayWebhookSignature } from "@/lib/razorpay";
+import { replaceOrganizationSubscriptionWithClient } from "@/core/billing";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
+import { readRequestBytes, sha256 } from "@/core/security";
+import { verifyRazorpayWebhookSignature } from "@/core/razorpay";
 
 export const dynamic = "force-dynamic";
 

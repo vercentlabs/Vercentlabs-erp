@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { hashPassword, tokenHash, verifyPassword } from "@/lib/auth";
-import { transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
+import { hashPassword, tokenHash, verifyPassword } from "@/core/auth";
+import { transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import {
   assertSameOrigin,
   audit,
   clientIp,
   enforceRateLimit,
-} from "@/lib/security";
-import { resetPasswordSchema } from "@/lib/validation";
+} from "@/core/security";
+import { resetPasswordSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

@@ -5,11 +5,11 @@ import {
   submitVendorBill,
 } from "@vercentlabs/api";
 
-import { rethrowAccountingError } from "@/lib/accounting";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { accountingActionSchema } from "@/lib/accounting-validation";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { accountingActionSchema } from "@/modules/accounting/validation";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function POST(
   request: Request,

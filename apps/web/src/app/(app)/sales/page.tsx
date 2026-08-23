@@ -6,11 +6,11 @@ import {
 } from "@vercentlabs/api";
 import { formatMoney } from "@vercentlabs/localization";
 
-import AppIcon, { type AppIconName } from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { salesContext } from "@/lib/sales";
+import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { salesContext } from "@/modules/sales";
 
 export const dynamic = "force-dynamic";
 

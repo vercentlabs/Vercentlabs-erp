@@ -1,15 +1,15 @@
 import { createCrmRecord, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
-import { requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
-import { crmApiContext, crmDefinitions, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError } from "@/lib/http";
-import { readJson } from "@/lib/http";
-import { crmSchemas } from "@/lib/crm-validation";
-import { audit } from "@/lib/security";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { withMobileIdempotency } from "@/lib/mobile-idempotency";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
+import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
+import { crmApiContext, crmDefinitions, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { HttpError } from "@/core/http";
+import { readJson } from "@/core/http";
+import { crmSchemas } from "@/modules/crm/validation";
+import { audit } from "@/core/security";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
+import { withMobileIdempotency } from "@/core/mobile-idempotency";
 
 export async function GET(request: Request, route: { params: Promise<{ resource: string }> }) {
   try {

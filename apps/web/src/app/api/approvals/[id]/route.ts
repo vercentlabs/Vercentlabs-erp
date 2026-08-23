@@ -6,17 +6,17 @@ import {
 } from "@vercentlabs/workflows";
 import { z } from "zod";
 
-import { getApprovalCommand } from "@/lib/approval-commands";
+import { getApprovalCommand } from "@/core/approvals";
 import {
   requireApiPermission,
   requirePermissionFromSession,
-} from "@/lib/authorization";
-import { requireBillingWriteAccess } from "@/lib/billing";
-import { rethrowCrmError } from "@/lib/crm";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { approvalDecisionSchema } from "@/lib/validation";
+} from "@/core/authorization";
+import { requireBillingWriteAccess } from "@/core/billing";
+import { rethrowCrmError } from "@/modules/crm";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { approvalDecisionSchema } from "@/core/validation";
 
 const identifier = z.string().uuid();
 

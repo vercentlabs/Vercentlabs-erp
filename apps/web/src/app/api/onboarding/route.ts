@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { getSessionContext } from "@/lib/auth";
-import { transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { seedOrganizationFoundation } from "@/lib/platform";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { uniqueOrganizationSlug } from "@/lib/slug";
-import { onboardingSchema } from "@/lib/validation";
+import { getSessionContext } from "@/core/auth";
+import { transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { seedOrganizationFoundation } from "@/core/platform";
+import { assertSameOrigin, audit } from "@/core/security";
+import { uniqueOrganizationSlug } from "@/core/slug";
+import { onboardingSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

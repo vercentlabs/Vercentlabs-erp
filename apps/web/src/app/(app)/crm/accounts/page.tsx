@@ -6,14 +6,14 @@ import {
   listBusinessDataRecords,
 } from "@vercentlabs/api";
 
-import BusinessDataManager from "@/components/business-data-manager";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import BusinessDataManager from "@/core/components/business-data-manager";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import {
   businessDataContext,
   businessDataDefinitions,
-} from "@/lib/business-data";
-import { tenantTransaction } from "@/lib/db";
+} from "@/core/master-data";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Accounts" };

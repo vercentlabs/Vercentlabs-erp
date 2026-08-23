@@ -1,10 +1,10 @@
 import { getTaxReportingGovernanceDashboard } from "@vercentlabs/api";
 
-import SimpleAccountingForm from "@/components/accounting/simple-accounting-form";
-import { accountingContext } from "@/lib/accounting";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
+import SimpleAccountingForm from "@/modules/accounting/components/simple-accounting-form";
+import { accountingContext } from "@/modules/accounting";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 

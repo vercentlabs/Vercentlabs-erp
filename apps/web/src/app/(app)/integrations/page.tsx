@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import AppIcon from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import AppIcon from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import {
   getOutboxQueueStatus,
   isSystemEmailConfigured,
   listRecentWebhookDeliveries,
   listWebhookSubscriptions,
-} from "@/lib/integrations";
+} from "@/core/integrations";
 
 export const metadata = { title: "Integrations" };
 export const dynamic = "force-dynamic";

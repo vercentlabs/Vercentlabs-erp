@@ -1,9 +1,9 @@
 import { createAccrualSchedule, listAccrualSchedules } from "@vercentlabs/api";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { accrualScheduleSchema } from "@/lib/accounting-validation";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { accrualScheduleSchema } from "@/modules/accounting/validation";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function GET(request: Request) {
   try { const { context } = await accountingSession(); const filters = Object.fromEntries(new URL(request.url).searchParams.entries()); return ok({ schedules: await tenantTransaction(context.organizationId, (client) => listAccrualSchedules(client, context, filters)) }); }

@@ -22,14 +22,14 @@ A fourth finding surfaced only during the mandated adversarial self-review (Part
 From `docs/implementation/ERP_WEB_AUDIT_001.md`, Section 12 ("Confirmed security gaps"):
 
 1. `hr_payroll.sensitive.view`, `support.sensitive.view`, `procurement.suppliers.sensitive` are defined, assignable, never checked (`packages/permissions/src/{hr-payroll,support,procurement}.js`).
-2. `services/api/src/crm.js:1283-1297` (`recordScope`) filters only by `company_id`/`branch_id`, never by assignee — "any user with `crm.leads.manage` sees every lead in their company."
+2. `services/api/src/modules/crm/index.js:1283-1297` (`recordScope`) filters only by `company_id`/`branch_id`, never by assignee — "any user with `crm.leads.manage` sees every lead in their company."
 3. `apps/web/src/app/api/crm/public/capture/[key]/route.ts` "never calls `enforceRateLimit()`."
 
 Re-verified against the current repository in Phase A of this prompt, with corrections:
 
-- Finding 1 confirmed exactly as stated for `hr_payroll.sensitive.view`/`support.sensitive.view`. `procurement.suppliers.sensitive` was additionally found to be **missing from `apps/web/src/lib/authorization.ts`'s `PERMISSIONS` object entirely** — it existed in `packages/permissions` and was granted to roles in `access-control.ts`, but there was no `PERMISSIONS.*` constant a route could even reference. Added in this prompt (Section 4).
+- Finding 1 confirmed exactly as stated for `hr_payroll.sensitive.view`/`support.sensitive.view`. `procurement.suppliers.sensitive` was additionally found to be **missing from `apps/web/src/core/authorization.ts`'s `PERMISSIONS` object entirely** — it existed in `packages/permissions` and was granted to roles in `access-control.ts`, but there was no `PERMISSIONS.*` constant a route could even reference. Added in this prompt (Section 4).
 - Finding 2 confirmed. Additionally discovered: `access-control.ts`'s role catalogue has **no assignable HR or Support role at all** today (only an unassignable "future" HR Manager stub) — the only roles that currently see `hr_payroll.*`/`support.*` data at all are `organization_owner`/`system_administrator`/`company_administrator` via `ALL_PERMISSIONS`. This means the HR/Support field-permission fix is genuinely defense-in-depth today (no narrower role exists yet to exploit the gap) but becomes load-bearing the moment a real HR/Support operational role is added — exactly the scenario the fix should already be correct for.
-- Finding 3 **partially incorrect** — Prompt 1 checked for the app's generic `enforceRateLimit()` helper and correctly found it absent from this route, but concluded "no rate limiting" without checking for a purpose-built alternative. `captureCrmLead` (`services/api/src/crm.js`) has its own DB-backed hourly rate limiter (`tenant.crm_capture_rate_limits`, insert-and-increment-with-`ON CONFLICT`, per organization+form+fingerprint) that was already working correctly. The real, more serious gap — a second public capture route with a spoofable rate-limit key and no body-size cap — was not in Prompt 1's audit at all; it surfaced only from this prompt's explicit instruction to "locate every public lead-capture entry point... do not protect only one frontend."
+- Finding 3 **partially incorrect** — Prompt 1 checked for the app's generic `enforceRateLimit()` helper and correctly found it absent from this route, but concluded "no rate limiting" without checking for a purpose-built alternative. `captureCrmLead` (`services/api/src/modules/crm/index.js`) has its own DB-backed hourly rate limiter (`tenant.crm_capture_rate_limits`, insert-and-increment-with-`ON CONFLICT`, per organization+form+fingerprint) that was already working correctly. The real, more serious gap — a second public capture route with a spoofable rate-limit key and no body-size cap — was not in Prompt 1's audit at all; it surfaced only from this prompt's explicit instruction to "locate every public lead-capture entry point... do not protect only one frontend."
 
 ## 3. Field-Level Permission Model
 
@@ -89,20 +89,20 @@ Because `updateCrmRecord` and `archiveCrmRecord` both call `getCrmRecord` first 
 ## 8. Public Lead-Capture Security
 
 **Endpoints** (both located and both hardened, per the explicit "do not protect only one frontend" instruction):
-1. `POST /api/crm/public/capture/[key]` (`apps/web/src/app/api/crm/public/capture/[key]/route.ts`) — the primary, form-key-driven capture endpoint. Backed by `captureCrmLead` (`services/api/src/crm.js`).
-2. `POST /api/crm/lead-acquisition/public/forms/[key]` (`apps/web/src/app/api/crm/lead-acquisition/public/forms/[key]/route.ts`) — a newer, dynamic-schema "published lead form" endpoint. Backed by `submitPublishedLeadForm` (`services/api/src/crm/lead-acquisition.js`).
+1. `POST /api/crm/public/capture/[key]` (`apps/web/src/app/api/crm/public/capture/[key]/route.ts`) — the primary, form-key-driven capture endpoint. Backed by `captureCrmLead` (`services/api/src/modules/crm/index.js`).
+2. `POST /api/crm/lead-acquisition/public/forms/[key]` (`apps/web/src/app/api/crm/lead-acquisition/public/forms/[key]/route.ts`) — a newer, dynamic-schema "published lead form" endpoint. Backed by `submitPublishedLeadForm` (`services/api/src/modules/crm/lead-acquisition.js`).
 
 **Tenant/public-key resolution**: both endpoints resolve `organization_id` exclusively from a server-side DB lookup keyed by the URL's opaque form key (`tenant.crm_public_capture_form(key)` / `tenant.crm_public_capture_form_v2(key)`, both `SECURITY DEFINER` functions filtering `status = 'active'` — disabled/revoked forms are already correctly rejected as a 404). Neither endpoint's request schema accepts an organization/tenant field from the client at all, so there is no field to spoof. Confirmed with a source-level regression test (Section 10).
 
 **Validation**: the primary endpoint's `publicCaptureSchema` (Zod, `.strict()`) already bounded every named field (name/email/phone/company/message lengths, a 4,000-char product-interest cap, a numeric `estimatedValue` range) — the one gap was `customData: z.record(z.string(), z.unknown())` having no size bound; this prompt added a 40-key / 20,000-character cap. The second endpoint has no static schema (it validates dynamically against a tenant-configured `form_schema`, by design) and previously had no request-body size cap at all — closed via the same `readRequestBytes(request, 50_000)` helper the primary endpoint already used.
 
-**Rate limiting**: both endpoints share one DB-backed hourly counter (`tenant.crm_capture_rate_limits`, `organization_id`+`form_id`+`fingerprint`+hour-window, atomic `INSERT … ON CONFLICT DO UPDATE`), which was already correctly implemented and was **not rebuilt**. What was fixed is the **fingerprint source**: both routes now compute it via one new shared pair of functions in `apps/web/src/lib/security.ts` — `verifiedCaptureProxyFingerprint()` (HMAC-SHA256-signed, timestamped, replay-windowed, for trusted delivery proxies) falling back to `directCaptureFingerprint()` (`clientIp()` + user-agent hash — `clientIp()` itself only trusts an operator-configured header, never a raw client-suppliable one). The second endpoint previously read `x-forwarded-for` directly and unconditionally trusted it — an attacker could set a different value on every request to mint a fresh rate-limit bucket each time, fully bypassing the limiter. This is now closed (both endpoints tested identically, Section 10).
+**Rate limiting**: both endpoints share one DB-backed hourly counter (`tenant.crm_capture_rate_limits`, `organization_id`+`form_id`+`fingerprint`+hour-window, atomic `INSERT … ON CONFLICT DO UPDATE`), which was already correctly implemented and was **not rebuilt**. What was fixed is the **fingerprint source**: both routes now compute it via one new shared pair of functions in `apps/web/src/core/security.ts` — `verifiedCaptureProxyFingerprint()` (HMAC-SHA256-signed, timestamped, replay-windowed, for trusted delivery proxies) falling back to `directCaptureFingerprint()` (`clientIp()` + user-agent hash — `clientIp()` itself only trusts an operator-configured header, never a raw client-suppliable one). The second endpoint previously read `x-forwarded-for` directly and unconditionally trusted it — an attacker could set a different value on every request to mint a fresh rate-limit bucket each time, fully bypassing the limiter. This is now closed (both endpoints tested identically, Section 10).
 
 **Mass-assignment protection**: confirmed for both. The primary endpoint's `.strict()` schema structurally cannot carry an unexpected key. The second endpoint has no static schema, but `submitPublishedLeadForm` only ever extracts a fixed set of typed lead fields (`firstName`/`lastName`/`email`/`mobile`/`companyName`/`jobTitle`/consent flags, each passed through explicit `text()`/`email()`/`boolean()` sanitizers) — every other submitted key lands in an unbounded-but-now-body-size-capped `customData`/`original_payload` blob, never in a typed column like `status`/`stage`/`score`/`ownerUserId`. No privileged field can be set through either endpoint.
 
 **Duplicate behavior**: unchanged and deliberately preserved — `crm_settings.duplicate_policy` still governs whether a detected duplicate blocks submission or only sets a `duplicateWarning` flag; this prompt did not touch that logic, only fixed a scoping regression it would otherwise have introduced (Section 11).
 
-**Response behavior**: both endpoints already correctly map a thrown `CrmError`/`CrmLeadAcquisitionError` with `.status = 429` through to a real HTTP 429 response (via `HttpError` → `errorResponse()`), confirmed by reading `apps/web/src/lib/http.ts` and `apps/web/src/lib/crm-lead-acquisition-route.ts` — no change needed there.
+**Response behavior**: both endpoints already correctly map a thrown `CrmError`/`CrmLeadAcquisitionError` with `.status = 429` through to a real HTTP 429 response (via `HttpError` → `errorResponse()`), confirmed by reading `apps/web/src/core/http.ts` and `apps/web/src/modules/crm/server/lead-acquisition.ts` — no change needed there.
 
 **Origin allowlist bug fixed as a byproduct**: the second endpoint's origin check was `if (origin && allowed.length && !allowed.includes(origin))` — an omitted `Origin` header (trivial for any non-browser caller) bypassed the check entirely even when a form had an allowlist configured. Fixed to match the primary endpoint's stricter, unconditional check.
 
@@ -178,21 +178,21 @@ No test written in this prompt was designed to pass trivially; the field-visibil
 ## 14. Files Changed
 
 **Modified**:
-- `apps/web/src/lib/authorization.ts` — added `procurementSuppliersSensitive`, `crmRecordsViewAll` constants
-- `apps/web/src/lib/access-control.ts` — granted `crm.records.view_all` to 7 CRM/sales roles
-- `apps/web/src/lib/crm-validation.ts` — bounded `publicCaptureSchema.customData` size/key-count
-- `apps/web/src/lib/security.ts` — added `verifiedCaptureProxyFingerprint`, `directCaptureFingerprint`, `safeHexEqual`
+- `apps/web/src/core/authorization.ts` — added `procurementSuppliersSensitive`, `crmRecordsViewAll` constants
+- `apps/web/src/core/access-control.ts` — granted `crm.records.view_all` to 7 CRM/sales roles
+- `apps/web/src/modules/crm/validation.ts` — bounded `publicCaptureSchema.customData` size/key-count
+- `apps/web/src/core/security.ts` — added `verifiedCaptureProxyFingerprint`, `directCaptureFingerprint`, `safeHexEqual`
 - `apps/web/src/app/api/crm/public/capture/[key]/route.ts` — now imports the shared fingerprint helpers instead of a local duplicate
 - `apps/web/src/app/api/crm/lead-acquisition/public/forms/[key]/route.ts` — body-size cap, shared fingerprint helpers, fixed origin-check bypass
 - `apps/web/scripts/verify-routes.mjs` — removed an unused variable (lint fix, unrelated to security logic)
-- `packages/permissions/src/crm.js` / `crm.d.ts` — added `recordsViewAll: "crm.records.view_all"`
-- `services/api/src/crm.js` — `recordScope()` owner-scoping, `assertOwnerAssignmentAllowed()`, `getCrmDashboard()`/`getCrmReport()` owner-visibility parameters, `findCrmDuplicates()` owner-scope exclusion, `ownerField` added to the `leads`/`opportunities`/`activities` resource definitions
-- `services/api/src/hr-payroll/index.js` — employee sensitive-field omission on read
-- `services/api/src/support/index.js` — private-communication omission on read
-- `services/api/src/procurement/index.js` — supplier sensitive-field omission on read, rejection on write
+- `packages/permissions/src/modules/crm/index.js` / `crm.d.ts` — added `recordsViewAll: "crm.records.view_all"`
+- `services/api/src/modules/crm/index.js` — `recordScope()` owner-scoping, `assertOwnerAssignmentAllowed()`, `getCrmDashboard()`/`getCrmReport()` owner-visibility parameters, `findCrmDuplicates()` owner-scope exclusion, `ownerField` added to the `leads`/`opportunities`/`activities` resource definitions
+- `services/api/src/modules/hr-payroll/index.js` — employee sensitive-field omission on read
+- `services/api/src/modules/support/index.js` — private-communication omission on read
+- `services/api/src/modules/procurement/index.js` — supplier sensitive-field omission on read, rejection on write
 
 **Added**:
-- `services/api/src/field-visibility.js`
+- `services/api/src/core/field-visibility.js`
 - `services/api/tests/field-visibility.test.mjs`
 - `services/api/tests/crm-record-scope.test.mjs`
 - `services/api/tests/crm-public-capture.test.mjs`

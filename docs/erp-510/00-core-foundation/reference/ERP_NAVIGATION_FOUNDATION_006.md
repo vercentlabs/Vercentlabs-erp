@@ -9,10 +9,10 @@ Starting git state: branch `main`, all Prompt 1-5 work present and untouched (16
 
 ## 1. Executive Summary
 
-Prompt 1's audit found the sidebar was already better-architected than a typical "scattered JSX" codebase: one `AppShell` component (`apps/web/src/components/app-shell.tsx`) fed desktop sidebar, mobile disclosure menu, and a module context bar from five typed `const` arrays declared inline in that same 1139-line file — genuinely one source of truth for *rendering*, but not a standalone, importable, `ModuleId`-typed registry, and with two real gaps: no module-enablement/entitlement filtering (only permission filtering existed), and no page-level gating at all for direct URL access (Prompt 5's documented remaining gap). CRM additionally forked its own second navigation data source (`crm-section-tabs.tsx`'s `crmAreas`) for an in-page tab strip, and three components independently reimplemented the same "is this path active" matching logic.
+Prompt 1's audit found the sidebar was already better-architected than a typical "scattered JSX" codebase: one `AppShell` component (`apps/web/src/core/components/app-shell.tsx`) fed desktop sidebar, mobile disclosure menu, and a module context bar from five typed `const` arrays declared inline in that same 1139-line file — genuinely one source of truth for *rendering*, but not a standalone, importable, `ModuleId`-typed registry, and with two real gaps: no module-enablement/entitlement filtering (only permission filtering existed), and no page-level gating at all for direct URL access (Prompt 5's documented remaining gap). CRM additionally forked its own second navigation data source (`crm-section-tabs.tsx`'s `crmAreas`) for an in-page tab strip, and three components independently reimplemented the same "is this path active" matching logic.
 
 This prompt:
-1. Extracted the five inline arrays into `apps/web/src/lib/navigation/` (10 files: types, five data sections, a shared active-route matcher, a module route-root map, the resolver, a barrel) — an additive move, not a rewrite, preserving every existing `href`/`permission`/`icon` verbatim.
+1. Extracted the five inline arrays into `apps/web/src/core/navigation/` (10 files: types, five data sections, a shared active-route matcher, a module route-root map, the resolver, a barrel) — an additive move, not a rewrite, preserving every existing `href`/`permission`/`icon` verbatim.
 2. Wired Prompt 4/5's `getAccessibleModules()` into a new `resolveNavigation()` that runs server-side in the root layout, before `AppShell` ever renders — an inaccessible module's entire group disappears, not just its permission-gated items.
 3. Closed the direct-page-access gap by adding a `layout.tsx` to all 12 module route roots (11 new, CRM's existing one extended), each wrapping its children in one shared `ModulePageGuard` server component — not 88 individual `page.tsx` edits.
 4. Fixed "only one module expands at a time" (previously not actually enforced — each sidebar section was an independent native `<details>`) via a new client component, `SidebarModules`, that owns a single coordinated expansion value.
@@ -25,7 +25,7 @@ This prompt:
 
 | Source | Purpose | Duplicated? | Action |
 |---|---|---|---|
-| `app-shell.tsx`'s `workspaceNavigation`/`moduleNavigation`/`workNavigation`/`governanceNavigation`/`settingsNavigation` (5 inline arrays, ~850 of the file's 1139 lines) | The de facto nav registry — fed desktop, mobile, and module-context-bar rendering | No — one source feeding three renderings | Extracted verbatim into `apps/web/src/lib/navigation/*.ts`, `moduleId`-tagged, re-imported |
+| `app-shell.tsx`'s `workspaceNavigation`/`moduleNavigation`/`workNavigation`/`governanceNavigation`/`settingsNavigation` (5 inline arrays, ~850 of the file's 1139 lines) | The de facto nav registry — fed desktop, mobile, and module-context-bar rendering | No — one source feeding three renderings | Extracted verbatim into `apps/web/src/core/navigation/*.ts`, `moduleId`-tagged, re-imported |
 | `crm-section-tabs.tsx`'s `crmAreas` | A CRM-only secondary in-page tab strip (4 workflow clusters: Lead workspace, Opportunity workspace, Communication workspace, CRM administration) | Overlapping-but-differently-shaped from the sidebar's CRM group (coarser clusters, different labels — "All leads" vs sidebar's "Leads") | **Not merged into the registry** — reviewed and kept as page-level UX per Part 20 ("leave page-level CRM styling for a later prompt"); it is not a competing *sidebar*, CRM's sidebar entry now comes from the same registry as every other module (Section 13) |
 | `breadcrumbs.tsx`'s hardcoded `labels` map (47 entries) | Breadcrumb segment→label text | Yes — Prompt 1 flagged this explicitly as a second, independently-maintained source that could drift from the nav config | Replaced with `navigation/breadcrumb-labels.ts`, derived from the registry plus a small, verified-byte-identical override list for the handful of segments where breadcrumb text intentionally differs from the sidebar label or a segment is shared by two route roots (Section 12) |
 | `navigation-link.tsx` / `navigation-section.tsx`'s `matchesPath` / `module-context-bar.tsx`'s `matches` | Active-route highlighting | Yes — three near-identical implementations, one with a subtly stricter `/dashboard` guard the other two lacked | Consolidated into `navigation/match-path.ts`'s single `matchesPath()`, imported by all three; behavior preserved exactly (the strictest variant's `/dashboard` guard is now universal, harmless since it was already redundant given `exact: true` on that item) |
@@ -35,7 +35,7 @@ This prompt:
 ## 3. New Registry Architecture
 
 ```
-apps/web/src/lib/navigation/
+apps/web/src/core/navigation/
   types.ts               NavigationItem, ModuleNavigationGroup, ResolvedNavigation, local ModuleId union
   workspace.ts            Home, Master data
   my-work.ts               Notifications, Approvals
@@ -84,7 +84,7 @@ This is a pure/impure split deliberately: `filterNavigation` has zero I/O and is
 Closes Prompt 5's documented gap ("server-rendered CRM pages still use the ungated synchronous `crmContext()`... more broadly, module pages can be entered directly by URL"):
 
 ```
-apps/web/src/components/module-page-guard.tsx   (Server Component)
+apps/web/src/core/components/module-page-guard.tsx   (Server Component)
   ModulePageGuard({ moduleId, children }):
     session = await requireWorkspace()              // unchanged, existing — redirects unauthenticated/unverified
     access  = await resolveModuleAccess(session, moduleId)   // Prompt 4/5, unchanged
@@ -94,7 +94,7 @@ apps/web/src/components/module-page-guard.tsx   (Server Component)
 
 One `layout.tsx` per module route root (`apps/web/src/app/(app)/<module>/layout.tsx`, 12 total — 11 newly created, `crm/layout.tsx` extended) wraps its module's `children` in `ModulePageGuard`. This is a **route-group layout boundary**, not a per-`page.tsx` check — every page under `/accounting/**`, `/manufacturing/**`, etc. inherits the guard automatically because Next.js always renders a segment's `layout.tsx` before its nested pages, with zero additional edits per page. CRM's existing `CrmSectionTabs` wrapping is preserved inside the guard, not replaced.
 
-`ModuleAccessDenied` (`apps/web/src/components/module-access-denied.tsx`) renders one of four distinct, non-leaking messages keyed by the same `ModuleAccessReason` Prompt 5's API layer already uses (`not_released`/`disabled`/`not_entitled`/`not_permitted`), reusing the existing `.empty-state` visual pattern from `globals.css` rather than introducing a parallel style system, with a link back to Home. Deliberately minimal per Part 10 — no upgrade-flow UI.
+`ModuleAccessDenied` (`apps/web/src/core/components/module-access-denied.tsx`) renders one of four distinct, non-leaking messages keyed by the same `ModuleAccessReason` Prompt 5's API layer already uses (`not_released`/`disabled`/`not_entitled`/`not_permitted`), reusing the existing `.empty-state` visual pattern from `globals.css` rather than introducing a parallel style system, with a link back to Home. Deliberately minimal per Part 10 — no upgrade-flow UI.
 
 `getSessionContext`, `getEnabledModuleKeys`, and `getBillingSummary` were wrapped in `React.cache()` (request-scoped memoization, not cross-request caching) so that the root layout's `resolveNavigation()` call and each module layout's `ModulePageGuard` call — both resolving the same session/organization within the same request — don't each run their own copy of the underlying queries (Section 15).
 
@@ -102,7 +102,7 @@ One `layout.tsx` per module route root (`apps/web/src/app/(app)/<module>/layout.
 
 Previously **not actually enforced**: each module's sidebar section was an independent native `<details open={active}>` (`navigation-section.tsx`), auto-opened when its own route was active, but with nothing coordinating across sections — a user could manually click open several `<summary>` elements at once, since native disclosure widgets don't close siblings.
 
-Fixed via a new client component, `apps/web/src/components/sidebar-modules.tsx`:
+Fixed via a new client component, `apps/web/src/core/components/sidebar-modules.tsx`:
 - Owns one state value, `expanded: string | null` (the currently-expanded module's id) — not a per-module boolean.
 - Each module's `NavigationSection` is rendered with controlled `open={expanded === group.moduleId}` and `onOpenChange={(open) => setExpanded(open ? group.moduleId : null)}` — opening any module necessarily sets every other module's `open` to `false` on the same render, by construction (a single variable can only equal one value).
 - Initial/ongoing expansion is **route-derived**, via `moduleIdForPath(pathname)` (module-root prefix matching, not label-string matching) — using React's documented "adjusting state when a prop changes during render" pattern (comparing against a `lastRouteModuleId` state value) rather than a `useEffect`, since calling `setState` synchronously inside an effect for a value already available during render is a lint violation (`react-hooks/set-state-in-effect`) the project's ESLint config enforces.
@@ -151,7 +151,7 @@ No broken links exist in the current registry — verified against the real file
 
 ## 12. Duplicate Navigation Removed
 
-1. `app-shell.tsx`'s five inline arrays → `apps/web/src/lib/navigation/*.ts` (Section 2).
+1. `app-shell.tsx`'s five inline arrays → `apps/web/src/core/navigation/*.ts` (Section 2).
 2. `breadcrumbs.tsx`'s independent 47-entry hardcoded label map → `navigation/breadcrumb-labels.ts`, derived from the registry with a small, byte-verified override list (10 entries) preserving today's exact visible text for segments where breadcrumb copy intentionally differs from the sidebar label (e.g. sidebar "Sales orders" vs breadcrumb "Orders") or where one segment is shared by two route roots (`assets` is both the Assets module root and an Accounting sub-page — a known, pre-existing, segment-keyed-map limitation, preserved exactly rather than silently "fixed" in a way that could change other unreviewed breadcrumb text).
 3. Three duplicate `matchesPath`/`matches` implementations → `navigation/match-path.ts`'s single `matchesPath()`.
 
@@ -204,23 +204,23 @@ Three new files, 32 tests, `apps/web/tests/`:
 ## 19. Files Changed
 
 **New:**
-- `apps/web/src/lib/navigation/{types,workspace,my-work,governance,administration,modules,match-path,route-map,resolve-navigation,breadcrumb-labels,index}.ts` (11 files)
-- `apps/web/src/lib/permissions-catalog.ts` (extracted from `authorization.ts` — Section 17's client-bundle fix)
+- `apps/web/src/core/navigation/{types,workspace,my-work,governance,administration,modules,match-path,route-map,resolve-navigation,breadcrumb-labels,index}.ts` (11 files)
+- `apps/web/src/core/permissions.ts` (extracted from `authorization.ts` — Section 17's client-bundle fix)
 - `apps/web/src/components/{module-page-guard,module-access-denied,sidebar-modules}.tsx` (3 files)
 - `apps/web/src/app/(app)/{sales,accounting,procurement,stock,manufacturing,projects,assets,point-of-sale,quality,support,hr-payroll}/layout.tsx` (11 files)
 - `apps/web/tests/{navigation-registry,navigation-authorization,navigation-expansion}.test.mjs` (3 files)
 - `docs/implementation/ERP_NAVIGATION_FOUNDATION_006.md`
 
 **Modified:**
-- `apps/web/src/components/app-shell.tsx` (registry-driven, no inline arrays, accepts resolved `navigation` prop)
+- `apps/web/src/core/components/app-shell.tsx` (registry-driven, no inline arrays, accepts resolved `navigation` prop)
 - `apps/web/src/app/(app)/layout.tsx` (calls `resolveNavigation()`)
 - `apps/web/src/app/(app)/crm/layout.tsx` (adds `ModulePageGuard`)
-- `apps/web/src/components/navigation-link.tsx`, `navigation-section.tsx`, `module-context-bar.tsx` (shared `matchesPath()`; `navigation-section.tsx` also gains controlled `open`/`onOpenChange`)
-- `apps/web/src/components/breadcrumbs.tsx` (registry-derived labels)
-- `apps/web/src/lib/authorization.ts` (`PERMISSIONS` now re-exported from `permissions-catalog.ts` instead of defined inline — same public API, ~200 existing call sites unaffected)
-- `apps/web/src/lib/auth.ts` (`getSessionContext` wrapped in `React.cache()`)
-- `apps/web/src/lib/module-access.ts` (`getEnabledModuleKeys` wrapped in `React.cache()`)
-- `apps/web/src/lib/billing.ts` (`getBillingSummary` wrapped in `React.cache()`)
+- `apps/web/src/core/components/navigation-link.tsx`, `navigation-section.tsx`, `module-context-bar.tsx` (shared `matchesPath()`; `navigation-section.tsx` also gains controlled `open`/`onOpenChange`)
+- `apps/web/src/core/components/breadcrumbs.tsx` (registry-derived labels)
+- `apps/web/src/core/authorization.ts` (`PERMISSIONS` now re-exported from `permissions-catalog.ts` instead of defined inline — same public API, ~200 existing call sites unaffected)
+- `apps/web/src/core/auth.ts` (`getSessionContext` wrapped in `React.cache()`)
+- `apps/web/src/core/module-access.ts` (`getEnabledModuleKeys` wrapped in `React.cache()`)
+- `apps/web/src/core/billing.ts` (`getBillingSummary` wrapped in `React.cache()`)
 - `apps/web/src/app/globals.css` (small `.module-access-denied` addendum to the existing `.empty-state` pattern)
 - `apps/web/scripts/verify-routes.mjs` (navigation href validation)
 - `apps/web/tests/enterprise-rbac.test.mjs` (one test's source-file target updated)

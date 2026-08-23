@@ -2,11 +2,11 @@ import Link from "next/link";
 
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
-import AppIcon from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission } from "@/lib/authorization";
-import { getAccessibleModules } from "@/lib/module-access";
-import { MODULES_WITHOUT_REPORTS, REPORT_CATALOGUE } from "@/lib/reports/catalogue";
+import AppIcon from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission } from "@/core/authorization";
+import { getAccessibleModules } from "@/core/module-access";
+import { MODULES_WITHOUT_REPORTS, REPORT_CATALOGUE } from "@/core/reports/catalogue";
 
 export const metadata = { title: "Reports & analytics" };
 export const dynamic = "force-dynamic";

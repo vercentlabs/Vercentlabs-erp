@@ -10,4 +10,4 @@ domain SQL back into the web application.
 
 ## CRM domain
 
-`src/crm.js` owns tenant-scoped CRM services, scoring, assignment, conversion, pipeline movement, capture, automation and reporting.
+`src/modules/crm/index.js` owns tenant-scoped CRM services, scoring, assignment, conversion, pipeline movement, capture, automation and reporting.

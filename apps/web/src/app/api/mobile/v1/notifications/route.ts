@@ -1,7 +1,7 @@
-import { query } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
+import { query } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
 
 export async function GET(request: Request) {
   try {

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ProcurementDashboard } from "@/components/procurement/procurement-workspace";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import { ProcurementDashboard } from "@/modules/procurement/components/procurement-workspace";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 
 export const dynamic = "force-dynamic";
 

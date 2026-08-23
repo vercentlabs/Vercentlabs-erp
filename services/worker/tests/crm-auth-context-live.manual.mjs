@@ -10,7 +10,7 @@
 // run bare `node --test` (no glob), which WOULD sweep up a manual script
 // dropped into their own tests/ directories. What this actually verifies
 // is unrelated to the worker: it proves Prompt 14's CRM authorization
-// context fix (apps/web/src/lib/crm.ts's crmContext() now propagating
+// context fix (apps/web/src/modules/crm/index.ts's crmContext() now propagating
 // session.permissions/session.roleSlugs) end-to-end against a REAL
 // database — not the mocked-client pure-function tests in
 // services/api/tests/crm-record-scope.test.mjs, which already proved the
@@ -45,7 +45,7 @@ function uuid() {
   return crypto.randomUUID();
 }
 
-// Builds an object with EXACTLY the shape apps/web/src/lib/crm.ts's
+// Builds an object with EXACTLY the shape apps/web/src/modules/crm/index.ts's
 // crmContext() now produces (permissions/roleSlugs populated from the
 // real session) — this is the "real chain" this script proves, one layer
 // below the Next.js request itself (which cannot run outside its own

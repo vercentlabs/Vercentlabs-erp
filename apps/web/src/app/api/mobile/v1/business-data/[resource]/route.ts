@@ -3,21 +3,21 @@ import {
   getBusinessDataOptions,
   listBusinessDataRecords,
 } from "@vercentlabs/api";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   businessDataContext,
   businessDataDefinitions,
   isBusinessDataDefinition,
   rethrowBusinessDataError,
-} from "@/lib/business-data";
-import { businessDataSchemas } from "@/lib/business-data-validation";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { withMobileIdempotency } from "@/lib/mobile-idempotency";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { audit } from "@/lib/security";
+} from "@/core/master-data";
+import { businessDataSchemas } from "@/core/master-data-validation";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { withMobileIdempotency } from "@/core/mobile-idempotency";
+import { requireMobileSession } from "@/core/mobile-session";
+import { audit } from "@/core/security";
 
 export async function GET(
   request: Request,

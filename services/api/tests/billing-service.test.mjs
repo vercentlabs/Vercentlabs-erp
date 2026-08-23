@@ -8,7 +8,7 @@ import {
   hasWriteAccess,
   mapProviderSubscriptionStatus,
   shouldApplyProviderEvent,
-} from "../src/billing.js";
+} from "../src/core/billing.js";
 
 test("billing economics keeps the Launch plan above the margin floor", () => {
   const result = assertPlanEconomics({

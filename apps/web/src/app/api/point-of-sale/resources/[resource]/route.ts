@@ -6,15 +6,15 @@ import {
 } from "@vercentlabs/api";
 import { NextRequest, NextResponse } from "next/server";
 
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { requireModuleWorkspace } from "@/lib/module-access";
-import { pointOfSaleContext } from "@/lib/point-of-sale";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { requireModuleWorkspace } from "@/core/module-access";
+import { pointOfSaleContext } from "@/modules/point-of-sale";
 import {
   posShiftOpenSchema,
   posStoreCreateSchema,
   posTerminalCreateSchema,
-} from "@/lib/point-of-sale-validation";
+} from "@/modules/point-of-sale/validation";
 
 export async function GET(
   request: NextRequest,

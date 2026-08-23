@@ -3,15 +3,15 @@ import { notFound } from "next/navigation";
 
 import { getBusinessDataOptions, listBusinessDataRecords } from "@vercentlabs/api";
 
-import BusinessDataManager from "@/components/business-data-manager";
-import { requireWorkspace } from "@/lib/auth";
+import BusinessDataManager from "@/core/components/business-data-manager";
+import { requireWorkspace } from "@/core/auth";
 import {
   businessDataContext,
   businessDataDefinitions,
   isBusinessDataDefinition,
-} from "@/lib/business-data";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
+} from "@/core/master-data";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 

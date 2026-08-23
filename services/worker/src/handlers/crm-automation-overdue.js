@@ -6,7 +6,7 @@ export const JOB_TYPE = "crm.automation.detect_overdue_activities";
 export const payloadSchema = z.object({}).strict();
 
 // Fires the ALREADY-REAL, already-tested automation engine
-// (runCrmAutomation, services/api/src/crm.js) for the "activity.overdue"
+// (runCrmAutomation, services/api/src/modules/crm/index.js) for the "activity.overdue"
 // event — one of the 4 event types Prompt 10/11 found never fire. This is
 // the one of the four that is genuinely a scheduled/time-based trigger
 // (the other three — lead.updated, lead.qualified,

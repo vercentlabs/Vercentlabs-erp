@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCrmOptions, listCrmRecords } from "@vercentlabs/api";
-import CrmPipelineBoard from "@/components/crm-pipeline-board";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
+import CrmPipelineBoard from "@/modules/crm/components/pipeline-board";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
 export const metadata = { title: "CRM pipeline" };
 export const dynamic = "force-dynamic";
 export default async function PipelinePage() {

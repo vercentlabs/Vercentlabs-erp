@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listHrPayrollResource, createEmployee } from "../src/hr-payroll/index.js";
-import { listSupportResource } from "../src/support/index.js";
+import { listHrPayrollResource, createEmployee } from "../src/modules/hr-payroll/index.js";
+import { listSupportResource } from "../src/modules/support/index.js";
 import {
   listProcurementRecords,
   getProcurementRecord,
   createProcurementRecord,
   updateProcurementRecord,
-} from "../src/procurement/index.js";
+} from "../src/modules/procurement/index.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const company = "22222222-2222-4222-8222-222222222222";

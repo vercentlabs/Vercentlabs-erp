@@ -5,14 +5,14 @@ import {
 } from "@vercentlabs/api";
 import { NextRequest, NextResponse } from "next/server";
 
-import { assetsContext } from "@/lib/assets";
+import { assetsContext } from "@/modules/assets";
 import {
   assetCategoryCreateSchema,
   assetCreateSchema,
-} from "@/lib/assets-validation";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse } from "@/lib/http";
-import { requireModuleWorkspace } from "@/lib/module-access";
+} from "@/modules/assets/validation";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse } from "@/core/http";
+import { requireModuleWorkspace } from "@/core/module-access";
 
 export async function GET(
   request: NextRequest,

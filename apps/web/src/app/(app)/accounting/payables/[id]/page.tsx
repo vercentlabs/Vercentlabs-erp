@@ -6,13 +6,13 @@ import {
 } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
-import AccountingActionButton from "@/components/accounting/accounting-action-button";
-import CreditAllocationForm from "@/components/accounting/credit-allocation-form";
-import VendorMatchForm from "@/components/accounting/vendor-match-form";
-import { accountingContext } from "@/lib/accounting";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
+import AccountingActionButton from "@/modules/accounting/components/accounting-action-button";
+import CreditAllocationForm from "@/modules/accounting/components/credit-allocation-form";
+import VendorMatchForm from "@/modules/accounting/components/vendor-match-form";
+import { accountingContext } from "@/modules/accounting";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

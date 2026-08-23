@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { buildRazorpaySubscriptionPayload } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { checkoutSchema } from "@/lib/billing-validation";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { razorpayConfiguration, razorpayRequest } from "@/lib/razorpay";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { checkoutSchema } from "@/core/billing-validation";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { razorpayConfiguration, razorpayRequest } from "@/core/razorpay";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 type RazorpaySubscription = { id: string; status: string; short_url?: string };
 

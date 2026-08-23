@@ -1,8 +1,8 @@
-import { createSession, setSessionCookie, tokenHash } from "@/lib/auth";
-import { transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { verifyEmailSchema } from "@/lib/validation";
+import { createSession, setSessionCookie, tokenHash } from "@/core/auth";
+import { transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { verifyEmailSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

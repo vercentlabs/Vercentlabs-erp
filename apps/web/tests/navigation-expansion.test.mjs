@@ -21,7 +21,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 // ---------------------------------------------------------------------
 
 test("expansion: SidebarModules owns exactly one `expanded` state value, not one flag per module", () => {
-  const source = read("apps/web/src/components/sidebar-modules.tsx");
+  const source = read("apps/web/src/core/components/sidebar-modules.tsx");
   // Two useState calls total: `expanded` (the one shared value every
   // module's `open` prop compares against) and `lastRouteModuleId` (React's
   // documented "adjusting state when a prop changes during render" pattern,
@@ -34,20 +34,20 @@ test("expansion: SidebarModules owns exactly one `expanded` state value, not one
 });
 
 test("expansion: opening a module sets `expanded` to only that module's id, which by construction closes every other module's `open` prop", () => {
-  const source = read("apps/web/src/components/sidebar-modules.tsx");
+  const source = read("apps/web/src/core/components/sidebar-modules.tsx");
   assert.match(source, /onOpenChange=\{\(open\) => setExpanded\(open \? group\.moduleId : null\)\}/);
   assert.match(source, /open=\{expanded === group\.moduleId\}/);
 });
 
 test("expansion: initial/ongoing expansion is route-derived via moduleIdForPath, not label string matching", () => {
-  const source = read("apps/web/src/components/sidebar-modules.tsx");
+  const source = read("apps/web/src/core/components/sidebar-modules.tsx");
   assert.match(source, /import \{ moduleIdForPath \} from "@\/lib\/navigation\/route-map";/);
   assert.doesNotMatch(source, /\.label ===|label\.toLowerCase\(\)/, "must not derive expansion from a label string");
   assert.match(source, /if \(routeModuleId\) setExpanded\(routeModuleId\);/);
 });
 
 test("expansion: the new HCI shell moves global/module presentation out of the legacy expanding module accordion without changing its authorization source", () => {
-  const appShell = read("apps/web/src/components/app-shell.tsx");
+  const appShell = read("apps/web/src/core/components/app-shell.tsx");
   assert.match(appShell, /<PrimaryNavigationRail/);
   assert.match(appShell, /<ContextSecondarySidebar/);
   assert.match(appShell, /<MobileWorkspaceNavigation/);
@@ -55,23 +55,23 @@ test("expansion: the new HCI shell moves global/module presentation out of the l
 });
 
 test("expansion: NavigationSection supports both controlled (module sidebar) and uncontrolled (auto route-active) modes without duplicating active-match logic", () => {
-  const source = read("apps/web/src/components/navigation-section.tsx");
+  const source = read("apps/web/src/core/components/navigation-section.tsx");
   assert.match(source, /const open = controlledOpen \?\? active;/);
   assert.match(source, /import \{ matchesPath, type MatchablePath \} from "@\/lib\/navigation\/match-path";/);
   assert.doesNotMatch(source, /function matchesPath/, "navigation-section.tsx must not keep its own duplicate matchesPath implementation");
 });
 
 test("expansion: navigation-link.tsx and module-context-bar.tsx also consume the single shared matcher (no third/fourth duplicate implementation remains)", () => {
-  const navLink = read("apps/web/src/components/navigation-link.tsx");
+  const navLink = read("apps/web/src/core/components/navigation-link.tsx");
   assert.match(navLink, /import \{ matchesPath \} from "@\/lib\/navigation\/match-path";/);
   assert.doesNotMatch(navLink, /pathname\.startsWith/, "navigation-link.tsx must delegate matching to the shared helper, not inline startsWith checks");
 
-  const contextBar = read("apps/web/src/components/module-context-bar.tsx");
+  const contextBar = read("apps/web/src/core/components/module-context-bar.tsx");
   assert.match(contextBar, /import \{ matchesPath \} from "@\/lib\/navigation\/match-path";/);
   assert.doesNotMatch(contextBar, /function matches\(pathname/, "module-context-bar.tsx must not keep its own duplicate matches() implementation");
 });
 
 test("expansion: aria-expanded is present on the collapsible summary control (accessibility by construction)", () => {
-  const source = read("apps/web/src/components/navigation-section.tsx");
+  const source = read("apps/web/src/core/components/navigation-section.tsx");
   assert.match(source, /<summary aria-expanded=\{open\}>/);
 });

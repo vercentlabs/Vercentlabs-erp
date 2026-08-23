@@ -1,10 +1,10 @@
 import { listAssetResource } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { assetsContext } from "@/lib/assets";
+import AccessDenied from "@/shared/components/access-denied";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { assetsContext } from "@/modules/assets";
 
 export const dynamic = "force-dynamic";
 

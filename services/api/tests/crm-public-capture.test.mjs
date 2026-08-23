@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { captureCrmLead } from "../src/crm.js";
-import { submitPublishedLeadForm } from "../src/crm/lead-acquisition.js";
+import { captureCrmLead } from "../src/modules/crm/index.js";
+import { submitPublishedLeadForm } from "../src/modules/crm/lead-acquisition.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const formId = "22222222-2222-4222-8222-222222222222";

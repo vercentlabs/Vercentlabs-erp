@@ -1,9 +1,9 @@
 import { getProcurementGovernanceDashboard } from "@vercentlabs/api";
 
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { procurementContext } from "@/lib/procurement";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { procurementContext } from "@/modules/procurement";
 
 export const dynamic = "force-dynamic";
 

@@ -5,10 +5,10 @@ import {
   type AccountingRecord,
 } from "@vercentlabs/api";
 
-import { rethrowAccountingError } from "@/lib/accounting";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function POST(
   request: Request,

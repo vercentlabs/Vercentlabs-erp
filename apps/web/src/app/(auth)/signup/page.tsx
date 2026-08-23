@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import AuthCard from "@/components/auth-card";
-import SignupForm from "@/components/signup-form";
-import { getSessionContext, nextPath } from "@/lib/auth";
+import AuthCard from "@/core/components/auth-card";
+import SignupForm from "@/core/components/signup-form";
+import { getSessionContext, nextPath } from "@/core/auth";
 
 export const metadata = { title: "Create account" };
 

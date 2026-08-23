@@ -6,11 +6,11 @@ import {
   submitQuotation,
 } from "@vercentlabs/api";
 
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { rethrowSalesError } from "@/lib/sales";
-import { salesSession, tenantTransaction } from "@/lib/sales-route";
-import { salesActionSchema } from "@/lib/sales-validation";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { rethrowSalesError } from "@/modules/sales";
+import { salesSession, tenantTransaction } from "@/modules/sales/server";
+import { salesActionSchema } from "@/modules/sales/validation";
 
 export async function POST(
   request: Request,

@@ -1,9 +1,9 @@
-import AccessDenied from "@/components/access-denied";
-import RoleManager from "@/components/role-manager";
-import { analyzePermissionConflicts } from "@/lib/access-control";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { query } from "@/lib/db";
+import AccessDenied from "@/shared/components/access-denied";
+import RoleManager from "@/core/components/role-manager";
+import { analyzePermissionConflicts } from "@/core/access-control";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { query } from "@/core/db";
 
 export const metadata = { title: "Roles and permissions" };
 

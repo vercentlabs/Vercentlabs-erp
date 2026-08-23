@@ -9,7 +9,7 @@ Starting git state: branch `main`, all Prompt 1-4 work present and untouched. No
 
 ## 1. Executive Summary
 
-Prompt 4 built `apps/web/src/lib/module-access.ts` — a correct, fail-closed `resolveModuleAccess(session, moduleId)` resolver composing product release status, tenant enablement, billing entitlement, and permission — but confirmed nothing called it. A user whose organization had disabled a module, or whose billing plan never included it, could still read and write that module's data through its existing routes; only the routes' ordinary per-user permission checks applied.
+Prompt 4 built `apps/web/src/core/module-access.ts` — a correct, fail-closed `resolveModuleAccess(session, moduleId)` resolver composing product release status, tenant enablement, billing entitlement, and permission — but confirmed nothing called it. A user whose organization had disabled a module, or whose billing plan never included it, could still read and write that module's data through its existing routes; only the routes' ordinary per-user permission checks applied.
 
 This prompt closes that gap by finding, for each of the 12 business modules, the **narrowest place that already gates every route in that module** and inserting one call to a new guard (`assertModuleAccessible` / `requireModuleWorkspace`) there — rather than touching every route body. Three distinct architectural patterns existed across the app, requiring three different (but consistent) wiring strategies:
 
@@ -29,11 +29,11 @@ Three centralization points were evaluated before wiring began:
 
 | Candidate | Why rejected / accepted |
 |---|---|
-| `apps/web/src/lib/authorization.ts`'s `hasPermission()`/`requirePermissionFromSession()` | Rejected. These are synchronous and called from ~230 sites across both API routes **and** the 88 server-rendered `page.tsx` files (every module's page does `if (!hasPermission(session, PERMISSIONS.xView)) notFound();`). Making module resolution — which needs an `organization_modules` query and a billing-summary lookup — available synchronously would require precomputing and attaching it to `SessionContext` at session-load time (`resolveSessionContext()` in `auth.ts`), adding a DB round-trip to literally every authenticated request in the app (including ones with no module concept, like `/profile` or `/notifications`) and risking a circular import (`auth.ts` → `module-access.ts` → `authorization.ts` → `auth.ts`). Rejected as disproportionate blast radius for this prompt. |
+| `apps/web/src/core/authorization.ts`'s `hasPermission()`/`requirePermissionFromSession()` | Rejected. These are synchronous and called from ~230 sites across both API routes **and** the 88 server-rendered `page.tsx` files (every module's page does `if (!hasPermission(session, PERMISSIONS.xView)) notFound();`). Making module resolution — which needs an `organization_modules` query and a billing-summary lookup — available synchronously would require precomputing and attaching it to `SessionContext` at session-load time (`resolveSessionContext()` in `auth.ts`), adding a DB round-trip to literally every authenticated request in the app (including ones with no module concept, like `/profile` or `/notifications`) and risking a circular import (`auth.ts` → `module-access.ts` → `authorization.ts` → `auth.ts`). Rejected as disproportionate blast radius for this prompt. |
 | `services/api/src/<module>/index.js`'s local `requirePermission(context, permission)` helpers | Rejected as the *primary* enforcement point. These are synchronous, take a plain `context` object (not a live DB connection reference beyond what's already passed in), and are shared with the mobile API surface — but module/entitlement resolution needs an async DB+billing lookup, and these functions already have exactly one job (fine-grained action permission, e.g. "can this role approve a PO") that Prompt 3 hardened for HR/Support/Procurement. Mixing concerns here would risk the field-level regressions Prompt 3 fixed. Left untouched — they remain a valid second line of defense. |
 | Each module's route-context builder (`accountingSession()`, `procurementContext()` builders, `requireApiWorkspace()`, `crmContext()`) | **Accepted.** Already async, already called before any business logic executes, already the place `write`-path billing metering (`requireBillingWriteAccess`/`incrementBillingUsage`) is centralized for Group A. Adding one more async call here is architecturally consistent with what's already there. |
 
-## 3. New Primitives (`apps/web/src/lib/module-access.ts`, `apps/web/src/lib/http.ts`)
+## 3. New Primitives (`apps/web/src/core/module-access.ts`, `apps/web/src/core/http.ts`)
 
 ```ts
 // module-access.ts — built on top of Prompt 4's resolveModuleAccess()
@@ -52,7 +52,7 @@ export async function requireModuleWorkspace(moduleId: string): Promise<Workspac
 
 `requireModuleWorkspace(moduleId)` composes `requireApiWorkspace()` (existing session/org check) with `assertModuleAccessible` — the single call Group C's 29 routes now make instead of bare `requireApiWorkspace()`.
 
-`HttpError` (`apps/web/src/lib/http.ts`) gained a third, optional constructor argument (`code?: string`); `errorResponse()` — already the catch-block handler in effectively every route across the app — now calls a new `failWithCode()` that includes `code` in the JSON body when present. This means **every existing route's catch block automatically gained reason-code surfacing for free**, no per-route edit required, matching the "narrowest reusable point" principle applied one level further.
+`HttpError` (`apps/web/src/core/http.ts`) gained a third, optional constructor argument (`code?: string`); `errorResponse()` — already the catch-block handler in effectively every route across the app — now calls a new `failWithCode()` that includes `code` in the JSON body when present. This means **every existing route's catch block automatically gained reason-code surfacing for free**, no per-route edit required, matching the "narrowest reusable point" principle applied one level further.
 
 Both new guards inherit `resolveModuleAccess`'s existing fail-closed behavior (Prompt 4, Section "Can a system failure default to module access?") unchanged — a DB error resolving enablement or entitlement still resolves to `accessible: false`, never to a granted default.
 
@@ -60,10 +60,10 @@ Both new guards inherit `resolveModuleAccess`'s existing fail-closed behavior (P
 
 | Module | File | Routes covered |
 |---|---|---|
-| Accounting | `apps/web/src/lib/accounting-route.ts` (`accountingSession`) | 60 |
-| Procurement | `apps/web/src/lib/procurement-route.ts` (`procurementSession`) | 8 |
-| Stock | `apps/web/src/lib/stock-route.ts` (`stockSession`) | 5 |
-| Sales | `apps/web/src/lib/sales-route.ts` (`salesSession`) | 12 |
+| Accounting | `apps/web/src/modules/accounting/server.ts` (`accountingSession`) | 60 |
+| Procurement | `apps/web/src/modules/procurement/server.ts` (`procurementSession`) | 8 |
+| Stock | `apps/web/src/modules/stock/server.ts` (`stockSession`) | 5 |
+| Sales | `apps/web/src/modules/sales/server.ts` (`salesSession`) | 12 |
 
 Each `*Session(write = false)` function gained one line immediately after its existing 401 guard:
 
@@ -80,7 +80,7 @@ The `write`-path billing checks (`requireBillingWriteAccess`, `incrementBillingU
 
 CRM had no single funnel: `crmContext(session)` was called synchronously and directly at 95 sites across 78 web-API route files, plus another 19 mobile-v1 route files, plus 2 server-rendered `page.tsx`-adjacent call sites inside the approval-command registry (`approval-commands.ts`) — and, separately, 14 actual `page.tsx` server components (Section 8). Permission gating before those calls was inconsistent: 18 files used shared helpers in `crm-api.ts` (`requireCrmView`/`requireCrmResourceView`/`requireCrmManage`/`requireCrmReportView`); the rest called `requirePermissionFromSession(session, PERMISSIONS.crmXxx)` inline.
 
-Fix, in `apps/web/src/lib/crm.ts`:
+Fix, in `apps/web/src/modules/crm/index.ts`:
 
 ```ts
 export function crmContext(session: SessionContext): CrmContext { /* unchanged, still sync */ }
@@ -91,7 +91,7 @@ export async function crmApiContext(session: SessionContext): Promise<CrmContext
 }
 ```
 
-Every API-layer call site was migrated mechanically (`crmContext(session)` → `await crmApiContext(session)`, `crmContext(s)` → `await crmApiContext(s)`, including the import statement) via a scoped, whole-word transform restricted to `apps/web/src/app/api/crm/**` and `apps/web/src/app/api/mobile/v1/**` — a path prefix that is structurally disjoint from `apps/web/src/app/(app)/**` (server-rendered pages), so the transform could not accidentally touch a page file. `apps/web/src/lib/crm-core-acceptance-route.ts` (the one CRM sub-area that already had its own `*Session()`-shaped helper, `crmCoreAcceptanceSession`, for the core-acceptance/quote-acceptance routes) was gated the same way as Group A. `apps/web/src/lib/approval-commands.ts`'s two CRM command handlers (`crm.opportunity.stage_change`, `crm.activity.complete` — executed when an approval is finalized, still carrying a real actor session) were converted from sync arrow functions to async and migrated the same way.
+Every API-layer call site was migrated mechanically (`crmContext(session)` → `await crmApiContext(session)`, `crmContext(s)` → `await crmApiContext(s)`, including the import statement) via a scoped, whole-word transform restricted to `apps/web/src/app/api/crm/**` and `apps/web/src/app/api/mobile/v1/**` — a path prefix that is structurally disjoint from `apps/web/src/app/(app)/**` (server-rendered pages), so the transform could not accidentally touch a page file. `apps/web/src/modules/crm/server/core-acceptance.ts` (the one CRM sub-area that already had its own `*Session()`-shaped helper, `crmCoreAcceptanceSession`, for the core-acceptance/quote-acceptance routes) was gated the same way as Group A. `apps/web/src/core/approvals.ts`'s two CRM command handlers (`crm.opportunity.stage_change`, `crm.activity.complete` — executed when an approval is finalized, still carrying a real actor session) were converted from sync arrow functions to async and migrated the same way.
 
 99 routes covered: 91 web `route.ts` files under `app/api/crm/**` minus 11 public/webhook exceptions (Section 8) = 80, plus 19 mobile-v1 CRM route files = 99.
 
@@ -190,7 +190,7 @@ All 58 tests in `apps/web/tests/` pass (37 pre-existing + 21 new), including Pro
 4. **Did wrapping Group C's 29 handlers in try/catch change any *existing*, non-module-related error's status code?** Before this prompt, any error (validation, DB, or the module guard) in these 29 files surfaced as a generic 500 with no body shape guarantee. After, `errorResponse()` maps `HttpError` to its own status/code, `ZodError` to 400, and anything else still to 500 — matching the exact behavior every other module's routes already had. This is a strict improvement, not a behavior change requiring a compensating fix elsewhere.
 5. **Could the CRM call-site migration have silently broken a file the sed pass matched incorrectly?** The transform was scoped by directory path (structurally disjoint from page routes) and by two literal, previously-verified call patterns (`crmContext(session)`, `crmContext(s)` — confirmed via a repo-wide grep for all distinct argument variable names before running the transform, finding only these two). `pnpm typecheck` passing across the whole app after the transform is strong independent confirmation no call site was left with a stale sync `crmContext` reference feeding a now-`Promise`-typed value, since that would be a type error, not a silent runtime bug.
 6. **Does billing-write metering still run in the right order for Group A?** Yes — `assertModuleAccessible` runs before the `if (write)` block in all 4 files, so a disabled/unentitled module's write attempt is rejected before `incrementBillingUsage` runs, preventing usage-metering leakage for rejected requests.
-7. **Was any Prompt 3 record/field-level security file touched?** No — `services/api/src/{crm,hr-payroll,support,procurement}.js`, `apps/web/src/lib/security.ts`, and the public capture routes are unchanged by this prompt (confirmed via the file list in Section 14).
+7. **Was any Prompt 3 record/field-level security file touched?** No — `services/api/src/{crm,hr-payroll,support,procurement}.js`, `apps/web/src/core/security.ts`, and the public capture routes are unchanged by this prompt (confirmed via the file list in Section 14).
 
 ## 14. Files Changed
 
@@ -199,12 +199,12 @@ All 58 tests in `apps/web/tests/` pass (37 pre-existing + 21 new), including Pro
 - `docs/implementation/ERP_MODULE_ENFORCEMENT_005.md`
 
 **Modified — core primitives:**
-- `apps/web/src/lib/module-access.ts` (added `assertModuleAccessible`, `requireModuleWorkspace`, `REASON_CODES`)
-- `apps/web/src/lib/http.ts` (added `HttpError.code`, `failWithCode`, wired into `errorResponse`)
+- `apps/web/src/core/module-access.ts` (added `assertModuleAccessible`, `requireModuleWorkspace`, `REASON_CODES`)
+- `apps/web/src/core/http.ts` (added `HttpError.code`, `failWithCode`, wired into `errorResponse`)
 
 **Modified — Group A (4):** `apps/web/src/lib/{accounting,procurement,stock,sales}-route.ts`
 
-**Modified — CRM (Group B, ~101 files):** `apps/web/src/lib/crm.ts` (added `crmApiContext`), `apps/web/src/lib/crm-core-acceptance-route.ts`, `apps/web/src/lib/approval-commands.ts`, 91 files under `apps/web/src/app/api/crm/**` minus the 11 public/webhook exceptions, 19 files under `apps/web/src/app/api/mobile/v1/**`.
+**Modified — CRM (Group B, ~101 files):** `apps/web/src/modules/crm/index.ts` (added `crmApiContext`), `apps/web/src/modules/crm/server/core-acceptance.ts`, `apps/web/src/core/approvals.ts`, 91 files under `apps/web/src/app/api/crm/**` minus the 11 public/webhook exceptions, 19 files under `apps/web/src/app/api/mobile/v1/**`.
 
 **Modified — Group C (29):** all `route.ts` files under `apps/web/src/app/api/{manufacturing,projects,assets,point-of-sale,quality,support,hr-payroll}/**`.
 

@@ -1,7 +1,7 @@
 # Tenant Business Database
 
 This directory owns ERP business records. Identity, organisations, roles,
-sessions and platform administration remain in `database/control-plane`.
+sessions and platform administration remain in `database/platform`.
 
 ## Structure
 

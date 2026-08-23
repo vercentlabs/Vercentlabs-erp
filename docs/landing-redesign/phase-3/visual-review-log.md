@@ -40,7 +40,7 @@ Reviewed against `docs/landing-redesign/phase-1/creative-direction.md` and the P
 ### Frontend-quality findings and resolution (final technical pass)
 Twelve ranked findings — see `implementation-summary.md`'s defect list and `decision-log.md` items 6-9 for the full detail. Summary of what changed as a direct result:
 - The analytics event type contract was silently non-functional (`ANALYTICS_EVENTS` typed as `string[]` collapsed the whole union to `string`) — fixed and proven with a positive control.
-- A suspected phone/mobile data-loss bug was investigated, disproven against the real `services/api/src/crm.js` mapping and schema, and the speculative fix reverted — recorded as a caught misdiagnosis, not a real defect.
+- A suspected phone/mobile data-loss bug was investigated, disproven against the real `services/api/src/modules/crm/index.js` mapping and schema, and the speculative fix reverted — recorded as a caught misdiagnosis, not a real defect.
 - No automated test covered the actual HMAC proxy contract (headers, signature correctness) — added, verified against an independent re-implementation of `apps/web`'s route-side verification logic.
 - Multiple code comments cited `docs/landing-redesign/phase-3/*.md` files that didn't exist yet at review time — resolved by this documentation set now existing, with two additional Decision Log entries added specifically so two previously-uncovered citations (rate-limiting choice, no-zod choice) resolve to real content rather than being retroactively deleted.
 - `FaqAccordion`'s comment was stale against the newly-added FAQPage JSON-LD — corrected.

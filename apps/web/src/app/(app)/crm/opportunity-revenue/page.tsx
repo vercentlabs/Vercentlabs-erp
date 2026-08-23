@@ -3,15 +3,15 @@ import {
   getOpportunityRevenueDashboard,
 } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
+import AccessDenied from "@/shared/components/access-denied";
 import CrmActionWorkbench, {
   type CrmActionDefinition,
-} from "@/components/crm/crm-action-workbench";
-import CrmWorkspaceShell from "@/components/crm/crm-workspace-shell";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
+} from "@/modules/crm/components/crm-action-workbench";
+import CrmWorkspaceShell from "@/modules/crm/components/crm-workspace-shell";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

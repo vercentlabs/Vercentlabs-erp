@@ -21,8 +21,8 @@ export const POSITIONING = Object.freeze({
  * Single source of truth for legal/company identity — Phase 8. Only fields
  * verifiable against real, existing usage elsewhere in the codebase are
  * populated with confidence: "Vercentlabs LLP" is the real legal name already
- * used in apps/web's production auth emails (src/lib/mailer.ts) and account
- * UI (src/components/auth-card.tsx), not invented for this phase.
+ * used in apps/web's production auth emails (src/core/mailer.ts) and account
+ * UI (src/core/components/auth-card.tsx), not invented for this phase.
  *
  * registeredAddress and llpin are intentionally null — no registered office
  * address or LLP Identification Number exists anywhere in this repository,

@@ -22,7 +22,7 @@ const moduleIcons = {
 };
 
 test("workspace v3: all 12 module headings use dedicated module-specific icons", () => {
-  const source = read("apps/web/src/lib/navigation/modules.ts");
+  const source = read("apps/web/src/core/navigation/modules.ts");
   for (const [moduleId, icon] of Object.entries(moduleIcons)) {
     const expression = new RegExp(
       `moduleId:\\s*"${moduleId}",\\s*\\n\\s*icon:\\s*"${icon}"`,
@@ -33,8 +33,8 @@ test("workspace v3: all 12 module headings use dedicated module-specific icons",
 });
 
 test("workspace v3: leaf navigation uses route-aware semantic iconography", () => {
-  const link = read("apps/web/src/components/navigation-link.tsx");
-  const semantic = read("apps/web/src/components/semantic-navigation-icon.tsx");
+  const link = read("apps/web/src/core/components/navigation-link.tsx");
+  const semantic = read("apps/web/src/core/components/semantic-navigation-icon.tsx");
   assert.match(link, /SemanticNavigationIcon/);
   for (const href of [
     "/crm/leads",
@@ -73,7 +73,7 @@ test("workspace v3: Home preserves real work and governance sections", () => {
 });
 
 test("workspace v3: topbar has identity, global search, operating context and actions as distinct responsive regions", () => {
-  const shell = read("apps/web/src/components/app-shell.tsx");
+  const shell = read("apps/web/src/core/components/app-shell.tsx");
   assert.match(shell, /topbar-v3__identity/);
   assert.match(shell, /topbar-v3__search/);
   assert.match(shell, /topbar-v3__context/);
@@ -93,6 +93,6 @@ test("workspace v3: responsive CSS covers desktop, tablet, mobile and narrow pho
 });
 
 test("workspace v3: command palette launcher remains accessible when visually compacted", () => {
-  const source = read("apps/web/src/components/command-palette.tsx");
+  const source = read("apps/web/src/core/components/command-palette.tsx");
   assert.match(source, /aria-label="Search navigation, records and actions"/);
 });

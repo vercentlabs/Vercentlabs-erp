@@ -5,11 +5,11 @@ import {
   hashPassword,
   setSessionCookie,
   verifyPassword,
-} from "@/lib/auth";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit, enforceRateLimit } from "@/lib/security";
-import { changePasswordSchema } from "@/lib/validation";
+} from "@/core/auth";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit, enforceRateLimit } from "@/core/security";
+import { changePasswordSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

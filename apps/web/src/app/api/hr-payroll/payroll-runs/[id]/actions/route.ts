@@ -1,11 +1,11 @@
 import { calculatePayrollRun, transitionPayrollRun } from "@vercentlabs/api";
 import { NextResponse } from "next/server";
 
-import { tenantTransaction } from "@/lib/db";
-import { hrPayrollContext } from "@/lib/hr-payroll";
-import { payrollActionSchema } from "@/lib/hr-payroll-validation";
-import { errorResponse } from "@/lib/http";
-import { requireModuleWorkspace } from "@/lib/module-access";
+import { tenantTransaction } from "@/core/db";
+import { hrPayrollContext } from "@/modules/hr-payroll";
+import { payrollActionSchema } from "@/modules/hr-payroll/validation";
+import { errorResponse } from "@/core/http";
+import { requireModuleWorkspace } from "@/core/module-access";
 
 export async function POST(
   request: Request,

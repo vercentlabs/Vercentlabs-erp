@@ -1,9 +1,9 @@
 import { createCashForecastScenario, listCashForecasts } from "@vercentlabs/api";
 
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
 
 export async function GET(request: Request) {
   try {

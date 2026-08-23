@@ -1,8 +1,8 @@
-import { getSessionContext } from "@/lib/auth";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
-import { contextSchema } from "@/lib/validation";
+import { getSessionContext } from "@/core/auth";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
+import { contextSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

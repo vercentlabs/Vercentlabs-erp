@@ -13,23 +13,23 @@ import {
   hasPermission,
   PERMISSIONS,
   requirePermissionFromSession,
-} from "@/lib/authorization";
-import { getBillingSummary, listBillingPlans } from "@/lib/billing";
-import { hashPassword, verifyPassword } from "@/lib/auth";
-import { query, tenantTransaction, transaction } from "@/lib/db";
-import { crmApiContext } from "@/lib/crm";
-import { canViewCrmReport } from "@/lib/crm-api";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { moduleCatalog } from "@/lib/platform";
-import { procurementContext } from "@/lib/procurement";
-import { audit, enforceRateLimit } from "@/lib/security";
+} from "@/core/authorization";
+import { getBillingSummary, listBillingPlans } from "@/core/billing";
+import { hashPassword, verifyPassword } from "@/core/auth";
+import { query, tenantTransaction, transaction } from "@/core/db";
+import { crmApiContext } from "@/modules/crm";
+import { canViewCrmReport } from "@/modules/crm/api";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
+import { moduleCatalog } from "@/core/platform";
+import { procurementContext } from "@/modules/procurement";
+import { audit, enforceRateLimit } from "@/core/security";
 import {
   changePasswordSchema,
   profileSchema,
   sessionActionSchema,
-} from "@/lib/validation";
+} from "@/core/validation";
 
 const copy = {
   dashboard: [

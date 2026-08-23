@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import AppIcon from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { canViewCrmResource } from "@/lib/crm-api";
+import AppIcon from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { canViewCrmResource } from "@/modules/crm/api";
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
 export const metadata = { title: "CRM settings" };
 const groups = {

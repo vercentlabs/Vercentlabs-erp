@@ -1,12 +1,12 @@
 import { getAccountingOptions, listAccrualSchedules, listBudgets, listCashForecasts, listRecurringTemplates } from "@vercentlabs/api";
-import AccountingActionButton from "@/components/accounting/accounting-action-button";
-import BudgetEditor from "@/components/accounting/budget-editor";
-import RecurringEditor from "@/components/accounting/recurring-editor";
-import SimpleAccountingForm from "@/components/accounting/simple-accounting-form";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { accountingContext } from "@/lib/accounting";
-import { tenantTransaction } from "@/lib/db";
+import AccountingActionButton from "@/modules/accounting/components/accounting-action-button";
+import BudgetEditor from "@/modules/accounting/components/budget-editor";
+import RecurringEditor from "@/modules/accounting/components/recurring-editor";
+import SimpleAccountingForm from "@/modules/accounting/components/simple-accounting-form";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { accountingContext } from "@/modules/accounting";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

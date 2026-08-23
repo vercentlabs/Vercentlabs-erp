@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { resolvePublicQuoteToken } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
-import PublicQuoteDecision from "@/components/public-quote-decision";
-import { query, tenantTransaction } from "@/lib/db";
+import PublicQuoteDecision from "@/modules/sales/components/public-quote-decision";
+import { query, tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 

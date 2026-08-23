@@ -1,6 +1,6 @@
-import { clearSessionCookie, revokeCurrentSession } from "@/lib/auth";
-import { errorResponse, ok } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { clearSessionCookie, revokeCurrentSession } from "@/core/auth";
+import { errorResponse, ok } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function POST(request: Request) {
   try {

@@ -1,15 +1,15 @@
 import { archiveCrmRecord, findCrmDuplicates, getCrmRecord, updateCrmRecord } from "@vercentlabs/api";
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/lib/billing";
-import { assertCrmIdentifier, requireCrmManage, requireCrmResourceView } from "@/lib/crm-api";
-import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
-import { crmPatchSchemas } from "@/lib/crm-validation";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { withMobileIdempotency } from "@/lib/mobile-idempotency";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { audit } from "@/lib/security";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
+import { assertCrmIdentifier, requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
+import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
+import { crmPatchSchemas } from "@/modules/crm/validation";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { withMobileIdempotency } from "@/core/mobile-idempotency";
+import { requireMobileSession } from "@/core/mobile-session";
+import { audit } from "@/core/security";
 
 function valid(resource: string): asserts resource is CrmResourceKey {
   if (!isCrmDefinition(resource)) throw new HttpError(404, "Unknown CRM resource.");

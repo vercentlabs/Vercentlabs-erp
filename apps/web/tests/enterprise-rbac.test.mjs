@@ -14,7 +14,7 @@ const root = path.resolve(webRoot, "../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 async function loadAccessControl() {
-  const sourcePath = path.join(webRoot, "src/lib/access-control.ts");
+  const sourcePath = path.join(webRoot, "src/core/access-control.ts");
   const source = fs.readFileSync(sourcePath, "utf8");
   const permissionsUrl = pathToFileURL(
     path.join(root, "packages/permissions/src/index.js"),
@@ -273,7 +273,7 @@ test("grant ceiling and module availability fail closed", () => {
 
 test("database migration establishes multi-role, evidence and SoD contracts", () => {
   const migration = read(
-    "database/control-plane/migrations/018_enterprise_roles_permissions.sql",
+    "database/platform/migrations/018_enterprise_roles_permissions.sql",
   );
   for (const token of [
     "roles.view",
@@ -307,7 +307,7 @@ test("database migration establishes multi-role, evidence and SoD contracts", ()
 
 test("a later migration corrects role/module assignability for every existing organization", () => {
   const migration = read(
-    "database/control-plane/migrations/027_role_catalogue_module_completion.sql",
+    "database/platform/migrations/027_role_catalogue_module_completion.sql",
   );
   assert.match(migration, /roles_module_key_check/);
   assert.match(migration, /'projects','assets','point-of-sale'/);
@@ -336,8 +336,8 @@ test("web and mobile access administration use cumulative roles and effective da
   const acceptanceRoute = read(
     "apps/web/src/app/api/invitations/accept/route.ts",
   );
-  const auth = read("apps/web/src/lib/auth.ts");
-  const webUi = read("apps/web/src/components/user-administration.tsx");
+  const auth = read("apps/web/src/core/auth.ts");
+  const webUi = read("apps/web/src/core/components/user-administration.tsx");
   const mobileUi = read("apps/mobile/src/shared/components/access-manager.tsx");
   for (const token of [
     "roleIds",
@@ -366,7 +366,7 @@ test("web and mobile access administration use cumulative roles and effective da
 });
 
 test("delegated administrators cannot modify users or invitations with wider company scope", () => {
-  const administration = read("apps/web/src/lib/access-administration.ts");
+  const administration = read("apps/web/src/core/access-admin.ts");
   assert.match(
     administration,
     /This user has access outside your administration scope/,
@@ -398,7 +398,7 @@ test("role catalogue visibility is separate from role mutation", () => {
   // registry (docs/implementation/ERP_NAVIGATION_FOUNDATION_006.md) — the
   // "/settings/roles" entry now lives in navigation/administration.ts, not
   // app-shell.tsx itself.
-  const shell = read("apps/web/src/lib/navigation/administration.ts");
+  const shell = read("apps/web/src/core/navigation/administration.ts");
   const settings = read("apps/web/src/app/(app)/settings/page.tsx");
   const navigation = read("apps/mobile/src/core/modules/navigation.ts");
   assert.ok(rolePage.includes("PERMISSIONS.rolesView"));

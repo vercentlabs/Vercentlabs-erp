@@ -101,13 +101,13 @@ export function seedBusinessDataFoundation(
   client: QueryClient,
   context: Pick<BusinessDataContext, "organizationId" | "userId">,
 ): Promise<void>;
-export * from "./crm.js";
-export * from "./billing.js";
-export * from "./sales.js";
+export * from "./modules/crm/index.js";
+export * from "./core/billing.js";
+export * from "./modules/sales/index.js";
 
-export * from "./accounting.js";
+export * from "./modules/accounting/index.js";
 
-export * from "./procurement.js";
+export * from "./modules/procurement/index.js";
 export class CrmFoundationError extends Error {
   readonly status: number;
   readonly code: string;
@@ -190,42 +190,42 @@ export function archiveLeadAssignmentPolicy(
   policyId: string,
 ): Promise<Record<string, unknown>>;
 
-export * from "./crm/lead-operations.js";
+export * from "./modules/crm/lead-operations.js";
 
-export * from "./crm/opportunity-operations.js";
+export * from "./modules/crm/opportunity-operations.js";
 
-export * from "./sales/quotation-governance.js";
+export * from "./modules/sales/quotation-governance.js";
 
-export * from "./sales/order-governance.js";
+export * from "./modules/sales/order-governance.js";
 
-export * from "./accounting/receivables-governance.js";
+export * from "./modules/accounting/receivables-governance.js";
 
-export * from "./accounting/payables-governance.js";
+export * from "./modules/accounting/payables-governance.js";
 
-export * from "./accounting/banking-governance.js";
+export * from "./modules/accounting/banking-governance.js";
 
-export * from "./accounting/tax-reporting-governance.js";
+export * from "./modules/accounting/tax-reporting-governance.js";
 
-export * from "./procurement/governance.js";
+export * from "./modules/procurement/governance.js";
 
-export * from "./crm/core-acceptance.js";
+export * from "./modules/crm/core-acceptance.js";
 
-export * from "./crm/account-intelligence.js";
+export * from "./modules/crm/account-intelligence.js";
 
-export * from "./release/governance.js";
+export * from "./core/release/governance.js";
 
 
-export * from "./crm/communications.js";
+export * from "./modules/crm/communications.js";
 
-export * from "./crm/lead-acquisition.js";
-export * from "./crm/lead-intelligence.js";
-export * from "./crm/opportunity-revenue-intelligence.js";
-export * from "./crm/offline-sync.js";
-export * from "./stock/index.js";
-export * from "./manufacturing/index.js";
-export * from "./projects/index.js";
-export * from "./assets/index.js";
-export * from "./point-of-sale/index.js";
-export * from "./quality/index.js";
-export * from "./support/index.js";
-export * from "./hr-payroll/index.js";
+export * from "./modules/crm/lead-acquisition.js";
+export * from "./modules/crm/lead-intelligence.js";
+export * from "./modules/crm/opportunity-revenue-intelligence.js";
+export * from "./modules/crm/offline-sync.js";
+export * from "./modules/stock/index.js";
+export * from "./modules/manufacturing/index.js";
+export * from "./modules/projects/index.js";
+export * from "./modules/assets/index.js";
+export * from "./modules/point-of-sale/index.js";
+export * from "./modules/quality/index.js";
+export * from "./modules/support/index.js";
+export * from "./modules/hr-payroll/index.js";

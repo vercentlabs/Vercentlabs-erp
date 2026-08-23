@@ -3,17 +3,17 @@ import { createCrmRecord } from "@vercentlabs/api";
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
-} from "@/lib/billing";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/lib/crm";
-import { requireCrmManage } from "@/lib/crm-api";
-import { crmSchemas } from "@/lib/crm-validation";
-import { parseCsv } from "@/lib/csv";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { audit } from "@/lib/security";
+} from "@/core/billing";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
+import { requireCrmManage } from "@/modules/crm/api";
+import { crmSchemas } from "@/modules/crm/validation";
+import { parseCsv } from "@/core/csv";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
+import { audit } from "@/core/security";
 
 export async function POST(
   request: Request,

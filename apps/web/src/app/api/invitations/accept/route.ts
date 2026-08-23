@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { validateInvitationRolesForAcceptance } from "@/lib/access-administration";
+import { validateInvitationRolesForAcceptance } from "@/core/access-admin";
 
 import {
   createSession,
@@ -8,18 +8,18 @@ import {
   setSessionCookie,
   tokenHash,
   verifyPasswordOrDummy,
-} from "@/lib/auth";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { passwordPolicyIssues } from "@/lib/password-policy";
+} from "@/core/auth";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { passwordPolicyIssues } from "@/core/password-policy";
 import {
   assertSameOrigin,
   audit,
   clientIp,
   enforceRateLimit,
   sha256,
-} from "@/lib/security";
-import { acceptInvitationSchema } from "@/lib/validation";
+} from "@/core/security";
+import { acceptInvitationSchema } from "@/core/validation";
 
 const invalidInvitation = "This invitation is invalid or expired.";
 const invalidCredentials = "The invitation could not be accepted.";

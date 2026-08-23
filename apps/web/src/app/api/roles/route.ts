@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 
-import { getSessionContext } from "@/lib/auth";
+import { getSessionContext } from "@/core/auth";
 import {
   analyzePermissionConflicts,
   permissionsOutsideGrantCeiling,
-} from "@/lib/access-control";
-import { recordRoleSnapshot } from "@/lib/access-administration";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { requireBillingWriteAccess } from "@/lib/billing";
-import { transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
-import { roleSchema } from "@/lib/validation";
+} from "@/core/access-control";
+import { recordRoleSnapshot } from "@/core/access-admin";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { requireBillingWriteAccess } from "@/core/billing";
+import { transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
+import { roleSchema } from "@/core/validation";
 
 export async function POST(request: Request) {
   try {

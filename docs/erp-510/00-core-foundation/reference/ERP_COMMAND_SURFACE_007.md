@@ -68,7 +68,7 @@ One flat, minimal-field shape for every source — no result ever carries more t
 
 ## 5. Navigation Search
 
-`apps/web/src/lib/search/navigation-search.ts`'s `searchNavigation(navigation, query, limit)` flattens the same `ResolvedNavigationWithSettings` object AppShell already renders from (workspace, module groups + items, myWork, governance, administration, workspaceSettings) and scores each candidate with `score.ts`'s `scoreLabel()`:
+`apps/web/src/core/search/navigation-search.ts`'s `searchNavigation(navigation, query, limit)` flattens the same `ResolvedNavigationWithSettings` object AppShell already renders from (workspace, module groups + items, myWork, governance, administration, workspaceSettings) and scores each candidate with `score.ts`'s `scoreLabel()`:
 
 | Rank | Match type |
 |---|---|
@@ -129,7 +129,7 @@ Total response capped at 20 results (`TOTAL_RESULT_LIMIT`). Every adapter wraps 
 
 ## 9. Company Context
 
-Audited, unchanged: `context-switcher.tsx`'s company `<select>` → `save()` → `POST /api/context` → `router.refresh()`. Changing company auto-selects the new company's first branch (`nextBranchId` computed client-side from the already-scoped `branches` prop) rather than leaving a stale cross-company branch id selected. `getShellData()` (`apps/web/src/lib/platform.ts`) already scopes the `companies` list server-side via `EXISTS (SELECT 1 FROM membership_company_access ...)` unless the caller is `organization_owner`/`system_administrator` — confirmed by reading the query, not assumed.
+Audited, unchanged: `context-switcher.tsx`'s company `<select>` → `save()` → `POST /api/context` → `router.refresh()`. Changing company auto-selects the new company's first branch (`nextBranchId` computed client-side from the already-scoped `branches` prop) rather than leaving a stale cross-company branch id selected. `getShellData()` (`apps/web/src/core/platform.ts`) already scopes the `companies` list server-side via `EXISTS (SELECT 1 FROM membership_company_access ...)` unless the caller is `organization_owner`/`system_administrator` — confirmed by reading the query, not assumed.
 
 ## 10. Branch Context
 
@@ -227,22 +227,22 @@ Combined with Prompt 6's Check 4 (121 navigation hrefs): **all 134 known launche
 
 **New:**
 - `apps/web/src/components/{command-palette,quick-create-button,profile-menu,notifications-control}.tsx`
-- `apps/web/src/lib/search/{types,score,navigation-search,recent}.ts`
-- `apps/web/src/lib/quick-create/{actions,resolve-quick-create}.ts`
-- `apps/web/src/lib/permissions-catalog.ts`
-- `apps/web/src/lib/use-outside-dismiss.ts`
+- `apps/web/src/core/search/{types,score,navigation-search,recent}.ts`
+- `apps/web/src/core/quick-create/{actions,resolve-quick-create}.ts`
+- `apps/web/src/core/permissions.ts`
+- `apps/web/src/shared/use-outside-dismiss.ts`
 - `apps/web/src/app/api/search/route.ts`
 - `apps/web/tests/{command-palette,search-security,quick-create,context-and-topbar}.test.mjs`
 - `apps/web/tests/helpers/load-ts-module.mjs`
 - `docs/implementation/ERP_COMMAND_SURFACE_007.md`
 
 **Modified:**
-- `apps/web/src/components/app-shell.tsx` (wires in CommandPalette/QuickCreateButton/NotificationsControl/ProfileMenu, accepts new `quickCreate` prop)
+- `apps/web/src/core/components/app-shell.tsx` (wires in CommandPalette/QuickCreateButton/NotificationsControl/ProfileMenu, accepts new `quickCreate` prop)
 - `apps/web/src/app/(app)/layout.tsx` (calls `resolveQuickCreate()` alongside `resolveNavigation()`)
 - `apps/web/src/app/api/notifications/route.ts` (added `GET`)
-- `apps/web/src/components/logout-button.tsx` (added optional `className` prop, no behavior change)
-- `apps/web/src/lib/auth.ts`, `apps/web/src/lib/module-access.ts`, `apps/web/src/lib/billing.ts` (Prompt 6 already added `React.cache()`; `module-access.ts`'s `getAccessibleModules` itself is newly wrapped this prompt so `resolveNavigation`/`resolveQuickCreate` share one computation)
-- `apps/web/src/lib/navigation/types.ts`, `modules.ts` (added optional `keywords` fields)
+- `apps/web/src/core/components/logout-button.tsx` (added optional `className` prop, no behavior change)
+- `apps/web/src/core/auth.ts`, `apps/web/src/core/module-access.ts`, `apps/web/src/core/billing.ts` (Prompt 6 already added `React.cache()`; `module-access.ts`'s `getAccessibleModules` itself is newly wrapped this prompt so `resolveNavigation`/`resolveQuickCreate` share one computation)
+- `apps/web/src/core/navigation/types.ts`, `modules.ts` (added optional `keywords` fields)
 - `apps/web/scripts/verify-routes.mjs` (Checks 5/6, query-string-safe `routeExists`)
 - `apps/web/src/app/globals.css` (topbar grid, launcher-button styling, shared popover/dialog styles)
 

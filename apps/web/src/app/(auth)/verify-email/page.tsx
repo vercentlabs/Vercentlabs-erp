@@ -1,7 +1,7 @@
 import Link from "next/link";
-import AuthCard from "@/components/auth-card";
-import AuthForm from "@/components/auth-form";
-import ResendVerificationForm from "@/components/resend-verification-form";
+import AuthCard from "@/core/components/auth-card";
+import AuthForm from "@/core/components/auth-form";
+import ResendVerificationForm from "@/core/components/resend-verification-form";
 
 export const metadata = { title: "Verify email" };
 export default async function VerifyEmailPage({

@@ -1,9 +1,9 @@
 import { createIntercompanyRule, listIntercompanyRules } from "@vercentlabs/api";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { intercompanyRuleSchema } from "@/lib/accounting-validation";
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { intercompanyRuleSchema } from "@/modules/accounting/validation";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function GET() {
   try { const { context } = await accountingSession(); return ok({ rules: await tenantTransaction(context.organizationId, (client) => listIntercompanyRules(client, context)) }); }

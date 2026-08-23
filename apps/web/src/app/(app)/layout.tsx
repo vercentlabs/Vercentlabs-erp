@@ -1,8 +1,8 @@
-import AppShell from "@/components/app-shell";
-import { requireWorkspace } from "@/lib/auth";
-import { resolveNavigation } from "@/lib/navigation/resolve-navigation";
-import { getShellData } from "@/lib/platform";
-import { resolveQuickCreate } from "@/lib/quick-create/resolve-quick-create";
+import AppShell from "@/core/components/app-shell";
+import { requireWorkspace } from "@/core/auth";
+import { resolveNavigation } from "@/core/navigation/resolve-navigation";
+import { getShellData } from "@/core/platform";
+import { resolveQuickCreate } from "@/core/quick-create/resolve-quick-create";
 
 export const dynamic = "force-dynamic";
 export default async function WorkspaceLayout({

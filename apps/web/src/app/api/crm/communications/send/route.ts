@@ -1,11 +1,11 @@
 import { queueOutboundEmail } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/lib/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmApiContext } from "@/lib/crm";
-import { crmCommunicationsErrorResponse } from "@/lib/crm-communications-route";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { crmApiContext } from "@/modules/crm";
+import { crmCommunicationsErrorResponse } from "@/modules/crm/server/communications";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok } from "@/core/http";
 
 export async function POST(request: Request) {
   try {

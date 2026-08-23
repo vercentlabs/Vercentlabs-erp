@@ -12,7 +12,7 @@
 
 ## 2. Module taxonomy: 11 (brief) vs. 12 (repository)
 
-**Decision:** Use 12 modules, treating Accounting as its own module distinct from Sales, per the actual repository taxonomy (`apps/web/src/app/(app)/accounting/**`, `services/api/src/accounting/**`, 22 dedicated capability rows in the internal feature register).
+**Decision:** Use 12 modules, treating Accounting as its own module distinct from Sales, per the actual repository taxonomy (`apps/web/src/app/(app)/accounting/**`, `services/api/src/modules/accounting/**`, 22 dedicated capability rows in the internal feature register).
 **Evidence:** the governing brief's product-scope list names 11 modules without a standalone Accounting entry; the live codebase clearly implements Accounting as a full, independent module.
 **Alternatives considered:** force-fit Accounting under Sales or under Shared Platform to match the brief's literal 11-item list.
 **Reason selected:** the brief itself instructs "use the actual latest repository taxonomy... do not stop to debate whether the public website should say 11 or 12 modules" — this is a direct, unambiguous instruction favoring repository truth over the brief's own illustrative list.

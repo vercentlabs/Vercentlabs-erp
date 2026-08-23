@@ -2,18 +2,18 @@ import { notFound } from "next/navigation";
 
 import { getBusinessDataOverview } from "@vercentlabs/api";
 
-import AppIcon from "@/components/app-icon";
+import AppIcon from "@/shared/components/app-icon";
 import MasterDataCatalogue, {
   type MasterDataCatalogueEntry,
-} from "@/components/master-data-catalogue";
-import { requireWorkspace } from "@/lib/auth";
+} from "@/core/components/master-data-catalogue";
+import { requireWorkspace } from "@/core/auth";
 import {
   businessDataContext,
   businessDataDefinitions,
   businessDataGroups,
-} from "@/lib/business-data";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
+} from "@/core/master-data";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
 
 export const metadata = { title: "Master data" };
 export const dynamic = "force-dynamic";

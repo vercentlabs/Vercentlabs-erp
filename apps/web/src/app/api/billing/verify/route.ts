@@ -1,11 +1,11 @@
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { replaceOrganizationSubscriptionWithClient } from "@/lib/billing";
-import { verifyCheckoutSchema } from "@/lib/billing-validation";
-import { query, transaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { verifyRazorpayPaymentSignature } from "@/lib/razorpay";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { replaceOrganizationSubscriptionWithClient } from "@/core/billing";
+import { verifyCheckoutSchema } from "@/core/billing-validation";
+import { query, transaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { verifyRazorpayPaymentSignature } from "@/core/razorpay";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 const VERIFIABLE_CHECKOUT_STATES = [
   "created",

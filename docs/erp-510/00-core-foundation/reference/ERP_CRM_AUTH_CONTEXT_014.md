@@ -7,11 +7,11 @@ equivalent gap.
 
 ## 1. Executive Summary
 
-`apps/web/src/lib/crm.ts`'s `crmContext()` — the single function every CRM
+`apps/web/src/modules/crm/index.ts`'s `crmContext()` — the single function every CRM
 page, API route, mobile route, and shared-workspace adapter uses to turn an
 authenticated session into a CRM authorization context — never copied
 `session.permissions` or `session.roleSlugs` onto the object it returned.
-`canViewAllCrmRecords()` (`services/api/src/crm.js`) reads exactly those two
+`canViewAllCrmRecords()` (`services/api/src/modules/crm/index.js`) reads exactly those two
 fields to decide whether a caller may see every CRM record in scope or only
 their own. With both fields silently missing, `canViewAllCrmRecords()`
 evaluated `false` for every real request, regardless of the caller's actual
@@ -60,7 +60,7 @@ dedicated fix.
 
 ## 3. Reproduction
 
-Source-level reproduction (`apps/web/src/lib/crm.ts`, before this fix):
+Source-level reproduction (`apps/web/src/modules/crm/index.ts`, before this fix):
 
 ```ts
 export function crmContext(session: SessionContext): CrmContext {
@@ -76,7 +76,7 @@ export function crmContext(session: SessionContext): CrmContext {
 ```
 
 ```js
-// services/api/src/crm.js
+// services/api/src/modules/crm/index.js
 function canViewAllCrmRecords(context) {
   return (
     Boolean(context.roleSlugs?.includes("organization_owner")) ||
@@ -106,7 +106,7 @@ required real-chain verification:
 1. **The reported defect**: `crmContext()` (Part 3) constructed its return
    object field-by-field and simply never included `permissions`/
    `roleSlugs` — an omission, not a logic error. The `CrmContext` TypeScript
-   type (`packages/shared-types/src/crm.d.ts`) didn't declare either field
+   type (`packages/shared-types/src/modules/crm/index.d.ts`) didn't declare either field
    either, so no type error ever surfaced the gap.
 2. **Independently discovered while proving the fix live** (not the
    reported defect, but directly adjacent — same function): `recordScope()`
@@ -127,7 +127,7 @@ required real-chain verification:
 
 ## 5. Session Authorization Model
 
-`apps/web/src/lib/auth.ts`'s `SessionContext` is canonical and already
+`apps/web/src/core/auth.ts`'s `SessionContext` is canonical and already
 fully resolved by the time any module-specific code runs:
 
 ```ts
@@ -327,8 +327,8 @@ and elevated users.
 ## 17. My Work Interaction
 
 **Found and fixed as part of this prompt's required audit (Part 17).**
-`apps/web/src/lib/my-work/follow-ups.ts`'s `listMyFollowUps()` and
-`apps/web/src/lib/my-work/tasks.ts`'s `crmActivityTasks()` both called
+`apps/web/src/core/work/follow-ups.ts`'s `listMyFollowUps()` and
+`apps/web/src/core/work/tasks.ts`'s `crmActivityTasks()` both called
 `crmApiContext(session)` and passed the resulting context straight into
 `listCrmRecords()`, then filtered the results down to "mine" in an
 in-process `.filter()`. Before this prompt's fix, that context's
@@ -556,15 +556,15 @@ a defect.
 ## 29. Files Changed
 
 **Modified:**
-- `packages/shared-types/src/crm.d.ts` — `CrmContext` gains required
+- `packages/shared-types/src/modules/crm/index.d.ts` — `CrmContext` gains required
   `permissions`/`roleSlugs` fields.
-- `apps/web/src/lib/crm.ts` — `crmContext()` propagates both fields from
+- `apps/web/src/modules/crm/index.ts` — `crmContext()` propagates both fields from
   the session.
-- `apps/web/src/lib/my-work/follow-ups.ts` — `listMyFollowUps()` forces
+- `apps/web/src/core/work/follow-ups.ts` — `listMyFollowUps()` forces
   self-scope regardless of `view_all`.
-- `apps/web/src/lib/my-work/tasks.ts` — `crmActivityTasks()` forces
+- `apps/web/src/core/work/tasks.ts` — `crmActivityTasks()` forces
   self-scope regardless of `view_all`.
-- `services/api/src/crm.js` — `recordScope()`'s two fail-closed early
+- `services/api/src/modules/crm/index.js` — `recordScope()`'s two fail-closed early
   returns fixed to preserve already-bound parameters (Section 4).
 - `services/api/tests/crm-record-scope.test.mjs` — +5 tests.
 

@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { getMobileSessionContext } from "@/lib/auth";
-import { HttpError, readJson } from "@/lib/http";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { publicSession, rotateMobileSession } from "@/lib/mobile-session";
-import { clientIp, enforceRateLimit, sha256 } from "@/lib/security";
+import { getMobileSessionContext } from "@/core/auth";
+import { HttpError, readJson } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { publicSession, rotateMobileSession } from "@/core/mobile-session";
+import { clientIp, enforceRateLimit, sha256 } from "@/core/security";
 
 const inputSchema = z.object({
   refreshToken: z.string().min(40).max(200),

@@ -1,11 +1,11 @@
 import { getPointOfSaleDashboard } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import PointOfSaleDashboard from "@/components/point-of-sale/point-of-sale-dashboard";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { tenantTransaction } from "@/lib/db";
-import { pointOfSaleContext } from "@/lib/point-of-sale";
+import AccessDenied from "@/shared/components/access-denied";
+import PointOfSaleDashboard from "@/modules/point-of-sale/components/point-of-sale-dashboard";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { tenantTransaction } from "@/core/db";
+import { pointOfSaleContext } from "@/modules/point-of-sale";
 
 export const metadata = { title: "Point of Sale" };
 export const dynamic = "force-dynamic";

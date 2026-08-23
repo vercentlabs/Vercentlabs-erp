@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { listJournalEntries } from "@vercentlabs/api";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { accountingContext } from "@/lib/accounting";
-import { tenantTransaction } from "@/lib/db";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { accountingContext } from "@/modules/accounting";
+import { tenantTransaction } from "@/core/db";
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
 export default async function JournalsPage() { const session=await requireWorkspace();if(!hasPermission(session,PERMISSIONS.accountingView))return <section className="panel"><h1>Accounting access required</h1></section>;const context=accountingContext(session);const entries=await tenantTransaction(context.organizationId,(client)=>listJournalEntries(client,context)) as Row[];return <><section className="page-heading"><div><p className="eyebrow">General ledger</p><h1>Journal entries</h1><p>Review draft, approved, posted and reversed entries across the active company ledger.</p></div>{hasPermission(session,PERMISSIONS.accountingJournalCreate)?<Link className="primary-button" href="/accounting/journals/new">New journal</Link>:null}</section><section className="panel"><div className="accounting-table"><div className="accounting-table-row accounting-table-head"><span>Entry</span><span>Date</span><span>Journal</span><span>Description</span><span>Status</span><span>Total</span></div>{entries.map(row=><Link className="accounting-table-row" href={`/accounting/journals/${String(row.id)}`} key={String(row.id)}><span><strong>{String(row.entry_number)}</strong><small>{String(row.reference||"")}</small></span><span>{String(row.accounting_date).slice(0,10)}</span><span>{String(row.journal_name||row.journal_code||"")}</span><span>{String(row.description)}</span><span className="status-badge neutral">{String(row.status)}</span><span>{String(row.functional_currency_code)} {String(row.total_debit||0)}</span></Link>)}{!entries.length?<p>No journal entries exist yet.</p>:null}</div></section></>}

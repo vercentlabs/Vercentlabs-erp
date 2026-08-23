@@ -2,13 +2,13 @@ import {
   getLeadScoreExplanation,
   recalculateLeadScore,
 } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/lib/authorization";
-import { crmApiContext } from "@/lib/crm";
-import { crmLeadIntelligenceErrorResponse } from "@/lib/crm-lead-intelligence-route";
-import { tenantTransaction } from "@/lib/db";
-import { HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { crmApiContext } from "@/modules/crm";
+import { crmLeadIntelligenceErrorResponse } from "@/modules/crm/server/lead-intelligence";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 type Params = { params: Promise<{ leadId: string }> };
 export async function GET(_request: Request, { params }: Params) {
   try {

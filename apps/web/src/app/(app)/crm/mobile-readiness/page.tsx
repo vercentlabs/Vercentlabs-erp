@@ -1,9 +1,9 @@
 import fs from "node:fs";
 
-import AccessDenied from "@/components/access-denied";
-import CrmWorkspaceShell from "@/components/crm/crm-workspace-shell";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import AccessDenied from "@/shared/components/access-denied";
+import CrmWorkspaceShell from "@/modules/crm/components/crm-workspace-shell";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 
 export const dynamic = "force-dynamic";
 

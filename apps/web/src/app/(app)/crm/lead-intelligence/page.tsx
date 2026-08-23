@@ -5,12 +5,12 @@ import {
   listLeadAssignmentPolicies,
 } from "@vercentlabs/api";
 
-import AccessDenied from "@/components/access-denied";
-import CrmLeadIntelligenceWorkspace from "@/components/crm-lead-intelligence-workspace";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { crmContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
+import AccessDenied from "@/shared/components/access-denied";
+import CrmLeadIntelligenceWorkspace from "@/modules/crm/components/lead-intelligence-workspace";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { crmContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;

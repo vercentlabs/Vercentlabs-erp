@@ -1,10 +1,10 @@
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { cancelSubscriptionSchema } from "@/lib/billing-validation";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { razorpayRequest } from "@/lib/razorpay";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { cancelSubscriptionSchema } from "@/core/billing-validation";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { razorpayRequest } from "@/core/razorpay";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 export async function POST(request: Request) {
   try {

@@ -2,10 +2,10 @@ import Link from "next/link";
 
 import { getSalesReport } from "@vercentlabs/api";
 
-import AppIcon from "@/components/app-icon";
-import { requireWorkspace } from "@/lib/auth";
-import { tenantTransaction } from "@/lib/db";
-import { salesContext } from "@/lib/sales";
+import AppIcon from "@/shared/components/app-icon";
+import { requireWorkspace } from "@/core/auth";
+import { tenantTransaction } from "@/core/db";
+import { salesContext } from "@/modules/sales";
 
 export const dynamic = "force-dynamic";
 

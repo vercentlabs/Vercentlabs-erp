@@ -1,9 +1,9 @@
 import { capitalizeAsset, changeAssetSuspension, disposeAsset, impairAsset, postAssetDepreciation, transferAsset } from "@vercentlabs/api";
-import { accountingSession, tenantTransaction } from "@/lib/accounting-route";
-import { rethrowAccountingError } from "@/lib/accounting";
-import { assetActionSchema } from "@/lib/accounting-validation";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOrigin, audit } from "@/lib/security";
+import { accountingSession, tenantTransaction } from "@/modules/accounting/server";
+import { rethrowAccountingError } from "@/modules/accounting";
+import { assetActionSchema } from "@/modules/accounting/validation";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin, audit } from "@/core/security";
 
 export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
   try {

@@ -4,12 +4,12 @@ import {
   getCrmOfflineReadiness,
   resolveStoredOfflineConflict,
 } from "@vercentlabs/api";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { crmApiContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { readJson } from "@/lib/http";
+import { requireMobileSession } from "@/core/mobile-session";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { crmApiContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { readJson } from "@/core/http";
 export async function GET(request: Request) {
   try {
     const s = await requireMobileSession(request);

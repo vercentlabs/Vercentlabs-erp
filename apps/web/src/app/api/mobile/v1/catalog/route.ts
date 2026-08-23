@@ -1,18 +1,18 @@
 import { getBusinessDataOverview } from "@vercentlabs/api";
 
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import {
   businessDataContext,
   businessDataDefinitions,
   businessDataGroups,
-} from "@/lib/business-data";
-import { canViewCrmResource } from "@/lib/crm-api";
-import { crmDefinitions } from "@/lib/crm";
-import { mobileError, mobileOk } from "@/lib/mobile-http";
-import { requireMobileSession } from "@/lib/mobile-session";
-import { moduleCatalog } from "@/lib/platform";
-import { resourceDefinitions } from "@/lib/resources";
-import { tenantTransaction } from "@/lib/db";
+} from "@/core/master-data";
+import { canViewCrmResource } from "@/modules/crm/api";
+import { crmDefinitions } from "@/modules/crm";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
+import { moduleCatalog } from "@/core/platform";
+import { resourceDefinitions } from "@/core/resources";
+import { tenantTransaction } from "@/core/db";
 
 export async function GET(request: Request) {
   try {

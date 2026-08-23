@@ -1,16 +1,16 @@
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import Link from "next/link";
 
-import AppIcon, { type AppIconName } from "@/components/app-icon";
-import OpenCommandPaletteButton from "@/components/open-command-palette-button";
-import WorkItemList from "@/components/work-item-list";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { query } from "@/lib/db";
-import { getAccessibleModules } from "@/lib/module-access";
-import { getMyWorkSummary } from "@/lib/my-work/aggregate";
-import { MODULE_ROUTE_ROOTS } from "@/lib/navigation/route-map";
-import type { ModuleId } from "@/lib/navigation/types";
+import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
+import OpenCommandPaletteButton from "@/core/components/open-command-palette-button";
+import WorkItemList from "@/shared/components/work-item-list";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { query } from "@/core/db";
+import { getAccessibleModules } from "@/core/module-access";
+import { getMyWorkSummary } from "@/core/work/aggregate";
+import { MODULE_ROUTE_ROOTS } from "@/core/navigation/route-map";
+import type { ModuleId } from "@/core/navigation/types";
 
 export const metadata = { title: "Home" };
 

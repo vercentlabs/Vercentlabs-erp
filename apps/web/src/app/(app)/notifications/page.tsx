@@ -1,6 +1,6 @@
-import NotificationList from "@/components/notification-list";
-import { requireWorkspace } from "@/lib/auth";
-import { query } from "@/lib/db";
+import NotificationList from "@/core/components/notification-list";
+import { requireWorkspace } from "@/core/auth";
+import { query } from "@/core/db";
 
 export const metadata = { title: "Notifications" };
 export default async function NotificationsPage() {

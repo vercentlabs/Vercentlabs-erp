@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import AuditEventTable, { type AuditEventDisplayRow } from "@/components/audit-event-table";
-import GovernancePagination from "@/components/governance-pagination";
-import { requireWorkspace } from "@/lib/auth";
-import { hasPermission, PERMISSIONS } from "@/lib/authorization";
-import { redactAuditPayload } from "@/lib/audit/redact";
-import { listLoginEvents, listSecurityAuditEvents } from "@/lib/audit/query";
+import AuditEventTable, { type AuditEventDisplayRow } from "@/core/components/audit-event-table";
+import GovernancePagination from "@/core/components/governance-pagination";
+import { requireWorkspace } from "@/core/auth";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { redactAuditPayload } from "@/core/audit/redact";
+import { listLoginEvents, listSecurityAuditEvents } from "@/core/audit/query";
 
 export const metadata = { title: "Security events" };
 export const dynamic = "force-dynamic";

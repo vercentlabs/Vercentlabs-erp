@@ -1,14 +1,14 @@
 import { mergeAccountsGoverned } from "@vercentlabs/api";
-import { getSessionContext } from "@/lib/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
+import { getSessionContext } from "@/core/auth";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import {
   requireBillingWriteAccess,
   incrementBillingUsage,
-} from "@/lib/billing";
-import { crmApiContext } from "@/lib/crm";
-import { tenantTransaction } from "@/lib/db";
-import { errorResponse, HttpError, ok, readJson } from "@/lib/http";
-import { assertSameOriginOrMobile, audit } from "@/lib/security";
+} from "@/core/billing";
+import { crmApiContext } from "@/modules/crm";
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 export async function POST(
   request: Request,

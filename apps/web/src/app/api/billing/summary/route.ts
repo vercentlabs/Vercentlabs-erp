@@ -1,8 +1,8 @@
-import { getSessionContext } from "@/lib/auth";
-import { getBillingSummary } from "@/lib/billing";
-import { requirePermissionFromSession, PERMISSIONS } from "@/lib/authorization";
-import { query } from "@/lib/db";
-import { errorResponse, HttpError, ok } from "@/lib/http";
+import { getSessionContext } from "@/core/auth";
+import { getBillingSummary } from "@/core/billing";
+import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { query } from "@/core/db";
+import { errorResponse, HttpError, ok } from "@/core/http";
 
 export async function GET() {
   try {

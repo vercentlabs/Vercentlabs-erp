@@ -1,9 +1,9 @@
 import { createProcurementRecord, listProcurementRecords } from "@vercentlabs/api";
 
-import { errorResponse, ok, readJson } from "@/lib/http";
-import { procurementSession, tenantTransaction } from "@/lib/procurement-route";
-import { parseProcurementCreate } from "@/lib/procurement-validation";
-import { assertSameOriginOrMobile } from "@/lib/security";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { procurementSession, tenantTransaction } from "@/modules/procurement/server";
+import { parseProcurementCreate } from "@/modules/procurement/validation";
+import { assertSameOriginOrMobile } from "@/core/security";
 
 export async function GET(
   request: Request,

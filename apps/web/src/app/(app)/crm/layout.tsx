@@ -1,5 +1,5 @@
-import CrmSectionTabs from "@/components/crm-section-tabs";
-import ModulePageGuard from "@/components/module-page-guard";
+import CrmSectionTabs from "@/modules/crm/components/section-tabs";
+import ModulePageGuard from "@/core/components/module-page-guard";
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
