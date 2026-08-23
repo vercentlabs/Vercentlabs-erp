@@ -246,18 +246,4 @@ DROP TRIGGER IF EXISTS crm_lead_acquisition_evidence_immutable ON tenant.crm_lea
 CREATE TRIGGER crm_lead_acquisition_evidence_immutable
 BEFORE UPDATE OR DELETE ON tenant.crm_lead_acquisition_acceptance_runs
 FOR EACH ROW EXECUTE FUNCTION tenant.crm_lead_acquisition_evidence_immutable();
-
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_import_batches TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_import_rows TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_acquisition_connections TO vercent_app;
-GRANT SELECT,INSERT,UPDATE ON tenant.crm_lead_acquisition_events TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_chat_sessions TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_chat_messages TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_provenance TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_enrichment_reviews TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_lead_acquisition_acceptance_runs TO vercent_app;
-GRANT EXECUTE ON FUNCTION tenant.crm_public_acquisition_connection(text) TO vercent_app;
-GRANT EXECUTE ON FUNCTION tenant.crm_public_capture_form_v2(text) TO vercent_app;
-GRANT EXECUTE ON FUNCTION tenant.crm_public_chat_session(text) TO vercent_app;
-
 COMMIT;

@@ -8,7 +8,7 @@ import { loadTsModule } from "./helpers/load-ts-module.mjs";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-// my-work/types.ts and internal-href.ts have no @/lib/auth or @/lib/db
+// my-work/types.ts and internal-href.ts have no @/core/auth or @/core/db
 // dependency (types.ts only has a type-only import, which transpileModule
 // elides; internal-href.ts only imports the plain-data shared-types
 // package) — safe to actually execute for real behavioral coverage, same

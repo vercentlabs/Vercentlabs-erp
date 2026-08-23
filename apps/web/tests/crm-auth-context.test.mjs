@@ -4,8 +4,8 @@ import path from "node:path";
 import test from "node:test";
 
 // Prompt 14 — CRM authorization context integrity. crmContext() (in
-// apps/web/src/modules/crm/index.ts) transitively imports @/lib/module-access ->
-// @/lib/auth -> next/headers, so — same precedent as
+// apps/web/src/modules/crm/index.ts) transitively imports @/core/module-access ->
+// @/core/auth -> next/headers, so — same precedent as
 // search-security.test.mjs and every other DB/session-touching file in
 // this suite — it cannot be runtime-imported outside a real Next.js
 // request. The pure, permission-driven scoping logic these source-pattern
@@ -21,7 +21,7 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const crmSource = () => read("apps/web/src/modules/crm/index.ts");
-const crmContextTypeSource = () => read("packages/shared-types/src/modules/crm/index.d.ts");
+const crmContextTypeSource = () => read("packages/shared-types/src/crm.d.ts");
 const followUpsSource = () => read("apps/web/src/core/work/follow-ups.ts");
 const tasksSource = () => read("apps/web/src/core/work/tasks.ts");
 const systemContextSource = () => read("services/worker/src/system-context.js");

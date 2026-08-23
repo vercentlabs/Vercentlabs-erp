@@ -56,10 +56,8 @@ for (const { label, dir } of directories) {
     continue;
   }
 
-  // Duplicate numeric prefixes: survivable (files still apply in
-  // deterministic lexicographic order) but worth surfacing, since a
-  // migration runner that tracks "applied" state by numeric prefix alone
-  // rather than full filename would silently skip one of the two files.
+  // Duplicate numeric prefixes are forbidden. Migration identity must be unique
+  // and human-readable even though the runner tracks the full filename.
   const byPrefix = new Map();
   for (const file of files) {
     const prefix = file.match(/^(\d+)_/)?.[1];
@@ -72,7 +70,7 @@ for (const { label, dir } of directories) {
   }
   for (const [prefix, matches] of byPrefix) {
     if (matches.length > 1) {
-      warn(`${label}: duplicate migration prefix ${prefix} used by ${matches.join(", ")}`);
+      fail(`${label}: duplicate migration prefix ${prefix} used by ${matches.join(", ")}`);
     }
   }
 

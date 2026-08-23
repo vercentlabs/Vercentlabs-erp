@@ -229,17 +229,4 @@ DROP TRIGGER IF EXISTS crm_opportunity_revenue_acceptance_immutable ON tenant.cr
 CREATE TRIGGER crm_opportunity_revenue_acceptance_immutable
 BEFORE UPDATE OR DELETE ON tenant.crm_opportunity_revenue_acceptance_evidence
 FOR EACH ROW EXECUTE FUNCTION tenant.crm_opportunity_revenue_immutable();
-
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_opportunity_revenue_schedules TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_opportunity_team_members TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_opportunity_revenue_splits TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_mutual_action_plans TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_mutual_action_plan_milestones TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_opportunity_templates TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_opportunity_clone_events TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_win_loss_reviews TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_predictive_forecast_snapshots TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_quota_seasonality_allocations TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_opportunity_revenue_acceptance_evidence TO vercent_app;
-
 COMMIT;

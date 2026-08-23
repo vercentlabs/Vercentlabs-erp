@@ -7,8 +7,8 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 // Static source-pattern verification — resolve-navigation.ts and
-// module-page-guard.tsx transitively import @/lib/auth (next/headers) and
-// @/lib/module-access (pg/billing), which are unsafe to execute outside a
+// module-page-guard.tsx transitively import @/core/auth (next/headers) and
+// @/core/module-access (pg/billing), which are unsafe to execute outside a
 // real Next.js request/DB context (same documented limitation as Prompt
 // 4/5's module-access.test.mjs and tenant-isolation-rls.test.mjs). Actual
 // runtime behavior is exercised by `pnpm typecheck`/`pnpm build` (which
@@ -86,7 +86,7 @@ test("page access: all 12 module route roots have a layout.tsx wrapping children
   assert.equal(moduleLayouts.length, 12);
   for (const [file, moduleId] of moduleLayouts) {
     const source = read(file);
-    assert.match(source, /import ModulePageGuard from "@\/components\/module-page-guard";/, `${file}: missing ModulePageGuard import`);
+    assert.match(source, /import ModulePageGuard from "@\/core\/components\/module-page-guard";/, `${file}: missing ModulePageGuard import`);
     assert.match(
       source,
       new RegExp(`<ModulePageGuard moduleId="${moduleId}">`),

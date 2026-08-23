@@ -8,8 +8,8 @@ import { loadTsModule } from "./helpers/load-ts-module.mjs";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-// quick-create/actions.ts imports PERMISSIONS from permissions-catalog.ts
-// (zero @/lib/auth dependency, Prompt 6's client-bundle fix) and only
+// quick-create/actions.ts imports PERMISSIONS from permissions.ts
+// (zero @/core/auth dependency, Prompt 6's client-bundle fix) and only
 // erased types otherwise — safe to actually transpile and execute.
 const actionsModule = await loadTsModule("apps/web/src/core/quick-create/actions.ts");
 const permissionsModule = await loadTsModule("apps/web/src/core/permissions.ts");
@@ -76,7 +76,7 @@ test("quick create: Accounting has a working create action (journal entry)", () 
 
 test("quick create: navigation registry and quick-create registry stay logically separate — quick-create.ts never imports from lib/navigation's data files, and modules.ts never imports quick-create", () => {
   const actionsSource = read("apps/web/src/core/quick-create/actions.ts");
-  assert.doesNotMatch(actionsSource, /from "@\/lib\/navigation\/(modules|workspace|my-work|governance|administration)"/);
+  assert.doesNotMatch(actionsSource, /from "@\/core\/navigation\/(modules|workspace|my-work|governance|administration)"/);
   const modulesSource = read("apps/web/src/core/navigation/modules.ts");
   assert.doesNotMatch(modulesSource, /quick-create/);
 });
@@ -96,5 +96,5 @@ test("quick create: contextual ranking reorders but never filters — the ranked
 test("quick create: the button component receives already-filtered actions as a prop — it does not import the raw registry or re-derive permissions itself", () => {
   const source = read("apps/web/src/core/components/quick-create-button.tsx");
   assert.doesNotMatch(source, /import \{ quickCreateActions/, "must not import the raw quickCreateActions array as a value — actions must come from the server-filtered prop");
-  assert.match(source, /import type \{ QuickCreateAction \} from "@\/lib\/quick-create\/actions";/);
+  assert.match(source, /import type \{ QuickCreateAction \} from "@\/core\/quick-create\/actions";/);
 });

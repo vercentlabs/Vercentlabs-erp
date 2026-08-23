@@ -27,7 +27,4 @@ DROP POLICY IF EXISTS organization_isolation ON tenant.crm_import_receipts;
 CREATE POLICY organization_isolation ON tenant.crm_import_receipts
   USING (organization_id = tenant.current_organization_id())
   WITH CHECK (organization_id = tenant.current_organization_id());
-
-GRANT SELECT, INSERT, UPDATE ON tenant.crm_import_receipts TO vercent_app;
-
 COMMIT;

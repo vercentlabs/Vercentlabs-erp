@@ -1,28 +1,8 @@
 FROM node:24-alpine
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json apps/web/package.json
-COPY apps/landing/package.json apps/landing/package.json
-COPY services/api/package.json services/api/package.json
-COPY packages/database/package.json packages/database/package.json
-COPY packages/config/package.json packages/config/package.json
-COPY packages/document-engine/package.json packages/document-engine/package.json
-COPY packages/localization/package.json packages/localization/package.json
-COPY packages/observability/package.json packages/observability/package.json
-COPY packages/permissions/package.json packages/permissions/package.json
-COPY packages/reporting-engine/package.json packages/reporting-engine/package.json
-COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
-COPY packages/shared-types/package.json packages/shared-types/package.json
-COPY packages/shared-ui/package.json packages/shared-ui/package.json
-COPY packages/test-utils/package.json packages/test-utils/package.json
-COPY packages/workflows/package.json packages/workflows/package.json
-RUN pnpm install --prod --frozen-lockfile
-COPY apps/web/scripts apps/web/scripts
-COPY database database
-COPY packages packages
-COPY services services
-COPY scripts/database scripts/database
+COPY . .
+RUN pnpm --filter @vercentlabs/web... install --prod --frozen-lockfile
 RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs && chown -R vercentlabs:vercentlabs /app
 USER vercentlabs
-CMD ["sh", "-ec", "pnpm db:migrate:control && pnpm db:migrate:tenant && pnpm db:provision:runtime-role"]
+CMD ["sh", "-ec", "pnpm db:setup"]

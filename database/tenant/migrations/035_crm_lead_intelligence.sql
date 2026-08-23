@@ -357,16 +357,4 @@ FOR EACH ROW EXECUTE FUNCTION tenant.crm_lead_intelligence_immutable();
 DROP TRIGGER IF EXISTS crm_lead_intelligence_acceptance_immutable ON tenant.crm_lead_intelligence_acceptance_runs;
 CREATE TRIGGER crm_lead_intelligence_acceptance_immutable BEFORE UPDATE OR DELETE ON tenant.crm_lead_intelligence_acceptance_runs
 FOR EACH ROW EXECUTE FUNCTION tenant.crm_lead_intelligence_immutable();
-
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_scoring_models TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_scoring_model_rules TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_lead_behavior_events TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_lead_score_snapshots TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_sla_policies TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_sla_cases TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_lead_sla_events TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_nurture_policies TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_lead_nurture_queue TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_lead_intelligence_acceptance_runs TO vercent_app;
-
 COMMIT;

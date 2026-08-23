@@ -85,9 +85,4 @@ DROP TRIGGER IF EXISTS crm_provider_execution_receipts_immutable
 CREATE TRIGGER crm_provider_execution_receipts_immutable
   BEFORE UPDATE OR DELETE ON tenant.crm_provider_execution_receipts
   FOR EACH ROW EXECUTE FUNCTION tenant.crm_product_acceptance_immutable();
-
-GRANT SELECT, INSERT ON tenant.crm_product_acceptance_runs TO vercent_app;
-GRANT SELECT, INSERT ON tenant.crm_provider_execution_receipts TO vercent_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA tenant TO vercent_app;
-
 COMMIT;

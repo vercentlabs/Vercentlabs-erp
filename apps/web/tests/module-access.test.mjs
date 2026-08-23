@@ -251,7 +251,7 @@ test("a later migration re-enables organization_modules rows still stuck in thei
 
 test("organization provisioning seeds roles from the canonical ROLE_TEMPLATES, not a separate hand-maintained list", () => {
   const source = read("apps/web/src/core/platform.ts");
-  assert.match(source, /import \{ ROLE_TEMPLATES \} from "@\/lib\/access-control"/);
+  assert.match(source, /import \{ ROLE_TEMPLATES \} from "@\/core\/access-control"/);
   assert.doesNotMatch(source, /const roleSeed = \[/, "platform.ts must not keep its own duplicate role seed list");
   assert.doesNotMatch(source, /function permissionsForRole/, "platform.ts must not keep its own duplicate permission resolver");
 });

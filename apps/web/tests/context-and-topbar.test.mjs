@@ -69,7 +69,7 @@ test("topbar: settings/administration visibility is permission-derived (Security
 
 test("topbar: profile menu's sign-out reuses the existing LogoutButton (real session invalidation via /api/auth/logout), not a new client-only implementation", () => {
   const source = read("apps/web/src/core/components/profile-menu.tsx");
-  assert.match(source, /import LogoutButton from "@\/components\/logout-button";/);
+  assert.match(source, /import LogoutButton from "@\/core\/components\/logout-button";/);
   assert.match(source, /<LogoutButton /);
   assert.doesNotMatch(source, /localStorage\.(removeItem|clear)|document\.cookie\s*=/, "must not attempt to clear session state client-side");
 });
@@ -78,8 +78,8 @@ test("topbar: Quick Create's visible action set for the profile-menu/notificatio
   const hookSource = read("apps/web/src/shared/use-outside-dismiss.ts");
   assert.match(hookSource, /event\.key === "Escape"/);
   for (const file of ["profile-menu.tsx", "notifications-control.tsx", "quick-create-button.tsx"]) {
-    const source = read(`apps/web/src/components/${file}`);
-    assert.match(source, /import \{ useOutsideDismiss \} from "@\/lib\/use-outside-dismiss";/, `${file} must reuse the shared dismiss hook`);
+    const source = read(`apps/web/src/core/components/${file}`);
+    assert.match(source, /import \{ useOutsideDismiss \} from "@\/shared\/use-outside-dismiss";/, `${file} must reuse the shared dismiss hook`);
   }
 });
 

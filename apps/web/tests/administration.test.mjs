@@ -8,7 +8,7 @@ import { loadTsModule } from "./helpers/load-ts-module.mjs";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-// my-work/types.ts has no @/lib/auth or @/lib/db dependency (only a
+// my-work/types.ts has no @/core/auth or @/core/db dependency (only a
 // type-only import, elided by transpileModule) — safe to execute directly
 // for real timezone-aware behavioral coverage.
 const typesModule = await loadTsModule("apps/web/src/core/work/types.ts");

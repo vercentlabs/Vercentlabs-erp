@@ -39,8 +39,8 @@ const routeMap = await loadPureModule("apps/web/src/core/navigation/route-map.ts
 
 // ---------------------------------------------------------------------
 // Part 29 — registry invariants (static source checks for the data files
-// themselves, since they transitively import @/lib/authorization ->
-// @/lib/auth -> next/headers, which is unsafe to execute outside a real
+// themselves, since they transitively import @/core/authorization ->
+// @/core/auth -> next/headers, which is unsafe to execute outside a real
 // Next.js request context — same precedent as module-access.test.mjs).
 // ---------------------------------------------------------------------
 
@@ -103,7 +103,7 @@ test("registry: resolve-navigation.ts filters module groups by accessibleModuleI
 
 test("registry: resolve-navigation.ts uses Prompt 4/5's canonical getAccessibleModules() rather than re-deriving module access", () => {
   const source = read("apps/web/src/core/navigation/resolve-navigation.ts");
-  assert.match(source, /import \{ getAccessibleModules \} from "@\/lib\/module-access";/);
+  assert.match(source, /import \{ getAccessibleModules \} from "@\/core\/module-access";/);
   assert.doesNotMatch(source, /organization_modules|getBillingSummary\(/, "must not re-implement module-access.ts's own DB/billing logic");
 });
 
@@ -166,15 +166,15 @@ test("MODULE_ROUTE_ROOTS: exactly the 12 canonical modules, each a distinct root
 // Client-bundle safety — a real `next build` failure was found and fixed
 // during this prompt: breadcrumbs.tsx ("use client") imports
 // breadcrumb-labels.ts, which imports the five navigation data files,
-// which imported PERMISSIONS from @/lib/authorization — a file that also
+// which imported PERMISSIONS from @/core/authorization — a file that also
 // exports session/DB-touching functions and therefore transitively
-// requires @/lib/auth -> @/lib/db -> pg (node:async_hooks), none of which
+// requires @/core/auth -> @/core/db -> pg (node:async_hooks), none of which
 // can be bundled for the browser. Fixed by splitting PERMISSIONS into
-// permissions-catalog.ts (zero @/lib/auth dependency). This test prevents
+// permissions.ts (zero @/core/auth dependency). This test prevents
 // the same mistake from being reintroduced without a `next build` run.
 // ---------------------------------------------------------------------
 
-test("client-bundle safety: navigation data files reachable from breadcrumbs.tsx never import @/lib/auth or @/lib/authorization directly", () => {
+test("client-bundle safety: navigation data files reachable from breadcrumbs.tsx never import @/core/auth or @/core/authorization directly", () => {
   const files = [
     "apps/web/src/core/navigation/workspace.ts",
     "apps/web/src/core/navigation/my-work.ts",
@@ -189,20 +189,20 @@ test("client-bundle safety: navigation data files reachable from breadcrumbs.tsx
     const source = read(file);
     assert.doesNotMatch(
       source,
-      /from "@\/lib\/auth(orization)?"/,
-      `${file} is reachable from the client component breadcrumbs.tsx and must not import @/lib/auth or @/lib/authorization (pulls in pg/node:async_hooks into the browser bundle) — use @/lib/permissions-catalog for PERMISSIONS instead`,
+      /from "@\/core\/auth(orization)?"/,
+      `${file} is reachable from the client component breadcrumbs.tsx and must not import @/core/auth or @/core/authorization (pulls in pg/node:async_hooks into the browser bundle) — use @/core/permissions for PERMISSIONS instead`,
     );
   }
 });
 
-test("permissions-catalog.ts (the PERMISSIONS source navigation data files use) has no @/lib/auth dependency", () => {
+test("permissions.ts (the PERMISSIONS source used by navigation data files) has no @/core/auth dependency", () => {
   const source = read("apps/web/src/core/permissions.ts");
-  assert.doesNotMatch(source, /from "@\/lib\//);
+  assert.doesNotMatch(source, /from "@\/core\//);
   assert.match(source, /from "@vercentlabs\/permissions"/);
 });
 
-test("authorization.ts re-exports PERMISSIONS from permissions-catalog.ts rather than redefining it (single source of truth)", () => {
+test("authorization.ts re-exports PERMISSIONS from permissions.ts rather than redefining it (single source of truth)", () => {
   const source = read("apps/web/src/core/authorization.ts");
-  assert.match(source, /import \{ PERMISSIONS \} from "@\/lib\/permissions-catalog";/);
+  assert.match(source, /import \{ PERMISSIONS \} from "@\/core\/permissions";/);
   assert.match(source, /export \{ PERMISSIONS \};/);
 });

@@ -78,7 +78,7 @@ const groupA = [
 for (const [file, moduleId] of groupA) {
   test(`group A: ${file} gates its module's *Session() helper with assertModuleAccessible("${moduleId}")`, () => {
     const source = read(file);
-    assert.match(source, /import \{ assertModuleAccessible \} from "@\/lib\/module-access";/);
+    assert.match(source, /import \{ assertModuleAccessible \} from "@\/core\/module-access";/);
     assert.match(
       source,
       new RegExp(`assertModuleAccessible\\(session as WorkspaceSessionContext,\\s*"${moduleId}"\\)`),

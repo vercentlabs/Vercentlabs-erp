@@ -380,24 +380,4 @@ DROP TRIGGER IF EXISTS crm_marketing_acceptance_immutable ON tenant.crm_marketin
 CREATE TRIGGER crm_marketing_acceptance_immutable
 BEFORE UPDATE OR DELETE ON tenant.crm_marketing_acceptance_runs
 FOR EACH ROW EXECUTE FUNCTION tenant.crm_marketing_acceptance_immutable();
-
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_segments TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_segment_members TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_campaign_runs TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_deliveries TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_journeys TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_journey_steps TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_journey_enrollments TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_experiments TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_experiment_variants TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_touchpoints TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_events TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_event_registrations TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_surveys TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_survey_responses TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_marketing_frequency_policies TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_marketing_acceptance_runs TO vercent_app;
-GRANT EXECUTE ON FUNCTION tenant.crm_public_marketing_survey(text) TO vercent_app;
-GRANT EXECUTE ON FUNCTION tenant.crm_public_marketing_event(text) TO vercent_app;
-
 COMMIT;

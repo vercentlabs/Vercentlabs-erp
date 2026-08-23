@@ -279,12 +279,6 @@ importers:
 
   packages/document-engine: {}
 
-  packages/erp-registry:
-    dependencies:
-      '@vercentlabs/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
-
   packages/landing-content:
     dependencies:
       '@vercentlabs/shared-types':

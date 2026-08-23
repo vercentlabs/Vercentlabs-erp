@@ -6,7 +6,7 @@ import test from "node:test";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-// /api/search/route.ts transitively touches @/lib/auth, @/lib/db and the
+// /api/search/route.ts transitively touches @/core/auth, @/core/db and the
 // module-gated session helpers — unsafe to execute outside a real request/
 // DB context (same precedent as every DB-touching route tested elsewhere
 // in this suite). Verified by static source-pattern checks confirming it

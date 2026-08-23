@@ -1,5 +1,5 @@
 // Shared recursive TS-to-ESM loader for tests. Only ever point this at
-// files with no @/lib/auth, @/lib/db, or next/* runtime dependency — it
+// files with no @/core/auth, @/core/db, or next/* runtime dependency — it
 // does not sandbox anything, it just makes `@/...` path aliases resolvable
 // outside Next.js's own bundler so genuinely pure modules (scoring,
 // pure search/registry logic) can be executed for real behavioral

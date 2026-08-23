@@ -8,8 +8,8 @@ import { loadTsModule } from "./helpers/load-ts-module.mjs";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-// score.ts, navigation-search.ts and recent.ts have zero @/lib/auth or
-// @/lib/db dependency (score.ts has no imports at all; navigation-search.ts
+// score.ts, navigation-search.ts and recent.ts have zero @/core/auth or
+// @/core/db dependency (score.ts has no imports at all; navigation-search.ts
 // only imports scoreLabel + erased types; recent.ts only reads/writes
 // localStorage) — safe to actually transpile and execute for real
 // behavioral coverage, unlike anything that touches session/DB (Prompt
@@ -127,13 +127,32 @@ test("recent destinations: storage schema only ever carries label/href/icon/modu
 // ---------------------------------------------------------------------
 
 test("command palette: exactly one Ctrl/Cmd+K listener exists in the app (the old workspace-search.tsx focus-only handler was deleted, not left as a second listener)", () => {
-  assert.equal(fs.existsSync(path.join(root, "apps/web/src/components/workspace-search.tsx")), false, "workspace-search.tsx should have been removed, not left as a second Ctrl+K listener");
-  const matches = [...fs.readdirSync(path.join(root, "apps/web/src/components"))].filter((file) => {
-    if (!file.endsWith(".tsx")) return false;
-    const source = read(`apps/web/src/components/${file}`);
-    return /key\.toLowerCase\(\) === "k"/.test(source);
-  });
-  assert.deepEqual(matches, ["command-palette.tsx"]);
+  assert.equal(
+    fs.existsSync(path.join(root, "apps/web/src/core/components/workspace-search.tsx")),
+    false,
+    "workspace-search.tsx should have been removed, not left as a second Ctrl+K listener",
+  );
+
+  const sourceRoot = path.join(root, "apps/web/src");
+  const sourceFiles = [];
+
+  function collectSourceFiles(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        collectSourceFiles(absolute);
+      } else if (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) {
+        sourceFiles.push(absolute);
+      }
+    }
+  }
+
+  collectSourceFiles(sourceRoot);
+  const matches = sourceFiles
+    .filter((file) => /key\.toLowerCase\(\) === "k"/.test(fs.readFileSync(file, "utf8")))
+    .map((file) => path.relative(sourceRoot, file).split(path.sep).join("/"));
+
+  assert.deepEqual(matches, ["core/components/command-palette.tsx"]);
 });
 
 test("command palette: ignores the shortcut while IME composition is active", () => {

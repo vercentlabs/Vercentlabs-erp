@@ -8,8 +8,8 @@ import { loadTsModule } from "./helpers/load-ts-module.mjs";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-// audit/redact.ts and audit/sanitize.ts have zero @/lib/auth or @/lib/db
-// dependency (query.ts, which does depend on @/lib/db -> pg, imports its
+// audit/redact.ts and audit/sanitize.ts have zero @/core/auth or @/core/db
+// dependency (query.ts, which does depend on @/core/db -> pg, imports its
 // sanitizers FROM sanitize.ts rather than defining them locally, exactly
 // so this split is possible) — safe to execute directly for real
 // behavioral coverage.
@@ -188,7 +188,7 @@ test("audit event table: sensitive JSON detail is collapsed by default (no megab
 
 test("billing: subscription status values are read from the real DB CHECK constraint / shared-types union, not invented", () => {
   const migration = read("database/platform/migrations/005_billing_and_razorpay.sql");
-  const types = read("packages/shared-types/src/core/billing.d.ts");
+  const types = read("packages/shared-types/src/billing.d.ts");
   for (const status of ["trialing", "checkout_pending", "authenticated", "active", "past_due", "halted", "cancelled", "completed", "expired", "internal"]) {
     assert.match(migration, new RegExp(`'${status}'`), `subscription CHECK constraint is missing '${status}'`);
     assert.match(types, new RegExp(`"${status}"`), `BillingSubscriptionStatus type is missing "${status}"`);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createBillingClient } from "../src/core/billing.js";
+import { createBillingClient } from "../src/billing.js";
 
 test("billing client creates same-origin subscription checkout", async () => {
   let request;

@@ -305,16 +305,4 @@ BEGIN
     );
   END LOOP;
 END $$;
-
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_telephony_connections TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_telephony_commands TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_telephony_events TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_conversation_recordings TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_recording_access_grants TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_transcription_jobs TO vercent_app;
-GRANT SELECT,INSERT,UPDATE ON tenant.crm_conversation_transcripts TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_transcript_segments TO vercent_app;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tenant.crm_conversation_action_items TO vercent_app;
-GRANT SELECT,INSERT ON tenant.crm_conversation_acceptance_runs TO vercent_app;
-
 COMMIT;

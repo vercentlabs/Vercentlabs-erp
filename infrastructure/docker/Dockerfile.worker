@@ -1,39 +1,15 @@
-# Prompt 13 (Background Worker & Scheduler Foundation) replaced the old
-# per-script CronJob model (scripts/process-crm-jobs.mjs,
-# scripts/deliver-crm-outbox.mjs — neither ever existed on disk, see
-# docs/implementation/ERP_WORKER_SCHEDULER_013.md Section 2) with one
-# coherent, long-lived worker process: services/worker. This image now
-# builds and runs that package's real entrypoint.
 FROM node:24-alpine AS dependencies
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json apps/web/package.json
-COPY apps/landing/package.json apps/landing/package.json
-COPY services/api/package.json services/api/package.json
-COPY services/worker/package.json services/worker/package.json
-COPY packages/database/package.json packages/database/package.json
-COPY packages/config/package.json packages/config/package.json
-COPY packages/document-engine/package.json packages/document-engine/package.json
-COPY packages/localization/package.json packages/localization/package.json
-COPY packages/observability/package.json packages/observability/package.json
-COPY packages/permissions/package.json packages/permissions/package.json
-COPY packages/reporting-engine/package.json packages/reporting-engine/package.json
-COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
-COPY packages/shared-types/package.json packages/shared-types/package.json
-COPY packages/shared-ui/package.json packages/shared-ui/package.json
-COPY packages/test-utils/package.json packages/test-utils/package.json
-COPY packages/workflows/package.json packages/workflows/package.json
-RUN pnpm install --prod --frozen-lockfile
-COPY services/api services/api
-COPY services/worker services/worker
-COPY packages packages
+COPY . .
+RUN pnpm --filter @vercentlabs/worker... install --prod --frozen-lockfile
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/services/worker
 RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs
 COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/node_modules /app/node_modules
+COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/.pnpm /app/.pnpm
 COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/services /app/services
 COPY --from=dependencies --chown=vercentlabs:vercentlabs /app/packages /app/packages
 USER vercentlabs

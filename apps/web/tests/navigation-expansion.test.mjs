@@ -41,7 +41,7 @@ test("expansion: opening a module sets `expanded` to only that module's id, whic
 
 test("expansion: initial/ongoing expansion is route-derived via moduleIdForPath, not label string matching", () => {
   const source = read("apps/web/src/core/components/sidebar-modules.tsx");
-  assert.match(source, /import \{ moduleIdForPath \} from "@\/lib\/navigation\/route-map";/);
+  assert.match(source, /import \{ moduleIdForPath \} from "@\/core\/navigation\/route-map";/);
   assert.doesNotMatch(source, /\.label ===|label\.toLowerCase\(\)/, "must not derive expansion from a label string");
   assert.match(source, /if \(routeModuleId\) setExpanded\(routeModuleId\);/);
 });
@@ -57,17 +57,17 @@ test("expansion: the new HCI shell moves global/module presentation out of the l
 test("expansion: NavigationSection supports both controlled (module sidebar) and uncontrolled (auto route-active) modes without duplicating active-match logic", () => {
   const source = read("apps/web/src/core/components/navigation-section.tsx");
   assert.match(source, /const open = controlledOpen \?\? active;/);
-  assert.match(source, /import \{ matchesPath, type MatchablePath \} from "@\/lib\/navigation\/match-path";/);
+  assert.match(source, /import \{ matchesPath, type MatchablePath \} from "@\/core\/navigation\/match-path";/);
   assert.doesNotMatch(source, /function matchesPath/, "navigation-section.tsx must not keep its own duplicate matchesPath implementation");
 });
 
 test("expansion: navigation-link.tsx and module-context-bar.tsx also consume the single shared matcher (no third/fourth duplicate implementation remains)", () => {
   const navLink = read("apps/web/src/core/components/navigation-link.tsx");
-  assert.match(navLink, /import \{ matchesPath \} from "@\/lib\/navigation\/match-path";/);
+  assert.match(navLink, /import \{ matchesPath \} from "@\/core\/navigation\/match-path";/);
   assert.doesNotMatch(navLink, /pathname\.startsWith/, "navigation-link.tsx must delegate matching to the shared helper, not inline startsWith checks");
 
   const contextBar = read("apps/web/src/core/components/module-context-bar.tsx");
-  assert.match(contextBar, /import \{ matchesPath \} from "@\/lib\/navigation\/match-path";/);
+  assert.match(contextBar, /import \{ matchesPath \} from "@\/core\/navigation\/match-path";/);
   assert.doesNotMatch(contextBar, /function matches\(pathname/, "module-context-bar.tsx must not keep its own duplicate matches() implementation");
 });
 
