@@ -1,9 +1,21 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
+import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const modules = ["crm","sales","procurement","stock","manufacturing","quality","projects","assets","point-of-sale","support","hr-payroll","accounting"];
+const modules = ERP_MODULE_CATALOG.map((module) => module.key);
+const trackedPaths = execFileSync(
+  "git",
+  ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+  {
+    cwd: root,
+    encoding: "utf8",
+  },
+)
+  .split("\0")
+  .filter(Boolean);
 let failures = 0;
 const fail = (message) => { failures += 1; console.error(`FAIL  ${message}`); };
 const ok = (message) => console.log(`OK    ${message}`);
@@ -35,7 +47,15 @@ const forbidden = [
   ...modules.map((m) => `services/api/src/${m}`),
 ];
 for (const item of required) if (!fs.existsSync(path.join(root, item))) fail(`missing required path: ${item}`);
-for (const item of forbidden) if (fs.existsSync(path.join(root, item))) fail(`retired path remains: ${item}`);
+for (const item of forbidden) {
+  if (
+    trackedPaths.some(
+      (trackedPath) => trackedPath === item || trackedPath.startsWith(`${item}/`),
+    )
+  ) {
+    fail(`retired path remains: ${item}`);
+  }
+}
 for (const module of modules) {
   for (const item of [`apps/web/src/modules/${module}`, `services/api/src/modules/${module}`, `apps/web/src/app/(app)/${module}/layout.tsx`]) {
     if (!fs.existsSync(path.join(root, item))) fail(`module boundary missing: ${item}`);

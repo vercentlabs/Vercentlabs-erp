@@ -2,14 +2,12 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { Client } from "pg";
+import { config as loadDotEnv } from "dotenv";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
-const require = createRequire(path.join(root, "apps/web/package.json"));
-const { Client } = require("pg");
-const { config: loadDotEnv } = require("dotenv");
 
 for (const file of [
   path.join(root, "apps/web/.env.local"),

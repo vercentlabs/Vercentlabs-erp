@@ -66,9 +66,6 @@ export const ALL_PERMISSIONS = Object.freeze([
   ...Object.values(BILLING_PERMISSIONS),
 ]);
 
-export function buildPermissionKey({ scope = "tenant", resource, action }) {
-  return `${scope}:${resource}:${action}`;
-}
 export * from "./accounting.js";
 export * from "./crm.js";
 export * from "./sales.js";

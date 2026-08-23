@@ -2,7 +2,8 @@ FROM node:24-alpine
 RUN corepack enable
 WORKDIR /app
 COPY . .
-RUN pnpm --filter @vercentlabs/web... install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm --filter vercentlabs-erp --filter @vercentlabs/web... install --prod --frozen-lockfile
 RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs && chown -R vercentlabs:vercentlabs /app
 USER vercentlabs
 CMD ["sh", "-ec", "pnpm db:setup"]

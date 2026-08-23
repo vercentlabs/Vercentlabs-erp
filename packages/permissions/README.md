@@ -3,4 +3,4 @@
 Framework-neutral permission keys used by the ERP platform and business-domain
 services. Route handlers remain responsible for enforcing these permissions.
 
-CRM permission constants are exported from `src/modules/crm/index.js`.
+Module permission constants live in their own files under `src/` and are aggregated by `src/index.js`.

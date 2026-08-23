@@ -1,21 +1,27 @@
-# Kubernetes infrastructure
+# Kubernetes deployment
 
-The `base` kustomization deploys horizontally scalable web and landing services,
-leased one-shot workers, disruption budgets and default-deny ingress policy.
+The ERP uses long-running application deployments.
 
-Create `vercentlabs-runtime` and `vercentlabs-landing-runtime` secrets through the
-cluster's external-secret controller, then set immutable image digests in an
-environment overlay. Validate with `kubectl kustomize infrastructure/kubernetes/base`
-before applying. Secrets, certificates and environment-specific host names do
-not belong in this repository.
+## Runtime workloads
 
+- `web` — authenticated ERP web/API runtime
+- `erp-worker` — durable PostgreSQL-backed background worker
 
-## Immutable release images
+The worker runs `services/worker/bin/start.mjs` and handles durable jobs,
+scheduled ticks and outbound webhook delivery. It is not a set of one-shot
+CronJobs.
 
-The base intentionally uses the all-zero SHA-256 digest so it cannot silently
-pull a mutable tag. Every environment overlay must replace the web, landing and
-worker digests with digests produced and signed by the release pipeline. Do not
-apply the base directly. The worker jobs have execution deadlines, and the
-Razorpay webhook retry worker runs every five minutes. The base egress policy
-permits only DNS, HTTPS, PostgreSQL and standard secure SMTP ports; narrow the
-destination CIDRs further in each environment overlay.
+## Security baseline
+
+Runtime workloads should use:
+
+- non-root containers
+- read-only root filesystems where practical
+- dropped Linux capabilities
+- explicit CPU/memory requests and limits
+- secrets/config injected through Kubernetes resources
+- rolling deployments
+- graceful termination
+
+Database migrations are a deployment operation and are not executed by the
+normal web request path.

@@ -2,7 +2,8 @@ FROM node:24-alpine AS dependencies
 RUN corepack enable
 WORKDIR /app
 COPY . .
-RUN pnpm --filter @vercentlabs/worker... install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm --filter @vercentlabs/worker... install --prod --frozen-lockfile
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production

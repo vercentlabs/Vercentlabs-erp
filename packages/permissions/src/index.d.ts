@@ -10,11 +10,6 @@ export const BUSINESS_DATA_PERMISSIONS: Readonly<{
 
 export const ALL_PERMISSIONS: readonly string[];
 
-export function buildPermissionKey(input: {
-  scope?: string;
-  resource: string;
-  action: string;
-}): string;
 export * from "./crm.js";
 export * from "./billing.js";
 export const CORE_PERMISSIONS: Readonly<{
