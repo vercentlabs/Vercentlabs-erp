@@ -66,11 +66,13 @@ export default function CrmResourceManager({
   options,
   canManage,
   startCreating = false,
+  startEditing = null,
   canImport,
   canExport,
   leadDashboard = null,
   leadFilters = {},
   leadBoardRows = [],
+  preservedQuery = {},
 }: {
   definition: CrmDefinition;
   rows: Row[];
@@ -82,16 +84,24 @@ export default function CrmResourceManager({
   options: Record<string, Option[]>;
   canManage: boolean;
   startCreating?: boolean;
+  startEditing?: Row | null;
   canImport: boolean;
   canExport: boolean;
   leadDashboard?: Record<string, unknown> | null;
   leadFilters?: Record<string, string>;
   leadBoardRows?: Row[];
+  preservedQuery?: Record<string, string>;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState<Row | null>(() =>
-    startCreating && canManage ? {} : null,
+    canManage
+      ? startEditing?.id
+        ? startEditing
+        : startCreating
+          ? {}
+          : null
+      : null,
   );
   const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState(initialStatus);
@@ -116,6 +126,9 @@ export default function CrmResourceManager({
 
   function navigate(nextPage: number, nextSearch: string, nextStatus: string) {
     const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(preservedQuery)) {
+      if (value) query.set(key, value);
+    }
     const normalizedSearch = nextSearch.trim();
     if (normalizedSearch) query.set("search", normalizedSearch);
     if (nextStatus !== "all") query.set("status", nextStatus);
@@ -164,7 +177,11 @@ export default function CrmResourceManager({
         );
       setMessage(result.message || "Saved.");
       setEditing(null);
-      router.refresh();
+      if (definition.key === "leads" && startEditing?.id) {
+        router.replace("/crm/leads");
+      } else {
+        router.refresh();
+      }
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -293,7 +310,10 @@ export default function CrmResourceManager({
         onEdit={(row) => setEditing(row)}
         onArchive={(id) => void archive(id)}
         onImport={(file) => void importCsv(file)}
-        onCloseEdit={() => setEditing(null)}
+        onCloseEdit={() => {
+          setEditing(null);
+          if (startEditing?.id) router.replace("/crm/leads");
+        }}
         onSubmitEdit={submit}
       />
     );

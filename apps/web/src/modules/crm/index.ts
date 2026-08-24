@@ -1,10 +1,11 @@
 import { CrmError } from "@vercentlabs/api";
+import { ZodError } from "zod";
 import { getStructuredFieldConfig } from "@vercentlabs/shared-types";
 import type { CrmContext, CrmResourceKey } from "@vercentlabs/shared-types";
 
 import type { SessionContext, WorkspaceSessionContext } from "@/core/auth";
 import { PERMISSIONS } from "@/core/authorization";
-import { HttpError } from "@/core/http";
+import { errorResponse, fail, HttpError } from "@/core/http";
 import { assertModuleAccessible } from "@/core/module-access";
 
 export type CrmField = {
@@ -113,12 +114,6 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
         label: "Source",
         type: "select",
         optionsKey: "sources",
-      },
-      {
-        name: "campaignId",
-        label: "Campaign",
-        type: "select",
-        optionsKey: "campaigns",
       },
       owner,
       {
@@ -511,13 +506,19 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
   ),
   "lost-reasons": config(
     "lost-reasons",
-    "Lost reasons",
-    "lost reason",
+    "Won / lost reasons",
+    "outcome reason",
     PERMISSIONS.crmSettingsManage,
     [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "code", label: "Code", type: "text", required: true },
       { name: "category", label: "Category", type: "text" },
+      {
+        name: "outcomeType",
+        label: "Outcome",
+        type: "select",
+        options: status("won", "lost", "both"),
+      },
       {
         name: "status",
         label: "Status",
@@ -737,12 +738,6 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
         label: "Source",
         type: "select",
         optionsKey: "sources",
-      },
-      {
-        name: "campaignId",
-        label: "Campaign",
-        type: "select",
-        optionsKey: "campaigns",
       },
       owner,
       {
@@ -3511,8 +3506,37 @@ export async function crmApiContext(session: SessionContext): Promise<CrmContext
   await assertModuleAccessible(session as WorkspaceSessionContext, "crm");
   return crmContext(session);
 }
+export function crmErrorResponse(error: unknown) {
+  if (error instanceof CrmError) {
+    const details = (error.details && typeof error.details === "object")
+      ? error.details as Record<string, unknown>
+      : {};
+    const errors =
+      details.errors && typeof details.errors === "object"
+        ? details.errors
+        : {};
+    return fail(error.message, error.status, {
+      code: error.code || "CRM_ERROR",
+      errors,
+    });
+  }
+  if (error instanceof ZodError) {
+    return fail("Review the submitted fields.", 400, {
+      code: "CRM_VALIDATION_ERROR",
+      errors: error.flatten().fieldErrors,
+    });
+  }
+  if (error instanceof HttpError) {
+    return fail(error.message, error.status, {
+      code: error.code || "CRM_REQUEST_ERROR",
+      errors: {},
+    });
+  }
+  return errorResponse(error);
+}
+
 export function rethrowCrmError(error: unknown): never {
   if (error instanceof CrmError)
-    throw new HttpError(error.status, error.message);
+    throw new HttpError(error.status, error.message, error.code);
   throw error;
 }

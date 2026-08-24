@@ -124,7 +124,7 @@ export default function PrimaryNavigationRail({
             {myWork ? (
               <RailLink
                 href={myWork.href}
-                label="My work"
+                label="Work"
                 icon="approvals"
                 active={myWorkActive}
                 badge={unreadNotifications}

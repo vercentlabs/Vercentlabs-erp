@@ -28,6 +28,20 @@ test("navigation v2: secondary navigation only consumes already-resolved navigat
   assert.doesNotMatch(source, /PERMISSIONS|hasPermission|resolveModuleAccess|getAccessibleModules/);
 });
 
+test("navigation v2: product labels use the concise Data and Work terminology", () => {
+  const workspaceNavigation = read("apps/web/src/core/navigation/workspace.ts");
+  const workNavigation = read("apps/web/src/core/navigation/my-work.ts");
+  const primaryRail = read("apps/web/src/core/components/primary-navigation-rail.tsx");
+  const mobileNavigation = read("apps/web/src/core/components/mobile-workspace-navigation.tsx");
+
+  assert.match(workspaceNavigation, /href: "\/master-data",\s*label: "Data"/);
+  assert.match(workNavigation, /href: "\/my-work", label: "Work"/);
+  assert.match(primaryRail, /label="Work"/);
+  assert.match(mobileNavigation, /title: "Work"/);
+  assert.doesNotMatch(primaryRail, /label="My work"/);
+  assert.doesNotMatch(mobileNavigation, /(?:title|label):?="?My work/);
+});
+
 test("navigation v2: local navigation search is in-memory over authorized items, with no fetch or database path", () => {
   const secondary = read("apps/web/src/core/components/context-secondary-sidebar.tsx");
   const ia = read("apps/web/src/core/navigation/module-navigation-ia.ts");
@@ -60,6 +74,27 @@ test("navigation v2: focus-visible and reduced-motion behavior are explicit", ()
   const css = read("apps/web/src/app/navigation-v2.css");
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
+});
+
+test("navigation v2: rail brand keeps its design with deliberate spacing and typography", () => {
+  const css = read("apps/web/src/app/navigation-v2.css");
+
+  assert.match(
+    css,
+    /\.v2-rail-brand \{[\s\S]*?grid-template-columns: 44px minmax\(0, 1fr\);[\s\S]*?gap: 12px;[\s\S]*?padding: 8px 12px 8px 8px;/,
+  );
+  assert.match(
+    css,
+    /\.v2-rail-brand__copy \{[\s\S]*?gap: 3px;[\s\S]*?font-family: inherit;/,
+  );
+  assert.match(
+    css,
+    /\.v2-rail-brand__copy strong \{[\s\S]*?font-size: 14px;[\s\S]*?font-weight: 750;[\s\S]*?line-height: 1\.2;/,
+  );
+  assert.match(
+    css,
+    /\.v2-rail-brand__copy small \{[\s\S]*?font-size: 11px;[\s\S]*?font-weight: 500;[\s\S]*?line-height: 1\.3;/,
+  );
 });
 
 test("navigation v2: the new CSS is loaded last after the existing ERP style layers", () => {

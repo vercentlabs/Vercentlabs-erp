@@ -95,9 +95,10 @@ test("page access: all 12 module route roots have a layout.tsx wrapping children
   }
 });
 
-test("page access: CRM's layout keeps its module guard even though it also wraps children with CrmSectionTabs (guard is not lost when a module has extra layout structure)", () => {
+test("page access: CRM layout keeps the module guard around the canonical HCI shell", () => {
   const source = read("apps/web/src/app/(app)/crm/layout.tsx");
-  assert.match(source, /<ModulePageGuard moduleId="crm">[\s\S]*<CrmSectionTabs \/>[\s\S]*\{children\}[\s\S]*<\/ModulePageGuard>/);
+  assert.match(source, /<ModulePageGuard moduleId="crm">[\s\S]*crm-hci-shell[\s\S]*\{children\}[\s\S]*<\/ModulePageGuard>/);
+  assert.doesNotMatch(source, /CrmSectionTabs/);
 });
 
 test("page access: ModulePageGuard fails closed — renders the denial UI whenever access.accessible is false, never falls through to children by default", () => {

@@ -16,8 +16,9 @@ export class LeadOperationsError extends Error {
 }
 const text = (v) => String(v ?? "").trim();
 const finite = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-export function evaluateLeadReadiness(lead, now = new Date()) {
+export function evaluateLeadReadiness(lead, now = new Date(), options = {}) {
   const reasons = [];
+  const scoringConfigured = options.scoringConfigured !== false;
   if (
     !text(lead.full_name || `${lead.first_name || ""} ${lead.last_name || ""}`)
   )
@@ -27,7 +28,7 @@ export function evaluateLeadReadiness(lead, now = new Date()) {
   if (!text(lead.company_name)) reasons.push("Company is missing.");
   if (!text(lead.product_interest))
     reasons.push("Product interest is missing.");
-  if (finite(lead.score) < 20)
+  if (scoringConfigured && finite(lead.score) < 20)
     reasons.push("Lead score is below the conversion threshold.");
   const followUp = lead.next_follow_up_at
     ? new Date(lead.next_follow_up_at)
@@ -40,7 +41,20 @@ export function evaluateLeadReadiness(lead, now = new Date()) {
     reasons,
     overdue,
     score: finite(lead.score),
+    scoringConfigured,
   };
+}
+
+export async function isLeadScoringConfigured(client, organizationId) {
+  const result = await client.query(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM tenant.crm_scoring_rules
+        WHERE organization_id=$1 AND status='active'
+     ) AS configured`,
+    [organizationId],
+  );
+  return Boolean(result.rows[0]?.configured);
 }
 export function buildLeadAgingBuckets(rows, now = new Date()) {
   const buckets = { fresh: 0, aging: 0, stale: 0, overdue: 0 };
@@ -76,9 +90,13 @@ export async function getLeadTimeline(client, context, leadId) {
       [context.organizationId, leadId],
     ),
   ]);
+  const scoringConfigured = await isLeadScoringConfigured(
+    client,
+    context.organizationId,
+  );
   return {
     lead: lead.rows[0],
-    readiness: evaluateLeadReadiness(lead.rows[0]),
+    readiness: evaluateLeadReadiness(lead.rows[0], new Date(), { scoringConfigured }),
     activities: activities.rows,
     conversions: conversions.rows,
     assignments: assignments.rows,
@@ -136,11 +154,16 @@ export async function bulkUpdateLeads(client, context, input) {
   return { requested:ids.length,updated:result.rowCount,rows:result.rows };
 }
 export async function getLeadOperationsDashboard(client, context) {
-  const result = await client.query(
-    `SELECT id,status,score,next_follow_up_at,created_at,updated_at FROM tenant.crm_leads WHERE organization_id=$1 AND status NOT IN ('archived','converted')`,
-    [context.organizationId],
+  const [result, scoringConfigured] = await Promise.all([
+    client.query(
+      `SELECT id,status,score,next_follow_up_at,created_at,updated_at FROM tenant.crm_leads WHERE organization_id=$1 AND status NOT IN ('archived','converted')`,
+      [context.organizationId],
+    ),
+    isLeadScoringConfigured(client, context.organizationId),
+  ]);
+  const readiness = result.rows.map((row) =>
+    evaluateLeadReadiness(row, new Date(), { scoringConfigured }),
   );
-  const readiness = result.rows.map((row) => evaluateLeadReadiness(row));
   return {
     total: result.rowCount,
     ready: readiness.filter((r) => r.ready).length,

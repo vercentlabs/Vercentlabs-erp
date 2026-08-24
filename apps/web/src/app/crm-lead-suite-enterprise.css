@@ -1199,6 +1199,13 @@
   flex-wrap: wrap;
   gap: 7px;
 }
+.crm-lead-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
 .crm-lead-detail-badges {
   display: flex;
   gap: 4px;
@@ -1754,8 +1761,17 @@
     align-items: stretch;
     flex-direction: column;
   }
-  .crm-lead-detail-right > .primary-button {
+  .crm-lead-detail-actions {
+    display: grid;
     width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: flex-start;
+  }
+  .crm-lead-detail-actions > * {
+    width: 100%;
+  }
+  .crm-lead-detail-actions > .primary-button,
+  .crm-lead-detail-actions > .secondary-button {
     justify-content: center;
   }
   .crm-duplicate-compare article {

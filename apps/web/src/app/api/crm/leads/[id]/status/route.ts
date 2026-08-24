@@ -1,12 +1,17 @@
-import { evaluateLeadReadiness, getCrmRecord, updateCrmRecord } from "@vercentlabs/api";
+import {
+  evaluateLeadReadiness,
+  getCrmRecord,
+  isLeadScoringConfigured,
+  updateCrmRecord,
+} from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
 import { assertCrmIdentifier } from "@/modules/crm/api";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { crmApiContext, crmErrorResponse } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 
 type Params = { params: Promise<{ id: string }> };
@@ -24,14 +29,23 @@ export async function POST(request: Request, { params }: Params) {
     assertCrmIdentifier(id);
     const input = (await readJson(request)) as Record<string, unknown>;
     const status = String(input.status || "");
-    if (!allowed.has(status)) throw new HttpError(400, "Unsupported lead lifecycle status.");
+    if (!allowed.has(status))
+      throw new HttpError(400, "Unsupported lead lifecycle status.", "CRM_LEAD_STATUS_INVALID");
     const reason = String(input.unqualifiedReason || "").trim().slice(0, 2_000);
     if (status === "unqualified" && !reason)
-      throw new HttpError(400, "A disqualification reason is required.");
+      throw new HttpError(
+        400,
+        "A disqualification reason is required.",
+        "CRM_LEAD_UNQUALIFIED_REASON_REQUIRED",
+      );
     const context = await crmApiContext(session);
     const record = await tenantTransaction(context.organizationId, async (client) => {
       const before = await getCrmRecord(client, context, "leads", id);
       if (status === "qualified") {
+        const scoringConfigured = await isLeadScoringConfigured(
+          client,
+          context.organizationId,
+        );
         const readiness = evaluateLeadReadiness({
           full_name: before.fullName,
           first_name: before.firstName,
@@ -43,10 +57,14 @@ export async function POST(request: Request, { params }: Params) {
           product_interest: before.productInterest,
           score: before.score,
           next_follow_up_at: before.nextFollowUpAt,
-        });
+        }, new Date(), { scoringConfigured });
         if (!readiness.ready) {
           const reasons = Array.isArray(readiness.reasons) ? readiness.reasons.map(String).join("; ") : "Lead is incomplete.";
-          throw new HttpError(409, `Lead is not qualification-ready: ${reasons}`);
+          throw new HttpError(
+            409,
+            `Lead is not qualification-ready: ${reasons}`,
+            "CRM_LEAD_QUALIFICATION_NOT_READY",
+          );
         }
       }
       const after = await updateCrmRecord(client, context, "leads", id, {
@@ -68,6 +86,6 @@ export async function POST(request: Request, { params }: Params) {
     });
     return ok({ message: `Lead moved to ${status.replaceAll("_", " ")}.`, record });
   } catch (error) {
-    try { rethrowCrmError(error); } catch (mapped) { return errorResponse(mapped); }
+    return crmErrorResponse(error);
   }
 }

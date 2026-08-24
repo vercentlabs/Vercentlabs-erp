@@ -12,12 +12,13 @@ import {
 import {
   crmApiContext,
   crmDefinitions,
+  crmErrorResponse,
   isCrmDefinition,
-  rethrowCrmError,
 } from "@/modules/crm";
+import { isCrmApiResource } from "@/modules/crm/scope";
 import { crmPatchSchemas } from "@/modules/crm/validation";
 import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 
 export async function GET(
@@ -29,7 +30,7 @@ export async function GET(
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
     const { resource, id } = await route.params;
-    if (!isCrmDefinition(resource))
+    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     assertCrmIdentifier(id);
     requireCrmResourceView(session, resource);
@@ -39,11 +40,7 @@ export async function GET(
     );
     return ok({ record });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return crmErrorResponse(error);
   }
 }
 export async function PATCH(
@@ -56,7 +53,7 @@ export async function PATCH(
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
     const { resource, id } = await route.params;
-    if (!isCrmDefinition(resource))
+    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
@@ -94,11 +91,7 @@ export async function PATCH(
       record,
     });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return crmErrorResponse(error);
   }
 }
 export async function DELETE(
@@ -111,7 +104,7 @@ export async function DELETE(
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
     const { resource, id } = await route.params;
-    if (!isCrmDefinition(resource))
+    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
@@ -145,10 +138,6 @@ export async function DELETE(
       record,
     });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return crmErrorResponse(error);
   }
 }

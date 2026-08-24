@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { getCrmDashboard, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
+import { getCrmDashboard, getCrmOptions, getCrmRecord, listCrmRecords } from "@vercentlabs/api";
 import CrmResourceManager from "@/modules/crm/components/resource-manager";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext, crmDefinitions, isCrmDefinition } from "@/modules/crm";
 import { canViewCrmResource } from "@/modules/crm/api";
+import { isCrmUiResource } from "@/modules/crm/scope";
 import { tenantTransaction } from "@/core/db";
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 10;
@@ -62,14 +63,11 @@ export default async function CrmResourcePage({
     priority?: string;
     rating?: string;
     followup?: string;
+    edit?: string;
   }>;
 }) {
   const [{ resource }, query] = await Promise.all([params, searchParams]);
-  if (
-    !isCrmDefinition(resource) ||
-    ["pipeline", "reports", "settings"].includes(resource)
-  )
-    notFound();
+  if (!isCrmDefinition(resource) || !isCrmUiResource(resource)) notFound();
   const session = await requireWorkspace();
   if (
     !hasPermission(session, PERMISSIONS.crmView) ||
@@ -91,7 +89,10 @@ export default async function CrmResourcePage({
   const priority = enumFilter(query.priority, LEAD_PRIORITIES, "all");
   const rating = enumFilter(query.rating, LEAD_RATINGS, "all");
   const followup = enumFilter(query.followup, LEAD_FOLLOWUPS, "all");
+  const editId = String(query.edit || "").trim().slice(0, 80);
   const pageSize = resource === "leads" ? 50 : PAGE_SIZE;
+  const definition = crmDefinitions[resource];
+  const canManage = hasPermission(session, definition.permission);
   const result = await tenantTransaction(
     context.organizationId,
     async (client) => ({
@@ -123,13 +124,15 @@ export default async function CrmResourcePage({
               followup,
             })
           : null,
+      editingRecord:
+        editId && canManage
+          ? await getCrmRecord(client, context, resource, editId).catch(() => null)
+          : null,
     }),
   );
   const totalPages = Math.max(1, Math.ceil(result.records.total / pageSize));
   if (page > totalPages)
     redirect(pageUrl(resource, totalPages, search, status));
-  const definition = crmDefinitions[resource];
-  const canManage = hasPermission(session, definition.permission);
   const dedicatedLeadWorkspace = resource === "leads";
   const dedicatedLeadCreate =
     dedicatedLeadWorkspace && query.create === "1" && canManage;
@@ -148,7 +151,18 @@ export default async function CrmResourcePage({
         </section>
       ) : null}
       <CrmResourceManager
-        key={`${resource}:${search}:${status}`}
+        key={[
+          resource,
+          page,
+          search,
+          status,
+          ownerId,
+          sourceId,
+          priority,
+          rating,
+          followup,
+          dedicatedLeadCreate ? "create" : editId || "list",
+        ].join(":")}
         definition={definition}
         rows={JSON.parse(JSON.stringify(result.records.rows))}
         total={result.records.total}
@@ -159,8 +173,9 @@ export default async function CrmResourcePage({
         options={JSON.parse(JSON.stringify(result.options))}
         canManage={canManage}
         startCreating={dedicatedLeadCreate}
-        canImport={hasPermission(session, PERMISSIONS.crmImport)}
-        canExport={hasPermission(session, PERMISSIONS.crmExport)}
+        startEditing={JSON.parse(JSON.stringify(result.editingRecord))}
+        canImport={resource === "leads" && hasPermission(session, PERMISSIONS.crmImport)}
+        canExport={resource === "leads" && hasPermission(session, PERMISSIONS.crmExport)}
         leadDashboard={JSON.parse(JSON.stringify(result.leadDashboard))}
         leadFilters={{ ownerId, sourceId, priority, rating, followup }}
         leadBoardRows={JSON.parse(JSON.stringify(result.leadBoard?.rows || []))}

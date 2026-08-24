@@ -218,6 +218,8 @@ const definitions: ApprovalCommand[] = [
           opportunityId: uuid,
           stageId: uuid,
           note: z.string().trim().max(1000).optional().nullable(),
+          outcomeReasonId: uuid.optional().nullable(),
+          outcomeNotes: z.string().trim().max(4000).optional().nullable(),
         })
         .strict()
         .parse(payload),
@@ -228,6 +230,10 @@ const definitions: ApprovalCommand[] = [
         String(payload.opportunityId),
         String(payload.stageId),
         payload.note ? String(payload.note) : null,
+        {
+          outcomeReasonId: payload.outcomeReasonId ? String(payload.outcomeReasonId) : null,
+          outcomeNotes: payload.outcomeNotes ? String(payload.outcomeNotes) : null,
+        },
       ),
   },
   {

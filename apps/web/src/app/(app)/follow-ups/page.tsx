@@ -55,7 +55,7 @@ export default async function FollowUpsPage({
     <>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">My work</p>
+          <p className="eyebrow">Work</p>
           <h1>Follow-ups &amp; reminders</h1>
           <p>
             CRM leads you own with a scheduled follow-up date. Access follows

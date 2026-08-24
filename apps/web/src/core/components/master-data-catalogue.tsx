@@ -58,8 +58,8 @@ export default function MasterDataCatalogue({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search master data (e.g. warehouses, tax rates, price lists)"
-          aria-label="Search master data resources"
+          placeholder="Search data (e.g. warehouses, tax rates, price lists)"
+          aria-label="Search data resources"
         />
       </div>
 
@@ -88,7 +88,7 @@ export default function MasterDataCatalogue({
                 <AppIcon name="search" size={20} />
               </span>
               <div>
-                <strong>No matching master data</strong>
+                <strong>No matching data</strong>
                 <p>Try a different resource name.</p>
               </div>
             </div>

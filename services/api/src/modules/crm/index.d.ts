@@ -12,7 +12,13 @@ type QueryClient = {
 export class CrmError extends Error {
   status: number;
   code: string;
-  constructor(status: number, message: string, code?: string);
+  details?: Record<string, unknown>;
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    details?: Record<string, unknown>,
+  );
 }
 export function isCrmResource(value: string): value is CrmResourceKey;
 export function listCrmRecords(
@@ -64,7 +70,12 @@ export function moveOpportunityStage(
   opportunityId: string,
   stageId: string,
   note?: string | null,
-  expectations?: { expectedUpdatedAt?: string; expectedStageId?: string | null },
+  expectations?: {
+    expectedUpdatedAt?: string;
+    expectedStageId?: string | null;
+    outcomeReasonId?: string | null;
+    outcomeNotes?: string | null;
+  },
 ): Promise<any>;
 export function completeCrmActivity(
   client: QueryClient,

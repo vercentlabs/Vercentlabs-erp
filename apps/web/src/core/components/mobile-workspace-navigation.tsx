@@ -101,7 +101,7 @@ export default function MobileWorkspaceNavigation({
 
     if (view === "my-work") {
       return {
-        title: "My work",
+        title: "Work",
         subtitle: "Cross-module work queue",
         icon: "approvals",
         groups: simpleGroup("Work", navigation.myWork),
@@ -166,7 +166,7 @@ export default function MobileWorkspaceNavigation({
 
         {navigation.myWork.length ? (
           <ContextButton
-            label="My work"
+            label="Work"
             icon="approvals"
             description="Tasks, approvals, exceptions and recent work"
             onClick={() => setView("my-work")}

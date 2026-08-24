@@ -1,67 +1,13 @@
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
 import type { SessionContext } from "@/core/auth";
 import { crmDefinitions } from "@/modules/crm";
+import { isCrmApiResource, isCrmReport } from "@/modules/crm/scope";
 import {
   hasPermission,
   requirePermissionFromSession,
   PERMISSIONS,
 } from "@/core/authorization";
 import { HttpError } from "@/core/http";
-
-const restrictedResources = new Set<CrmResourceKey>([
-  "integrations",
-  "webhook-subscriptions",
-  "sales-teams",
-  "sales-team-members",
-  "territories",
-  "territory-assignments",
-  "quota-plans",
-  "forecast-periods",
-  "forecast-submissions",
-  "account-plans",
-  "account-stakeholders",
-  "playbooks",
-  "playbook-questions",
-  "playbook-responses",
-  "consent-events",
-  "privacy-requests",
-  "data-quality-scores",
-  "engagement-templates",
-  "meeting-links",
-  "sync-accounts",
-  "conversations",
-  "conversation-insights",
-  "pipeline-inspections",
-  "deal-risks",
-  "recommendations",
-  "buying-committees",
-  "buying-committee-members",
-  "relationship-edges",
-  "account-signals",
-  "partner-accounts",
-  "partner-deals",
-  "report-definitions",
-  "dashboards",
-  "dashboard-widgets",
-  "custom-object-definitions",
-  "custom-field-definitions",
-  "custom-records",
-  "field-visits",
-  "enrichment-jobs",
-  "ai-predictions",
-  "ai-feedback",
-]);
-
-const reportPermissions: Record<string, string> = {
-  "revenue-operations": PERMISSIONS.crmRevenueManage,
-  "account-health": PERMISSIONS.crmAccountsManage,
-  privacy: PERMISSIONS.crmPrivacyManage,
-  "pipeline-intelligence": PERMISSIONS.crmAnalyticsManage,
-  "engagement-intelligence": PERMISSIONS.crmAnalyticsManage,
-  "relationship-coverage": PERMISSIONS.crmAccountsManage,
-  "partner-pipeline": PERMISSIONS.crmPartnersManage,
-  "ai-governance": PERMISSIONS.crmAnalyticsManage,
-};
 
 export function assertCrmIdentifier(value: string) {
   if (
@@ -80,9 +26,13 @@ export function canViewCrmResource(
   session: SessionContext,
   resource: CrmResourceKey,
 ) {
+  if (!isCrmApiResource(resource)) return false;
   return (
     hasPermission(session, PERMISSIONS.crmView) &&
-    (!restrictedResources.has(resource) ||
+    (resource === "leads" ||
+      resource === "opportunities" ||
+      resource === "activities" ||
+      resource === "communications" ||
       hasPermission(session, crmDefinitions[resource].permission))
   );
 }
@@ -106,11 +56,7 @@ export function requireCrmManage(
 }
 
 export function canViewCrmReport(session: SessionContext, report: string) {
-  return (
-    hasPermission(session, PERMISSIONS.crmReportsView) &&
-    (!reportPermissions[report] ||
-      hasPermission(session, reportPermissions[report]))
-  );
+  return isCrmReport(report) && hasPermission(session, PERMISSIONS.crmReportsView);
 }
 
 export function requireCrmReportView(session: SessionContext, report: string) {

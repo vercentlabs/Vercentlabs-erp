@@ -240,7 +240,7 @@ function LeadEditPanel({
     ],
     [
       "Ownership & attribution",
-      ["companyId", "branchId", "sourceId", "campaignId", "ownerUserId"],
+      ["companyId", "branchId", "sourceId", "ownerUserId"],
     ],
     [
       "Qualification",
@@ -371,7 +371,9 @@ export default function CrmLeadsWorkspace({
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [view, setView] = useState<"table" | "kanban">("table");
+  const [preferredView, setPreferredView] = useState<"table" | "kanban">(
+    "table",
+  );
   const [search, setSearch] = useState(initialSearch);
   const [status, setStatus] = useState(initialStatus);
   const [filters, setFilters] = useState({
@@ -390,15 +392,22 @@ export default function CrmLeadsWorkspace({
   const [bulkPriority, setBulkPriority] = useState("");
   const [kanbanPages, setKanbanPages] = useState<Record<string, number>>({});
   const metrics = leadDashboard?.metrics || {};
+  const terminalStatus = status === "converted" || status === "archived";
+  const view = terminalStatus ? "table" : preferredView;
 
   useEffect(() => {
     const saved = window.localStorage.getItem("vercentlabs_crm_leads_view");
     const restoreTimer = window.setTimeout(() => {
-      if (saved === "kanban" || saved === "table") setView(saved);
+      if (
+        saved === "table" ||
+        (saved === "kanban" && !terminalStatus)
+      ) {
+        setPreferredView(saved);
+      }
     }, 0);
     void refreshViews();
     return () => window.clearTimeout(restoreTimer);
-  }, []);
+  }, [terminalStatus]);
   async function refreshViews() {
     try {
       const result = await requestJson<{ views?: SavedView[] }>(
@@ -410,7 +419,8 @@ export default function CrmLeadsWorkspace({
     }
   }
   function setPresentation(next: "table" | "kanban") {
-    setView(next);
+    if (terminalStatus && next === "kanban") return;
+    setPreferredView(next);
     window.localStorage.setItem("vercentlabs_crm_leads_view", next);
   }
   function navigate(
@@ -634,12 +644,6 @@ export default function CrmLeadsWorkspace({
             </p>
           </div>
           <div className="crm-suite-command-actions">
-            <Link className="secondary-button" href="/crm/lead-acquisition">
-              Acquisition
-            </Link>
-            <Link className="secondary-button" href="/crm/lead-intelligence">
-              Intelligence
-            </Link>
             {canManage ? (
               <button
                 className="primary-button"
@@ -701,7 +705,9 @@ export default function CrmLeadsWorkspace({
                 onChange={(event) => setSearch(event.currentTarget.value)}
                 placeholder="Search lead, company, email, phone, code or product interest"
               />
-              <button className="secondary-button">Search</button>
+              <button className="secondary-button" type="submit">
+                Search
+              </button>
             </form>
             <div
               className="crm-leads-view-switch"
@@ -717,6 +723,7 @@ export default function CrmLeadsWorkspace({
               <button
                 className={view === "kanban" ? "active" : ""}
                 type="button"
+                disabled={terminalStatus}
                 onClick={() => setPresentation("kanban")}
               >
                 Kanban

@@ -1,28 +1,23 @@
 import { getCrmReport } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
+
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
-import { canViewCrmReport } from "@/modules/crm/api";
 import { tenantTransaction } from "@/core/db";
+import { CRM_REPORT_KEYS } from "@/modules/crm/scope";
+
 export const metadata = { title: "CRM reports" };
 export const dynamic = "force-dynamic";
-const names = [
-  "pipeline",
-  "conversion",
-  "sources",
-  "activities",
-  "forecast",
-  "campaigns",
-  "revenue-operations",
-  "account-health",
-  "privacy",
-  "pipeline-intelligence",
-  "engagement-intelligence",
-  "relationship-coverage",
-  "partner-pipeline",
-  "ai-governance",
-] as const;
+
+const REPORT_META = {
+  pipeline: ["Pipeline by stage", "Opportunity volume, value and probability-weighted value by sales stage."],
+  conversion: ["Lead conversion", "Monthly lead volume and conversion rate into the governed CRM conversion flow."],
+  sources: ["Lead source performance", "Lead and conversion volume by source, including won revenue attribution."],
+  activities: ["Activity execution", "Calls, meetings, tasks and follow-ups with completion and overdue counts."],
+  forecast: ["Sales forecast", "Pipeline, weighted value and won revenue by owner."],
+} as const;
+
 const title = (value: string) =>
   value
     .replaceAll("-", " ")
@@ -33,89 +28,66 @@ const title = (value: string) =>
 function displayValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) {
-    return value.length === 1 ? "1 item" : `${value.length} items`;
-  }
-  if (typeof value === "object") return "Configured";
-  if (typeof value === "number") {
-    return new Intl.NumberFormat("en-IN", {
-      maximumFractionDigits: 2,
-    }).format(value);
-  }
+  if (typeof value === "number")
+    return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value);
   return String(value).replaceAll("_", " ");
 }
+
 export default async function CrmReportsPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmReportsView)) notFound();
   const context = crmContext(session);
-  const visibleNames = names.filter((name) => canViewCrmReport(session, name));
-  const reports = await tenantTransaction(
-    context.organizationId,
-    async (client) => {
-      const entries = [];
-      for (const name of visibleNames) {
-        entries.push([name, await getCrmReport(client, context, name)]);
-      }
-      return Object.fromEntries(entries);
-    },
-  );
+
+  const reports = await tenantTransaction(context.organizationId, async (client) => {
+    const entries = [];
+    for (const name of CRM_REPORT_KEYS) {
+      entries.push([name, await getCrmReport(client, context, name)]);
+    }
+    return Object.fromEntries(entries) as Record<string, { rows: Array<Record<string, unknown>> }>;
+  });
+
   return (
-    <>
-      <section className="page-heading">
+    <div className="crm-reports-page">
+      <section className="page-heading crm-hci-heading">
         <div>
-          <p className="eyebrow">CRM analytics</p>
-          <h1>Pipeline, conversion and activity reports</h1>
+          <p className="eyebrow">CRM · Analytics</p>
+          <h1>CRM reports</h1>
           <p>
-            Review revenue health, engagement, pipeline risk, relationship
-            coverage, partner contribution, governed AI, privacy and seller
-            execution.
+            Five decision-oriented reports for the thirty-feature CRM. Advanced partner, AI, privacy and revenue-operations reports are intentionally outside this product scope.
           </p>
         </div>
         <span className="status-badge neutral">Live tenant data</span>
       </section>
-      <div className="crm-report-grid">
-        {visibleNames.map((name) => {
-          const rows = (
-            reports[name] as { rows: Array<Record<string, unknown>> }
-          ).rows;
-          const columns = Array.from(
-            new Set(rows.flatMap((row) => Object.keys(row))),
-          );
+
+      <div className="crm-report-grid crm-report-grid--core">
+        {CRM_REPORT_KEYS.map((name) => {
+          const rows = reports[name]?.rows || [];
+          const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+          const [reportTitle, description] = REPORT_META[name];
           return (
-            <section className="panel" key={name}>
+            <section className="panel crm-report-card" key={name}>
               <div className="card-title-row">
                 <div>
                   <p className="eyebrow">Report</p>
-                  <h2>{title(name)}</h2>
+                  <h2>{reportTitle}</h2>
+                  <p>{description}</p>
                 </div>
                 {rows.length ? (
-                  <a
-                    className="link-button"
-                    download
-                    href={`/api/crm/reports/${name}?format=csv`}
-                  >
+                  <a className="link-button" download href={`/api/crm/reports/${name}?format=csv`}>
                     Download CSV
                   </a>
-                ) : (
-                  <span className="status-badge neutral">No data to export</span>
-                )}
+                ) : null}
               </div>
               {rows.length ? (
                 <div className="table-scroll">
                   <table className="data-table">
                     <thead>
-                      <tr>
-                        {columns.map((column) => (
-                          <th key={column}>{title(column)}</th>
-                        ))}
-                      </tr>
+                      <tr>{columns.map((column) => <th key={column}>{title(column)}</th>)}</tr>
                     </thead>
                     <tbody>
                       {rows.map((row, index) => (
                         <tr key={index}>
-                          {columns.map((column) => (
-                            <td key={column}>{displayValue(row[column])}</td>
-                          ))}
+                          {columns.map((column) => <td key={column}>{displayValue(row[column])}</td>)}
                         </tr>
                       ))}
                     </tbody>
@@ -124,16 +96,13 @@ export default async function CrmReportsPage() {
               ) : (
                 <div className="empty-state crm-report-empty-state">
                   <strong>No report data yet</strong>
-                  <p>
-                    This report will populate automatically when matching CRM
-                    activity is recorded for the current company and branch.
-                  </p>
+                  <p>This report populates automatically from scoped CRM activity.</p>
                 </div>
               )}
             </section>
           );
         })}
       </div>
-    </>
+    </div>
   );
 }

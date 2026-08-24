@@ -5,11 +5,11 @@ import {
 import { convertCrmLead } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { assertCrmIdentifier } from "@/modules/crm/api";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
+import { crmApiContext, crmErrorResponse } from "@/modules/crm";
 import { convertLeadSchema } from "@/modules/crm/validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 export async function POST(
   request: Request,
@@ -46,14 +46,12 @@ export async function POST(
     return ok({
       message: conversion.replayed
         ? "Lead was already converted."
-        : "Lead converted to customer and opportunity.",
+        : conversion.opportunityId
+          ? "Lead converted to customer and opportunity."
+          : "Lead converted to customer.",
       conversion,
     });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return crmErrorResponse(error);
   }
 }

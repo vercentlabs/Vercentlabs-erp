@@ -28,7 +28,7 @@ test("Lead queue preserves existing import/export/open/edit/archive contracts",(
 
 test("Lead edit includes disqualification and canonical relationship fields",()=>{
   const source=read("apps/web/src/modules/crm/components/leads-workspace.tsx");
-  for(const field of ["firstName","companyName","email","mobile","sourceId","campaignId","ownerUserId","status","unqualifiedReason","priority","rating","estimatedValue","productInterest","nextFollowUpAt","consentEmail","doNotContact"])
+  for(const field of ["firstName","companyName","email","mobile","sourceId","ownerUserId","status","unqualifiedReason","priority","rating","estimatedValue","productInterest","nextFollowUpAt","consentEmail","doNotContact"])
     assert.match(source,new RegExp(`"${field}"`),field);
 });
 

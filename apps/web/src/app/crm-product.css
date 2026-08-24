@@ -345,8 +345,8 @@
 /*
  * CRM-wide layout contract.
  *
- * Every CRM route sits inside this boundary, including the legacy resource
- * and detail screens. Keep the treatment deliberately quiet: a consistent
+ * Every canonical CRM route sits inside this boundary. Keep the treatment
+ * deliberately quiet: a consistent
  * content rhythm, squarely aligned controls and restrained surfaces.
  */
 .crm-standard-shell {
@@ -367,7 +367,6 @@
   min-width: 0;
 }
 
-.crm-standard-shell .crm-section-tabs-shell,
 .crm-standard-shell .page-heading,
 .crm-standard-shell .crm-workbench,
 .crm-standard-shell .crm-dashboard-grid,
@@ -377,42 +376,6 @@
 .crm-standard-shell .accounting-two-column,
 .crm-standard-shell .procurement-grid {
   margin-block: 0;
-}
-
-.crm-standard-shell .crm-section-tabs-shell {
-  min-height: 86px;
-  gap: 20px;
-  padding: 14px var(--workspace-nav-inline-padding, 20px);
-  border-radius: var(--crm-card-radius);
-  box-shadow: none;
-}
-
-.crm-standard-shell .crm-section-tabs-heading {
-  min-width: 260px;
-  gap: 5px;
-}
-
-.crm-standard-shell .crm-section-tabs-heading span {
-  font-size: var(--workspace-nav-title-size, 15px);
-  line-height: 1.35;
-}
-
-.crm-standard-shell .crm-section-tabs-heading small {
-  font-size: var(--workspace-nav-copy-size, 13px);
-  line-height: 1.45;
-}
-
-.crm-standard-shell .crm-section-tabs {
-  align-items: center;
-  gap: 8px;
-}
-
-.crm-standard-shell .crm-section-tabs a {
-  min-height: var(--workspace-nav-tab-height, 46px);
-  justify-content: center;
-  padding-inline: 16px;
-  border-radius: 8px;
-  font-size: var(--workspace-nav-tab-size, 14px);
 }
 
 .crm-standard-shell .page-heading {
@@ -972,10 +935,6 @@
 }
 
 @media (max-width: 960px) {
-  .crm-standard-shell .crm-section-tabs-shell {
-    gap: 10px;
-  }
-
   .crm-standard-shell .page-heading,
   .crm-standard-shell .module-hero {
     align-items: flex-start;

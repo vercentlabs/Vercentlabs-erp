@@ -44,7 +44,6 @@ const LEAD_FIELDS = [
   "mobile",
   "phone",
   "sourceId",
-  "campaignId",
   "ownerUserId",
   "status",
   "priority",
@@ -519,18 +518,6 @@ export default function CrmLeadCreateWorkspace({
               </label>
 
               <label>
-                <span>Campaign</span>
-                <select name="campaignId" defaultValue="">
-                  <option value="">Not linked</option>
-                  {optionList("campaigns").map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
                 <span>Owner</span>
                 <select name="ownerUserId" defaultValue="">
                   <option value="">Use supported assignment policy</option>
@@ -757,7 +744,7 @@ export default function CrmLeadCreateWorkspace({
             <div>
               <strong>Ready to create this lead?</strong>
               <span>
-                You can add activities, notes, communications and conversion
+                You can add activities, notes, email history and conversion
                 actions from the lead record after saving.
               </span>
             </div>

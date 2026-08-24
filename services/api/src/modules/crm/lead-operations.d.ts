@@ -9,7 +9,12 @@ export class LeadOperationsError extends Error {
 export function evaluateLeadReadiness(
   lead: Record<string, unknown>,
   now?: Date,
+  options?: { scoringConfigured?: boolean },
 ): Record<string, unknown>;
+export function isLeadScoringConfigured(
+  client: QueryClient,
+  organizationId: string,
+): Promise<boolean>;
 export function buildLeadAgingBuckets(
   rows: Array<Record<string, unknown>>,
   now?: Date,

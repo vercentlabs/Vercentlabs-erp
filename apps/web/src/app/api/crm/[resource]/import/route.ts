@@ -26,6 +26,7 @@ export async function POST(
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmImport);
     const { resource } = await route.params;
+    if (resource !== "leads") throw new HttpError(404, "CRM import/export is available for leads only.");
     if (!isCrmDefinition(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmManage(session, resource);

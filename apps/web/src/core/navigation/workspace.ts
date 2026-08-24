@@ -12,7 +12,7 @@ export const workspaceNavigation: NavigationItem[] = [
   { href: "/dashboard", label: "Home", icon: "dashboard", exact: true },
   {
     href: "/master-data",
-    label: "Master data",
+    label: "Data",
     icon: "modules",
     permission: PERMISSIONS.businessDataView,
   },

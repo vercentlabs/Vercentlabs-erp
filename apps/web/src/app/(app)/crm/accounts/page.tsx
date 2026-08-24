@@ -68,10 +68,7 @@ export default async function CrmAccountsPage() {
         total={accounts.length}
         options={result.options}
         canManage={hasPermission(session, PERMISSIONS.partiesManage)}
-        canImport={
-          hasPermission(session, PERMISSIONS.partiesManage) &&
-          hasPermission(session, PERMISSIONS.businessDataImport)
-        }
+        canImport={false}
         detailBasePath="/crm/accounts"
         presentation="crm"
       />

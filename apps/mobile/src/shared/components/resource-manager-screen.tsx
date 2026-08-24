@@ -229,7 +229,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
   return (
     <Screen>
       <AppHeader
-        eyebrow={definition?.eyebrow || definition?.group || (area === "crm" ? "CRM" : "Master data")}
+        eyebrow={definition?.eyebrow || definition?.group || (area === "crm" ? "CRM" : "Data")}
         title={definition?.title || "Workspace records"}
         description={definition?.description}
       />

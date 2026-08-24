@@ -8,12 +8,13 @@ import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
 import {
   crmApiContext,
   crmDefinitions,
+  crmErrorResponse,
   isCrmDefinition,
-  rethrowCrmError,
 } from "@/modules/crm";
+import { isCrmApiResource } from "@/modules/crm/scope";
 import { crmSchemas } from "@/modules/crm/validation";
 import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 
 export async function GET(
@@ -25,7 +26,7 @@ export async function GET(
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
     const { resource } = await route.params;
-    if (!isCrmDefinition(resource))
+    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmResourceView(session, resource);
     const url = new URL(request.url);
@@ -40,11 +41,7 @@ export async function GET(
     );
     return ok(result);
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return crmErrorResponse(error);
   }
 }
 
@@ -58,7 +55,7 @@ export async function POST(
     if (!session?.organizationId)
       throw new HttpError(401, "Sign in to an organisation workspace.");
     const { resource } = await route.params;
-    if (!isCrmDefinition(resource))
+    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
@@ -97,10 +94,6 @@ export async function POST(
       201,
     );
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return crmErrorResponse(error);
   }
 }

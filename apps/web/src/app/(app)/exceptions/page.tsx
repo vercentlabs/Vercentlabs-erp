@@ -56,7 +56,7 @@ export default async function ExceptionsPage({
     <>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">My work</p>
+          <p className="eyebrow">Work</p>
           <h1>Exceptions</h1>
           <p>
             Governance exceptions from Accounting, Procurement, Support and

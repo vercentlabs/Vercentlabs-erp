@@ -64,7 +64,7 @@ function resolveContext(
     );
     return {
       key: "my-work",
-      title: "My work",
+      title: "Work",
       subtitle: "Cross-module work queue",
       icon: "approvals",
       groups: [

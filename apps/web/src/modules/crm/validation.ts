@@ -118,7 +118,7 @@ function buildCrmSchemas(requireRequiredFields: boolean) {
               const expectedFormat =
                 field.type === "date"
                   ? /^\d{4}-\d{2}-\d{2}$/
-                  : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/;
+                  : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/;
               if (
                 !expectedFormat.test(text) ||
                 !Number.isFinite(Date.parse(text))
@@ -278,6 +278,32 @@ function buildCrmSchemas(requireRequiredFields: boolean) {
 export const crmSchemas = buildCrmSchemas(true);
 export const crmPatchSchemas = buildCrmSchemas(false);
 
+const crmDateTimeInputSchema = z
+  .string()
+  .trim()
+  .min(1, "Due date and time is required.")
+  .refine(
+    (value) =>
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/.test(
+        value,
+      ) && Number.isFinite(Date.parse(value)),
+    "Due date and time must be valid.",
+  );
+
+export const scheduleLeadFollowUpSchema = z.object({
+  activityType: z
+    .enum(["task", "call", "meeting", "email", "whatsapp", "sms"])
+    .default("call"),
+  subject: z.string().trim().min(1).max(300),
+  description: z.string().trim().max(4000).nullable().optional(),
+  assignedTo: z.preprocess(
+    (value) => (value === "" || value === undefined ? null : value),
+    z.string().uuid().nullable(),
+  ),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  dueAt: crmDateTimeInputSchema,
+});
+
 export const convertLeadSchema = z.object({
   partyId: z.string().uuid().nullable().optional(),
   contactId: z.string().uuid().nullable().optional(),
@@ -292,6 +318,8 @@ export const mergeLeadSchema = z.object({ targetLeadId: z.string().uuid() });
 export const moveStageSchema = z.object({
   stageId: z.string().uuid(),
   note: z.string().trim().max(1000).nullable().optional(),
+  outcomeReasonId: z.string().uuid().nullable().optional(),
+  outcomeNotes: z.string().trim().max(4000).nullable().optional(),
   expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
   expectedStageId: z.string().uuid().nullable().optional(),
 });

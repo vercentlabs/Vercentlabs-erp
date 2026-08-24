@@ -122,6 +122,19 @@ export function validateLeadRecord(input = {}, options = {}) {
     }
   }
 
+  if (text(candidate.nextFollowUpAt)) {
+    const followUp = new Date(text(candidate.nextFollowUpAt));
+    if (!Number.isFinite(followUp.getTime())) {
+      errors.push(
+        issue(
+          "nextFollowUpAt",
+          "Next follow-up must be a valid date and time.",
+          "CRM_LEAD_FOLLOW_UP_INVALID",
+        ),
+      );
+    }
+  }
+
   for (const [field, maximum] of Object.entries(TEXT_LIMITS)) {
     if (text(candidate[field]).length > maximum) {
       errors.push(

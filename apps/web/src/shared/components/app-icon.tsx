@@ -20,6 +20,7 @@ export type AppIconName =
   | "security"
   | "profile"
   | "logout"
+  | "close"
   | "chevron-down"
   | "arrow-right"
   | "check"
@@ -174,6 +175,7 @@ const paths: Record<AppIconName, React.ReactNode> = {
       <path d="m15 8 4 4-4 4M19 12H9" />
     </>
   ),
+  close: <path d="M6 6l12 12M18 6 6 18" />,
   "chevron-down": <path d="m6 9 6 6 6-6" />,
   "arrow-right": <path d="M5 12h14M14 7l5 5-5 5" />,
   check: <path d="m5 12 4 4L19 6" />,

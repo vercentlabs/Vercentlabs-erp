@@ -20,7 +20,7 @@ const EVENT_CATEGORIES = [
   { value: "accounting.", label: "Accounting" },
   { value: "sales.", label: "Sales" },
   { value: "billing.", label: "Billing" },
-  { value: "business_data.", label: "Master data" },
+  { value: "business_data.", label: "Data" },
   { value: "approval.", label: "Approvals" },
   { value: "module.", label: "Modules" },
 ];

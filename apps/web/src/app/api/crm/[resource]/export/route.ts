@@ -20,6 +20,7 @@ export async function GET(
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmExport);
     const { resource } = await route.params;
+    if (resource !== "leads") throw new HttpError(404, "CRM import/export is available for leads only.");
     if (!isCrmDefinition(resource))
       throw new HttpError(404, "Unknown CRM resource.");
     requireCrmResourceView(session, resource);

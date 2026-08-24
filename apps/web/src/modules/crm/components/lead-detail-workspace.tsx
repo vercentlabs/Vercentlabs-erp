@@ -42,6 +42,8 @@ export default function CrmLeadDetailWorkspace({
   opportunities,
   duplicates,
   options,
+  attachments,
+  selectedTags,
   canManage,
   canManageActivities,
   canManageCommunications,
@@ -54,6 +56,8 @@ export default function CrmLeadDetailWorkspace({
   opportunities: Row[];
   duplicates: Row[];
   options: Record<string, Option[]>;
+  attachments: Row[];
+  selectedTags: Row[];
   canManage: boolean;
   canManageActivities: boolean;
   canManageCommunications: boolean;
@@ -62,6 +66,13 @@ export default function CrmLeadDetailWorkspace({
   const [tab, setTab] = useState("overview");
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
+  const customData = lead.customData && typeof lead.customData === "object" && !Array.isArray(lead.customData)
+    ? (lead.customData as Record<string, unknown>)
+    : {};
+  const [customRows, setCustomRows] = useState(() =>
+    Object.entries(customData).map(([key, value], index) => ({ id: `${key}-${index}`, key, value: String(value ?? "") })),
+  );
+  const [tagIds, setTagIds] = useState(() => new Set(selectedTags.map((tag) => String(tag.id))));
   const id = String(lead.id);
   const name = String(lead.fullName || lead.companyName || "Lead");
   const timeline = useMemo<TimelineEvent[]>(
@@ -133,11 +144,19 @@ export default function CrmLeadDetailWorkspace({
   async function convert() {
     if (!confirm("Convert this lead into an account, contact and opportunity?"))
       return;
-    await api(
+    const result = await api(
       `/api/crm/leads/${id}/convert`,
       { createOpportunity: true },
       "convert",
     );
+    const conversion =
+      result?.conversion && typeof result.conversion === "object"
+        ? (result.conversion as Row)
+        : null;
+    const opportunityId = String(conversion?.opportunityId || "");
+    if (result?.ok && opportunityId) {
+      router.push(`/crm/opportunities/${opportunityId}`);
+    }
   }
   async function merge(target: string) {
     if (
@@ -153,22 +172,20 @@ export default function CrmLeadDetailWorkspace({
     );
     if (result?.ok) router.push(`/crm/leads/${target}`);
   }
-  async function createActivity(event: FormEvent<HTMLFormElement>) {
+  async function scheduleFollowUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const result = await api(
-      "/api/crm/activities",
+      `/api/crm/leads/${id}/follow-up`,
       {
-        entityType: "lead",
-        entityId: id,
-        activityType: String(form.get("activityType") || "task"),
+        activityType: String(form.get("activityType") || "call"),
         subject: String(form.get("subject") || ""),
         description: String(form.get("description") || ""),
         assignedTo: String(form.get("assignedTo") || lead.ownerUserId || ""),
         priority: String(form.get("priority") || "medium"),
         dueAt: String(form.get("dueAt") || ""),
       },
-      "activity",
+      "followup",
     );
     if (result) event.currentTarget.reset();
   }
@@ -205,6 +222,49 @@ export default function CrmLeadDetailWorkspace({
     );
     if (result) event.currentTarget.reset();
   }
+  async function uploadAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending("attachment");
+    setMessage("");
+    try {
+      const form = new FormData(event.currentTarget);
+      const result = await requestJson<Row>(`/api/crm/leads/${id}/attachments`, { method: "POST", body: form });
+      if (!result.ok) throw new Error(result.message || "Attachment upload failed.");
+      setMessage(result.message || "Attachment uploaded.");
+      event.currentTarget.reset();
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Attachment upload failed.");
+    } finally {
+      setPending("");
+    }
+  }
+  async function removeAttachment(attachmentId: string) {
+    if (!confirm("Remove this attachment?")) return;
+    setPending(`attachment-${attachmentId}`);
+    setMessage("");
+    try {
+      const result = await requestJson<Row>(`/api/crm/leads/${id}/attachments/${attachmentId}`, { method: "DELETE" });
+      if (!result.ok) throw new Error(result.message || "Could not remove attachment.");
+      setMessage(result.message || "Attachment removed.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove attachment.");
+    } finally {
+      setPending("");
+    }
+  }
+  async function saveTags() {
+    await api(`/api/crm/leads/${id}/tags`, { tagIds: [...tagIds] }, "tags");
+  }
+  async function saveCustomFields() {
+    const fields = Object.fromEntries(
+      customRows
+        .map((row) => [row.key.trim().toLowerCase(), row.value.trim()] as const)
+        .filter(([key, value]) => key && value),
+    );
+    await api(`/api/crm/leads/${id}/custom-fields`, { fields }, "custom");
+  }
   const tabs = [
     "overview",
     "timeline",
@@ -213,6 +273,7 @@ export default function CrmLeadDetailWorkspace({
     "notes",
     "opportunities",
     "score",
+    "custom",
     "duplicates",
   ];
   const contact = [lead.email, lead.mobile, lead.phone]
@@ -241,13 +302,21 @@ export default function CrmLeadDetailWorkspace({
           {canManage &&
           lead.status !== "converted" &&
           lead.status !== "archived" ? (
-            <button
-              className="primary-button"
-              disabled={pending === "convert"}
-              onClick={() => void convert()}
-            >
-              Convert lead
-            </button>
+            <div className="crm-lead-detail-actions">
+              <Link
+                className="secondary-button"
+                href={`/crm/leads?edit=${encodeURIComponent(id)}`}
+              >
+                Edit lead
+              </Link>
+              <button
+                className="primary-button"
+                disabled={pending === "convert"}
+                onClick={() => void convert()}
+              >
+                {pending === "convert" ? "Converting…" : "Convert to opportunity"}
+              </button>
+            </div>
           ) : null}
         </div>
       </header>
@@ -259,10 +328,6 @@ export default function CrmLeadDetailWorkspace({
         <div>
           <small>Source</small>
           <strong>{option(options, "sources", lead.sourceId)}</strong>
-        </div>
-        <div>
-          <small>Campaign</small>
-          <strong>{option(options, "campaigns", lead.campaignId)}</strong>
         </div>
         <div>
           <small>Priority</small>
@@ -317,7 +382,7 @@ export default function CrmLeadDetailWorkspace({
             className={tab === item ? "active" : ""}
             onClick={() => setTab(item)}
           >
-            {nice(item)}
+            {item === "communications" ? "Email history" : item === "notes" ? "Notes & files" : item === "custom" ? "Fields & tags" : nice(item)}
             {item === "duplicates" && duplicates.length
               ? ` (${duplicates.length})`
               : ""}
@@ -370,7 +435,7 @@ export default function CrmLeadDetailWorkspace({
               </button>
               <button type="button" onClick={() => setTab("communications")}>
                 <strong>{communications.length}</strong>
-                <span>Communications</span>
+                <span>Email history</span>
               </button>
               <button type="button" onClick={() => setTab("notes")}>
                 <strong>{notes.length}</strong>
@@ -388,7 +453,7 @@ export default function CrmLeadDetailWorkspace({
                 type="button"
                 onClick={() => setTab("activities")}
               >
-                Plan follow-up
+                Add follow-up
               </button>
             ) : null}
             {canManage ? (
@@ -407,7 +472,7 @@ export default function CrmLeadDetailWorkspace({
                 disabled={pending === "score"}
                 onClick={() =>
                   void api(
-                    `/api/crm/lead-intelligence/scores/${id}`,
+                    `/api/crm/leads/${id}/score`,
                     { reason: "Lead detail recalculation" },
                     "score",
                   )
@@ -480,7 +545,11 @@ export default function CrmLeadDetailWorkspace({
           <section className="crm-suite-surface">
             <h2>Plan next action</h2>
             {canManageActivities ? (
-              <form className="crm-suite-form" onSubmit={createActivity}>
+              <form
+                id="crm-lead-follow-up-form"
+                className="crm-suite-form"
+                onSubmit={scheduleFollowUp}
+              >
                 <label>
                   Type
                   <select name="activityType" defaultValue="call">
@@ -525,13 +594,13 @@ export default function CrmLeadDetailWorkspace({
                 </label>
                 <label>
                   Due
-                  <input name="dueAt" type="datetime-local" />
+                  <input name="dueAt" type="datetime-local" required />
                 </label>
                 <button
                   className="primary-button"
-                  disabled={pending === "activity"}
+                  disabled={pending === "followup"}
                 >
-                  Create activity
+                  {pending === "followup" ? "Scheduling…" : "Add follow-up"}
                 </button>
               </form>
             ) : (
@@ -546,10 +615,9 @@ export default function CrmLeadDetailWorkspace({
           <section className="crm-suite-surface">
             <div className="crm-suite-section-heading">
               <div>
-                <p className="eyebrow">Communication history</p>
+                <p className="eyebrow">Email & communication history</p>
                 <h2>Email, call, SMS, chat and WhatsApp log</h2>
               </div>
-              <Link href="/crm/communications">Communication workspace →</Link>
             </div>
             <div className="crm-suite-list">
               {communications.map((row) => (
@@ -664,12 +732,33 @@ export default function CrmLeadDetailWorkspace({
                   <input name="isPinned" type="checkbox" />
                   <span>Pin this note</span>
                 </label>
-                <button
-                  className="primary-button"
-                  disabled={pending === "note"}
-                >
-                  Add note
-                </button>
+                <button className="primary-button" disabled={pending === "note"}>Add note</button>
+              </form>
+            ) : null}
+            <div className="crm-file-divider" />
+            <h2>Attachments</h2>
+            <div className="crm-attachment-list">
+              {attachments.map((attachment) => (
+                <div key={String(attachment.id)}>
+                  <span>
+                    <a href={`/api/crm/leads/${id}/attachments/${String(attachment.id)}`}>{String(attachment.file_name || "Attachment")}</a>
+                    <small>{String(attachment.mime_type || "file")} · {Math.max(1, Math.round(num(attachment.size_bytes) / 1024))} KB</small>
+                  </span>
+                  {canManage ? (
+                    <button type="button" className="link-button danger" disabled={pending === `attachment-${String(attachment.id)}`} onClick={() => void removeAttachment(String(attachment.id))}>Remove</button>
+                  ) : null}
+                </div>
+              ))}
+              {!attachments.length ? <p>No files attached yet.</p> : null}
+            </div>
+            {canManage ? (
+              <form className="crm-suite-form crm-attachment-form" onSubmit={uploadAttachment}>
+                <label>
+                  Attach file
+                  <input name="file" type="file" required accept="application/pdf,image/png,image/jpeg,text/plain,text/csv" />
+                  <small>PDF, PNG, JPEG, TXT or CSV · up to 5 MB.</small>
+                </label>
+                <button className="secondary-button" disabled={pending === "attachment"}>{pending === "attachment" ? "Uploading…" : "Upload file"}</button>
               </form>
             ) : null}
           </section>
@@ -686,8 +775,12 @@ export default function CrmLeadDetailWorkspace({
             {canManage &&
             lead.status !== "converted" &&
             lead.status !== "archived" ? (
-              <button className="primary-button" onClick={() => void convert()}>
-                Convert lead
+              <button
+                className="primary-button"
+                disabled={pending === "convert"}
+                onClick={() => void convert()}
+              >
+                {pending === "convert" ? "Converting…" : "Convert to opportunity"}
               </button>
             ) : null}
           </div>
@@ -726,7 +819,7 @@ export default function CrmLeadDetailWorkspace({
                 disabled={pending === "score"}
                 onClick={() =>
                   void api(
-                    `/api/crm/lead-intelligence/scores/${id}`,
+                    `/api/crm/leads/${id}/score`,
                     { reason: "Lead detail recalculation" },
                     "score",
                   )
@@ -751,6 +844,60 @@ export default function CrmLeadDetailWorkspace({
             {!scoreHistory.length ? <p>No score changes recorded.</p> : null}
           </div>
         </section>
+      ) : null}
+
+      {tab === "custom" ? (
+        <div className="crm-suite-two-column">
+          <section className="crm-suite-surface">
+            <div className="crm-suite-section-heading">
+              <div><p className="eyebrow">F028 · Classification</p><h2>Tags</h2></div>
+            </div>
+            <div className="crm-tag-picker">
+              {(options.tags || []).map((tag) => {
+                const checked = tagIds.has(tag.id);
+                return (
+                  <label key={tag.id} className={checked ? "selected" : ""}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={!canManage}
+                      onChange={(event) => {
+                        const next = new Set(tagIds);
+                        if (event.currentTarget.checked) next.add(tag.id); else next.delete(tag.id);
+                        setTagIds(next);
+                      }}
+                    />
+                    <span>{tag.name}</span>
+                  </label>
+                );
+              })}
+              {!options.tags?.length ? <p>Create tags in CRM Setup, then apply them here.</p> : null}
+            </div>
+            {canManage ? <button className="secondary-button" type="button" disabled={pending === "tags"} onClick={() => void saveTags()}>Save tags</button> : null}
+          </section>
+          <section className="crm-suite-surface">
+            <div className="crm-suite-section-heading">
+              <div><p className="eyebrow">F028 · Flexible data</p><h2>Custom fields</h2></div>
+            </div>
+            <p className="crm-helper-copy">Use short snake_case keys so fields remain stable across exports and APIs.</p>
+            <div className="crm-custom-field-editor">
+              {customRows.map((row, index) => (
+                <div key={row.id}>
+                  <label>Field key<input value={row.key} disabled={!canManage} placeholder="implementation_timeline" onChange={(event) => setCustomRows((rows) => rows.map((item, itemIndex) => itemIndex === index ? { ...item, key: event.target.value } : item))} /></label>
+                  <label>Value<input value={row.value} disabled={!canManage} placeholder="Q4 2026" onChange={(event) => setCustomRows((rows) => rows.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} /></label>
+                  {canManage ? <button type="button" className="link-button danger" onClick={() => setCustomRows((rows) => rows.filter((_, itemIndex) => itemIndex !== index))}>Remove</button> : null}
+                </div>
+              ))}
+              {!customRows.length ? <p>No custom fields on this lead.</p> : null}
+            </div>
+            {canManage ? (
+              <div className="crm-inline-actions">
+                <button type="button" className="secondary-button" onClick={() => setCustomRows((rows) => [...rows, { id: `${Date.now()}-${rows.length}`, key: "", value: "" }])}>Add field</button>
+                <button type="button" className="primary-button" disabled={pending === "custom"} onClick={() => void saveCustomFields()}>Save custom fields</button>
+              </div>
+            ) : null}
+          </section>
+        </div>
       ) : null}
 
       {tab === "duplicates" ? (

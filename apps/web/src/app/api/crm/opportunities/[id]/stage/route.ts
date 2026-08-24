@@ -38,6 +38,8 @@ export async function POST(
           {
             expectedUpdatedAt: input.expectedUpdatedAt,
             expectedStageId: input.expectedStageId,
+            outcomeReasonId: input.outcomeReasonId,
+            outcomeNotes: input.outcomeNotes,
           },
         );
         await audit({

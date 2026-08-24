@@ -76,15 +76,6 @@ export default function AppShell({
               />
             </MobileDrawer>
 
-            <div className="topbar-v3__workspace-copy">
-              <span className="topbar-v3__workspace-mark" aria-hidden="true">
-                V
-              </span>
-              <span>
-                <small>Operating workspace</small>
-                <strong>{session.organizationName}</strong>
-              </span>
-            </div>
           </div>
 
           <div className="topbar-v3__search">

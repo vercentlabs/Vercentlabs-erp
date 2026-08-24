@@ -5,7 +5,7 @@ import WorkItemList from "@/shared/components/work-item-list";
 import { requireWorkspace } from "@/core/auth";
 import { getMyWorkSummary } from "@/orchestration/work/aggregate";
 
-export const metadata = { title: "My work" };
+export const metadata = { title: "Work" };
 export const dynamic = "force-dynamic";
 
 export default async function MyWorkPage() {
@@ -49,7 +49,7 @@ export default async function MyWorkPage() {
     <>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">My work</p>
+          <p className="eyebrow">Work</p>
           <h1>Everything assigned or waiting on you</h1>
           <p>
             Tasks, follow-ups, exceptions and approvals you already have access

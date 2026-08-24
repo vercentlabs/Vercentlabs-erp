@@ -8,11 +8,12 @@ import {
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
 export class CrmError extends Error {
-  constructor(status, message, code = "CRM_ERROR") {
+  constructor(status, message, code = "CRM_ERROR", details = undefined) {
     super(message);
     this.name = "CrmError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -25,6 +26,7 @@ const resources = Object.freeze({
       "code",
       "first_name",
       "last_name",
+      "full_name",
       "email",
       "phone",
       "mobile",
@@ -103,6 +105,8 @@ const resources = Object.freeze({
       nextStep: "next_step",
       lostReasonId: "lost_reason_id",
       lossNotes: "loss_notes",
+      outcomeReasonId: "outcome_reason_id",
+      outcomeNotes: "outcome_notes",
       customData: "custom_data",
     },
   },
@@ -244,6 +248,7 @@ const resources = Object.freeze({
       name: "name",
       code: "code",
       category: "category",
+      outcomeType: "outcome_type",
       status: "status",
     },
   },
@@ -1524,6 +1529,9 @@ function buildFilters(definition, filters, parameters, alias = "record") {
     if (followup === "none") sql += ` AND ${alias}.next_follow_up_at IS NULL`;
   }
   if (definition.table === "tenant.crm_activities") {
+    const activityType = String(filters.activityType || "all");
+    if (["task", "call", "meeting", "email", "whatsapp", "sms", "note"].includes(activityType))
+      sql += ` AND ${alias}.activity_type = ${addParameter(parameters, activityType)}`;
     const due = filters.due || "all";
     if (due === "today")
       sql +=
@@ -1582,6 +1590,34 @@ function mutableEntries(definition, input) {
   return Object.entries(input).filter(
     ([key, value]) => definition.fields[key] && value !== undefined,
   );
+}
+
+function validationErrorDetails(issues) {
+  const errors = {};
+  for (const item of issues) {
+    const field = String(item?.field || "form");
+    errors[field] ||= [];
+    errors[field].push(String(item?.message || "Invalid value."));
+  }
+  return { errors, issues };
+}
+
+function normalizeStorageInput(resource, input) {
+  const prepared = { ...input };
+  // comparison_value is jsonb. Web/API validation intentionally decodes the
+  // structured-field JSON into its real primitive type. node-postgres sends a
+  // JavaScript string verbatim, which PostgreSQL then tries to parse as raw JSON
+  // and rejects (for example Manufacturing is not valid JSON). Re-encode string
+  // primitives at the storage boundary so guided UI values and API values are
+  // stored as a JSON string instead of causing a database 500.
+  if (
+    resource === "scoring-rules" &&
+    Object.prototype.hasOwnProperty.call(prepared, "comparisonValue") &&
+    typeof prepared.comparisonValue === "string"
+  ) {
+    prepared.comparisonValue = JSON.stringify(prepared.comparisonValue);
+  }
+  return prepared;
 }
 
 const organizationUserReferenceFields = new Set([
@@ -1793,12 +1829,19 @@ export async function createCrmRecord(client, context, resource, input) {
   assertWritableScope(definition, context, input);
   assertOwnerAssignmentAllowed(definition, context, input);
   const prepared =
-    resource === "leads" ? normalizeLeadRecordInput(input) : { ...input };
+    resource === "leads"
+      ? normalizeLeadRecordInput(input)
+      : normalizeStorageInput(resource, input);
   if (resource === "leads") {
     const leadErrors = validateLeadRecord(prepared, { mode: "create" });
     if (leadErrors.length) {
       const first = leadErrors[0];
-      throw new CrmError(400, first.message, first.code);
+      throw new CrmError(
+        400,
+        first.message,
+        first.code,
+        validationErrorDetails(leadErrors),
+      );
     }
   }
   if (resource === "saved-views") prepared.userId = context.userId;
@@ -1935,7 +1978,9 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   if (resource === "saved-views") delete input.userId;
   assertLifecycleUpdate(resource, before, input);
   const prepared =
-    resource === "leads" ? normalizeLeadRecordInput(input) : { ...input };
+    resource === "leads"
+      ? normalizeLeadRecordInput(input)
+      : normalizeStorageInput(resource, input);
   if (resource === "leads") {
     const leadErrors = validateLeadRecord(prepared, {
       mode: "update",
@@ -1943,7 +1988,12 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     });
     if (leadErrors.length) {
       const first = leadErrors[0];
-      throw new CrmError(400, first.message, first.code);
+      throw new CrmError(
+        400,
+        first.message,
+        first.code,
+        validationErrorDetails(leadErrors),
+      );
     }
     prepared.score = await calculateLeadScore(client, context.organizationId, {
       ...before,
@@ -2488,49 +2538,41 @@ export async function moveOpportunityStage(
       409,
       "The selected stage is not part of this opportunity pipeline.",
     );
-  const requiredPlaybookResponses = await client.query(
-    `SELECT question.id, question.prompt
-       FROM tenant.crm_playbook_questions question
-       JOIN tenant.crm_playbooks playbook
-         ON playbook.id = question.playbook_id
-        AND playbook.organization_id = question.organization_id
-       LEFT JOIN tenant.crm_playbook_responses response
-         ON response.question_id = question.id
-        AND response.organization_id = question.organization_id
-        AND response.opportunity_id = $2
-      WHERE question.organization_id = $1
-        AND playbook.pipeline_id = $3
-        AND playbook.status = 'active'
-        AND question.status = 'active'
-        AND question.required = true
-        AND question.blocks_stage_exit = true
-        AND (question.stage_id IS NULL OR question.stage_id = $4)
-        AND response.id IS NULL
-      ORDER BY question.sequence, question.prompt`,
-    [
-      context.organizationId,
-      opportunityId,
-      opportunity.pipeline_id,
-      opportunity.stage_id,
-    ],
-  );
-  if (requiredPlaybookResponses.rows.length) {
-    throw new CrmError(
-      409,
-      `Complete required playbook questions before changing stage: ${requiredPlaybookResponses.rows
-        .map((row) => row.prompt)
-        .join("; ")}`,
-      "CRM_PLAYBOOK_INCOMPLETE",
-    );
-  }
   const status = stage.is_won ? "won" : stage.is_lost ? "lost" : "open";
+  let outcomeReasonId = null;
+  let outcomeNotes = null;
+  if (status === "won" || status === "lost") {
+    outcomeReasonId = expectations.outcomeReasonId || null;
+    outcomeNotes = String(expectations.outcomeNotes || note || "").trim() || null;
+    if (!outcomeReasonId) {
+      throw new CrmError(400, `Select a ${status} reason before closing this opportunity.`, "CRM_OUTCOME_REASON_REQUIRED");
+    }
+    const reasonResult = await client.query(
+      `SELECT id,outcome_type FROM tenant.crm_lost_reasons WHERE organization_id=$1 AND id=$2 AND status='active'`,
+      [context.organizationId, outcomeReasonId],
+    );
+    const reason = reasonResult.rows[0];
+    if (!reason || ![status, "both"].includes(reason.outcome_type)) {
+      throw new CrmError(409, `The selected reason is not valid for a ${status} opportunity.`, "CRM_OUTCOME_REASON_INVALID");
+    }
+  }
   const result = await client.query(
-    `UPDATE tenant.crm_opportunities SET stage_id = $1, probability = $2, forecast_category = $3, status = $4, actual_close_date = CASE WHEN $4 IN ('won','lost') THEN current_date ELSE NULL END, updated_by = $5, updated_at = now() WHERE organization_id = $6 AND id = $7 RETURNING *`,
+    `UPDATE tenant.crm_opportunities
+       SET stage_id = $1, probability = $2, forecast_category = $3, status = $4,
+           actual_close_date = CASE WHEN $4 IN ('won','lost') THEN current_date ELSE NULL END,
+           outcome_reason_id = CASE WHEN $4 IN ('won','lost') THEN $5 ELSE NULL END,
+           outcome_notes = CASE WHEN $4 IN ('won','lost') THEN $6 ELSE NULL END,
+           lost_reason_id = CASE WHEN $4='lost' THEN $5 ELSE NULL END,
+           loss_notes = CASE WHEN $4='lost' THEN $6 ELSE NULL END,
+           updated_by = $7, updated_at = now()
+     WHERE organization_id = $8 AND id = $9 RETURNING *`,
     [
       stageId,
       stage.probability,
       stage.forecast_category,
       status,
+      outcomeReasonId,
+      outcomeNotes,
       context.userId,
       context.organizationId,
       opportunityId,
@@ -2985,7 +3027,7 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const lostReasons = await queryOptions(
-    `SELECT id, name FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND status = 'active' ORDER BY category, name`,
+    `SELECT id, name, outcome_type FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND status = 'active' ORDER BY outcome_type, category, name`,
     parameters,
   );
   const leads = await queryOptions(

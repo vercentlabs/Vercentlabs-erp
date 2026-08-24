@@ -320,7 +320,7 @@ export default function CommandPalette({
       <span className="global-search-icon" aria-hidden="true">
         <AppIcon name="search" size={18} />
       </span>
-      <span className="global-search-placeholder">Search records, people and transactions</span>
+      <span className="global-search-placeholder">Search navigation, records and actions</span>
       <kbd className="search-shortcut" aria-hidden="true">
         Ctrl K
       </kbd>
@@ -355,8 +355,14 @@ export default function CommandPalette({
           {recordSearchStatus === "loading" ? (
             <span className="command-palette-loading" aria-hidden="true" />
           ) : null}
-          <button type="button" className="command-palette-close" onClick={closePalette} aria-label="Close command palette">
-            Esc
+          <button
+            type="button"
+            className="command-palette-close"
+            onClick={closePalette}
+            aria-label="Close command palette"
+            title="Close (Esc)"
+          >
+            <AppIcon name="close" size={16} />
           </button>
         </div>
 

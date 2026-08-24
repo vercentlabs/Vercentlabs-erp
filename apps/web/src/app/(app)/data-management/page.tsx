@@ -123,7 +123,7 @@ export default async function DataManagementPage() {
               <AppIcon name="stock" size={21} />
             </span>
             <div>
-              <strong>Master data</strong>
+              <strong>Data</strong>
               <span>Each of the 16 shared resources has an Export CSV action.</span>
             </div>
           </article>

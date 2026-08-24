@@ -24,7 +24,7 @@ export async function generateMetadata({
   return {
     title: isBusinessDataDefinition(resource)
       ? businessDataDefinitions[resource].title
-      : "Master data",
+      : "Data",
   };
 }
 

@@ -61,7 +61,7 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
   },
   {
     key: "master-data",
-    label: "Master data",
+    label: "Data",
     icon: "server-outline",
     permission: "business_data.view",
     href: "/(protected)/workspace/master-data",

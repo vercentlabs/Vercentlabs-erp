@@ -63,10 +63,7 @@ export default async function CrmContactsPage() {
         total={result.records.total}
         options={result.options}
         canManage={hasPermission(session, PERMISSIONS.partiesManage)}
-        canImport={
-          hasPermission(session, PERMISSIONS.partiesManage) &&
-          hasPermission(session, PERMISSIONS.businessDataImport)
-        }
+        canImport={false}
         detailBasePath="/crm/contacts"
         presentation="crm"
       />

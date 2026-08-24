@@ -10,7 +10,7 @@ import type { NavigationItem } from "@/core/navigation/types";
 // than being blocked at the nav level (see docs/implementation/
 // ERP_SHARED_WORKSPACE_008.md Section 3).
 export const myWorkNavigation: NavigationItem[] = [
-  { href: "/my-work", label: "My work", icon: "dashboard" },
+  { href: "/my-work", label: "Work", icon: "dashboard" },
   {
     href: "/tasks",
     label: "Tasks",

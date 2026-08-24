@@ -55,7 +55,7 @@ export default async function TasksPage({
     <>
       <section className="page-heading">
         <div>
-          <p className="eyebrow">My work</p>
+          <p className="eyebrow">Work</p>
           <h1>Tasks</h1>
           <p>
             Work assigned to you across CRM and Projects, in one read-only

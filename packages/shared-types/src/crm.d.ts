@@ -75,6 +75,7 @@ export type CrmListRequest = {
   pipelineId?: string;
   sourceId?: string;
   campaignId?: string;
+  activityType?: "task" | "call" | "meeting" | "email" | "whatsapp" | "sms" | "note" | "all";
   priority?: "low" | "medium" | "high" | "urgent" | "all";
   rating?: "cold" | "warm" | "hot" | "all";
   followup?: "overdue" | "today" | "upcoming" | "none" | "all";

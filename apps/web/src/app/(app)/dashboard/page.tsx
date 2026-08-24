@@ -241,7 +241,7 @@ export default async function DashboardPage() {
             <OpenCommandPaletteButton />
             <Link className="secondary-button" href="/my-work">
               <AppIcon name="approvals" size={17} />
-              Open My work
+              Open Work
             </Link>
           </div>
         </div>
@@ -289,7 +289,7 @@ export default async function DashboardPage() {
             <h2 id="attention-title">What needs you today</h2>
           </div>
           <Link href="/my-work">
-            Open My work <AppIcon name="arrow-right" size={16} />
+            Open Work <AppIcon name="arrow-right" size={16} />
           </Link>
         </div>
         <div className="metric-grid erp-home-attention-grid">

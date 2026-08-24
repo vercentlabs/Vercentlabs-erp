@@ -15,7 +15,7 @@ import {
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 
-export const metadata = { title: "Master data" };
+export const metadata = { title: "Data" };
 export const dynamic = "force-dynamic";
 
 const overviewKeys = {
@@ -88,7 +88,7 @@ export default async function MasterDataPage() {
 
       <section
         className="business-data-overview"
-        aria-label="Master data summary"
+        aria-label="Data summary"
       >
         <article className="business-data-overview-card">
           <span aria-hidden="true">
