@@ -247,6 +247,7 @@ export const COMPANY_IDENTITY: {
   country: string;
   registeredAddress: string | null;
   llpin: string | null;
+  primaryContactEmail: string;
   salesContactEmail: string;
   privacyContactEmail: string;
   supportContactEmail: string;

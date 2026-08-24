@@ -1,3 +1,5 @@
+import { WORKSPACE_EMAILS } from "@vercentlabs/config";
+
 /**
  * Site-wide metadata constants from docs/landing-redesign/phase-1/positioning-and-messaging.md.
  * Consumed by the generateMetadata helper Prompt 2 scaffolds — no page content is written here.
@@ -43,10 +45,11 @@ export const COMPANY_IDENTITY = Object.freeze({
   country: "India",
   registeredAddress: null,
   llpin: null,
-  salesContactEmail: "sales@vercentlabs.com",
-  privacyContactEmail: "privacy@vercentlabs.com",
-  supportContactEmail: "support@vercentlabs.com",
-  securityContactEmail: "security@vercentlabs.com",
-  careersContactEmail: "careers@vercentlabs.com",
-  billingContactEmail: "billing@vercentlabs.com",
+  primaryContactEmail: WORKSPACE_EMAILS.primary,
+  salesContactEmail: WORKSPACE_EMAILS.sales,
+  privacyContactEmail: WORKSPACE_EMAILS.privacy,
+  supportContactEmail: WORKSPACE_EMAILS.support,
+  securityContactEmail: WORKSPACE_EMAILS.security,
+  careersContactEmail: WORKSPACE_EMAILS.careers,
+  billingContactEmail: WORKSPACE_EMAILS.billing,
 });

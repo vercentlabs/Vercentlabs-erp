@@ -288,6 +288,9 @@ importers:
 
   packages/landing-content:
     dependencies:
+      '@vercentlabs/config':
+        specifier: workspace:*
+        version: link:../config
       '@vercentlabs/shared-types':
         specifier: workspace:*
         version: link:../shared-types

@@ -1,4 +1,16 @@
 export class ConfigurationError extends Error { readonly issues: readonly string[]; constructor(issues: string[]); }
+export const WORKSPACE_EMAILS: Readonly<{
+  primary: "sales@vercentlabs.com";
+  sales: "sales@vercentlabs.com";
+  support: "support@vercentlabs.com";
+  privacy: "privacy@vercentlabs.com";
+  security: "security@vercentlabs.com";
+  careers: "careers@vercentlabs.com";
+  billing: "billing@vercentlabs.com";
+  authentication: "auth@vercentlabs.com";
+  operations: "operations@vercentlabs.com";
+  dmarc: "dmarc@vercentlabs.com";
+}>;
 export function stringValue(environment: Record<string, string | undefined>, name: string, options?: { required?: boolean; minimumLength?: number; defaultValue?: string }): string;
 export function integerValue(environment: Record<string, string | undefined>, name: string, options?: { defaultValue?: number; minimum?: number; maximum?: number }): number;
 export function booleanValue(environment: Record<string, string | undefined>, name: string, defaultValue?: boolean): boolean;

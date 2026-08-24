@@ -43,6 +43,7 @@ test("footer source contains no '#' placeholder links", () => {
 
 test("provisioned company contact addresses stay on the verified domain", () => {
   const expected = {
+    primaryContactEmail: "sales@vercentlabs.com",
     salesContactEmail: "sales@vercentlabs.com",
     supportContactEmail: "support@vercentlabs.com",
     privacyContactEmail: "privacy@vercentlabs.com",
@@ -50,6 +51,8 @@ test("provisioned company contact addresses stay on the verified domain", () => 
     careersContactEmail: "careers@vercentlabs.com",
     billingContactEmail: "billing@vercentlabs.com",
   };
+
+  assert.equal(COMPANY_IDENTITY.primaryContactEmail, COMPANY_IDENTITY.salesContactEmail);
 
   for (const [field, email] of Object.entries(expected)) {
     assert.equal(COMPANY_IDENTITY[field], email);

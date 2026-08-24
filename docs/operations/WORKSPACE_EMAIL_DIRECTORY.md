@@ -5,6 +5,10 @@ addresses used by the marketing site, ERP platform, deployment providers, and
 company operations. Passwords, app passwords, recovery codes, and provider
 tokens must never be stored in this repository.
 
+The primary public B2B contact is `sales@vercentlabs.com`. Code imports the
+approved role identities from `WORKSPACE_EMAILS` in `@vercentlabs/config`;
+this document remains the ownership and provisioning runbook.
+
 ## Licensed accounts
 
 | Address | Owner | Use |

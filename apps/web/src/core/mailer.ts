@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { WORKSPACE_EMAILS } from "@vercentlabs/config";
 
 type AuthMessageInput = {
   type: "verify-email" | "reset-password" | "organization-invitation";
@@ -54,7 +55,7 @@ function getSmtpConfiguration() {
   const password = process.env.SMTP_PASSWORD?.trim();
   const from = process.env.AUTH_EMAIL_FROM?.trim();
   const replyTo =
-    process.env.AUTH_EMAIL_REPLY_TO?.trim() || "support@vercentlabs.com";
+    process.env.AUTH_EMAIL_REPLY_TO?.trim() || WORKSPACE_EMAILS.support;
 
   if (!host && !user && !password && !from) {
     return null;
@@ -290,7 +291,7 @@ async function deliverWithWebhook(input: AuthMessageInput) {
       sentAt: new Date().toISOString(),
       replyTo:
         process.env.AUTH_EMAIL_REPLY_TO?.trim() ||
-        "support@vercentlabs.com",
+        WORKSPACE_EMAILS.support,
       ...input,
     }),
     cache: "no-store",

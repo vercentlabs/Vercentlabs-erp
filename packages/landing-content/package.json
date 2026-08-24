@@ -18,6 +18,7 @@
     "content:stale": "node scripts/check-stale-content.mjs"
   },
   "dependencies": {
+    "@vercentlabs/config": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*"
   }
 }

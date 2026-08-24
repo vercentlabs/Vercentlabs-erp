@@ -13,7 +13,7 @@ export function organizationJsonLd() {
     name: SITE.productName,
     url: SITE.url.toString(),
     logo: absoluteUrl("/icons/icon.svg"),
-    email: COMPANY_IDENTITY.salesContactEmail,
+    email: COMPANY_IDENTITY.primaryContactEmail,
     contactPoint: [
       {
         "@type": "ContactPoint",

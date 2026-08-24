@@ -25,6 +25,14 @@ database/
 
 See `PROJECT_STRUCTURE.md` and `docs/architecture/ERP_STRUCTURE.md`.
 
+## Company email
+
+The primary B2B contact is `sales@vercentlabs.com`. Customer support, privacy,
+security, billing, careers, authentication delivery, and infrastructure alerts
+use dedicated `@vercentlabs.com` Workspace role addresses. See
+`docs/operations/WORKSPACE_EMAIL_DIRECTORY.md` for the canonical ownership and
+provisioning map.
+
 ## Toolchain
 
 - Node.js 24 (`.nvmrc` and `.node-version`)
