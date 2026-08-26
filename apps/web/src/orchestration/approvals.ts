@@ -220,6 +220,8 @@ const definitions: ApprovalCommand[] = [
           note: z.string().trim().max(1000).optional().nullable(),
           outcomeReasonId: uuid.optional().nullable(),
           outcomeNotes: z.string().trim().max(4000).optional().nullable(),
+          expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+          expectedStageId: uuid.optional().nullable(),
         })
         .strict()
         .parse(payload),
@@ -231,8 +233,18 @@ const definitions: ApprovalCommand[] = [
         String(payload.stageId),
         payload.note ? String(payload.note) : null,
         {
-          outcomeReasonId: payload.outcomeReasonId ? String(payload.outcomeReasonId) : null,
-          outcomeNotes: payload.outcomeNotes ? String(payload.outcomeNotes) : null,
+          expectedUpdatedAt: payload.expectedUpdatedAt
+            ? String(payload.expectedUpdatedAt)
+            : undefined,
+          expectedStageId: payload.expectedStageId
+            ? String(payload.expectedStageId)
+            : null,
+          outcomeReasonId: payload.outcomeReasonId
+            ? String(payload.outcomeReasonId)
+            : null,
+          outcomeNotes: payload.outcomeNotes
+            ? String(payload.outcomeNotes)
+            : null,
         },
       ),
   },

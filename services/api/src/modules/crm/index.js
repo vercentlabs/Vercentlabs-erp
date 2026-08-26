@@ -3144,6 +3144,18 @@ export async function moveOpportunityStage(
       "CRM_STAGE_CONFLICT",
     );
   }
+  // F010: replaying the current stage is a no-op; closed/archived records cannot
+  // be reopened by bypassing the governed UI. F012 may introduce richer stage
+  // transition policy later, but F010 keeps the open-pipeline lifecycle safe.
+  if (opportunity.stage_id === stageId) return camelizeRow(opportunity);
+  if (String(opportunity.status) !== "open") {
+    throw new CrmError(
+      409,
+      "Only open opportunities can move through the opportunity pipeline.",
+      "CRM_OPPORTUNITY_PIPELINE_CLOSED",
+    );
+  }
+
   const stageResult = await client.query(
     `SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND id = $2 AND pipeline_id = $3 AND status = 'active'`,
     [context.organizationId, stageId, opportunity.pipeline_id],
@@ -3185,9 +3197,9 @@ export async function moveOpportunityStage(
     `UPDATE tenant.crm_opportunities
        SET stage_id = $1, probability = $2, forecast_category = $3, status = $4,
            actual_close_date = CASE WHEN $4 IN ('won','lost') THEN current_date ELSE NULL END,
-           outcome_reason_id = CASE WHEN $4 IN ('won','lost') THEN $5 ELSE NULL END,
+           outcome_reason_id = CASE WHEN $4 IN ('won','lost') THEN $5::uuid ELSE NULL::uuid END,
            outcome_notes = CASE WHEN $4 IN ('won','lost') THEN $6 ELSE NULL END,
-           lost_reason_id = CASE WHEN $4='lost' THEN $5 ELSE NULL END,
+           lost_reason_id = CASE WHEN $4='lost' THEN $5::uuid ELSE NULL::uuid END,
            loss_notes = CASE WHEN $4='lost' THEN $6 ELSE NULL END,
            updated_by = $7, updated_at = now()
      WHERE organization_id = $8 AND id = $9 RETURNING *`,

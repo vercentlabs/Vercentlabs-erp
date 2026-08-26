@@ -57,12 +57,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const probability = Number(record.probability || 0);
   const amount = Number(record.amount || 0);
   const expectedRevenue = amount * Math.max(0, Math.min(100, probability)) / 100;
-  const stages = (data.options.stages || []).map((stage) => ({
-    id: String(stage.id),
-    name: String(stage.name),
-    isWon: Boolean(stage.isWon),
-    isLost: Boolean(stage.isLost),
-  }));
+  const stages = (data.options.stages || [])
+    .filter((stage) => String(stage.pipelineId) === String(record.pipelineId))
+    .map((stage) => ({
+      id: String(stage.id),
+      name: String(stage.name),
+      isWon: Boolean(stage.isWon),
+      isLost: Boolean(stage.isLost),
+    }));
   const outcomeReasons = (data.options.lostReasons || []).map((reason) => ({
     id: String(reason.id),
     name: String(reason.name),
@@ -102,7 +104,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       </section>
 
       {canManage && !["won", "lost", "archived"].includes(String(record.status)) ? (
-        <CrmOpportunityActions id={id} stageId={String(record.stageId)} stages={stages} outcomeReasons={outcomeReasons} />
+        <CrmOpportunityActions id={id} stageId={String(record.stageId)} updatedAt={String(record.updatedAt)} stages={stages} outcomeReasons={outcomeReasons} />
       ) : null}
 
       {["won", "lost"].includes(String(record.status)) ? (

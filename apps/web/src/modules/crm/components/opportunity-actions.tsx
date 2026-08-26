@@ -6,16 +6,22 @@ import { useRouter } from "next/navigation";
 import { requestJson } from "@/shared/http/client-request";
 
 type Stage = { id: string; name: string; isWon?: boolean; isLost?: boolean };
-type OutcomeReason = { id: string; name: string; outcomeType?: "won" | "lost" | "both" };
+type OutcomeReason = {
+  id: string;
+  name: string;
+  outcomeType?: "won" | "lost" | "both";
+};
 
 export default function CrmOpportunityActions({
   id,
   stageId,
+  updatedAt,
   stages,
   outcomeReasons,
 }: {
   id: string;
   stageId: string;
+  updatedAt: string;
   stages: Stage[];
   outcomeReasons: OutcomeReason[];
 }) {
@@ -27,11 +33,20 @@ export default function CrmOpportunityActions({
   const [message, setMessage] = useState("");
 
   const selectedStage = stages.find((stage) => stage.id === selectedStageId);
-  const outcomeType = selectedStage?.isWon ? "won" : selectedStage?.isLost ? "lost" : null;
+  const outcomeType = selectedStage?.isWon
+    ? "won"
+    : selectedStage?.isLost
+      ? "lost"
+      : null;
   const availableReasons = useMemo(
     () =>
       outcomeType
-        ? outcomeReasons.filter((reason) => !reason.outcomeType || reason.outcomeType === outcomeType || reason.outcomeType === "both")
+        ? outcomeReasons.filter(
+            (reason) =>
+              !reason.outcomeType ||
+              reason.outcomeType === outcomeType ||
+              reason.outcomeType === "both",
+          )
         : [],
     [outcomeReasons, outcomeType],
   );
@@ -47,6 +62,8 @@ export default function CrmOpportunityActions({
       note: notes.trim() || null,
       outcomeReasonId: outcomeType ? reasonId : null,
       outcomeNotes: outcomeType ? notes.trim() || null : null,
+      expectedUpdatedAt: updatedAt,
+      expectedStageId: stageId,
     };
     try {
       const result =
@@ -64,24 +81,43 @@ export default function CrmOpportunityActions({
                 commandPayload: { opportunityId: id, ...payload },
               }),
             });
-      if (!result.ok) throw new Error(result.message || "The action could not be completed.");
-      setMessage(result.message || (action === "move" ? "Stage updated." : "Stage-change approval requested."));
+      if (!result.ok)
+        throw new Error(result.message || "The action could not be completed.");
+      setMessage(
+        result.message ||
+          (action === "move"
+            ? "Stage updated."
+            : "Stage-change approval requested."),
+      );
       if (action === "move") router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The action could not be completed.");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "The action could not be completed.",
+      );
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <section className="crm-action-panel crm-opportunity-stage-action" aria-label="Opportunity stage action">
+    <section
+      className="crm-action-panel crm-opportunity-stage-action"
+      aria-label="Opportunity stage action"
+    >
       <div className="crm-action-panel__heading">
         <div>
           <p className="eyebrow">Pipeline action</p>
           <h2>Move opportunity</h2>
         </div>
-        {outcomeType ? <span className={`status-badge ${outcomeType === "won" ? "success" : "warning"}`}>{outcomeType === "won" ? "Closing won" : "Closing lost"}</span> : null}
+        {outcomeType ? (
+          <span
+            className={`status-badge ${outcomeType === "won" ? "success" : "warning"}`}
+          >
+            {outcomeType === "won" ? "Closing won" : "Closing lost"}
+          </span>
+        ) : null}
       </div>
 
       <div className="crm-opportunity-stage-action__fields">
@@ -96,16 +132,29 @@ export default function CrmOpportunityActions({
               setMessage("");
             }}
           >
-            {stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+            {stages.map((stage) => (
+              <option key={stage.id} value={stage.id}>
+                {stage.name}
+              </option>
+            ))}
           </select>
         </label>
 
         {outcomeType ? (
           <label>
             {outcomeType === "won" ? "Won reason" : "Lost reason"}
-            <select value={reasonId} required onChange={(event) => setReasonId(event.target.value)} disabled={pending}>
+            <select
+              value={reasonId}
+              required
+              onChange={(event) => setReasonId(event.target.value)}
+              disabled={pending}
+            >
               <option value="">Select a reason</option>
-              {availableReasons.map((reason) => <option key={reason.id} value={reason.id}>{reason.name}</option>)}
+              {availableReasons.map((reason) => (
+                <option key={reason.id} value={reason.id}>
+                  {reason.name}
+                </option>
+              ))}
             </select>
           </label>
         ) : null}
@@ -115,8 +164,12 @@ export default function CrmOpportunityActions({
           <textarea
             rows={3}
             value={notes}
-            maxLength={4000}
-            placeholder={outcomeType ? "Add useful context for the team…" : "Optional context for this stage change…"}
+            maxLength={1000}
+            placeholder={
+              outcomeType
+                ? "Add useful context for the team…"
+                : "Optional context for this stage change…"
+            }
             onChange={(event) => setNotes(event.target.value)}
             disabled={pending}
           />
@@ -124,15 +177,38 @@ export default function CrmOpportunityActions({
       </div>
 
       <div className="form-row">
-        <button className="primary-button" type="button" disabled={pending || unchanged || missingOutcome} onClick={() => void run("move")}>
+        <button
+          className="primary-button"
+          type="button"
+          disabled={pending || unchanged || missingOutcome}
+          onClick={() => void run("move")}
+        >
           {pending ? "Updating…" : "Move now"}
         </button>
-        <button className="secondary-button" type="button" disabled={pending || unchanged || missingOutcome} onClick={() => void run("approval")}>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={pending || unchanged || missingOutcome}
+          onClick={() => void run("approval")}
+        >
           Request approval
         </button>
       </div>
-      {outcomeType && missingOutcome ? <p className="field-help">A governed {outcomeType} reason is required before the deal can close.</p> : <p className="field-help">Stage movement updates probability and forecast status through the governed CRM action.</p>}
-      {message ? <p className="notice" role="status">{message}</p> : null}
+      {outcomeType && missingOutcome ? (
+        <p className="field-help">
+          A governed {outcomeType} reason is required before the deal can close.
+        </p>
+      ) : (
+        <p className="field-help">
+          Stage movement uses the current record version so stale changes are
+          rejected instead of overwriting another user&apos;s update.
+        </p>
+      )}
+      {message ? (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      ) : null}
     </section>
   );
 }
