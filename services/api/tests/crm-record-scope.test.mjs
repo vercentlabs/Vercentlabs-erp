@@ -494,30 +494,54 @@ test("CRM: an elevated manager (crm.records.view_all) sees every OPPORTUNITY reg
   assert.equal(elevated.rows.length, 1);
 });
 
-test("CRM: duplicate detection is NOT owner-scoped — a restricted rep still sees a colleague's matching lead (regression guard)", async () => {
-  // findCrmDuplicates exists specifically to catch the case where a
-  // DIFFERENT rep already owns a matching lead. Naively reusing
-  // recordScope(resources.leads, ...) here would silently narrow it to
-  // "duplicates I own," defeating its purpose — this was caught during the
-  // Part 12 adversarial review and fixed by stripping ownerField for this
-  // one query only (see services/api/src/modules/crm/index.js, findCrmDuplicates).
+test("CRM: duplicate integrity is organization-wide while inaccessible colleague details are redacted", async () => {
   const colleaguesLead = {
     id: leadId,
     code: "LEAD-1",
     full_name: "Priya Match",
-    email: "priya@example.com",
-    mobile: null,
     company_name: "Acme",
     status: "new",
-    match_score: 2,
+    record_status: "active",
+    company_id: company,
+    branch_id: null,
+    owner_user_id: owner,
+    normalized_email: "priya@example.com",
+    normalized_mobile: null,
+    normalized_business_phone: null,
+    normalized_name: "priya match",
+    normalized_company_name: "acme",
   };
   const client = {
-    async query(sql) {
-      assert.doesNotMatch(sql, /owner_user_id/, "duplicate detection must not filter by owner_user_id");
-      return { rows: [colleaguesLead] };
+    async query(sql, params = []) {
+      if (/crm_normalize_email/.test(sql)) {
+        return {
+          rows: [{
+            email: "priya@example.com",
+            mobile: null,
+            business_phone: null,
+            name: null,
+            company: null,
+          }],
+        };
+      }
+      if (/FROM tenant\.crm_leads/.test(sql)) {
+        assert.equal(params[0], org);
+        assert.doesNotMatch(
+          sql,
+          /owner_user_id\s*=/,
+          "duplicate integrity search must not narrow to the current owner",
+        );
+        return { rows: [colleaguesLead] };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
     },
   };
-  const duplicates = await findCrmDuplicates(client, otherRepContext, { email: "priya@example.com" });
+  const duplicates = await findCrmDuplicates(
+    client,
+    otherRepContext,
+    { email: "priya@example.com" },
+  );
   assert.equal(duplicates.length, 1);
-  assert.equal(duplicates[0].id, leadId);
+  assert.equal(duplicates[0].restricted, true);
+  assert.equal("id" in duplicates[0], false);
 });

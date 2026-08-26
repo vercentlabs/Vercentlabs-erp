@@ -1,3 +1,5 @@
+import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
+
 export class LeadGovernanceError extends Error {
   constructor(
     status,
@@ -139,19 +141,13 @@ export async function findLeadDuplicates(
   input,
   excludeId = null,
 ) {
-  const e = email(input.email),
-    p = phone(input.mobile || input.phone),
-    n = normal(
-      `${input.firstName || input.first_name || ""}${input.lastName || input.last_name || ""}`,
-    ),
-    c = normal(input.companyName || input.company_name);
-  if (!e && !p && !n) return [];
-  const r = await client.query(
-    `SELECT id,code,full_name,email,mobile,phone,company_name,status,record_status,((CASE WHEN $2<>'' AND normalized_email=$2 THEN 70 ELSE 0 END)+(CASE WHEN $3<>'' AND normalized_phone=$3 THEN 55 ELSE 0 END)+(CASE WHEN $4<>'' AND regexp_replace(lower(coalesce(full_name,'')),'[^a-z0-9]+','','g')=$4 THEN 25 ELSE 0 END)+(CASE WHEN $5<>'' AND regexp_replace(lower(coalesce(company_name,'')),'[^a-z0-9]+','','g')=$5 THEN 15 ELSE 0 END))::int match_score FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active' AND ($6::uuid IS NULL OR id<>$6) AND (($2<>'' AND normalized_email=$2) OR ($3<>'' AND normalized_phone=$3) OR ($4<>'' AND regexp_replace(lower(coalesce(full_name,'')),'[^a-z0-9]+','','g')=$4)) ORDER BY match_score DESC,updated_at DESC LIMIT 25`,
-    [context.organizationId, e, p, n, c, excludeId],
-  );
-  return r.rows;
+  const evaluation = await evaluateLeadDuplicateRisk(client, context, input, {
+    excludeLeadId: excludeId,
+    lock: false,
+  });
+  return evaluation.matches;
 }
+
 async function activeTerritoryUserIds(client, context, territoryId) {
   if (!territoryId) return [];
   const result = await client.query(

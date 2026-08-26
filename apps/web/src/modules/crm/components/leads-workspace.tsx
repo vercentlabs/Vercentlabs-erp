@@ -242,6 +242,86 @@ function LeadEditPanel({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 }) {
   const fieldMap = new Map(fields.map((field) => [field.name, field]));
+  const [duplicateDraft, setDuplicateDraft] = useState({
+    firstName: String(row.firstName || ""),
+    lastName: String(row.lastName || ""),
+    email: String(row.email || ""),
+    mobile: String(row.mobile || ""),
+    phone: String(row.phone || ""),
+    companyName: String(row.companyName || ""),
+  });
+  const [duplicateState, setDuplicateState] = useState<{
+    classification: "none" | "probable" | "exact";
+    matches: Row[];
+    canOverride: boolean;
+    checking: boolean;
+  }>({
+    classification: "none",
+    matches: [],
+    canOverride: false,
+    checking: false,
+  });
+  const [overrideReason, setOverrideReason] = useState("");
+
+  useEffect(() => {
+    const email = duplicateDraft.email.trim();
+    const mobile = duplicateDraft.mobile.replace(/\D+/g, "");
+    const phone = duplicateDraft.phone.replace(/\D+/g, "");
+    const hasUsefulIdentity =
+      email.length > 3 ||
+      mobile.length >= 7 ||
+      phone.length >= 7 ||
+      (duplicateDraft.firstName.trim().length > 1 &&
+        duplicateDraft.companyName.trim().length > 1);
+    if (!hasUsefulIdentity) {
+      // The form change handler clears stale duplicate state as identity fields
+      // change. Keep this effect limited to debounced external synchronization.
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setDuplicateState((current) => ({ ...current, checking: true }));
+      const query = new URLSearchParams({
+        excludeId: String(row.id || ""),
+      });
+      for (const [key, value] of Object.entries(duplicateDraft)) {
+        if (value.trim()) query.set(key, value.trim());
+      }
+      const result = await requestJson<{
+        classification?: "none" | "probable" | "exact";
+        matches?: Row[];
+        duplicates?: Row[];
+        canOverride?: boolean;
+      }>(`/api/crm/leads/duplicates?${query.toString()}`, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (!result.ok) {
+        setDuplicateState({
+          classification: "none",
+          matches: [],
+          canOverride: false,
+          checking: false,
+        });
+        return;
+      }
+      setDuplicateState({
+        classification: result.classification || "none",
+        matches: result.matches || result.duplicates || [],
+        canOverride: Boolean(result.canOverride),
+        checking: false,
+      });
+    }, 450);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [duplicateDraft, row.id]);
+
+  const duplicateBlocked =
+    duplicateState.classification === "exact" &&
+    (!duplicateState.canOverride || overrideReason.trim().length < 10);
+
   const groups = [
     [
       "Identity & contact",
@@ -297,7 +377,44 @@ function LeadEditPanel({
           ×
         </button>
       </header>
-      <form onSubmit={onSubmit}>
+      <form
+        onSubmit={onSubmit}
+        onChange={(event) => {
+          const changedName = event.target.getAttribute("name") || "";
+          if (
+            ![
+              "firstName",
+              "lastName",
+              "email",
+              "mobile",
+              "phone",
+              "companyName",
+            ].includes(changedName)
+          )
+            return;
+          const form = event.currentTarget;
+          const data = new FormData(form);
+          // Clear the previous decision immediately in the user event, not inside
+          // useEffect. This prevents a stale exact match from blocking the edit
+          // while the new identity is being debounced/rechecked and satisfies
+          // React 19's set-state-in-effect rule without suppressing lint.
+          setDuplicateState({
+            classification: "none",
+            matches: [],
+            canOverride: false,
+            checking: false,
+          });
+          setOverrideReason("");
+          setDuplicateDraft({
+            firstName: String(data.get("firstName") ?? ""),
+            lastName: String(data.get("lastName") ?? ""),
+            email: String(data.get("email") ?? ""),
+            mobile: String(data.get("mobile") ?? ""),
+            phone: String(data.get("phone") ?? ""),
+            companyName: String(data.get("companyName") ?? ""),
+          });
+        }}
+      >
         {groups.map(([title, names]) => {
           const groupFields = names
             .map((name) => fieldMap.get(name))
@@ -318,6 +435,58 @@ function LeadEditPanel({
             </section>
           ) : null;
         })}
+        {duplicateState.checking ? (
+          <div className="crm-f008-edit-warning" role="status">
+            Checking for matching Leads…
+          </div>
+        ) : duplicateState.matches.length ? (
+          <section
+            className={`crm-f008-edit-warning is-${duplicateState.classification}`}
+            aria-live="polite"
+          >
+            <strong>
+              {duplicateState.classification === "exact"
+                ? "Matching Lead found"
+                : "Possible duplicate"}
+            </strong>
+            <p>
+              {duplicateState.matches.some((match) => match.restricted)
+                ? "At least one matching Lead is outside your current record access. Its private details are not shown."
+                : `Matched on ${[
+                    ...new Set(
+                      duplicateState.matches.flatMap((match) =>
+                        Array.isArray(match.signals)
+                          ? match.signals.map(String)
+                          : [],
+                      ),
+                    ),
+                  ]
+                    .map((signal) => signal.replaceAll("_", " "))
+                    .join(", ") || "identity information"}.`}
+            </p>
+            {duplicateState.classification === "exact" &&
+            duplicateState.canOverride ? (
+              <label>
+                <span>Duplicate override reason *</span>
+                <textarea
+                  name="duplicateOverrideReason"
+                  value={overrideReason}
+                  minLength={10}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(event) =>
+                    setOverrideReason(event.currentTarget.value)
+                  }
+                  placeholder="Explain why this Lead must remain separate."
+                />
+                <small>
+                  Required for an authorized exact-duplicate update and stored
+                  as immutable evidence.
+                </small>
+              </label>
+            ) : null}
+          </section>
+        ) : null}
         <footer>
           <button
             type="button"
@@ -327,7 +496,15 @@ function LeadEditPanel({
           >
             Cancel
           </button>
-          <button className="primary-button" disabled={pending}>
+          <button
+            className="primary-button"
+            disabled={pending || duplicateBlocked}
+            title={
+              duplicateBlocked
+                ? "Resolve the exact duplicate before saving."
+                : undefined
+            }
+          >
             {pending ? "Saving…" : "Save changes"}
           </button>
         </footer>

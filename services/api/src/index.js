@@ -18,6 +18,7 @@ export * from "./modules/crm/contact-operations.js";
 export * from "./modules/crm/lead-source-operations.js";
 export * from "./modules/crm/lead-qualification.js";
 export * from "./modules/crm/lead-lifecycle.js";
+export * from "./modules/crm/lead-duplicates.js";
 
 export * from "./modules/crm/opportunity-operations.js";
 

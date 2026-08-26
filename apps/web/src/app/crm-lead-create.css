@@ -1016,3 +1016,31 @@ fieldset.crm-lead-form-section {
     line-height: 1.5;
   }
 }
+
+/* F008 — governed Lead duplicate detection */
+.crm-lead-duplicate-risk {
+  display: block;
+  margin-bottom: 8px;
+  color: #7a2e0b;
+}
+.crm-lead-duplicate-override {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e4e8f0;
+}
+.crm-lead-duplicate-override > span { font-weight: 700; }
+.crm-lead-duplicate-override textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid #ccd4e2;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font: inherit;
+}
+.crm-lead-duplicate-override textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, #356ae6 32%, transparent);
+  outline-offset: 2px;
+}

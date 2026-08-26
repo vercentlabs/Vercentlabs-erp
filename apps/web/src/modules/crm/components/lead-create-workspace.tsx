@@ -17,13 +17,18 @@ type Option = {
 type DuplicateLead = {
   id?: string;
   code?: string;
+  name?: string;
+  company?: string | null;
+  recordStatus?: string;
+  lifecycleStage?: string;
+  classification?: "exact" | "probable";
+  signals?: string[];
+  restricted?: boolean;
+  // Compatibility fields returned by older servers during rolling upgrades.
   fullName?: string;
   full_name?: string;
   companyName?: string;
   company_name?: string;
-  email?: string;
-  mobile?: string;
-  phone?: string;
   status?: string;
   matchScore?: number;
   match_score?: number;
@@ -32,6 +37,10 @@ type DuplicateLead = {
 type CreateResponse = {
   record?: Record<string, unknown>;
   errors?: Record<string, string[]>;
+  code?: string;
+  classification?: "none" | "probable" | "exact";
+  matches?: DuplicateLead[];
+  canOverride?: boolean;
 };
 
 const LEAD_FIELDS = [
@@ -86,19 +95,14 @@ function formBody(form: HTMLFormElement): Record<string, unknown> {
 
 function duplicateTitle(duplicate: DuplicateLead) {
   return (
+    duplicate.name ||
     duplicate.fullName ||
     duplicate.full_name ||
+    duplicate.company ||
     duplicate.companyName ||
     duplicate.company_name ||
-    duplicate.email ||
-    duplicate.mobile ||
     "Existing lead"
   );
-}
-
-function duplicateScore(duplicate: DuplicateLead) {
-  const score = Number(duplicate.matchScore ?? duplicate.match_score ?? 0);
-  return Number.isFinite(score) ? score : 0;
 }
 
 function prettyStatus(value: unknown) {
@@ -130,15 +134,25 @@ export default function CrmLeadCreateWorkspace({
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [duplicateInputs, setDuplicateInputs] = useState({
+    firstName: "",
+    lastName: "",
     email: "",
     mobile: "",
     phone: "",
     companyName: "",
   });
+  const [duplicateClassification, setDuplicateClassification] = useState<
+    "none" | "probable" | "exact"
+  >("none");
+  const [canOverrideDuplicate, setCanOverrideDuplicate] = useState(false);
+  const [duplicateOverrideReason, setDuplicateOverrideReason] = useState("");
   const [duplicateStatus, setDuplicateStatus] = useState<
     "idle" | "checking" | "ready" | "error"
   >("idle");
   const [duplicates, setDuplicates] = useState<DuplicateLead[]>([]);
+  const duplicateSaveBlocked =
+    duplicateClassification === "exact" &&
+    (!canOverrideDuplicate || duplicateOverrideReason.trim().length < 10);
 
   useEffect(() => {
     onPendingChange?.(pending);
@@ -149,6 +163,8 @@ export default function CrmLeadCreateWorkspace({
   const duplicateSignature = useMemo(
     () =>
       [
+        duplicateInputs.firstName.trim().toLowerCase(),
+        duplicateInputs.lastName.trim().toLowerCase(),
         duplicateInputs.email.trim().toLowerCase(),
         duplicateInputs.mobile.replace(/\D+/g, ""),
         duplicateInputs.phone.replace(/\D+/g, ""),
@@ -157,6 +173,8 @@ export default function CrmLeadCreateWorkspace({
     [
       duplicateInputs.companyName,
       duplicateInputs.email,
+      duplicateInputs.firstName,
+      duplicateInputs.lastName,
       duplicateInputs.mobile,
       duplicateInputs.phone,
     ],
@@ -168,12 +186,17 @@ export default function CrmLeadCreateWorkspace({
     const mobileDigits = duplicateInputs.mobile.replace(/\D+/g, "");
     const phoneDigits = duplicateInputs.phone.replace(/\D+/g, "");
 
-    const hasStrongIdentity =
+    const hasUsefulIdentity =
       (validEmail && email.length > 3) ||
       mobileDigits.length >= 7 ||
-      phoneDigits.length >= 7;
+      phoneDigits.length >= 7 ||
+      (duplicateInputs.firstName.trim().length > 1 &&
+        duplicateInputs.companyName.trim().length > 1);
 
-    if (!hasStrongIdentity) {
+    if (!hasUsefulIdentity) {
+      // Identity-change handlers reset duplicate state synchronously. The effect
+      // only coordinates the debounced external duplicate lookup, so it must not
+      // synchronously call setState here (React 19 lint: set-state-in-effect).
       return;
     }
 
@@ -181,6 +204,10 @@ export default function CrmLeadCreateWorkspace({
     const timer = window.setTimeout(async () => {
       setDuplicateStatus("checking");
       const query = new URLSearchParams();
+      if (duplicateInputs.firstName.trim())
+        query.set("firstName", duplicateInputs.firstName.trim());
+      if (duplicateInputs.lastName.trim())
+        query.set("lastName", duplicateInputs.lastName.trim());
       if (validEmail && email) query.set("email", email);
       if (duplicateInputs.mobile.trim())
         query.set("mobile", duplicateInputs.mobile.trim());
@@ -190,17 +217,24 @@ export default function CrmLeadCreateWorkspace({
         query.set("companyName", duplicateInputs.companyName.trim());
 
       try {
-        const result = await requestJson<{ duplicates?: DuplicateLead[] }>(
-          `/api/crm/leads/duplicates?${query.toString()}`,
-          { signal: controller.signal },
-        );
+        const result = await requestJson<{
+          classification?: "none" | "probable" | "exact";
+          matches?: DuplicateLead[];
+          duplicates?: DuplicateLead[];
+          canOverride?: boolean;
+        }>(`/api/crm/leads/duplicates?${query.toString()}`, {
+          signal: controller.signal,
+        });
         if (controller.signal.aborted) return;
         if (!result.ok) {
           setDuplicates([]);
           setDuplicateStatus("error");
           return;
         }
-        setDuplicates(result.duplicates ?? []);
+        const matches = result.matches ?? result.duplicates ?? [];
+        setDuplicates(matches);
+        setDuplicateClassification(result.classification ?? (matches.length ? "probable" : "none"));
+        setCanOverrideDuplicate(Boolean(result.canOverride));
         setDuplicateStatus("ready");
       } catch {
         if (!controller.signal.aborted) {
@@ -226,6 +260,9 @@ export default function CrmLeadCreateWorkspace({
 
   function duplicateInput(key: keyof typeof duplicateInputs, value: string) {
     setDuplicates([]);
+    setDuplicateClassification("none");
+    setCanOverrideDuplicate(false);
+    setDuplicateOverrideReason("");
     setDuplicateStatus("idle");
     setDuplicateInputs((current) =>
       current[key] === value ? current : { ...current, [key]: value },
@@ -251,6 +288,22 @@ export default function CrmLeadCreateWorkspace({
       if (emailControl instanceof HTMLElement) emailControl.focus();
       return;
     }
+    if (duplicateClassification === "exact") {
+      if (!canOverrideDuplicate) {
+        setMessage(
+          "A matching Lead already exists. Open the existing record or contact a CRM manager if this is genuinely a different prospect.",
+        );
+        return;
+      }
+      if (duplicateOverrideReason.trim().length < 10) {
+        setMessage(
+          "Enter at least 10 characters explaining why this exact duplicate must be created.",
+        );
+        return;
+      }
+      body.duplicateOverrideReason = duplicateOverrideReason.trim();
+    }
+
     setPending(true);
     setMessage("");
     setFieldErrors({});
@@ -265,6 +318,12 @@ export default function CrmLeadCreateWorkspace({
       if (!result.ok) {
         const errors = result.errors ?? {};
         setFieldErrors(errors);
+        if (result.code === "CRM_LEAD_DUPLICATE_EXACT") {
+          setDuplicateClassification("exact");
+          setDuplicates(result.matches ?? []);
+          setCanOverrideDuplicate(Boolean(result.canOverride));
+          setDuplicateStatus("ready");
+        }
         setMessage(result.message || "Lead could not be created.");
 
         const firstField = Object.keys(errors)[0];
@@ -329,7 +388,8 @@ export default function CrmLeadCreateWorkspace({
               className="primary-button"
               type="submit"
               form="crm-lead-create-form"
-              aria-disabled={pending}
+              aria-disabled={pending || duplicateSaveBlocked}
+              disabled={pending || duplicateSaveBlocked}
             >
               {pending ? "Saving…" : "Save lead"}
             </button>
@@ -383,6 +443,9 @@ export default function CrmLeadCreateWorkspace({
                   autoComplete="given-name"
                   name="firstName"
                   required
+                  onChange={(event) =>
+                    duplicateInput("firstName", event.currentTarget.value)
+                  }
                   aria-invalid={Boolean(errorFor("firstName"))}
                   aria-describedby={
                     errorFor("firstName") ? errorId("firstName") : undefined
@@ -401,7 +464,13 @@ export default function CrmLeadCreateWorkspace({
 
               <label>
                 <span>Last name</span>
-                <input autoComplete="family-name" name="lastName" />
+                <input
+                  autoComplete="family-name"
+                  name="lastName"
+                  onChange={(event) =>
+                    duplicateInput("lastName", event.currentTarget.value)
+                  }
+                />
               </label>
 
               <label>
@@ -787,7 +856,11 @@ export default function CrmLeadCreateWorkspace({
               >
                 Cancel
               </button>
-              <button className="primary-button" aria-disabled={pending}>
+              <button
+                className="primary-button"
+                aria-disabled={pending || duplicateSaveBlocked}
+                disabled={pending || duplicateSaveBlocked}
+              >
                 {pending ? "Saving…" : "Save lead"}
               </button>
             </div>
@@ -886,29 +959,47 @@ export default function CrmLeadCreateWorkspace({
 
             {duplicates.length ? (
               <div className="crm-lead-duplicate-list">
+                <strong className="crm-lead-duplicate-risk">
+                  {duplicateClassification === "exact"
+                    ? "Matching Lead found"
+                    : "Possible duplicate"}
+                </strong>
                 {duplicates.slice(0, 4).map((duplicate, index) => {
                   const id = String(duplicate.id || "");
+                  const signals = (duplicate.signals || [])
+                    .map((signal) => signal.replaceAll("_", " "))
+                    .join(", ");
                   return (
                     <article
-                      key={id || `${duplicateTitle(duplicate)}-${index}`}
+                      key={id || `restricted-duplicate-${index}`}
                     >
                       <div>
-                        <strong>{duplicateTitle(duplicate)}</strong>
+                        <strong>
+                          {duplicate.restricted
+                            ? "Existing Lead (restricted)"
+                            : duplicate.name || duplicateTitle(duplicate)}
+                        </strong>
                         <small>
-                          {[
-                            duplicate.companyName || duplicate.company_name,
-                            duplicate.email,
-                            duplicate.mobile || duplicate.phone,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
+                          {duplicate.restricted
+                            ? "A matching record exists, but its details are outside your current record access."
+                            : [
+                                duplicate.company ||
+                                  duplicate.companyName ||
+                                  duplicate.company_name,
+                                prettyStatus(
+                                  duplicate.recordStatus ||
+                                    duplicate.lifecycleStage ||
+                                    duplicate.status,
+                                ),
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                         </small>
                         <span>
-                          {prettyStatus(duplicate.status)} · match{" "}
-                          {duplicateScore(duplicate)}
+                          Matched on {signals || "identity information"}
                         </span>
                       </div>
-                      {id ? (
+                      {id && !duplicate.restricted ? (
                         <Link
                           href={`/crm/leads/${id}`}
                           target="_blank"
@@ -920,6 +1011,26 @@ export default function CrmLeadCreateWorkspace({
                     </article>
                   );
                 })}
+                {duplicateClassification === "exact" &&
+                canOverrideDuplicate ? (
+                  <label className="crm-lead-duplicate-override">
+                    <span>Why create another Lead? *</span>
+                    <textarea
+                      value={duplicateOverrideReason}
+                      onChange={(event) =>
+                        setDuplicateOverrideReason(event.currentTarget.value)
+                      }
+                      minLength={10}
+                      maxLength={1000}
+                      rows={3}
+                      placeholder="Explain the legitimate business reason for keeping a separate Lead."
+                    />
+                    <small>
+                      Required for an authorized exact-duplicate override. This
+                      reason is stored in immutable audit evidence.
+                    </small>
+                  </label>
+                ) : null}
               </div>
             ) : null}
           </section>

@@ -244,6 +244,14 @@ export default function CrmResourceManager({
             ? form.get(field.name) === "on"
             : String(form.get(field.name) ?? "");
       }
+      if (definition.key === "leads") {
+        const duplicateOverrideControl =
+          event.currentTarget.elements.namedItem("duplicateOverrideReason");
+        if (duplicateOverrideControl) {
+          const reason = String(form.get("duplicateOverrideReason") ?? "").trim();
+          if (reason) body.duplicateOverrideReason = reason;
+        }
+      }
       const id = String(editing.id || "");
       const result = await requestJson<{
         errors?: Record<string, string[]>;

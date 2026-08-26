@@ -54,7 +54,17 @@ export async function POST(
     );
 
     await incrementBillingUsage(organizationId, "api_requests_monthly");
-    const response = ok(result, 201);
+    // F008 privacy boundary: public callers receive the same success shape
+    // whether this submission created a Lead or was suppressed as an exact
+    // duplicate. Never expose CRM membership, Lead IDs, owner, status or
+    // duplicate existence to an unauthenticated submitter.
+    const response = ok(
+      {
+        message: result.message || "Thanks. Your request has been received.",
+        accepted: true,
+      },
+      201,
+    );
     response.headers.set("Cache-Control", "no-store");
     return response;
   } catch (error) {

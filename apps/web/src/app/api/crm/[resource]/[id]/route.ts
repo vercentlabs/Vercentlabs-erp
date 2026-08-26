@@ -101,6 +101,19 @@ export async function PATCH(
         "CRM_LEAD_STAGE_ACTION_REQUIRED",
       );
     const input = await crmPatchSchemas[resource].parseAsync(rawInput);
+    if (
+      resource === "leads" &&
+      Object.prototype.hasOwnProperty.call(rawInput, "duplicateOverrideReason")
+    ) {
+      const reason = String(rawInput.duplicateOverrideReason || "").trim();
+      if (reason.length > 1000)
+        throw new HttpError(
+          400,
+          "Duplicate override reason must be at most 1,000 characters.",
+          "CRM_LEAD_DUPLICATE_OVERRIDE_REASON_REQUIRED",
+        );
+      input.duplicateOverrideReason = reason;
+    }
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = await crmApiContext(session);
     const result = await tenantTransaction(
@@ -153,7 +166,7 @@ export async function PATCH(
           eventType: `crm.${resource}.updated`,
           entityType: resource,
           entityId: id,
-          afterData: crmAuditSnapshot(resource, updated, Object.keys(input)),
+          afterData: crmAuditSnapshot(resource, updated, Object.keys(input).filter((field) => field !== "duplicateOverrideReason")),
           request,
           client,
         });

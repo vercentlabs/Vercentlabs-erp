@@ -10,6 +10,12 @@ import {
 } from "./features/leads/record-validation.js";
 import { assertNoQualificationMutation } from "./lead-qualification.js";
 import {
+  assertLeadDuplicatePolicy,
+  evaluateLeadDuplicateRisk,
+  hasLeadDuplicateIdentityChange,
+  recordLeadDuplicateOverride,
+} from "./lead-duplicates.js";
+import {
   LeadSourceError,
   resolveIngestionLeadSource,
   validateLeadSourceAssignment,
@@ -2047,6 +2053,15 @@ export async function assignLeadOwner(
 }
 
 export async function createCrmRecord(client, context, resource, input) {
+  const duplicateOverrideReason =
+    resource === "leads" ? input?.duplicateOverrideReason : undefined;
+  if (
+    resource === "leads" &&
+    Object.prototype.hasOwnProperty.call(input || {}, "duplicateOverrideReason")
+  ) {
+    input = { ...input };
+    delete input.duplicateOverrideReason;
+  }
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -2117,6 +2132,17 @@ export async function createCrmRecord(client, context, resource, input) {
     definition.fields.branchId
   )
     prepared.branchId = context.activeBranchId;
+  let leadDuplicateEvaluation = null;
+  if (resource === "leads") {
+    // F008 commit-time duplicate protection runs before F005 assignment
+    // evaluation so a rejected duplicate cannot consume round-robin state.
+    leadDuplicateEvaluation = await assertLeadDuplicatePolicy(
+      client,
+      context,
+      prepared,
+      { overrideReason: duplicateOverrideReason, lock: true },
+    );
+  }
   let initialLeadAssignment = null;
   if (resource === "leads") {
     if (ownerChangeRequested && requestedOwnerUserId) {
@@ -2203,6 +2229,13 @@ export async function createCrmRecord(client, context, resource, input) {
   );
   const created = camelizeRow(result.rows[0]);
   if (resource === "leads") {
+    await recordLeadDuplicateOverride(
+      client,
+      context,
+      created.id,
+      leadDuplicateEvaluation,
+      "create",
+    );
     await recordLeadScore(
       client,
       context,
@@ -2260,6 +2293,15 @@ export async function createCrmRecord(client, context, resource, input) {
 }
 
 export async function updateCrmRecord(client, context, resource, id, input) {
+  const duplicateOverrideReason =
+    resource === "leads" ? input?.duplicateOverrideReason : undefined;
+  if (
+    resource === "leads" &&
+    Object.prototype.hasOwnProperty.call(input || {}, "duplicateOverrideReason")
+  ) {
+    input = { ...input };
+    delete input.duplicateOverrideReason;
+  }
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -2295,6 +2337,7 @@ export async function updateCrmRecord(client, context, resource, id, input) {
       ? normalizeLeadRecordInput(input)
       : normalizeStorageInput(resource, input);
   if (ownerChangeRequested) delete prepared.ownerUserId;
+  let leadDuplicateEvaluation = null;
   if (resource === "leads") {
     const leadErrors = validateLeadRecord(prepared, {
       mode: "update",
@@ -2314,6 +2357,18 @@ export async function updateCrmRecord(client, context, resource, id, input) {
         allowUnchangedInactive: true,
         currentSourceId: before.sourceId,
       });
+    if (hasLeadDuplicateIdentityChange(prepared)) {
+      leadDuplicateEvaluation = await assertLeadDuplicatePolicy(
+        client,
+        context,
+        { ...before, ...prepared },
+        {
+          excludeLeadId: id,
+          overrideReason: duplicateOverrideReason,
+          lock: true,
+        },
+      );
+    }
     if (Object.keys(prepared).length)
       prepared.score = await calculateLeadScore(
         client,
@@ -2366,6 +2421,15 @@ export async function updateCrmRecord(client, context, resource, id, input) {
       { reason: "manual:patch" },
     );
     updated = assignment.lead;
+  }
+  if (resource === "leads" && leadDuplicateEvaluation?.overrideReason) {
+    await recordLeadDuplicateOverride(
+      client,
+      context,
+      id,
+      leadDuplicateEvaluation,
+      "update",
+    );
   }
   if (
     resource === "leads" &&
@@ -3786,32 +3850,23 @@ export async function findCrmDuplicates(
   input,
   excludeId = null,
 ) {
-  if (["converted", "archived"].includes(input.status)) return [];
-  const parameters = [
-    context.organizationId,
-    input.email || null,
-    input.mobile || input.phone || null,
-    input.companyName || null,
-    excludeId,
-  ];
-  // Duplicate detection is a company/branch-wide concern, not an ownership
-  // one — it exists precisely to catch the case where a DIFFERENT rep
-  // already owns a matching lead, so it must keep seeing every record in
-  // scope regardless of who owns it. Strip ownerField rather than reusing
-  // recordScope(resources.leads, ...) directly, or a restricted caller
-  // would silently stop seeing colleagues' duplicates (see Part 12,
-  // "adversarial review", in docs/implementation/
-  // ERP_SECURITY_HARDENING_003.md).
-  const duplicateScope = recordScope(
-    { ...resources.leads, ownerField: undefined },
-    context,
-    parameters,
+  const evaluation = await evaluateLeadDuplicateRisk(client, context, input, {
+    excludeLeadId: excludeId,
+    lock: false,
+  });
+  // Compatibility shape for existing server-rendered Lead Detail callers.
+  // Restricted matches deliberately contain no record identifier or PII.
+  return evaluation.matches.map((match) =>
+    match.restricted
+      ? match
+      : {
+          ...match,
+          fullName: match.name,
+          companyName: match.company,
+          status: match.lifecycleStage,
+          matchScore: match.classification === "exact" ? 100 : 60,
+        },
   );
-  const result = await client.query(
-    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.record_status='active' AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${duplicateScope} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
-    parameters,
-  );
-  return result.rows.map(camelizeRow);
 }
 
 export async function captureCrmLead(
@@ -3861,17 +3916,22 @@ export async function captureCrmLead(
     );
     context.userId = owner.rows[0]?.created_by;
   }
-  const duplicates = await findCrmDuplicates(client, context, input);
-  const settings = await client.query(
-    `SELECT duplicate_policy FROM tenant.crm_settings WHERE organization_id=$1`,
-    [form.organization_id],
+  // F008 public repeat submissions are checked with the same canonical
+  // organization-wide engine as authenticated create. Exact duplicates are
+  // suppressed without exposing whether a CRM record exists.
+  const duplicateEvaluation = await evaluateLeadDuplicateRisk(
+    client,
+    context,
+    input,
+    { lock: true },
   );
-  if (settings.rows[0]?.duplicate_policy === "block" && duplicates.length)
-    throw new CrmError(
-      409,
-      "A matching lead already exists.",
-      "CRM_DUPLICATE_LEAD",
-    );
+  if (duplicateEvaluation.classification === "exact") {
+    return {
+      message: form.success_message,
+      leadId: null,
+      duplicateSuppressed: true,
+    };
+  }
   const resolvedSourceId = await resolveIngestionLeadSource(
     client,
     context,
@@ -3899,6 +3959,6 @@ export async function captureCrmLead(
   return {
     message: form.success_message,
     leadId: lead.id,
-    duplicateWarning: duplicates.length > 0,
+    duplicateWarning: duplicateEvaluation.classification === "probable",
   };
 }

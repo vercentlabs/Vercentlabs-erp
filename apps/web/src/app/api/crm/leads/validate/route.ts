@@ -1,4 +1,7 @@
-import { validateLeadInput, findLeadDuplicates } from "@vercentlabs/api";
+import {
+  evaluateLeadDuplicateRisk,
+  validateLeadInput,
+} from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { requireCrmManage } from "@/modules/crm/api";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
@@ -23,13 +26,21 @@ export async function POST(request: Request) {
           input,
           String(input.recordType || "standard"),
         );
-        const duplicates = await findLeadDuplicates(
+        const duplicateEvaluation = await evaluateLeadDuplicateRisk(
           c,
           context,
           input,
-          String(input.id || "") || null,
+          {
+            excludeLeadId: String(input.id || "") || null,
+            lock: false,
+          },
         );
-        return { ...validation, duplicates };
+        return {
+          ...validation,
+          duplicateClassification: duplicateEvaluation.classification,
+          duplicates: duplicateEvaluation.matches,
+          canOverrideDuplicate: duplicateEvaluation.canOverride,
+        };
       },
     );
     return ok(result);

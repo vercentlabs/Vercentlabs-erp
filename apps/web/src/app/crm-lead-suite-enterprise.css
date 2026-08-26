@@ -5298,3 +5298,36 @@
     transition: none !important;
   }
 }
+
+/* F008 — duplicate protection inside the Lead edit drawer */
+.crm-f008-edit-warning {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #d9dfeb;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #26344d;
+}
+.crm-f008-edit-warning.is-exact {
+  border-color: #e6a879;
+  background: #fff8f2;
+}
+.crm-f008-edit-warning.is-probable {
+  border-color: #dfc77b;
+  background: #fffdf5;
+}
+.crm-f008-edit-warning label { display: grid; gap: 7px; font-weight: 700; }
+.crm-f008-edit-warning textarea {
+  width: 100%; min-height: 88px; resize: vertical;
+  border: 1px solid #ccd4e2; border-radius: 9px; padding: 10px 12px;
+  background: #fff; color: #172238; font: inherit;
+}
+.crm-f008-edit-warning textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, #356ae6 32%, transparent);
+  outline-offset: 2px;
+}
+@media (max-width: 430px) {
+  .crm-f008-edit-warning { padding: 12px; }
+}

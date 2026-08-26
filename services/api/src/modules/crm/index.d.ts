@@ -112,6 +112,17 @@ export function getCrmReport(
   report: string,
   filters?: Record<string, unknown>,
 ): Promise<any>;
+export class LeadDuplicateError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details?: Record<string, unknown>;
+}
+export function evaluateLeadDuplicateRisk(
+  client: QueryClient,
+  context: CrmContext,
+  input: Record<string, unknown>,
+  options?: { excludeLeadId?: string | null; lock?: boolean },
+): Promise<any>;
 export function findCrmDuplicates(
   client: QueryClient,
   context: CrmContext,

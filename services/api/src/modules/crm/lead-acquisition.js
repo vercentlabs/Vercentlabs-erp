@@ -4,6 +4,7 @@ import {
   resolveLeadAssignment,
 } from "./lead-governance.js";
 import { resolveIngestionLeadSource } from "./features/lead-sources/validation.js";
+import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
 
 export const CRM_LEAD_ACQUISITION_CAPABILITY_IDS = Object.freeze([
   "CRM-054",
@@ -355,27 +356,22 @@ export function buildEnrichmentReview(input = {}) {
   };
 }
 
-async function findDuplicate(client, context, lead) {
-  const result = await client.query(
-    `SELECT id FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active'
-      AND (($2<>'' AND normalized_email=$2) OR ($3<>'' AND normalized_phone=$3))
-      ORDER BY updated_at DESC LIMIT 1`,
-    [
-      context.organizationId,
-      email(lead.email),
-      phone(lead.mobile || lead.phone),
-    ],
-  );
-  return result.rows[0]?.id || null;
-}
-
 async function createLead(client, context, lead, options = {}) {
-  const duplicateId = await findDuplicate(client, context, lead);
+  const duplicateEvaluation = await evaluateLeadDuplicateRisk(
+    client,
+    context,
+    lead,
+    { lock: true },
+  );
+  const duplicateId =
+    duplicateEvaluation.classification === "exact"
+      ? duplicateEvaluation.internalMatches[0]?.row?.id || null
+      : null;
   if (duplicateId && options.duplicateStrategy === "block")
     throw new CrmLeadAcquisitionError(
       409,
       "A matching lead already exists.",
-      "CRM_LEAD_DUPLICATE",
+      "CRM_LEAD_DUPLICATE_EXACT",
     );
   if (duplicateId && ["skip", "warn"].includes(options.duplicateStrategy))
     return { leadId: duplicateId, action: "skip" };

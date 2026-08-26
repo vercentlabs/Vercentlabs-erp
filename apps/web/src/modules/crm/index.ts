@@ -1,5 +1,6 @@
 import {
   CrmError,
+  LeadDuplicateError,
   LeadGovernanceError,
   LeadQualificationError,
 } from "@vercentlabs/api";
@@ -3514,6 +3515,7 @@ export async function crmApiContext(
 export function crmErrorResponse(error: unknown) {
   if (
     error instanceof CrmError ||
+    error instanceof LeadDuplicateError ||
     error instanceof LeadGovernanceError ||
     error instanceof LeadQualificationError
   ) {
@@ -3528,6 +3530,13 @@ export function crmErrorResponse(error: unknown) {
     return fail(error.message, error.status, {
       code: error.code || "CRM_ERROR",
       errors,
+      ...(error instanceof LeadDuplicateError
+        ? {
+            classification: details.classification || "exact",
+            matches: Array.isArray(details.matches) ? details.matches : [],
+            canOverride: Boolean(details.canOverride),
+          }
+        : {}),
     });
   }
   if (error instanceof ZodError) {
@@ -3548,6 +3557,7 @@ export function crmErrorResponse(error: unknown) {
 export function rethrowCrmError(error: unknown): never {
   if (
     error instanceof CrmError ||
+    error instanceof LeadDuplicateError ||
     error instanceof LeadGovernanceError ||
     error instanceof LeadQualificationError
   )

@@ -10,6 +10,44 @@ export type QueryClient = {
   }>;
 };
 
+export class LeadDuplicateError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details?: Record<string, unknown>;
+}
+export function canOverrideLeadDuplicate(context: any): boolean;
+export function evaluateLeadDuplicateRisk(
+  client: QueryClient,
+  context: any,
+  input: Record<string, unknown>,
+  options?: { excludeLeadId?: string | null; lock?: boolean },
+): Promise<{
+  classification: "none" | "probable" | "exact";
+  matches: Array<Record<string, unknown>>;
+  internalMatches: Array<any>;
+  canOverride: boolean;
+}>;
+export function assertLeadDuplicatePolicy(
+  client: QueryClient,
+  context: any,
+  input: Record<string, unknown>,
+  options?: {
+    excludeLeadId?: string | null;
+    lock?: boolean;
+    overrideReason?: string | null;
+  },
+): Promise<any>;
+export function recordLeadDuplicateOverride(
+  client: QueryClient,
+  context: any,
+  leadId: string,
+  evaluation: any,
+  operation: "create" | "update",
+): Promise<any>;
+export function hasLeadDuplicateIdentityChange(
+  input: Record<string, unknown>,
+): boolean;
+
 export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
 export function getLeadStage(client: QueryClient, context: any, idOrCode: string): Promise<any>;
 export function createLeadStage(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

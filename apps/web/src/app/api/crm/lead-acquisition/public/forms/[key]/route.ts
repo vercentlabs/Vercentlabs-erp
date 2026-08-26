@@ -69,7 +69,18 @@ export async function POST(
     const result = await tenantTransaction(context.organizationId, (client) =>
       submitPublishedLeadForm(client, context, form, input),
     );
-    return ok({ result }, 201);
+    // F008 privacy boundary: public submissions never reveal whether an
+    // existing CRM Lead matched, which Lead was used, or its internal state.
+    return ok(
+      {
+        accepted: true,
+        message:
+          String(result.successMessage || "").trim() ||
+          "Thanks. Your request has been received.",
+        thankYouUrl: result.thankYouUrl || null,
+      },
+      201,
+    );
   } catch (error) {
     return crmLeadAcquisitionErrorResponse(error);
   }

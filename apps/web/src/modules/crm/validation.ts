@@ -329,10 +329,12 @@ export const completeActivitySchema = z.object({
   expectedStatus: z.string().trim().min(1).max(40).optional(),
 });
 export const duplicateSchema = z.object({
-  email: z.string().email().nullable().optional(),
-  mobile: z.string().max(30).nullable().optional(),
-  phone: z.string().max(30).nullable().optional(),
-  companyName: z.string().max(200).nullable().optional(),
+  firstName: z.string().trim().max(120).nullable().optional(),
+  lastName: z.string().trim().max(120).nullable().optional(),
+  email: z.string().trim().email().max(320).nullable().optional(),
+  mobile: z.string().trim().max(30).nullable().optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
+  companyName: z.string().trim().max(240).nullable().optional(),
   excludeId: z.string().uuid().nullable().optional(),
 });
 export const publicCaptureSchema = z

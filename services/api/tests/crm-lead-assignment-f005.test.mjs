@@ -443,6 +443,30 @@ test("F005: explicit create owner is persisted instead of being discarded", asyn
   const client = {
     async query(sql, values = []) {
       calls.push({ sql, values });
+      if (sql.includes("SELECT tenant.crm_normalize_email"))
+        return {
+          rows: [
+            {
+              email: String(values[0] || "").trim().toLowerCase() || null,
+              mobile: String(values[1] || "").replace(/[^0-9+]/g, "") || null,
+              business_phone:
+                String(values[2] || "").replace(/[^0-9+]/g, "") || null,
+              name: [values[3], values[4]]
+                .filter(Boolean)
+                .join(" ")
+                .trim()
+                .toLowerCase() || null,
+              company: String(values[5] || "").trim().toLowerCase() || null,
+            },
+          ],
+        };
+      if (sql.includes("SELECT pg_advisory_xact_lock")) return { rows: [{}] };
+      if (
+        sql.includes("FROM tenant.crm_leads") &&
+        sql.includes("normalized_email") &&
+        sql.includes("normalized_mobile")
+      )
+        return { rows: [] };
       if (sql.startsWith("UPDATE public.numbering_series"))
         return { rows: [{ prefix: "LEAD-", number: 1, padding: 5 }] };
       if (sql.includes("FROM public.organization_memberships membership"))

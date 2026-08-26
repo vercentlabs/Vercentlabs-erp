@@ -1397,34 +1397,64 @@ export default function CrmLeadDetailWorkspace({
               </div>
             </div>
             <div className="crm-duplicate-compare">
-              {duplicates.map((row) => (
-                <article key={String(row.id)}>
-                  <div>
-                    <strong>
-                      {String(row.fullName || row.full_name || row.code)}
-                    </strong>
-                    <small>
-                      {String(
-                        row.companyName || row.company_name || "No company",
-                      )}{" "}
-                      · {String(row.email || row.mobile || row.phone || "")}
-                    </small>
-                  </div>
-                  <span>
-                    Match {String(row.matchScore || row.match_score || "—")}
-                  </span>
-                  <Link href={`/crm/leads/${String(row.id)}`}>Open</Link>
-                  {canManage ? (
-                    <button
-                      className="link-button danger"
-                      disabled={pending === "merge"}
-                      onClick={() => void merge(String(row.id))}
-                    >
-                      Merge current into this
-                    </button>
-                  ) : null}
-                </article>
-              ))}
+              {duplicates.map((row, index) => {
+                const restricted = Boolean(row.restricted);
+                const id = restricted ? "" : String(row.id || "");
+                const signals = Array.isArray(row.signals)
+                  ? row.signals.map(String).join(", ")
+                  : "";
+                return (
+                  <article key={id || `restricted-duplicate-${index}`}>
+                    <div>
+                      <strong>
+                        {restricted
+                          ? "Existing Lead (restricted)"
+                          : String(
+                              row.name ||
+                                row.fullName ||
+                                row.full_name ||
+                                row.code ||
+                                "Existing Lead",
+                            )}
+                      </strong>
+                      <small>
+                        {restricted
+                          ? "A matching Lead exists outside your current record access. Private details are not disclosed."
+                          : `${String(
+                              row.company ||
+                                row.companyName ||
+                                row.company_name ||
+                                "No company",
+                            )} · ${String(
+                              row.recordStatus ||
+                                row.lifecycleStage ||
+                                row.status ||
+                                "existing",
+                            )}`}
+                      </small>
+                      <span>
+                        {String(row.classification || "probable").replace(
+                          /^./,
+                          (character) => character.toUpperCase(),
+                        )}
+                        {signals
+                          ? ` · matched on ${signals.replaceAll("_", " ")}`
+                          : ""}
+                      </span>
+                    </div>
+                    {id ? <Link href={`/crm/leads/${id}`}>Open</Link> : null}
+                    {canManage && id ? (
+                      <button
+                        className="link-button danger"
+                        disabled={pending === "merge"}
+                        onClick={() => void merge(id)}
+                      >
+                        Merge current into this
+                      </button>
+                    ) : null}
+                  </article>
+                );
+              })}
               {!duplicates.length ? (
                 <div className="crm-suite-empty">
                   <strong>No likely duplicate found.</strong>

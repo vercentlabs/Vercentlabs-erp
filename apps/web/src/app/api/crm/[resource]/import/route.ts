@@ -119,30 +119,21 @@ export async function POST(
               headers.map((header, column) => [header, values[column] ?? ""]),
             );
             const input = await crmSchemas[resource].parseAsync(raw);
-            if (resource === "leads") {
-              const email = String(input.email || "").trim() || null;
-              const phone =
-                String(input.mobile || input.phone || "").trim() || null;
-              const duplicate = await client.query(
-                `SELECT id FROM tenant.crm_leads
-                 WHERE organization_id=$1 AND record_status='active'
-                   AND (($2::text IS NOT NULL AND normalized_email=tenant.crm_normalize_email($2))
-                     OR ($3::text IS NOT NULL AND normalized_phone=tenant.crm_normalize_phone($3)))
-                 LIMIT 1`,
-                [context.organizationId, email, phone],
-              );
-              if (duplicate.rows[0]) {
-                skipped += 1;
-                await client.query(`RELEASE SAVEPOINT ${savepoint}`);
-                continue;
-              }
-            }
             await createCrmRecord(client, context, resource, input);
             await client.query(`RELEASE SAVEPOINT ${savepoint}`);
             succeeded += 1;
           } catch (error) {
             await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
             await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+            if (
+              error &&
+              typeof error === "object" &&
+              "code" in error &&
+              error.code === "CRM_LEAD_DUPLICATE_EXACT"
+            ) {
+              skipped += 1;
+              continue;
+            }
             errors.push({
               row: rowNumber,
               message: error instanceof Error ? error.message : "Import failed",

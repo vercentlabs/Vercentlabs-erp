@@ -35,6 +35,18 @@ function captureClient({ formRow = activeForm, attempts = 1 } = {}) {
       if (/INSERT INTO tenant\.crm_capture_rate_limits/.test(sql)) {
         return { rows: [{ attempts }] };
       }
+      if (/crm_normalize_email/.test(sql)) {
+        return {
+          rows: [{
+            email: null,
+            mobile: null,
+            business_phone: null,
+            name: null,
+            company: null,
+          }],
+        };
+      }
+      if (/FROM tenant\.crm_leads/.test(sql)) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
