@@ -705,7 +705,7 @@ export default function CrmResourceManager({
             </button>
           </div>
           <form className="form-stack" onSubmit={submit}>
-            {definition.fields.map((field) => (
+            {definition.fields.filter((field) => !field.formHidden).map((field) => (
               <Field
                 key={`${String(editing.id || "new")}:${field.name}`}
                 field={field}

@@ -28,6 +28,7 @@ export type CrmField = {
   structuredKind?: "list" | "key-value" | "actions" | "schedule" | "value";
   structuredOptionsKey?: string;
   helpText?: string;
+  formHidden?: boolean;
   required?: boolean;
   optionsKey?: string;
   options?: Array<{ value: string; label: string }>;
@@ -163,7 +164,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
     singular: "opportunity",
     group: "Work",
     description:
-      "Manage qualified revenue through configurable stages, probability and forecasting.",
+      "Create and maintain governed revenue opportunities with accountable ownership and linked customer context.",
     permission: PERMISSIONS.crmOpportunitiesManage,
     columns: [
       { key: "code", label: "Code" },
@@ -206,7 +207,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
         type: "select",
         optionsKey: "currencies",
       },
-      { name: "probability", label: "Probability %", type: "number" },
+      { name: "probability", label: "Probability %", type: "number", formHidden: true },
       { name: "expectedCloseDate", label: "Expected close date", type: "date" },
       {
         name: "forecastCategory",
@@ -219,6 +220,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
           "closed",
           "omitted",
         ),
+        formHidden: true,
       },
       { name: "nextStep", label: "Next step", type: "textarea" },
       { name: "description", label: "Description", type: "textarea" },
