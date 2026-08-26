@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
+import LeadAssigneeCombobox from "./lead-assignee-combobox";
 
 type Option = {
   id: string;
@@ -45,7 +46,6 @@ const LEAD_FIELDS = [
   "phone",
   "sourceId",
   "ownerUserId",
-  "status",
   "priority",
   "rating",
   "estimatedValue",
@@ -54,6 +54,7 @@ const LEAD_FIELDS = [
   "website",
   "city",
   "state",
+  "countryCode",
   "productInterest",
   "nextFollowUpAt",
 ] as const;
@@ -78,6 +79,7 @@ function formBody(form: HTMLFormElement): Record<string, unknown> {
   for (const name of CHECKBOX_FIELDS) {
     body[name] = data.get(name) === "on";
   }
+  if (!String(body.ownerUserId || "").trim()) delete body.ownerUserId;
 
   return body;
 }
@@ -107,10 +109,20 @@ function prettyStatus(value: unknown) {
 
 export default function CrmLeadCreateWorkspace({
   options,
+  canAssignOwner,
   onCancel,
+  onCreated,
+  onDirtyChange,
+  onPendingChange,
+  embedded = false,
 }: {
   options: Record<string, Option[]>;
+  canAssignOwner: boolean;
   onCancel: () => void;
+  onCreated?: (id: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onPendingChange?: (pending: boolean) => void;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -127,6 +139,10 @@ export default function CrmLeadCreateWorkspace({
     "idle" | "checking" | "ready" | "error"
   >("idle");
   const [duplicates, setDuplicates] = useState<DuplicateLead[]>([]);
+
+  useEffect(() => {
+    onPendingChange?.(pending);
+  }, [onPendingChange, pending]);
 
   const optionList = (key: string) => options[key] ?? [];
 
@@ -221,6 +237,20 @@ export default function CrmLeadCreateWorkspace({
     if (pending) return;
 
     const form = event.currentTarget;
+    const body = formBody(form);
+    if (
+      ![body.email, body.mobile, body.phone].some((value) =>
+        String(value).trim(),
+      )
+    ) {
+      setFieldErrors({
+        email: ["Add an email, mobile number, or alternate phone number."],
+      });
+      setMessage("Add at least one way to contact this lead.");
+      const emailControl = form.elements.namedItem("email");
+      if (emailControl instanceof HTMLElement) emailControl.focus();
+      return;
+    }
     setPending(true);
     setMessage("");
     setFieldErrors({});
@@ -229,7 +259,7 @@ export default function CrmLeadCreateWorkspace({
       const result = await requestJson<CreateResponse>("/api/crm/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formBody(form)),
+        body: JSON.stringify(body),
       });
 
       if (!result.ok) {
@@ -250,6 +280,11 @@ export default function CrmLeadCreateWorkspace({
 
       const id = String(result.record?.id ?? "");
       setMessage(result.message || "Lead created.");
+      onDirtyChange?.(false);
+      if (onCreated) {
+        onCreated(id);
+        return;
+      }
       if (id) {
         router.push(`/crm/leads/${id}`);
       } else {
@@ -266,49 +301,48 @@ export default function CrmLeadCreateWorkspace({
   }
 
   return (
-    <div className="crm-lead-create-shell">
-      <section className="crm-lead-create-command">
-        <div className="crm-lead-create-command__copy">
-          <Link className="crm-lead-create-back" href="/crm/leads">
-            <AppIcon name="arrow-right" size={15} />
-            Leads
-          </Link>
-          <p className="eyebrow">CRM · Lead management</p>
-          <h1>Create lead</h1>
-          <p>
-            Capture enough context to make the enquiry actionable now. Scoring,
-            assignment, qualification, nurture and conversion continue after the
-            lead is saved.
-          </p>
-        </div>
+    <div className={`crm-lead-create-shell${embedded ? " is-embedded" : ""}`}>
+      {!embedded ? (
+        <section className="crm-lead-create-command">
+          <div className="crm-lead-create-command__copy">
+            <Link className="crm-lead-create-back" href="/crm/leads">
+              <AppIcon name="arrow-right" size={15} />
+              Leads
+            </Link>
+            <p className="eyebrow">CRM · Lead management</p>
+            <h1>Create lead</h1>
+          </div>
 
-        <div className="crm-lead-create-command__actions">
-          <span className="crm-lead-required-note">
-            <span aria-hidden="true">*</span> Required fields
-          </span>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={pending}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="primary-button"
-            type="submit"
-            form="crm-lead-create-form"
-            disabled={pending}
-          >
-            {pending ? "Saving…" : "Save lead"}
-          </button>
-        </div>
-      </section>
+          <div className="crm-lead-create-command__actions">
+            <span className="crm-lead-required-note">
+              <span aria-hidden="true">*</span> Required fields
+            </span>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={pending}
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+            <button
+              className="primary-button"
+              type="submit"
+              form="crm-lead-create-form"
+              aria-disabled={pending}
+            >
+              {pending ? "Saving…" : "Save lead"}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {message ? (
         <p
           className={`notice crm-lead-create-notice${fieldErrors && Object.keys(fieldErrors).length ? " error" : ""}`}
-          role="status"
+          role={
+            fieldErrors && Object.keys(fieldErrors).length ? "alert" : "status"
+          }
         >
           {message}
         </p>
@@ -320,6 +354,7 @@ export default function CrmLeadCreateWorkspace({
           id="crm-lead-create-form"
           className="crm-lead-create-form"
           onSubmit={submit}
+          onChange={() => onDirtyChange?.(true)}
         >
           <section
             className="crm-lead-form-section"
@@ -517,21 +552,16 @@ export default function CrmLeadCreateWorkspace({
                 </select>
               </label>
 
-              <label>
-                <span>Owner</span>
-                <select name="ownerUserId" defaultValue="">
-                  <option value="">Use supported assignment policy</option>
-                  {optionList("users").map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                <small className="field-hint">
-                  Leave blank to let the server apply any supported lead
-                  assignment policy.
-                </small>
-              </label>
+              {canAssignOwner ? (
+                <label>
+                  <span>Owner</span>
+                  <LeadAssigneeCombobox name="ownerUserId" />
+                  <small className="field-hint">
+                    Leave blank to let the server apply any supported lead
+                    assignment policy.
+                  </small>
+                </label>
+              ) : null}
 
               <label>
                 <span>Company context</span>
@@ -578,17 +608,6 @@ export default function CrmLeadCreateWorkspace({
             </div>
 
             <div className="crm-lead-field-grid">
-              <label>
-                <span>Status</span>
-                <select name="status" defaultValue="new">
-                  <option value="new">New</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="working">Working</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="unqualified">Unqualified</option>
-                </select>
-              </label>
-
               <label>
                 <span>Priority</span>
                 <select name="priority" defaultValue="low">
@@ -676,7 +695,18 @@ export default function CrmLeadCreateWorkspace({
                 <input autoComplete="address-level1" name="state" />
               </label>
 
-              <label className="crm-lead-field-span-2">
+              <label>
+                <span>Country code</span>
+                <input
+                  autoCapitalize="characters"
+                  autoComplete="country"
+                  maxLength={2}
+                  name="countryCode"
+                  placeholder="IN"
+                />
+              </label>
+
+              <label>
                 <span>Next follow-up</span>
                 <input name="nextFollowUpAt" type="datetime-local" />
                 <small className="field-hint">
@@ -757,7 +787,7 @@ export default function CrmLeadCreateWorkspace({
               >
                 Cancel
               </button>
-              <button className="primary-button" disabled={pending}>
+              <button className="primary-button" aria-disabled={pending}>
                 {pending ? "Saving…" : "Save lead"}
               </button>
             </div>
@@ -821,7 +851,7 @@ export default function CrmLeadCreateWorkspace({
                 <AppIcon name="search" size={18} />
               </span>
               <div>
-                <p className="eyebrow">Duplicate protection</p>
+                <p className="eyebrow">Duplicate check</p>
                 <h2>Possible existing leads</h2>
               </div>
             </div>
@@ -849,8 +879,8 @@ export default function CrmLeadCreateWorkspace({
 
             {duplicateStatus === "error" ? (
               <p>
-                Duplicate preview is temporarily unavailable. The lead can still
-                be validated by the server when you save.
+                Duplicate preview is temporarily unavailable. Review existing
+                leads separately if a duplicate is likely.
               </p>
             ) : null}
 
@@ -879,7 +909,11 @@ export default function CrmLeadCreateWorkspace({
                         </span>
                       </div>
                       {id ? (
-                        <Link href={`/crm/leads/${id}`} target="_blank">
+                        <Link
+                          href={`/crm/leads/${id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           Open
                         </Link>
                       ) : null}

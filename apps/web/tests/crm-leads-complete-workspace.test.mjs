@@ -26,10 +26,13 @@ test("Lead queue preserves existing import/export/open/edit/archive contracts",(
   assert.match(source,/\/crm\/leads\/\$\{id\}/);
 });
 
-test("Lead edit includes disqualification and canonical relationship fields",()=>{
+test("Lead edit keeps lifecycle fields separate from the governed qualification action",()=>{
   const source=read("apps/web/src/modules/crm/components/leads-workspace.tsx");
-  for(const field of ["firstName","companyName","email","mobile","sourceId","ownerUserId","status","unqualifiedReason","priority","rating","estimatedValue","productInterest","nextFollowUpAt","consentEmail","doNotContact"])
+  for(const field of ["firstName","companyName","email","mobile","sourceId","ownerUserId","priority","rating","estimatedValue","productInterest","nextFollowUpAt","consentEmail","doNotContact"])
     assert.match(source,new RegExp(`"${field}"`),field);
+  assert.doesNotMatch(source,/"unqualifiedReason"/);
+  assert.doesNotMatch(source,/"qualificationState"/);
+  assert.match(read("apps/web/src/modules/crm/components/lead-qualification-card.tsx"),/Mark unqualified/);
 });
 
 test("Small screens get a purpose-built Lead card list instead of a desktop table",()=>{

@@ -1,4 +1,8 @@
-import { CrmError } from "@vercentlabs/api";
+import {
+  CrmError,
+  LeadGovernanceError,
+  LeadQualificationError,
+} from "@vercentlabs/api";
 import { ZodError } from "zod";
 import { getStructuredFieldConfig } from "@vercentlabs/shared-types";
 import type { CrmContext, CrmResourceKey } from "@vercentlabs/shared-types";
@@ -117,19 +121,6 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
       },
       owner,
       {
-        name: "status",
-        label: "Status",
-        type: "select",
-        options: status(
-          "new",
-          "contacted",
-          "working",
-          "qualified",
-          "unqualified",
-        ),
-      },
-      { name: "unqualifiedReason", label: "Disqualification reason", type: "textarea" },
-      {
         name: "priority",
         label: "Priority",
         type: "select",
@@ -152,6 +143,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
       { name: "website", label: "Website", type: "text" },
       { name: "city", label: "City", type: "text" },
       { name: "state", label: "State", type: "text" },
+      { name: "countryCode", label: "Country code", type: "text" },
       { name: "productInterest", label: "Product interest", type: "textarea" },
       {
         name: "nextFollowUpAt",
@@ -493,15 +485,27 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
     PERMISSIONS.crmSettingsManage,
     [
       { name: "name", label: "Name", type: "text", required: true },
-      { name: "code", label: "Code", type: "text", required: true },
-      { name: "channel", label: "Channel", type: "text" },
-      { name: "isDefault", label: "Default source", type: "checkbox" },
+      { name: "description", label: "Description", type: "textarea" },
       {
-        name: "status",
-        label: "Status",
+        name: "channel",
+        label: "Channel",
         type: "select",
-        options: status("active", "inactive"),
+        options: status(
+          "website",
+          "referral",
+          "partner",
+          "event",
+          "advertising",
+          "social",
+          "email",
+          "phone",
+          "walk_in",
+          "import",
+          "other",
+        ),
       },
+      { name: "sortOrder", label: "Display order", type: "number" },
+      { name: "isDefault", label: "Default source", type: "checkbox" },
     ],
   ),
   "lost-reasons": config(
@@ -575,7 +579,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
     "assignment-rules",
     "Assignment rules",
     "assignment rule",
-    PERMISSIONS.crmAutomationManage,
+    PERMISSIONS.crmSettingsManage,
     [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "sequence", label: "Sequence", type: "number" },
@@ -3452,7 +3456,6 @@ function config(
   };
 }
 
-
 function applyStructuredFieldMetadata() {
   for (const definition of Object.values(crmDefinitions)) {
     definition.fields = definition.fields.map((field) => {
@@ -3502,15 +3505,22 @@ export function crmContext(session: SessionContext): CrmContext {
 // intentionally keep calling the sync crmContext() directly — see that
 // doc's "Remaining Gaps" section for why SSR page reads are out of scope
 // here.
-export async function crmApiContext(session: SessionContext): Promise<CrmContext> {
+export async function crmApiContext(
+  session: SessionContext,
+): Promise<CrmContext> {
   await assertModuleAccessible(session as WorkspaceSessionContext, "crm");
   return crmContext(session);
 }
 export function crmErrorResponse(error: unknown) {
-  if (error instanceof CrmError) {
-    const details = (error.details && typeof error.details === "object")
-      ? error.details as Record<string, unknown>
-      : {};
+  if (
+    error instanceof CrmError ||
+    error instanceof LeadGovernanceError ||
+    error instanceof LeadQualificationError
+  ) {
+    const details =
+      error.details && typeof error.details === "object"
+        ? (error.details as Record<string, unknown>)
+        : {};
     const errors =
       details.errors && typeof details.errors === "object"
         ? details.errors
@@ -3536,7 +3546,11 @@ export function crmErrorResponse(error: unknown) {
 }
 
 export function rethrowCrmError(error: unknown): never {
-  if (error instanceof CrmError)
+  if (
+    error instanceof CrmError ||
+    error instanceof LeadGovernanceError ||
+    error instanceof LeadQualificationError
+  )
     throw new HttpError(error.status, error.message, error.code);
   throw error;
 }

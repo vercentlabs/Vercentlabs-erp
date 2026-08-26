@@ -16,6 +16,8 @@ export type AppIconName =
   | "settings"
   | "billing"
   | "search"
+  | "email"
+  | "phone"
   | "import"
   | "security"
   | "profile"
@@ -149,6 +151,15 @@ const paths: Record<AppIconName, React.ReactNode> = {
       <circle cx="11" cy="11" r="7" />
       <path d="m16.2 16.2 4.3 4.3" />
     </>
+  ),
+  email: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m4 7 8 6 8-6" />
+    </>
+  ),
+  phone: (
+    <path d="M7.2 3.8 9.8 8 7.9 9.9a15.2 15.2 0 0 0 6.2 6.2l1.9-1.9 4.2 2.6-.8 3.1c-.2.7-.8 1.1-1.5 1.1C9.7 21 3 14.3 3 6.1c0-.7.4-1.3 1.1-1.5l3.1-.8Z" />
   ),
   import: (
     <>

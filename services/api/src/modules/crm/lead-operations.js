@@ -1,4 +1,8 @@
 import { resolveLeadOwner } from "./lead-governance.js";
+import {
+  LeadSourceError,
+  validateLeadSourceAssignment,
+} from "./features/lead-sources/validation.js";
 
 export class LeadOperationsError extends Error {
   constructor(
@@ -25,11 +29,6 @@ export function evaluateLeadReadiness(lead, now = new Date(), options = {}) {
     reasons.push("Lead name is missing.");
   if (!text(lead.email) && !text(lead.mobile) && !text(lead.phone))
     reasons.push("At least one contact method is required.");
-  if (!text(lead.company_name)) reasons.push("Company is missing.");
-  if (!text(lead.product_interest))
-    reasons.push("Product interest is missing.");
-  if (scoringConfigured && finite(lead.score) < 20)
-    reasons.push("Lead score is below the conversion threshold.");
   const followUp = lead.next_follow_up_at
     ? new Date(lead.next_follow_up_at)
     : null;
@@ -96,7 +95,9 @@ export async function getLeadTimeline(client, context, leadId) {
   );
   return {
     lead: lead.rows[0],
-    readiness: evaluateLeadReadiness(lead.rows[0], new Date(), { scoringConfigured }),
+    readiness: evaluateLeadReadiness(lead.rows[0], new Date(), {
+      scoringConfigured,
+    }),
     activities: activities.rows,
     conversions: conversions.rows,
     assignments: assignments.rows,
@@ -109,54 +110,121 @@ export async function previewLeadAssignment(client, context, input) {
       WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
     [context.organizationId],
   );
-  const criteriaMatches = (criteria) => Object.entries(criteria || {}).every(([key,value]) =>
-    Array.isArray(value) ? value.map(String).includes(String(input[key] ?? "")) : String(input[key] ?? "") === String(value),
-  );
-  const policy=policies.rows.find((item)=>criteriaMatches(item.criteria));
-  const ownerUserId=await resolveLeadOwner(client,context,input);
-  return { matched:Boolean(policy),policy:policy||null,ownerUserId:ownerUserId||input.ownerUserId||null };
+  const criteriaMatches = (criteria) =>
+    Object.entries(criteria || {}).every(([key, value]) =>
+      Array.isArray(value)
+        ? value.map(String).includes(String(input[key] ?? ""))
+        : String(input[key] ?? "") === String(value),
+    );
+  const policy = policies.rows.find((item) => criteriaMatches(item.criteria));
+  const ownerUserId = await resolveLeadOwner(client, context, input);
+  return {
+    matched: Boolean(policy),
+    policy: policy || null,
+    ownerUserId: ownerUserId || input.ownerUserId || null,
+  };
 }
 export async function bulkUpdateLeads(client, context, input) {
-  const ids=Array.isArray(input.ids) ? [...new Set(input.ids.map(String))] : [];
-  if (!ids.length || ids.length>200)
-    throw new LeadOperationsError(400,"Select between 1 and 200 leads.","CRM_LEAD_BULK_SELECTION_INVALID");
-  const changes=input.changes && typeof input.changes==="object" ? input.changes : {};
-  if (["converted","archived"].includes(String(changes.status||"")))
-    throw new LeadOperationsError(409,"Use the governed conversion/archive action for this lifecycle change.");
-  if (changes.status==="unqualified" && !text(changes.unqualifiedReason))
-    throw new LeadOperationsError(400,"A disqualification reason is required.");
-  const allowed=new Map([
-    ["ownerUserId","owner_user_id"],["status","status"],["sourceId","source_id"],
-    ["nextFollowUpAt","next_follow_up_at"],["priority","priority"],["rating","rating"],
-    ["unqualifiedReason","unqualified_reason"],
+  const ids = Array.isArray(input.ids)
+    ? [...new Set(input.ids.map(String))]
+    : [];
+  if (!ids.length || ids.length > 200)
+    throw new LeadOperationsError(
+      400,
+      "Select between 1 and 200 leads.",
+      "CRM_LEAD_BULK_SELECTION_INVALID",
+    );
+  const changes =
+    input.changes && typeof input.changes === "object" ? input.changes : {};
+  if (
+    Object.keys(changes).some((key) => key.startsWith("qualification")) ||
+    ["qualified", "unqualified"].includes(String(changes.status || ""))
+  )
+    throw new LeadOperationsError(
+      409,
+      "Bulk Lead Qualification is not available. Use the governed per-Lead action.",
+      "CRM_LEAD_QUALIFICATION_ACTION_REQUIRED",
+    );
+  if (
+    ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
+      (field) => Object.prototype.hasOwnProperty.call(changes, field),
+    )
+  )
+    throw new LeadOperationsError(
+      409,
+      "Bulk lifecycle movement is not available. Move each Lead through the governed transition action.",
+      "CRM_LEAD_STAGE_ACTION_REQUIRED",
+    );
+  if (Object.prototype.hasOwnProperty.call(changes, "ownerUserId"))
+    throw new LeadOperationsError(
+      409,
+      "Use the governed Lead assignment action to change ownership.",
+      "CRM_LEAD_ASSIGNMENT_REQUIRED",
+    );
+  if (Object.prototype.hasOwnProperty.call(changes, "sourceId")) {
+    try {
+      await validateLeadSourceAssignment(client, context, changes.sourceId);
+    } catch (error) {
+      if (error instanceof LeadSourceError)
+        throw new LeadOperationsError(
+          error.status,
+          error.message,
+          error.code,
+          error.details,
+        );
+      throw error;
+    }
+  }
+  const allowed = new Map([
+    ["sourceId", "source_id"],
+    ["nextFollowUpAt", "next_follow_up_at"],
+    ["priority", "priority"],
+    ["rating", "rating"],
   ]);
-  const sets=[]; const values=[context.organizationId,ids];
-  for (const [key,column] of allowed) {
-    if (!Object.prototype.hasOwnProperty.call(changes,key)) continue;
+  const sets = [];
+  const values = [context.organizationId, ids];
+  for (const [key, column] of allowed) {
+    if (!Object.prototype.hasOwnProperty.call(changes, key)) continue;
     values.push(changes[key] === "" ? null : changes[key]);
     sets.push(`${column}=$${values.length}`);
   }
-  if (!sets.length) throw new LeadOperationsError(400,"No supported lead changes were supplied.","CRM_LEAD_BULK_CHANGES_EMPTY");
-  values.push(context.userId); sets.push(`updated_by=$${values.length}`,"updated_at=now()");
-  let scope="";
-  if (context.activeCompanyId) { values.push(context.activeCompanyId); scope+=` AND (company_id IS NULL OR company_id=$${values.length})`; }
-  else if (!context.allowAllCompanies) scope+=" AND false";
-  if (context.activeBranchId) { values.push(context.activeBranchId); scope+=` AND (branch_id IS NULL OR branch_id=$${values.length})`; }
-  const canViewAll=Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
-  if (!canViewAll) { values.push(context.userId); scope+=` AND (owner_user_id IS NULL OR owner_user_id=$${values.length})`; }
-  const result=await client.query(
+  if (!sets.length)
+    throw new LeadOperationsError(
+      400,
+      "No supported lead changes were supplied.",
+      "CRM_LEAD_BULK_CHANGES_EMPTY",
+    );
+  values.push(context.userId);
+  sets.push(`updated_by=$${values.length}`, "updated_at=now()");
+  let scope = "";
+  if (context.activeCompanyId) {
+    values.push(context.activeCompanyId);
+    scope += ` AND (company_id IS NULL OR company_id=$${values.length})`;
+  } else if (!context.allowAllCompanies) scope += " AND false";
+  if (context.activeBranchId) {
+    values.push(context.activeBranchId);
+    scope += ` AND (branch_id IS NULL OR branch_id=$${values.length})`;
+  }
+  const canViewAll =
+    Boolean(context.roleSlugs?.includes("organization_owner")) ||
+    Boolean(context.permissions?.includes("crm.records.view_all"));
+  if (!canViewAll) {
+    values.push(context.userId);
+    scope += ` AND (owner_user_id IS NULL OR owner_user_id=$${values.length})`;
+  }
+  const result = await client.query(
     `UPDATE tenant.crm_leads SET ${sets.join(",")}
       WHERE organization_id=$1 AND id=ANY($2::uuid[])
-        AND status NOT IN ('converted','archived') ${scope}
-      RETURNING id,owner_user_id,source_id,status,priority,rating,next_follow_up_at,unqualified_reason,updated_at`,
+        AND record_status='active' ${scope}
+      RETURNING id,owner_user_id,source_id,status,record_status,priority,rating,next_follow_up_at,updated_at`,
     values,
   );
-  return { requested:ids.length,updated:result.rowCount,rows:result.rows };
+  return { requested: ids.length, updated: result.rowCount, rows: result.rows };
 }
 export async function getLeadOperationsDashboard(client, context) {
   const [result, scoringConfigured] = await Promise.all([
     client.query(
-      `SELECT id,status,score,next_follow_up_at,created_at,updated_at FROM tenant.crm_leads WHERE organization_id=$1 AND status NOT IN ('archived','converted')`,
+      `SELECT id,status,score,next_follow_up_at,created_at,updated_at FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active'`,
       [context.organizationId],
     ),
     isLeadScoringConfigured(client, context.organizationId),

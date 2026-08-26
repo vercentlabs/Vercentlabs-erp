@@ -46,6 +46,20 @@ export function updateCrmRecord(
   id: string,
   input: Record<string, unknown>,
 ): Promise<any>;
+export function assignLeadOwner(
+  client: QueryClient,
+  context: CrmContext,
+  leadId: string,
+  ownerUserId: string | null,
+  options?: { reason?: string },
+): Promise<any>;
+export function listLeadStages(client: QueryClient, context: CrmContext, options?: { status?: string }): Promise<any>;
+export function getLeadStage(client: QueryClient, context: CrmContext, idOrCode: string): Promise<any>;
+export function createLeadStage(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
+export function updateLeadStage(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
+export function setLeadStageActive(client: QueryClient, context: CrmContext, id: string, active: boolean): Promise<any>;
+export function transitionLeadStage(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>): Promise<any>;
+export function listLeadStageHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<any[]>;
 export function archiveCrmRecord(
   client: QueryClient,
   context: CrmContext,

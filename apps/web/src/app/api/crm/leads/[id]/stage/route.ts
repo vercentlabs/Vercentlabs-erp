@@ -1,0 +1,60 @@
+import { listLeadStageHistory, transitionLeadStage } from "@vercentlabs/api";
+
+import { getSessionContext } from "@/core/auth";
+import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
+import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
+import { tenantTransaction } from "@/core/db";
+import { HttpError, ok, readJson } from "@/core/http";
+import { assertSameOriginOrMobile, audit } from "@/core/security";
+import { crmApiContext, crmErrorResponse } from "@/modules/crm";
+import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/api";
+
+type Route = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, route: Route) {
+  try {
+    const session = await getSessionContext();
+    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
+    requireCrmView(session);
+    const { id } = await route.params;
+    assertCrmIdentifier(id);
+    const context = await crmApiContext(session);
+    return ok({ history: await tenantTransaction(context.organizationId, (client) => listLeadStageHistory(client, context, id)) });
+  } catch (error) {
+    return crmErrorResponse(error);
+  }
+}
+
+export async function POST(request: Request, route: Route) {
+  try {
+    assertSameOriginOrMobile(request);
+    const session = await getSessionContext();
+    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    await requireBillingWriteAccess(session.organizationId);
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
+    const { id } = await route.params;
+    assertCrmIdentifier(id);
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const context = await crmApiContext(session);
+    const result = await tenantTransaction(context.organizationId, async (client) => {
+      const transition = await transitionLeadStage(client, context, id, input);
+      if (transition.changed)
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: context.userId,
+          eventType: "crm.lead.stage_changed",
+          entityType: "lead",
+          entityId: id,
+          beforeData: { status: transition.event.fromStageCode },
+          afterData: { status: transition.event.toStageCode, eventId: transition.event.id },
+          request,
+          client,
+        });
+      return transition;
+    });
+    return ok({ message: result.changed ? `Lead moved to ${result.stage.name}.` : "Lead is already in that stage.", ...result });
+  } catch (error) {
+    return crmErrorResponse(error);
+  }
+}

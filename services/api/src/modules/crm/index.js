@@ -1,9 +1,19 @@
 import { CRM_RESOURCE_KEYS } from "@vercentlabs/shared-types";
-import { resolveLeadOwner as resolveGovernedLeadOwner } from "./lead-governance.js";
+import {
+  assertEligibleLeadAssignee,
+  listEligibleLeadAssignees,
+  resolveLeadAssignment,
+} from "./lead-governance.js";
 import {
   normalizeLeadRecordInput,
   validateLeadRecord,
 } from "./features/leads/record-validation.js";
+import { assertNoQualificationMutation } from "./lead-qualification.js";
+import {
+  LeadSourceError,
+  resolveIngestionLeadSource,
+  validateLeadSourceAssignment,
+} from "./features/lead-sources/validation.js";
 
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
@@ -68,7 +78,6 @@ const resources = Object.freeze({
       consentSms: "consent_sms",
       consentWhatsapp: "consent_whatsapp",
       doNotContact: "do_not_contact",
-      unqualifiedReason: "unqualified_reason",
       customData: "custom_data",
     },
   },
@@ -1293,6 +1302,26 @@ function addParameter(parameters, value) {
   return `$${parameters.length}`;
 }
 
+async function assertLeadSourceAssignment(client, context, sourceId, options) {
+  try {
+    return await validateLeadSourceAssignment(
+      client,
+      context,
+      sourceId,
+      options,
+    );
+  } catch (error) {
+    if (error instanceof LeadSourceError)
+      throw new CrmError(
+        error.status,
+        error.message,
+        error.code,
+        error.details,
+      );
+    throw error;
+  }
+}
+
 // A caller may see every record in their company/branch scope ("crm.records
 // .view_all" — granted to CRM/sales manager and administrator roles) or,
 // lacking that permission, only records they own/are assigned (definition.
@@ -1368,17 +1397,18 @@ function assertWritableScope(definition, context, input) {
   }
   if (
     definition.companyScoped &&
-    !context.allowAllCompanies &&
     input.companyId &&
+    context.activeCompanyId &&
     input.companyId !== context.activeCompanyId
   ) {
     throw new CrmError(403, "The CRM record belongs to another company.");
   }
   if (
     definition.fields?.branchId &&
-    !context.allowAllCompanies &&
-    (!context.activeBranchId ||
-      (input.branchId && input.branchId !== context.activeBranchId))
+    ((!context.activeBranchId && !context.allowAllCompanies) ||
+      (context.activeBranchId &&
+        input.branchId &&
+        input.branchId !== context.activeBranchId))
   ) {
     throw new CrmError(
       403,
@@ -1409,7 +1439,25 @@ function assertOwnerAssignmentAllowed(definition, context, input) {
   }
 }
 
+function canAssignLeadOwners(context) {
+  return (
+    Boolean(context.roleSlugs?.includes("organization_owner")) ||
+    (Boolean(context.permissions?.includes("crm.records.view_all")) &&
+      Boolean(context.permissions?.includes("crm.leads.manage")))
+  );
+}
+
 function assertLifecycleUpdate(resource, before, input) {
+  if (
+    resource === "leads" &&
+    ["qualified", "unqualified"].includes(String(input.status || ""))
+  ) {
+    throw new CrmError(
+      409,
+      "Use the governed Lead Qualification action to change this decision.",
+      "CRM_LEAD_QUALIFICATION_ACTION_REQUIRED",
+    );
+  }
   if (resource === "consent-events") {
     throw new CrmError(
       409,
@@ -1497,12 +1545,38 @@ function buildSearch(definition, search, parameters, alias = "record") {
   return ` AND (${definition.search.map((column) => `COALESCE(${alias}.${column}::text, '') ILIKE ${parameter}`).join(" OR ")})`;
 }
 
-function buildFilters(definition, filters, parameters, alias = "record") {
+function buildFilters(
+  definition,
+  filters,
+  parameters,
+  alias = "record",
+  context = {},
+) {
   let sql = "";
-  if (filters.status && filters.status !== "all" && definition.statusColumn)
-    sql += ` AND ${alias}.${definition.statusColumn} = ${addParameter(parameters, filters.status)}`;
+  if (filters.status && filters.status !== "all" && definition.statusColumn) {
+    if (
+      definition.table === "tenant.crm_leads" &&
+      ["archived", "converted"].includes(String(filters.status))
+    )
+      sql += ` AND ${alias}.record_status = ${addParameter(parameters, filters.status)}`;
+    else
+      sql += ` AND ${alias}.${definition.statusColumn} = ${addParameter(parameters, filters.status)}`;
+  }
+  const ownerFilter = String(filters.ownerId || "");
+  if (definition.fields.ownerUserId && ownerFilter) {
+    if (ownerFilter === "me")
+      sql += ` AND ${alias}.owner_user_id = ${addParameter(parameters, context.userId)}`;
+    else if (ownerFilter === "unassigned")
+      sql += ` AND ${alias}.owner_user_id IS NULL`;
+    else if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        ownerFilter,
+      )
+    )
+      sql += ` AND ${alias}.owner_user_id = ${addParameter(parameters, ownerFilter)}`;
+    else sql += " AND false";
+  }
   for (const [key, column] of [
-    ["ownerId", "owner_user_id"],
     ["stageId", "stage_id"],
     ["pipelineId", "pipeline_id"],
     ["sourceId", "source_id"],
@@ -1512,6 +1586,13 @@ function buildFilters(definition, filters, parameters, alias = "record") {
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
   }
   if (definition.table === "tenant.crm_leads") {
+    // Lifecycle stage is independent from conversion/archive record state.
+    // Preserve the historical status=archived|converted query contract while
+    // using record_status as the canonical retention boundary.
+    if (
+      !["archived", "converted"].includes(String(filters.status || ""))
+    )
+      sql += ` AND ${alias}.record_status = 'active'`;
     for (const [key, column] of [
       ["priority", "priority"],
       ["rating", "rating"],
@@ -1519,6 +1600,13 @@ function buildFilters(definition, filters, parameters, alias = "record") {
       if (filters[key] && filters[key] !== "all")
         sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
     }
+    if (
+      filters.qualification &&
+      ["not_reviewed", "qualified", "unqualified"].includes(
+        String(filters.qualification),
+      )
+    )
+      sql += ` AND ${alias}.qualification_state = ${addParameter(parameters, filters.qualification)}`;
     const followup = filters.followup || "all";
     if (followup === "overdue")
       sql += ` AND ${alias}.next_follow_up_at < now()`;
@@ -1530,7 +1618,11 @@ function buildFilters(definition, filters, parameters, alias = "record") {
   }
   if (definition.table === "tenant.crm_activities") {
     const activityType = String(filters.activityType || "all");
-    if (["task", "call", "meeting", "email", "whatsapp", "sms", "note"].includes(activityType))
+    if (
+      ["task", "call", "meeting", "email", "whatsapp", "sms", "note"].includes(
+        activityType,
+      )
+    )
       sql += ` AND ${alias}.activity_type = ${addParameter(parameters, activityType)}`;
     const due = filters.due || "all";
     if (due === "today")
@@ -1552,7 +1644,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   let where = "record.organization_id = $1";
   where += recordScope(definition, context, parameters);
   where += buildSearch(definition, filters.search, parameters);
-  where += buildFilters(definition, filters, parameters);
+  where += buildFilters(definition, filters, parameters, "record", context);
   const limit = limitValue(filters.limit);
   const offset = Math.max(
     0,
@@ -1824,15 +1916,174 @@ async function validateCustomRecord(
   }
 }
 
+async function recordLeadAssignment(
+  client,
+  context,
+  {
+    leadId,
+    previousOwnerUserId = null,
+    ownerUserId = null,
+    policyId = null,
+    reason = "manual",
+  },
+) {
+  if ((previousOwnerUserId || null) === (ownerUserId || null)) return null;
+  const event = await client.query(
+    `INSERT INTO tenant.crm_lead_assignment_events
+       (organization_id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,created_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7)
+     RETURNING id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,created_by,created_at`,
+    [
+      context.organizationId,
+      leadId,
+      previousOwnerUserId || null,
+      ownerUserId || null,
+      policyId || null,
+      String(reason || "manual").slice(0, 120),
+      context.userId || null,
+    ],
+  );
+  await queueOutboxEvent(
+    client,
+    context,
+    "crm.leads.assigned",
+    "leads",
+    leadId,
+    {
+      previousOwnerUserId: previousOwnerUserId || null,
+      ownerUserId: ownerUserId || null,
+      policyId: policyId || null,
+      reason: String(reason || "manual").slice(0, 120),
+    },
+  );
+  return camelizeRow(event.rows[0]);
+}
+
+export async function assignLeadOwner(
+  client,
+  context,
+  leadId,
+  ownerUserId,
+  options = {},
+) {
+  if (!canAssignLeadOwners(context))
+    throw new CrmError(
+      403,
+      "You do not have permission to assign Leads.",
+      "CRM_LEAD_ASSIGNMENT_FORBIDDEN",
+    );
+  if (
+    ownerUserId !== null &&
+    ownerUserId !== "" &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(ownerUserId),
+    )
+  )
+    throw new CrmError(
+      400,
+      "Select a valid Lead owner.",
+      "CRM_LEAD_ASSIGNEE_NOT_FOUND",
+    );
+  const parameters = [context.organizationId, leadId];
+  const scope = recordScope(resources.leads, context, parameters);
+  const current = await client.query(
+    `SELECT record.* FROM tenant.crm_leads record
+      WHERE record.organization_id=$1 AND record.id=$2${scope}
+      FOR UPDATE`,
+    parameters,
+  );
+  if (!current.rows[0])
+    throw new CrmError(404, "CRM record not found.", "CRM_LEAD_NOT_FOUND");
+  const before = camelizeRow(current.rows[0]);
+  const normalizedOwner = ownerUserId ? String(ownerUserId) : null;
+  if ((before.ownerUserId || null) === normalizedOwner)
+    return {
+      lead: before,
+      assignment: {
+        changed: false,
+        previousOwnerUserId: before.ownerUserId || null,
+        ownerUserId: before.ownerUserId || null,
+      },
+    };
+  let assignee = null;
+  if (normalizedOwner) {
+    try {
+      assignee = await assertEligibleLeadAssignee(
+        client,
+        context,
+        normalizedOwner,
+        { companyId: before.companyId, branchId: before.branchId },
+      );
+    } catch (error) {
+      if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID")
+        throw new CrmError(409, error.message, error.code);
+      throw error;
+    }
+  }
+  const updated = await client.query(
+    `UPDATE tenant.crm_leads SET owner_user_id=$3,updated_by=$4,updated_at=now()
+      WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [context.organizationId, leadId, normalizedOwner, context.userId],
+  );
+  const lead = camelizeRow(updated.rows[0]);
+  const event = await recordLeadAssignment(client, context, {
+    leadId,
+    previousOwnerUserId: before.ownerUserId || null,
+    ownerUserId: normalizedOwner,
+    reason: options.reason || "manual",
+  });
+  return {
+    lead,
+    assignment: {
+      changed: true,
+      eventId: event?.id || null,
+      previousOwnerUserId: before.ownerUserId || null,
+      ownerUserId: normalizedOwner,
+      owner: assignee
+        ? { id: assignee.id, name: assignee.name, email: assignee.email }
+        : null,
+    },
+  };
+}
+
 export async function createCrmRecord(client, context, resource, input) {
+  if (resource === "sources")
+    throw new CrmError(
+      410,
+      "Use the governed Lead Source operations.",
+      "CRM_LEAD_SOURCE_API_MOVED",
+    );
   const definition = definitionFor(resource);
+  if (resource === "leads") {
+    assertNoQualificationMutation(input);
+    if (
+      ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
+        (field) => Object.prototype.hasOwnProperty.call(input, field),
+      )
+    )
+      throw new CrmError(
+        409,
+        "New Leads always begin in the configured initial lifecycle stage.",
+        "CRM_LEAD_INITIAL_STAGE_GOVERNED",
+      );
+  }
   assertWritableScope(definition, context, input);
   assertOwnerAssignmentAllowed(definition, context, input);
+  const ownerChangeRequested =
+    resource === "leads" &&
+    Object.prototype.hasOwnProperty.call(input, "ownerUserId");
+  const requestedOwnerUserId = ownerChangeRequested
+    ? input.ownerUserId || null
+    : undefined;
   const prepared =
     resource === "leads"
       ? normalizeLeadRecordInput(input)
       : normalizeStorageInput(resource, input);
+  if (ownerChangeRequested) delete prepared.ownerUserId;
   if (resource === "leads") {
+    // F007 protects the immutable `new` code as the one active initial stage;
+    // administrators may rename its label but cannot deactivate or replace it.
+    prepared.status = "new";
     const leadErrors = validateLeadRecord(prepared, { mode: "create" });
     if (leadErrors.length) {
       const first = leadErrors[0];
@@ -1843,6 +2094,8 @@ export async function createCrmRecord(client, context, resource, input) {
         validationErrorDetails(leadErrors),
       );
     }
+    if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
+      await assertLeadSourceAssignment(client, context, prepared.sourceId);
   }
   if (resource === "saved-views") prepared.userId = context.userId;
   if (definition.codeEntity && !prepared[definition.codeField])
@@ -1864,12 +2117,39 @@ export async function createCrmRecord(client, context, resource, input) {
     definition.fields.branchId
   )
     prepared.branchId = context.activeBranchId;
-  if (resource === "leads" && !prepared.ownerUserId)
-    prepared.ownerUserId = await resolveGovernedLeadOwner(
-      client,
-      context,
-      prepared,
-    );
+  let initialLeadAssignment = null;
+  if (resource === "leads") {
+    if (ownerChangeRequested && requestedOwnerUserId) {
+      try {
+        await assertEligibleLeadAssignee(
+          client,
+          context,
+          requestedOwnerUserId,
+          {
+            companyId: prepared.companyId || null,
+            branchId: prepared.branchId || null,
+          },
+        );
+      } catch (error) {
+        if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID")
+          throw new CrmError(409, error.message, error.code);
+        throw error;
+      }
+      prepared.ownerUserId = requestedOwnerUserId;
+      initialLeadAssignment = {
+        ownerUserId: requestedOwnerUserId,
+        policyId: null,
+        reason: "manual:create",
+      };
+    } else if (!ownerChangeRequested) {
+      initialLeadAssignment = await resolveLeadAssignment(
+        client,
+        context,
+        prepared,
+      );
+      prepared.ownerUserId = initialLeadAssignment.ownerUserId;
+    }
+  }
   if (
     resource === "opportunities" &&
     (!prepared.pipelineId || !prepared.stageId)
@@ -1903,7 +2183,8 @@ export async function createCrmRecord(client, context, resource, input) {
     prepared,
   );
   const entries = mutableEntries(definition, prepared);
-  if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
+  if (!entries.length && !ownerChangeRequested)
+    throw new CrmError(400, "No CRM fields were supplied.");
   const columns = [
     "organization_id",
     ...entries.map(([key]) => definition.fields[key]),
@@ -1967,20 +2248,53 @@ export async function createCrmRecord(client, context, resource, input) {
     created.id,
     created,
   );
+  if (resource === "leads" && created.ownerUserId)
+    await recordLeadAssignment(client, context, {
+      leadId: created.id,
+      previousOwnerUserId: null,
+      ownerUserId: created.ownerUserId,
+      policyId: initialLeadAssignment?.policyId || null,
+      reason: initialLeadAssignment?.reason || "manual:create",
+    });
   return created;
 }
 
 export async function updateCrmRecord(client, context, resource, id, input) {
+  if (resource === "sources")
+    throw new CrmError(
+      410,
+      "Use the governed Lead Source operations.",
+      "CRM_LEAD_SOURCE_API_MOVED",
+    );
   const definition = definitionFor(resource);
+  if (resource === "leads") assertNoQualificationMutation(input);
   const before = await getCrmRecord(client, context, resource, id);
+  if (
+    resource === "leads" &&
+    ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
+      (field) => Object.prototype.hasOwnProperty.call(input, field),
+    )
+  )
+    throw new CrmError(
+      409,
+      "Use the governed Lead lifecycle transition action.",
+      "CRM_LEAD_STAGE_ACTION_REQUIRED",
+    );
   assertWritableScope(definition, context, input);
   assertOwnerAssignmentAllowed(definition, context, input);
+  const ownerChangeRequested =
+    resource === "leads" &&
+    Object.prototype.hasOwnProperty.call(input, "ownerUserId");
+  const requestedOwnerUserId = ownerChangeRequested
+    ? input.ownerUserId || null
+    : undefined;
   if (resource === "saved-views") delete input.userId;
   assertLifecycleUpdate(resource, before, input);
   const prepared =
     resource === "leads"
       ? normalizeLeadRecordInput(input)
       : normalizeStorageInput(resource, input);
+  if (ownerChangeRequested) delete prepared.ownerUserId;
   if (resource === "leads") {
     const leadErrors = validateLeadRecord(prepared, {
       mode: "update",
@@ -1995,10 +2309,20 @@ export async function updateCrmRecord(client, context, resource, id, input) {
         validationErrorDetails(leadErrors),
       );
     }
-    prepared.score = await calculateLeadScore(client, context.organizationId, {
-      ...before,
-      ...prepared,
-    });
+    if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
+      await assertLeadSourceAssignment(client, context, prepared.sourceId, {
+        allowUnchangedInactive: true,
+        currentSourceId: before.sourceId,
+      });
+    if (Object.keys(prepared).length)
+      prepared.score = await calculateLeadScore(
+        client,
+        context.organizationId,
+        {
+          ...before,
+          ...prepared,
+        },
+      );
   }
   if (resource === "custom-records") {
     prepared.objectDefinitionId ??= before.objectDefinitionId;
@@ -2013,7 +2337,8 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     prepared,
   );
   const entries = mutableEntries(definition, prepared);
-  if (!entries.length) throw new CrmError(400, "No CRM fields were supplied.");
+  if (!entries.length && !ownerChangeRequested)
+    throw new CrmError(400, "No CRM fields were supplied.");
   const parameters = entries.map(([, value]) => value);
   const assignments = entries.map(
     ([key], index) => `${definition.fields[key]} = $${index + 1}`,
@@ -2023,12 +2348,25 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   const organizationParameter = entries.length + 2;
   const idParameter = entries.length + 3;
   const scope = recordScope(definition, context, parameters);
-  const result = await client.query(
-    `UPDATE ${definition.table} record SET ${assignments.join(", ")}, updated_by = $${userParameter}, updated_at = now() WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope} RETURNING record.*`,
-    parameters,
-  );
-  if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
-  const updated = camelizeRow(result.rows[0]);
+  let updated = before;
+  if (entries.length) {
+    const result = await client.query(
+      `UPDATE ${definition.table} record SET ${assignments.join(", ")}, updated_by = $${userParameter}, updated_at = now() WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope} RETURNING record.*`,
+      parameters,
+    );
+    if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
+    updated = camelizeRow(result.rows[0]);
+  }
+  if (ownerChangeRequested) {
+    const assignment = await assignLeadOwner(
+      client,
+      context,
+      id,
+      requestedOwnerUserId,
+      { reason: "manual:patch" },
+    );
+    updated = assignment.lead;
+  }
   if (
     resource === "leads" &&
     Number(before.score || 0) !== Number(updated.score || 0)
@@ -2041,18 +2379,31 @@ export async function updateCrmRecord(client, context, resource, id, input) {
       Number(updated.score || 0),
       "Lead fields updated",
     );
-  await queueOutboxEvent(
-    client,
-    context,
-    `crm.${resource}.updated`,
-    resource,
-    id,
-    { before, after: updated },
-  );
+  const changedFields =
+    resource === "leads"
+      ? leadOutboxChangedFields(before, updated, Object.keys(input)).filter(
+          (field) => field !== "ownerUserId",
+        )
+      : undefined;
+  if (resource !== "leads" || changedFields.length)
+    await queueOutboxEvent(
+      client,
+      context,
+      `crm.${resource}.updated`,
+      resource,
+      id,
+      { before, after: updated, changedFields },
+    );
   return updated;
 }
 
 export async function archiveCrmRecord(client, context, resource, id) {
+  if (resource === "sources")
+    throw new CrmError(
+      410,
+      "Use the governed Lead Source operations.",
+      "CRM_LEAD_SOURCE_API_MOVED",
+    );
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   const parameters = [context.organizationId, id];
@@ -2089,8 +2440,23 @@ export async function archiveCrmRecord(client, context, resource, id) {
     return { id, deleted: true };
   }
 
+  if (resource === "leads") {
+    if (before.recordStatus === "archived") return before;
+    if (before.recordStatus === "converted")
+      throw new CrmError(409, "Converted Leads cannot be archived.", "CRM_LEAD_RECORD_CLOSED");
+    const userParameter = addParameter(parameters, context.userId);
+    const result = await client.query(
+      `UPDATE tenant.crm_leads record SET record_status='archived',updated_by=${userParameter},updated_at=now()
+       WHERE record.organization_id=$1 AND record.id=$2${scope} RETURNING record.*`,
+      parameters,
+    );
+    if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
+    const record = camelizeRow(result.rows[0]);
+    await queueOutboxEvent(client, context, "crm.leads.archived", "leads", id, record);
+    return record;
+  }
+
   const archiveStatuses = {
-    leads: "archived",
     opportunities: "archived",
     activities: "cancelled",
     campaigns: "cancelled",
@@ -2250,28 +2616,6 @@ function criteriaMatches(input, criteria) {
   );
 }
 
-export async function resolveLeadOwner(client, context, input) {
-  const result = await client.query(
-    `SELECT * FROM tenant.crm_assignment_rules WHERE organization_id = $1 AND status = 'active' ORDER BY sequence, name`,
-    [context.organizationId],
-  );
-  const rule = result.rows.find((candidate) =>
-    criteriaMatches(input, candidate.criteria),
-  );
-  if (!rule) return context.userId;
-  if (rule.assignment_mode === "fixed")
-    return rule.assignee_user_id || context.userId;
-  const users = rule.round_robin_user_ids || [];
-  if (!users.length) return context.userId;
-  const state = await client.query(
-    `INSERT INTO tenant.crm_round_robin_state (organization_id, assignment_rule_id, next_index) VALUES ($1, $2, 1) ON CONFLICT (organization_id, assignment_rule_id) DO UPDATE SET next_index = tenant.crm_round_robin_state.next_index + 1, updated_at = now() RETURNING next_index`,
-    [context.organizationId, rule.id],
-  );
-  return users[
-    Math.max(0, Number(state.rows[0]?.next_index || 1) - 1) % users.length
-  ];
-}
-
 export async function convertCrmLead(client, context, leadId, input = {}) {
   const leadParameters = [context.organizationId, leadId];
   const leadResult = await client.query(
@@ -2286,8 +2630,10 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
   );
   if (existing.rows[0])
     return { ...camelizeRow(existing.rows[0]), replayed: true };
-  if (lead.status === "archived")
+  if (lead.record_status === "archived")
     throw new CrmError(409, "Archived leads cannot be converted.");
+  if (lead.record_status === "converted")
+    throw new CrmError(409, "This Lead has already been converted.");
   let partyId = input.partyId || null;
   if (!partyId) {
     const duplicate = await client.query(
@@ -2378,7 +2724,7 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
     opportunityId = opportunity.id;
   }
   await client.query(
-    `UPDATE tenant.crm_leads SET status = 'converted', converted_at = now(), converted_party_id = $1, converted_contact_id = $2, converted_opportunity_id = $3, updated_by = $4, updated_at = now() WHERE organization_id = $5 AND id = $6`,
+    `UPDATE tenant.crm_leads SET record_status = 'converted', converted_at = now(), converted_party_id = $1, converted_contact_id = $2, converted_opportunity_id = $3, updated_by = $4, updated_at = now() WHERE organization_id = $5 AND id = $6`,
     [
       partyId,
       contactId,
@@ -2467,13 +2813,8 @@ export async function mergeCrmLead(client, context, sourceId, targetId) {
     [context.organizationId, sourceId],
   );
   await client.query(
-    `UPDATE tenant.crm_leads SET status = 'archived', unqualified_reason = $1, updated_by = $2, updated_at = now() WHERE organization_id = $3 AND id = $4`,
-    [
-      `Merged into ${targetId}`,
-      context.userId,
-      context.organizationId,
-      sourceId,
-    ],
+    `UPDATE tenant.crm_leads SET record_status = 'archived', updated_by = $1, updated_at = now() WHERE organization_id = $2 AND id = $3`,
+    [context.userId, context.organizationId, sourceId],
   );
   const result = await client.query(
     `INSERT INTO tenant.crm_merge_records (organization_id, entity_type, source_id, target_id, merged_by, snapshot) VALUES ($1, 'lead', $2, $3, $4, $5) RETURNING *`,
@@ -2543,9 +2884,14 @@ export async function moveOpportunityStage(
   let outcomeNotes = null;
   if (status === "won" || status === "lost") {
     outcomeReasonId = expectations.outcomeReasonId || null;
-    outcomeNotes = String(expectations.outcomeNotes || note || "").trim() || null;
+    outcomeNotes =
+      String(expectations.outcomeNotes || note || "").trim() || null;
     if (!outcomeReasonId) {
-      throw new CrmError(400, `Select a ${status} reason before closing this opportunity.`, "CRM_OUTCOME_REASON_REQUIRED");
+      throw new CrmError(
+        400,
+        `Select a ${status} reason before closing this opportunity.`,
+        "CRM_OUTCOME_REASON_REQUIRED",
+      );
     }
     const reasonResult = await client.query(
       `SELECT id,outcome_type FROM tenant.crm_lost_reasons WHERE organization_id=$1 AND id=$2 AND status='active'`,
@@ -2553,7 +2899,11 @@ export async function moveOpportunityStage(
     );
     const reason = reasonResult.rows[0];
     if (!reason || ![status, "both"].includes(reason.outcome_type)) {
-      throw new CrmError(409, `The selected reason is not valid for a ${status} opportunity.`, "CRM_OUTCOME_REASON_INVALID");
+      throw new CrmError(
+        409,
+        `The selected reason is not valid for a ${status} opportunity.`,
+        "CRM_OUTCOME_REASON_INVALID",
+      );
     }
   }
   const result = await client.query(
@@ -2945,10 +3295,108 @@ export async function queueOutboxEvent(
   entityId,
   payload,
 ) {
+  const eventPayload =
+    entityType === "leads"
+      ? safeLeadOutboxPayload(eventType, entityId, payload)
+      : payload || {};
   await client.query(
     `INSERT INTO tenant.crm_outbox_events (organization_id, event_type, entity_type, entity_id, payload) VALUES ($1, $2, $3, $4, $5)`,
-    [context.organizationId, eventType, entityType, entityId, payload || {}],
+    [context.organizationId, eventType, entityType, entityId, eventPayload],
   );
+}
+
+function safeLeadOutboxState(record) {
+  if (!record || typeof record !== "object") return {};
+  return Object.fromEntries(
+    ["status", "sourceId", "ownerUserId", "companyId", "branchId"]
+      .filter((field) => record[field] !== undefined)
+      .map((field) => [field, record[field]]),
+  );
+}
+
+const LEAD_OUTBOX_INFRASTRUCTURE_FIELDS = new Set([
+  "createdAt",
+  "updatedAt",
+  "createdBy",
+  "updatedBy",
+  "customData",
+  "scoreExplanation",
+]);
+
+const LEAD_OUTBOX_DERIVED_FIELDS = Object.freeze({
+  email: ["normalizedEmail"],
+  mobile: ["normalizedMobile"],
+  phone: ["normalizedPhone"],
+});
+
+function stableOutboxValue(value) {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(stableOutboxValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, stableOutboxValue(value[key])]),
+    );
+  }
+  return value;
+}
+
+function outboxValuesEqual(left, right) {
+  return (
+    JSON.stringify(stableOutboxValue(left)) ===
+    JSON.stringify(stableOutboxValue(right))
+  );
+}
+
+export function leadOutboxChangedFields(before, after, requestedFields = []) {
+  const candidates = new Set(requestedFields);
+  for (const field of requestedFields) {
+    for (const derived of LEAD_OUTBOX_DERIVED_FIELDS[field] || [])
+      candidates.add(derived);
+  }
+  if (!outboxValuesEqual(before?.score, after?.score)) candidates.add("score");
+  return [...candidates]
+    .filter((field) => !LEAD_OUTBOX_INFRASTRUCTURE_FIELDS.has(field))
+    .filter((field) => !outboxValuesEqual(before?.[field], after?.[field]))
+    .sort();
+}
+
+function safeLeadOutboxPayload(eventType, leadId, payload) {
+  if (eventType === "crm.lead.stage_changed")
+    return {
+      leadId,
+      eventId: payload?.eventId || null,
+      source: String(payload?.source || "manual").slice(0, 40),
+      before: safeLeadOutboxState(payload?.before),
+      after: safeLeadOutboxState(payload?.after),
+      changedFields: ["status"],
+    };
+  if (eventType === "crm.leads.assigned")
+    return {
+      leadId,
+      previousOwnerUserId: payload?.previousOwnerUserId || null,
+      ownerUserId: payload?.ownerUserId || null,
+      policyId: payload?.policyId || null,
+      reason: String(payload?.reason || "manual").slice(0, 120),
+    };
+  if (eventType.endsWith(".updated")) {
+    const before = payload?.before || {};
+    const after = payload?.after || {};
+    const changedFields = Array.isArray(payload?.changedFields)
+      ? [...new Set(payload.changedFields)].sort()
+      : leadOutboxChangedFields(before, after, [
+          ...Object.keys(before),
+          ...Object.keys(after),
+        ]);
+    return {
+      leadId,
+      changedFields,
+      before: safeLeadOutboxState(before),
+      after: safeLeadOutboxState(after),
+    };
+  }
+  return { leadId, ...safeLeadOutboxState(payload) };
 }
 
 export async function getCrmOptions(client, context) {
@@ -2994,18 +3442,33 @@ export async function getCrmOptions(client, context) {
     `SELECT stage.id, stage.pipeline_id, stage.name, stage.sequence, stage.probability, stage.is_won, stage.is_lost FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} ORDER BY stage.pipeline_id, stage.sequence`,
     parameters,
   );
+  const leadStages = await queryOptions(
+    `SELECT stage.id,stage.code,stage.name,stage.description,stage.sort_order,stage.status,stage.is_initial,stage.is_system,
+            coalesce(array_agg(source.code ORDER BY source.sort_order,source.id)
+              FILTER (WHERE transition.from_stage_id IS NOT NULL),'{}'::text[]) AS allowed_from_codes
+       FROM tenant.crm_lead_stages stage
+       LEFT JOIN tenant.crm_lead_stage_transitions transition
+         ON transition.organization_id=stage.organization_id AND transition.to_stage_id=stage.id
+       LEFT JOIN tenant.crm_lead_stages source
+         ON source.organization_id=transition.organization_id AND source.id=transition.from_stage_id
+      WHERE stage.organization_id=$1
+      GROUP BY stage.id
+      ORDER BY stage.status='active' DESC,stage.sort_order,stage.id`,
+    parameters,
+  );
   const sources = await queryOptions(
-    `SELECT id, name FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, name`,
+    `SELECT id, name, status FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, sort_order, name`,
+    parameters,
+  );
+  const allSources = await queryOptions(
+    `SELECT id, name, status FROM tenant.crm_lead_sources WHERE organization_id = $1 ORDER BY status = 'active' DESC, is_default DESC, sort_order, name`,
     parameters,
   );
   const campaigns = await queryOptions(
     `SELECT campaign.id, campaign.name FROM tenant.crm_campaigns campaign WHERE campaign.organization_id = $1 AND campaign.status IN ('planned','active','paused') AND ${companyVisible("campaign")} ORDER BY campaign.name`,
     parameters,
   );
-  const users = await queryOptions(
-    `SELECT user_account.id, user_account.full_name AS name FROM public.organization_memberships membership JOIN public.users user_account ON user_account.id = membership.user_id WHERE membership.organization_id = $1 AND membership.status = 'active' ORDER BY user_account.full_name`,
-    parameters,
-  );
+  const users = await listEligibleLeadAssignees(client, context, { limit: 50 });
   const parties = await queryOptions(
     `SELECT party.id, party.display_name AS name FROM tenant.business_parties party WHERE party.organization_id = $1 AND party.status = 'active' AND ${companyVisible("party")} ORDER BY party.display_name`,
     parameters,
@@ -3031,7 +3494,7 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const leads = await queryOptions(
-    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")} ORDER BY lead.updated_at DESC LIMIT 500`,
+    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} ORDER BY lead.updated_at DESC LIMIT 500`,
     parameters,
   );
   const opportunities = await queryOptions(
@@ -3106,9 +3569,11 @@ export async function getCrmOptions(client, context) {
     currencies: map(currencies),
     pipelines: map(pipelines),
     stages: map(stages),
+    leadStages: map(leadStages),
     sources: map(sources),
+    allSources: map(allSources),
     campaigns: map(campaigns),
-    users: map(users),
+    users: users.items.map(camelizeRow),
     parties: map(parties),
     contacts: map(contacts),
     items: map(items),
@@ -3165,8 +3630,8 @@ export async function getCrmDashboard(client, context) {
   const result = await client.query(
     `SELECT
       (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status NOT IN ('converted','archived') AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS open_leads,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.status = 'qualified' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS qualified_leads,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS open_leads,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.qualification_state = 'qualified' AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS qualified_leads,
       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS open_opportunities,
       (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS pipeline_value,
       (SELECT COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS weighted_pipeline,
@@ -3181,7 +3646,7 @@ export async function getCrmDashboard(client, context) {
     parameters,
   );
   const sources = await client.query(
-    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
+    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.record_status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
     parameters,
   );
   const activities = await client.query(
@@ -3232,9 +3697,9 @@ export async function getCrmReport(client, context, report, filters = {}) {
   if (report === "pipeline")
     sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
   else if (report === "conversion")
-    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
+    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.record_status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.record_status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
-    sql = `SELECT COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY leads DESC`;
+    sql = `SELECT COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY leads DESC`;
   else if (report === "activities")
     sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE activity.due_at<now() AND activity.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
@@ -3343,7 +3808,7 @@ export async function findCrmDuplicates(
     parameters,
   );
   const result = await client.query(
-    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.status NOT IN ('converted','archived') AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${duplicateScope} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
+    `SELECT record.id, record.code, record.full_name, record.email, record.mobile, record.company_name, record.status, (CASE WHEN $2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2) THEN 2 ELSE 0 END + CASE WHEN $3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3) THEN 2 ELSE 0 END + CASE WHEN $4::text IS NOT NULL AND lower(record.company_name) = lower($4) THEN 1 ELSE 0 END) AS match_score FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.record_status='active' AND ($5::uuid IS NULL OR record.id <> $5) AND (($2::text IS NOT NULL AND record.normalized_email = tenant.crm_normalize_email($2)) OR ($3::text IS NOT NULL AND record.normalized_phone = tenant.crm_normalize_phone($3)) OR ($4::text IS NOT NULL AND lower(record.company_name) = lower($4)))${duplicateScope} ORDER BY match_score DESC, record.updated_at DESC LIMIT 20`,
     parameters,
   );
   return result.rows.map(camelizeRow);
@@ -3407,13 +3872,24 @@ export async function captureCrmLead(
       "A matching lead already exists.",
       "CRM_DUPLICATE_LEAD",
     );
+  const resolvedSourceId = await resolveIngestionLeadSource(
+    client,
+    context,
+    form.source_id,
+  );
+  const configuredCaptureOwner = form.owner_user_id
+    ? await getEligibleLeadAssignee(client, context, form.owner_user_id, {
+        companyId: form.company_id,
+        branchId: form.branch_id,
+      })
+    : null;
   const lead = await createCrmRecord(client, context, "leads", {
     ...input,
     companyId: form.company_id,
     branchId: form.branch_id,
-    sourceId: form.source_id,
+    sourceId: resolvedSourceId,
     campaignId: form.campaign_id,
-    ownerUserId: form.owner_user_id,
+    ownerUserId: configuredCaptureOwner?.id || null,
   });
   if (form.campaign_id)
     await client.query(

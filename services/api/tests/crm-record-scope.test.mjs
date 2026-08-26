@@ -288,6 +288,8 @@ test("CRM: organization_owner sees every lead via roleSlugs alone, with an EMPTY
 // predicate's bound parameter, not just the owner-scope one — the fix
 // specifically changed that predicate's shape.
 const otherCompany = "66666666-6666-4666-8666-666666666666";
+const activeBranch = "99999999-9999-4999-8999-999999999999";
+const otherBranch = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 function companyAwareCrmClient({ leadRow = ownedLead } = {}) {
   function visible(sql, params) {
     const companyMatch = sql.match(/company_id = \$(\d+)\)/);
@@ -330,6 +332,113 @@ test("CRM: an elevated (allowAllCompanies) user with NO company selected still s
   const result = await listCrmRecords(companyAwareCrmClient({ leadRow: leadInOtherCompany }), ctx, "leads", {});
   assert.equal(result.rows.length, 1, "allowAllCompanies must still mean something when no specific company is selected");
 });
+
+const scopeWritePersonas = [
+  {
+    name: "organization owner",
+    context: {
+      ...managerContext,
+      roleSlugs: ["organization_owner"],
+      permissions: [],
+      allowAllCompanies: true,
+      activeCompanyId: company,
+      activeBranchId: activeBranch,
+    },
+  },
+  {
+    name: "elevated manager",
+    context: {
+      ...managerContext,
+      allowAllCompanies: true,
+      activeCompanyId: company,
+      activeBranchId: activeBranch,
+    },
+  },
+  {
+    name: "restricted representative",
+    context: {
+      ...otherRepContext,
+      allowAllCompanies: false,
+      activeCompanyId: company,
+      activeBranchId: activeBranch,
+    },
+  },
+];
+
+function scopeWriteClient() {
+  const calls = [];
+  return {
+    calls,
+    async query(sql) {
+      calls.push(sql);
+      if (sql.includes("FROM tenant.crm_leads record WHERE")) {
+        return {
+          rows: [
+            {
+              ...ownedLead,
+              branch_id: activeBranch,
+              email: "scope@example.com",
+            },
+          ],
+        };
+      }
+      throw new Error("QA_QUERY_REACHED");
+    },
+  };
+}
+
+for (const persona of scopeWritePersonas) {
+  for (const action of ["create", "update"]) {
+    for (const mismatch of ["company", "branch"]) {
+      test(`CRM scope: ${persona.name} ${action} rejects an explicit active-${mismatch} mismatch`, async () => {
+        const client = scopeWriteClient();
+        const input = {
+          ...(action === "create"
+            ? { firstName: "Scope", email: "scope@example.com" }
+            : {}),
+          companyId: mismatch === "company" ? otherCompany : company,
+          branchId: mismatch === "branch" ? otherBranch : activeBranch,
+        };
+        const operation =
+          action === "create"
+            ? createCrmRecord(client, persona.context, "leads", input)
+            : updateCrmRecord(client, persona.context, "leads", leadId, input);
+        await assert.rejects(
+          operation,
+          (error) =>
+            error.status === 403 &&
+            new RegExp(`another ${mismatch}`).test(error.message),
+        );
+        assert.equal(
+          client.calls.length,
+          action === "update" ? 1 : 0,
+          "scope mismatch must be rejected before a write query",
+        );
+      });
+    }
+
+    test(`CRM scope: ${persona.name} ${action} accepts the selected active company and branch`, async () => {
+      const client = scopeWriteClient();
+      const input = {
+        ...(action === "create"
+          ? { firstName: "Scope", email: "scope@example.com" }
+          : {}),
+        companyId: company,
+        branchId: activeBranch,
+      };
+      const operation =
+        action === "create"
+          ? createCrmRecord(client, persona.context, "leads", input)
+          : updateCrmRecord(client, persona.context, "leads", leadId, input);
+      await assert.rejects(
+        operation,
+        (error) =>
+          error.message === "QA_QUERY_REACHED" && error.status === undefined,
+      );
+      assert.ok(client.calls.length >= 1, "valid active scope must reach persistence preparation");
+    });
+  }
+}
 
 test("CRM: a context missing permissions/roleSlugs entirely fails CLOSED — canViewAllCrmRecords() must never default to open", async () => {
   const bareContext = {

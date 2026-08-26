@@ -12,10 +12,12 @@ test("CRM overview remains driven by scoped getCrmDashboard data",()=>{
   assert.doesNotMatch(source,/Math\.random|mock KPI|sample data/i);
 });
 
-test("Lead create remains a dedicated full-page create workflow",()=>{
+test("Lead create remains a dedicated drawer workflow",()=>{
   const manager=read("apps/web/src/modules/crm/components/resource-manager.tsx");
   assert.match(manager,/CrmLeadCreateWorkspace/);
-  assert.match(manager,/definition\.key === "leads" && editing && !editing\.id && canManage/);
+  assert.match(manager,/editing && !editing\.id && canManage/);
+  assert.match(manager,/title="Create lead"/);
+  assert.match(manager,/LeadWorkspaceDrawer/);
   const create=read("apps/web/src/modules/crm/components/lead-create-workspace.tsx");
   assert.match(create,/\/api\/crm\/leads\/duplicates\?/);
   assert.match(create,/requestJson<CreateResponse>\("\/api\/crm\/leads"/);

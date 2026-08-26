@@ -9,6 +9,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const collectionRoute = "apps/web/src/app/api/crm/[resource]/route.ts";
 const itemRoute = "apps/web/src/app/api/crm/[resource]/[id]/route.ts";
 const statusRoute = "apps/web/src/app/api/crm/leads/[id]/status/route.ts";
+const stageRoute = "apps/web/src/app/api/crm/leads/[id]/stage/route.ts";
+const qualificationRoute = "apps/web/src/app/api/crm/leads/[id]/qualification/route.ts";
 const convertRoute = "apps/web/src/app/api/crm/leads/[id]/convert/route.ts";
 
 test("F001 hardening: datetime-local validation accepts UTC and explicit offsets", () => {
@@ -30,11 +32,14 @@ test("F001 hardening: CRM API errors expose stable code and errors shape", () =>
   }
 });
 
-test("F001 hardening: qualification checks whether active scoring rules actually exist", () => {
-  const source = read(statusRoute);
-  assert.match(source, /isLeadScoringConfigured/);
-  assert.match(source, /scoringConfigured/);
-  assert.match(source, /CRM_LEAD_QUALIFICATION_NOT_READY/);
+test("F001/F006 hardening: lifecycle and explicit qualification remain independent of scoring", () => {
+  const lifecycleSource = read(stageRoute);
+  const qualificationSource = read(qualificationRoute);
+  assert.match(lifecycleSource, /transitionLeadStage/);
+  assert.match(read(statusRoute), /transitionLeadStage/);
+  assert.doesNotMatch(lifecycleSource, /isLeadScoringConfigured|CRM_LEAD_QUALIFICATION_NOT_READY/);
+  assert.match(qualificationSource, /decideLeadQualification/);
+  assert.doesNotMatch(qualificationSource, /isLeadScoringConfigured|score threshold/i);
 });
 
 test("F001 hardening: conversion success message reflects whether an opportunity exists", () => {

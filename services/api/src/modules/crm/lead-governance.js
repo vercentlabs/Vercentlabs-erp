@@ -147,7 +147,7 @@ export async function findLeadDuplicates(
     c = normal(input.companyName || input.company_name);
   if (!e && !p && !n) return [];
   const r = await client.query(
-    `SELECT id,code,full_name,email,mobile,phone,company_name,status,((CASE WHEN $2<>'' AND normalized_email=$2 THEN 70 ELSE 0 END)+(CASE WHEN $3<>'' AND normalized_phone=$3 THEN 55 ELSE 0 END)+(CASE WHEN $4<>'' AND regexp_replace(lower(coalesce(full_name,'')),'[^a-z0-9]+','','g')=$4 THEN 25 ELSE 0 END)+(CASE WHEN $5<>'' AND regexp_replace(lower(coalesce(company_name,'')),'[^a-z0-9]+','','g')=$5 THEN 15 ELSE 0 END))::int match_score FROM tenant.crm_leads WHERE organization_id=$1 AND status NOT IN ('archived','converted') AND ($6::uuid IS NULL OR id<>$6) AND (($2<>'' AND normalized_email=$2) OR ($3<>'' AND normalized_phone=$3) OR ($4<>'' AND regexp_replace(lower(coalesce(full_name,'')),'[^a-z0-9]+','','g')=$4)) ORDER BY match_score DESC,updated_at DESC LIMIT 25`,
+    `SELECT id,code,full_name,email,mobile,phone,company_name,status,record_status,((CASE WHEN $2<>'' AND normalized_email=$2 THEN 70 ELSE 0 END)+(CASE WHEN $3<>'' AND normalized_phone=$3 THEN 55 ELSE 0 END)+(CASE WHEN $4<>'' AND regexp_replace(lower(coalesce(full_name,'')),'[^a-z0-9]+','','g')=$4 THEN 25 ELSE 0 END)+(CASE WHEN $5<>'' AND regexp_replace(lower(coalesce(company_name,'')),'[^a-z0-9]+','','g')=$5 THEN 15 ELSE 0 END))::int match_score FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active' AND ($6::uuid IS NULL OR id<>$6) AND (($2<>'' AND normalized_email=$2) OR ($3<>'' AND normalized_phone=$3) OR ($4<>'' AND regexp_replace(lower(coalesce(full_name,'')),'[^a-z0-9]+','','g')=$4)) ORDER BY match_score DESC,updated_at DESC LIMIT 25`,
     [context.organizationId, e, p, n, c, excludeId],
   );
   return r.rows;
@@ -182,7 +182,9 @@ async function activeTerritoryUserIds(client, context, territoryId) {
 }
 
 async function leastLoadedLeadOwner(client, context, candidateIds) {
-  const candidates = [...new Set((candidateIds || []).map(String).filter(Boolean))];
+  const candidates = [
+    ...new Set((candidateIds || []).map(String).filter(Boolean)),
+  ];
   if (!candidates.length) return null;
   const result = await client.query(
     `WITH candidate(user_id) AS (SELECT unnest($2::uuid[]))
@@ -195,7 +197,7 @@ async function leastLoadedLeadOwner(client, context, candidateIds) {
        LEFT JOIN tenant.crm_leads lead
          ON lead.organization_id=$1
         AND lead.owner_user_id=candidate.user_id
-        AND lead.status NOT IN ('converted','archived')
+        AND lead.record_status='active'
       GROUP BY candidate.user_id
       ORDER BY count(lead.id) ASC,candidate.user_id ASC
       LIMIT 1`,
@@ -204,110 +206,454 @@ async function leastLoadedLeadOwner(client, context, candidateIds) {
   return result.rows[0]?.user_id ? String(result.rows[0].user_id) : null;
 }
 
-async function ownerForLeadPolicy(client, context, policy) {
-  if (policy.mode === 'fixed') return policy.assignee_user_id || null;
-  if (policy.mode === 'round_robin') {
-    const members = policy.member_user_ids || [];
-    if (!members.length) return null;
-    const state = await client.query(
-      `INSERT INTO tenant.crm_lead_assignment_state(organization_id,policy_id,next_index)
-       VALUES($1,$2,1)
-       ON CONFLICT(organization_id,policy_id)
-       DO UPDATE SET next_index=tenant.crm_lead_assignment_state.next_index+1,updated_at=now()
-       RETURNING next_index`,
-      [context.organizationId,policy.id],
+const LEAD_ASSIGNMENT_CRITERIA_FIELDS = new Set([
+  "sourceId",
+  "countryCode",
+  "industry",
+  "productInterest",
+]);
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function normalizeLeadAssignmentCriteria(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new LeadGovernanceError(
+      400,
+      "Assignment-rule conditions must be an object.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
     );
-    return members[(Number(state.rows[0]?.next_index || 1)-1)%members.length] || null;
+  const criteria = {};
+  for (const [field, raw] of Object.entries(value)) {
+    if (!LEAD_ASSIGNMENT_CRITERIA_FIELDS.has(field))
+      throw new LeadGovernanceError(
+        400,
+        `Unsupported assignment condition: ${field}.`,
+        "CRM_ASSIGNMENT_RULE_INVALID",
+      );
+    const normalized = text(raw).slice(0, 500);
+    if (!normalized)
+      throw new LeadGovernanceError(
+        400,
+        `Assignment condition ${field} cannot be empty.`,
+        "CRM_ASSIGNMENT_RULE_INVALID",
+      );
+    if (field === "sourceId" && !UUID.test(normalized))
+      throw new LeadGovernanceError(
+        400,
+        "Assignment-rule Lead Source is invalid.",
+        "CRM_ASSIGNMENT_RULE_INVALID",
+      );
+    if (field === "countryCode" && !/^[A-Za-z]{2}$/.test(normalized))
+      throw new LeadGovernanceError(
+        400,
+        "Assignment-rule country must use a two-letter code.",
+        "CRM_ASSIGNMENT_RULE_INVALID",
+      );
+    criteria[field] =
+      field === "countryCode" ? normalized.toUpperCase() : normalized;
   }
-  if (policy.mode === 'workload')
-    return leastLoadedLeadOwner(client,context,policy.member_user_ids || []);
-  if (policy.mode === 'territory') {
-    const members=await activeTerritoryUserIds(client,context,policy.territory_id);
-    return leastLoadedLeadOwner(client,context,members);
+  return criteria;
+}
+
+function assigneeScopeSql(companyParameter, branchParameter) {
+  const unrestricted = `EXISTS (
+    SELECT 1 FROM public.user_role_assignments unrestricted_assignment
+    JOIN public.roles unrestricted_role
+      ON unrestricted_role.organization_id=unrestricted_assignment.organization_id
+     AND unrestricted_role.id=unrestricted_assignment.role_id
+     AND unrestricted_role.status='active'
+     AND unrestricted_role.slug IN ('organization_owner','system_administrator')
+    WHERE unrestricted_assignment.organization_id=membership.organization_id
+      AND unrestricted_assignment.user_id=membership.user_id
+      AND unrestricted_assignment.status='active'
+      AND unrestricted_assignment.starts_at<=now()
+      AND (unrestricted_assignment.expires_at IS NULL OR unrestricted_assignment.expires_at>now())
+  )`;
+  return `AND ($${companyParameter}::uuid IS NULL OR ${unrestricted} OR EXISTS (
+      SELECT 1 FROM public.membership_company_access company_access
+       WHERE company_access.organization_id=membership.organization_id
+         AND company_access.user_id=membership.user_id
+         AND company_access.company_id=$${companyParameter}
+    ))
+    AND ($${branchParameter}::uuid IS NULL OR ${unrestricted} OR EXISTS (
+      SELECT 1 FROM public.membership_branch_access branch_access
+       WHERE branch_access.organization_id=membership.organization_id
+         AND branch_access.user_id=membership.user_id
+         AND branch_access.branch_id=$${branchParameter}
+    ))`;
+}
+
+function crmEligibleSql() {
+  return `EXISTS (
+    SELECT 1 FROM public.user_role_assignments assignment
+    JOIN public.roles role
+      ON role.organization_id=assignment.organization_id
+     AND role.id=assignment.role_id
+     AND role.status='active'
+    LEFT JOIN public.role_permissions permission
+      ON permission.role_id=role.id AND permission.permission_key='crm.view'
+    WHERE assignment.organization_id=membership.organization_id
+      AND assignment.user_id=membership.user_id
+      AND assignment.status='active'
+      AND assignment.starts_at<=now()
+      AND (assignment.expires_at IS NULL OR assignment.expires_at>now())
+      AND (role.slug='organization_owner' OR permission.permission_key IS NOT NULL)
+  )`;
+}
+
+export async function getEligibleLeadAssignee(
+  client,
+  context,
+  userId,
+  scope = {},
+) {
+  if (!UUID.test(String(userId || ""))) return null;
+  const result = await client.query(
+    `SELECT user_account.id,user_account.full_name AS name,user_account.email
+       FROM public.organization_memberships membership
+       JOIN public.users user_account ON user_account.id=membership.user_id
+      WHERE membership.organization_id=$1 AND membership.user_id=$2
+        AND membership.status='active' AND user_account.status='active'
+        AND ${crmEligibleSql()} ${assigneeScopeSql(3, 4)}
+      LIMIT 1`,
+    [
+      context.organizationId,
+      userId,
+      scope.companyId || null,
+      scope.branchId || null,
+    ],
+  );
+  return result.rows[0] || null;
+}
+
+export async function assertEligibleLeadAssignee(
+  client,
+  context,
+  userId,
+  scope = {},
+) {
+  const assignee = await getEligibleLeadAssignee(
+    client,
+    context,
+    userId,
+    scope,
+  );
+  if (!assignee)
+    throw new LeadGovernanceError(
+      409,
+      "The selected owner is not an active, eligible CRM member for this company and branch.",
+      "CRM_LEAD_ASSIGNEE_SCOPE_INVALID",
+    );
+  return assignee;
+}
+
+export async function listEligibleLeadAssignees(client, context, input = {}) {
+  const search = text(input.search).slice(0, 120);
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
+  const offset = Math.min(100000, Math.max(0, Number(input.offset) || 0));
+  const values = [
+    context.organizationId,
+    input.companyId || context.activeCompanyId || null,
+    input.branchId || context.activeBranchId || null,
+    search,
+  ];
+  const where = `membership.organization_id=$1 AND membership.status='active'
+    AND user_account.status='active' AND ${crmEligibleSql()} ${assigneeScopeSql(2, 3)}
+    AND ($4='' OR user_account.full_name ILIKE '%'||$4||'%' OR user_account.email ILIKE '%'||$4||'%')`;
+  const [items, count] = await Promise.all([
+    client.query(
+      `SELECT user_account.id,user_account.full_name AS name,user_account.email
+         FROM public.organization_memberships membership
+         JOIN public.users user_account ON user_account.id=membership.user_id
+        WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $5 OFFSET $6`,
+      [...values, limit, offset],
+    ),
+    client.query(
+      `SELECT count(*)::int AS total FROM public.organization_memberships membership
+       JOIN public.users user_account ON user_account.id=membership.user_id WHERE ${where}`,
+      values,
+    ),
+  ]);
+  return {
+    items: items.rows,
+    total: Number(count.rows[0]?.total || 0),
+    limit,
+    offset,
+  };
+}
+
+async function eligiblePolicyMemberIds(client, context, memberUserIds, input) {
+  const members = [
+    ...new Set((memberUserIds || []).map(String).filter(Boolean)),
+  ];
+  if (!members.length) return [];
+  const result = await client.query(
+    `SELECT candidate.user_id FROM unnest($2::uuid[]) WITH ORDINALITY candidate(user_id,position)
+       JOIN public.organization_memberships membership
+         ON membership.organization_id=$1 AND membership.user_id=candidate.user_id AND membership.status='active'
+       JOIN public.users user_account ON user_account.id=membership.user_id AND user_account.status='active'
+      WHERE ${crmEligibleSql()} ${assigneeScopeSql(3, 4)} ORDER BY candidate.position`,
+    [
+      context.organizationId,
+      members,
+      input.companyId || input.company_id || null,
+      input.branchId || input.branch_id || null,
+    ],
+  );
+  return result.rows.map((row) => String(row.user_id));
+}
+
+async function ownerForLeadPolicy(client, context, policy, input) {
+  if (policy.mode === "fixed") {
+    const assignee = await getEligibleLeadAssignee(
+      client,
+      context,
+      policy.assignee_user_id,
+      {
+        companyId: input.companyId || input.company_id || null,
+        branchId: input.branchId || input.branch_id || null,
+      },
+    );
+    return assignee?.id || null;
   }
+  if (policy.mode === "round_robin") {
+    const members = await eligiblePolicyMemberIds(
+      client,
+      context,
+      policy.member_user_ids,
+      input,
+    );
+    if (!members.length) return null;
+    await client.query(
+      `INSERT INTO tenant.crm_lead_assignment_state(organization_id,policy_id,next_index)
+       VALUES($1,$2,0) ON CONFLICT(organization_id,policy_id) DO NOTHING`,
+      [context.organizationId, policy.id],
+    );
+    const state = await client.query(
+      `SELECT next_index FROM tenant.crm_lead_assignment_state WHERE organization_id=$1 AND policy_id=$2 FOR UPDATE`,
+      [context.organizationId, policy.id],
+    );
+    const index = Number(state.rows[0]?.next_index || 0) % members.length;
+    await client.query(
+      `INSERT INTO tenant.crm_lead_assignment_state(organization_id,policy_id,next_index)
+       VALUES($1,$2,$3) ON CONFLICT(organization_id,policy_id)
+       DO UPDATE SET next_index=$3,updated_at=now()`,
+      [context.organizationId, policy.id, (index + 1) % members.length],
+    );
+    return members[index] || null;
+  }
+  if (policy.mode === "workload")
+    return leastLoadedLeadOwner(
+      client,
+      context,
+      await eligiblePolicyMemberIds(
+        client,
+        context,
+        policy.member_user_ids,
+        input,
+      ),
+    );
+  if (policy.mode === "territory")
+    return leastLoadedLeadOwner(
+      client,
+      context,
+      await activeTerritoryUserIds(client, context, policy.territory_id),
+    );
   return null;
 }
 
-export async function resolveLeadOwner(client, context, input) {
-  const result=await client.query(
-    `SELECT * FROM tenant.crm_lead_assignment_policies
-      WHERE organization_id=$1 AND status='active'
-      ORDER BY sequence,id FOR UPDATE`,
+export async function resolveLeadAssignment(client, context, input) {
+  const result = await client.query(
+    `SELECT * FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id FOR UPDATE`,
     [context.organizationId],
   );
   for (const policy of result.rows) {
-    if (!matches(policy.criteria,input)) continue;
-    const owner=await ownerForLeadPolicy(client,context,policy);
-    if (owner) return owner;
+    if (!matches(policy.criteria, input)) continue;
+    const owner = await ownerForLeadPolicy(client, context, policy, input);
+    if (owner)
+      return {
+        ownerUserId: String(owner),
+        policyId: String(policy.id),
+        reason: `policy:${policy.mode}`,
+      };
   }
-  return input.ownerUserId || input.owner_user_id || null;
+  return { ownerUserId: null, policyId: null, reason: "unassigned" };
+}
+
+export async function resolveLeadOwner(client, context, input) {
+  return (await resolveLeadAssignment(client, context, input)).ownerUserId;
 }
 
 export async function listLeadAssignmentPolicies(client, context) {
-  const result=await client.query(
-    `SELECT policy.*,assignee.full_name AS assignee_name,territory.name AS territory_name
+  const result = await client.query(
+    `SELECT policy.*,assignee.full_name AS assignee_name,assignee.email AS assignee_email,assignee.status AS assignee_status,
+            COALESCE((
+              SELECT jsonb_agg(jsonb_build_object('id',member.id,'name',member.full_name,'email',member.email) ORDER BY configured.position)
+                FROM unnest(policy.member_user_ids) WITH ORDINALITY configured(user_id,position)
+                JOIN public.users member ON member.id=configured.user_id
+            ),'[]'::jsonb) AS members
        FROM tenant.crm_lead_assignment_policies policy
        LEFT JOIN public.users assignee ON assignee.id=policy.assignee_user_id
-       LEFT JOIN tenant.crm_territories territory
-         ON territory.organization_id=policy.organization_id
-        AND territory.id=policy.territory_id
-      WHERE policy.organization_id=$1 AND policy.status='active'
-      ORDER BY policy.sequence,policy.name`,
+      WHERE policy.organization_id=$1 ORDER BY policy.sequence,policy.id`,
     [context.organizationId],
   );
   return result.rows;
 }
 
 export async function saveLeadAssignmentPolicy(client, context, input = {}) {
-  const id=text(input.id);
-  const name=text(input.name).slice(0,160);
-  const mode=text(input.mode);
-  const sequence=Number.isFinite(Number(input.sequence)) ? Number(input.sequence) : 100;
-  const criteria=input.criteria && typeof input.criteria==='object' && !Array.isArray(input.criteria) ? input.criteria : {};
-  const assigneeUserId=text(input.assigneeUserId) || null;
-  const memberUserIds=Array.isArray(input.memberUserIds)
+  const id = text(input.id);
+  const name = text(input.name).slice(0, 160);
+  const mode = text(input.mode);
+  const sequence = Number.isFinite(Number(input.sequence))
+    ? Math.trunc(Number(input.sequence))
+    : 100;
+  const criteria = normalizeLeadAssignmentCriteria(input.criteria || {});
+  const assigneeUserId = text(input.assigneeUserId) || null;
+  const memberUserIds = Array.isArray(input.memberUserIds)
     ? [...new Set(input.memberUserIds.map(text).filter(Boolean))]
     : [];
-  const territoryId=text(input.territoryId) || null;
-  if (!name) throw new LeadGovernanceError(400,'Assignment-policy name is required.');
-  if (!['fixed','round_robin','territory','workload'].includes(mode))
-    throw new LeadGovernanceError(400,'Unsupported lead-assignment mode.');
-  if (mode==='fixed' && !assigneeUserId)
-    throw new LeadGovernanceError(400,'Fixed assignment requires an assignee.');
-  if (['round_robin','workload'].includes(mode) && !memberUserIds.length)
-    throw new LeadGovernanceError(400,`${mode.replace('_',' ')} assignment requires at least one member.`);
-  if (mode==='territory' && !territoryId)
-    throw new LeadGovernanceError(400,'Territory assignment requires a territory.');
-  const result=id
+  const status = text(input.status || "active");
+  if (!name)
+    throw new LeadGovernanceError(
+      400,
+      "Assignment-rule name is required.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (sequence < 0 || sequence > 100000)
+    throw new LeadGovernanceError(
+      400,
+      "Assignment-rule priority must be between 0 and 100000.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (!["fixed", "round_robin"].includes(mode))
+    throw new LeadGovernanceError(
+      400,
+      "Unsupported lead-assignment mode.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (mode === "fixed" && !assigneeUserId)
+    throw new LeadGovernanceError(
+      400,
+      "Fixed assignment requires an assignee.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (mode === "round_robin" && !memberUserIds.length)
+    throw new LeadGovernanceError(
+      400,
+      "Round-robin assignment requires at least one member.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (!["active", "inactive"].includes(status))
+    throw new LeadGovernanceError(
+      400,
+      "Assignment-rule status is invalid.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (criteria.sourceId) {
+    const source = await client.query(
+      `SELECT id FROM tenant.crm_lead_sources WHERE organization_id=$1 AND id=$2 AND status='active'`,
+      [context.organizationId, criteria.sourceId],
+    );
+    if (!source.rows[0])
+      throw new LeadGovernanceError(
+        409,
+        "Select an active Lead Source for this rule.",
+        "CRM_ASSIGNMENT_RULE_INVALID",
+      );
+  }
+  for (const userId of mode === "fixed" ? [assigneeUserId] : memberUserIds)
+    await assertEligibleLeadAssignee(client, context, userId);
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || lower($2),0))`,
+    [context.organizationId, name],
+  );
+  const duplicate = await client.query(
+    `SELECT id FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND lower(name)=lower($2) AND ($3::uuid IS NULL OR id<>$3) LIMIT 1`,
+    [context.organizationId, name, id || null],
+  );
+  if (duplicate.rows[0])
+    throw new LeadGovernanceError(
+      409,
+      "An assignment rule with this name already exists.",
+      "CRM_ASSIGNMENT_RULE_DUPLICATE",
+    );
+  const values = [
+    context.organizationId,
+    context.userId,
+    name,
+    sequence,
+    JSON.stringify(criteria),
+    mode,
+    mode === "fixed" ? assigneeUserId : null,
+    mode === "round_robin" ? memberUserIds : [],
+    status,
+  ];
+  const result = id
     ? await client.query(
-        `UPDATE tenant.crm_lead_assignment_policies
-            SET name=$3,sequence=$4,criteria=$5::jsonb,mode=$6,
-                assignee_user_id=$7,member_user_ids=$8::uuid[],territory_id=$9,
-                updated_by=$2,updated_at=now()
-          WHERE organization_id=$1 AND id=$10 AND status='active'
-          RETURNING *`,
-        [context.organizationId,context.userId,name,sequence,JSON.stringify(criteria),mode,assigneeUserId,memberUserIds,territoryId,id],
+        `UPDATE tenant.crm_lead_assignment_policies SET name=$3,sequence=$4,criteria=$5::jsonb,mode=$6,
+         assignee_user_id=$7,member_user_ids=$8::uuid[],territory_id=NULL,status=$9,updated_by=$2,updated_at=now()
+         WHERE organization_id=$1 AND id=$10 RETURNING *`,
+        [...values, id],
       )
     : await client.query(
-        `INSERT INTO tenant.crm_lead_assignment_policies(
-           organization_id,name,sequence,criteria,mode,assignee_user_id,
-           member_user_ids,territory_id,status,created_by,updated_by
-         ) VALUES($1,$3,$4,$5::jsonb,$6,$7,$8::uuid[],$9,'active',$2,$2)
-         RETURNING *`,
-        [context.organizationId,context.userId,name,sequence,JSON.stringify(criteria),mode,assigneeUserId,memberUserIds,territoryId],
+        `INSERT INTO tenant.crm_lead_assignment_policies(organization_id,name,sequence,criteria,mode,assignee_user_id,member_user_ids,territory_id,status,created_by,updated_by)
+         VALUES($1,$3,$4,$5::jsonb,$6,$7,$8::uuid[],NULL,$9,$2,$2) RETURNING *`,
+        values,
       );
-  if (!result.rows[0]) throw new LeadGovernanceError(404,'Assignment policy not found.');
+  if (!result.rows[0])
+    throw new LeadGovernanceError(
+      404,
+      "Assignment rule not found.",
+      "CRM_ASSIGNMENT_RULE_NOT_FOUND",
+    );
+  return result.rows[0];
+}
+
+export async function setLeadAssignmentPolicyStatus(
+  client,
+  context,
+  policyId,
+  status,
+) {
+  if (
+    !UUID.test(String(policyId || "")) ||
+    !["active", "inactive"].includes(status)
+  )
+    throw new LeadGovernanceError(
+      400,
+      "Assignment-rule status request is invalid.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  const policy = await client.query(
+    `SELECT * FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, policyId],
+  );
+  if (!policy.rows[0])
+    throw new LeadGovernanceError(
+      404,
+      "Assignment rule not found.",
+      "CRM_ASSIGNMENT_RULE_NOT_FOUND",
+    );
+  if (!["fixed", "round_robin"].includes(String(policy.rows[0].mode)))
+    throw new LeadGovernanceError(
+      409,
+      "This legacy assignment mode is outside F005 configuration.",
+      "CRM_ASSIGNMENT_RULE_INVALID",
+    );
+  if (status === "active") {
+    const row = policy.rows[0];
+    for (const userId of row.mode === "fixed"
+      ? [row.assignee_user_id]
+      : row.member_user_ids || [])
+      await assertEligibleLeadAssignee(client, context, userId);
+  }
+  const result = await client.query(
+    `UPDATE tenant.crm_lead_assignment_policies SET status=$3,updated_by=$2,updated_at=now() WHERE organization_id=$1 AND id=$4 RETURNING *`,
+    [context.organizationId, context.userId, status, policyId],
+  );
   return result.rows[0];
 }
 
 export async function archiveLeadAssignmentPolicy(client, context, policyId) {
-  const result=await client.query(
-    `UPDATE tenant.crm_lead_assignment_policies
-        SET status='inactive',updated_by=$2,updated_at=now()
-      WHERE organization_id=$1 AND id=$3 AND status='active'
-      RETURNING *`,
-    [context.organizationId,context.userId,policyId],
-  );
-  if (!result.rows[0]) throw new LeadGovernanceError(404,'Assignment policy not found.');
-  return result.rows[0];
+  return setLeadAssignmentPolicyStatus(client, context, policyId, "inactive");
 }

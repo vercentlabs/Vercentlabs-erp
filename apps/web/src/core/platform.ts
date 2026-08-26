@@ -103,24 +103,53 @@ async function seedCrmFoundation(
   );
 
   for (const source of [
-    ["Website", "WEBSITE", "website", true],
-    ["Referral", "REFERRAL", "referral", false],
-    ["Partner", "PARTNER", "partner", false],
-    ["Event", "EVENT", "event", false],
-    ["Phone enquiry", "PHONE", "phone", false],
-    ["Walk-in", "WALK_IN", "walk_in", false],
-    ["Import", "IMPORT", "import", false],
-    ["Other", "OTHER", "other", false],
+    ["Website", "WEBSITE", "website", true, 10],
+    ["Referral", "REFERRAL", "referral", false, 20],
+    ["Partner", "PARTNER", "partner", false, 30],
+    ["Event", "EVENT", "event", false, 40],
+    ["Phone enquiry", "PHONE", "phone", false, 50],
+    ["Walk-in", "WALK_IN", "walk_in", false, 60],
+    ["Import", "IMPORT", "import", false, 70],
+    ["Other", "OTHER", "other", false, 80],
   ] as const) {
     await client.query(
       `INSERT INTO tenant.crm_lead_sources (
-        organization_id, name, code, channel, is_default, created_by, updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$6)
+        organization_id, name, code, channel, is_default, sort_order, is_system, created_by, updated_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,true,$7,$7)
       ON CONFLICT (organization_id, code) DO UPDATE SET
-        name=EXCLUDED.name, channel=EXCLUDED.channel, status='active', updated_by=EXCLUDED.updated_by`,
+        name=EXCLUDED.name, channel=EXCLUDED.channel, sort_order=EXCLUDED.sort_order,
+        is_system=true, status='active', archived_at=NULL, updated_by=EXCLUDED.updated_by`,
       [input.organizationId, ...source, input.ownerUserId],
     );
   }
+
+  for (const stage of [
+    ["new", "New", "Captured and awaiting first engagement.", 10, true],
+    ["contacted", "Contacted", "Initial outreach has been made.", 20, false],
+    ["working", "Working", "Active follow-up or discovery is underway.", 30, false],
+  ] as const) {
+    await client.query(
+      `INSERT INTO tenant.crm_lead_stages(
+         organization_id,code,name,description,sort_order,status,is_system,is_initial,created_by,updated_by
+       ) VALUES($1,$2,$3,$4,$5,'active',true,$6,$7,$7)
+       ON CONFLICT (organization_id,code) DO UPDATE SET
+         is_system=true,updated_by=EXCLUDED.updated_by`,
+      [input.organizationId, ...stage, input.ownerUserId],
+    );
+  }
+
+  await client.query(
+    `INSERT INTO tenant.crm_lead_stage_transitions(organization_id,from_stage_id,to_stage_id,created_by)
+     SELECT $1,source.id,target.id,$2
+       FROM tenant.crm_lead_stages source
+       JOIN tenant.crm_lead_stages target ON target.organization_id=source.organization_id
+      WHERE source.organization_id=$1
+        AND ((source.code='new' AND target.code='contacted')
+          OR (source.code='contacted' AND target.code IN ('new','working'))
+          OR (source.code='working' AND target.code='contacted'))
+     ON CONFLICT DO NOTHING`,
+    [input.organizationId, input.ownerUserId],
+  );
 
   for (const reason of [
     ["Price too high", "PRICE", "price"],

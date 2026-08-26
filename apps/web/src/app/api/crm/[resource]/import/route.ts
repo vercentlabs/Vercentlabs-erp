@@ -125,7 +125,7 @@ export async function POST(
                 String(input.mobile || input.phone || "").trim() || null;
               const duplicate = await client.query(
                 `SELECT id FROM tenant.crm_leads
-                 WHERE organization_id=$1 AND status<>'archived'
+                 WHERE organization_id=$1 AND record_status='active'
                    AND (($2::text IS NOT NULL AND normalized_email=tenant.crm_normalize_email($2))
                      OR ($3::text IS NOT NULL AND normalized_phone=tenant.crm_normalize_phone($3)))
                  LIMIT 1`,

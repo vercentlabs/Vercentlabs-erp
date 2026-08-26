@@ -1,22 +1,7 @@
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const LEAD_STATUSES = new Set([
-  "new",
-  "contacted",
-  "working",
-  "qualified",
-  "unqualified",
-  "converted",
-  "archived",
-]);
-const ACTIVE_CREATE_STATUSES = new Set([
-  "new",
-  "contacted",
-  "working",
-  "qualified",
-  "unqualified",
-]);
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
 const RATINGS = new Set(["cold", "warm", "hot"]);
+const MAX_ESTIMATED_VALUE = 1_000_000_000_000;
 
 const TEXT_LIMITS = Object.freeze({
   firstName: 120,
@@ -31,7 +16,6 @@ const TEXT_LIMITS = Object.freeze({
   city: 160,
   state: 160,
   productInterest: 4_000,
-  unqualifiedReason: 2_000,
 });
 
 const NORMALIZED_TEXT_FIELDS = Object.freeze(Object.keys(TEXT_LIMITS));
@@ -48,6 +32,12 @@ function issue(field, message, code) {
   return { field, message, code };
 }
 
+function hasUsablePhone(value) {
+  if (!text(value)) return true;
+  const digits = text(value).replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 15;
+}
+
 export function normalizeLeadRecordInput(input = {}) {
   const normalized = { ...input };
   for (const field of NORMALIZED_TEXT_FIELDS) {
@@ -57,15 +47,21 @@ export function normalizeLeadRecordInput(input = {}) {
   }
   if (hasOwn(normalized, "email") && normalized.email)
     normalized.email = String(normalized.email).toLowerCase();
-  if (hasOwn(normalized, "currencyCode") && normalized.currencyCode)
-    normalized.currencyCode = text(normalized.currencyCode).toUpperCase();
-  if (hasOwn(normalized, "countryCode") && normalized.countryCode)
-    normalized.countryCode = text(normalized.countryCode).toUpperCase();
+  for (const field of ["currencyCode", "countryCode"]) {
+    if (!hasOwn(normalized, field)) continue;
+    const value = text(normalized[field]).toUpperCase();
+    normalized[field] = value || null;
+  }
+  if (hasOwn(normalized, "estimatedValue")) {
+    normalized.estimatedValue =
+      normalized.estimatedValue === null || text(normalized.estimatedValue) === ""
+        ? 0
+        : Number(normalized.estimatedValue);
+  }
   return normalized;
 }
 
 export function validateLeadRecord(input = {}, options = {}) {
-  const mode = options.mode === "update" ? "update" : "create";
   const existing =
     options.existing && typeof options.existing === "object"
       ? options.existing
@@ -104,6 +100,18 @@ export function validateLeadRecord(input = {}, options = {}) {
         "CRM_LEAD_EMAIL_INVALID",
       ),
     );
+  }
+
+  for (const field of ["mobile", "phone"]) {
+    if (!hasUsablePhone(candidate[field])) {
+      errors.push(
+        issue(
+          field,
+          `${field === "mobile" ? "Mobile number" : "Alternate number"} must contain 7 to 15 digits.`,
+          "CRM_LEAD_PHONE_INVALID",
+        ),
+      );
+    }
   }
 
   if (text(candidate.website)) {
@@ -149,11 +157,15 @@ export function validateLeadRecord(input = {}, options = {}) {
     candidate.estimatedValue !== ""
   ) {
     const value = Number(candidate.estimatedValue);
-    if (!Number.isFinite(value) || value < 0) {
+    if (
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > MAX_ESTIMATED_VALUE
+    ) {
       errors.push(
         issue(
           "estimatedValue",
-          "Estimated value must be zero or greater.",
+          `Estimated value must be between zero and ${MAX_ESTIMATED_VALUE.toLocaleString("en-US")}.`,
           "CRM_LEAD_ESTIMATED_VALUE_INVALID",
         ),
       );
@@ -186,24 +198,14 @@ export function validateLeadRecord(input = {}, options = {}) {
     );
   }
 
-  const status = text(candidate.status || "new");
-  if (status && !LEAD_STATUSES.has(status)) {
+  if (["converted", "archived"].includes(text(candidate.status)))
     errors.push(
       issue(
         "status",
-        "Lead status is not supported.",
-        "CRM_LEAD_STATUS_INVALID",
-      ),
-    );
-  } else if (mode === "create" && !ACTIVE_CREATE_STATUSES.has(status)) {
-    errors.push(
-      issue(
-        "status",
-        "A new lead cannot start in a terminal status.",
+        "Conversion and archive are governed record actions, not Lead lifecycle stages.",
         "CRM_LEAD_INITIAL_STATUS_INVALID",
       ),
     );
-  }
 
   const priority = text(candidate.priority || "medium");
   if (priority && !PRIORITIES.has(priority))

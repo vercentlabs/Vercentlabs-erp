@@ -40,7 +40,7 @@ export async function POST(request: Request, { params }: Params) {
       context.organizationId,
       async (client) => {
         const before = await getCrmRecord(client, context, "leads", id);
-        if (["converted", "archived"].includes(String(before.status))) {
+        if (["converted", "archived"].includes(String(before.recordStatus))) {
           throw new HttpError(
             409,
             "Follow-ups cannot be scheduled for converted or archived leads.",

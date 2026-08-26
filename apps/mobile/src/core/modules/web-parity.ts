@@ -310,8 +310,8 @@ export const protectedWebParity: readonly WebParityEntry[] = [
   },
   {
     web: "/crm/contacts/[id]",
-    mobile: "/(protected)/crm/contacts/[id]",
-    delivery: "native",
+    mobile: "/crm/contacts/[id]",
+    delivery: "secure-browser-handoff",
   },
   {
     web: "/crm/readiness/account-intelligence",

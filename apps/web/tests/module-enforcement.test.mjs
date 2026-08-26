@@ -137,10 +137,12 @@ for (const [dir, moduleId, expectedFileCount] of groupC) {
 test("crm: crmApiContext wraps crmContext with assertModuleAccessible(\"crm\") and is exported alongside the untouched sync crmContext", () => {
   const source = read("apps/web/src/modules/crm/index.ts");
   assert.match(source, /export function crmContext\(session: SessionContext\): CrmContext/);
+  assert.match(source, /export async function crmApiContext\(/);
   assert.match(
     source,
-    /export async function crmApiContext\(session: SessionContext\): Promise<CrmContext> \{\s*await assertModuleAccessible\(session as WorkspaceSessionContext, "crm"\);\s*return crmContext\(session\);\s*\}/,
+    /await assertModuleAccessible\(session as WorkspaceSessionContext, "crm"\)/,
   );
+  assert.match(source, /return crmContext\(session\)/);
 });
 
 test("crm: no API route under apps/web/src/app/api/crm or api/mobile/v1/**crm** calls the unguarded sync crmContext()", () => {

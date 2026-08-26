@@ -31,8 +31,8 @@ export async function listMyFollowUps(
         (row: Record<string, unknown>) =>
           row.ownerUserId === session.userId &&
           row.nextFollowUpAt &&
-          row.status !== "converted" &&
-          row.status !== "unqualified",
+          row.recordStatus === "active" &&
+          row.qualificationState !== "unqualified",
       )
       .map((row: Record<string, unknown>) => ({
         id: `crm-lead-follow-up:${row.id}`,

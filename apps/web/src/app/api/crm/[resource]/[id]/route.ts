@@ -2,7 +2,12 @@ import {
   incrementBillingUsage,
   requireBillingWriteAccess,
 } from "@/core/billing";
-import { archiveCrmRecord, getCrmRecord, updateCrmRecord } from "@vercentlabs/api";
+import {
+  archiveCrmRecord,
+  assignLeadOwner,
+  getCrmRecord,
+  updateCrmRecord,
+} from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import {
   assertCrmIdentifier,
@@ -20,6 +25,7 @@ import { crmPatchSchemas } from "@/modules/crm/validation";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
+import { crmAuditSnapshot } from "@/modules/crm/audit";
 
 export async function GET(
   _request: Request,
@@ -32,6 +38,18 @@ export async function GET(
     const { resource, id } = await route.params;
     if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    if (resource === "assignment-rules")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Assignment Rules API.",
+        "CRM_ASSIGNMENT_RULE_API_MOVED",
+      );
+    if (resource === "sources")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Sources API.",
+        "CRM_LEAD_SOURCE_API_MOVED",
+      );
     assertCrmIdentifier(id);
     requireCrmResourceView(session, resource);
     const context = await crmApiContext(session);
@@ -55,17 +73,73 @@ export async function PATCH(
     const { resource, id } = await route.params;
     if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    if (resource === "assignment-rules")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Assignment Rules API.",
+        "CRM_ASSIGNMENT_RULE_API_MOVED",
+      );
+    if (resource === "sources")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Sources API.",
+        "CRM_LEAD_SOURCE_API_MOVED",
+      );
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
-    const input = await crmPatchSchemas[resource].parseAsync(
-      await readJson(request),
-    );
+    const rawInput = (await readJson(request)) as Record<string, unknown>;
+    if (
+      resource === "leads" &&
+      ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
+        (field) => Object.prototype.hasOwnProperty.call(rawInput, field),
+      )
+    )
+      throw new HttpError(
+        409,
+        "Use the governed Lead lifecycle transition action.",
+        "CRM_LEAD_STAGE_ACTION_REQUIRED",
+      );
+    const input = await crmPatchSchemas[resource].parseAsync(rawInput);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = await crmApiContext(session);
-    const record = await tenantTransaction(
+    const result = await tenantTransaction(
       context.organizationId,
       async (client) => {
+        if (
+          resource === "leads" &&
+          Object.prototype.hasOwnProperty.call(input, "ownerUserId")
+        ) {
+          if (Object.keys(input).length !== 1)
+            throw new HttpError(
+              409,
+              "Change the Lead owner separately from other Lead fields.",
+              "CRM_LEAD_ASSIGNMENT_REQUIRED",
+            );
+          const assigned = await assignLeadOwner(
+            client,
+            context,
+            id,
+            input.ownerUserId ? String(input.ownerUserId) : null,
+            { reason: "manual:patch" },
+          );
+          if (assigned.assignment.changed)
+            await audit({
+              organizationId: context.organizationId,
+              actorUserId: session.userId,
+              eventType: "crm.leads.assigned",
+              entityType: "leads",
+              entityId: id,
+              beforeData: {
+                ownerUserId: assigned.assignment.previousOwnerUserId,
+              },
+              afterData: { ownerUserId: assigned.assignment.ownerUserId },
+              metadata: { assignmentEventId: assigned.assignment.eventId },
+              request,
+              client,
+            });
+          return { record: assigned.lead, assignment: assigned.assignment };
+        }
         const updated = await updateCrmRecord(
           client,
           context,
@@ -79,16 +153,20 @@ export async function PATCH(
           eventType: `crm.${resource}.updated`,
           entityType: resource,
           entityId: id,
-          afterData: input,
+          afterData: crmAuditSnapshot(resource, updated, Object.keys(input)),
           request,
           client,
         });
-        return updated;
+        return { record: updated, assignment: null };
       },
     );
     return ok({
-      message: `${crmDefinitions[resource].singular.replace(/^./, (c) => c.toUpperCase())} updated.`,
-      record,
+      message:
+        result.assignment && !result.assignment.changed
+          ? "Lead owner was already selected."
+          : `${crmDefinitions[resource].singular.replace(/^./, (c) => c.toUpperCase())} updated.`,
+      record: result.record,
+      assignment: result.assignment,
     });
   } catch (error) {
     return crmErrorResponse(error);
@@ -106,6 +184,18 @@ export async function DELETE(
     const { resource, id } = await route.params;
     if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    if (resource === "assignment-rules")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Assignment Rules API.",
+        "CRM_ASSIGNMENT_RULE_API_MOVED",
+      );
+    if (resource === "sources")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Sources API.",
+        "CRM_LEAD_SOURCE_API_MOVED",
+      );
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
@@ -114,19 +204,14 @@ export async function DELETE(
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const archived = await archiveCrmRecord(
-          client,
-          context,
-          resource,
-          id,
-        );
+        const archived = await archiveCrmRecord(client, context, resource, id);
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,
           eventType: `crm.${resource}.archived`,
           entityType: resource,
           entityId: id,
-          afterData: archived,
+          afterData: crmAuditSnapshot(resource, archived),
           request,
           client,
         });

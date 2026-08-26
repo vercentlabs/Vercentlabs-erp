@@ -15,6 +15,7 @@ const groups = [
     description: "Control where leads come from, who receives them and how scoring supports qualification.",
     items: [
       ["Lead sources", "sources", "Define the source catalogue used on every lead."],
+      ["Lead lifecycle", "lead-lifecycle", "Order the governed working stages used by Leads and Kanban."],
       ["Assignment rules", "assignment-rules", "Route new leads to the right owner or team."],
       ["Lead scoring", "scoring-rules", "Create explainable rules that contribute to the lead score."],
     ],
@@ -48,7 +49,7 @@ const groups = [
 ] as const satisfies ReadonlyArray<{
   title: string;
   description: string;
-  items: ReadonlyArray<readonly [string, CrmResourceKey, string]>;
+  items: ReadonlyArray<readonly [string, CrmResourceKey | "lead-lifecycle", string]>;
 }>;
 
 export default async function CrmSettingsPage() {
@@ -58,7 +59,11 @@ export default async function CrmSettingsPage() {
   const visibleGroups = groups
     .map((group) => ({
       ...group,
-      items: group.items.filter(([, key]) => canViewCrmResource(session, key)),
+      items: group.items.filter(([, key]) =>
+        key === "lead-lifecycle"
+          ? hasPermission(session, PERMISSIONS.crmSettingsManage)
+          : canViewCrmResource(session, key),
+      ),
     }))
     .filter((group) => group.items.length);
 

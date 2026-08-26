@@ -4,10 +4,12 @@ import Link from "next/link";
 import {
   DragEvent,
   FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
 
@@ -15,16 +17,25 @@ import AppIcon from "@/shared/components/app-icon";
 import PaginationControls from "@/shared/components/pagination-controls";
 import { requestJson } from "@/shared/http/client-request";
 import type { CrmField } from "@/modules/crm";
+import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
 
 type Row = Record<string, unknown>;
-type Option = { id: string; name: string; pipelineId?: string };
-type LeadDashboard = { metrics?: Record<string, unknown> };
+type Option = {
+  id: string;
+  name: string;
+  status?: string;
+  pipelineId?: string;
+  code?: string;
+  sortOrder?: number;
+  allowedFromCodes?: string[];
+};
 type LeadFilters = {
   ownerId?: string;
   sourceId?: string;
   priority?: string;
   rating?: string;
   followup?: string;
+  qualification?: string;
 };
 type SavedView = {
   id: string;
@@ -32,15 +43,7 @@ type SavedView = {
   filters?: Record<string, unknown>;
 };
 
-const lifecycle = [
-  "new",
-  "contacted",
-  "working",
-  "qualified",
-  "unqualified",
-] as const;
-const allStatuses = ["all", ...lifecycle, "converted", "archived"] as const;
-const KANBAN_PAGE_SIZE = 10;
+const KANBAN_PAGE_SIZE = 6;
 
 function num(value: unknown) {
   const result = Number(value || 0);
@@ -111,6 +114,11 @@ function optionName(
         String(value)
     : "";
 }
+function leadOwnerName(row: Row) {
+  const name = String(row.ownerName || "").trim();
+  if (!name) return "Unassigned";
+  return row.ownerStatus === "inactive" ? `${name} (Inactive)` : name;
+}
 function rawDefault(field: CrmField, row: Row) {
   const value = row[field.name];
   if (field.type === "date" || field.type === "datetime-local") {
@@ -146,7 +154,7 @@ function EditField({
       </label>
     );
   if (field.type === "select") {
-    const choices =
+    let choices =
       field.options ||
       (field.optionsKey
         ? options[field.optionsKey]?.map((item) => ({
@@ -155,6 +163,16 @@ function EditField({
           }))
         : []) ||
       [];
+    if (field.name === "sourceId" && row.sourceId) {
+      const current = options.allSources?.find(
+        (item) => item.id === String(row.sourceId),
+      );
+      if (current && !choices.some((choice) => choice.value === current.id))
+        choices = [
+          { value: current.id, label: `${current.name} — Inactive` },
+          ...choices,
+        ];
+    }
     return (
       <label>
         <span>
@@ -245,8 +263,6 @@ function LeadEditPanel({
     [
       "Qualification",
       [
-        "status",
-        "unqualifiedReason",
         "priority",
         "rating",
         "estimatedValue",
@@ -255,18 +271,21 @@ function LeadEditPanel({
         "productInterest",
       ],
     ],
-    ["Location & next action", ["city", "state", "nextFollowUpAt"]],
+    [
+      "Location & next action",
+      ["city", "state", "countryCode", "nextFollowUpAt"],
+    ],
     [
       "Communication preferences",
       ["consentEmail", "consentSms", "consentWhatsapp", "doNotContact"],
     ],
   ] as const;
   return (
-    <aside className="crm-suite-editor" aria-label="Edit lead">
+    <div className="crm-suite-editor">
       <header>
         <div>
           <p className="eyebrow">Edit lead</p>
-          <h2>{leadName(row)}</h2>
+          <h2 id="crm-lead-editor-title">{leadName(row)}</h2>
           <small>{String(row.code || "CRM lead")}</small>
         </div>
         <button
@@ -313,13 +332,14 @@ function LeadEditPanel({
           </button>
         </footer>
       </form>
-    </aside>
+    </div>
   );
 }
 
 export default function CrmLeadsWorkspace({
   rows,
   boardRows,
+  boardTotal,
   total,
   page,
   pageSize,
@@ -334,9 +354,9 @@ export default function CrmLeadsWorkspace({
   message,
   editing,
   fields,
-  leadDashboard,
   leadFilters = {},
   onCreate,
+  onView,
   onEdit,
   onArchive,
   onImport,
@@ -345,6 +365,7 @@ export default function CrmLeadsWorkspace({
 }: {
   rows: Row[];
   boardRows: Row[];
+  boardTotal: number;
   total: number;
   page: number;
   pageSize: number;
@@ -359,10 +380,10 @@ export default function CrmLeadsWorkspace({
   message: string;
   editing: Row | null;
   fields: CrmField[];
-  leadDashboard?: LeadDashboard | null;
   leadFilters?: LeadFilters;
   onNavigate: (page: number, search: string, status: string) => void;
   onCreate: () => void;
+  onView: (id: string) => void;
   onEdit: (row: Row) => void;
   onArchive: (id: string) => void;
   onImport: (file: File) => void;
@@ -370,7 +391,10 @@ export default function CrmLeadsWorkspace({
   onSubmitEdit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 }) {
   const router = useRouter();
+  const [isRefreshingBoard, startBoardRefresh] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  const kanbanRef = useRef<HTMLDivElement>(null);
+  const kanbanScrollFrame = useRef<number | null>(null);
   const [preferredView, setPreferredView] = useState<"table" | "kanban">(
     "table",
   );
@@ -382,26 +406,53 @@ export default function CrmLeadsWorkspace({
     priority: leadFilters.priority || "all",
     rating: leadFilters.rating || "all",
     followup: leadFilters.followup || "all",
+    qualification: leadFilters.qualification || "all",
   });
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [working, setWorking] = useState("");
   const [localMessage, setLocalMessage] = useState("");
-  const [bulkOwner, setBulkOwner] = useState("");
-  const [bulkStatus, setBulkStatus] = useState("");
   const [bulkPriority, setBulkPriority] = useState("");
   const [kanbanPages, setKanbanPages] = useState<Record<string, number>>({});
-  const metrics = leadDashboard?.metrics || {};
+  const [kanbanStageIndex, setKanbanStageIndex] = useState(0);
+  const [dropStage, setDropStage] = useState("");
   const terminalStatus = status === "converted" || status === "archived";
   const view = terminalStatus ? "table" : preferredView;
+  const lifecycleStages = useMemo(
+    () =>
+      (options.leadStages || [])
+        .filter((stage) => stage.code)
+        .sort(
+          (left, right) =>
+            Number(left.sortOrder || 0) - Number(right.sortOrder || 0),
+        ),
+    [options.leadStages],
+  );
+  const lifecycle = useMemo(
+    () => lifecycleStages.map((stage) => String(stage.code)),
+    [lifecycleStages],
+  );
+  const allStatuses = useMemo(
+    () => ["all", ...lifecycle, "converted", "archived"],
+    [lifecycle],
+  );
+  const stageLabel = (code: string) =>
+    lifecycleStages.find((stage) => stage.code === code)?.name || nice(code);
+  const stageIsActive = (code: string) =>
+    lifecycleStages.find((stage) => stage.code === code)?.status === "active";
+  const moveTargets = (fromCode: string) =>
+    lifecycleStages.filter(
+      (stage) =>
+        stage.code === fromCode ||
+        (stage.status === "active" &&
+          (stage.allowedFromCodes || []).includes(fromCode)),
+    );
 
   useEffect(() => {
     const saved = window.localStorage.getItem("vercentlabs_crm_leads_view");
     const restoreTimer = window.setTimeout(() => {
-      if (
-        saved === "table" ||
-        (saved === "kanban" && !terminalStatus)
-      ) {
+      if (saved === "table" || (saved === "kanban" && !terminalStatus)) {
         setPreferredView(saved);
       }
     }, 0);
@@ -439,6 +490,8 @@ export default function CrmLeadsWorkspace({
     if (nextFilters.rating !== "all") query.set("rating", nextFilters.rating);
     if (nextFilters.followup !== "all")
       query.set("followup", nextFilters.followup);
+    if (nextFilters.qualification !== "all")
+      query.set("qualification", nextFilters.qualification);
     if (nextPage > 1) query.set("page", String(nextPage));
     router.push(`/crm/leads${query.size ? `?${query.toString()}` : ""}`);
   }
@@ -459,25 +512,19 @@ export default function CrmLeadsWorkspace({
   }
 
   async function moveLead(id: string, nextStatus: string) {
-    if (!canManage || working) return;
-    let reason = "";
-    if (nextStatus === "unqualified") {
-      reason =
-        window.prompt("Why is this lead being disqualified?")?.trim() || "";
-      if (!reason) return;
-    }
+    if (!canManage || working || isRefreshingBoard) return;
     setWorking(id);
     setLocalMessage("");
     try {
-      const result = await requestJson(`/api/crm/leads/${id}/status`, {
+      const result = await requestJson(`/api/crm/leads/${id}/stage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus, unqualifiedReason: reason }),
+        body: JSON.stringify({ stageCode: nextStatus, source: "kanban" }),
       });
       if (!result.ok)
         throw new Error(result.message || "Lead could not be moved.");
       setLocalMessage(result.message || "Lead updated.");
-      router.refresh();
+      startBoardRefresh(() => router.refresh());
     } catch (error) {
       setLocalMessage(
         error instanceof Error ? error.message : "Lead could not be moved.",
@@ -486,30 +533,29 @@ export default function CrmLeadsWorkspace({
       setWorking("");
     }
   }
-  function dragStart(event: DragEvent, id: string) {
+  function dragStart(event: DragEvent, id: string, stage: string) {
     event.dataTransfer.setData("text/vercent-lead-id", id);
+    event.dataTransfer.setData("text/vercent-lead-stage", stage);
     event.dataTransfer.effectAllowed = "move";
+  }
+  function cardDragStart(event: DragEvent, id: string, stage: string) {
+    const target = event.target as HTMLElement;
+    if (target.closest("button, select, input, textarea, a")) {
+      event.preventDefault();
+      return;
+    }
+    dragStart(event, id, stage);
   }
   function drop(event: DragEvent, nextStatus: string) {
     event.preventDefault();
     const id = event.dataTransfer.getData("text/vercent-lead-id");
-    if (id) void moveLead(id, nextStatus);
+    const sourceStage = event.dataTransfer.getData("text/vercent-lead-stage");
+    setDropStage("");
+    if (id && sourceStage !== nextStatus) void moveLead(id, nextStatus);
   }
   async function bulkApply() {
-    if (!selected.size) return;
+    if (!canManage || !selected.size) return;
     const changes: Record<string, unknown> = {};
-    if (bulkOwner) changes.ownerUserId = bulkOwner;
-    if (bulkStatus) {
-      changes.status = bulkStatus;
-      if (bulkStatus === "unqualified") {
-        const reason =
-          window
-            .prompt("Disqualification reason for the selected leads?")
-            ?.trim() || "";
-        if (!reason) return;
-        changes.unqualifiedReason = reason;
-      }
-    }
     if (bulkPriority) changes.priority = bulkPriority;
     if (!Object.keys(changes).length) {
       setLocalMessage("Choose a bulk change first.");
@@ -574,11 +620,13 @@ export default function CrmLeadsWorkspace({
       priority: String(value.priority || "all"),
       rating: String(value.rating || "all"),
       followup: String(value.followup || "all"),
+      qualification: String(value.qualification || "all"),
     };
     const nextSearch = String(value.search || "");
     const nextStatus = String(value.status || "all");
     setSearch(nextSearch);
     setStatus(nextStatus);
+    resetKanbanStage();
     setFilters(next);
     navigate(1, nextStatus, next, nextSearch);
   }
@@ -609,12 +657,92 @@ export default function CrmLeadsWorkspace({
           lastVisible: Math.min(stageRows.length, offset + KANBAN_PAGE_SIZE),
         };
       }),
-    [boardRows, kanbanPages],
+    [boardRows, kanbanPages, lifecycle],
   );
-  const kanbanTotal = useMemo(
-    () => groups.reduce((sum, group) => sum + group.rows.length, 0),
-    [groups],
+  const displayedGroups = useMemo(
+    () =>
+      lifecycle.some((stage) => stage === status)
+        ? groups.filter((group) => group.stage === status)
+        : groups,
+    [groups, lifecycle, status],
   );
+  const boardIsEmpty = displayedGroups.every((group) => !group.rows.length);
+
+  function syncKanbanStage() {
+    if (kanbanScrollFrame.current !== null) return;
+    kanbanScrollFrame.current = window.requestAnimationFrame(() => {
+      kanbanScrollFrame.current = null;
+      const board = kanbanRef.current;
+      if (!board) return;
+      const columns = Array.from(
+        board.querySelectorAll<HTMLElement>(".crm-leads-kanban-column"),
+      );
+      if (!columns.length) return;
+      const maxScroll = board.scrollWidth - board.clientWidth;
+      if (board.scrollLeft >= maxScroll - 2) {
+        setKanbanStageIndex(columns.length - 1);
+        return;
+      }
+      const boardRect = board.getBoundingClientRect();
+      const closest = columns.reduce(
+        (best, column, index) => {
+          const rect = column.getBoundingClientRect();
+          const visibleWidth = Math.max(
+            0,
+            Math.min(rect.right, boardRect.right) -
+              Math.max(rect.left, boardRect.left),
+          );
+          const ratio = visibleWidth / Math.max(rect.width, 1);
+          return ratio > best.ratio ? { index, ratio } : best;
+        },
+        { index: 0, ratio: -1 },
+      );
+      setKanbanStageIndex(closest.index);
+    });
+  }
+
+  function scrollKanbanStage(nextIndex: number) {
+    const board = kanbanRef.current;
+    if (!board) return;
+    const columns = Array.from(
+      board.querySelectorAll<HTMLElement>(".crm-leads-kanban-column"),
+    );
+    const boundedIndex = Math.min(
+      Math.max(nextIndex, 0),
+      Math.max(columns.length - 1, 0),
+    );
+    const column = columns[boundedIndex];
+    if (!column) return;
+    const left =
+      column.getBoundingClientRect().left -
+      board.getBoundingClientRect().left +
+      board.scrollLeft;
+    board.scrollTo({
+      left,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+    setKanbanStageIndex(boundedIndex);
+  }
+
+  function resetKanbanStage() {
+    setKanbanStageIndex(0);
+    kanbanRef.current?.scrollTo({ left: 0, behavior: "auto" });
+  }
+
+  function handleKanbanKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    const destinations: Record<string, number> = {
+      ArrowLeft: kanbanStageIndex - 1,
+      ArrowRight: kanbanStageIndex + 1,
+      Home: 0,
+      End: displayedGroups.length - 1,
+    };
+    if (!(event.key in destinations)) return;
+    event.preventDefault();
+    scrollKanbanStage(destinations[event.key]);
+  }
   function changeKanbanPage(stage: string, nextPage: number) {
     setKanbanPages((current) => ({
       ...current,
@@ -629,19 +757,16 @@ export default function CrmLeadsWorkspace({
     filters.priority !== "all" ? filters.priority : "",
     filters.rating !== "all" ? filters.rating : "",
     filters.followup !== "all" ? filters.followup : "",
+    filters.qualification !== "all" ? filters.qualification : "",
   ].filter(Boolean).length;
 
   return (
-    <div className={`crm-leads-enterprise${editing?.id ? " has-editor" : ""}`}>
+    <div className="crm-leads-enterprise">
       <main className="crm-leads-enterprise-main">
         <header className="crm-suite-command">
           <div>
             <p className="eyebrow">CRM · Lead command centre</p>
             <h1>Leads</h1>
-            <p>
-              Capture, route, qualify, score, nurture and convert enquiries from
-              one governed workspace.
-            </p>
           </div>
           <div className="crm-suite-command-actions">
             {canManage ? (
@@ -655,41 +780,6 @@ export default function CrmLeadsWorkspace({
             ) : null}
           </div>
         </header>
-        <section className="crm-suite-metrics" aria-label="Lead health">
-          {[
-            [
-              "Open leads",
-              metrics.openLeads,
-              "Active visible leads",
-              "/crm/leads",
-            ],
-            [
-              "Qualified",
-              metrics.qualifiedLeads,
-              "Ready for progression",
-              "/crm/leads?status=qualified",
-            ],
-            [
-              "Overdue actions",
-              metrics.overdueActivities,
-              "Needs seller attention",
-              "/crm/activities",
-            ],
-            [
-              "Due today",
-              metrics.dueToday,
-              "Customer actions today",
-              "/crm/activities",
-            ],
-          ].map(([label, value, detail, href]) => (
-            <Link href={String(href)} key={String(label)}>
-              <small>{String(label)}</small>
-              <strong>{String(value ?? "—")}</strong>
-              <span>{String(detail)}</span>
-            </Link>
-          ))}
-        </section>
-
         <section className="crm-leads-toolbar-shell">
           <div className="crm-leads-toolbar-top">
             <form
@@ -700,7 +790,13 @@ export default function CrmLeadsWorkspace({
               className="crm-suite-search"
             >
               <AppIcon name="search" size={16} />
+              <label className="sr-only" htmlFor="crm-lead-search">
+                Search leads
+              </label>
               <input
+                id="crm-lead-search"
+                type="search"
+                enterKeyHint="search"
                 value={search}
                 onChange={(event) => setSearch(event.currentTarget.value)}
                 placeholder="Search lead, company, email, phone, code or product interest"
@@ -711,11 +807,13 @@ export default function CrmLeadsWorkspace({
             </form>
             <div
               className="crm-leads-view-switch"
+              role="group"
               aria-label="Lead presentation"
             >
               <button
                 className={view === "table" ? "active" : ""}
                 type="button"
+                aria-pressed={view === "table"}
                 onClick={() => setPresentation("table")}
               >
                 Table
@@ -723,6 +821,7 @@ export default function CrmLeadsWorkspace({
               <button
                 className={view === "kanban" ? "active" : ""}
                 type="button"
+                aria-pressed={view === "kanban"}
                 disabled={terminalStatus}
                 onClick={() => setPresentation("kanban")}
               >
@@ -760,7 +859,20 @@ export default function CrmLeadsWorkspace({
               ) : null}
             </div>
           </div>
-          <div className="crm-leads-filter-grid">
+          <button
+            className="secondary-button crm-leads-filter-toggle"
+            type="button"
+            aria-expanded={filtersExpanded}
+            aria-controls="crm-leads-advanced-filters"
+            onClick={() => setFiltersExpanded((current) => !current)}
+          >
+            {filtersExpanded ? "Hide filters" : "More filters"}
+            {activeFilters ? ` (${activeFilters})` : ""}
+          </button>
+          <div
+            id="crm-leads-advanced-filters"
+            className={`crm-leads-filter-grid${filtersExpanded ? " is-expanded" : ""}`}
+          >
             <label>
               Owner
               <select
@@ -770,6 +882,8 @@ export default function CrmLeadsWorkspace({
                 }
               >
                 <option value="">All owners</option>
+                <option value="me">My leads</option>
+                <option value="unassigned">Unassigned</option>
                 {options.users?.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
@@ -849,6 +963,23 @@ export default function CrmLeadsWorkspace({
                 <option value="none">No follow-up</option>
               </select>
             </label>
+            <label>
+              Qualification
+              <select
+                value={filters.qualification}
+                onChange={(event) =>
+                  setFilters({
+                    ...filters,
+                    qualification: event.currentTarget.value,
+                  })
+                }
+              >
+                <option value="all">All decisions</option>
+                <option value="not_reviewed">Not reviewed</option>
+                <option value="qualified">Qualified</option>
+                <option value="unqualified">Unqualified</option>
+              </select>
+            </label>
             <div className="crm-leads-filter-actions">
               <button
                 className="secondary-button"
@@ -867,9 +998,11 @@ export default function CrmLeadsWorkspace({
                     priority: "all",
                     rating: "all",
                     followup: "all",
+                    qualification: "all",
                   };
                   setSearch("");
                   setStatus("all");
+                  resetKanbanStage();
                   setFilters(clear);
                   navigate(1, "all", clear, "");
                 }}
@@ -916,10 +1049,15 @@ export default function CrmLeadsWorkspace({
                 aria-current={status === item ? "page" : undefined}
                 onClick={() => {
                   setStatus(item);
+                  resetKanbanStage();
                   navigate(1, item);
                 }}
               >
-                {item === "all" ? "All leads" : nice(item)}
+                {item === "all"
+                  ? "All leads"
+                  : item === "converted" || item === "archived"
+                    ? nice(item)
+                    : stageLabel(item)}
               </button>
             ))}
           </nav>
@@ -929,37 +1067,9 @@ export default function CrmLeadsWorkspace({
             {localMessage || message}
           </p>
         ) : null}
-        {selected.size ? (
+        {canManage && selected.size ? (
           <section className="crm-leads-bulk-bar">
             <strong>{selected.size} selected</strong>
-            <label>
-              Owner
-              <select
-                value={bulkOwner}
-                onChange={(event) => setBulkOwner(event.currentTarget.value)}
-              >
-                <option value="">No owner change</option>
-                {options.users?.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Status
-              <select
-                value={bulkStatus}
-                onChange={(event) => setBulkStatus(event.currentTarget.value)}
-              >
-                <option value="">No status change</option>
-                {lifecycle.map((item) => (
-                  <option key={item} value={item}>
-                    {nice(item)}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label>
               Priority
               <select
@@ -1005,8 +1115,11 @@ export default function CrmLeadsWorkspace({
             </div>
             <div className="crm-leads-table-scroll">
               <table>
+                <caption className="sr-only">
+                  Leads matching the current search and filters
+                </caption>
                 <colgroup>
-                  <col className="crm-leads-col-select" />
+                  {canManage ? <col className="crm-leads-col-select" /> : null}
                   <col className="crm-leads-col-lead" />
                   <col className="crm-leads-col-owner" />
                   <col className="crm-leads-col-status" />
@@ -1017,16 +1130,18 @@ export default function CrmLeadsWorkspace({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="select">
-                      <input
-                        type="checkbox"
-                        aria-label="Select visible leads"
-                        checked={
-                          rows.length > 0 && selected.size === rows.length
-                        }
-                        onChange={toggleAll}
-                      />
-                    </th>
+                    {canManage ? (
+                      <th className="select">
+                        <input
+                          type="checkbox"
+                          aria-label="Select visible leads"
+                          checked={
+                            rows.length > 0 && selected.size === rows.length
+                          }
+                          onChange={toggleAll}
+                        />
+                      </th>
+                    ) : null}
                     <th>Lead</th>
                     <th>Owner / source</th>
                     <th>Status</th>
@@ -1044,20 +1159,26 @@ export default function CrmLeadsWorkspace({
                     const followup = followState(row.nextFollowUpAt);
                     return (
                       <tr key={id}>
-                        <td className="select">
-                          <input
-                            type="checkbox"
-                            aria-label={`Select ${leadName(row)}`}
-                            checked={selected.has(id)}
-                            onChange={() => toggle(id)}
-                          />
-                        </td>
+                        {canManage ? (
+                          <td className="select">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${leadName(row)}`}
+                              checked={selected.has(id)}
+                              onChange={() => toggle(id)}
+                            />
+                          </td>
+                        ) : null}
                         <td>
                           <div className="crm-lead-id">
                             <div>
-                              <Link href={`/crm/leads/${id}`}>
+                              <button
+                                className="crm-lead-open-link"
+                                type="button"
+                                onClick={() => onView(id)}
+                              >
                                 {leadName(row)}
-                              </Link>
+                              </button>
                               <small>
                                 {[row.code, row.companyName]
                                   .filter(Boolean)
@@ -1074,13 +1195,13 @@ export default function CrmLeadsWorkspace({
                         </td>
                         <td>
                           <div className="crm-lead-stack">
-                            <strong>
-                              {optionName(options, "users", row.ownerUserId) ||
-                                "Unassigned"}
-                            </strong>
+                            <strong>{leadOwnerName(row)}</strong>
                             <small>
-                              {optionName(options, "sources", row.sourceId) ||
-                                "No source"}
+                              {optionName(
+                                options,
+                                "allSources",
+                                row.sourceId,
+                              ) || "No source"}
                             </small>
                             <em>
                               {[row.priority, row.rating]
@@ -1091,11 +1212,18 @@ export default function CrmLeadsWorkspace({
                           </div>
                         </td>
                         <td>
-                          <span
-                            className={`crm-lead-status status-${String(row.status || "new")}`}
-                          >
-                            {nice(row.status || "new")}
-                          </span>
+                          <div className="crm-lead-stack">
+                            <span
+                              className={`crm-lead-status status-${String(row.status || "new")}`}
+                            >
+                              {nice(row.status || "new")}
+                            </span>
+                            <span
+                              className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
+                            >
+                              {nice(row.qualificationState || "not_reviewed")}
+                            </span>
+                          </div>
                         </td>
                         <td>
                           <div className="crm-lead-score">
@@ -1135,12 +1263,13 @@ export default function CrmLeadsWorkspace({
                         </td>
                         <td>
                           <div className="crm-lead-row-buttons">
-                            <Link
+                            <button
                               className="secondary-button"
-                              href={`/crm/leads/${id}`}
+                              type="button"
+                              onClick={() => onView(id)}
                             >
                               Open
-                            </Link>
+                            </button>
                             {canManage ? (
                               <button
                                 className="link-button"
@@ -1150,7 +1279,7 @@ export default function CrmLeadsWorkspace({
                                 Edit
                               </button>
                             ) : null}
-                            {canManage && row.status !== "archived" ? (
+                            {canManage && String(row.recordStatus || "active") === "active" ? (
                               <button
                                 className="link-button danger"
                                 type="button"
@@ -1171,12 +1300,22 @@ export default function CrmLeadsWorkspace({
               {rows.map((row) => {
                 const id = String(row.id);
                 const followup = followState(row.nextFollowUpAt);
+                const mobileTitleId = `crm-mobile-lead-${id}`;
+                const mobilePhone = String(row.mobile || row.phone || "");
+                const mobileEmail = String(row.email || "");
                 return (
-                  <article key={id}>
+                  <article key={id} aria-labelledby={mobileTitleId}>
                     <header>
                       <div className="crm-lead-id">
                         <div>
-                          <Link href={`/crm/leads/${id}`}>{leadName(row)}</Link>
+                          <button
+                            id={mobileTitleId}
+                            className="crm-lead-open-link"
+                            type="button"
+                            onClick={() => onView(id)}
+                          >
+                            {leadName(row)}
+                          </button>
                           <small>
                             {[row.code, row.companyName]
                               .filter(Boolean)
@@ -1184,19 +1323,40 @@ export default function CrmLeadsWorkspace({
                           </small>
                         </div>
                       </div>
-                      <span
-                        className={`crm-lead-status status-${String(row.status || "new")}`}
-                      >
-                        {nice(row.status || "new")}
-                      </span>
+                      <div className="crm-lead-stack">
+                        <span
+                          className={`crm-lead-status status-${String(row.status || "new")}`}
+                        >
+                          {nice(row.status || "new")}
+                        </span>
+                        <span
+                          className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
+                        >
+                          {nice(row.qualificationState || "not_reviewed")}
+                        </span>
+                      </div>
                     </header>
+                    <div className="crm-leads-mobile-contact">
+                      {mobileEmail ? (
+                        <a href={`mailto:${mobileEmail}`}>
+                          <AppIcon name="email" size={15} />
+                          <span>{mobileEmail}</span>
+                        </a>
+                      ) : null}
+                      {mobilePhone ? (
+                        <a href={`tel:${mobilePhone}`}>
+                          <AppIcon name="phone" size={15} />
+                          <span>{mobilePhone}</span>
+                        </a>
+                      ) : null}
+                      {!mobileEmail && !mobilePhone ? (
+                        <span>No contact details</span>
+                      ) : null}
+                    </div>
                     <div className="crm-leads-mobile-facts">
                       <div>
                         <small>Owner</small>
-                        <strong>
-                          {optionName(options, "users", row.ownerUserId) ||
-                            "Unassigned"}
-                        </strong>
+                        <strong>{leadOwnerName(row)}</strong>
                       </div>
                       <div>
                         <small>Score</small>
@@ -1215,7 +1375,7 @@ export default function CrmLeadsWorkspace({
                     </div>
                     <div className="crm-leads-mobile-meta">
                       <span>
-                        {optionName(options, "sources", row.sourceId) ||
+                        {optionName(options, "allSources", row.sourceId) ||
                           "No source"}
                       </span>
                       <span>
@@ -1226,21 +1386,25 @@ export default function CrmLeadsWorkspace({
                       </span>
                       {row.doNotContact ? <b>Do not contact</b> : null}
                     </div>
-                    <footer>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(id)}
-                          onChange={() => toggle(id)}
-                        />
-                        <span>Select</span>
-                      </label>
-                      <Link
+                    <footer className={canManage ? "" : "is-read-only"}>
+                      {canManage ? (
+                        <label>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${leadName(row)}`}
+                            checked={selected.has(id)}
+                            onChange={() => toggle(id)}
+                          />
+                          <span>Select</span>
+                        </label>
+                      ) : null}
+                      <button
                         className="secondary-button"
-                        href={`/crm/leads/${id}`}
+                        type="button"
+                        onClick={() => onView(id)}
                       >
                         Open
-                      </Link>
+                      </button>
                       {canManage ? (
                         <button
                           className="secondary-button"
@@ -1273,171 +1437,337 @@ export default function CrmLeadsWorkspace({
           </section>
         ) : (
           <section className="crm-leads-kanban-shell">
-            <div className="crm-leads-kanban-help">
-              <div>
-                <p className="eyebrow">Lifecycle Kanban</p>
-                <h2>Move active leads through qualification</h2>
+            {boardTotal > boardRows.length ? (
+              <div className="crm-leads-kanban-limit" role="status">
+                <span>
+                  This board shows the first {boardRows.length} of {boardTotal}{" "}
+                  matching leads.
+                </span>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setPresentation("table")}
+                >
+                  View the complete table
+                </button>
               </div>
-              <p>
-                {kanbanTotal} active scoped lead{kanbanTotal === 1 ? "" : "s"}{" "}
-                are on this board. Each lifecycle column shows{" "}
-                {KANBAN_PAGE_SIZE} cards at a time. Drag with a mouse or use
-                each card&apos;s Move selector. Conversion stays a governed
-                action inside the Lead record.
-              </p>
-            </div>
+            ) : null}
+            {displayedGroups.length > 1 &&
+            displayedGroups.some((group) => group.rows.length) ? (
+              <nav
+                className="crm-leads-kanban-navigation"
+                aria-label="Kanban stage navigation"
+              >
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={kanbanStageIndex <= 0}
+                  onClick={() => scrollKanbanStage(kanbanStageIndex - 1)}
+                >
+                  Previous stage
+                </button>
+                <span aria-live="polite">
+                  <strong>
+                    {nice(
+                      displayedGroups[
+                        Math.min(kanbanStageIndex, displayedGroups.length - 1)
+                      ]?.stage,
+                    )}
+                  </strong>
+                  <small>
+                    {Math.min(kanbanStageIndex + 1, displayedGroups.length)} of{" "}
+                    {displayedGroups.length}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={kanbanStageIndex >= displayedGroups.length - 1}
+                  onClick={() => scrollKanbanStage(kanbanStageIndex + 1)}
+                >
+                  Next stage
+                </button>
+              </nav>
+            ) : null}
             <div
-              className="crm-leads-kanban-summary"
-              aria-label="Kanban paging summary"
+              ref={kanbanRef}
+              className={`crm-leads-kanban${displayedGroups.length === 1 ? " is-single-stage" : ""}${boardIsEmpty ? " is-empty" : ""}`}
+              role="region"
+              aria-label="Lead lifecycle Kanban board"
+              tabIndex={0}
+              onScroll={syncKanbanStage}
+              onKeyDown={handleKanbanKeyDown}
             >
-              <span>
-                <strong>{kanbanTotal}</strong> active leads
-              </span>
-              <span>
-                <strong>{KANBAN_PAGE_SIZE}</strong> cards per column page
-              </span>
-              <span>
-                Each column paginates independently so large stages remain
-                readable.
-              </span>
-            </div>
-            <div className="crm-leads-kanban">
-              {groups.map(
-                ({
-                  stage,
-                  rows: stageRows,
-                  visibleRows,
-                  currentPage,
-                  pageCount,
-                  firstVisible,
-                  lastVisible,
-                }) => (
-                  <section
-                    key={stage}
-                    className={`crm-leads-kanban-column stage-${stage}`}
-                    onDragOver={(event) => {
-                      if (canManage) event.preventDefault();
-                    }}
-                    onDrop={(event) => drop(event, stage)}
-                  >
-                    <header>
-                      <div>
-                        <strong>{nice(stage)}</strong>
-                        <small>
-                          {stageRows.length} lead
-                          {stageRows.length === 1 ? "" : "s"}
-                        </small>
-                      </div>
-                      <span>{stageRows.length}</span>
-                    </header>
-                    <div className="crm-leads-kanban-cards">
-                      {visibleRows.map((row) => {
-                        const id = String(row.id);
-                        return (
-                          <article
-                            key={id}
-                            draggable={canManage}
-                            onDragStart={(event) => dragStart(event, id)}
-                            aria-busy={working === id}
-                          >
-                            <div className="crm-lead-kanban-top">
-                              <span className="crm-lead-avatar-small">
-                                {initials(row)}
-                              </span>
-                              <div>
-                                <Link href={`/crm/leads/${id}`}>
-                                  {leadName(row)}
-                                </Link>
-                                <small>
-                                  {String(row.companyName || row.code || "")}
-                                </small>
-                              </div>
-                              <b>{Math.round(num(row.score))}</b>
-                            </div>
-                            <div className="crm-lead-kanban-meta">
-                              <span>
-                                {money(row.estimatedValue, row.currencyCode)}
-                              </span>
-                              <span>{nice(row.rating || "Unrated")}</span>
-                            </div>
-                            <div
-                              className={`crm-lead-kanban-follow state-${followState(row.nextFollowUpAt)}`}
-                            >
-                              {dateTime(row.nextFollowUpAt)}
-                            </div>
-                            <div className="crm-lead-kanban-owner">
-                              {optionName(options, "users", row.ownerUserId) ||
-                                "Unassigned"}
-                            </div>
-                            {canManage ? (
-                              <label className="crm-lead-kanban-move">
-                                <span>Move lead</span>
-                                <select
-                                  value={String(row.status || "new")}
-                                  disabled={working === id}
-                                  onChange={(event) =>
-                                    void moveLead(id, event.currentTarget.value)
-                                  }
-                                >
-                                  {lifecycle.map((item) => (
-                                    <option key={item} value={item}>
-                                      {nice(item)}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            ) : null}
-                          </article>
-                        );
-                      })}
-                      {!stageRows.length ? (
-                        <div className="crm-lead-kanban-empty">
-                          <strong>No leads in this stage</strong>
-                          <span>
-                            Drag an eligible lead here or update its lifecycle
-                            status.
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                    {stageRows.length ? (
-                      <footer
-                        className="crm-lead-kanban-pagination"
-                        aria-label={`${nice(stage)} column pagination`}
+              {boardIsEmpty ? (
+                <div className="crm-leads-kanban-empty-board">
+                  <strong>No leads match this board</strong>
+                  <span>
+                    Adjust the search or filters to show lifecycle cards.
+                  </span>
+                </div>
+              ) : null}
+              {displayedGroups.some((group) => group.rows.length)
+                ? displayedGroups.map(
+                    ({
+                      stage,
+                      rows: stageRows,
+                      visibleRows,
+                      currentPage,
+                      pageCount,
+                      firstVisible,
+                      lastVisible,
+                    }) => (
+                      <section
+                        key={stage}
+                        className={`crm-leads-kanban-column stage-${stage}${dropStage === stage ? " is-drop-target" : ""}`}
+                        aria-labelledby={`crm-kanban-${stage}-title`}
+                        onDragEnter={(event) => {
+                          const sourceStage = event.dataTransfer.getData(
+                            "text/vercent-lead-stage",
+                          );
+                          if (canManage && stageIsActive(stage) && sourceStage !== stage) {
+                            event.preventDefault();
+                            setDropStage(stage);
+                          }
+                        }}
+                        onDragOver={(event) => {
+                          const sourceStage = event.dataTransfer.getData(
+                            "text/vercent-lead-stage",
+                          );
+                          if (canManage && stageIsActive(stage) && sourceStage !== stage) {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }
+                        }}
+                        onDragLeave={(event) => {
+                          if (
+                            !event.currentTarget.contains(
+                              event.relatedTarget as Node | null,
+                            )
+                          ) {
+                            setDropStage("");
+                          }
+                        }}
+                        onDrop={(event) => {
+                          if (stageIsActive(stage)) drop(event, stage);
+                        }}
                       >
-                        <span>
-                          {firstVisible}–{lastVisible} of {stageRows.length}
-                        </span>
-                        <div>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            disabled={currentPage <= 1}
-                            onClick={() =>
-                              changeKanbanPage(stage, currentPage - 1)
-                            }
-                          >
-                            Previous
-                          </button>
-                          <strong>
-                            Page {currentPage} of {pageCount}
-                          </strong>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            disabled={currentPage >= pageCount}
-                            onClick={() =>
-                              changeKanbanPage(stage, currentPage + 1)
-                            }
-                          >
-                            Next
-                          </button>
+                        <header>
+                          <div>
+                            <h2 id={`crm-kanban-${stage}-title`}>
+                              {stageLabel(stage)}
+                            </h2>
+                            <small>
+                              {stageRows.length} lead
+                              {stageRows.length === 1 ? "" : "s"}
+                            </small>
+                          </div>
+                          {pageCount > 1 ? (
+                            <div
+                              className="crm-lead-kanban-header-pagination"
+                              aria-label={`${stageLabel(stage)} quick pagination`}
+                            >
+                              <button
+                                type="button"
+                                aria-label={`Previous ${stageLabel(stage)} page`}
+                                disabled={currentPage <= 1}
+                                onClick={() =>
+                                  changeKanbanPage(stage, currentPage - 1)
+                                }
+                              >
+                                &lsaquo;
+                              </button>
+                              <span>
+                                {currentPage}/{pageCount}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={`Next ${stageLabel(stage)} page`}
+                                disabled={currentPage >= pageCount}
+                                onClick={() =>
+                                  changeKanbanPage(stage, currentPage + 1)
+                                }
+                              >
+                                &rsaquo;
+                              </button>
+                            </div>
+                          ) : (
+                            <span>{stageRows.length}</span>
+                          )}
+                        </header>
+                        <div className="crm-leads-kanban-cards">
+                          {visibleRows.map((row) => {
+                            const id = String(row.id);
+                            const name = leadName(row);
+                            const followUpState = followState(
+                              row.nextFollowUpAt,
+                            );
+                            const followUpLabel =
+                              followUpState === "overdue"
+                                ? "Overdue"
+                                : followUpState === "today"
+                                  ? "Due today"
+                                  : followUpState === "scheduled"
+                                    ? "Upcoming"
+                                    : "Follow-up";
+                            return (
+                              <article
+                                key={id}
+                                draggable={
+                                  canManage && !working && !isRefreshingBoard
+                                }
+                                aria-labelledby={`crm-kanban-lead-${id}`}
+                                aria-busy={working === id || isRefreshingBoard}
+                                onDragStart={(event) =>
+                                  cardDragStart(
+                                    event,
+                                    id,
+                                    String(row.status || "new"),
+                                  )
+                                }
+                                onDragEnd={() => {
+                                  setDropStage("");
+                                }}
+                              >
+                                <div className="crm-lead-kanban-top">
+                                  <span
+                                    className="crm-lead-avatar-small"
+                                    aria-hidden="true"
+                                  >
+                                    {initials(row)}
+                                  </span>
+                                  <div>
+                                    <button
+                                      id={`crm-kanban-lead-${id}`}
+                                      className="crm-lead-open-link"
+                                      type="button"
+                                      aria-label={`Open ${name}`}
+                                      onClick={() => onView(id)}
+                                    >
+                                      <span>{name}</span>
+                                      <small aria-hidden="true">
+                                        {String(
+                                          row.companyName || row.code || "",
+                                        )}
+                                      </small>
+                                    </button>
+                                  </div>
+                                  <div className="crm-lead-kanban-signals">
+                                    <span>
+                                      <small>Score</small>
+                                      <b>{Math.round(num(row.score))}</b>
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="crm-lead-kanban-meta">
+                                  <span>
+                                    <small>Potential</small>
+                                    <strong>
+                                      {money(
+                                        row.estimatedValue,
+                                        row.currencyCode,
+                                      )}
+                                    </strong>
+                                  </span>
+                                  <span>
+                                    <small>Rating</small>
+                                    <strong>
+                                      {nice(row.rating || "Unrated")}
+                                    </strong>
+                                  </span>
+                                </div>
+                                <div
+                                  className={`crm-lead-kanban-follow state-${followState(row.nextFollowUpAt)}`}
+                                >
+                                  <strong>{followUpLabel}</strong>
+                                  <span>{dateTime(row.nextFollowUpAt)}</span>
+                                </div>
+                                <div className="crm-lead-kanban-owner">
+                                  <strong>Owner</strong>
+                                  <span>{leadOwnerName(row)}</span>
+                                </div>
+                                <span
+                                  className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
+                                >
+                                  {nice(row.qualificationState || "not_reviewed")}
+                                </span>
+                                {canManage ? (
+                                  <label className="crm-lead-kanban-move">
+                                    <span>Move lead</span>
+                                    <select
+                                      aria-label={`Move ${name} to lifecycle stage`}
+                                      value={String(row.status || "new")}
+                                      disabled={
+                                        Boolean(working) || isRefreshingBoard
+                                      }
+                                      onChange={(event) =>
+                                        void moveLead(
+                                          id,
+                                          event.currentTarget.value,
+                                        )
+                                      }
+                                    >
+                                      {moveTargets(String(row.status || "new")).map((item) => (
+                                        <option key={item.code} value={item.code}>
+                                          {item.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+                              </article>
+                            );
+                          })}
+                          {!stageRows.length ? (
+                            <div className="crm-lead-kanban-empty">
+                              <strong>No leads in this stage</strong>
+                              <span>
+                                {canManage
+                                  ? "Drag an eligible lead here or update its lifecycle status."
+                                  : "No leads currently match this lifecycle stage."}
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
-                      </footer>
-                    ) : null}
-                  </section>
-                ),
-              )}
+                        {pageCount > 1 ? (
+                          <footer
+                            className="crm-lead-kanban-pagination"
+                            aria-label={`${stageLabel(stage)} column pagination`}
+                          >
+                            <span>
+                              {firstVisible}–{lastVisible} of {stageRows.length}
+                            </span>
+                            <div>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={currentPage <= 1}
+                                onClick={() =>
+                                  changeKanbanPage(stage, currentPage - 1)
+                                }
+                              >
+                                Previous
+                              </button>
+                              <strong>
+                                Page {currentPage} of {pageCount}
+                              </strong>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={currentPage >= pageCount}
+                                onClick={() =>
+                                  changeKanbanPage(stage, currentPage + 1)
+                                }
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </footer>
+                        ) : null}
+                      </section>
+                    ),
+                  )
+                : null}
             </div>
           </section>
         )}
@@ -1456,14 +1786,23 @@ export default function CrmLeadsWorkspace({
         ) : null}
       </main>
       {editing?.id && canManage ? (
-        <LeadEditPanel
-          row={editing}
-          fields={fields.filter((field) => !field.structuredKind)}
-          options={options}
-          pending={pending}
+        <LeadWorkspaceDrawer
+          title={`Edit ${leadName(editing)}`}
+          description={String(editing.code || "Update lead information")}
+          width="form"
           onClose={onCloseEdit}
-          onSubmit={onSubmitEdit}
-        />
+        >
+          <LeadEditPanel
+            row={editing}
+            fields={fields.filter(
+              (field) => !field.structuredKind && field.name !== "ownerUserId",
+            )}
+            options={options}
+            pending={pending}
+            onClose={onCloseEdit}
+            onSubmit={onSubmitEdit}
+          />
+        </LeadWorkspaceDrawer>
       ) : null}
     </div>
   );

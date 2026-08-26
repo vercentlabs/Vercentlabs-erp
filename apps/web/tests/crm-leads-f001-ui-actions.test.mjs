@@ -12,20 +12,35 @@ const workspace = "apps/web/src/modules/crm/components/leads-workspace.tsx";
 const detail = "apps/web/src/modules/crm/components/lead-detail-workspace.tsx";
 const followUpRoute = "apps/web/src/app/api/crm/leads/[id]/follow-up/route.ts";
 
-test("F001 UI actions: lead create/edit deep links are real workflow state, not one-time mount hints", () => {
+test("F001 UI actions: lead drawer deep links synchronize without remounting the queue", () => {
   const pageSource = read(page);
   const managerSource = read(manager);
 
   assert.match(pageSource, /edit\?: string/);
+  assert.match(pageSource, /view\?: string/);
   assert.match(pageSource, /getCrmRecord\(client, context, resource, editId\)/);
-  assert.match(pageSource, /startEditing=\{JSON\.parse\(JSON\.stringify\(result\.editingRecord\)\)\}/);
-  assert.match(pageSource, /dedicatedLeadCreate \? "create" : editId \|\| "list"/);
+  assert.match(
+    pageSource,
+    /startEditing=\{JSON\.parse\(JSON\.stringify\(result\.editingRecord\)\)\}/,
+  );
+  assert.doesNotMatch(
+    pageSource,
+    /dedicatedLeadCreate \? "create" : editId \|\| viewId \|\| "list"/,
+  );
   assert.match(pageSource, /followup,/);
 
   assert.match(managerSource, /startCreating = false/);
   assert.match(managerSource, /startEditing = null/);
   assert.match(managerSource, /startEditing\?\.id/);
-  assert.match(managerSource, /router\.replace\("\/crm\/leads"\)/);
+  assert.match(managerSource, /syncedLeadRouteMode !== leadRouteMode/);
+  assert.match(
+    managerSource,
+    /router\.replace\(leadModeUrl\(\), \{ scroll: false \}\)/,
+  );
+  assert.match(
+    managerSource,
+    /leadModeUrl\(mode\?: "create" \| "edit" \| "view"/,
+  );
 });
 
 test("F001 UI actions: lead search is submitted explicitly and searches generated full names", () => {
@@ -35,7 +50,10 @@ test("F001 UI actions: lead search is submitted explicitly and searches generate
   assert.match(workspaceSource, /className="crm-suite-search"/);
   assert.match(workspaceSource, /type="submit"[\s\S]*?Search/);
   assert.match(workspaceSource, /query\.set\("search", nextSearch\.trim\(\)\)/);
-  assert.match(apiSource, /"first_name",[\s\S]*?"last_name",[\s\S]*?"full_name"/);
+  assert.match(
+    apiSource,
+    /"first_name",[\s\S]*?"last_name",[\s\S]*?"full_name"/,
+  );
   assert.match(apiSource, /ILIKE/);
 });
 
@@ -45,7 +63,10 @@ test("F001 UI actions: lifecycle filters synchronize with server state and termi
 
   assert.match(source, /useState\(initialStatus\)/);
   assert.match(source, /useState\(initialSearch\)/);
-  assert.match(pageSource, /key=\{\[[\s\S]*?search,[\s\S]*?status,[\s\S]*?followup,/);
+  assert.match(
+    pageSource,
+    /key=\{\[[\s\S]*?search,[\s\S]*?status,[\s\S]*?followup,/,
+  );
   assert.match(source, /leadFilters\.followup/);
   assert.match(source, /status === "converted" \|\| status === "archived"/);
   assert.match(source, /terminalStatus \? "table" : preferredView/);
@@ -54,7 +75,10 @@ test("F001 UI actions: lifecycle filters synchronize with server state and termi
 
 test("F001 UI actions: lead detail exposes a working edit deep link", () => {
   const source = read(detail);
-  assert.match(source, /href=\{`\/crm\/leads\?edit=\$\{encodeURIComponent\(id\)\}`\}/);
+  assert.match(
+    source,
+    /href=\{`\/crm\/leads\?edit=\$\{encodeURIComponent\(id\)\}`\}/,
+  );
   assert.match(source, />\s*Edit lead\s*</);
 });
 
@@ -62,7 +86,10 @@ test("F001 UI actions: conversion navigates to the opportunity that was actually
   const source = read(detail);
   assert.match(source, /Convert to opportunity/);
   assert.match(source, /conversion\?\.opportunityId/);
-  assert.match(source, /router\.push\(`\/crm\/opportunities\/\$\{opportunityId\}`\)/);
+  assert.match(
+    source,
+    /router\.push\(`\/crm\/opportunities\/\$\{opportunityId\}`\)/,
+  );
   assert.match(source, /disabled=\{pending === "convert"\}/);
 });
 

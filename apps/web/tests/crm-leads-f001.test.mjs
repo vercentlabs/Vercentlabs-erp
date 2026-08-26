@@ -40,6 +40,44 @@ test("F001 web: create workspace no longer hard-requires mobile", () => {
   );
 });
 
+test("F001 web: country and all three contact methods are available end-to-end", () => {
+  const definition = read("src/modules/crm/index.ts");
+  const create = read("src/modules/crm/components/lead-create-workspace.tsx");
+  const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  for (const source of [definition, create, detail])
+    assert.match(source, /countryCode/);
+  assert.match(detail, /Alternate phone/);
+});
+
+test("F001 web: edit preserves omitted fields and keeps ownership on the governed assignment path", () => {
+  const manager = read("src/modules/crm/components/resource-manager.tsx");
+  const workspace = read("src/modules/crm/components/leads-workspace.tsx");
+  const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  const page = read("src/app/(app)/crm/[resource]/page.tsx");
+  assert.match(manager, /elements\.namedItem\(field\.name\)/);
+  assert.match(manager, /if \(!control\) continue/);
+  assert.match(workspace, /field\.name !== "ownerUserId"/);
+  assert.match(detail, /canAssignOwner[\s\S]*Change owner/);
+  assert.match(page, /PERMISSIONS\.crmRecordsViewAll/);
+});
+
+test("F001 web: archive is available on detail with explicit preservation copy", () => {
+  const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  const manager = read("src/modules/crm/components/resource-manager.tsx");
+  for (const source of [detail, manager]) {
+    assert.match(source, /Historical information is preserved/);
+    assert.match(source, /method: "DELETE"/);
+  }
+  assert.match(detail, /Archive lead/);
+  assert.match(detail, /router\.push\("\/crm\/leads"\)/);
+});
+
+test("F001 API: the default collection omits archived Leads", () => {
+  const service = read("../../services/api/src/modules/crm/index.js");
+  assert.match(service, /\["archived", "converted"\]\.includes\(String\(filters\.status/);
+  assert.match(service, /record_status = 'active'/);
+});
+
 test("F001 web/API: lead CRUD is guarded, transactional and audited", () => {
   const collectionRoute = read("src/app/api/crm/[resource]/route.ts");
   const itemRoute = read("src/app/api/crm/[resource]/[id]/route.ts");

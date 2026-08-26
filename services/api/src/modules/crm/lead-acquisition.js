@@ -1,5 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { resolveLeadOwner } from "./lead-governance.js";
+import {
+  getEligibleLeadAssignee,
+  resolveLeadAssignment,
+} from "./lead-governance.js";
+import { resolveIngestionLeadSource } from "./features/lead-sources/validation.js";
 
 export const CRM_LEAD_ACQUISITION_CAPABILITY_IDS = Object.freeze([
   "CRM-054",
@@ -250,10 +254,13 @@ export function normalizeLeadAcquisitionEvent(provider, payload = {}) {
       industry: text(lead.industry, 160) || null,
       city: text(lead.city, 160) || null,
       state: text(lead.state, 160) || null,
-      countryCode: text(lead.countryCode || lead.country_code, 2).toUpperCase() || null,
-      productInterest: text(lead.productInterest || lead.product_interest, 500) || null,
+      countryCode:
+        text(lead.countryCode || lead.country_code, 2).toUpperCase() || null,
+      productInterest:
+        text(lead.productInterest || lead.product_interest, 500) || null,
       estimatedValue: Number(lead.estimatedValue || lead.estimated_value || 0),
-      currencyCode: text(lead.currencyCode || lead.currency_code, 3).toUpperCase() || null,
+      currencyCode:
+        text(lead.currencyCode || lead.currency_code, 3).toUpperCase() || null,
       consentEmail: boolean(lead.consentEmail || lead.consent_email),
       consentSms: boolean(lead.consentSms || lead.consent_sms),
       consentWhatsapp: boolean(lead.consentWhatsapp || lead.consent_whatsapp),
@@ -350,7 +357,7 @@ export function buildEnrichmentReview(input = {}) {
 
 async function findDuplicate(client, context, lead) {
   const result = await client.query(
-    `SELECT id FROM tenant.crm_leads WHERE organization_id=$1 AND status<>'archived'
+    `SELECT id FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active'
       AND (($2<>'' AND normalized_email=$2) OR ($3<>'' AND normalized_phone=$3))
       ORDER BY updated_at DESC LIMIT 1`,
     [
@@ -365,7 +372,11 @@ async function findDuplicate(client, context, lead) {
 async function createLead(client, context, lead, options = {}) {
   const duplicateId = await findDuplicate(client, context, lead);
   if (duplicateId && options.duplicateStrategy === "block")
-    throw new CrmLeadAcquisitionError(409, "A matching lead already exists.", "CRM_LEAD_DUPLICATE");
+    throw new CrmLeadAcquisitionError(
+      409,
+      "A matching lead already exists.",
+      "CRM_LEAD_DUPLICATE",
+    );
   if (duplicateId && ["skip", "warn"].includes(options.duplicateStrategy))
     return { leadId: duplicateId, action: "skip" };
   if (duplicateId && options.duplicateStrategy === "update") {
@@ -375,18 +386,44 @@ async function createLead(client, context, lead, options = {}) {
               company_name=COALESCE($5,company_name),job_title=COALESCE($6,job_title),
               updated_by=$2,updated_at=now()
         WHERE organization_id=$1 AND id=$7 RETURNING id`,
-      [context.organizationId,context.userId,lead.firstName,lead.lastName,lead.companyName,lead.jobTitle,duplicateId],
+      [
+        context.organizationId,
+        context.userId,
+        lead.firstName,
+        lead.lastName,
+        lead.companyName,
+        lead.jobTitle,
+        duplicateId,
+      ],
     );
     return { leadId: updated.rows[0].id, action: "update" };
   }
-  const ownerUserId = lead.ownerUserId || options.ownerUserId ||
-    (await resolveLeadOwner(client, context, {
-      ...lead,
-      companyId: options.companyId || context.activeCompanyId,
-      branchId: options.branchId || context.activeBranchId,
-      sourceId: options.sourceId || lead.sourceId || null,
-      campaignId: options.campaignId || lead.campaignId || null,
-    })) || context.userId;
+  const sourceId = await resolveIngestionLeadSource(
+    client,
+    context,
+    options.sourceId || lead.sourceId || null,
+  );
+  const assignmentInput = {
+    ...lead,
+    companyId: options.companyId || context.activeCompanyId,
+    branchId: options.branchId || context.activeBranchId,
+    sourceId,
+    campaignId: options.campaignId || lead.campaignId || null,
+  };
+  const configuredOwner = options.ownerUserId
+    ? await getEligibleLeadAssignee(client, context, options.ownerUserId, {
+        companyId: assignmentInput.companyId,
+        branchId: assignmentInput.branchId,
+      })
+    : null;
+  const automaticAssignment = configuredOwner
+    ? {
+        ownerUserId: String(configuredOwner.id),
+        policyId: null,
+        reason: "capture-form:configured",
+      }
+    : await resolveLeadAssignment(client, context, assignmentInput);
+  const ownerUserId = automaticAssignment.ownerUserId || null;
   const inserted = await client.query(
     `INSERT INTO tenant.crm_leads(
        organization_id,company_id,branch_id,code,first_name,last_name,email,phone,mobile,
@@ -398,13 +435,65 @@ async function createLead(client, context, lead, options = {}) {
        $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
        $22,$23,$24,$25::jsonb,$26,$26
      ) RETURNING id`,
-    [context.organizationId,options.companyId||context.activeCompanyId,options.branchId||context.activeBranchId,
-     lead.firstName,lead.lastName,lead.email,lead.phone,lead.mobile,lead.companyName,lead.jobTitle,
-     lead.website,lead.industry,options.sourceId||lead.sourceId||null,options.campaignId||lead.campaignId||null,
-     ownerUserId,Number(lead.estimatedValue||0),lead.currencyCode,lead.city,lead.state,lead.countryCode,
-     lead.productInterest,Boolean(lead.consentEmail),Boolean(lead.consentSms),Boolean(lead.consentWhatsapp),
-     JSON.stringify(lead.customData||{}),context.userId],
+    [
+      context.organizationId,
+      options.companyId || context.activeCompanyId,
+      options.branchId || context.activeBranchId,
+      lead.firstName,
+      lead.lastName,
+      lead.email,
+      lead.phone,
+      lead.mobile,
+      lead.companyName,
+      lead.jobTitle,
+      lead.website,
+      lead.industry,
+      sourceId,
+      options.campaignId || lead.campaignId || null,
+      ownerUserId,
+      Number(lead.estimatedValue || 0),
+      lead.currencyCode,
+      lead.city,
+      lead.state,
+      lead.countryCode,
+      lead.productInterest,
+      Boolean(lead.consentEmail),
+      Boolean(lead.consentSms),
+      Boolean(lead.consentWhatsapp),
+      JSON.stringify(lead.customData || {}),
+      context.userId,
+    ],
   );
+  if (ownerUserId) {
+    await client.query(
+      `INSERT INTO tenant.crm_lead_assignment_events
+       (organization_id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,created_by)
+       VALUES($1,$2,NULL,$3,$4,$5,$6)`,
+      [
+        context.organizationId,
+        inserted.rows[0].id,
+        ownerUserId,
+        automaticAssignment.policyId || null,
+        automaticAssignment.reason,
+        context.userId || null,
+      ],
+    );
+    await client.query(
+      `INSERT INTO tenant.crm_outbox_events(organization_id,event_type,entity_type,entity_id,payload)
+       VALUES($1,'crm.leads.assigned','leads',$2,$3::jsonb)`,
+      [
+        context.organizationId,
+        inserted.rows[0].id,
+        JSON.stringify({
+          leadId: inserted.rows[0].id,
+          previousOwnerUserId: null,
+          ownerUserId,
+          policyId: automaticAssignment.policyId || null,
+          reason: automaticAssignment.reason,
+        }),
+      ],
+    );
+  }
   return { leadId: inserted.rows[0].id, action: "create", ownerUserId };
 }
 
@@ -746,9 +835,15 @@ export async function createLeadAcquisitionConnection(
       text(input.displayName || provider, 160),
       text(input.credentialReference, 500) || null,
       JSON.stringify({
-        ...(input.configuration && typeof input.configuration === "object" ? input.configuration : {}),
-        ...(input.webhookSecretReference ? { webhookSecretReference: text(input.webhookSecretReference, 500) } : {}),
-        ...(input.metadata && typeof input.metadata === "object" ? { metadata: input.metadata } : {}),
+        ...(input.configuration && typeof input.configuration === "object"
+          ? input.configuration
+          : {}),
+        ...(input.webhookSecretReference
+          ? { webhookSecretReference: text(input.webhookSecretReference, 500) }
+          : {}),
+        ...(input.metadata && typeof input.metadata === "object"
+          ? { metadata: input.metadata }
+          : {}),
       }),
       text(input.status || "sandbox", 20),
       context.userId,
@@ -773,9 +868,17 @@ export async function ingestLeadAcquisitionWebhook(
   );
   const connection = connectionResult.rows[0];
   if (!connection)
-    throw new CrmLeadAcquisitionError(404, "Acquisition connection is not active.", "CRM_ACQUISITION_CONNECTION_NOT_FOUND");
+    throw new CrmLeadAcquisitionError(
+      404,
+      "Acquisition connection is not active.",
+      "CRM_ACQUISITION_CONNECTION_NOT_FOUND",
+    );
   if (String(connection.provider) !== String(provider))
-    throw new CrmLeadAcquisitionError(409, "Provider does not match the registered acquisition connection.", "CRM_ACQUISITION_PROVIDER_MISMATCH");
+    throw new CrmLeadAcquisitionError(
+      409,
+      "Provider does not match the registered acquisition connection.",
+      "CRM_ACQUISITION_PROVIDER_MISMATCH",
+    );
   const configuration = connection.configuration || {};
   const normalized = normalizeLeadAcquisitionEvent(provider, payload);
   const hash = crmLeadAcquisitionHash(payload);
@@ -800,7 +903,8 @@ export async function ingestLeadAcquisitionWebhook(
       companyId: connection.company_id || context.activeCompanyId,
       sourceId: configuration.sourceId || configuration.source_id || null,
       campaignId: configuration.campaignId || configuration.campaign_id || null,
-      ownerUserId: configuration.ownerUserId || configuration.owner_user_id || null,
+      ownerUserId:
+        configuration.ownerUserId || configuration.owner_user_id || null,
     });
     await client.query(
       `UPDATE tenant.crm_lead_acquisition_events SET status='processed',lead_id=$3,processed_at=now() WHERE organization_id=$1 AND id=$2`,

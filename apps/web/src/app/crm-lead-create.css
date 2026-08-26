@@ -856,3 +856,163 @@ fieldset.crm-lead-form-section {
   }
 }
 /* VERCENTLABS CRM READABILITY PASS END */
+
+/* Lead create responsive system */
+.crm-lead-create-command h1 {
+  font-size: clamp(32px, 2.8vw, 42px);
+}
+
+.crm-lead-create-command {
+  align-items: center;
+  padding-bottom: 22px;
+  margin-bottom: 18px;
+}
+
+.crm-lead-create-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 330px);
+  gap: 20px;
+}
+
+.crm-lead-form-section,
+.crm-lead-rail-card,
+.crm-lead-create-footer-actions {
+  border-radius: 12px;
+}
+
+.crm-lead-form-section {
+  padding: clamp(20px, 2vw, 26px);
+}
+
+.crm-lead-create-footer-actions {
+  padding: 16px 18px;
+}
+
+@media (max-width: 1100px) {
+  .crm-lead-create-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-lead-create-rail {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .crm-lead-create-command {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .crm-lead-create-command__actions {
+    width: 100%;
+  }
+
+  .crm-lead-required-note {
+    margin-right: auto;
+  }
+
+  .crm-lead-create-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .crm-lead-create-command h1 {
+    font-size: 32px;
+  }
+
+  .crm-lead-create-command__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crm-lead-required-note {
+    grid-column: 1 / -1;
+  }
+
+  .crm-lead-form-section {
+    padding: 17px 15px;
+  }
+
+  .crm-lead-field-grid,
+  .crm-lead-consent-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-lead-field-span-2 {
+    grid-column: auto;
+  }
+
+  .crm-lead-create-footer-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crm-lead-create-footer-actions > div:last-child {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 430px) {
+  .crm-lead-create-command__actions,
+  .crm-lead-create-footer-actions > div:last-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-lead-required-note {
+    grid-column: auto;
+  }
+
+  .crm-lead-create-command__actions .primary-button,
+  .crm-lead-create-command__actions .secondary-button,
+  .crm-lead-create-footer-actions .primary-button,
+  .crm-lead-create-footer-actions .secondary-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Lead create visual-audit corrections */
+@media (max-width: 1100px) {
+  .crm-lead-create-rail {
+    grid-row: 1;
+  }
+
+  .crm-lead-create-form {
+    grid-row: 2;
+  }
+
+  .crm-lead-create-rail > .crm-lead-rail-card:not(.crm-lead-duplicate-card) {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .crm-lead-create-shell {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .crm-lead-drawer .crm-lead-create-shell.is-embedded {
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .crm-lead-create-command__actions {
+    display: none;
+  }
+
+  .crm-lead-create-back {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .crm-lead-consent-card small {
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+}

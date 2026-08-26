@@ -16,7 +16,7 @@ export function LeadCapture() {
     if (!firstName.trim()) { setMessage("First name is required."); return; }
     setBusy(true); setMessage("");
     const idempotencyKey = Crypto.randomUUID();
-    const payload = { firstName: firstName.trim(), lastName: lastName.trim() || null, email: email.trim() || null, companyName: companyName.trim() || null, status: "new" };
+    const payload = { firstName: firstName.trim(), lastName: lastName.trim() || null, email: email.trim() || null, companyName: companyName.trim() || null };
     try {
       await mobileApi.createCrm("leads", payload, idempotencyKey);
       setMessage("Lead saved securely."); void queryClient.invalidateQueries({ queryKey: ["mobile-crm"] });

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { createCrmRecord } from "./index.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);
 export class CrmOfflineSyncError extends Error {
   constructor(status, message, code = "CRM_OFFLINE_SYNC_ERROR", details = []) {
@@ -209,35 +210,42 @@ export async function applyOfflineMutation(client, context, input = {}) {
   let row;
   if (m.resource === "leads" && m.operation === "create") {
     const p = m.payload;
+    if (
+      ["status", "stage", "stageId", "stage_id", "stageCode", "stage_code", "recordStatus", "record_status"].some(
+        (field) => Object.prototype.hasOwnProperty.call(p, field),
+      )
+    )
+      throw new CrmOfflineSyncError(
+        409,
+        "Offline Lead creation cannot choose a lifecycle stage; the initial stage is assigned by the server.",
+        "CRM_OFFLINE_LEAD_STAGE_GOVERNED",
+      );
     if (!text(p.code) || !text(p.firstName || p.first_name))
       throw new CrmOfflineSyncError(
         400,
         "Offline lead creation requires code and first name.",
         "CRM_OFFLINE_LEAD_INVALID",
       );
-    row = (
-      await client.query(
-        `INSERT INTO tenant.crm_leads(organization_id,company_id,branch_id,code,first_name,last_name,email,phone,mobile,company_name,status,priority,rating,owner_user_id,custom_data,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$16) RETURNING *`,
-        [
-          context.organizationId,
-          p.companyId || p.company_id || context.activeCompanyId || null,
-          p.branchId || p.branch_id || context.activeBranchId || null,
-          text(p.code),
-          text(p.firstName || p.first_name),
-          text(p.lastName || p.last_name) || null,
-          text(p.email) || null,
-          text(p.phone) || null,
-          text(p.mobile) || null,
-          text(p.companyName || p.company_name) || null,
-          text(p.status || "new"),
-          text(p.priority || "medium"),
-          text(p.rating || "warm"),
-          p.ownerUserId || p.owner_user_id || context.userId,
-          JSON.stringify(object(p.customData || p.custom_data)),
-          context.userId,
-        ],
-      )
-    ).rows[0];
+    const ownerProvided =
+      Object.prototype.hasOwnProperty.call(p, "ownerUserId") ||
+      Object.prototype.hasOwnProperty.call(p, "owner_user_id");
+    row = await createCrmRecord(client, context, "leads", {
+      companyId: p.companyId || p.company_id || context.activeCompanyId || null,
+      branchId: p.branchId || p.branch_id || context.activeBranchId || null,
+      code: text(p.code),
+      firstName: text(p.firstName || p.first_name),
+      lastName: text(p.lastName || p.last_name) || null,
+      email: text(p.email) || null,
+      phone: text(p.phone) || null,
+      mobile: text(p.mobile) || null,
+      companyName: text(p.companyName || p.company_name) || null,
+      priority: text(p.priority || "medium"),
+      rating: text(p.rating || "warm"),
+      customData: object(p.customData || p.custom_data),
+      ...(ownerProvided
+        ? { ownerUserId: p.ownerUserId || p.owner_user_id || null }
+        : {}),
+    });
   } else if (m.resource === "opportunities" && m.operation === "stage") {
     if (!m.recordId || !text(m.payload.stageId || m.payload.stage_id))
       throw new CrmOfflineSyncError(

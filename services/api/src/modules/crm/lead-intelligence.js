@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assignLeadOwner } from "./index.js";
 
 export const CRM_LEAD_INTELLIGENCE_CAPABILITY_IDS = Object.freeze([
   "CRM-060",
@@ -278,7 +279,10 @@ export function evaluateNurtureEligibility(
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
   const score = number(lead.score);
   const reasons = [];
-  if (["converted", "archived", "unqualified"].includes(text(lead.status)))
+  if (
+    ["converted", "archived"].includes(text(lead.record_status)) ||
+    text(lead.qualification_state) === "unqualified"
+  )
     reasons.push("terminal_status");
   if (lead.do_not_contact) reasons.push("do_not_contact");
   const channel = text(
@@ -649,8 +653,25 @@ export async function scanLeadSlaBreaches(
 ) {
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
   const result = await client.query(
-    `SELECT sla.*,policy.escalation_user_id,policy.reassign_on_breach FROM tenant.crm_lead_sla_cases sla JOIN tenant.crm_lead_sla_policies policy ON policy.organization_id=sla.organization_id AND policy.id=sla.policy_id WHERE sla.organization_id=$1 AND sla.status='open' AND sla.first_responded_at IS NULL AND sla.response_due_at<$2 FOR UPDATE OF sla`,
-    [context.organizationId, now],
+    `SELECT sla.*,policy.escalation_user_id,policy.reassign_on_breach
+       FROM tenant.crm_lead_sla_cases sla
+       JOIN tenant.crm_lead_sla_policies policy
+         ON policy.organization_id=sla.organization_id AND policy.id=sla.policy_id
+       JOIN tenant.crm_leads lead
+         ON lead.organization_id=sla.organization_id AND lead.id=sla.lead_id
+      WHERE sla.organization_id=$1 AND sla.status='open'
+        AND sla.first_responded_at IS NULL AND sla.response_due_at<$2
+        AND ($3::uuid IS NULL OR lead.company_id IS NULL OR lead.company_id=$3)
+        AND ($4::uuid IS NULL OR lead.branch_id IS NULL OR lead.branch_id=$4)
+        AND ($3::uuid IS NOT NULL OR $5::boolean)
+      FOR UPDATE OF sla`,
+    [
+      context.organizationId,
+      now,
+      context.activeCompanyId || null,
+      context.activeBranchId || null,
+      Boolean(context.allowAllCompanies),
+    ],
   );
   for (const slaCase of result.rows) {
     await client.query(
@@ -674,14 +695,12 @@ export async function scanLeadSlaBreaches(
       ],
     );
     if (slaCase.reassign_on_breach && slaCase.escalation_user_id) {
-      await client.query(
-        `UPDATE tenant.crm_leads SET owner_user_id=$1,updated_by=$2,updated_at=now() WHERE organization_id=$3 AND id=$4`,
-        [
-          slaCase.escalation_user_id,
-          context.userId,
-          context.organizationId,
-          slaCase.lead_id,
-        ],
+      await assignLeadOwner(
+        client,
+        context,
+        slaCase.lead_id,
+        slaCase.escalation_user_id,
+        { reason: "sla:breach" },
       );
       await client.query(
         `INSERT INTO tenant.crm_lead_sla_events(organization_id,sla_case_id,lead_id,event_type,evidence,created_by) VALUES($1,$2,$3,'reassigned',$4,$5)`,
@@ -710,7 +729,7 @@ export async function refreshLeadNurtureQueue(
       [context.organizationId],
     ),
     client.query(
-      `SELECT lead.*,sla.status AS sla_status,sla.response_due_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT status,response_due_at FROM tenant.crm_lead_sla_cases c WHERE c.organization_id=lead.organization_id AND c.lead_id=lead.id ORDER BY c.created_at DESC LIMIT 1) sla ON true WHERE lead.organization_id=$1 AND lead.status NOT IN ('converted','archived')`,
+      `SELECT lead.*,sla.status AS sla_status,sla.response_due_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT status,response_due_at FROM tenant.crm_lead_sla_cases c WHERE c.organization_id=lead.organization_id AND c.lead_id=lead.id ORDER BY c.created_at DESC LIMIT 1) sla ON true WHERE lead.organization_id=$1 AND lead.record_status='active'`,
       [context.organizationId],
     ),
   ]);
@@ -841,11 +860,11 @@ export async function updateLeadNurtureItem(
 export async function getLeadIntelligenceDashboard(client, context) {
   const [summary, grades, sla, queue, topQueue] = await Promise.all([
     client.query(
-      `SELECT count(*) FILTER (WHERE status NOT IN ('converted','archived'))::int AS active_leads,count(*) FILTER (WHERE lead_grade='qualified')::int AS qualified_leads,round(avg(score),2) AS average_score,count(*) FILTER (WHERE score_calculated_at IS NULL)::int AS unscored_leads FROM tenant.crm_leads WHERE organization_id=$1`,
+      `SELECT count(*) FILTER (WHERE record_status='active')::int AS active_leads,count(*) FILTER (WHERE lead_grade='qualified')::int AS qualified_leads,round(avg(score),2) AS average_score,count(*) FILTER (WHERE score_calculated_at IS NULL)::int AS unscored_leads FROM tenant.crm_leads WHERE organization_id=$1`,
       [context.organizationId],
     ),
     client.query(
-      `SELECT lead_grade,count(*)::int AS leads FROM tenant.crm_leads WHERE organization_id=$1 AND status NOT IN ('converted','archived') GROUP BY lead_grade ORDER BY CASE lead_grade WHEN 'qualified' THEN 1 WHEN 'hot' THEN 2 WHEN 'warm' THEN 3 ELSE 4 END`,
+      `SELECT lead_grade,count(*)::int AS leads FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active' GROUP BY lead_grade ORDER BY CASE lead_grade WHEN 'qualified' THEN 1 WHEN 'hot' THEN 2 WHEN 'warm' THEN 3 ELSE 4 END`,
       [context.organizationId],
     ),
     client.query(

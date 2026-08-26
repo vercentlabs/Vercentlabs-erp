@@ -434,8 +434,8 @@ export default function RecordDetailScreen() {
           ) : null}
           {resource === "leads" &&
           canManageLead &&
-          record.status !== "converted" &&
-          record.status !== "archived" ? (
+          record.recordStatus !== "converted" &&
+          record.recordStatus !== "archived" ? (
             <Pressable
               disabled={busy}
               onPress={() =>
@@ -464,6 +464,8 @@ export default function RecordDetailScreen() {
           ) : null}
           {resource === "leads" &&
           canManageLead &&
+          record.recordStatus !== "converted" &&
+          record.recordStatus !== "archived" &&
           related.duplicates?.length ? (
             <View style={{ marginBottom: spacing.lg, gap: spacing.sm }}>
               <Text style={{ ...type.heading, color: colors.text }}>

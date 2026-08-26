@@ -13,6 +13,10 @@ import "./crm-lead-suite-enterprise.css";
 import "./navigation-v2.css";
 import "./workspace-redesign-v3.css";
 import "./crm-hci-redesign.css";
+import "./crm-accounts.css";
+import "./crm-contacts.css";
+import "./crm-lead-sources.css";
+import "./crm-lead-lifecycle.css";
 
 export const metadata: Metadata = {
   title: { default: "Vercentlabs ERP", template: "%s | Vercentlabs ERP" },

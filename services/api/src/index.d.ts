@@ -10,6 +10,14 @@ export type QueryClient = {
   }>;
 };
 
+export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
+export function getLeadStage(client: QueryClient, context: any, idOrCode: string): Promise<any>;
+export function createLeadStage(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function updateLeadStage(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
+export function setLeadStageActive(client: QueryClient, context: any, id: string, active: boolean): Promise<any>;
+export function transitionLeadStage(client: QueryClient, context: any, leadId: string, input?: Record<string, unknown>): Promise<any>;
+export function listLeadStageHistory(client: QueryClient, context: any, leadId: string): Promise<any[]>;
+
 export type BusinessDataContext = {
   organizationId: string;
   userId: string;
@@ -102,6 +110,10 @@ export function seedBusinessDataFoundation(
   context: Pick<BusinessDataContext, "organizationId" | "userId">,
 ): Promise<void>;
 export * from "./modules/crm/index.js";
+export * from "./modules/crm/account-operations.js";
+export * from "./modules/crm/contact-operations.js";
+export * from "./modules/crm/lead-source-operations.js";
+export * from "./modules/crm/lead-qualification.js";
 export * from "./core/billing.js";
 export * from "./modules/sales/index.js";
 
@@ -175,6 +187,37 @@ export function resolveLeadOwner(
   context: CrmFoundationContext,
   input: Record<string, unknown>,
 ): Promise<string | null>;
+export function resolveLeadAssignment(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input: Record<string, unknown>,
+): Promise<{
+  ownerUserId: string | null;
+  policyId: string | null;
+  reason: string;
+}>;
+export function listEligibleLeadAssignees(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input?: Record<string, unknown>,
+): Promise<{
+  items: Array<Record<string, unknown>>;
+  total: number;
+  limit: number;
+  offset: number;
+}>;
+export function getEligibleLeadAssignee(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  userId: string,
+  scope?: Record<string, unknown>,
+): Promise<Record<string, unknown> | null>;
+export function assertEligibleLeadAssignee(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  userId: string,
+  scope?: Record<string, unknown>,
+): Promise<Record<string, unknown>>;
 export function listLeadAssignmentPolicies(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -189,6 +232,19 @@ export function archiveLeadAssignmentPolicy(
   context: CrmFoundationContext,
   policyId: string,
 ): Promise<Record<string, unknown>>;
+export function setLeadAssignmentPolicyStatus(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  policyId: string,
+  status: "active" | "inactive",
+): Promise<Record<string, unknown>>;
+export function assignLeadOwner(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  leadId: string,
+  ownerUserId: string | null,
+  options?: { reason?: string },
+): Promise<any>;
 
 export * from "./modules/crm/lead-operations.js";
 
@@ -213,7 +269,6 @@ export * from "./modules/crm/core-acceptance.js";
 export * from "./modules/crm/account-intelligence.js";
 
 export * from "./core/release/governance.js";
-
 
 export * from "./modules/crm/communications.js";
 

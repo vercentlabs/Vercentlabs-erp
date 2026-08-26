@@ -66,8 +66,10 @@ export const CRM_LEAD_STATUSES = Object.freeze([
   "new",
   "contacted",
   "working",
-  "qualified",
-  "unqualified",
+]);
+
+export const CRM_LEAD_RECORD_STATUSES = Object.freeze([
+  "active",
   "converted",
   "archived",
 ]);

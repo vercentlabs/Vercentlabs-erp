@@ -5,7 +5,7 @@ import type {
   MobileResourceDefinition,
 } from "@vercentlabs/shared-sdk";
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -29,7 +29,7 @@ import { StructuredFieldEditor } from "@/shared/components/structured-field-edit
 import { useTheme } from "@/shared/theme/theme";
 
 type Row = Record<string, unknown>;
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; code?: string };
 type ResourceResponse = {
   definition: MobileResourceDefinition;
   rows?: Row[];
@@ -105,7 +105,7 @@ function areaApi(area: string): "crm" | "business-data" | "settings" {
   throw new Error("Unknown workspace resource area.");
 }
 
-const statuses = ["all", "new", "contacted", "working", "qualified", "unqualified", "converted", "open", "won", "lost", "planned", "active", "paused", "completed", "cancelled", "inactive", "archived"];
+const statuses = ["all", "new", "contacted", "working", "converted", "open", "won", "lost", "planned", "active", "paused", "completed", "cancelled", "inactive", "archived"];
 
 export function ResourceManagerScreen({ area, resource, startCreating = false }: { area: string; resource: string; startCreating?: boolean }) {
   const auth = useAuth();
@@ -129,8 +129,19 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
       }),
   });
   const definition = query.data?.definition;
+  const editableFields = useMemo(
+    () => (definition?.fields || []).filter(
+      (field) => resource !== "leads" || !["status", "qualificationState", "unqualifiedReason"].includes(field.name),
+    ),
+    [definition?.fields, resource],
+  );
   const rows = query.data?.records?.rows ?? query.data?.rows ?? [];
   const options = query.data?.options ?? {};
+  const statusOptions = resource === "leads"
+    ? ["all", ...(options.leadStages || []).map((stage) => stage.code || stage.id), "converted", "archived"]
+    : statuses;
+  const statusLabel = (value: string) =>
+    options.leadStages?.find((stage) => (stage.code || stage.id) === value)?.name || value.replaceAll("_", " ");
   const permission = definition?.managePermission || definition?.permission;
   const canManage = Boolean(
     definition &&
@@ -167,16 +178,16 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
   const openEditor = (row: Row) => {
     if (!definition) return;
     setEditor(row);
-    setForm(initialForm(definition.fields, row));
+    setForm(initialForm(editableFields, row));
   };
 
   useEffect(() => {
     if (startCreating && definition && canManage && !openedCreate.current) {
       openedCreate.current = true;
       setEditor({});
-      setForm(initialForm(definition.fields, {}));
+      setForm(initialForm(editableFields, {}));
     }
-  }, [canManage, definition, startCreating]);
+  }, [canManage, definition, editableFields, startCreating]);
 
   const exportCsv = async () => {
     try {
@@ -201,7 +212,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
 
   const save = () => {
     if (!definition || !editor) return;
-    const missing = definition.fields.find(
+    const missing = editableFields.find(
       (field) => field.required && String(form[field.name] ?? "").trim() === "",
     );
     if (missing) {
@@ -209,7 +220,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
       return;
     }
     const body: Row = {};
-    for (const field of definition.fields) {
+    for (const field of editableFields) {
       const value = form[field.name];
       body[field.name] =
         field.type === "checkbox"
@@ -280,7 +291,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
             ) : null}
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
-            {statuses.map((value) => <Pressable key={value} onPress={() => setStatus(value)} style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: spacing.md, borderWidth: 1, borderColor: status === value ? colors.primary : colors.border, borderRadius: 19, backgroundColor: status === value ? colors.primarySoft : colors.surface }}><Text style={{ ...type.caption, color: status === value ? colors.primary : colors.textMuted }}>{value.replaceAll("_", " ")}</Text></Pressable>)}
+            {statusOptions.map((value) => <Pressable key={value} onPress={() => setStatus(value)} style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: spacing.md, borderWidth: 1, borderColor: status === value ? colors.primary : colors.border, borderRadius: 19, backgroundColor: status === value ? colors.primarySoft : colors.surface }}><Text style={{ ...type.caption, color: status === value ? colors.primary : colors.textMuted }}>{statusLabel(value)}</Text></Pressable>)}
           </ScrollView>
           {apiArea !== "settings" ? <View style={{ flexDirection: "row", gap: spacing.sm }}><Button style={{ flex: 1 }} label="Export CSV" variant="secondary" onPress={() => void exportCsv()} />{apiArea === "crm" && auth.session?.access.permissions.includes("crm.import") && canManage ? <Button style={{ flex: 1 }} label="Import CSV" variant="secondary" onPress={() => setImporting(true)} /> : null}</View> : null}
           <Text style={{ ...type.caption, color: colors.textMuted }}>
@@ -374,7 +385,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
             </Pressable>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
-            {definition?.fields.map((field) => {
+            {editableFields.map((field) => {
               const choices =
                 field.options ||
                 (field.optionsKey
@@ -479,7 +490,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
       <Modal visible={importing} animationType="slide" onRequestClose={() => setImporting(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
           <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface }}><View style={{ flex: 1 }}><Text style={{ ...type.caption, color: colors.primary, textTransform: "uppercase" }}>Governed import</Text><Text style={{ ...type.heading, color: colors.text }}>Import {definition?.title} CSV</Text></View><Pressable onPress={() => setImporting(false)}><Ionicons name="close" size={24} color={colors.textSecondary} /></Pressable></View>
-          <View style={{ flex: 1, padding: spacing.md, gap: spacing.md }}><Text style={{ ...type.body, color: colors.textMuted }}>Paste CSV content with a header row. Up to 1,000 records and 2 MB are accepted, matching the web import contract.</Text><TextInput value={csv} onChangeText={setCsv} multiline autoCapitalize="none" autoCorrect={false} placeholder="name,email,status&#10;Example,team@example.com,new" placeholderTextColor={colors.textMuted} style={{ ...type.body, flex: 1, minHeight: 240, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.text, textAlignVertical: "top" }} /><Button label="Import CSV" disabled={!csv.trim()} onPress={() => void importCsv()} /><Button label="Cancel" variant="secondary" onPress={() => setImporting(false)} /></View>
+          <View style={{ flex: 1, padding: spacing.md, gap: spacing.md }}><Text style={{ ...type.body, color: colors.textMuted }}>Paste CSV content with a header row. Up to 1,000 records and 2 MB are accepted, matching the web import contract.</Text><TextInput value={csv} onChangeText={setCsv} multiline autoCapitalize="none" autoCorrect={false} placeholder="name,email&#10;Example,team@example.com" placeholderTextColor={colors.textMuted} style={{ ...type.body, flex: 1, minHeight: 240, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.text, textAlignVertical: "top" }} /><Button label="Import CSV" disabled={!csv.trim()} onPress={() => void importCsv()} /><Button label="Cancel" variant="secondary" onPress={() => setImporting(false)} /></View>
         </SafeAreaView>
       </Modal>
     </Screen>

@@ -5,6 +5,8 @@ import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DownwardSelect from "@/shared/components/downward-select";
 import CrmLeadCreateWorkspace from "@/modules/crm/components/lead-create-workspace";
+import CrmLeadDetailWorkspace from "@/modules/crm/components/lead-detail-workspace";
+import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
 import CrmLeadsWorkspace from "@/modules/crm/components/leads-workspace";
 import PaginationControls from "@/shared/components/pagination-controls";
 import StructuredFieldEditor from "@/shared/components/structured-field-editor";
@@ -12,7 +14,27 @@ import type { CrmDefinition, CrmField } from "@/modules/crm";
 import { requestJson } from "@/shared/http/client-request";
 
 type Row = Record<string, unknown>;
-type Option = { id: string; name: string; pipelineId?: string };
+type Option = {
+  id: string;
+  name: string;
+  status?: string;
+  pipelineId?: string;
+};
+type LeadDetail = {
+  lead: Row;
+  activities: Row[];
+  communications: Row[];
+  notes: Row[];
+  scoreHistory: Row[];
+  opportunities: Row[];
+  duplicates: Row[];
+  options: Record<string, Option[]>;
+  attachments: Row[];
+  selectedTags: Row[];
+  assignmentHistory: Row[];
+  qualification: Row;
+  lifecycleHistory: Row[];
+};
 
 function dateInput(value: unknown, includeTime = false) {
   if (!value) return "";
@@ -65,14 +87,18 @@ export default function CrmResourceManager({
   initialStatus,
   options,
   canManage,
+  canAssignOwner = false,
   startCreating = false,
   startEditing = null,
+  startViewingLead = null,
   canImport,
   canExport,
-  leadDashboard = null,
   leadFilters = {},
   leadBoardRows = [],
+  leadBoardTotal = 0,
   preservedQuery = {},
+  canManageActivities = false,
+  canManageCommunications = false,
 }: {
   definition: CrmDefinition;
   rows: Row[];
@@ -83,14 +109,18 @@ export default function CrmResourceManager({
   initialStatus: string;
   options: Record<string, Option[]>;
   canManage: boolean;
+  canAssignOwner?: boolean;
   startCreating?: boolean;
   startEditing?: Row | null;
+  startViewingLead?: LeadDetail | null;
   canImport: boolean;
   canExport: boolean;
-  leadDashboard?: Record<string, unknown> | null;
   leadFilters?: Record<string, string>;
   leadBoardRows?: Row[];
+  leadBoardTotal?: number;
   preservedQuery?: Record<string, string>;
+  canManageActivities?: boolean;
+  canManageCommunications?: boolean;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -108,6 +138,57 @@ export default function CrmResourceManager({
   const [pending, setPending] = useState(false);
   const [importPending, setImportPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [leadCreateDirty, setLeadCreateDirty] = useState(false);
+  const [leadCreatePending, setLeadCreatePending] = useState(false);
+  const leadRouteMode = startCreating
+    ? "create"
+    : startEditing?.id
+      ? `edit:${String(startEditing.id)}`
+      : startViewingLead?.lead.id
+        ? `view:${String(startViewingLead.lead.id)}`
+        : "list";
+  const [syncedLeadRouteMode, setSyncedLeadRouteMode] = useState(leadRouteMode);
+
+  if (syncedLeadRouteMode !== leadRouteMode) {
+    setSyncedLeadRouteMode(leadRouteMode);
+    setEditing(
+      canManage && startCreating
+        ? {}
+        : canManage && startEditing?.id
+          ? startEditing
+          : null,
+    );
+  }
+
+  function leadModeUrl(mode?: "create" | "edit" | "view", id?: string) {
+    const query = new URLSearchParams(window.location.search);
+    query.delete("create");
+    query.delete("edit");
+    query.delete("view");
+    if (mode === "create") query.set("create", "1");
+    if ((mode === "edit" || mode === "view") && id) query.set(mode, id);
+    const suffix = query.toString();
+    return `/crm/leads${suffix ? `?${suffix}` : ""}`;
+  }
+
+  function closeLeadMode() {
+    router.replace(leadModeUrl(), { scroll: false });
+  }
+
+  function closeLeadCreate() {
+    if (leadCreatePending) return;
+    if (
+      leadCreateDirty &&
+      !window.confirm(
+        "Discard this unsaved lead? Your entered information will be lost.",
+      )
+    ) {
+      return;
+    }
+    setLeadCreateDirty(false);
+    setLeadCreatePending(false);
+    closeLeadMode();
+  }
   const statusOptions = useMemo(() => {
     const configured =
       definition.fields.find((field) => field.name === "status")?.options || [];
@@ -153,11 +234,16 @@ export default function CrmResourceManager({
     try {
       const form = new FormData(event.currentTarget);
       const body: Row = {};
-      for (const field of definition.fields)
+      for (const field of definition.fields) {
+        const control = event.currentTarget.elements.namedItem(field.name);
+        // Progressive-disclosure editors intentionally omit fields the actor
+        // cannot change. Omitting one must preserve its persisted value.
+        if (!control) continue;
         body[field.name] =
           field.type === "checkbox"
             ? form.get(field.name) === "on"
             : String(form.get(field.name) ?? "");
+      }
       const id = String(editing.id || "");
       const result = await requestJson<{
         errors?: Record<string, string[]>;
@@ -178,7 +264,7 @@ export default function CrmResourceManager({
       setMessage(result.message || "Saved.");
       setEditing(null);
       if (definition.key === "leads" && startEditing?.id) {
-        router.replace("/crm/leads");
+        router.replace(leadModeUrl());
       } else {
         router.refresh();
       }
@@ -193,7 +279,15 @@ export default function CrmResourceManager({
     }
   }
   async function archive(id: string) {
-    if (!confirm(`Archive this ${definition.singular}?`)) return;
+    const row = rows.find((item) => String(item.id) === id);
+    const recordName = String(
+      row?.fullName || row?.name || row?.companyName || definition.singular,
+    );
+    const confirmation =
+      definition.key === "leads"
+        ? `Archive ${recordName}?\n\nThis removes the lead from active workspaces. Historical information is preserved.`
+        : `Archive this ${definition.singular}?`;
+    if (!confirm(confirmation)) return;
     setPending(true);
     setMessage("");
     const result = await requestJson(`/api/crm/${definition.key}/${id}`, {
@@ -272,50 +366,103 @@ export default function CrmResourceManager({
     }
   }
 
-  if (definition.key === "leads" && editing && !editing.id && canManage) {
-    return (
-      <CrmLeadCreateWorkspace
-        options={options}
-        onCancel={() => {
-          setEditing(null);
-          if (startCreating) router.replace("/crm/leads");
-        }}
-      />
-    );
-  }
-
   if (definition.key === "leads") {
     return (
-      <CrmLeadsWorkspace
-        rows={rows}
-        total={total}
-        page={page}
-        pageSize={pageSize}
-        initialSearch={initialSearch}
-        initialStatus={initialStatus}
-        options={options}
-        canManage={canManage}
-        canImport={canImport}
-        canExport={canExport}
-        pending={pending}
-        importPending={importPending}
-        message={message}
-        editing={editing}
-        fields={definition.fields}
-        leadDashboard={leadDashboard}
-        leadFilters={leadFilters}
-        boardRows={leadBoardRows}
-        onNavigate={navigate}
-        onCreate={() => setEditing({})}
-        onEdit={(row) => setEditing(row)}
-        onArchive={(id) => void archive(id)}
-        onImport={(file) => void importCsv(file)}
-        onCloseEdit={() => {
-          setEditing(null);
-          if (startEditing?.id) router.replace("/crm/leads");
-        }}
-        onSubmitEdit={submit}
-      />
+      <>
+        <CrmLeadsWorkspace
+          rows={rows}
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          initialSearch={initialSearch}
+          initialStatus={initialStatus}
+          options={options}
+          canManage={canManage}
+          canImport={canImport}
+          canExport={canExport}
+          pending={pending}
+          importPending={importPending}
+          message={message}
+          editing={editing?.id ? editing : null}
+          fields={definition.fields}
+          leadFilters={leadFilters}
+          boardRows={leadBoardRows}
+          boardTotal={leadBoardTotal}
+          onNavigate={navigate}
+          onCreate={() => {
+            setLeadCreateDirty(false);
+            setLeadCreatePending(false);
+            router.push(leadModeUrl("create"), { scroll: false });
+          }}
+          onView={(id) =>
+            router.push(leadModeUrl("view", id), { scroll: false })
+          }
+          onEdit={(row) => {
+            setEditing(row);
+            router.push(leadModeUrl("edit", String(row.id)), { scroll: false });
+          }}
+          onArchive={(id) => void archive(id)}
+          onImport={(file) => void importCsv(file)}
+          onCloseEdit={closeLeadMode}
+          onSubmitEdit={submit}
+        />
+
+        {editing && !editing.id && canManage ? (
+          <LeadWorkspaceDrawer
+            title="Create lead"
+            description="Add the lead without leaving your current queue."
+            width="form"
+            canDismiss={!leadCreatePending}
+            onClose={closeLeadCreate}
+          >
+            <CrmLeadCreateWorkspace
+              options={options}
+              canAssignOwner={canAssignOwner}
+              embedded
+              onCancel={closeLeadCreate}
+              onDirtyChange={setLeadCreateDirty}
+              onPendingChange={setLeadCreatePending}
+              onCreated={(id) => {
+                setLeadCreateDirty(false);
+                setLeadCreatePending(false);
+                setEditing(null);
+                router.replace(id ? leadModeUrl("view", id) : leadModeUrl(), {
+                  scroll: false,
+                });
+                router.refresh();
+              }}
+            />
+          </LeadWorkspaceDrawer>
+        ) : null}
+
+        {startViewingLead && !editing ? (
+          <LeadWorkspaceDrawer
+            title={String(
+              startViewingLead.lead.fullName ||
+                startViewingLead.lead.companyName ||
+                "Lead record",
+            )}
+            description={String(startViewingLead.lead.code || "Lead record")}
+            width="wide"
+            onClose={closeLeadMode}
+          >
+            <CrmLeadDetailWorkspace
+              {...startViewingLead}
+              embedded
+              canManage={canManage}
+              canAssignOwner={canAssignOwner}
+              canManageActivities={canManageActivities}
+              canManageCommunications={canManageCommunications}
+              onEdit={(lead) => {
+                setEditing(lead);
+                router.replace(leadModeUrl("edit", String(lead.id)), {
+                  scroll: false,
+                });
+              }}
+            />
+          </LeadWorkspaceDrawer>
+        ) : null}
+      </>
     );
   }
 

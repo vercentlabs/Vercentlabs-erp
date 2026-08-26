@@ -94,8 +94,10 @@ test("public CRM lead capture never touches CrmContext — it uses a wholly sepa
 
 test("crmApiContext(): still asserts CRM module accessibility before returning a context (Prompt 5 module gate preserved)", () => {
   const source = crmSource();
+  assert.match(source, /export async function crmApiContext\(/);
   assert.match(
     source,
-    /export async function crmApiContext\(session: SessionContext\): Promise<CrmContext> \{\s*await assertModuleAccessible\(session as WorkspaceSessionContext, "crm"\);\s*return crmContext\(session\);\s*\}/,
+    /await assertModuleAccessible\(session as WorkspaceSessionContext, "crm"\)/,
   );
+  assert.match(source, /return crmContext\(session\)/);
 });

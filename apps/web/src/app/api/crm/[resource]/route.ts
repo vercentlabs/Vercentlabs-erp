@@ -16,6 +16,7 @@ import { crmSchemas } from "@/modules/crm/validation";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
+import { crmAuditSnapshot } from "@/modules/crm/audit";
 
 export async function GET(
   request: Request,
@@ -28,6 +29,12 @@ export async function GET(
     const { resource } = await route.params;
     if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    if (resource === "assignment-rules")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Assignment Rules API.",
+        "CRM_ASSIGNMENT_RULE_API_MOVED",
+      );
     requireCrmResourceView(session, resource);
     const url = new URL(request.url);
     const context = await crmApiContext(session);
@@ -57,29 +64,46 @@ export async function POST(
     const { resource } = await route.params;
     if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
       throw new HttpError(404, "Unknown CRM resource.");
+    if (resource === "assignment-rules")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Assignment Rules API.",
+        "CRM_ASSIGNMENT_RULE_API_MOVED",
+      );
+    if (resource === "sources")
+      throw new HttpError(
+        410,
+        "Use the governed Lead Sources API.",
+        "CRM_LEAD_SOURCE_API_MOVED",
+      );
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
-    const input = await crmSchemas[resource].parseAsync(
-      await readJson(request),
-    );
+    const rawInput = (await readJson(request)) as Record<string, unknown>;
+    if (
+      resource === "leads" &&
+      ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
+        (field) => Object.prototype.hasOwnProperty.call(rawInput, field),
+      )
+    )
+      throw new HttpError(
+        409,
+        "New Leads always begin in the configured initial lifecycle stage.",
+        "CRM_LEAD_INITIAL_STAGE_GOVERNED",
+      );
+    const input = await crmSchemas[resource].parseAsync(rawInput);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = await crmApiContext(session);
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const created = await createCrmRecord(
-          client,
-          context,
-          resource,
-          input,
-        );
+        const created = await createCrmRecord(client, context, resource, input);
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,
           eventType: `crm.${resource}.created`,
           entityType: resource,
           entityId: String(created.id),
-          afterData: input,
+          afterData: crmAuditSnapshot(resource, created, Object.keys(input)),
           request,
           client,
         });

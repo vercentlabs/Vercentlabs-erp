@@ -10,9 +10,12 @@ import { mobileError, mobileOk } from "@/core/mobile-http";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { requireMobileSession } from "@/core/mobile-session";
 import { audit } from "@/core/security";
+import { crmAuditSnapshot } from "@/modules/crm/audit";
 
 function valid(resource: string): asserts resource is CrmResourceKey {
   if (!isCrmDefinition(resource)) throw new HttpError(404, "Unknown CRM resource.");
+  if (resource === "sources")
+    throw new HttpError(410, "Use the responsive CRM Setup Lead Sources workspace.", "CRM_LEAD_SOURCE_API_MOVED");
 }
 
 export async function GET(request: Request, route: { params: Promise<{ resource: string; id: string }> }) {
@@ -56,12 +59,15 @@ export async function PATCH(request: Request, route: { params: Promise<{ resourc
     const { resource, id } = await route.params;
     valid(resource); assertCrmIdentifier(id); requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId!);
-    const input = await crmPatchSchemas[resource].parseAsync(await readJson(request));
+    const rawInput = (await readJson(request)) as Record<string, unknown>;
+    if (resource === "leads" && ["status", "stage", "stageId", "stageCode", "recordStatus"].some((field) => Object.prototype.hasOwnProperty.call(rawInput, field)))
+      throw new HttpError(409, "Use the governed Lead lifecycle transition action.", "CRM_LEAD_STAGE_ACTION_REQUIRED");
+    const input = await crmPatchSchemas[resource].parseAsync(rawInput);
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
     const context = await crmApiContext(session);
     const response = await tenantTransaction(context.organizationId, (client) => withMobileIdempotency(client, session, request, input, async () => {
       const record = await updateCrmRecord(client, context, resource, id, input);
-      await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.updated`, entityType: resource, entityId: id, afterData: input, request, client });
+      await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.updated`, entityType: resource, entityId: id, afterData: crmAuditSnapshot(resource, record, Object.keys(input)), request, client });
       return { message: "CRM record updated.", record };
     }));
     return mobileOk(request, response);
@@ -79,7 +85,7 @@ export async function DELETE(request: Request, route: { params: Promise<{ resour
     const response = await tenantTransaction(context.organizationId, (client) =>
       withMobileIdempotency(client, session, request, { archive: true }, async () => {
         const record = await archiveCrmRecord(client, context, resource, id);
-        await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.archived`, entityType: resource, entityId: id, afterData: record, request, client });
+        await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.archived`, entityType: resource, entityId: id, afterData: crmAuditSnapshot(resource, record), request, client });
         return { message: "CRM record archived.", record };
       }),
     );

@@ -18,6 +18,8 @@ export async function POST(request: Request) {
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
     const context = await crmApiContext(session);
     const input = (await readJson(request)) as Record<string, unknown>;
+    if (input.action === "scan")
+      requirePermissionFromSession(session, PERMISSIONS.crmRecordsViewAll);
     const result = await tenantTransaction(context.organizationId, (client) =>
       input.action === "open"
         ? openLeadSlaCase(client, context, String(input.leadId || ""), input)

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCrmRecord, CrmError } from "../src/modules/crm/index.js";
+import {
+  createCrmRecord,
+  CrmError,
+  leadOutboxChangedFields,
+  queueOutboxEvent,
+} from "../src/modules/crm/index.js";
 import { evaluateLeadReadiness } from "../src/modules/crm/lead-operations.js";
 import { validateLeadRecord } from "../src/modules/crm/features/leads/record-validation.js";
 
@@ -15,7 +20,7 @@ const context = {
   roleSlugs: ["organization_owner"],
 };
 
-test("F001 hardening: qualification does not deadlock a tenant with no scoring configuration", () => {
+test("F001/F006 hardening: commercial readiness is independent of scoring configuration", () => {
   const lead = {
     first_name: "Asha",
     email: "asha@example.com",
@@ -37,11 +42,11 @@ test("F001 hardening: qualification does not deadlock a tenant with no scoring c
   const configuredTenant = evaluateLeadReadiness(lead, new Date(), {
     scoringConfigured: true,
   });
-  assert.equal(configuredTenant.ready, false);
+  assert.equal(configuredTenant.ready, true);
   assert.equal(configuredTenant.scoringConfigured, true);
   assert.equal(
     configuredTenant.reasons.includes("Lead score is below the conversion threshold."),
-    true,
+    false,
   );
 });
 
@@ -131,5 +136,71 @@ test("F001 hardening: domain validation errors retain machine code and field-err
       ]);
       return true;
     },
+  );
+});
+
+test("F001 QA: Lead outbox contracts exclude names and contact PII", async () => {
+  const writes = [];
+  const client = {
+    async query(sql, values) {
+      writes.push({ sql, values });
+      return { rows: [] };
+    },
+  };
+  const leadId = "33333333-3333-4333-8333-333333333333";
+  await queueOutboxEvent(client, context, "crm.leads.created", "leads", leadId, {
+    id: leadId,
+    firstName: "Asha",
+    email: "asha@example.com",
+    mobile: "+91 99999 99999",
+    status: "new",
+    sourceId: null,
+  });
+  await queueOutboxEvent(client, context, "crm.leads.updated", "leads", leadId, {
+    before: { id: leadId, email: "asha@example.com", status: "new" },
+    after: { id: leadId, email: "new@example.com", status: "working" },
+  });
+  const payloads = writes.map((write) => write.values[4]);
+  assert.equal(JSON.stringify(payloads).includes("asha@example.com"), false);
+  assert.equal(JSON.stringify(payloads).includes("new@example.com"), false);
+  assert.deepEqual(payloads[0], { leadId, status: "new", sourceId: null });
+  assert.deepEqual(payloads[1].changedFields, ["email", "status"]);
+  assert.deepEqual(payloads[1].before, { status: "new" });
+  assert.deepEqual(payloads[1].after, { status: "working" });
+});
+
+test("F001 QA round two: Lead changedFields reports only changed business fields", () => {
+  const before = {
+    companyName: "Before",
+    phone: "+91 99999 99999",
+    normalizedPhone: "919999999999",
+    createdAt: new Date("2026-08-25T00:00:00.000Z"),
+    updatedAt: new Date("2026-08-25T00:00:00.000Z"),
+    customData: { region: "west" },
+    scoreExplanation: { total: 20 },
+    score: 20,
+  };
+  const companyAfter = {
+    ...before,
+    companyName: "After",
+    createdAt: new Date("2026-08-25T00:00:00.000Z"),
+    updatedAt: new Date("2026-08-25T00:05:00.000Z"),
+    customData: { region: "west" },
+    scoreExplanation: { total: 20 },
+  };
+  assert.deepEqual(
+    leadOutboxChangedFields(before, companyAfter, ["companyName"]),
+    ["companyName"],
+  );
+
+  const phoneAfter = {
+    ...before,
+    phone: "+91 88888 88888",
+    normalizedPhone: "918888888888",
+    updatedAt: new Date("2026-08-25T00:05:00.000Z"),
+  };
+  assert.deepEqual(
+    leadOutboxChangedFields(before, phoneAfter, ["phone"]),
+    ["normalizedPhone", "phone"],
   );
 });

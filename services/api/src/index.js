@@ -11,6 +11,14 @@ export * from "./modules/crm/lead-governance.js";
 
 export * from "./modules/crm/lead-operations.js";
 
+export * from "./modules/crm/account-operations.js";
+
+export * from "./modules/crm/contact-operations.js";
+
+export * from "./modules/crm/lead-source-operations.js";
+export * from "./modules/crm/lead-qualification.js";
+export * from "./modules/crm/lead-lifecycle.js";
+
 export * from "./modules/crm/opportunity-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
@@ -32,7 +40,6 @@ export * from "./modules/crm/core-acceptance.js";
 export * from "./modules/crm/account-intelligence.js";
 
 export * from "./core/release/governance.js";
-
 
 export * from "./modules/crm/communications.js";
 

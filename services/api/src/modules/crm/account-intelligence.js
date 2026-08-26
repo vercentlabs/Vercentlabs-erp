@@ -927,7 +927,7 @@ async function anonymizeSubject(client, context, subjectType, subjectId) {
       `UPDATE tenant.crm_leads SET
          first_name=$1,last_name=NULL,email=NULL,phone=NULL,mobile=NULL,company_name=NULL,job_title=NULL,website=NULL,
          city=NULL,state=NULL,country_code=NULL,product_interest=NULL,consent_email=false,consent_sms=false,consent_whatsapp=false,
-         do_not_contact=true,status='archived',privacy_status='anonymized',anonymized_at=now(),updated_by=$2,updated_at=now(),
+         do_not_contact=true,record_status='archived',privacy_status='anonymized',anonymized_at=now(),updated_by=$2,updated_at=now(),
          custom_data=jsonb_build_object('privacyAnonymized',true,'anonymizedAt',now())
        WHERE organization_id=$3 AND id=$4`,
       [
