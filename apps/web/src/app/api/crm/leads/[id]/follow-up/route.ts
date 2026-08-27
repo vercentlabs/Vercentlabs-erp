@@ -1,4 +1,5 @@
 import {
+  createCrmCall,
   createCrmRecord,
   getCrmRecord,
   updateCrmRecord,
@@ -16,6 +17,7 @@ import { assertSameOriginOrMobile, audit } from "@/core/security";
 import { assertCrmIdentifier } from "@/modules/crm/api";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
 import { scheduleLeadFollowUpSchema } from "@/modules/crm/validation";
+import { crmCallAuditSnapshot } from "@/modules/crm/audit";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -48,19 +50,33 @@ export async function POST(request: Request, { params }: Params) {
           );
         }
 
-        const activity = await createCrmRecord(client, context, "activities", {
-          companyId: before.companyId || null,
-          branchId: before.branchId || null,
-          entityType: "lead",
-          entityId: id,
-          activityType: input.activityType,
-          subject: input.subject,
-          description: input.description || null,
-          status: "planned",
-          priority: input.priority,
-          assignedTo: input.assignedTo || before.ownerUserId || context.userId,
-          dueAt: input.dueAt,
-        });
+        const activity = input.activityType === "call"
+          ? await createCrmCall(client, context, {
+              mode: "schedule",
+              companyId: before.companyId || null,
+              branchId: before.branchId || null,
+              entityType: "lead",
+              entityId: id,
+              subject: input.subject,
+              description: input.description || null,
+              priority: input.priority,
+              assignedTo: input.assignedTo || before.ownerUserId || context.userId,
+              dueAt: input.dueAt,
+              direction: "outbound",
+            })
+          : await createCrmRecord(client, context, "activities", {
+              companyId: before.companyId || null,
+              branchId: before.branchId || null,
+              entityType: "lead",
+              entityId: id,
+              activityType: input.activityType,
+              subject: input.subject,
+              description: input.description || null,
+              status: "planned",
+              priority: input.priority,
+              assignedTo: input.assignedTo || before.ownerUserId || context.userId,
+              dueAt: input.dueAt,
+            });
 
         const lead = await updateCrmRecord(client, context, "leads", id, {
           nextFollowUpAt: input.dueAt,
@@ -69,10 +85,10 @@ export async function POST(request: Request, { params }: Params) {
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,
-          eventType: "crm.activities.created",
-          entityType: "activities",
+          eventType: input.activityType === "call" ? "crm.call.scheduled" : "crm.activities.created",
+          entityType: input.activityType === "call" ? "call" : "activities",
           entityId: String(activity.id),
-          afterData: activity,
+          afterData: input.activityType === "call" ? crmCallAuditSnapshot(activity) : activity,
           request,
           client,
         });

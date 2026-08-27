@@ -284,6 +284,34 @@ export function createMobileClient({
         { idempotencyKey },
       );
     },
+    createCall(input, idempotencyKey = requestIdFactory()) {
+      return perform(
+        "/crm/calls",
+        { method: "POST", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
+    },
+    startCall(id, expectations = {}, idempotencyKey = requestIdFactory()) {
+      return perform(
+        `/crm/calls/${encodeURIComponent(id)}/start`,
+        { method: "POST", body: JSON.stringify(expectations) },
+        { idempotencyKey },
+      );
+    },
+    completeCall(id, input, idempotencyKey = requestIdFactory()) {
+      return perform(
+        `/crm/calls/${encodeURIComponent(id)}/complete`,
+        { method: "POST", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
+    },
+    cancelCall(id, expectations = {}, idempotencyKey = requestIdFactory()) {
+      return perform(
+        `/crm/calls/${encodeURIComponent(id)}/cancel`,
+        { method: "POST", body: JSON.stringify(expectations) },
+        { idempotencyKey },
+      );
+    },
     completeActivity(
       id,
       outcome,

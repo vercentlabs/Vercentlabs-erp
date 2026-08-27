@@ -120,6 +120,25 @@ export type MobileClient = {
     input: Record<string, unknown>,
     idempotencyKey?: string,
   ): Promise<{ record: Record<string, unknown>; message: string }>;
+  createCall(
+    input: Record<string, unknown>,
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
+  startCall(
+    id: string,
+    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
+  completeCall(
+    id: string,
+    input: { outcomeCode: string; outcome?: string | null; expectedUpdatedAt?: string; expectedStatus?: string },
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
+  cancelCall(
+    id: string,
+    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
   completeActivity(
     id: string,
     outcome?: string,

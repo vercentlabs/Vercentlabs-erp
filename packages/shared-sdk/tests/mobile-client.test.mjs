@@ -140,3 +140,32 @@ test("invalid refresh clears tokens and notifies the application shell", async (
   assert.deepEqual(failures, ["SESSION_REQUIRED"]);
   unsubscribe();
 });
+
+test("F013 mobile client exposes governed Call create/start/complete/cancel endpoints with idempotency", async () => {
+  const calls = [];
+  const client = createMobileClient({
+    baseUrl: "https://erp.example.com",
+    tokenStore: createMemoryTokenStore(),
+    requestIdFactory: () => "request-f013",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse({ ok: true });
+    },
+  });
+
+  await client.createCall({ mode: "schedule", subject: "Call customer" }, "idem-create");
+  await client.startCall("call-1", { expectedStatus: "planned" }, "idem-start");
+  await client.completeCall("call-1", { outcomeCode: "connected" }, "idem-complete");
+  await client.cancelCall("call-2", { expectedStatus: "planned" }, "idem-cancel");
+
+  assert.deepEqual(calls.map((entry) => entry.url), [
+    "https://erp.example.com/api/mobile/v1/crm/calls",
+    "https://erp.example.com/api/mobile/v1/crm/calls/call-1/start",
+    "https://erp.example.com/api/mobile/v1/crm/calls/call-1/complete",
+    "https://erp.example.com/api/mobile/v1/crm/calls/call-2/cancel",
+  ]);
+  assert.ok(calls.every((entry) => entry.init.method === "POST"));
+  assert.deepEqual(calls.map((entry) => entry.init.headers.get("idempotency-key")), [
+    "idem-create", "idem-start", "idem-complete", "idem-cancel",
+  ]);
+});

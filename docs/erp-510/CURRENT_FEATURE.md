@@ -1,16 +1,16 @@
 # Current Mandatory Feature
 
-- Feature ID: F012
-- Feature Name: Sales stages
+- Feature ID: F013
+- Feature Name: Calls
 - Module: CRM
 - Priority: P0
 - Status: TESTING
 - UAT: NOT_READY
-- Dependencies: protected core foundation; F009 Opportunities; F010 Opportunity Pipeline; F011 Probability and Expected Revenue
-- Specification path: `02-feature-specs/ERP-012.md`
+- Dependencies: protected core foundation; F001 Leads; F002 Accounts; F003 Contacts; F009 Opportunities; existing CRM Activities persistence
+- Specification path: `02-feature-specs/ERP-013.md`
 - Relevant tests:
-  - `services/api/tests/crm-sales-stages-f012.test.mjs`
-  - `apps/web/tests/crm-sales-stages-f012.test.mjs`
-  - `scripts/validation/verify-crm-f012-live.mjs`
-  - existing F001-F011, CRM scope/security/RBAC, architecture, database, route and build suites
-- Current blocker: named-human permission/isolation, configuration, concurrency, integration, keyboard, responsive and visual UAT remains outstanding.
+  - `services/api/tests/crm-calls-f013.test.mjs`
+  - `apps/web/tests/crm-calls-f013.test.mjs`
+  - `scripts/validation/verify-crm-f013-live.mjs`
+  - existing F001-F012, CRM scope/security/RBAC, architecture, database, route, mobile and build suites
+- Current blocker: named-human permission/isolation, call lifecycle, contact-restriction, offline/mobile, keyboard, responsive and visual UAT remains outstanding.

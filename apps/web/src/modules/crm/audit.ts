@@ -30,3 +30,19 @@ export function crmAuditSnapshot(
     ...(changedFields ? { changedFields: [...new Set(changedFields)].sort() } : {}),
   };
 }
+
+export function crmCallAuditSnapshot(record: Record<string, unknown>) {
+  return {
+    id: record.id,
+    status: record.status,
+    direction: record.direction,
+    entityType: record.entityType,
+    entityId: record.entityId,
+    assignedTo: record.assignedTo,
+    companyId: record.companyId,
+    branchId: record.branchId,
+    priority: record.priority,
+    outcomeCode: record.outcomeCode,
+    durationSeconds: record.durationSeconds,
+  };
+}

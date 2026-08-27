@@ -379,3 +379,80 @@ export const publicCaptureSchema = z
       .optional(),
   })
   .strict();
+
+const callDateTime = z.string().trim().refine((value) => Number.isFinite(Date.parse(value)), {
+  message: "Use a valid date and time.",
+});
+const callExpectationFields = {
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+  expectedStatus: z.enum(["planned", "overdue", "in_progress", "completed", "cancelled"]).optional(),
+};
+const callBaseFields = {
+  companyId: z.string().uuid().nullable().optional(),
+  branchId: z.string().uuid().nullable().optional(),
+  entityType: z.enum(["lead", "opportunity", "party", "contact", "campaign", "general"]).default("general"),
+  entityId: z.string().uuid().nullable().optional(),
+  subject: z.string().trim().min(1).max(300),
+  description: z.string().trim().max(4000).nullable().optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  assignedTo: z.string().uuid().nullable().optional(),
+  startAt: callDateTime.nullable().optional(),
+  dueAt: callDateTime.nullable().optional(),
+  reminderAt: callDateTime.nullable().optional(),
+  direction: z.enum(["inbound", "outbound"]),
+  phoneNumber: z.string().trim().max(40).nullable().optional(),
+};
+
+export const createCallSchema = z
+  .object({
+    ...callBaseFields,
+    mode: z.enum(["schedule", "log"]).default("schedule"),
+    occurredAt: callDateTime.optional(),
+    durationSeconds: z.coerce.number().int().min(0).max(86_400).optional(),
+    outcomeCode: z.enum(["connected", "no_answer", "busy", "voicemail", "callback_requested", "wrong_number", "failed"]).optional(),
+    outcome: z.string().trim().max(4000).nullable().optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.entityType === "general" && input.entityId)
+      context.addIssue({ code: "custom", path: ["entityId"], message: "General Calls cannot have a related-record ID." });
+    if (input.entityType !== "general" && !input.entityId)
+      context.addIssue({ code: "custom", path: ["entityId"], message: "Select the related CRM record." });
+    if (input.mode === "schedule" && !input.dueAt)
+      context.addIssue({ code: "custom", path: ["dueAt"], message: "Scheduled Calls require a due date and time." });
+    if (input.mode === "log" && !input.outcomeCode)
+      context.addIssue({ code: "custom", path: ["outcomeCode"], message: "Logged Calls require an outcome." });
+    if (input.startAt && input.dueAt && Date.parse(input.startAt) > Date.parse(input.dueAt))
+      context.addIssue({ code: "custom", path: ["dueAt"], message: "Due time cannot be earlier than start time." });
+    if (input.reminderAt && input.dueAt && Date.parse(input.reminderAt) > Date.parse(input.dueAt))
+      context.addIssue({ code: "custom", path: ["reminderAt"], message: "Reminder cannot be later than due time." });
+  });
+
+export const updateCallSchema = z
+  .object({
+    companyId: callBaseFields.companyId,
+    branchId: callBaseFields.branchId,
+    entityType: callBaseFields.entityType.optional(),
+    entityId: callBaseFields.entityId,
+    subject: callBaseFields.subject.optional(),
+    description: callBaseFields.description,
+    priority: callBaseFields.priority.optional(),
+    assignedTo: callBaseFields.assignedTo,
+    startAt: callBaseFields.startAt,
+    dueAt: callBaseFields.dueAt,
+    reminderAt: callBaseFields.reminderAt,
+    direction: callBaseFields.direction.optional(),
+    phoneNumber: callBaseFields.phoneNumber,
+    ...callExpectationFields,
+  })
+  .strict();
+
+export const callLifecycleSchema = z.object(callExpectationFields).strict();
+
+export const completeCallSchema = z
+  .object({
+    outcomeCode: z.enum(["connected", "no_answer", "busy", "voicemail", "callback_requested", "wrong_number", "failed"]),
+    outcome: z.string().trim().max(4000).nullable().optional(),
+    ...callExpectationFields,
+  })
+  .strict();

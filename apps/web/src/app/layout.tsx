@@ -18,6 +18,7 @@ import "./crm-contacts.css";
 import "./crm-lead-sources.css";
 import "./crm-lead-lifecycle.css";
 import "./crm-sales-stages.css";
+import "./crm-calls.css";
 
 export const metadata: Metadata = {
   title: { default: "Vercentlabs ERP", template: "%s | Vercentlabs ERP" },

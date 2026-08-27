@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getCrmOptions, getCrmRecord, listCrmRecords } from "@vercentlabs/api";
+import { getCrmOptions, getCrmRecord, listCrmCalls, listCrmRecords } from "@vercentlabs/api";
 
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { crmContext, crmDefinitions } from "@/modules/crm";
 import CrmResourceManager from "@/modules/crm/components/resource-manager";
+import CallsWorkspace from "@/modules/crm/components/calls-workspace";
 
 export const metadata = { title: "CRM activities" };
 export const dynamic = "force-dynamic";
@@ -29,18 +30,21 @@ function activityUrl({
   search = "",
   status = "all",
   page = 1,
+  direction = "all",
 }: {
   activityType: ActivityType;
   due: DueFilter;
   search?: string;
   status?: string;
   page?: number;
+  direction?: string;
 }) {
   const query = new URLSearchParams();
   if (activityType !== "all") query.set("activityType", activityType);
   if (due !== "all") query.set("due", due);
   if (search) query.set("search", search);
   if (status !== "all") query.set("status", status);
+  if (direction !== "all") query.set("direction", direction);
   if (page > 1) query.set("page", String(page));
   const suffix = query.toString();
   return `/crm/activities${suffix ? `?${suffix}` : ""}`;
@@ -59,6 +63,7 @@ export default async function CrmActivitiesPage({
     page?: string;
     create?: string;
     edit?: string;
+    direction?: string;
   }>;
 }) {
   const [session, query] = await Promise.all([requireWorkspace(), searchParams]);
@@ -68,6 +73,9 @@ export default async function CrmActivitiesPage({
   const due = enumValue(query.due, DUE, "all");
   const search = String(query.search || "").trim().slice(0, 200);
   const status = String(query.status || "all").trim().slice(0, 80) || "all";
+  const direction = ["all", "inbound", "outbound"].includes(String(query.direction || "all").toLowerCase())
+    ? String(query.direction || "all").toLowerCase()
+    : "all";
   const parsedPage = Math.trunc(Number(query.page) || 1);
   const page = Math.max(1, Math.min(1_000_000, parsedPage));
   const editId = String(query.edit || "").trim().slice(0, 80);
@@ -75,24 +83,33 @@ export default async function CrmActivitiesPage({
   const context = crmContext(session);
 
   const result = await tenantTransaction(context.organizationId, async (client) => ({
-    records: await listCrmRecords(client, context, "activities", {
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
-      search,
-      status,
-      activityType,
-      due,
-    }),
+    records: activityType === "call"
+      ? await listCrmCalls(client, context, {
+          limit: PAGE_SIZE,
+          offset: (page - 1) * PAGE_SIZE,
+          search,
+          status,
+          direction,
+          due,
+        })
+      : await listCrmRecords(client, context, "activities", {
+          limit: PAGE_SIZE,
+          offset: (page - 1) * PAGE_SIZE,
+          search,
+          status,
+          activityType,
+          due,
+        }),
     options: await getCrmOptions(client, context),
     editingRecord:
-      editId && canManage
+      activityType !== "call" && editId && canManage
         ? await getCrmRecord(client, context, "activities", editId).catch(() => null)
         : null,
   }));
 
   const totalPages = Math.max(1, Math.ceil(result.records.total / PAGE_SIZE));
   if (page > totalPages) {
-    redirect(activityUrl({ activityType, due, search, status, page: totalPages }));
+    redirect(activityUrl({ activityType, due, search, status, direction, page: totalPages }));
   }
 
   return (
@@ -112,7 +129,7 @@ export default async function CrmActivitiesPage({
         {TYPES.map((type) => (
           <Link
             key={type}
-            href={activityUrl({ activityType: type, due, search, status })}
+            href={activityUrl({ activityType: type, due, search, status, direction: type === "call" ? direction : "all" })}
             className={activityType === type ? "active" : ""}
             aria-current={activityType === type ? "page" : undefined}
           >
@@ -125,7 +142,7 @@ export default async function CrmActivitiesPage({
         {DUE.map((value) => (
           <Link
             key={value}
-            href={activityUrl({ activityType, due: value, search, status })}
+            href={activityUrl({ activityType, due: value, search, status, direction })}
             className={due === value ? "active" : ""}
             aria-current={due === value ? "page" : undefined}
           >
@@ -134,26 +151,42 @@ export default async function CrmActivitiesPage({
         ))}
       </nav>
 
-      <CrmResourceManager
-        key={[activityType, due, page, search, status, query.create || "", editId].join(":")}
-        definition={crmDefinitions.activities}
-        rows={JSON.parse(JSON.stringify(result.records.rows))}
-        total={result.records.total}
-        page={page}
-        pageSize={PAGE_SIZE}
-        initialSearch={search}
-        initialStatus={status}
-        options={JSON.parse(JSON.stringify(result.options))}
-        canManage={canManage}
-        startCreating={query.create === "1" && canManage}
-        startEditing={JSON.parse(JSON.stringify(result.editingRecord))}
-        canImport={false}
-        canExport={false}
-        preservedQuery={{
-          activityType: activityType === "all" ? "" : activityType,
-          due: due === "all" ? "" : due,
-        }}
-      />
+      {activityType === "call" ? (
+        <CallsWorkspace
+          rows={JSON.parse(JSON.stringify(result.records.rows))}
+          total={result.records.total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          search={search}
+          status={status}
+          direction={direction}
+          due={due}
+          options={JSON.parse(JSON.stringify(result.options))}
+          canManage={canManage}
+          startCreating={query.create === "1" && canManage}
+        />
+      ) : (
+        <CrmResourceManager
+          key={[activityType, due, page, search, status, query.create || "", editId].join(":")}
+          definition={crmDefinitions.activities}
+          rows={JSON.parse(JSON.stringify(result.records.rows))}
+          total={result.records.total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          initialSearch={search}
+          initialStatus={status}
+          options={JSON.parse(JSON.stringify(result.options))}
+          canManage={canManage}
+          startCreating={query.create === "1" && canManage}
+          startEditing={JSON.parse(JSON.stringify(result.editingRecord))}
+          canImport={false}
+          canExport={false}
+          preservedQuery={{
+            activityType: activityType === "all" ? "" : activityType,
+            due: due === "all" ? "" : due,
+          }}
+        />
+      )}
     </div>
   );
 }

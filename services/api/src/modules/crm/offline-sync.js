@@ -267,6 +267,8 @@ export async function applyOfflineMutation(client, context, input = {}) {
     ).rows[0];
   } else if (m.resource === "activities" && m.operation === "create") {
     const p = m.payload;
+    if (text(p.activityType || p.activity_type || "task").toLowerCase() === "call")
+      throw new CrmOfflineSyncError(410, "Use the governed Calls mobile endpoint for offline Call creation.", "CRM_CALL_API_MOVED");
     row = (
       await client.query(
         `INSERT INTO tenant.crm_activities(organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,start_at,due_at,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING *`,
@@ -295,6 +297,12 @@ export async function applyOfflineMutation(client, context, input = {}) {
         "Offline activity completion requires a record id.",
         "CRM_OFFLINE_ACTIVITY_ID_REQUIRED",
       );
+    const target = (await client.query(
+      `SELECT activity_type FROM tenant.crm_activities WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, m.recordId],
+    )).rows[0];
+    if (target?.activity_type === "call")
+      throw new CrmOfflineSyncError(410, "Use the governed Calls mobile endpoint for offline Call completion.", "CRM_CALL_API_MOVED");
     row = (
       await client.query(
         `UPDATE tenant.crm_activities SET status='completed',outcome=$3,completed_at=now(),updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,

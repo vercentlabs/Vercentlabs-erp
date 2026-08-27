@@ -304,6 +304,7 @@ export function CrmListScreen({
               </View>
               {canManage &&
               resource === "activities" &&
+              String(row.activityType || "").toLowerCase() !== "call" &&
               status !== "completed" ? (
                 <Pressable
                   accessibilityRole="button"

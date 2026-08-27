@@ -2295,6 +2295,8 @@ async function validateOpportunityRelationships(client, context, prepared, exist
 }
 
 export async function createCrmRecord(client, context, resource, input) {
+  if (resource === "activities" && String(input?.activityType || "").toLowerCase() === "call")
+    throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -2583,6 +2585,8 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   const definition = definitionFor(resource);
   if (resource === "leads") assertNoQualificationMutation(input);
   const before = await getCrmRecord(client, context, resource, id);
+  if (resource === "activities" && (before.activityType === "call" || String(input?.activityType || "").toLowerCase() === "call"))
+    throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
   if (resource === "opportunities" && before.status === "archived")
     throw new CrmError(409, "Archived Opportunities are read-only.", "CRM_OPPORTUNITY_ARCHIVED");
   if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input || {}, "ownerUserId") && !input.ownerUserId && !canViewAllCrmRecords(context))
@@ -2774,6 +2778,8 @@ export async function archiveCrmRecord(client, context, resource, id) {
     );
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
+  if (resource === "activities" && before.activityType === "call")
+    throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 
@@ -3479,6 +3485,8 @@ export async function completeCrmActivity(
   );
   const current = currentResult.rows[0];
   if (!current) throw new CrmError(404, "Activity not found.");
+  if (current.activity_type === "call")
+    throw new CrmError(410, "Use the governed Call completion action.", "CRM_CALL_API_MOVED");
   if (
     expectations.expectedUpdatedAt &&
     new Date(current.updated_at).toISOString() !==
@@ -4410,3 +4418,13 @@ export {
   setSalesStageActive,
   updateSalesStage,
 } from "./sales-stage-operations.js";
+export {
+  cancelCrmCall,
+  completeCrmCall,
+  createCrmCall,
+  getCrmCall,
+  listCrmCallEvents,
+  listCrmCalls,
+  startCrmCall,
+  updateCrmCall,
+} from "./call-operations.js";

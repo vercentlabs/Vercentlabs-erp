@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import * as Crypto from "expo-crypto";
 import { mobileApi } from "@/core/api/client";
+import { enqueueMutation } from "@/core/database/database";
 import { useAuth } from "@/core/auth/auth-provider";
 import { useCrmQuery } from "@/modules/crm/hooks/use-crm-query";
 import { useTheme } from "@/shared/theme/theme";
@@ -94,7 +95,8 @@ export default function RecordDetailScreen() {
         ...Object.keys(record).filter((key) => !preferred.includes(key)),
       ].filter((key) => !hidden.has(key) && typeof record[key] !== "object")
     : [];
-  const contact = String(record?.mobile ?? record?.phone ?? "");
+  const isCall = resource === "activities" && String(record?.activityType || "").toLowerCase() === "call";
+  const contact = String(record?.callPhone ?? record?.mobile ?? record?.phone ?? "");
   const email = String(record?.email ?? "");
   const permissions = new Set(auth.session?.access.permissions || []);
   const canManageLead = permissions.has("crm.leads.manage");
@@ -174,6 +176,52 @@ export default function RecordDetailScreen() {
       setBusy(false);
     }
   }
+  async function completeCall(outcomeCode: string) {
+    setBusy(true);
+    setMessage("");
+    const idempotencyKey = Crypto.randomUUID();
+    const payload = {
+      outcomeCode,
+      expectedUpdatedAt: typeof record?.updatedAt === "string" ? record.updatedAt : undefined,
+      expectedStatus: typeof record?.status === "string" ? record.status : undefined,
+    };
+    try {
+      await mobileApi.completeCall(params.id, payload, idempotencyKey);
+      await query.refetch();
+      setMessage("Call completed.");
+    } catch (error) {
+      if ((error as { retryable?: boolean }).retryable !== false) {
+        await enqueueMutation({ id: Crypto.randomUUID(), operation: "complete-call", resource: "activities", recordId: params.id, payload, idempotencyKey });
+        setMessage("Saved offline. Call completion will sync automatically.");
+      } else setMessage(error instanceof Error ? error.message : "Could not complete Call.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function callLifecycle(action: "start" | "cancel") {
+    setBusy(true);
+    setMessage("");
+    const idempotencyKey = Crypto.randomUUID();
+    const payload = {
+      expectedUpdatedAt: typeof record?.updatedAt === "string" ? record.updatedAt : undefined,
+      expectedStatus: typeof record?.status === "string" ? record.status : undefined,
+    };
+    try {
+      if (action === "start") await mobileApi.startCall(params.id, payload, idempotencyKey);
+      else await mobileApi.cancelCall(params.id, payload, idempotencyKey);
+      await query.refetch();
+      setMessage(action === "start" ? "Call started." : "Call cancelled.");
+    } catch (error) {
+      if ((error as { retryable?: boolean }).retryable !== false) {
+        await enqueueMutation({ id: Crypto.randomUUID(), operation: `${action}-call`, resource: "activities", recordId: params.id, payload, idempotencyKey });
+        setMessage(`Saved offline. Call ${action} will sync automatically.`);
+      } else setMessage(error instanceof Error ? error.message : `Could not ${action} Call.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function requestCompletionApproval() {
     setBusy(true);
     setMessage("");
@@ -394,8 +442,50 @@ export default function RecordDetailScreen() {
               </View>
             </View>
           ) : null}
+          {isCall && canManageActivity && ["planned", "overdue"].includes(String(record.status)) ? (
+            <View style={{ marginBottom: spacing.md, flexDirection: "row", gap: spacing.sm }}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void callLifecycle("start")} style={{ flex: 1, minHeight: 48, justifyContent: "center", alignItems: "center", borderRadius: radii.full, backgroundColor: colors.primary }}>
+                <Text style={{ ...type.label, color: colors.inverse }}>Start Call</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void callLifecycle("cancel")} style={{ flex: 1, minHeight: 48, justifyContent: "center", alignItems: "center", borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+                <Text style={{ ...type.label, color: colors.primary }}>Cancel Call</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {isCall && canManageActivity && record.status === "in_progress" ? (
+            <Pressable accessibilityRole="button" disabled={busy} onPress={() => void callLifecycle("cancel")} style={{ minHeight: 48, marginBottom: spacing.md, justifyContent: "center", alignItems: "center", borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+              <Text style={{ ...type.label, color: colors.primary }}>Cancel Call</Text>
+            </Pressable>
+          ) : null}
+          {isCall && canManageActivity && record.status !== "completed" && record.status !== "cancelled" ? (
+            <View style={{ marginBottom: spacing.lg, gap: spacing.sm }}>
+              <Text style={{ ...type.label, color: colors.text }}>Complete Call with outcome</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+                {[
+                  ["connected", "Connected"],
+                  ["no_answer", "No answer"],
+                  ["busy", "Busy"],
+                  ["voicemail", "Voicemail"],
+                  ["callback_requested", "Callback"],
+                  ["wrong_number", "Wrong number"],
+                  ["failed", "Failed"],
+                ].map(([code, labelText]) => (
+                  <Pressable
+                    key={code}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    onPress={() => { if (code) void completeCall(code); }}
+                    style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.md, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}
+                  >
+                    <Text style={{ ...type.caption, color: colors.primary }}>{labelText}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {resource === "activities" &&
           canManageActivity &&
+          !isCall &&
           record.status !== "completed" ? (
             <View style={{ marginBottom: spacing.lg, gap: spacing.sm }}>
               <Pressable

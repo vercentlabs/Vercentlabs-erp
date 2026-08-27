@@ -29,6 +29,37 @@ export function flushMutationQueue() {
             payload,
             item.idempotencyKey,
           );
+        } else if (item.operation === "create-call") {
+          await mobileApi.createCall(payload, item.idempotencyKey);
+        } else if (item.operation === "start-call" && item.recordId) {
+          await mobileApi.startCall(
+            item.recordId,
+            {
+              expectedUpdatedAt: typeof payload.expectedUpdatedAt === "string" ? payload.expectedUpdatedAt : undefined,
+              expectedStatus: typeof payload.expectedStatus === "string" ? payload.expectedStatus : undefined,
+            },
+            item.idempotencyKey,
+          );
+        } else if (item.operation === "cancel-call" && item.recordId) {
+          await mobileApi.cancelCall(
+            item.recordId,
+            {
+              expectedUpdatedAt: typeof payload.expectedUpdatedAt === "string" ? payload.expectedUpdatedAt : undefined,
+              expectedStatus: typeof payload.expectedStatus === "string" ? payload.expectedStatus : undefined,
+            },
+            item.idempotencyKey,
+          );
+        } else if (item.operation === "complete-call" && item.recordId) {
+          await mobileApi.completeCall(
+            item.recordId,
+            {
+              outcomeCode: String(payload.outcomeCode || ""),
+              outcome: typeof payload.outcome === "string" ? payload.outcome : undefined,
+              expectedUpdatedAt: typeof payload.expectedUpdatedAt === "string" ? payload.expectedUpdatedAt : undefined,
+              expectedStatus: typeof payload.expectedStatus === "string" ? payload.expectedStatus : undefined,
+            },
+            item.idempotencyKey,
+          );
         } else if (item.operation === "complete" && item.recordId) {
           await mobileApi.completeActivity(
             item.recordId,
