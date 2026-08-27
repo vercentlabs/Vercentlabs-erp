@@ -315,6 +315,14 @@ export const convertLeadSchema = z.object({
   nextStep: z.string().trim().max(2000).optional(),
 });
 export const mergeLeadSchema = z.object({ targetLeadId: z.string().uuid() });
+export const updateOpportunityProbabilitySchema = z
+  .object({
+    probability: z.coerce.number().min(0).max(100).multipleOf(0.01),
+    note: z.string().trim().max(1000).nullable().optional(),
+    expectedUpdatedAt: z.string().datetime({ offset: true }),
+    expectedProbability: z.coerce.number().min(0).max(100).multipleOf(0.01),
+  })
+  .strict();
 export const moveStageSchema = z.object({
   stageId: z.string().uuid(),
   note: z.string().trim().max(1000).nullable().optional(),

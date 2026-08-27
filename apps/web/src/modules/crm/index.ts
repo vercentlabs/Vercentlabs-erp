@@ -172,6 +172,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
       { key: "stageId", label: "Stage", optionsKey: "stages" },
       { key: "amount", label: "Amount", format: "currency" },
       { key: "probability", label: "Probability" },
+      { key: "expectedRevenue", label: "Expected revenue", format: "currency" },
       { key: "expectedCloseDate", label: "Expected close", format: "date" },
       { key: "status", label: "Status", format: "status" },
     ],

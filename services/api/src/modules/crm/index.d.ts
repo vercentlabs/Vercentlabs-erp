@@ -78,6 +78,14 @@ export function mergeCrmLead(
   sourceId: string,
   targetId: string,
 ): Promise<any>;
+export function updateOpportunityProbability(
+  client: QueryClient,
+  context: CrmContext,
+  opportunityId: string,
+  probability: number,
+  note?: string | null,
+  expectations?: { expectedUpdatedAt?: string; expectedProbability?: number | null },
+): Promise<any>;
 export function moveOpportunityStage(
   client: QueryClient,
   context: CrmContext,

@@ -118,6 +118,7 @@ const resources = Object.freeze({
       amount: "amount",
       currencyCode: "currency_code",
       probability: "probability",
+      expectedRevenue: "expected_revenue",
       expectedCloseDate: "expected_close_date",
       actualCloseDate: "actual_close_date",
       status: "status",
@@ -2263,6 +2264,12 @@ export async function createCrmRecord(client, context, resource, input) {
       );
   }
   if (resource === "opportunities") {
+    if (Object.prototype.hasOwnProperty.call(input || {}, "expectedRevenue"))
+      throw new CrmError(
+        409,
+        "Expected revenue is calculated automatically from amount and probability.",
+        "CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED",
+      );
     for (const field of [
       "status",
       "actualCloseDate",
@@ -2527,6 +2534,15 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     ? input.ownerUserId || null
     : undefined;
   if (resource === "saved-views") delete input.userId;
+  if (
+    resource === "opportunities" &&
+    Object.prototype.hasOwnProperty.call(input || {}, "expectedRevenue")
+  )
+    throw new CrmError(
+      409,
+      "Expected revenue is calculated automatically from amount and probability.",
+      "CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED",
+    );
   assertLifecycleUpdate(resource, before, input);
   const prepared =
     resource === "leads"
@@ -3106,6 +3122,126 @@ export async function mergeCrmLead(client, context, sourceId, targetId) {
     targetId,
   });
   return { ...camelizeRow(result.rows[0]), replayed: false };
+}
+
+export async function updateOpportunityProbability(
+  client,
+  context,
+  opportunityId,
+  probabilityValue,
+  note = null,
+  expectations = {},
+) {
+  const probability = Number(probabilityValue);
+  if (
+    !Number.isFinite(probability) ||
+    probability < 0 ||
+    probability > 100 ||
+    Math.abs(probability * 100 - Math.round(probability * 100)) > 1e-8
+  ) {
+    throw new CrmError(
+      400,
+      "Probability must be between 0 and 100 with at most two decimal places.",
+      "CRM_OPPORTUNITY_PROBABILITY_INVALID",
+    );
+  }
+  const normalizedProbability = Math.round(probability * 100) / 100;
+  const normalizedNote = String(note || "").trim() || null;
+  if (normalizedNote && normalizedNote.length > 1000) {
+    throw new CrmError(
+      400,
+      "Probability note must be 1000 characters or fewer.",
+      "CRM_OPPORTUNITY_PROBABILITY_NOTE_INVALID",
+    );
+  }
+  const opportunityParameters = [context.organizationId, opportunityId];
+  const opportunityResult = await client.query(
+    `SELECT record.* FROM tenant.crm_opportunities record WHERE record.organization_id = $1 AND record.id = $2${recordScope(resources.opportunities, context, opportunityParameters)} FOR UPDATE`,
+    opportunityParameters,
+  );
+  const opportunity = opportunityResult.rows[0];
+  if (!opportunity) throw new CrmError(404, "Opportunity not found.");
+  if (String(opportunity.status) !== "open") {
+    throw new CrmError(
+      409,
+      "Closed or archived Opportunities cannot change probability.",
+      "CRM_OPPORTUNITY_PROBABILITY_CLOSED",
+    );
+  }
+  const fromProbability = Number(opportunity.probability || 0);
+  // Desired-state replay is safe even when the original response was lost and
+  // the caller retries with the now-stale version token. No history/outbox or
+  // version mutation is repeated when the requested probability is already true.
+  if (fromProbability === normalizedProbability) {
+    return { ...camelizeRow(opportunity), replayed: true };
+  }
+  if (
+    !expectations.expectedUpdatedAt ||
+    expectations.expectedProbability === undefined ||
+    expectations.expectedProbability === null
+  ) {
+    throw new CrmError(
+      409,
+      "Refresh the opportunity before changing probability so the current version can be verified.",
+      "CRM_PROBABILITY_VERSION_REQUIRED",
+    );
+  }
+  if (
+    new Date(opportunity.updated_at).toISOString() !==
+      new Date(expectations.expectedUpdatedAt).toISOString()
+  ) {
+    throw new CrmError(
+      409,
+      "This opportunity changed while it was offline. Refresh it before changing probability.",
+      "CRM_STALE_WRITE",
+    );
+  }
+  if (
+    Number(opportunity.probability) !== Number(expectations.expectedProbability)
+  ) {
+    throw new CrmError(
+      409,
+      "This opportunity probability has already changed. Refresh it before continuing.",
+      "CRM_PROBABILITY_CONFLICT",
+    );
+  }
+  const result = await client.query(
+    `UPDATE tenant.crm_opportunities
+        SET probability=$1,updated_by=$2,updated_at=now()
+      WHERE organization_id=$3 AND id=$4
+      RETURNING *`,
+    [normalizedProbability, context.userId, context.organizationId, opportunityId],
+  );
+  const updated = camelizeRow(result.rows[0]);
+  await client.query(
+    `INSERT INTO tenant.crm_opportunity_probability_history
+      (organization_id,opportunity_id,from_probability,to_probability,expected_revenue,note,changed_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      context.organizationId,
+      opportunityId,
+      fromProbability,
+      normalizedProbability,
+      updated.expectedRevenue,
+      normalizedNote,
+      context.userId,
+    ],
+  );
+  await queueOutboxEvent(
+    client,
+    context,
+    "crm.opportunity.probability_changed",
+    "opportunity",
+    opportunityId,
+    {
+      fromProbability,
+      toProbability: normalizedProbability,
+      amount: Number(updated.amount || 0),
+      currencyCode: updated.currencyCode || null,
+      expectedRevenue: Number(updated.expectedRevenue || 0),
+    },
+  );
+  return { ...updated, replayed: false };
 }
 
 export async function moveOpportunityStage(
@@ -3921,7 +4057,7 @@ export async function getCrmDashboard(client, context) {
       (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.qualification_state = 'qualified' AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS qualified_leads,
       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS open_opportunities,
       (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS pipeline_value,
-      (SELECT COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS weighted_pipeline,
+      (SELECT COALESCE(sum(opportunity.expected_revenue),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS weighted_pipeline,
       (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at < now() AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS overdue_activities,
       (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day' AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS due_today,
       (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.created_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS leads_this_month,
@@ -3982,7 +4118,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
     `($7::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $8)`;
   let sql;
   if (report === "pipeline")
-    sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.amount * opportunity.probability / 100),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
+    sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.expected_revenue),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status='open' ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
   else if (report === "conversion")
     sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.record_status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.record_status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
@@ -3990,7 +4126,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
   else if (report === "activities")
     sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE activity.due_at<now() AND activity.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
-    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount),0)::numeric AS pipeline, COALESCE(sum(opportunity.amount*opportunity.probability/100),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
+    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open'),0)::numeric AS pipeline, COALESCE(sum(opportunity.expected_revenue) FILTER (WHERE opportunity.status='open'),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
   else if (report === "campaigns")
     sql = `SELECT campaign.name, campaign.status, campaign.budget, campaign.actual_cost, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_status IN ('responded','attended','converted'))::int AS responses, count(member.id) FILTER (WHERE member.member_status='converted')::int AS conversions FROM tenant.crm_campaigns campaign LEFT JOIN tenant.crm_campaign_members member ON member.campaign_id=campaign.id AND member.organization_id=campaign.organization_id WHERE campaign.organization_id=$1 ${dateClause("campaign.created_at")} AND ${companyVisible("campaign")} GROUP BY campaign.id ORDER BY campaign.created_at DESC`;
   else if (report === "revenue-operations")

@@ -35,7 +35,9 @@ export function evaluateOpportunityHealth(row, now = new Date()) {
     healthy: warnings.length === 0,
     warnings,
     inactiveDays,
-    weightedAmount: Math.round(amount * probability) / 100,
+    weightedAmount: Number.isFinite(Number(row.expected_revenue))
+      ? Number(row.expected_revenue)
+      : Math.round(amount * probability) / 100,
   };
 }
 export function buildPipelineSummary(rows, now = new Date()) {
@@ -51,7 +53,7 @@ export function buildPipelineSummary(rows, now = new Date()) {
     const health = evaluateOpportunityHealth(row, now);
     const amount = num(row.amount);
     if (String(row.status) === "open") result.openAmount += amount;
-    result.weightedAmount += health.weightedAmount;
+    if (String(row.status) === "open") result.weightedAmount += health.weightedAmount;
     if (health.warnings.includes("Expected close date is overdue."))
       result.overdue += 1;
     if (health.healthy) result.healthy += 1;
@@ -64,14 +66,14 @@ export function buildPipelineSummary(rows, now = new Date()) {
 }
 export async function getOpportunityDashboard(client, context) {
   const result = await client.query(
-    `SELECT o.id,o.name,o.amount,o.probability,o.expected_close_date,o.status,o.forecast_category,o.next_step,o.last_activity_at,o.created_at,o.updated_at,s.name stage_name FROM tenant.crm_opportunities o LEFT JOIN tenant.crm_pipeline_stages s ON s.organization_id=o.organization_id AND s.id=o.stage_id WHERE o.organization_id=$1 AND o.status <> 'archived'`,
+    `SELECT o.id,o.name,o.amount,o.probability,o.expected_revenue,o.expected_close_date,o.status,o.forecast_category,o.next_step,o.last_activity_at,o.created_at,o.updated_at,s.name stage_name FROM tenant.crm_opportunities o LEFT JOIN tenant.crm_pipeline_stages s ON s.organization_id=o.organization_id AND s.id=o.stage_id WHERE o.organization_id=$1 AND o.status <> 'archived'`,
     [context.organizationId],
   );
   return buildPipelineSummary(result.rows);
 }
 export async function getOpportunityTimeline(client, context, opportunityId) {
   const opportunity = await client.query(
-    `SELECT id,name,amount,probability,status,forecast_category,expected_close_date,next_step,updated_at FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2`,
+    `SELECT id,name,amount,probability,expected_revenue,status,forecast_category,expected_close_date,next_step,updated_at FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, opportunityId],
   );
   if (!opportunity.rows[0])

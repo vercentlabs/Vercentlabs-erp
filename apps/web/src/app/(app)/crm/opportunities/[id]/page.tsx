@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCrmOptions, getCrmRecord } from "@vercentlabs/api";
 
 import CrmOpportunityActions from "@/modules/crm/components/opportunity-actions";
+import CrmOpportunityProbabilityAction from "@/modules/crm/components/opportunity-probability-action";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
@@ -20,7 +21,7 @@ function dateTime(value: unknown) {
   return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 function money(value: unknown, currency: unknown) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: String(currency || "INR"), maximumFractionDigits: 0 }).format(Number(value || 0));
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: String(currency || "INR"), minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
 }
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +34,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     opportunity: Row;
     options: Record<string, Array<Record<string, unknown>>>;
     history: Row[];
+    probabilityHistory: Row[];
     activities: Row[];
     communications: Row[];
     items: Row[];
@@ -40,14 +42,15 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   try {
     data = await tenantTransaction(context.organizationId, async (client) => {
       const opportunity = await getCrmRecord(client, context, "opportunities", id);
-      const [options, history, activities, communications, items] = await Promise.all([
+      const [options, history, probabilityHistory, activities, communications, items] = await Promise.all([
         getCrmOptions(client, context),
         client.query(`SELECT h.*,fs.name AS from_stage,ts.name AS to_stage,u.full_name AS changed_by_name FROM tenant.crm_opportunity_stage_history h LEFT JOIN tenant.crm_pipeline_stages fs ON fs.id=h.from_stage_id LEFT JOIN tenant.crm_pipeline_stages ts ON ts.id=h.to_stage_id LEFT JOIN public.users u ON u.id=h.changed_by WHERE h.organization_id=$1 AND h.opportunity_id=$2 ORDER BY h.changed_at DESC LIMIT 100`, [context.organizationId, id]),
+        client.query(`SELECT h.*,u.full_name AS changed_by_name FROM tenant.crm_opportunity_probability_history h LEFT JOIN public.users u ON u.id=h.changed_by WHERE h.organization_id=$1 AND h.opportunity_id=$2 ORDER BY h.changed_at DESC LIMIT 100`, [context.organizationId, id]),
         client.query(`SELECT * FROM tenant.crm_activities WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2 ORDER BY COALESCE(completed_at,due_at,created_at) DESC LIMIT 100`, [context.organizationId, id]),
         client.query(`SELECT * FROM tenant.crm_communications WHERE organization_id=$1 AND opportunity_id=$2 ORDER BY occurred_at DESC LIMIT 100`, [context.organizationId, id]),
         client.query(`SELECT oi.*,i.name AS item_name FROM tenant.crm_opportunity_items oi JOIN tenant.items i ON i.id=oi.item_id WHERE oi.organization_id=$1 AND oi.opportunity_id=$2 ORDER BY oi.created_at`, [context.organizationId, id]),
       ]);
-      return { opportunity, options, history: history.rows, activities: activities.rows, communications: communications.rows, items: items.rows };
+      return { opportunity, options, history: history.rows, probabilityHistory: probabilityHistory.rows, activities: activities.rows, communications: communications.rows, items: items.rows };
     });
   } catch {
     notFound();
@@ -56,7 +59,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const record = data.opportunity;
   const probability = Number(record.probability || 0);
   const amount = Number(record.amount || 0);
-  const expectedRevenue = amount * Math.max(0, Math.min(100, probability)) / 100;
+  const expectedRevenue = Number(record.expectedRevenue ?? (amount * Math.max(0, Math.min(100, probability)) / 100));
   const stages = (data.options.stages || [])
     .filter((stage) => String(stage.pipelineId) === String(record.pipelineId))
     .map((stage) => ({
@@ -64,6 +67,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       name: String(stage.name),
       isWon: Boolean(stage.isWon),
       isLost: Boolean(stage.isLost),
+      probability: Number(stage.probability || 0),
     }));
   const outcomeReasons = (data.options.lostReasons || []).map((reason) => ({
     id: String(reason.id),
@@ -72,6 +76,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   }));
   const outcomeReason = outcomeReasons.find((reason) => reason.id === String(record.outcomeReasonId || record.lostReasonId || ""));
   const canManage = hasPermission(session, PERMISSIONS.crmOpportunitiesManage);
+  const currentStage = stages.find((stage) => stage.id === String(record.stageId));
 
   const timeline = [
     ...data.activities.map((row) => ({ kind: "Activity", title: row.subject, detail: row.status, at: row.completed_at || row.due_at || row.created_at })),
@@ -104,8 +109,22 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       </section>
 
       {canManage && !["won", "lost", "archived"].includes(String(record.status)) ? (
+        <>
+        <CrmOpportunityProbabilityAction id={id} probability={probability} amount={amount} expectedRevenue={expectedRevenue} currencyCode={String(record.currencyCode || "INR")} updatedAt={String(record.updatedAt)} stageProbability={currentStage?.probability ?? null} />
         <CrmOpportunityActions id={id} stageId={String(record.stageId)} updatedAt={String(record.updatedAt)} stages={stages} outcomeReasons={outcomeReasons} />
+        </>
       ) : null}
+
+      <section className="panel">
+        <p className="eyebrow">Probability history</p>
+        <h2>Revenue confidence changes</h2>
+        <div className="crm-timeline">
+          {data.probabilityHistory.map((row) => (
+            <article key={String(row.id)}><span>%</span><div><strong>{String(row.from_probability)}% → {String(row.to_probability)}%</strong><p>{String(row.note || "No note")}</p><small>Expected revenue {money(row.expected_revenue, record.currencyCode)}</small><time>{dateTime(row.changed_at)}</time></div></article>
+          ))}
+          {!data.probabilityHistory.length ? <div className="empty-state"><p>No manual probability changes recorded yet.</p></div> : null}
+        </div>
+      </section>
 
       {["won", "lost"].includes(String(record.status)) ? (
         <section className="crm-outcome-banner">
