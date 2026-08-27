@@ -312,6 +312,34 @@ export function createMobileClient({
         { idempotencyKey },
       );
     },
+    createMeeting(input, idempotencyKey = requestIdFactory()) {
+      return perform(
+        "/crm/meetings",
+        { method: "POST", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
+    },
+    startMeeting(id, expectations = {}, idempotencyKey = requestIdFactory()) {
+      return perform(
+        `/crm/meetings/${encodeURIComponent(id)}/start`,
+        { method: "POST", body: JSON.stringify(expectations) },
+        { idempotencyKey },
+      );
+    },
+    completeMeeting(id, input, idempotencyKey = requestIdFactory()) {
+      return perform(
+        `/crm/meetings/${encodeURIComponent(id)}/complete`,
+        { method: "POST", body: JSON.stringify(input) },
+        { idempotencyKey },
+      );
+    },
+    cancelMeeting(id, expectations = {}, idempotencyKey = requestIdFactory()) {
+      return perform(
+        `/crm/meetings/${encodeURIComponent(id)}/cancel`,
+        { method: "POST", body: JSON.stringify(expectations) },
+        { idempotencyKey },
+      );
+    },
     completeActivity(
       id,
       outcome,

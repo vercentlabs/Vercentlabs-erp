@@ -96,6 +96,7 @@ export default function RecordDetailScreen() {
       ].filter((key) => !hidden.has(key) && typeof record[key] !== "object")
     : [];
   const isCall = resource === "activities" && String(record?.activityType || "").toLowerCase() === "call";
+  const isMeeting = resource === "activities" && String(record?.activityType || "").toLowerCase() === "meeting";
   const contact = String(record?.callPhone ?? record?.mobile ?? record?.phone ?? "");
   const email = String(record?.email ?? "");
   const permissions = new Set(auth.session?.access.permissions || []);
@@ -217,6 +218,52 @@ export default function RecordDetailScreen() {
         await enqueueMutation({ id: Crypto.randomUUID(), operation: `${action}-call`, resource: "activities", recordId: params.id, payload, idempotencyKey });
         setMessage(`Saved offline. Call ${action} will sync automatically.`);
       } else setMessage(error instanceof Error ? error.message : `Could not ${action} Call.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completeMeeting(outcomeCode: "held" | "no_show") {
+    setBusy(true);
+    setMessage("");
+    const idempotencyKey = Crypto.randomUUID();
+    const payload = {
+      outcomeCode,
+      expectedUpdatedAt: typeof record?.updatedAt === "string" ? record.updatedAt : undefined,
+      expectedStatus: typeof record?.status === "string" ? record.status : undefined,
+    };
+    try {
+      await mobileApi.completeMeeting(params.id, payload, idempotencyKey);
+      await query.refetch();
+      setMessage("Meeting completed.");
+    } catch (error) {
+      if ((error as { retryable?: boolean }).retryable !== false) {
+        await enqueueMutation({ id: Crypto.randomUUID(), operation: "complete-meeting", resource: "activities", recordId: params.id, payload, idempotencyKey });
+        setMessage("Saved offline. Meeting completion will sync automatically.");
+      } else setMessage(error instanceof Error ? error.message : "Could not complete Meeting.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function meetingLifecycle(action: "start" | "cancel") {
+    setBusy(true);
+    setMessage("");
+    const idempotencyKey = Crypto.randomUUID();
+    const payload = {
+      expectedUpdatedAt: typeof record?.updatedAt === "string" ? record.updatedAt : undefined,
+      expectedStatus: typeof record?.status === "string" ? record.status : undefined,
+    };
+    try {
+      if (action === "start") await mobileApi.startMeeting(params.id, payload, idempotencyKey);
+      else await mobileApi.cancelMeeting(params.id, payload, idempotencyKey);
+      await query.refetch();
+      setMessage(action === "start" ? "Meeting started." : "Meeting cancelled.");
+    } catch (error) {
+      if ((error as { retryable?: boolean }).retryable !== false) {
+        await enqueueMutation({ id: Crypto.randomUUID(), operation: `${action}-meeting`, resource: "activities", recordId: params.id, payload, idempotencyKey });
+        setMessage(`Saved offline. Meeting ${action} will sync automatically.`);
+      } else setMessage(error instanceof Error ? error.message : `Could not ${action} Meeting.`);
     } finally {
       setBusy(false);
     }
@@ -483,9 +530,37 @@ export default function RecordDetailScreen() {
               </View>
             </View>
           ) : null}
+          {isMeeting && canManageActivity && ["planned", "overdue"].includes(String(record.status)) ? (
+            <View style={{ marginBottom: spacing.md, flexDirection: "row", gap: spacing.sm }}>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void meetingLifecycle("start")} style={{ flex: 1, minHeight: 48, justifyContent: "center", alignItems: "center", borderRadius: radii.full, backgroundColor: colors.primary }}>
+                <Text style={{ ...type.label, color: colors.inverse }}>Start Meeting</Text>
+              </Pressable>
+              {!record.bookingId ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => void meetingLifecycle("cancel")} style={{ flex: 1, minHeight: 48, justifyContent: "center", alignItems: "center", borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+                <Text style={{ ...type.label, color: colors.primary }}>Cancel Meeting</Text>
+              </Pressable> : null}
+            </View>
+          ) : null}
+          {isMeeting && canManageActivity && record.status === "in_progress" && !record.bookingId ? (
+            <Pressable accessibilityRole="button" disabled={busy} onPress={() => void meetingLifecycle("cancel")} style={{ minHeight: 48, marginBottom: spacing.md, justifyContent: "center", alignItems: "center", borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+              <Text style={{ ...type.label, color: colors.primary }}>Cancel Meeting</Text>
+            </Pressable>
+          ) : null}
+          {isMeeting && canManageActivity && record.status !== "completed" && record.status !== "cancelled" ? (
+            <View style={{ marginBottom: spacing.lg, gap: spacing.sm }}>
+              <Text style={{ ...type.label, color: colors.text }}>Complete Meeting with outcome</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+                {([["held", "Held"], ["no_show", "No show"]] as const).map(([code, labelText]) => (
+                  <Pressable key={code} disabled={busy} accessibilityRole="button" onPress={() => void completeMeeting(code)} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.md, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+                    <Text style={{ ...type.caption, color: colors.primary }}>{labelText}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {resource === "activities" &&
           canManageActivity &&
           !isCall &&
+          !isMeeting &&
           record.status !== "completed" ? (
             <View style={{ marginBottom: spacing.lg, gap: spacing.sm }}>
               <Pressable

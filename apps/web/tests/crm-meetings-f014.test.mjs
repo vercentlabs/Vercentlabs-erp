@@ -1,0 +1,113 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.." );
+const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+
+test("F014 Web: Meetings stay inside the focused Activities workspace", () => {
+  const page = read("apps/web/src/app/(app)/crm/activities/page.tsx");
+  assert.match(page, /activityType === "meeting"/);
+  assert.match(page, /listCrmMeetings/);
+  assert.match(page, /MeetingsWorkspace/);
+  assert.match(page, /activityType === "call"[\s\S]*CallsWorkspace/);
+});
+
+test("F014 Web: dedicated Meeting UX covers schedule, log, edit, join, start, complete, cancel and immutable history", () => {
+  const source = read("apps/web/src/modules/crm/components/meetings-workspace.tsx");
+  for (const phrase of ["Schedule Meeting", "Log completed Meeting", "Edit scheduled Meeting", "Join", "Start", "Complete", "Cancel", "Immutable evidence", "Meeting history"])
+    assert.match(source, new RegExp(phrase));
+  assert.match(source, /\/api\/crm\/meetings/);
+  assert.match(source, /expectedUpdatedAt/);
+  assert.match(source, /expectedStatus/);
+  assert.match(source, /outcomeCode/);
+});
+
+test("F014 Web: Meeting editor uses real CRM relation and Contact attendee selectors", () => {
+  const source = read("apps/web/src/modules/crm/components/meetings-workspace.tsx");
+  for (const key of ["leads", "opportunities", "parties", "contacts", "campaigns"]) assert.match(source, new RegExp(key));
+  assert.match(source, /CRM Contact attendees/);
+  assert.match(source, /Additional guest emails/);
+  assert.match(source, /filter\(\(value\): value is string => Boolean\(value\)\)/);
+});
+
+test("F014 Web: dedicated routes preserve origin, permission, billing, transaction and PII-safe audit", () => {
+  const routes = [
+    "apps/web/src/app/api/crm/meetings/route.ts",
+    "apps/web/src/app/api/crm/meetings/[id]/route.ts",
+    "apps/web/src/app/api/crm/meetings/[id]/start/route.ts",
+    "apps/web/src/app/api/crm/meetings/[id]/complete/route.ts",
+    "apps/web/src/app/api/crm/meetings/[id]/cancel/route.ts",
+  ];
+  for (const file of routes) {
+    const source = read(file);
+    assert.match(source, /crmApiContext/);
+    assert.match(source, /tenantTransaction/);
+    if (/export async function (POST|PATCH)/.test(source)) {
+      assert.match(source, /assertSameOrigin/);
+      assert.match(source, /crmActivitiesManage/);
+      assert.match(source, /requireBillingWriteAccess/);
+      assert.match(source, /incrementBillingUsage/);
+      assert.match(source, /crmMeetingAuditSnapshot/);
+    }
+  }
+});
+
+test("F014 mobile: dedicated endpoints use durable idempotency and shared SDK exposes Meeting lifecycle", () => {
+  const routeFiles = [
+    "apps/web/src/app/api/mobile/v1/crm/meetings/route.ts",
+    "apps/web/src/app/api/mobile/v1/crm/meetings/[id]/start/route.ts",
+    "apps/web/src/app/api/mobile/v1/crm/meetings/[id]/complete/route.ts",
+    "apps/web/src/app/api/mobile/v1/crm/meetings/[id]/cancel/route.ts",
+  ];
+  for (const file of routeFiles) {
+    const source = read(file);
+    assert.match(source, /withMobileIdempotency/);
+    assert.match(source, /crmActivitiesManage/);
+  }
+  const sdk = read("packages/shared-sdk/src/mobile.js");
+  for (const method of ["createMeeting", "startMeeting", "completeMeeting", "cancelMeeting"]) assert.match(sdk, new RegExp(method));
+});
+
+test("F014 native mobile creation/lifecycle and offline replay never fall back to generic Meeting writes", () => {
+  const create = read("apps/mobile/src/modules/crm/components/create-record-sheet.tsx");
+  const detail = read("apps/mobile/src/app/(protected)/crm/[resource]/[id].tsx");
+  const sync = read("apps/mobile/src/modules/crm/data/sync.ts");
+  assert.match(create, /isMeeting/);
+  assert.match(create, /mobileApi\.createMeeting/);
+  assert.match(create, /create-meeting/);
+  assert.match(detail, /mobileApi\.startMeeting/);
+  assert.match(detail, /mobileApi\.completeMeeting/);
+  assert.match(detail, /mobileApi\.cancelMeeting/);
+  for (const operation of ["create-meeting", "start-meeting", "complete-meeting", "cancel-meeting"]) assert.match(sync, new RegExp(operation));
+});
+
+test("F014 responsive Meeting workspace is imported and preserves mobile-safe controls", () => {
+  const layout = read("apps/web/src/app/layout.tsx");
+  const css = read("apps/web/src/app/crm-meetings.css");
+  assert.match(layout, /crm-meetings\.css/);
+  assert.match(css, /min-height:\s*44px/);
+  assert.match(css, /@media\s*\(max-width:/);
+  assert.match(css, /prefers-reduced-motion/);
+});
+
+test("F014 docs/register claim Meetings only and leave F015 Tasks / F016 Follow-ups unclaimed", () => {
+  const spec = read("docs/erp-510/02-feature-specs/ERP-014.md");
+  const register = read("docs/erp-510/FEATURE_REGISTER.csv");
+  assert.match(spec, /Feature ID: F014/);
+  assert.match(spec, /Feature: Meetings/);
+  assert.match(spec, /F015 Tasks/);
+  assert.match(spec, /F016 Follow-ups and reminders/);
+  assert.match(register, /^F014,CRM,Meetings,P0,TESTING,NOT_READY,/m);
+  assert.match(register, /^F013,CRM,Calls,P0,TESTING,NOT_READY,/m);
+});
+
+test("F014 regression: F013 Calls remain governed and historical evidence does not pin CURRENT_FEATURE", () => {
+  const page = read("apps/web/src/app/(app)/crm/activities/page.tsx");
+  const callTest = read("apps/web/tests/crm-calls-f013.test.mjs");
+  assert.match(page, /listCrmCalls/);
+  assert.match(page, /CallsWorkspace/);
+  assert.doesNotMatch(callTest, /CURRENT_FEATURE\.md/);
+});

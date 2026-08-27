@@ -456,3 +456,97 @@ export const completeCallSchema = z
     ...callExpectationFields,
   })
   .strict();
+
+
+const meetingDateTime = z.string().trim().refine((value) => Number.isFinite(Date.parse(value)), {
+  message: "Use a valid date and time.",
+});
+const meetingExpectationFields = {
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+  expectedStatus: z.enum(["planned", "overdue", "in_progress", "completed", "cancelled"]).optional(),
+};
+const meetingAttendeeSchema = z
+  .object({
+    contactId: z.string().uuid().nullable().optional(),
+    email: z.string().trim().email().max(320).nullable().optional(),
+    name: z.string().trim().max(200).nullable().optional(),
+    responseStatus: z.enum(["needs_action", "accepted", "declined", "tentative"]).optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (!input.contactId && !input.email)
+      context.addIssue({ code: "custom", path: ["email"], message: "Each attendee needs a Contact or email." });
+  });
+const meetingBaseFields = {
+  companyId: z.string().uuid().nullable().optional(),
+  branchId: z.string().uuid().nullable().optional(),
+  entityType: z.enum(["lead", "opportunity", "party", "contact", "campaign", "general"]).default("general"),
+  entityId: z.string().uuid().nullable().optional(),
+  subject: z.string().trim().min(1).max(300),
+  description: z.string().trim().max(4000).nullable().optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  assignedTo: z.string().uuid().nullable().optional(),
+  startAt: meetingDateTime.nullable().optional(),
+  endAt: meetingDateTime.nullable().optional(),
+  locationType: z.enum(["in_person", "online", "phone", "other"]).default("other"),
+  location: z.string().trim().max(500).nullable().optional(),
+  meetingUrl: z.string().trim().url().max(2048).nullable().optional(),
+  attendees: z.array(meetingAttendeeSchema).max(100).optional(),
+};
+
+export const createMeetingSchema = z
+  .object({
+    ...meetingBaseFields,
+    mode: z.enum(["schedule", "log"]).default("schedule"),
+    occurredAt: meetingDateTime.optional(),
+    durationMinutes: z.coerce.number().int().min(0).max(1440).optional(),
+    outcomeCode: z.enum(["held", "no_show"]).optional(),
+    outcome: z.string().trim().max(4000).nullable().optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.entityType === "general" && input.entityId)
+      context.addIssue({ code: "custom", path: ["entityId"], message: "General Meetings cannot have a related-record ID." });
+    if (input.entityType !== "general" && !input.entityId)
+      context.addIssue({ code: "custom", path: ["entityId"], message: "Select the related CRM record." });
+    if (input.mode === "schedule" && (!input.startAt || !input.endAt))
+      context.addIssue({ code: "custom", path: ["startAt"], message: "Scheduled Meetings require start and end date/time." });
+    if (input.startAt && input.endAt && Date.parse(input.endAt) <= Date.parse(input.startAt))
+      context.addIssue({ code: "custom", path: ["endAt"], message: "Meeting end must be after start." });
+    if (input.locationType === "in_person" && !input.location)
+      context.addIssue({ code: "custom", path: ["location"], message: "In-person Meetings require a location." });
+    if (input.locationType === "online" && !input.meetingUrl)
+      context.addIssue({ code: "custom", path: ["meetingUrl"], message: "Online Meetings require a meeting URL." });
+    if (input.mode === "log" && !input.outcomeCode)
+      context.addIssue({ code: "custom", path: ["outcomeCode"], message: "Logged Meetings require an outcome." });
+  });
+
+export const updateMeetingSchema = z
+  .object({
+    companyId: meetingBaseFields.companyId,
+    branchId: meetingBaseFields.branchId,
+    entityType: meetingBaseFields.entityType.optional(),
+    entityId: meetingBaseFields.entityId,
+    subject: meetingBaseFields.subject.optional(),
+    description: meetingBaseFields.description,
+    priority: meetingBaseFields.priority.optional(),
+    assignedTo: meetingBaseFields.assignedTo,
+    startAt: meetingBaseFields.startAt,
+    endAt: meetingBaseFields.endAt,
+    locationType: meetingBaseFields.locationType.optional(),
+    location: meetingBaseFields.location,
+    meetingUrl: meetingBaseFields.meetingUrl,
+    attendees: meetingBaseFields.attendees,
+    ...meetingExpectationFields,
+  })
+  .strict();
+
+export const meetingLifecycleSchema = z.object(meetingExpectationFields).strict();
+
+export const completeMeetingSchema = z
+  .object({
+    outcomeCode: z.enum(["held", "no_show"]),
+    outcome: z.string().trim().max(4000).nullable().optional(),
+    ...meetingExpectationFields,
+  })
+  .strict();

@@ -169,3 +169,33 @@ test("F013 mobile client exposes governed Call create/start/complete/cancel endp
     "idem-create", "idem-start", "idem-complete", "idem-cancel",
   ]);
 });
+
+
+test("F014 mobile client exposes governed Meeting create/start/complete/cancel endpoints with idempotency", async () => {
+  const calls = [];
+  const client = createMobileClient({
+    baseUrl: "https://erp.example.com",
+    tokenStore: createMemoryTokenStore(),
+    requestIdFactory: () => "request-f014",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse({ ok: true });
+    },
+  });
+
+  await client.createMeeting({ mode: "schedule", subject: "Customer review", startAt: "2026-08-28T10:00:00Z", endAt: "2026-08-28T10:30:00Z" }, "idem-meeting-create");
+  await client.startMeeting("meeting-1", { expectedStatus: "planned" }, "idem-meeting-start");
+  await client.completeMeeting("meeting-1", { outcomeCode: "held" }, "idem-meeting-complete");
+  await client.cancelMeeting("meeting-2", { expectedStatus: "planned" }, "idem-meeting-cancel");
+
+  assert.deepEqual(calls.map((entry) => entry.url), [
+    "https://erp.example.com/api/mobile/v1/crm/meetings",
+    "https://erp.example.com/api/mobile/v1/crm/meetings/meeting-1/start",
+    "https://erp.example.com/api/mobile/v1/crm/meetings/meeting-1/complete",
+    "https://erp.example.com/api/mobile/v1/crm/meetings/meeting-2/cancel",
+  ]);
+  assert.ok(calls.every((entry) => entry.init.method === "POST"));
+  assert.deepEqual(calls.map((entry) => entry.init.headers.get("idempotency-key")), [
+    "idem-meeting-create", "idem-meeting-start", "idem-meeting-complete", "idem-meeting-cancel",
+  ]);
+});

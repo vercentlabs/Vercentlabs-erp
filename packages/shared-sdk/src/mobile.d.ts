@@ -139,6 +139,25 @@ export type MobileClient = {
     expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
     idempotencyKey?: string,
   ): Promise<{ record: Record<string, unknown>; message: string }>;
+  createMeeting(
+    input: Record<string, unknown>,
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
+  startMeeting(
+    id: string,
+    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
+  completeMeeting(
+    id: string,
+    input: { outcomeCode: "held" | "no_show"; outcome?: string | null; expectedUpdatedAt?: string; expectedStatus?: string },
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
+  cancelMeeting(
+    id: string,
+    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
+    idempotencyKey?: string,
+  ): Promise<{ record: Record<string, unknown>; message: string }>;
   completeActivity(
     id: string,
     outcome?: string,

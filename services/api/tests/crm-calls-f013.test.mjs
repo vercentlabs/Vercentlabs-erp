@@ -70,10 +70,22 @@ test("F013: Account and Opportunity phone resolution uses Contacts, never a none
 
 test("F013: generic Activity create/update/archive/complete cannot bypass governed Calls", () => {
   const source = read("services/api/src/modules/crm/index.js");
-  assert.match(source, /input\?\.activityType[\s\S]{0,120}CRM_CALL_API_MOVED/);
-  assert.match(source, /before\.activityType === "call" \|\| String\(input\?\.activityType/);
-  assert.match(source, /Use the governed Call completion action/);
-  assert.match(source, /Use the governed Calls operations/);
+  assert.match(
+    source,
+    /if \(activityType === "call"\)\s*throw new CrmError\(410, "Use the governed Calls operations\.", "CRM_CALL_API_MOVED"\);/,
+  );
+  assert.match(
+    source,
+    /if \(before\.activityType === "call" \|\| requestedActivityType === "call"\)\s*throw new CrmError\(410, "Use the governed Calls operations\.", "CRM_CALL_API_MOVED"\);/,
+  );
+  assert.match(
+    source,
+    /if \(resource === "activities" && before\.activityType === "call"\)\s*throw new CrmError\(410, "Use the governed Calls operations\.", "CRM_CALL_API_MOVED"\);/,
+  );
+  assert.match(
+    source,
+    /if \(current\.activity_type === "call"\)\s*throw new CrmError\(410, "Use the governed Call completion action\.", "CRM_CALL_API_MOVED"\);/,
+  );
 });
 
 test("F013: legacy server offline-sync cannot directly insert or complete Calls", () => {

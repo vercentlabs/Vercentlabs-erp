@@ -2295,8 +2295,13 @@ async function validateOpportunityRelationships(client, context, prepared, exist
 }
 
 export async function createCrmRecord(client, context, resource, input) {
-  if (resource === "activities" && String(input?.activityType || "").toLowerCase() === "call")
-    throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
+  if (resource === "activities") {
+    const activityType = String(input?.activityType || "").toLowerCase();
+    if (activityType === "call")
+      throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
+    if (activityType === "meeting")
+      throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
+  }
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -2585,8 +2590,13 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   const definition = definitionFor(resource);
   if (resource === "leads") assertNoQualificationMutation(input);
   const before = await getCrmRecord(client, context, resource, id);
-  if (resource === "activities" && (before.activityType === "call" || String(input?.activityType || "").toLowerCase() === "call"))
-    throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
+  if (resource === "activities") {
+    const requestedActivityType = String(input?.activityType || "").toLowerCase();
+    if (before.activityType === "call" || requestedActivityType === "call")
+      throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
+    if (before.activityType === "meeting" || requestedActivityType === "meeting")
+      throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
+  }
   if (resource === "opportunities" && before.status === "archived")
     throw new CrmError(409, "Archived Opportunities are read-only.", "CRM_OPPORTUNITY_ARCHIVED");
   if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input || {}, "ownerUserId") && !input.ownerUserId && !canViewAllCrmRecords(context))
@@ -2780,6 +2790,8 @@ export async function archiveCrmRecord(client, context, resource, id) {
   const before = await getCrmRecord(client, context, resource, id);
   if (resource === "activities" && before.activityType === "call")
     throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
+  if (resource === "activities" && before.activityType === "meeting")
+    throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 
@@ -3487,6 +3499,8 @@ export async function completeCrmActivity(
   if (!current) throw new CrmError(404, "Activity not found.");
   if (current.activity_type === "call")
     throw new CrmError(410, "Use the governed Call completion action.", "CRM_CALL_API_MOVED");
+  if (current.activity_type === "meeting")
+    throw new CrmError(410, "Use the governed Meeting completion action.", "CRM_MEETING_API_MOVED");
   if (
     expectations.expectedUpdatedAt &&
     new Date(current.updated_at).toISOString() !==
@@ -4428,3 +4442,13 @@ export {
   startCrmCall,
   updateCrmCall,
 } from "./call-operations.js";
+export {
+  cancelCrmMeeting,
+  completeCrmMeeting,
+  createCrmMeeting,
+  getCrmMeeting,
+  listCrmMeetingEvents,
+  listCrmMeetings,
+  startCrmMeeting,
+  updateCrmMeeting,
+} from "./meeting-operations.js";

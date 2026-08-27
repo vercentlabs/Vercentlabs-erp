@@ -1208,9 +1208,20 @@ export async function getMeetingAvailability(
     throw new CrmCommunicationsError(404, "Meeting link not found.");
   const dayStart = `${date}T00:00:00.000Z`;
   const dayEnd = `${date}T23:59:59.999Z`;
+  const excludeBookingId = input.excludeBookingId
+    ? assertId(input.excludeBookingId, "Meeting booking")
+    : null;
   const busy = await client.query(
-    `SELECT starts_at AS start,ends_at AS end FROM tenant.crm_calendar_events WHERE organization_id=$1 AND starts_at<$3 AND ends_at>$2 AND provider_status<>'cancelled' UNION ALL SELECT starts_at AS start,ends_at AS end FROM tenant.crm_meeting_bookings WHERE organization_id=$1 AND starts_at<$3 AND ends_at>$2 AND status='confirmed'`,
-    [context.organizationId, dayStart, dayEnd],
+    `SELECT starts_at AS start,ends_at AS end
+       FROM tenant.crm_calendar_events
+      WHERE organization_id=$1 AND starts_at<$3 AND ends_at>$2 AND provider_status<>'cancelled'
+        AND ($4::uuid IS NULL OR meeting_booking_id IS DISTINCT FROM $4::uuid)
+     UNION ALL
+     SELECT starts_at AS start,ends_at AS end
+       FROM tenant.crm_meeting_bookings
+      WHERE organization_id=$1 AND starts_at<$3 AND ends_at>$2 AND status='confirmed'
+        AND ($4::uuid IS NULL OR id <> $4::uuid)`,
+    [context.organizationId, dayStart, dayEnd, excludeBookingId],
   );
   return calculateMeetingSlots({
     date,
@@ -1225,32 +1236,49 @@ export async function getMeetingAvailability(
 }
 
 export async function bookMeeting(client, context, meetingLinkId, input = {}) {
+  // Serialize booking decisions on the owning meeting-link row. This makes the
+  // availability check + insert atomic for one public schedule and lets an
+  // exact lost-response retry resolve to the booking that already committed.
   const link = await client.query(
-    `SELECT * FROM tenant.crm_meeting_links WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    `SELECT * FROM tenant.crm_meeting_links WHERE organization_id=$1 AND id=$2 AND status='active' FOR UPDATE`,
     [context.organizationId, assertId(meetingLinkId, "Meeting link")],
   );
   if (!link.rows[0])
     throw new CrmCommunicationsError(404, "Meeting link not found.");
   const startsAt = new Date(text(input.startsAt));
+  if (Number.isNaN(startsAt.getTime()))
+    throw new CrmCommunicationsError(400, "Meeting start time is invalid.");
+  const guestEmail = normalizeEmailAddress(input.guestEmail);
+  const desiredStart = startsAt.toISOString();
+  const existing = await client.query(
+    `SELECT booking.*,
+            (SELECT activity.id FROM tenant.crm_activities activity
+              WHERE activity.organization_id=booking.organization_id
+                AND activity.meeting_booking_id=booking.id
+                AND activity.activity_type='meeting' LIMIT 1) AS meeting_activity_id
+       FROM tenant.crm_meeting_bookings booking
+      WHERE booking.organization_id=$1 AND booking.meeting_link_id=$2
+        AND booking.guest_email=$3 AND booking.starts_at=$4 AND booking.status='confirmed'
+      ORDER BY booking.created_at ASC LIMIT 1`,
+    [context.organizationId, link.rows[0].id, guestEmail, desiredStart],
+  );
+  if (existing.rows[0]) return { ...existing.rows[0], replayed: true };
   const endsAt = new Date(
     startsAt.getTime() + Number(link.rows[0].duration_minutes) * 60000,
   );
-  if (Number.isNaN(startsAt.getTime()))
-    throw new CrmCommunicationsError(400, "Meeting start time is invalid.");
   const slots = await getMeetingAvailability(
     client,
     context,
     meetingLinkId,
-    startsAt.toISOString().slice(0, 10),
+    desiredStart.slice(0, 10),
     { now: input.now },
   );
-  if (!slots.some((slot) => slot.startsAt === startsAt.toISOString()))
+  if (!slots.some((slot) => slot.startsAt === desiredStart))
     throw new CrmCommunicationsError(
       409,
       "Selected meeting time is no longer available.",
       "CRM_MEETING_SLOT_UNAVAILABLE",
     );
-  const guestEmail = normalizeEmailAddress(input.guestEmail);
   const booking = await client.query(
     `INSERT INTO tenant.crm_meeting_bookings(organization_id,company_id,meeting_link_id,host_user_id,guest_name,guest_email,guest_timezone,starts_at,ends_at,status,notes)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'confirmed',$10) RETURNING *`,
@@ -1262,7 +1290,7 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       text(input.guestName),
       guestEmail,
       text(input.guestTimezone) || "UTC",
-      startsAt.toISOString(),
+      desiredStart,
       endsAt.toISOString(),
       text(input.notes) || null,
     ],
@@ -1275,7 +1303,7 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       link.rows[0].company_id || context.activeCompanyId || null,
       `booking-${booking.rows[0].id}`,
       link.rows[0].name,
-      startsAt.toISOString(),
+      desiredStart,
       endsAt.toISOString(),
       link.rows[0].timezone,
       link.rows[0].location_template || null,
@@ -1299,6 +1327,50 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       text(input.guestName),
     ],
   );
+
+  // F014 bridge: every public booking also becomes the canonical CRM Meeting
+  // activity so the host sees it in Daily Work and lifecycle/history use one
+  // governed ledger. Guest PII stays only in scoped booking/attendee rows.
+  const locationTemplate = text(link.rows[0].location_template) || null;
+  const meetingProvider = text(link.rows[0].meeting_provider || "manual");
+  const onlineLocation = meetingProvider !== "manual" || /^https?:\/\//i.test(locationTemplate || "");
+  const meetingUrl = /^https?:\/\//i.test(locationTemplate || "") ? locationTemplate : null;
+  const meetingActivity = await client.query(
+    `INSERT INTO tenant.crm_activities(
+       organization_id,company_id,entity_type,activity_type,subject,status,priority,assigned_to,start_at,due_at,end_at,location,
+       meeting_location_type,meeting_url,meeting_booking_id,meeting_calendar_event_id,created_by,updated_by)
+     VALUES($1,$2,'general','meeting',$3,'planned','medium',$4,$5,$5,$6,$7,$8,$9,$10,$11,$4,$4)
+     RETURNING *`,
+    [
+      context.organizationId,
+      link.rows[0].company_id || context.activeCompanyId || null,
+      link.rows[0].name,
+      link.rows[0].owner_user_id,
+      desiredStart,
+      endsAt.toISOString(),
+      locationTemplate,
+      onlineLocation ? "online" : locationTemplate ? "in_person" : "other",
+      meetingUrl,
+      booking.rows[0].id,
+      event.rows[0].id,
+    ],
+  );
+  await client.query(
+    `INSERT INTO tenant.crm_activity_attendees(organization_id,activity_id,name,email,response_status)
+     VALUES($1,$2,$3,$4,'accepted')`,
+    [context.organizationId, meetingActivity.rows[0].id, text(input.guestName), guestEmail],
+  );
+  await client.query(
+    `INSERT INTO tenant.crm_meeting_events(
+       organization_id,activity_id,event_type,next_status,location_type,attendee_count,changed_by)
+     VALUES($1,$2,'booked','planned',$3,1,$4)`,
+    [
+      context.organizationId,
+      meetingActivity.rows[0].id,
+      onlineLocation ? "online" : locationTemplate ? "in_person" : "other",
+      context.userId,
+    ],
+  );
   await client.query(
     `INSERT INTO tenant.crm_outbox_events(organization_id,event_type,entity_type,entity_id,payload,status)
      VALUES($1,'crm.meeting.booked','meeting_booking',$2,$3,'pending')`,
@@ -1306,13 +1378,17 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       context.organizationId,
       booking.rows[0].id,
       JSON.stringify({
-        guestEmail,
-        startsAt: startsAt.toISOString(),
+        startsAt: desiredStart,
         meetingLinkId: link.rows[0].id,
+        meetingActivityId: meetingActivity.rows[0].id,
       }),
     ],
   );
-  return { ...booking.rows[0], calendar_event_id: event.rows[0].id };
+  return {
+    ...booking.rows[0],
+    calendar_event_id: event.rows[0].id,
+    meeting_activity_id: meetingActivity.rows[0].id,
+  };
 }
 
 export function resolveProviderCredential(
@@ -1604,28 +1680,62 @@ export async function cancelMeetingBooking(
   bookingId,
   reason = null,
 ) {
+  const id = assertId(bookingId, "Meeting booking");
+  const current = await client.query(
+    `SELECT * FROM tenant.crm_meeting_bookings
+      WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, id],
+  );
+  if (!current.rows[0])
+    throw new CrmCommunicationsError(404, "Meeting booking not found.");
+  if (current.rows[0].status === "cancelled")
+    return { ...current.rows[0], replayed: true };
+  if (current.rows[0].status !== "confirmed")
+    throw new CrmCommunicationsError(409, "Meeting booking cannot be cancelled.");
+  const linkedActivity = await client.query(
+    `SELECT id,status FROM tenant.crm_activities
+      WHERE organization_id=$1 AND meeting_booking_id=$2 AND activity_type='meeting'
+      LIMIT 1 FOR UPDATE`,
+    [context.organizationId, id],
+  );
+  if (linkedActivity.rows[0]?.status === "completed")
+    throw new CrmCommunicationsError(409, "Completed Meeting bookings cannot be cancelled.", "CRM_MEETING_BOOKING_COMPLETED");
+
   const result = await client.query(
     `UPDATE tenant.crm_meeting_bookings
      SET status='cancelled',cancelled_at=now(),cancellation_reason=$3,updated_at=now()
      WHERE organization_id=$1 AND id=$2 AND status='confirmed'
      RETURNING *`,
-    [
-      context.organizationId,
-      assertId(bookingId, "Meeting booking"),
-      text(reason) || null,
-    ],
+    [context.organizationId, id, text(reason) || null],
   );
-  if (!result.rows[0]) {
-    throw new CrmCommunicationsError(
-      409,
-      "Meeting booking cannot be cancelled.",
-    );
-  }
+  if (!result.rows[0])
+    throw new CrmCommunicationsError(409, "Meeting booking changed. Refresh and try again.");
   await client.query(
     `UPDATE tenant.crm_calendar_events SET provider_status='cancelled',updated_at=now()
      WHERE organization_id=$1 AND meeting_booking_id=$2`,
-    [context.organizationId, result.rows[0].id],
+    [context.organizationId, id],
   );
+  const activity = await client.query(
+    `UPDATE tenant.crm_activities
+        SET status='cancelled',updated_by=$3,updated_at=now()
+      WHERE organization_id=$1 AND meeting_booking_id=$2 AND activity_type='meeting' AND status <> 'cancelled'
+      RETURNING *`,
+    [context.organizationId, id, context.userId],
+  );
+  if (activity.rows[0]) {
+    const attendeeCount = await client.query(
+      `SELECT count(*)::int AS total FROM tenant.crm_activity_attendees
+        WHERE organization_id=$1 AND activity_id=$2`,
+      [context.organizationId, activity.rows[0].id],
+    );
+    await client.query(
+      `INSERT INTO tenant.crm_meeting_events(
+         organization_id,activity_id,event_type,previous_status,next_status,location_type,attendee_count,changed_by)
+       VALUES($1,$2,'cancelled',$3,'cancelled',$4,$5,$6)`,
+      [context.organizationId, activity.rows[0].id, current.rows[0].status === "confirmed" ? "planned" : current.rows[0].status,
+        activity.rows[0].meeting_location_type, Number(attendeeCount.rows[0]?.total || 0), context.userId],
+    );
+  }
   return result.rows[0];
 }
 
@@ -1641,24 +1751,41 @@ export async function rescheduleMeetingBooking(
      FROM tenant.crm_meeting_bookings booking
      JOIN tenant.crm_meeting_links link
        ON link.organization_id=booking.organization_id AND link.id=booking.meeting_link_id
-     WHERE booking.organization_id=$1 AND booking.id=$2 AND booking.status='confirmed'`,
+     WHERE booking.organization_id=$1 AND booking.id=$2 AND booking.status='confirmed'
+     FOR UPDATE OF booking,link`,
     [context.organizationId, id],
   );
   if (!current.rows[0]) {
     throw new CrmCommunicationsError(404, "Meeting booking not found.");
   }
+  const linkedActivity = await client.query(
+    `SELECT id,status FROM tenant.crm_activities
+      WHERE organization_id=$1 AND meeting_booking_id=$2 AND activity_type='meeting'
+      LIMIT 1 FOR UPDATE`,
+    [context.organizationId, id],
+  );
+  if (linkedActivity.rows[0] && !["planned", "overdue"].includes(linkedActivity.rows[0].status))
+    throw new CrmCommunicationsError(409, "Started or completed Meeting bookings cannot be rescheduled.", "CRM_MEETING_BOOKING_RESCHEDULE_INVALID");
   const startsAt = new Date(text(input.startsAt));
   if (Number.isNaN(startsAt.getTime())) {
     throw new CrmCommunicationsError(400, "Meeting start time is invalid.");
+  }
+  const desiredStart = startsAt.toISOString();
+  const desiredTimezone = text(input.guestTimezone) || current.rows[0].guest_timezone;
+  if (
+    new Date(current.rows[0].starts_at).toISOString() === desiredStart &&
+    String(current.rows[0].guest_timezone || "") === desiredTimezone
+  ) {
+    return { ...current.rows[0], replayed: true };
   }
   const slots = await getMeetingAvailability(
     client,
     context,
     current.rows[0].meeting_link_id,
-    startsAt.toISOString().slice(0, 10),
-    { now: input.now },
+    desiredStart.slice(0, 10),
+    { now: input.now, excludeBookingId: id },
   );
-  if (!slots.some((slot) => slot.startsAt === startsAt.toISOString())) {
+  if (!slots.some((slot) => slot.startsAt === desiredStart)) {
     throw new CrmCommunicationsError(
       409,
       "Selected meeting time is no longer available.",
@@ -1671,21 +1798,38 @@ export async function rescheduleMeetingBooking(
   const result = await client.query(
     `UPDATE tenant.crm_meeting_bookings
      SET starts_at=$3,ends_at=$4,guest_timezone=$5,updated_at=now()
-     WHERE organization_id=$1 AND id=$2 RETURNING *`,
-    [
-      context.organizationId,
-      id,
-      startsAt.toISOString(),
-      endsAt.toISOString(),
-      text(input.guestTimezone) || current.rows[0].guest_timezone,
-    ],
+     WHERE organization_id=$1 AND id=$2 AND status='confirmed' RETURNING *`,
+    [context.organizationId, id, desiredStart, endsAt.toISOString(), desiredTimezone],
   );
+  if (!result.rows[0])
+    throw new CrmCommunicationsError(409, "Meeting booking changed. Refresh and try again.");
   await client.query(
     `UPDATE tenant.crm_calendar_events
      SET starts_at=$3,ends_at=$4,updated_at=now()
      WHERE organization_id=$1 AND meeting_booking_id=$2`,
-    [context.organizationId, id, startsAt.toISOString(), endsAt.toISOString()],
+    [context.organizationId, id, desiredStart, endsAt.toISOString()],
   );
+  const activity = await client.query(
+    `UPDATE tenant.crm_activities
+        SET start_at=$3,due_at=$3,end_at=$4,updated_by=$5,updated_at=now()
+      WHERE organization_id=$1 AND meeting_booking_id=$2 AND activity_type='meeting' AND status IN ('planned','overdue')
+      RETURNING *`,
+    [context.organizationId, id, desiredStart, endsAt.toISOString(), context.userId],
+  );
+  if (activity.rows[0]) {
+    const attendeeCount = await client.query(
+      `SELECT count(*)::int AS total FROM tenant.crm_activity_attendees
+        WHERE organization_id=$1 AND activity_id=$2`,
+      [context.organizationId, activity.rows[0].id],
+    );
+    await client.query(
+      `INSERT INTO tenant.crm_meeting_events(
+         organization_id,activity_id,event_type,previous_status,next_status,location_type,attendee_count,changed_by)
+       VALUES($1,$2,'rescheduled',$3,$3,$4,$5,$6)`,
+      [context.organizationId, activity.rows[0].id, activity.rows[0].status,
+        activity.rows[0].meeting_location_type, Number(attendeeCount.rows[0]?.total || 0), context.userId],
+    );
+  }
   return result.rows[0];
 }
 

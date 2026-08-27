@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getCrmOptions, getCrmRecord, listCrmCalls, listCrmRecords } from "@vercentlabs/api";
+import { getCrmOptions, getCrmRecord, listCrmCalls, listCrmMeetings, listCrmRecords } from "@vercentlabs/api";
 
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -8,6 +8,7 @@ import { tenantTransaction } from "@/core/db";
 import { crmContext, crmDefinitions } from "@/modules/crm";
 import CrmResourceManager from "@/modules/crm/components/resource-manager";
 import CallsWorkspace from "@/modules/crm/components/calls-workspace";
+import MeetingsWorkspace from "@/modules/crm/components/meetings-workspace";
 
 export const metadata = { title: "CRM activities" };
 export const dynamic = "force-dynamic";
@@ -92,17 +93,25 @@ export default async function CrmActivitiesPage({
           direction,
           due,
         })
-      : await listCrmRecords(client, context, "activities", {
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-          search,
-          status,
-          activityType,
-          due,
-        }),
+      : activityType === "meeting"
+        ? await listCrmMeetings(client, context, {
+            limit: PAGE_SIZE,
+            offset: (page - 1) * PAGE_SIZE,
+            search,
+            status,
+            due,
+          })
+        : await listCrmRecords(client, context, "activities", {
+            limit: PAGE_SIZE,
+            offset: (page - 1) * PAGE_SIZE,
+            search,
+            status,
+            activityType,
+            due,
+          }),
     options: await getCrmOptions(client, context),
     editingRecord:
-      activityType !== "call" && editId && canManage
+      !["call", "meeting"].includes(activityType) && editId && canManage
         ? await getCrmRecord(client, context, "activities", editId).catch(() => null)
         : null,
   }));
@@ -160,6 +169,19 @@ export default async function CrmActivitiesPage({
           search={search}
           status={status}
           direction={direction}
+          due={due}
+          options={JSON.parse(JSON.stringify(result.options))}
+          canManage={canManage}
+          startCreating={query.create === "1" && canManage}
+        />
+      ) : activityType === "meeting" ? (
+        <MeetingsWorkspace
+          rows={JSON.parse(JSON.stringify(result.records.rows))}
+          total={result.records.total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          search={search}
+          status={status}
           due={due}
           options={JSON.parse(JSON.stringify(result.options))}
           canManage={canManage}

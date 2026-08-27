@@ -173,3 +173,11 @@ export function updateCrmCall(client: QueryClient, context: CrmContext, id: stri
 export function startCrmCall(client: QueryClient, context: CrmContext, id: string, expectations?: Record<string, unknown>): Promise<any>;
 export function completeCrmCall(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
 export function cancelCrmCall(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
+export function listCrmMeetings(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
+export function getCrmMeeting(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean; includeAttendees?: boolean }): Promise<any>;
+export function listCrmMeetingEvents(client: QueryClient, context: CrmContext, activityId: string, limit?: number): Promise<any[]>;
+export function createCrmMeeting(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
+export function updateCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
+export function startCrmMeeting(client: QueryClient, context: CrmContext, id: string, expectations?: Record<string, unknown>): Promise<any>;
+export function completeCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
+export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;

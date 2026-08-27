@@ -60,6 +60,43 @@ export function flushMutationQueue() {
             },
             item.idempotencyKey,
           );
+        } else if (item.operation === "create-meeting") {
+          await mobileApi.createMeeting(payload, item.idempotencyKey);
+        } else if (item.operation === "start-meeting" && item.recordId) {
+          await mobileApi.startMeeting(
+            item.recordId,
+            {
+              expectedUpdatedAt: typeof payload.expectedUpdatedAt === "string" ? payload.expectedUpdatedAt : undefined,
+              expectedStatus: typeof payload.expectedStatus === "string" ? payload.expectedStatus : undefined,
+            },
+            item.idempotencyKey,
+          );
+        } else if (item.operation === "cancel-meeting" && item.recordId) {
+          await mobileApi.cancelMeeting(
+            item.recordId,
+            {
+              expectedUpdatedAt: typeof payload.expectedUpdatedAt === "string" ? payload.expectedUpdatedAt : undefined,
+              expectedStatus: typeof payload.expectedStatus === "string" ? payload.expectedStatus : undefined,
+            },
+            item.idempotencyKey,
+          );
+        } else if (item.operation === "complete-meeting" && item.recordId) {
+          const outcomeCode = String(payload.outcomeCode || "");
+          if (outcomeCode !== "held" && outcomeCode !== "no_show") {
+            const invalid = new Error("Offline Meeting outcome is invalid.") as Error & { retryable?: boolean };
+            invalid.retryable = false;
+            throw invalid;
+          }
+          await mobileApi.completeMeeting(
+            item.recordId,
+            {
+              outcomeCode,
+              outcome: typeof payload.outcome === "string" ? payload.outcome : undefined,
+              expectedUpdatedAt: typeof payload.expectedUpdatedAt === "string" ? payload.expectedUpdatedAt : undefined,
+              expectedStatus: typeof payload.expectedStatus === "string" ? payload.expectedStatus : undefined,
+            },
+            item.idempotencyKey,
+          );
         } else if (item.operation === "complete" && item.recordId) {
           await mobileApi.completeActivity(
             item.recordId,
