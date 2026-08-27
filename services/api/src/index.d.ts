@@ -55,6 +55,14 @@ export function updateLeadStage(client: QueryClient, context: any, id: string, i
 export function setLeadStageActive(client: QueryClient, context: any, id: string, active: boolean): Promise<any>;
 export function transitionLeadStage(client: QueryClient, context: any, leadId: string, input?: Record<string, unknown>): Promise<any>;
 export function listLeadStageHistory(client: QueryClient, context: any, leadId: string): Promise<any[]>;
+export function listSalesStagePipelines(client: QueryClient, context: any, options?: { status?: string }): Promise<any[]>;
+export function listSalesStages(client: QueryClient, context: any, options: { pipelineId: string; status?: string }): Promise<{ rows: any[]; total: number }>;
+export function getSalesStage(client: QueryClient, context: any, id: string): Promise<any>;
+export function createSalesStage(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function updateSalesStage(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
+export function setSalesStageActive(client: QueryClient, context: any, id: string, active: boolean, expectedUpdatedAt: string): Promise<any>;
+export function reorderSalesStages(client: QueryClient, context: any, pipelineId: string, entries: Array<{ id: string; expectedUpdatedAt: string }>): Promise<{ changed: boolean; rows: any[] }>;
+export function listSalesStageHistory(client: QueryClient, context: any, pipelineId: string, limit?: number): Promise<any[]>;
 
 export type BusinessDataContext = {
   organizationId: string;

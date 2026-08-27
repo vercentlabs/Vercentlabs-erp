@@ -85,6 +85,12 @@ export async function PATCH(
         "Use the governed Lead Sources API.",
         "CRM_LEAD_SOURCE_API_MOVED",
       );
+    if (resource === "stages")
+      throw new HttpError(
+        410,
+        "Use the governed Sales Stages API.",
+        "CRM_SALES_STAGE_API_MOVED",
+      );
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
@@ -208,6 +214,12 @@ export async function DELETE(
         410,
         "Use the governed Lead Sources API.",
         "CRM_LEAD_SOURCE_API_MOVED",
+      );
+    if (resource === "stages")
+      throw new HttpError(
+        410,
+        "Use the governed Sales Stages API.",
+        "CRM_SALES_STAGE_API_MOVED",
       );
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);

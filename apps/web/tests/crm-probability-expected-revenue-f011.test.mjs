@@ -44,5 +44,5 @@ test("F011 opportunity list exposes expected revenue but keeps probability out o
 test("F011 documentation and registers keep adjacent features unclaimed",()=>{
   const spec=read("docs/erp-510/02-feature-specs/ERP-011.md");
   assert.match(spec,/F012 Sales Stages/); assert.match(spec,/F024 Pipeline Dashboard/); assert.match(spec,/F025 Sales Forecast/); assert.match(spec,/not claimed/i);
-  assert.match(read("docs/erp-510/CURRENT_FEATURE.md"),/Feature ID: F011/);
+  assert.match(read("docs/erp-510/FEATURE_REGISTER.csv"),/^F011,CRM,Probability and Expected Revenue,P0,TESTING,NOT_READY,/m);
 });

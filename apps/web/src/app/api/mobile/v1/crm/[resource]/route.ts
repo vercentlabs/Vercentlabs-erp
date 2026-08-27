@@ -50,6 +50,8 @@ export async function POST(request: Request, route: { params: Promise<{ resource
     if (!isCrmDefinition(resource)) throw new HttpError(404, "Unknown CRM resource.");
     if (resource === "sources")
       throw new HttpError(410, "Use the responsive CRM Setup Lead Sources workspace.", "CRM_LEAD_SOURCE_API_MOVED");
+    if (resource === "stages")
+      throw new HttpError(410, "Use the governed Sales Stages workspace on Web.", "CRM_SALES_STAGE_API_MOVED");
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId!);
     const rawInput = (await readJson(request)) as Record<string, unknown>;

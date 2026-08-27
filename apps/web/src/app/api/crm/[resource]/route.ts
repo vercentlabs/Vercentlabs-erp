@@ -76,6 +76,12 @@ export async function POST(
         "Use the governed Lead Sources API.",
         "CRM_LEAD_SOURCE_API_MOVED",
       );
+    if (resource === "stages")
+      throw new HttpError(
+        410,
+        "Use the governed Sales Stages API.",
+        "CRM_SALES_STAGE_API_MOVED",
+      );
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
     const rawInput = (await readJson(request)) as Record<string, unknown>;

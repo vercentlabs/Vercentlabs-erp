@@ -57,7 +57,9 @@ export async function PATCH(request: Request, route: { params: Promise<{ resourc
   try {
     const session = await requireMobileSession(request);
     const { resource, id } = await route.params;
-    valid(resource); assertCrmIdentifier(id); requireCrmManage(session, resource);
+    valid(resource);
+    if (resource === "stages") throw new HttpError(410, "Use the governed Sales Stages workspace on Web.", "CRM_SALES_STAGE_API_MOVED");
+    assertCrmIdentifier(id); requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId!);
     const rawInput = (await readJson(request)) as Record<string, unknown>;
     if (resource === "leads" && ["status", "stage", "stageId", "stageCode", "recordStatus"].some((field) => Object.prototype.hasOwnProperty.call(rawInput, field)))
@@ -78,7 +80,9 @@ export async function DELETE(request: Request, route: { params: Promise<{ resour
   try {
     const session = await requireMobileSession(request);
     const { resource, id } = await route.params;
-    valid(resource); assertCrmIdentifier(id); requireCrmManage(session, resource);
+    valid(resource);
+    if (resource === "stages") throw new HttpError(410, "Use the governed Sales Stages workspace on Web.", "CRM_SALES_STAGE_API_MOVED");
+    assertCrmIdentifier(id); requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId!);
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
     const context = await crmApiContext(session);

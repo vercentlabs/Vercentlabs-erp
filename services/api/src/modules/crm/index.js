@@ -1661,7 +1661,67 @@ function buildFilters(
   return sql;
 }
 
+async function listSalesStageResourceRecords(client, context, filters = {}) {
+  const parameters = [context.organizationId];
+  let where = "stage.organization_id=$1";
+  if (context.activeCompanyId) {
+    where += ` AND (pipeline.company_id IS NULL OR pipeline.company_id=${addParameter(parameters, context.activeCompanyId)})`;
+  } else if (!context.allowAllCompanies) {
+    where += " AND false";
+  }
+  if (filters.status && filters.status !== "all")
+    where += ` AND stage.status=${addParameter(parameters, String(filters.status))}`;
+  if (filters.pipelineId) {
+    const pipelineId = String(filters.pipelineId);
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pipelineId))
+      where += ` AND stage.pipeline_id=${addParameter(parameters, pipelineId)}`;
+    else where += " AND false";
+  }
+  const search = String(filters.search || "").trim();
+  if (search) {
+    const query = `%${search.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+    where += ` AND (stage.name ILIKE ${addParameter(parameters, query)} ESCAPE '\\' OR stage.code ILIKE ${addParameter(parameters, query)} ESCAPE '\\' OR stage.forecast_category ILIKE ${addParameter(parameters, query)} ESCAPE '\\')`;
+  }
+  const limit = limitValue(filters.limit);
+  const offset = Math.max(0, Math.min(10_000_000, Math.trunc(Number(filters.offset || 0) || 0)));
+  const countResult = await client.query(
+    `SELECT count(*)::int AS total FROM tenant.crm_pipeline_stages stage
+       JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id=stage.organization_id AND pipeline.id=stage.pipeline_id
+      WHERE ${where}`,
+    parameters,
+  );
+  const total = Number(countResult.rows[0]?.total || 0);
+  const result = await client.query(
+    `SELECT stage.*,pipeline.name AS pipeline_name,pipeline.company_id AS pipeline_company_id
+       FROM tenant.crm_pipeline_stages stage
+       JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id=stage.organization_id AND pipeline.id=stage.pipeline_id
+      WHERE ${where}
+      ORDER BY stage.pipeline_id,stage.status='active' DESC,stage.sequence,stage.id
+      LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
+    parameters,
+  );
+  return { rows: result.rows.map(camelizeRow), total, limit, offset };
+}
+
+async function getSalesStageResourceRecord(client, context, id) {
+  const parameters = [context.organizationId, id];
+  let scope = "";
+  if (context.activeCompanyId)
+    scope += ` AND (pipeline.company_id IS NULL OR pipeline.company_id=${addParameter(parameters, context.activeCompanyId)})`;
+  else if (!context.allowAllCompanies) scope += " AND false";
+  const result = await client.query(
+    `SELECT stage.*,pipeline.name AS pipeline_name,pipeline.company_id AS pipeline_company_id
+       FROM tenant.crm_pipeline_stages stage
+       JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id=stage.organization_id AND pipeline.id=stage.pipeline_id
+      WHERE stage.organization_id=$1 AND stage.id=$2${scope} LIMIT 1`,
+    parameters,
+  );
+  if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
+  return camelizeRow(result.rows[0]);
+}
+
 export async function listCrmRecords(client, context, resource, filters = {}) {
+  if (resource === "stages") return listSalesStageResourceRecords(client, context, filters);
   const definition = definitionFor(resource);
   const parameters = [context.organizationId];
   let where = "record.organization_id = $1";
@@ -1691,6 +1751,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
 }
 
 export async function getCrmRecord(client, context, resource, id) {
+  if (resource === "stages") return getSalesStageResourceRecord(client, context, id);
   const definition = definitionFor(resource);
   const parameters = [context.organizationId, id];
   const result = await client.query(
@@ -2111,13 +2172,13 @@ async function resolveOpportunityInitialStage(client, context, prepared) {
          JOIN tenant.crm_pipelines p
            ON p.organization_id=s.organization_id AND p.id=s.pipeline_id
         WHERE s.organization_id=$1 AND s.id=$2
-          AND s.status='active' AND p.status='active'
+          AND s.status='active' AND NOT s.is_won AND NOT s.is_lost AND p.status='active'
         LIMIT 1`,
       [context.organizationId, suppliedStageId],
     );
     row = result.rows[0] || null;
     if (!row)
-      throw new CrmError(409, "Select an active stage from an active CRM pipeline.", "CRM_OPPORTUNITY_STAGE_INVALID");
+      throw new CrmError(409, "Select an active Open stage from an active CRM pipeline.", "CRM_OPPORTUNITY_STAGE_INVALID");
     if (suppliedPipelineId && suppliedPipelineId !== row.pipeline_id)
       throw new CrmError(409, "The selected stage does not belong to the selected pipeline.", "CRM_OPPORTUNITY_STAGE_PIPELINE_MISMATCH");
   } else if (suppliedPipelineId) {
@@ -2126,21 +2187,21 @@ async function resolveOpportunityInitialStage(client, context, prepared) {
               p.company_id AS pipeline_company_id
          FROM tenant.crm_pipelines p
          JOIN tenant.crm_pipeline_stages s
-           ON s.organization_id=p.organization_id AND s.pipeline_id=p.id AND s.status='active'
+           ON s.organization_id=p.organization_id AND s.pipeline_id=p.id AND s.status='active' AND NOT s.is_won AND NOT s.is_lost
         WHERE p.organization_id=$1 AND p.id=$2 AND p.status='active'
         ORDER BY s.sequence,s.id LIMIT 1`,
       [context.organizationId, suppliedPipelineId],
     );
     row = result.rows[0] || null;
     if (!row)
-      throw new CrmError(409, "The selected pipeline needs at least one active stage.", "CRM_OPPORTUNITY_PIPELINE_INVALID");
+      throw new CrmError(409, "The selected pipeline needs at least one active Open stage.", "CRM_OPPORTUNITY_PIPELINE_INVALID");
   } else {
     const result = await client.query(
       `SELECT s.id AS stage_id,s.pipeline_id,s.probability,s.forecast_category,
               p.company_id AS pipeline_company_id
          FROM tenant.crm_pipelines p
          JOIN tenant.crm_pipeline_stages s
-           ON s.organization_id=p.organization_id AND s.pipeline_id=p.id AND s.status='active'
+           ON s.organization_id=p.organization_id AND s.pipeline_id=p.id AND s.status='active' AND NOT s.is_won AND NOT s.is_lost
         WHERE p.organization_id=$1 AND p.status='active'
           AND ($2::uuid IS NULL OR p.company_id IS NULL OR p.company_id=$2)
         ORDER BY (p.company_id=$2) DESC,p.is_default DESC,s.sequence,s.id
@@ -2149,7 +2210,7 @@ async function resolveOpportunityInitialStage(client, context, prepared) {
     );
     row = result.rows[0] || null;
     if (!row)
-      throw new CrmError(409, "Configure an active CRM pipeline with an active stage before creating opportunities.", "CRM_OPPORTUNITY_PIPELINE_REQUIRED");
+      throw new CrmError(409, "Configure an active CRM pipeline with an active Open stage before creating opportunities.", "CRM_OPPORTUNITY_PIPELINE_REQUIRED");
   }
 
   if (row.pipeline_company_id && prepared.companyId && row.pipeline_company_id !== prepared.companyId)
@@ -2234,6 +2295,12 @@ async function validateOpportunityRelationships(client, context, prepared, exist
 }
 
 export async function createCrmRecord(client, context, resource, input) {
+  if (resource === "stages")
+    throw new CrmError(
+      410,
+      "Use the governed Sales Stages operations.",
+      "CRM_SALES_STAGE_API_MOVED",
+    );
   const duplicateOverrideReason =
     resource === "leads" ? input?.duplicateOverrideReason : undefined;
   if (
@@ -2492,6 +2559,12 @@ export async function createCrmRecord(client, context, resource, input) {
 }
 
 export async function updateCrmRecord(client, context, resource, id, input) {
+  if (resource === "stages")
+    throw new CrmError(
+      410,
+      "Use the governed Sales Stages operations.",
+      "CRM_SALES_STAGE_API_MOVED",
+    );
   const duplicateOverrideReason =
     resource === "leads" ? input?.duplicateOverrideReason : undefined;
   if (
@@ -2687,6 +2760,12 @@ export async function updateCrmRecord(client, context, resource, id, input) {
 }
 
 export async function archiveCrmRecord(client, context, resource, id) {
+  if (resource === "stages")
+    throw new CrmError(
+      410,
+      "Use the governed Sales Stages operations.",
+      "CRM_SALES_STAGE_API_MOVED",
+    );
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -4321,3 +4400,13 @@ export async function captureCrmLead(
     duplicateWarning: duplicateEvaluation.classification === "probable",
   };
 }
+export {
+  createSalesStage,
+  getSalesStage,
+  listSalesStageHistory,
+  listSalesStagePipelines,
+  listSalesStages,
+  reorderSalesStages,
+  setSalesStageActive,
+  updateSalesStage,
+} from "./sales-stage-operations.js";
