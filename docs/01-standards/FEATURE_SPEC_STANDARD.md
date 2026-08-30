@@ -16,3 +16,6 @@ Every module pass must actively search for capabilities hidden behind short cano
 
 ## Readiness rule
 `SPECIFICATION_READY` requires complete research, decomposed requirements, UX/domain/security/API/integration design, red-team omission review, test/E2E/UAT design, synchronized registers and applicable parent capability/journey contracts.
+
+## Requirement-contract completeness gate
+Every canonical dossier MUST carry either a placeholder (`Fxxx-TYPE-###`) or at least one materialized ID (`Fxxx-TYPE-001`) for every requirement type declared by `FEATURE_DOSSIER_SCHEMA.json`. Placeholder presence is a framework-integrity check only; it is **not** evidence that the requirement has been researched or approved. During a module pass, placeholders are replaced by substantive traceable requirements and synchronized into `SUBREQUIREMENT_REGISTER.csv`.

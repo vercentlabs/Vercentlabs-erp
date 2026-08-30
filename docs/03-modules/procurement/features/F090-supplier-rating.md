@@ -57,6 +57,8 @@ Use `F090-BR-###`; define deterministic rules, ownership, effective dating, conf
 Use `F090-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
 
 ## [SPEC-VIEWS] Required view archetypes
+Use `F090-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
+
 Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
 
 ## [SPEC-LIST] List, table and work-queue behavior
