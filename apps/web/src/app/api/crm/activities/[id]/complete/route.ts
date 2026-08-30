@@ -2,7 +2,7 @@ import {
   incrementBillingUsage,
   requireBillingWriteAccess,
 } from "@/core/billing";
-import { completeCrmActivity } from "@vercentlabs/api";
+import { completeCrmActivity, completeCrmTask, getCrmRecord } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { assertCrmIdentifier } from "@/modules/crm/api";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
@@ -29,16 +29,23 @@ export async function POST(
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const completed = await completeCrmActivity(
-          client,
-          context,
-          id,
-          input.outcome,
-          {
-            expectedUpdatedAt: input.expectedUpdatedAt,
-            expectedStatus: input.expectedStatus,
-          },
-        );
+        const current = await getCrmRecord(client, context, "activities", id);
+        const completed = String(current.activityType || "").toLowerCase() === "task"
+          ? await completeCrmTask(client, context, id, {
+              outcome: input.outcome,
+              expectedUpdatedAt: input.expectedUpdatedAt,
+              expectedStatus: input.expectedStatus,
+            })
+          : await completeCrmActivity(
+              client,
+              context,
+              id,
+              input.outcome,
+              {
+                expectedUpdatedAt: input.expectedUpdatedAt,
+                expectedStatus: input.expectedStatus,
+              },
+            );
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,

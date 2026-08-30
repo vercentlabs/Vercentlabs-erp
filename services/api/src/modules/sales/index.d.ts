@@ -46,3 +46,15 @@ export function createInvoiceRequest(client: SalesQueryClient, context: SalesCon
 export function getSalesDashboard(client: SalesQueryClient, context: SalesContext): Promise<any>;
 export function getSalesReport(client: SalesQueryClient, context: SalesContext, key: string): Promise<any[]>;
 export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null): Promise<any>;
+
+
+export function listSalesPass1Operations(client: SalesQueryClient, context: SalesContext, options?: { kind?: string; limit?: number }): Promise<any[]>;
+export function recordSalesAdvancePayment(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function requestSalesCreditAdjustment(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function createSalesDropShipRequest(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function createSalesCommissionRule(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function accrueSalesCommission(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function upsertSalesPriceListItem(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function upsertSalesCustomerPrice(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function listSalesPass1Options(client: SalesQueryClient, context: SalesContext): Promise<Record<string, any[]>>;
+export function getSalesOrderLineReservationContext(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;

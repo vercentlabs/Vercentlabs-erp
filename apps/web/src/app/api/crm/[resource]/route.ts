@@ -2,7 +2,7 @@ import {
   incrementBillingUsage,
   requireBillingWriteAccess,
 } from "@/core/billing";
-import { createCrmRecord, listCrmRecords } from "@vercentlabs/api";
+import { createCrmRecord, createCrmTask, listCrmRecords } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
 import {
@@ -115,7 +115,16 @@ export async function POST(
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const created = await createCrmRecord(client, context, resource, input);
+        const isTask = resource === "activities" && String(input.activityType || "task").toLowerCase() === "task";
+        let created;
+        if (isTask) {
+          const taskInput: Record<string, unknown> = { ...input };
+          delete taskInput.activityType;
+          delete taskInput.status;
+          created = await createCrmTask(client, context, taskInput);
+        } else {
+          created = await createCrmRecord(client, context, resource, input);
+        }
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,

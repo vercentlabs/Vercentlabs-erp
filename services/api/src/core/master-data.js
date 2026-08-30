@@ -147,6 +147,41 @@ const resources = Object.freeze({
     companyField: "companyId",
     archiveStatus: "inactive",
   },
+  "item-variants": {
+    table: "tenant.item_variants",
+    searchColumns: ["sku", "name", "barcode"],
+    orderBy: "name ASC, sku ASC",
+    fields: {
+      companyId: "company_id",
+      itemId: "item_id",
+      sku: "sku",
+      name: "name",
+      barcode: "barcode",
+      salesPrice: "sales_price",
+      purchasePrice: "purchase_price",
+      standardCost: "standard_cost",
+      status: "status",
+    },
+    scope: "item-company",
+    companyField: "companyId",
+    relationField: "itemId",
+    archiveStatus: "inactive",
+  },
+  "item-uom-conversions": {
+    table: "tenant.item_uom_conversions",
+    searchColumns: ["conversion_factor"],
+    orderBy: "item_id ASC, from_uom_id ASC, to_uom_id ASC",
+    fields: {
+      itemId: "item_id",
+      fromUomId: "from_uom_id",
+      toUomId: "to_uom_id",
+      conversionFactor: "conversion_factor",
+      status: "status",
+    },
+    scope: "item-company",
+    relationField: "itemId",
+    archiveStatus: "inactive",
+  },
   "tax-categories": {
     table: "tenant.tax_categories",
     searchColumns: ["code", "name", "description"],
@@ -368,6 +403,17 @@ function buildScopeClause(definition, context, parameters, alias = "t") {
             OR scoped_party.company_id = ${companyParameter}
           )
       )`;
+    case "item-company":
+      return ` AND EXISTS (
+        SELECT 1
+        FROM tenant.items scoped_item
+        WHERE scoped_item.id = ${alias}.item_id
+          AND scoped_item.organization_id = ${alias}.organization_id
+          AND (
+            scoped_item.company_id IS NULL
+            OR scoped_item.company_id = ${companyParameter}
+          )
+      )`;
     case "warehouse-company": {
       const branchClause = ` AND (
             scoped_warehouse.branch_id IS NULL
@@ -506,6 +552,29 @@ async function assertRelationScope(client, context, definition, input) {
       throw new BusinessDataError(
         403,
         "The selected business partner is outside the active company context.",
+      );
+    }
+  }
+
+  if (definition.scope === "item-company") {
+    const result = await client.query(
+      `
+        SELECT id
+        FROM tenant.items
+        WHERE organization_id = $1
+          AND id = $2
+          AND (company_id IS NULL OR company_id = $3)
+      `,
+      [
+        context.organizationId,
+        scopedInput[definition.relationField],
+        context.activeCompanyId,
+      ],
+    );
+    if (!result.rows[0]) {
+      throw new BusinessDataError(
+        403,
+        "The selected item is outside the active company context.",
       );
     }
   }

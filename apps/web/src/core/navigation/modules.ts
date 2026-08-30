@@ -115,6 +115,12 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
         permission: PERMISSIONS.salesView,
       },
       {
+        href: "/sales/operations",
+        label: "Operations",
+        icon: "approvals",
+        permission: PERMISSIONS.salesView,
+      },
+      {
         href: "/sales/reports",
         label: "Reports",
         icon: "audit",
@@ -184,6 +190,12 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
         permission: PERMISSIONS.procurementView,
       },
       {
+        href: "/procurement/operations",
+        label: "Operations",
+        icon: "approvals",
+        permission: PERMISSIONS.procurementView,
+      },
+      {
         href: "/procurement/reports",
         label: "Reports",
         icon: "audit",
@@ -223,6 +235,12 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
         permission: PERMISSIONS.stockView,
       },
       {
+        href: "/stock/operations",
+        label: "Stock operations",
+        icon: "approvals",
+        permission: PERMISSIONS.stockView,
+      },
+      {
         href: "/stock/transfers",
         label: "Transfers",
         icon: "procurement",
@@ -237,6 +255,12 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
       {
         href: "/stock/serials",
         label: "Serial numbers",
+        icon: "check",
+        permission: PERMISSIONS.stockView,
+      },
+      {
+        href: "/stock/availability",
+        label: "Availability & ATP",
         icon: "check",
         permission: PERMISSIONS.stockView,
       },

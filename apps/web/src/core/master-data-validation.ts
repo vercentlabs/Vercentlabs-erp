@@ -185,6 +185,26 @@ const itemSchema = z.object({
   status: companyStatus,
 });
 
+const itemVariantSchema = z.object({
+  companyId: optionalUuid,
+  itemId: uuid,
+  sku: z.string().trim().min(1).max(80).transform((value) => value.toUpperCase()),
+  name: z.string().trim().min(1).max(180),
+  barcode: z.string().trim().max(80).optional().default(""),
+  salesPrice: nonNegativeMoney.default(0),
+  purchasePrice: nonNegativeMoney.default(0),
+  standardCost: nonNegativeMoney.default(0),
+  status: companyStatus,
+});
+
+const itemUomConversionSchema = z.object({
+  itemId: uuid,
+  fromUomId: uuid,
+  toUomId: uuid,
+  conversionFactor: z.coerce.number().finite().positive().max(1_000_000_000),
+  status: companyStatus,
+});
+
 const taxCategorySchema = z.object({
   code,
   name: z.string().trim().min(2).max(120),
@@ -334,6 +354,8 @@ export const businessDataSchemas = {
   "units-of-measure": uomSchema,
   "item-groups": itemGroupSchema,
   items: itemSchema,
+  "item-variants": itemVariantSchema,
+  "item-uom-conversions": itemUomConversionSchema,
   "tax-categories": taxCategorySchema,
   "tax-rates": taxRateSchema,
   warehouses: warehouseSchema,
@@ -352,6 +374,8 @@ export const businessDataPatchSchemas = {
   "units-of-measure": uomSchema.partial(),
   "item-groups": itemGroupSchema.partial(),
   items: itemSchema.partial(),
+  "item-variants": itemVariantSchema.partial(),
+  "item-uom-conversions": itemUomConversionSchema.partial(),
   "tax-categories": taxCategorySchema.partial(),
   "tax-rates": taxRateObject.partial(),
   warehouses: warehouseSchema.partial(),

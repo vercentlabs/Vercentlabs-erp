@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createCrmRecord } from "./index.js";
+import { createCrmTask, completeCrmTask } from "./task-operations.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);
 export class CrmOfflineSyncError extends Error {
   constructor(status, message, code = "CRM_OFFLINE_SYNC_ERROR", details = []) {
@@ -272,27 +273,33 @@ export async function applyOfflineMutation(client, context, input = {}) {
       throw new CrmOfflineSyncError(410, "Use the governed Calls mobile endpoint for offline Call creation.", "CRM_CALL_API_MOVED");
     if (activityType === "meeting")
       throw new CrmOfflineSyncError(410, "Use the governed Meetings mobile endpoint for offline Meeting creation.", "CRM_MEETING_API_MOVED");
-    row = (
-      await client.query(
-        `INSERT INTO tenant.crm_activities(organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,start_at,due_at,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING *`,
-        [
-          context.organizationId,
-          p.companyId || p.company_id || context.activeCompanyId || null,
-          p.branchId || p.branch_id || context.activeBranchId || null,
-          text(p.entityType || p.entity_type || "general"),
-          p.entityId || p.entity_id || null,
-          text(p.activityType || p.activity_type || "task"),
-          text(p.subject),
-          text(p.description) || null,
-          text(p.status || "planned"),
-          text(p.priority || "medium"),
-          p.assignedTo || p.assigned_to || context.userId,
-          p.startAt || p.start_at || null,
-          p.dueAt || p.due_at || null,
-          context.userId,
-        ],
-      )
-    ).rows[0];
+    if (activityType === "task") {
+      row = await createCrmTask(client, context, {
+        companyId: p.companyId || p.company_id || context.activeCompanyId || null,
+        branchId: p.branchId || p.branch_id || context.activeBranchId || null,
+        entityType: text(p.entityType || p.entity_type || "general"),
+        entityId: p.entityId || p.entity_id || null,
+        subject: text(p.subject),
+        description: text(p.description) || null,
+        priority: text(p.priority || "medium"),
+        assignedTo: p.assignedTo || p.assigned_to || context.userId,
+        startAt: p.startAt || p.start_at || null,
+        dueAt: p.dueAt || p.due_at || null,
+        reminderAt: p.reminderAt || p.reminder_at || null,
+        recurringRule: p.recurringRule || p.recurring_rule || null,
+      });
+    } else {
+      row = (
+        await client.query(
+          `INSERT INTO tenant.crm_activities(organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,start_at,due_at,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'planned',$9,$10,$11,$12,$13,$13) RETURNING *`,
+          [context.organizationId, p.companyId || p.company_id || context.activeCompanyId || null,
+           p.branchId || p.branch_id || context.activeBranchId || null, text(p.entityType || p.entity_type || "general"),
+           p.entityId || p.entity_id || null, activityType, text(p.subject), text(p.description) || null,
+           text(p.priority || "medium"), p.assignedTo || p.assigned_to || context.userId,
+           p.startAt || p.start_at || null, p.dueAt || p.due_at || null, context.userId],
+        )
+      ).rows[0];
+    }
   } else if (m.resource === "activities" && m.operation === "complete") {
     if (!m.recordId)
       throw new CrmOfflineSyncError(
@@ -308,17 +315,16 @@ export async function applyOfflineMutation(client, context, input = {}) {
       throw new CrmOfflineSyncError(410, "Use the governed Calls mobile endpoint for offline Call completion.", "CRM_CALL_API_MOVED");
     if (target?.activity_type === "meeting")
       throw new CrmOfflineSyncError(410, "Use the governed Meetings mobile endpoint for offline Meeting completion.", "CRM_MEETING_API_MOVED");
-    row = (
-      await client.query(
-        `UPDATE tenant.crm_activities SET status='completed',outcome=$3,completed_at=now(),updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
-        [
-          context.organizationId,
-          m.recordId,
-          text(m.payload.outcome) || null,
-          context.userId,
-        ],
-      )
-    ).rows[0];
+    if (target?.activity_type === "task") {
+      row = await completeCrmTask(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
+    } else {
+      row = (
+        await client.query(
+          `UPDATE tenant.crm_activities SET status='completed',outcome=$3,completed_at=now(),updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+          [context.organizationId, m.recordId, text(m.payload.outcome) || null, context.userId],
+        )
+      ).rows[0];
+    }
   }
   if (!row)
     throw new CrmOfflineSyncError(

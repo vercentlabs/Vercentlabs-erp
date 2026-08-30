@@ -19,3 +19,12 @@ export declare function add(a:unknown,b:unknown):bigint;
 export declare function mul(a:unknown,b:unknown):bigint;
 export declare function format(value:bigint,places?:number):string;
 export declare function allocate(total:unknown,weights:unknown[]):bigint[];
+
+
+export declare function listProcurementPass1Operations(client:ProcurementClient,context:ProcurementContext,options?:{kind?:string;limit?:number}):Promise<Record<string,any>[]>;
+export declare function upsertSupplierPurchasePrice(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
+export declare function createProcurementLandedCost(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
+export declare function upsertSupplierLeadTime(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
+export declare function createProcurementReorderRequest(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
+export declare function createProcurementSubcontractOrder(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
+export declare function listProcurementPass1Options(client:ProcurementClient,context:ProcurementContext):Promise<Record<string,Record<string,any>[]>>;

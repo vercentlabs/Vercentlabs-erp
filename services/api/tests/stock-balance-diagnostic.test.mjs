@@ -121,6 +121,9 @@ test("diagnostic: a balance row with zero movements (orphaned balance) is also d
 test("regression: postStockMovement still supports serialId as an addition, without breaking callers that omit it", async () => {
   const c = {
     async query(sql, params) {
+      if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
+      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql)) return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "10" }] };
+      if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql)) return { rows: [{ id: params[1], company_id: company, allow_negative_stock: false }] };
       if (/SELECT allow_negative_stock,costing_method/.test(sql)) return { rows: [{ allow_negative_stock: false, costing_method: "moving_average" }] };
       if (/SELECT quantity,reserved_quantity,average_cost.*FOR UPDATE/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.stock_movements/.test(sql)) {
@@ -145,6 +148,10 @@ test("regression: createStockTransfer / completeStockTransfer (Stock's own inter
   const transferId = "77777777-7777-4777-8777-777777777777";
   const c = {
     async query(sql, params) {
+      if (/SELECT \* FROM tenant\.stock_transfers WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
+      if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
+      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql)) return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "10" }] };
+      if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql)) return { rows: [{ id: params[1], company_id: company, allow_negative_stock: true }] };
       if (/INSERT INTO tenant\.stock_transfers/.test(sql)) return { rows: [{ id: transferId, status: "draft", item_id: itemId, source_warehouse_id: warehouseId, destination_warehouse_id: "dest-1", quantity: "5" }] };
       if (/SELECT \* FROM tenant\.stock_transfers.*FOR UPDATE/.test(sql)) return { rows: [{ id: transferId, status: "draft", item_id: itemId, source_warehouse_id: warehouseId, source_location_id: null, destination_warehouse_id: "dest-1", destination_location_id: null, batch_id: null, quantity: "5" }] };
       if (/SELECT allow_negative_stock,costing_method/.test(sql)) return { rows: [{ allow_negative_stock: true, costing_method: "moving_average" }] };

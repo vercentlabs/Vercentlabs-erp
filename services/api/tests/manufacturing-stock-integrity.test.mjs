@@ -73,6 +73,12 @@ function trackingClient({ existingComponentBalance = null, existingFinishedBalan
       if (/SELECT \* FROM tenant\.manufacturing_work_order_materials/.test(sql)) return { rows: materials };
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available\s+FROM tenant\.stock_balances/.test(sql))
         return { rows: [{ available: "1000" }] }; // Manufacturing's own unlocked pre-check
+      if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
+      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql))
+        return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "2" }] };
+      if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql))
+        return { rows: [{ id: params[1], company_id: company, allow_negative_stock: false }] };
+      if (/SELECT id FROM tenant\.stock_serials/.test(sql)) return { rows: [{ id: params[2] }] };
       if (/SELECT allow_negative_stock,costing_method FROM tenant\.stock_settings/.test(sql))
         return { rows: [{ allow_negative_stock: false, costing_method: "moving_average" }] };
       if (/SELECT quantity,reserved_quantity,average_cost FROM tenant\.stock_balances.*FOR UPDATE/.test(sql)) {

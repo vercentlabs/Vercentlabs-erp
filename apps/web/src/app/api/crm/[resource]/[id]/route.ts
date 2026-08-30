@@ -5,8 +5,11 @@ import {
 import {
   archiveCrmRecord,
   assignLeadOwner,
+  cancelCrmTask,
   getCrmRecord,
+  startCrmTask,
   updateCrmRecord,
+  updateCrmTask,
 } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import {
@@ -159,13 +162,34 @@ export async function PATCH(
             });
           return { record: assigned.lead, assignment: assigned.assignment };
         }
-        const updated = await updateCrmRecord(
-          client,
-          context,
-          resource,
-          id,
-          input,
-        );
+        let updated;
+        if (resource === "activities") {
+          const current = await getCrmRecord(client, context, resource, id);
+          if (String(current.activityType || "").toLowerCase() === "task") {
+            const taskInput = { ...input };
+            const requestedType = String(taskInput.activityType || "task").toLowerCase();
+            if (requestedType !== "task")
+              throw new HttpError(409, "A Task cannot be changed into another activity type.", "CRM_TASK_TYPE_IMMUTABLE");
+            delete taskInput.activityType;
+            const requestedStatus = taskInput.status == null ? null : String(taskInput.status).toLowerCase();
+            delete taskInput.status;
+            if (requestedStatus && requestedStatus !== current.status) {
+              if (Object.keys(taskInput).length)
+                throw new HttpError(409, "Change Task status separately from other Task fields.", "CRM_TASK_STATUS_ACTION_REQUIRED");
+              if (requestedStatus === "in_progress") updated = await startCrmTask(client, context, id);
+              else if (requestedStatus === "cancelled") updated = await cancelCrmTask(client, context, id);
+              else if (requestedStatus === "completed")
+                throw new HttpError(409, "Use the governed Task completion action.", "CRM_TASK_COMPLETION_REQUIRED");
+              else throw new HttpError(409, "Use a governed Task lifecycle action for this status.", "CRM_TASK_STATUS_ACTION_REQUIRED");
+            } else {
+              updated = await updateCrmTask(client, context, id, taskInput);
+            }
+          } else {
+            updated = await updateCrmRecord(client, context, resource, id, input);
+          }
+        } else {
+          updated = await updateCrmRecord(client, context, resource, id, input);
+        }
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,
@@ -229,7 +253,10 @@ export async function DELETE(
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
-        const archived = await archiveCrmRecord(client, context, resource, id);
+        const before = resource === "activities" ? await getCrmRecord(client, context, resource, id) : null;
+        const archived = before && String(before.activityType || "").toLowerCase() === "task"
+          ? await cancelCrmTask(client, context, id)
+          : await archiveCrmRecord(client, context, resource, id);
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,

@@ -56,3 +56,13 @@ export * from "./modules/point-of-sale/index.js";
 export * from "./modules/quality/index.js";
 export * from "./modules/support/index.js";
 export * from "./modules/hr-payroll/index.js";
+export * from "./modules/crm/task-operations.js";
+
+export * from "./modules/sales/pass1-operations.js";
+
+export * from "./modules/procurement/pass1-operations.js";
+export * from "./orchestration/reorder-purchasing.js";
+
+export * from "./orchestration/sales-pass1-options.js";
+
+export * from "./orchestration/sales-stock-reservation.js";

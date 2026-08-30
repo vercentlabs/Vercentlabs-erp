@@ -83,160 +83,156 @@ async function settings(client, c) {
     rows[0] || { allow_negative_stock: false, costing_method: "moving_average" }
   );
 }
-export async function postStockMovement(client, c, input) {
-  const permission =
-    input.movementType === "receipt"
-      ? "stock.receive"
-      : input.movementType === "issue"
-        ? "stock.issue"
-        : "stock.adjust";
+async function stockDimension(client, c, input) {
+  const item = (await client.query(
+    `SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    [c.organizationId, input.itemId],
+  )).rows[0];
+  if (!item || (item.company_id && item.company_id !== c.companyId))
+    throw new StockError(404, "Stock item was not found for the active company.", "STOCK_ITEM_NOT_FOUND");
+  if (!item.track_inventory)
+    throw new StockError(409, "This item is not inventory-tracked.", "STOCK_ITEM_NOT_TRACKED");
+
+  const warehouse = (await client.query(
+    `SELECT id,company_id,allow_negative_stock FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    [c.organizationId, input.warehouseId],
+  )).rows[0];
+  if (!warehouse || warehouse.company_id !== c.companyId)
+    throw new StockError(404, "Warehouse was not found for the active company.", "STOCK_WAREHOUSE_NOT_FOUND");
+
+  if (input.warehouseLocationId) {
+    const location = (await client.query(
+      `SELECT id FROM tenant.warehouse_locations WHERE organization_id=$1 AND id=$2 AND warehouse_id=$3 AND status='active'`,
+      [c.organizationId, input.warehouseLocationId, input.warehouseId],
+    )).rows[0];
+    if (!location)
+      throw new StockError(404, "Warehouse location was not found in the selected warehouse.", "STOCK_LOCATION_NOT_FOUND");
+  }
+
+  if (input.batchId) {
+    const batch = (await client.query(
+      `SELECT id FROM tenant.stock_batches WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND item_id=$4 AND status='active'`,
+      [c.organizationId, c.companyId, input.batchId, input.itemId],
+    )).rows[0];
+    if (!batch)
+      throw new StockError(404, "Batch was not found for the selected item.", "STOCK_BATCH_NOT_FOUND");
+  }
+
+  if (input.serialId) {
+    const serial = (await client.query(
+      `SELECT id FROM tenant.stock_serials WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND item_id=$4`,
+      [c.organizationId, c.companyId, input.serialId, input.itemId],
+    )).rows[0];
+    if (!serial)
+      throw new StockError(404, "Serial number was not found for the selected item.", "STOCK_SERIAL_NOT_FOUND");
+  }
+
+  return { item, warehouse };
+}
+
+export async function postStockMovement(client, c, input = {}) {
+  const movementType = String(input.movementType || "").toLowerCase();
+  if (!new Set(["receipt", "issue", "adjustment"]).has(movementType))
+    throw new StockError(400, "Movement type must be receipt, issue or adjustment.", "STOCK_MOVEMENT_TYPE_INVALID");
+  const permission = movementType === "receipt" ? "stock.receive" : movementType === "issue" ? "stock.issue" : "stock.adjust";
   need(c, permission);
+
+  const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
+  if (idempotencyKey) {
+    const replay = (await client.query(
+      `SELECT * FROM tenant.stock_movements WHERE organization_id=$1 AND idempotency_key=$2`,
+      [c.organizationId, idempotencyKey],
+    )).rows[0];
+    if (replay) return { ...replay, replayed: true };
+  }
+
   const qty = num(input.quantity, "Quantity");
-  const signed = input.movementType === "issue" ? -qty : qty;
+  const direction = movementType === "adjustment" ? String(input.adjustmentDirection || "increase").toLowerCase() : null;
+  if (movementType === "adjustment" && !new Set(["increase", "decrease"]).has(direction))
+    throw new StockError(400, "Adjustment direction must be increase or decrease.", "STOCK_ADJUSTMENT_DIRECTION_INVALID");
+  const signed = movementType === "issue" || direction === "decrease" ? -qty : qty;
+  const { item, warehouse } = await stockDimension(client, c, { ...input, movementType });
   const cfg = await settings(client, c);
+
   const current = await client.query(
     `SELECT quantity,reserved_quantity,average_cost FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4 AND warehouse_location_id IS NOT DISTINCT FROM $5 AND batch_id IS NOT DISTINCT FROM $6 FOR UPDATE`,
-    [
-      c.organizationId,
-      c.companyId,
-      input.itemId,
-      input.warehouseId,
-      input.warehouseLocationId || null,
-      input.batchId || null,
-    ],
+    [c.organizationId,c.companyId,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null],
   );
-  const old = current.rows[0] || {
-    quantity: 0,
-    reserved_quantity: 0,
-    average_cost: 0,
-  };
+  const old = current.rows[0] || { quantity: 0, reserved_quantity: 0, average_cost: 0 };
   const next = Number(old.quantity) + signed;
-  if (
-    next < Number(old.reserved_quantity) ||
-    (!cfg.allow_negative_stock && next < 0)
-  )
-    throw new StockError(
-      409,
-      "Insufficient available stock.",
-      "INSUFFICIENT_STOCK",
-    );
-  const cost = Number(input.unitCost || old.average_cost || 0);
-  const avg =
-    signed > 0 && next > 0
-      ? (Number(old.quantity) * Number(old.average_cost) + qty * cost) / next
-      : Number(old.average_cost);
+  const canGoNegative = Boolean(cfg.allow_negative_stock || item.allow_negative_stock || warehouse.allow_negative_stock);
+  if (next < Number(old.reserved_quantity) || (!canGoNegative && next < 0))
+    throw new StockError(409, "Insufficient available stock.", "INSUFFICIENT_STOCK");
+
+  const explicitCost = input.unitCost == null || input.unitCost === "" ? null : Number(input.unitCost);
+  if (explicitCost != null && (!Number.isFinite(explicitCost) || explicitCost < 0))
+    throw new StockError(400, "Unit cost must be zero or greater.", "STOCK_UNIT_COST_INVALID");
+  const cost = explicitCost ?? Number(old.average_cost || item.standard_cost || 0);
+  const avg = signed > 0 && next > 0
+    ? (Number(old.quantity) * Number(old.average_cost) + qty * cost) / next
+    : Number(old.average_cost);
+
   const movement = await client.query(
     `INSERT INTO tenant.stock_movements(organization_id,company_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key) VALUES($1,$2,'STK-'||to_char(clock_timestamp(),'YYYYMMDDHH24MISSMS'),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [
-      c.organizationId,
-      c.companyId,
-      input.movementType,
-      input.itemId,
-      input.warehouseId,
-      input.warehouseLocationId || null,
-      input.batchId || null,
-      input.serialId || null,
-      signed,
-      cost,
-      input.referenceType || null,
-      input.referenceId || null,
-      input.reason || null,
-      c.userId,
-      input.idempotencyKey || null,
-    ],
+    [c.organizationId,c.companyId,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey],
   );
   await client.query(
     `INSERT INTO tenant.stock_balances(organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,reserved_quantity,average_cost) VALUES($1,$2,$3,$4,$5,$6,$7,0,$8) ON CONFLICT(organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id) DO UPDATE SET quantity=EXCLUDED.quantity,average_cost=EXCLUDED.average_cost,updated_at=now()`,
-    [
-      c.organizationId,
-      c.companyId,
-      input.itemId,
-      input.warehouseId,
-      input.warehouseLocationId || null,
-      input.batchId || null,
-      next,
-      avg,
-    ],
+    [c.organizationId,c.companyId,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,next,avg],
   );
   await client.query(
     `INSERT INTO tenant.stock_valuation_layers(organization_id,company_id,movement_id,item_id,warehouse_id,quantity,unit_cost,remaining_quantity) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [
-      c.organizationId,
-      c.companyId,
-      movement.rows[0].id,
-      input.itemId,
-      input.warehouseId,
-      signed,
-      cost,
-      Math.max(signed, 0),
-    ],
+    [c.organizationId,c.companyId,movement.rows[0].id,input.itemId,input.warehouseId,signed,cost,Math.max(signed, 0)],
   );
-  return movement.rows[0];
+  return { ...movement.rows[0], replayed: false };
 }
-export async function createStockTransfer(client, c, input) {
+
+export async function createStockTransfer(client, c, input = {}) {
   need(c, "stock.transfer");
   const q = num(input.quantity, "Quantity");
+  const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
+  if (idempotencyKey) {
+    const replay = (await client.query(
+      `SELECT * FROM tenant.stock_transfers WHERE organization_id=$1 AND idempotency_key=$2`,
+      [c.organizationId,idempotencyKey],
+    )).rows[0];
+    if (replay) return { ...replay, replayed: true };
+  }
+  await stockDimension(client,c,{ itemId: input.itemId, warehouseId: input.sourceWarehouseId, warehouseLocationId: input.sourceLocationId || null, batchId: input.batchId || null });
+  await stockDimension(client,c,{ itemId: input.itemId, warehouseId: input.destinationWarehouseId, warehouseLocationId: input.destinationLocationId || null, batchId: input.batchId || null });
+  if (input.sourceWarehouseId === input.destinationWarehouseId && (input.sourceLocationId || null) === (input.destinationLocationId || null))
+    throw new StockError(400,"Source and destination must be different.","STOCK_TRANSFER_SAME_LOCATION");
   const { rows } = await client.query(
-    `INSERT INTO tenant.stock_transfers(organization_id,company_id,transfer_number,item_id,source_warehouse_id,source_location_id,destination_warehouse_id,destination_location_id,batch_id,quantity,requested_by) VALUES($1,$2,'TRF-'||to_char(clock_timestamp(),'YYYYMMDDHH24MISSMS'),$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [
-      c.organizationId,
-      c.companyId,
-      input.itemId,
-      input.sourceWarehouseId,
-      input.sourceLocationId || null,
-      input.destinationWarehouseId,
-      input.destinationLocationId || null,
-      input.batchId || null,
-      q,
-      c.userId,
-    ],
+    `INSERT INTO tenant.stock_transfers(organization_id,company_id,transfer_number,item_id,source_warehouse_id,source_location_id,destination_warehouse_id,destination_location_id,batch_id,quantity,requested_by,idempotency_key) VALUES($1,$2,'TRF-'||to_char(clock_timestamp(),'YYYYMMDDHH24MISSMS'),$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [c.organizationId,c.companyId,input.itemId,input.sourceWarehouseId,input.sourceLocationId || null,input.destinationWarehouseId,input.destinationLocationId || null,input.batchId || null,q,c.userId,idempotencyKey],
   );
-  return rows[0];
+  return { ...rows[0], replayed: false };
 }
+
 export async function completeStockTransfer(client, c, id) {
   need(c, "stock.transfer");
   const { rows } = await client.query(
     `SELECT * FROM tenant.stock_transfers WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [c.organizationId, c.companyId, id],
+    [c.organizationId,c.companyId,id],
   );
   const t = rows[0];
-  if (!t || t.status !== "draft")
-    throw new StockError(409, "Only a draft transfer can be completed.");
-  await postStockMovement(
-    client,
-    { ...c, permissions: [...c.permissions, "stock.issue"] },
-    {
-      movementType: "issue",
-      itemId: t.item_id,
-      warehouseId: t.source_warehouse_id,
-      warehouseLocationId: t.source_location_id,
-      batchId: t.batch_id,
-      quantity: t.quantity,
-      referenceType: "stock_transfer",
-      referenceId: t.id,
-      reason: "Transfer issue",
-    },
-  );
-  await postStockMovement(
-    client,
-    { ...c, permissions: [...c.permissions, "stock.receive"] },
-    {
-      movementType: "receipt",
-      itemId: t.item_id,
-      warehouseId: t.destination_warehouse_id,
-      warehouseLocationId: t.destination_location_id,
-      batchId: t.batch_id,
-      quantity: t.quantity,
-      referenceType: "stock_transfer",
-      referenceId: t.id,
-      reason: "Transfer receipt",
-    },
-  );
+  if (!t) throw new StockError(404,"Stock transfer was not found.","STOCK_TRANSFER_NOT_FOUND");
+  if (t.status === "completed") return { ...t, replayed: true };
+  if (t.status !== "draft") throw new StockError(409, "Only a draft transfer can be completed.", "STOCK_TRANSFER_STATE_INVALID");
+
+  await postStockMovement(client,{ ...c, permissions: [...new Set([...(c.permissions || []), "stock.issue"])] },{
+    movementType:"issue",itemId:t.item_id,warehouseId:t.source_warehouse_id,warehouseLocationId:t.source_location_id,batchId:t.batch_id,quantity:t.quantity,
+    referenceType:"stock_transfer",referenceId:t.id,reason:"Transfer issue",idempotencyKey:`transfer:${t.id}:issue`,
+  });
+  await postStockMovement(client,{ ...c, permissions: [...new Set([...(c.permissions || []), "stock.receive"])] },{
+    movementType:"receipt",itemId:t.item_id,warehouseId:t.destination_warehouse_id,warehouseLocationId:t.destination_location_id,batchId:t.batch_id,quantity:t.quantity,
+    referenceType:"stock_transfer",referenceId:t.id,reason:"Transfer receipt",idempotencyKey:`transfer:${t.id}:receipt`,
+  });
   const done = await client.query(
     `UPDATE tenant.stock_transfers SET status='completed',completed_by=$4,completed_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-    [c.organizationId, c.companyId, id, c.userId],
+    [c.organizationId,c.companyId,id,c.userId],
   );
-  return done.rows[0];
+  return { ...done.rows[0], replayed: false };
 }
 
 // Diagnostic/repair for the historical stock_balances drift Prompt 11/12
@@ -311,4 +307,176 @@ export async function diagnoseStockBalanceDrift(client, c, { repair = false } = 
     repaired.push({ ...mismatch, balanceAfter: result.rows[0] });
   }
   return { dryRun: false, mismatchCount: mismatches.length, mismatches, repaired };
+}
+// F112-F114 governed reservation and availability primitives. The stock ledger
+// remains the quantity source of truth; reservations only adjust
+// stock_balances.reserved_quantity and never invent a stock movement.
+export async function getStockAvailability(client, c, input = {}) {
+  need(c, "stock.view");
+  if (!input.itemId) throw new StockError(400, "Item is required.", "STOCK_ITEM_REQUIRED");
+  const values = [c.organizationId, c.companyId, input.itemId];
+  let filter = "";
+  if (input.warehouseId) { values.push(input.warehouseId); filter += ` AND warehouse_id=$${values.length}`; }
+  if (input.warehouseLocationId) { values.push(input.warehouseLocationId); filter += ` AND warehouse_location_id=$${values.length}`; }
+  if (input.batchId) { values.push(input.batchId); filter += ` AND batch_id=$${values.length}`; }
+  const { rows } = await client.query(
+    `SELECT item_id,${input.warehouseId ? "warehouse_id" : "NULL::uuid AS warehouse_id"},
+            COALESCE(sum(quantity),0)::text AS on_hand_quantity,
+            COALESCE(sum(reserved_quantity),0)::text AS reserved_quantity,
+            COALESCE(sum(quantity-reserved_quantity),0)::text AS available_quantity,
+            COALESCE(sum(CASE WHEN quantity-reserved_quantity>0 THEN quantity-reserved_quantity ELSE 0 END),0)::text AS available_to_promise
+       FROM tenant.stock_balances
+      WHERE organization_id=$1 AND company_id=$2 AND item_id=$3${filter}
+      GROUP BY item_id${input.warehouseId ? ",warehouse_id" : ""}`,
+    values,
+  );
+  const row = rows[0] || {
+    item_id: input.itemId,
+    warehouse_id: input.warehouseId || null,
+    on_hand_quantity: "0",
+    reserved_quantity: "0",
+    available_quantity: "0",
+    available_to_promise: "0",
+  };
+  const requested = input.requestedQuantity == null || input.requestedQuantity === "" ? null : num(input.requestedQuantity, "Requested quantity");
+  return {
+    itemId: row.item_id,
+    warehouseId: row.warehouse_id,
+    onHandQuantity: row.on_hand_quantity,
+    reservedQuantity: row.reserved_quantity,
+    availableQuantity: row.available_quantity,
+    availableToPromise: row.available_to_promise,
+    requestedQuantity: requested,
+    canPromise: requested == null ? null : Number(row.available_to_promise) >= requested,
+  };
+}
+
+export async function reserveStock(client, c, input = {}) {
+  need(c, "stock.reserve");
+  const quantity = num(input.quantity, "Quantity");
+  if (!input.itemId || !input.warehouseId)
+    throw new StockError(400, "Item and warehouse are required for a reservation.", "STOCK_RESERVATION_SCOPE_REQUIRED");
+  if (!input.referenceType || !input.referenceId)
+    throw new StockError(400, "Reservation reference type and reference id are required.", "STOCK_RESERVATION_REFERENCE_REQUIRED");
+  await stockDimension(client, c, {
+    itemId: input.itemId,
+    warehouseId: input.warehouseId,
+    warehouseLocationId: input.warehouseLocationId || null,
+    batchId: input.batchId || null,
+  });
+  const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
+  if (idempotencyKey) {
+    const replay = await client.query(
+      `SELECT * FROM tenant.stock_reservations WHERE organization_id=$1 AND idempotency_key=$2 LIMIT 1`,
+      [c.organizationId, idempotencyKey],
+    );
+    if (replay.rows[0]) return { ...replay.rows[0], replayed: true };
+  }
+  const values = [c.organizationId, c.companyId, input.itemId, input.warehouseId];
+  let dimensionFilter = "";
+  if (input.warehouseLocationId) { values.push(input.warehouseLocationId); dimensionFilter += ` AND warehouse_location_id=$${values.length}`; }
+  if (input.batchId) { values.push(input.batchId); dimensionFilter += ` AND batch_id=$${values.length}`; }
+  const balances = await client.query(
+    `SELECT * FROM tenant.stock_balances
+      WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4${dimensionFilter}
+        AND quantity-reserved_quantity >= $${values.length + 1}
+      ORDER BY (quantity-reserved_quantity) DESC,updated_at ASC
+      LIMIT 1 FOR UPDATE`,
+    [...values, quantity],
+  );
+  const balance = balances.rows[0];
+  if (!balance)
+    throw new StockError(409, "Insufficient available stock for this reservation.", "STOCK_RESERVATION_INSUFFICIENT");
+  const created = await client.query(
+    `INSERT INTO tenant.stock_reservations(
+       organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,
+       reference_type,reference_id,status,reserved_by,idempotency_key,updated_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,now()) RETURNING *`,
+    [c.organizationId,c.companyId,input.itemId,input.warehouseId,balance.warehouse_location_id,balance.batch_id,
+     quantity,String(input.referenceType).slice(0,100),input.referenceId,c.userId,idempotencyKey],
+  );
+  await client.query(
+    `UPDATE tenant.stock_balances SET reserved_quantity=reserved_quantity+$7,updated_at=now()
+      WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4
+        AND warehouse_location_id IS NOT DISTINCT FROM $5 AND batch_id IS NOT DISTINCT FROM $6`,
+    [c.organizationId,c.companyId,input.itemId,input.warehouseId,balance.warehouse_location_id,balance.batch_id,quantity],
+  );
+  return { ...created.rows[0], replayed: false };
+}
+
+export async function releaseStockReservation(client, c, id, { status = "released" } = {}) {
+  need(c, "stock.reserve");
+  if (!new Set(["released", "cancelled", "consumed"]).has(status))
+    throw new StockError(400, "Reservation close status is invalid.", "STOCK_RESERVATION_STATUS_INVALID");
+  const found = await client.query(
+    `SELECT * FROM tenant.stock_reservations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
+    [c.organizationId,c.companyId,id],
+  );
+  const reservation = found.rows[0];
+  if (!reservation) throw new StockError(404, "Reservation not found.", "STOCK_RESERVATION_NOT_FOUND");
+  if (reservation.status !== "active") return reservation;
+  const balance = await client.query(
+    `SELECT reserved_quantity FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4
+       AND warehouse_location_id IS NOT DISTINCT FROM $5 AND batch_id IS NOT DISTINCT FROM $6 FOR UPDATE`,
+    [c.organizationId,c.companyId,reservation.item_id,reservation.warehouse_id,reservation.warehouse_location_id,reservation.batch_id],
+  );
+  if (!balance.rows[0] || Number(balance.rows[0].reserved_quantity) < Number(reservation.quantity))
+    throw new StockError(409, "Reservation balance is inconsistent; run stock diagnostics before releasing it.", "STOCK_RESERVATION_DRIFT");
+  await client.query(
+    `UPDATE tenant.stock_balances SET reserved_quantity=reserved_quantity-$7,updated_at=now()
+      WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4
+        AND warehouse_location_id IS NOT DISTINCT FROM $5 AND batch_id IS NOT DISTINCT FROM $6`,
+    [c.organizationId,c.companyId,reservation.item_id,reservation.warehouse_id,reservation.warehouse_location_id,reservation.batch_id,reservation.quantity],
+  );
+  const closed = await client.query(
+    `UPDATE tenant.stock_reservations SET status=$4,released_at=now(),updated_at=now()
+      WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
+    [c.organizationId,c.companyId,id,status],
+  );
+  return closed.rows[0];
+}
+
+export async function listStockReorderCandidates(client, c, { limit = 100 } = {}) {
+  need(c, "stock.view");
+  const { rows } = await client.query(
+    `SELECT rule.id AS reorder_rule_id,rule.item_id,rule.warehouse_id,rule.preferred_supplier_id,
+            rule.reorder_quantity,rule.minimum_quantity,rule.maximum_quantity,rule.lead_time_days,
+            COALESCE(sum(balance.quantity),0)::text AS on_hand_quantity,
+            COALESCE(sum(balance.reserved_quantity),0)::text AS reserved_quantity,
+            COALESCE(sum(balance.quantity-balance.reserved_quantity),0)::text AS available_quantity
+       FROM tenant.stock_reorder_rules rule
+       LEFT JOIN tenant.stock_balances balance
+         ON balance.organization_id=rule.organization_id AND balance.company_id=rule.company_id
+        AND balance.item_id=rule.item_id AND balance.warehouse_id=rule.warehouse_id
+      WHERE rule.organization_id=$1 AND rule.company_id=$2 AND rule.active
+      GROUP BY rule.id
+     HAVING COALESCE(sum(balance.quantity-balance.reserved_quantity),0) <= rule.minimum_quantity
+      ORDER BY (rule.minimum_quantity-COALESCE(sum(balance.quantity-balance.reserved_quantity),0)) DESC,rule.created_at
+      LIMIT $3`,
+    [c.organizationId,c.companyId,Math.min(Math.max(Number(limit)||100,1),250)],
+  );
+  return rows.map((row) => ({
+    reorderRuleId: row.reorder_rule_id,
+    itemId: row.item_id,
+    warehouseId: row.warehouse_id,
+    preferredSupplierId: row.preferred_supplier_id,
+    reorderQuantity: row.reorder_quantity,
+    minimumQuantity: row.minimum_quantity,
+    maximumQuantity: row.maximum_quantity,
+    leadTimeDays: row.lead_time_days,
+    onHandQuantity: row.on_hand_quantity,
+    reservedQuantity: row.reserved_quantity,
+    availableQuantity: row.available_quantity,
+  }));
+}
+
+export async function listStockOperationOptions(client,c){
+  need(c,"stock.view");
+  const [items,warehouses,locations,batches]=await Promise.all([
+    client.query(`SELECT id,code,name FROM tenant.items WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 500`,[c.organizationId,c.companyId]),
+    client.query(`SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND company_id=$2 ORDER BY name LIMIT 200`,[c.organizationId,c.companyId]),
+    client.query(`SELECT l.id,l.code,l.name,l.warehouse_id FROM tenant.warehouse_locations l JOIN tenant.warehouses w ON w.organization_id=l.organization_id AND w.id=l.warehouse_id WHERE l.organization_id=$1 AND l.status='active' AND w.company_id=$2 AND w.status='active' ORDER BY w.code,l.code LIMIT 1000`,[c.organizationId,c.companyId]),
+    client.query(`SELECT id,batch_number AS code,batch_number AS name,item_id FROM tenant.stock_batches WHERE organization_id=$1 AND company_id=$2 AND status='active' ORDER BY created_at DESC LIMIT 500`,[c.organizationId,c.companyId]),
+  ]);
+  return {items:items.rows,warehouses:warehouses.rows,locations:locations.rows,batches:batches.rows};
 }

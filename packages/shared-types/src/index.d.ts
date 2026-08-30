@@ -6,6 +6,8 @@ export const BUSINESS_DATA_RESOURCE_KEYS: readonly [
   "units-of-measure",
   "item-groups",
   "items",
+  "item-variants",
+  "item-uom-conversions",
   "tax-categories",
   "tax-rates",
   "warehouses",

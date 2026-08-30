@@ -330,3 +330,42 @@ export * from "./modules/point-of-sale/index.js";
 export * from "./modules/quality/index.js";
 export * from "./modules/support/index.js";
 export * from "./modules/hr-payroll/index.js";
+// Pass 1 F015-F114 public API declarations.
+export function listCrmTasks(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
+export function getCrmTask(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
+export function createCrmTask(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function updateCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
+export function startCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
+export function completeCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
+export function cancelCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
+export function listCrmTaskHistory(client: QueryClient, context: any, id: string): Promise<any[]>;
+
+export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
+export function recordSalesAdvancePayment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function createSalesDropShipRequest(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function createSalesCommissionRule(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function upsertSalesPriceListItem(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function upsertSalesCustomerPrice(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function listSalesPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
+export function getSalesOrderLineReservationContext(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function listSalesPass1CrossModuleOptions(client: QueryClient, salesContext: any, procurementContext: any): Promise<Record<string, any[]>>;
+export function createSalesDropShipWithSupplierValidation(client: QueryClient, salesContext: any, procurementContext: any, input?: Record<string, unknown>): Promise<any>;
+export function checkSalesOrderLineAvailability(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
+export function reserveSalesOrderLineFromStock(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
+
+export function listProcurementPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
+export function upsertSupplierPurchasePrice(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function createProcurementLandedCost(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function upsertSupplierLeadTime(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function createProcurementReorderRequest(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function createProcurementSubcontractOrder(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function listProcurementPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
+export function generateReorderPurchasingRequests(client: QueryClient, stockContext: any, procurementContext: any, options?: { limit?: number; asOf?: Date }): Promise<{ candidates: number; createdOrReplayed: number; rows: any[] }>;
+
+export function getStockAvailability(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function reserveStock(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function releaseStockReservation(client: QueryClient, context: any, id: string, options?: { status?: "released" | "cancelled" | "consumed" }): Promise<any>;
+export function listStockReorderCandidates(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
+export function listStockOperationOptions(client: QueryClient, context: any): Promise<Record<string, any[]>>;
