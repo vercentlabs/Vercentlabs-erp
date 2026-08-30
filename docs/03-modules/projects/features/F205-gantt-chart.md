@@ -4,171 +4,207 @@
 - Canonical ID: `F205`
 - Canonical name: **Gantt chart**
 - Module: **Projects**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `PRJ-CAP-002`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+Provide interactive Gantt planning with WBS hierarchy, dependencies, milestones, baseline/current dates, keyboard/non-drag alternatives and schedule conflict feedback.
+
+**Non-goal:** specification readiness does not certify current implementation, and Projects does not take private-state ownership from Sales, Procurement, Stock, HR/Payroll or Accounting.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+- Delivery outcome: project work, schedule, resources and progress remain coherent and explainable.
+- Control outcome: approvals, billing eligibility and close/reopen rules cannot be bypassed.
+- Financial outcome: project costs/revenue/profitability reconcile to authoritative sources.
+- Readiness outcome: specification is independently gated from implementation/product readiness.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+- Project manager owns plan, delivery and exceptions.
+- Team member executes tasks and submits time/expenses.
+- Resource manager/PMO owns capacity and portfolio controls.
+- Project controller/billing/finance validates budgets, actuals, invoices and profitability.
+- Negative case: unauthorized users cannot infer customer contracts, employee allocation/time, rates, margin or restricted documents/comments.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+- Projects dashboard, portfolio/project list, project 360, WBS/Gantt/Kanban/calendar, resource/capacity, time/expense, budget/cost/billing/profitability, risks/issues and reports.
+- Global search/command palette and durable deep links.
+- Contextual entry from Sales order/customer, Procurement, Stock material movements, HR resources/time and Accounting invoice/reconciliation where authorized.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+- `PRJ-P6-BE-025` — official benchmark evidence in `BENCHMARK_REGISTER.csv`.
+- `PRJ-P6-BE-026` — official benchmark evidence in `BENCHMARK_REGISTER.csv`.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+- `REQUIRED`: mature work planning, resource, actual cost/revenue, billing, collaboration and reporting controls.
+- `DIFFERENTIATOR`: one integrated project-to-cash control plane without copying vendor-specific object names.
+- `NOT_APPLICABLE`: vendor licensing/object names and functionality outside canonical scope.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Gantt chart** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+Independent omission review covered hierarchy/dependency cycles, baselines, calendars, resource overallocation, approvals, locks/reopen, commitments/actuals, billing duplication, FX/tax handoff, project close/reopen, audit, responsive/mobile UX, collaboration visibility, reconciliation and scale behavior expected for **Gantt chart**. No material expectation is silently omitted because the canonical title is short.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F205-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+- `F205-CAP-001` — Gantt chart MUST provide interactive Gantt planning with WBS hierarchy, dependencies, milestones, baseline/current dates, keyboard/non-drag alternatives and schedule conflict feedback.
+- `F205-CAP-002` — Gantt chart MUST cover lifecycle, permissions, approvals, schedule/baseline semantics, concurrency, retry/reversal, audit, reporting, responsive UX and scale; the canonical title is a traceability anchor, not the whole capability.
+- `F205-CAP-003` — Gantt chart MUST preserve Projects ownership of project delivery state while Sales, Procurement, Stock, HR/Payroll and Accounting effects use public contracts rather than private-table mutation.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F205-FR-###` and `F205-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+- `F205-FR-001` — The system MUST provide a server-backed Gantt chart workflow covering success, validation, permission, dependency/capacity, billing/period, conflict, downstream failure, retry/reversal and audit states.
+- `F205-FR-002` — Every material Gantt chart action MUST preserve actor, effective/posting time, reason, source project/WBS/task/baseline/contract, prior/new state or immutable event, and downstream lineage.
+- `F205-FR-003` — Gantt chart MUST remain usable at enterprise project/task/time/financial volumes using bounded queries, pagination/virtualization, async jobs and stable transitions where appropriate.
+- `F205-US-001` — As an authorized project manager/controller/team member, I can perform Gantt chart with the exact work, schedule, resource, customer and financial context needed for my role.
+- `F205-US-002` — As a PMO/resource/finance approver, I can review exceptions, provenance, approvals, variances, history and reconciliation for Gantt chart within permitted company/project/team scope.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F205-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+- `F205-FLOW-001` — The governed lifecycle for Gantt chart MUST follow ACTIVE/VALID -> controlled update/closure; historical delivery and financial facts remain reproducible with explicit guards and no silent historical rewrite.
+- `F205-FLOW-002` — Validation, permission, dependency/capacity, concurrent update, billing eligibility, period lock and downstream failures for Gantt chart MUST be actionable and safely retryable without duplicate cost, time, stock, procurement or invoice effects.
+
+Lifecycle reference: `ACTIVE/VALID -> controlled update/closure; historical delivery and financial facts remain reproducible`.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+- Aggregate owner: Projects domain service for **Gantt chart**.
+- Lifecycle: `ACTIVE/VALID -> controlled update/closure; historical delivery and financial facts remain reproducible`.
+- Transitions require current state/version, authorization, applicable dependency/resource/billing/period guards.
+- Approved/posted facts are corrected through controlled revision/reversal, not silent rewrite.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F205-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+- `F205-DATA-001` — The Gantt chart model MUST define organization/company/branch, project/customer/order, WBS/task/milestone/resource, currency/rate/budget/billing and source-document dimensions as applicable, with stable keys, constraints, indexes, retention and lineage.
+- `F205-DATA-002` — Dates, durations, effort, quantity/UOM, currency/FX, cost/bill rates, baseline/version, approval and source values that determine historical Gantt chart interpretation MUST remain reproducible after master/configuration changes.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F205-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+- `F205-VAL-001` — All Gantt chart commands MUST validate tenant/company/project scope, lifecycle, date/range/precision, hierarchy/dependency integrity, resource/financial eligibility and cross-reference integrity server-side.
+- `F205-VAL-002` — Gantt chart failures MUST expose stable domain error codes and corrective guidance without leaking unauthorized customer, employee, cost/rate, margin, document or cross-project data.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F205-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+- `F205-BR-001` — The Projects domain command responsible for Gantt chart is authoritative for project delivery rules; UI, API, import, automation and AI paths MUST reuse the same deterministic invariant checks.
+- `F205-BR-002` — Gantt chart MUST preserve approved baselines, source links and snapshotted rates/eligibility inputs needed to reproduce historical schedule, cost, revenue and billing outcomes after configuration changes.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F205-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+- `F205-CALC-001` — All scheduling, allocation, roll-up, progress, budget/cost/revenue, billing, FX, margin, ETC/EAC/VAC or variance calculations applicable to Gantt chart MUST use deterministic decimal/date/calendar rules, explicit rounding and reproducible inputs; AI is never authoritative.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F205-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
+- `F205-UX-001` — The Gantt chart workspace MUST expose identity, lifecycle, WBS/task/resource/customer context, schedule, financial facts as permitted, exceptions, related records and history in one coherent Projects shell.
+- `F205-UX-002` — Desktop/tablet/phone views for Gantt chart MUST define loading, empty, validation, permission, dependency/overallocation, stale/conflict, offline/retry, destructive confirmation and success states.
+- `F205-UX-003` — Planning-heavy Gantt chart interactions MUST support keyboard/touch operation, non-drag alternatives, visible focus, non-color status cues, screen-reader semantics and dense-view alternatives.
 
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+Use the appropriate archetype: portfolio/list, project 360, WBS tree, Gantt, Kanban, calendar, resource heatmap, weekly timesheet, budget/cost ledger, billing queue, profitability dashboard, risk/issue register or report.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+Lists/work queues define server pagination/sorting, personalized columns/density, permission-safe counts, bulk eligibility, row actions and virtualization/async thresholds.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+Search defines project/customer/WBS/task/resource/milestone/status/date/budget/billing/risk fields, stable filters/facets/sorts, saved views and authorization-safe counts.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+The 360 keeps identity, customer/commercial source, lifecycle, plan/progress, team, time/expenses/material/procurement, budget/cost/revenue/billing, risks/issues/documents/comments and audit history together with permission-based sections.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+Create/quick-create defines required/default fields, template or source-record selection, duplicate/numbering rules, validation summary and post-create navigation; quick create cannot bypass full server invariants.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+Editing distinguishes mutable plans from approved/posted historical facts. Baseline, approved time/expense, invoiced eligibility, source IDs and audit facts require governed revision/reopen/reversal rather than silent inline edit.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+Bulk actions show eligibility before mutation, operate through per-record authorization/domain commands, support partial-result reporting and never bypass approvals or lifecycle rules.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+Primary/contextual/destructive actions are permission/state aware; complete/close/reopen, approve/reject, invoice, delete/archive and schedule-changing actions require confirmation/reason/evidence as policy dictates.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+Related navigation uses public IDs/contracts to customer/order, procurement documents, Stock movements, HR resources, accounting invoices/ledger and project children without private cross-module writes.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F205-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+- `F205-AUTO-001` — Automation MAY create proposals/work for Gantt chart only through idempotent Projects/public commands; it MUST NOT directly mutate source ledgers, stock balances, payroll, customer invoices or accounting entries.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F205-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+- `F205-APP-001` — Where policy requires approval for budgets, time/expenses, billing, project closure/reopen, high-risk changes or Gantt chart, approval MUST bind to the exact version/state/value and prohibit self-approval where configured.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F205-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+- `F205-NOTIF-001` — Notifications for Gantt chart MUST be event-driven, deduplicated, preference/permission aware and deep-link to the exact task, approval, risk, overrun or billing item without exposing restricted data.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+Attachments/generated documents define file type/size/security scanning, version/retention, project/task linkage, preview/download permissions, generated invoice/report provenance and audit.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+Import/export defines mapping, preview/dry-run, hierarchy/source resolution, duplicates, row-level errors, background-job thresholds, resumability, permission-safe exports and audit; migrations preserve stable source IDs.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F205-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+- `F205-REP-001` — Reports/KPIs for Gantt chart MUST define grain, filters, baseline/as-of/freshness semantics, drilldown and reconciliation to authoritative project, Sales, Procurement, Stock, HR and Accounting records.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F205-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+- `F205-AI-001` — AI for Gantt chart is limited to assist/recommend/generate workflows with provenance, freshness, uncertainty, explanation and permission filtering; AI MUST NOT be authoritative for authorization, schedule legality, approval, billable eligibility, project accounting, invoice or source-ledger truth.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F205-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+- `F205-SEC-001` — Every Gantt chart query and mutation MUST enforce authentication, module entitlement, organization/company/project/team/record scope, action permission and server-side field visibility.
+- `F205-SEC-002` — Customer contracts, employee allocations/time, costs/rates/margin, approvals and restricted documents/comments in Gantt chart MUST be field/action restricted and protected against IDOR, aggregate leakage and unauthorized export.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+Scope is organization -> company -> project -> team/role/record, with explicit customer/internal visibility and finance/document field controls. Cross-company aggregation requires elevated permission and never leaks unauthorized detail through totals.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+Audit records actor/channel/time/reason, before/after or immutable event, correlation/idempotency IDs, approval/baseline/reversal/invoice links and retention for project, schedule, resource, time/expense, budget, billing, risk and collaboration changes.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+Use optimistic versions/expected state for collaborative edits and approvals; hierarchy/dependency, allocation, budget, billing and close/reopen mutations define atomicity, stale-write errors, retry policy and visible conflict recovery.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+Externally visible billing/procurement/stock/accounting effects require source-scoped idempotency keys. Replay returns prior outcome or safe no-op; retries cannot duplicate invoices, material cost, procurement links, time approvals or financial effects.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F205-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+- `F205-INT-001` — Inbound cross-module requests affecting Gantt chart MUST call a versioned Projects public command with authorization, idempotency/source reference, validation and explicit success/failure result.
+- `F205-INT-002` — Outbound effects from Gantt chart MUST use public commands/events/orchestration with retry, reversal/compensation and reconciliation; Projects MUST NOT mutate another module’s private tables.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F205-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+- `F205-API-001` — Gantt chart mutation APIs MUST define request schema, authorization, idempotency, expected state/version, stable errors, audit/outbox effects and compatibility semantics.
+- `F205-API-002` — Gantt chart query APIs MUST define project/WBS/resource/financial grain, pagination/filter/sort, as-of/baseline semantics, authorization-safe aggregates and stable responses.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+Mobile prioritizes assigned work, task updates, time/expense capture, approvals, issues/risks and project status. Offline write boundaries are explicit; queued mutations show pending/retry/conflict and never pretend downstream billing/accounting succeeded.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+Desktop supports dense WBS/Gantt/financial workbenches; tablet reflows to split-pane/cards; phone uses guided cards and summarized finance. Critical actions remain available without horizontal-table dependency.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+WCAG 2.2 AA intent: semantic headings/tables/trees, keyboard operation, focus management, accessible drag alternatives, screen-reader labels/status announcements, target sizing, contrast, reduced motion and inline/error summaries.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+Reference `docs/11-visual-assets/wireframes/PROJECTS_PASS6_WORKSPACES.md` for desktop/tablet/phone project 360, WBS/Gantt, task board, resource plan, timesheet, financial cockpit and risk/report states.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F205-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+- `F205-PERF-001` — Gantt chart MUST define performance envelopes for 0/1/100/10k/1m project tasks, time entries, cost lines or reporting facts as applicable, with bounded synchronous work and explicit async thresholds.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F205-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+- `F205-OBS-001` — Gantt chart MUST emit structured logs/metrics/traces for failures, retries, lock contention, schedule recalculation/job lag, approval/billing drift and reconciliation using correlation IDs.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+Cover zero/huge projects, deep WBS, dependency cycles, DST/holiday calendars, split allocations, overlapping time, negative/zero billing, partial invoices, FX changes, deleted users/customers, permission changes, late actuals, locked periods, stale baselines, duplicate retries, archived projects and downstream outages.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+- `PRJ-P6-CODE-013` — verified current-code evidence: `apps/web/src/app/(app)/projects/[resource]/page.tsx`.
+- Evidence is a foundation/implementation observation only; it does not certify the target requirement set.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+Current code has meaningful project foundations, but enterprise completeness remains unverified for several capabilities including templates, deep WBS/dependency scheduling, rich Gantt/Kanban/calendar, capacity planning, materials, issues/risks/documents/collaboration, billing variants, reconciliation depth, mobile/offline and broad negative/security/E2E coverage. Exact implementation gaps are target requirements minus verified evidence.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+Later implementation should sequence shared project data/security -> WBS/scheduling/resources -> time/expense/material/procurement -> budgets/cost/revenue -> billing/invoices/profitability -> risks/collaboration -> dashboards/reports/mobile -> cross-module certification. This pass writes no product source.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated plan includes unit/domain hierarchy and billing rules; DB constraints/RLS; authorization-negative/IDOR; schedule/resource/budget property tests; API contracts; idempotency/concurrency; cross-module reconciliation; migrations/import; performance and failure-injection tests.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F205-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+- `F205-E2E-001` — E2E MUST prove an authorized persona can complete the primary Gantt chart journey and observe correct schedule/resource/state/history and downstream effects.
+- `F205-E2E-002` — E2E MUST cover unauthorized access, stale/concurrent/replayed action and at least one relevant dependency, allocation conflict, rejection, partial billing, reversal, close/reopen or reconciliation path for Gantt chart.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F205-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+- `F205-UAT-001` — A real project manager/controller/team member MUST execute the primary Gantt chart job with realistic data on appropriate desktop/tablet/mobile form factors, capturing visible and data evidence.
+- `F205-UAT-002` — A PMO/resource manager plus relevant Sales/Procurement/Stock/HR/Finance persona MUST verify permissions, exceptions, reversal/reconciliation, audit and cross-module outcomes for Gantt chart.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+**Gantt chart is done only when** all approved requirements are implemented through normal authorized commands, required responsive/accessibility states exist, audit/retry/reversal/reconciliation behavior is proven, automated/E2E/UAT evidence passes and parent capability/journey gates pass. A table/API/page alone is insufficient.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No unresolved material placeholder blocks `SPECIFICATION_READY`. Implementation-time product choices (for example exact visual density or optional scheduling heuristics) must stay within the approved invariants and be recorded through change control.

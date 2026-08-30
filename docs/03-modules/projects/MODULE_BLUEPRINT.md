@@ -4,10 +4,10 @@
 - Canonical range: F193–F230
 - Feature count: 38
 - Product boundary: Project planning, delivery, resource/cost control and project-to-cash
-- Specification status: `UNSPECIFIED`
+- Specification status: `SPECIFICATION_READY`
 
-## Pass exit criteria
-Research complete; capability map approved; all canonical dossiers in this range fully decomposed; primary/alternate/exception/reversal flows modelled; data/API/security/integration contracts written; desktop/tablet/mobile/accessibility behavior specified; tests/UAT written; current-code gaps mapped; red-team omission review passed.
+## Enterprise target
+Projects is the delivery-and-analytics control plane: cycle-safe WBS/scheduling, resources/time/expense/material/procurement actuals, approved budgets, deterministic billing eligibility, live reconciled profitability, risk/collaboration and management reporting. Source ledgers remain owned by their modules.
 
-## Architecture rule
-F-IDs are traceability anchors. Implementation should converge on coherent module capabilities and public commands/queries rather than one directory/service per F-ID.
+## Pass exit decision
+Research, decomposition, capability modelling, UX/security/data/API/integration contracts, testing/UAT, current-code audit and omission review are complete for specification purposes. Product implementation/readiness is not certified.
