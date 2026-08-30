@@ -3,11 +3,13 @@
 - Pass: 8
 - Canonical range: F268–F307
 - Feature count: 40
-- Product boundary: Retail transaction execution, payments, offline resilience and stock/accounting effects
-- Specification status: `UNSPECIFIED`
+- Product boundary: Retail checkout, tenders, returns, inventory effects, offline continuity, cash/shift control and POS-to-books
+- Specification status: `SPECIFICATION_READY`
 
-## Pass exit criteria
-Research complete; capability map approved; all canonical dossiers in this range fully decomposed; primary/alternate/exception/reversal flows modelled; data/API/security/integration contracts written; desktop/tablet/mobile/accessibility behavior specified; tests/UAT written; current-code gaps mapped; red-team omission review passed.
-
-## Architecture rule
-F-IDs are traceability anchors. Implementation should converge on coherent module capabilities and public commands/queries rather than one directory/service per F-ID.
+## Architecture invariants
+- F-IDs are traceability anchors; implementation is capability-oriented.
+- One stable POS transaction identity/idempotency key follows sale/payment/stock/accounting/return/offline sync effects.
+- Payment-provider truth, Stock quantity/valuation, Accounting journals/tax/period locks and authorization remain authoritative in their owning systems/modules.
+- Completed transaction and closed-shift/Z facts are immutable; corrections are linked void/refund/reversal/reconciliation events.
+- Offline is bounded and conflict-safe; synchronization reauthorizes/revalidates and never duplicates business effect.
+- POS is terminal/tablet-first, fast, keyboard/touch/scanner accessible and resilient to peripheral/network failure.

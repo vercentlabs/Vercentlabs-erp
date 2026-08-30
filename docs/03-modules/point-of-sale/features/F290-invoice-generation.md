@@ -4,171 +4,189 @@
 - Canonical ID: `F290`
 - Canonical name: **Invoice generation**
 - Module: **Point of Sale**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `POS-CAP-004`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+Invoice generation exists to provide invoice request/generation handoff using completed-sale tax/customer snapshot and idempotent Sales/Accounting/fiscal contract. Non-goal: POS does not become the private source of truth for Stock balances/valuation, customer masters, payment-provider truth or Accounting journals.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+- Fast, unambiguous operator completion for Invoice generation.
+- Exactly-once financial/physical effects and transparent exception recovery.
+- Reconciliation from POS transaction identity to payment, Stock, cash/shift and Accounting evidence.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+Primary personas: cashier, cashier supervisor/store manager, retail administrator, finance/reconciliation operator, customer-service/returns operator and auditor. Negative cases include unauthorized overrides, self-approval where prohibited and cross-store/terminal access.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+Entry points include store/terminal setup, cashier checkout, product search/scan, cart/tender drawer, hold queue, returns, shift/cash workspace, reconciliation queue, dashboard/report drilldown and durable transaction/shift deep links.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+- `POS-P8-BM-023-A` — captured official-source benchmark evidence.
+- `POS-P8-BM-023-B` — captured official-source benchmark evidence.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+Pass 8 adopts mature retail patterns as REQUIRED where they protect transaction/payment/stock/cash/accounting truth; vendor-specific screens/objects are not copied. See `DECISION_REGISTER.csv` entries `POS-P8-DEC-*`.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Invoice generation** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+Red-team review for **Invoice generation** covered retail edge cases beyond the short title: multi-terminal races, uncertain provider outcomes, offline replay, duplicate scans/submits, peripheral failure, overrides, original-sale linkage, cash variance, fiscal cutoffs, reconciliation, accessibility and recovery. No unresolved material placeholder remains.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F290-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+- `F290-CAP-001` — Invoice generation MUST provide invoice request/generation handoff using completed-sale tax/customer snapshot and idempotent Sales/Accounting/fiscal contract.
+- `F290-CAP-002` — Invoice generation MUST define lifecycle/state, operator/device scope, authorization, overrides/approvals, correction/reversal and immutable transaction evidence where financially relevant.
+- `F290-CAP-003` — Invoice generation MUST expose auditable public contracts/events and evidence for Stock, customer/Sales/CRM, Accounting and shared platform interactions without direct private-table mutation.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F290-FR-###` and `F290-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+- `F290-FR-001` — Authorized users MUST execute the primary Invoice generation lifecycle from a focused POS/store workspace with actionable validation and explicit state.
+- `F290-FR-002` — Users MUST inspect history, exceptions, provider/sync/reconciliation state and related sale/shift/stock/accounting evidence for Invoice generation without leaking unauthorized data.
+- `F290-FR-003` — Committed Invoice generation facts MUST be corrected through void/refund/reversal/amendment/reconciliation mechanisms rather than silent destructive edits.
+- `F290-US-001` — As an authorized cashier/operator, I can perform Invoice generation quickly and understand price/payment/stock/shift state and the next safe action.
+- `F290-US-002` — As a supervisor/auditor, I can prove who executed/overrode Invoice generation, on which store/terminal/shift, why, and how it reconciles to payment, stock and accounting truth.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F290-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+- `F290-FLOW-001` — The primary Invoice generation flow MUST validate store/terminal/shift/operator prerequisites -> authorize -> lock/version relevant transaction state -> apply one atomic POS transition -> audit -> emit idempotent public downstream intent -> show result.
+- `F290-FLOW-002` — Invoice generation MUST cover stale cart, duplicate submit, permission denial, stock conflict, device/peripheral failure, payment/network uncertainty, offline replay, downstream failure, retry, void/refund/reversal and reconciliation without duplicate business effect.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+Authoritative state model: `active cart -> suspended -> resumed/revalidated -> completed/cancelled; receipt/invoice outputs linked to completed sale`. Transitions require expected state/version, server authorization, audit and linked reversal/correction for committed facts.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F290-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+- `F290-DATA-001` — Invoice generation MUST persist stable organization/company/store/terminal/shift/transaction identifiers, status/version, actor/device, timestamps/timezone, customer/item/tender references and feature-specific values required for invoice request/generation handoff using completed-sale tax/customer snapshot and idempotent Sales/Accounting/fiscal contract.
+- `F290-DATA-002` — Invoice generation MUST retain lineage to cart/sale/line/payment/provider/stock/refund/shift/reconciliation/accounting records, overrides/approvals and correlation/idempotency/offline transaction identifiers where applicable.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F290-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+- `F290-VAL-001` — Invoice generation MUST reject malformed IDs/codes, inactive/cross-company/store references, invalid quantity/price/tender/lot/serial/provider states, duplicate identities and impossible combinations with actionable errors.
+- `F290-VAL-002` — Invoice generation MUST validate current cart/sale/shift/payment/return/offline-sync state and final Stock/payment eligibility immediately before committing financially or physically visible effects.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F290-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+- `F290-BR-001` — Invoice generation MUST obey authoritative payment, tax, pricing, stock, cash, shift, accounting and authorization rules; AI or client UI state cannot override these invariants.
+- `F290-BR-002` — Once Invoice generation contributes to a completed sale, payment, refund, closed shift, Z report or accounting batch, source history MUST remain immutable and corrections MUST link to the original fact.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F290-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+- `F290-CALC-001` — Invoice generation calculations, if applicable, MUST define currency/unit precision, rounding and reproducible deterministic formulas; otherwise the requirement records that no derived numeric result is authoritative.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F290-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
-
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+- `F290-UX-001` — Invoice generation UX MUST optimize cashier speed with clear totals/status, keyboard/touch support, exception banners, manager override path and no generic CRUD dependency for high-frequency checkout work.
+- `F290-UX-002` — Invoice generation tablet/terminal UX MUST handle scanner/printer/cash-drawer/payment-device/network state, explicit offline capability indicators and conflict-safe recovery without ambiguous completion.
+- `F290-UX-003` — Invoice generation MUST meet WCAG 2.2 AA intent with semantic labels, keyboard/focus, announced validation/status, non-color-only state, target sizing and accessible manual alternatives to scanner/touch-only actions.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+Lists/queues define cashier-speed defaults, stable sorting, store/terminal/shift scoping, exception badges, server pagination/virtualization where large, bulk actions only where safe and permission-aware row/action visibility.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+Search/filters cover product/SKU/barcode/variant/customer, transaction/receipt/provider reference, shift/store/terminal/cashier, date/tender/status/return/variance with authorization-safe counts and stable URL/saved-view state for management workspaces.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+Transaction/shift detail uses a POS 360 layout: identity/status, store-terminal-shift-cashier, customer, line pricing/tax/discount, tenders/provider states, stock movements, return/refund links, cash/reconciliation/accounting references, audit and eligible controlled actions.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+Create/quick-create covers store/terminal setup and purpose-built checkout/return initiation with required/default fields, stable transaction identity, server validation and post-create navigation; quick create cannot bypass shift/payment/stock/tax controls.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+Editable cart/configuration fields are separated from completed sale/payment/refund/closed-shift facts. Committed financial/physical facts require void/refund/reversal/reconciliation rather than silent inline edit.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+Bulk operations are limited to safe administration/report/reconciliation use cases with dry-run/preview where material. Bulk transaction/payment/refund mutation is prohibited unless a dedicated audited job explicitly preserves idempotency and per-record authorization.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+Primary/contextual/destructive actions are permission/state aware; pay/capture/void/refund, override price/discount, hold/resume, return/exchange, paid-in/out, close shift, resolve variance and post/reverse Accounting intent require confirmation/reason/manager approval as policy dictates.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+Related navigation uses stable public IDs/contracts to customer/Sales/CRM context, Stock movements/lot/serial, payment references, returns/refunds, shift/cash reconciliation and Accounting batches without private cross-module writes.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F290-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+- `F290-AUTO-001` — Automation for Invoice generation MAY prefetch/sync catalog, retry jobs, generate alerts/drafts or reconcile provider callbacks, but MUST use normal domain/system authorization, idempotency, audit and exception queues.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F290-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+- `F290-APP-001` — Approval/override-required Invoice generation transitions MUST snapshot material values, capture approver/reason/time, block prohibited self-approval and revalidate if cart/payment/return/shift facts change.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F290-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+- `F290-NOTIF-001` — Invoice generation notifications MUST be event-driven, deduplicated, permission-safe and actionable for payment uncertainty, sync conflict, stock/serial exception, cash variance, shift close or reconciliation failure as applicable.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+Generated/attached documents include receipts, invoice references, return/refund/exchange evidence, shift/Z reports, reconciliation evidence and override notes. Define original/copy status, numbering/provenance, device retry/reprint, retention and permission-safe access.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+Import/export/migration covers store/terminal config and eligible master/config snapshots with mapping, preview/dry-run, duplicate handling and audit. Completed POS/payment/shift histories require controlled migration with stable transaction identities and reconciliation.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F290-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+- `F290-REP-001` — Invoice generation reporting MUST define formula, store/terminal/shift/cashier/timezone scope, payment/return treatment, freshness, permission-safe drilldown/export and reconciliation to immutable POS facts.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F290-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+- `F290-AI-001` — AI for Invoice generation MAY improve search, explain promotions, detect anomalies/fraud signals or summarize analytics, but MUST show provenance/uncertainty and MUST NOT determine payment truth, tax, stock quantity, accounting, cash reconciliation, authorization or transition legality.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F290-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+- `F290-SEC-001` — Every Invoice generation query/command MUST enforce server-side organization, company, store, terminal, shift, role and record scope; unauthorized pricing overrides, customer data, payment references, cash values and aggregates MUST not leak.
+- `F290-SEC-002` — Sensitive Invoice generation actions MUST enforce manager override/maker-checker where configured and minimize PCI-sensitive data; raw PAN/CVV MUST NOT be stored by the ERP, and provider/token references are preferred.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+Scope is organization -> company -> store/outlet -> terminal -> shift -> transaction/record, with field controls for customer PII, provider references, override reasons, cash/tender values and cost/margin context. Cross-store consolidated views require elevated permission and authorization-safe aggregation.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+Audit records actor/device/channel/time/reason, store/terminal/shift/transaction IDs, before/after or immutable event, manager override, provider/stock/accounting source links, request/correlation/idempotency/offline IDs and linked void/refund/reversal/reconciliation events.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+Use transaction row/version locks plus Stock/public-command concurrency controls. Two terminals selling the last unit, duplicate scan/tender submit, simultaneous return, shift close during payment, or offline sync races must resolve deterministically without double charge/stock/accounting effect.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+Sale completion, provider payment/refund, Stock issue/restock, invoice/accounting posting, loyalty effect and offline sync require stable source-scoped idempotency keys. Replay returns prior outcome/safe no-op; uncertain external results stay pending/reconcilable.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F290-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+- `F290-INT-001` — Invoice generation MUST consume item/customer/price/tax/stock/payment/provider facts only through versioned public contracts with source identity, scope, validation, retry semantics and reconciliation.
+- `F290-INT-002` — Invoice generation MUST publish Stock/customer/Accounting/loyalty effects with stable source transaction identity and idempotency key; destination modules retain private-state ownership and may reject/reconcile independently.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F290-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+- `F290-API-001` — Invoice generation commands MUST define request schema, store/terminal/shift permission scope, expected state/version, idempotency for externally visible effects, domain errors, transaction boundary, audit and downstream outcomes.
+- `F290-API-002` — Invoice generation queries MUST define pagination/search/filter/sort, offline/freshness semantics where relevant, permission-safe aggregates, stable transaction IDs and compatibility/versioning behavior.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+POS is terminal/tablet-first with touch + keyboard parity, scanner/manual-code fallback, printer/payment/cash-drawer status, responsive management views and explicit offline indicator. Offline local data is encrypted/minimized and queued writes are reauthorized/revalidated on sync.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+Checkout preserves primary cart/tender actions on constrained terminals/tablets; management/detail screens reflow to cards/steps on phone. Dense tables have non-horizontal alternatives and all critical safe actions retain accessible parity.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+Target WCAG 2.2 AA: semantic controls, keyboard/focus, screen-reader announcements for scan/cart/payment state, accessible errors, contrast/target sizes, reduced motion, no color-only/payment-only cues and manual alternatives to scanner/touch gestures.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+Reference `docs/11-visual-assets/wireframes/POS_PASS8_WORKSPACES.md` for checkout, tender, return, shift, offline/conflict and management states across terminal/tablet/mobile.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F290-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+- `F290-PERF-001` — Invoice generation MUST define p95/p99 latency and behavior for peak multi-terminal checkout, 0/1/100/10k/1m records, bounded search/scan, background sync thresholds and no unbounded request-time scans.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F290-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+- `F290-OBS-001` — Invoice generation MUST emit structured logs/metrics/traces with correlation, terminal/shift/transaction/provider/offline IDs, job retry/dead-letter state, payment/sync/reconciliation exception counters and support diagnostics without sensitive card data.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+Cover duplicate barcode scans/submits, zero/large quantities, last-unit race, stale prices/promotions, expired coupons, lot/serial mismatch, printer/scanner/payment-device failure, network timeout after provider success, partial split tender, offline duplicate transaction ID, clock/timezone drift, shift-close race, over-return/refund replay, cash variance, provider settlement mismatch, closed accounting period and retry/recovery.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+- `POS-P8-CE-023` — verified current-code evidence: `apps/web/src/app/api/point-of-sale/sales/complete/route.ts`.
+- Evidence is a foundation/gap observation only; it does not certify the target requirement set.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+Current code provides meaningful foundations for store/terminal/shift, sale/payment/return/cash/reconciliation tables, transactional sale completion, Stock handoff, permissions and dashboard/routes. Enterprise gaps remain for full scanner/search/pricing/promotion/coupon UX, payment-provider lifecycle/callbacks, receipt/invoice devices, exchanges, offline/sync, loyalty, exhaustive reconciliation/accounting, mobile/peripheral recovery, security/PCI hardening, performance and E2E/UAT.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+Likely later implementation areas: `database/tenant`, `services/api/src/modules/point-of-sale`, Stock/Accounting/customer public contracts/orchestration/worker jobs, `apps/web/src/modules/point-of-sale`, shared types/SDK/permissions, provider/device adapters and comprehensive DB/security/fault-injection/E2E tests. Pass 8 writes documentation only.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated plan covers pricing/tax/discount/promotion property tests, payment/refund state machines, DB/RLS/tenant-store isolation, permissions/override negative tests, duplicate/retry/idempotency, multi-terminal stock races, provider timeout/callback fault injection, offline replay/conflict, Stock/Accounting reconciliation, cash/Z invariants, migration, performance and observability.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F290-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+- `F290-E2E-001` — Device/browser E2E MUST prove the primary authorized Invoice generation journey including visible state, persisted transaction facts, audit and Stock/payment/Accounting contract outcome as applicable.
+- `F290-E2E-002` — E2E MUST prove Invoice generation permission denial, duplicate submit, stale/conflict, network/payment uncertainty/offline replay, retry and void/refund/reversal/reconciliation without duplicate charge, stock or accounting effect.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F290-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+- `F290-UAT-001` — A realistic cashier/store operator MUST execute Invoice generation under configured device/store/shift conditions and verify visible, printed/provider, stock, cash and audit outcomes with evidence.
+- `F290-UAT-002` — A supervisor/finance/auditor MUST independently verify Invoice generation overrides/SoD, tender/cash reconciliation, return/refund control, downstream accounting and exception recovery before sign-off.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+Done means approved dossier requirements, benchmark + code evidence, capability/dependency/journey mappings, security/SoD/PCI boundary, deterministic pricing/payment/stock/cash/accounting contracts, responsive/device/offline/accessibility, test/E2E/UAT and omission/red-team gates are objectively satisfied. Specification readiness never certifies product readiness.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No unresolved material placeholder blocks specification readiness. Payment-provider, fiscal-invoice and jurisdiction-specific GST/UPI implementation choices remain configurable/integration decisions and must not weaken deterministic transaction/reconciliation contracts.
