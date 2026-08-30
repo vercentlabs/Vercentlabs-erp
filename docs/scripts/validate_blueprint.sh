@@ -9,4 +9,5 @@ python docs/scripts/validate_benchmarks.py
 python docs/scripts/validate_journeys.py
 python docs/scripts/validate_readiness.py
 python docs/scripts/validate_crm_pass1.py
+python docs/scripts/validate_sales_pass2.py
 git diff --check -- docs

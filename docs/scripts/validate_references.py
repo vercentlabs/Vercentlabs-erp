@@ -15,7 +15,7 @@ for r in rows:
     seen.add(rid); req_ids.add(rid)
     if fid not in fids: err(f'{rid}: unknown feature_id {fid}')
     if typ not in types: err(f'{rid}: unknown requirement_type {typ}')
-    m=re.fullmatch(r'(F\d{3})-([A-Z]+)-(\d{3})',rid)
+    m=re.fullmatch(r'(F\d{3})-([A-Z0-9]+)-(\d{3})',rid)
     if not m: err(f'{rid}: invalid nested requirement ID format')
     else:
         if m.group(1)!=fid: err(f'{rid}: parent feature does not match {fid}')

@@ -1,20 +1,62 @@
 # CRM Capability Pack
 
-Status: `TO_BE_MODELLED_IN_PASS_1`
-
-This pack will group sibling F-IDs into operator-facing capabilities without changing canonical identity.
+Status: `SPECIFICATION_READY`
 
 Canonical range: F001–F030
 
-Feature IDs: F001, F002, F003, F004, F005, F006, F007, F008, F009, F010, F011, F012, F013, F014, F015, F016, F017, F018, F019, F020, F021, F022, F023, F024, F025, F026, F027, F028, F029, F030
+## Capability contracts
 
-## Capability modelling checklist
-- operator jobs and personas
-- capability boundaries and aggregate ownership
-- end-to-end workflows and state machines
-- shared list/detail/create/edit experiences
-- permissions and segregation of duties
-- automation/approval/notification behavior
-- reporting/analytics/AI surfaces
-- cross-module commands/events
-- failure/retry/reversal/reconciliation behavior
+### CRM-CAP-001 — Prospect and relationship master data
+- Canonical features: `F001;F002;F003;F004;F008`
+- Personas: `REP;SDR;MGR;OPS`
+- Outcome: Trusted prospect/company/contact identity, provenance and data quality
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-002 — Lead lifecycle, qualification and prioritization
+- Canonical features: `F005;F006;F007;F027`
+- Personas: `REP;SDR;MGR;OPS`
+- Outcome: Explainable routing, qualification, lifecycle governance and prioritization
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-003 — Opportunity and pipeline governance
+- Canonical features: `F009;F010;F011;F012;F026`
+- Personas: `REP;MGR;EXEC;OPS`
+- Outcome: Governed commercial pursuit, stage flow, probability and outcomes
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-004 — Seller activity and follow-up workspace
+- Canonical features: `F013;F014;F015;F016;F017;F018;F019`
+- Personas: `REP;MGR;OPS`
+- Outcome: Permission-safe calls, meetings, tasks, reminders, notes, email and timeline
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-005 — Sales organization and coverage
+- Canonical features: `F020`
+- Personas: `REP;MGR;OPS;ADMIN`
+- Outcome: Effective-dated sales teams, territories and hierarchy semantics
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-006 — CRM data operations and customization
+- Canonical features: `F021;F028;F029`
+- Personas: `REP;MGR;OPS;ADMIN`
+- Outcome: Safe import/export, tenant metadata customization and bulk operations
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-007 — CRM conversion and Sales handoff
+- Canonical features: `F022;F023`
+- Personas: `REP;MGR;OPS`
+- Outcome: Transactional lead conversion and public-contract quotation handoff
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+### CRM-CAP-008 — Pipeline analytics and forecasting
+- Canonical features: `F024;F025;F030`
+- Personas: `REP;MGR;EXEC;OPS`
+- Outcome: Permission-safe KPIs, reproducible forecasts and governed reports
+- Boundary: the capability groups implementation/use cases without changing any canonical F-ID.
+
+## Module invariants
+- No direct private-table write into another module.
+- Server authorization precedes business mutation.
+- Import, bulk, automation and AI reuse the same domain commands as interactive UI.
+- Historical stage/assignment/probability/conversion/forecast facts remain reproducible.
+- F023 hands off to Sales F036 through a public contract; Sales owns quotation truth.
