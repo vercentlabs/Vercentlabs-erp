@@ -1,111 +1,110 @@
 # F193 — Projects
 
-
-## 1. Identity and traceability
+## [SPEC-IDENTITY] Identity and traceability
 - Canonical ID: `F193`
 - Canonical name: **Projects**
 - Module: **Projects**
 - Specification status: `UNSPECIFIED`
-- Implementation status: `NOT_STARTED` (must be replaced by evidence during code audit)
+- Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
+- Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
-## 2. Product intent and measurable outcomes
-TBD during module pass.
+## [SPEC-INTENT] Product intent
+TBD during the module specification pass.
 
-## 3. Personas, jobs to be done and permissions
-TBD.
+## [SPEC-OUTCOMES] Measurable outcomes
+Define operator, business, control and system outcomes with measurable acceptance criteria.
 
-## 4. Scope, non-goals and assumptions
-TBD.
+## [SPEC-PERSONAS] Personas, jobs to be done and permissions
+Define personas, JTBD, role expectations, approval authority and negative-permission cases.
 
-## 5. Benchmark research
-Record official-product evidence and classify each finding `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+## [SPEC-SCOPE] Scope, non-goals, assumptions and dependencies
+Define in-scope behavior, explicit non-goals, assumptions and upstream/downstream dependencies.
 
-### Omission Gate
-What would an experienced enterprise operator reasonably expect from **Projects** that the short canonical name does not explicitly say?
+## [SPEC-ENTRY-POINTS] Entry points and discoverability
+Define navigation, global search/command entry, deep links, related-record entry and contextual creation paths.
 
-## 6. Sub-capabilities and requirements
-Use nested traceability IDs such as `F193-FR-001`, `F193-UX-001`, `F193-BR-001`, `F193-SEC-001`, `F193-AI-001`, `F193-INT-001`, `F193-E2E-001`.
+## [SPEC-BENCHMARK] Benchmark research
+Record evidence IDs from `BENCHMARK_REGISTER.csv`; classify material findings `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
 
-### Functional requirements
-TBD.
-### Business rules and calculations
-TBD.
-### Data requirements
-TBD.
-### Security requirements
-TBD.
-### Integration requirements
-TBD.
+## [SPEC-OMISSION-GATE] Enterprise omission gate
+What would an experienced enterprise operator reasonably expect from **Projects** that the short canonical name does not explicitly state? Every material omission must be decided, not silently ignored.
 
-## 7. User journeys
-### Primary flow
-TBD.
-### Alternate flows
-TBD.
-### Exception/failure flows
-TBD.
-### Reversal/compensation flows
-TBD.
-### Recovery/retry flows
-TBD.
+## [SPEC-SUBCAPABILITIES] Sub-capabilities
+Decompose coherent operator-facing sub-capabilities and map them to the parent module capability architecture.
 
-## 8. Domain model and state machine
-Define aggregates/entities, ownership, states, transitions, invariants, commands, events, concurrency and irreversible/reversible actions.
+## [SPEC-FUNCTIONAL] Functional requirements
+Use traceable IDs such as `F193-FR-001`. TBD.
 
-## 9. Data model
-Define fields, relationships, required/optional/calculated/system values, keys, constraints, indexes, precision/rounding, timezone/currency/UOM, retention and migration implications.
+## [SPEC-BUSINESS-RULES] Business rules and calculations
+Use `F193-BR-###`; define invariants, formulas, precision, rounding, currency/UOM/timezone behavior and effective dating where applicable.
 
-## 10. UX contract
-Define navigation/deep links, list/table/work-queue/board/calendar/Gantt/ledger/dashboard archetypes as applicable, columns, search, filters, sort, pagination, saved views, bulk actions, create, edit, detail/360, related records, loading/empty/error/conflict/permission states.
+## [SPEC-FLOWS] Primary, alternate, exception, reversal and recovery flows
+Model happy path, alternate paths, failures, permission denials, conflict handling, cancellation, reversal/compensation, retry and reconciliation.
 
-## 11. Responsive, mobile and accessibility
-Define desktop/tablet/mobile behavior, offline/native behavior if applicable, keyboard semantics and WCAG 2.2 AA intent.
+## [SPEC-STATE-MACHINE] Domain model and state machine
+Define aggregate ownership, entities/value objects, states, transition guards, commands, events, reversible/irreversible transitions and concurrency rules.
 
-## 12. API and service contract
-Define public commands/queries, schemas, authorization, validation, stable errors, idempotency, optimistic concurrency, audit/outbox effects and compatibility.
+## [SPEC-DATA] Data contract
+Use `F193-DATA-###`; define fields, keys, relationships, constraints, indexes, lifecycle retention/archive, precision, localization and migration implications.
 
-## 13. Automation, approvals, notifications and documents
-TBD.
+## [SPEC-VIEWS] Views and information architecture
+Define list/table/work queue/board/calendar/Gantt/ledger/dashboard/detail-360 archetypes as applicable, plus columns, search, filters, sort, pagination, saved views and bulk operations.
 
-## 14. Reporting, analytics and KPIs
-TBD, including drill-down and reconciliation expectations.
+## [SPEC-UX] Interaction and workflow UX
+Use `F193-UX-###`; define create/edit/detail/quick-create/related-record flows and loading, empty, validation, error, conflict, permission and success states.
 
-## 15. AI opportunity and safeguards
+## [SPEC-RESPONSIVE] Responsive, native and offline behavior
+Specify desktop/tablet/mobile layout and interaction changes; native/offline/synchronization behavior where applicable.
+
+## [SPEC-ACCESSIBILITY] Accessibility contract
+Define keyboard operation, focus, semantics, accessible names, announcements, contrast/touch targets and WCAG 2.2 AA acceptance intent.
+
+## [SPEC-API] API and service contract
+Define public commands/queries, request/response schemas, validation, authorization, error contract, pagination/filter/sort, concurrency, idempotency, audit/outbox effects and compatibility.
+
+## [SPEC-AUTOMATION] Automation and workflow rules
+Define deterministic automation triggers/conditions/actions, scheduling, retries, recursion protection and operator visibility.
+
+## [SPEC-APPROVALS] Approvals and segregation of duties
+Define maker-checker/approval matrices, thresholds, delegation, escalation, rejection, resubmission, audit and SoD where applicable.
+
+## [SPEC-NOTIFICATIONS] Notifications, documents and communications
+Define notification channels/templates/preferences, attachments/documents, print/export/import and business-document generation where applicable.
+
+## [SPEC-REPORTING] Reporting, analytics and KPIs
+Define operational metrics, drilldown, dimensions, filters, data freshness, reconciliation and export semantics.
+
+## [SPEC-AI] AI opportunity, authority boundary and safeguards
 Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Define provenance, confidence, permission boundary, human oversight, fallback and audit.
+Use `F193-AI-###`; define provenance, confidence, permission boundary, human oversight, deterministic authority boundary, fallback, feedback and audit.
 
-## 16. Security, privacy and audit
-Define org/company/branch/record/field scope, segregation-of-duties, abuse cases, audit events and negative authorization tests.
+## [SPEC-SECURITY] Security, privacy and field/record scope
+Use `F193-SEC-###`; define authentication assumptions, organization/company/branch/location/record scope, field controls, sensitive data handling, abuse cases and negative authorization tests.
 
-## 17. Reliability, idempotency and observability
-Define transaction boundaries, retry keys, duplicate prevention, worker/outbox semantics, metrics/logs/traces, failure visibility and reconciliation.
+## [SPEC-AUDIT] Auditability and history
+Define auditable actions, actor/channel/time/reason, before-after values where applicable, correlation IDs, approval/reversal links, retention and operator-visible history.
 
-## 18. Cross-module effects
-For every transition define trigger, owner, destination public command, validation, transaction boundary, idempotency, retry/failure, audit/event, visible resulting state, reversal and reconciliation.
+## [SPEC-RELIABILITY] Concurrency, idempotency, recovery and observability
+Use `F193-OBS-###`; define transaction boundaries, optimistic/pessimistic concurrency, retry/idempotency keys, outbox/worker behavior, duplicate prevention, metrics/logs/traces, exception queues and reconciliation.
 
-## 19. Current-code audit
-Map exact files/routes/schema/tests and classify current state. Do not change target requirements to match current implementation.
+## [SPEC-INTEGRATIONS] Cross-module and external integrations
+Use `F193-INT-###`; for each transition define trigger, source owner, destination public command, validation, transaction boundary, idempotency, retry/failure, audit/event, visible state, reversal and reconciliation.
 
-## 20. Gap analysis and implementation map
-TBD after current-code audit.
+## [SPEC-CODE-AUDIT] Current-code evidence audit
+Map exact files/routes/schema/tests and current behavior. Classify implemented/partial/foundation/UI-only/missing defects without changing target requirements to match current code.
 
-## 21. Verification plan
-### Unit/domain
-TBD.
-### Database/security
-TBD.
-### API/integration
-TBD.
-### Browser E2E
-TBD.
-### Performance/scale
-TBD.
-### Human UAT
-TBD.
+## [SPEC-GAPS] Gap analysis and implementation map
+Map every target requirement to current evidence and a concrete implementation work item/dependency.
 
-## 22. Definition of Done
+## [SPEC-TESTS] Automated verification plan
+Use `F193-E2E-###` for end-to-end requirements; include unit/domain, database/security, API/integration, browser E2E, cross-browser/device, performance/scale and failure/recovery verification.
+
+## [SPEC-UAT] Human UAT plan
+Use `F193-UAT-###`; define operator scenario, prerequisites, steps, expected state/data/audit outcomes, visual evidence and sign-off.
+
+## [SPEC-DOD] Objective Definition of Done
 All applicable research, requirements, design, domain, security, implementation, integration, E2E, responsive, accessibility, visual and UAT gates have objective evidence; parent capability and critical journeys also pass.
 
-## 23. Open decisions
-TBD.
+## [SPEC-OPEN-DECISIONS] Open decisions and decision links
+TBD. No unresolved material product decision may be hidden inside implementation prose.

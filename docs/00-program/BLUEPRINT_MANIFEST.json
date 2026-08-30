@@ -106,5 +106,8 @@
       "end": "F510",
       "count": 58
     }
-  ]
+  ],
+  "documentation_schema_version": "2.0.0",
+  "canonical_fingerprint_sha256": "82cfcf68e74cef8c8c8872136d0bfcc0bb619b0517f3a33cfc92bc1e3dde232e",
+  "framework_audit_hardening": "COMPLETE"
 }

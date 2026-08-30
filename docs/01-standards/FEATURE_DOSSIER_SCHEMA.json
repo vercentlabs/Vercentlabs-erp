@@ -1,0 +1,167 @@
+{
+  "schema_version": "2.0.0",
+  "canonical_feature_count": 510,
+  "canonical_id_range": [
+    "F001",
+    "F510"
+  ],
+  "canonical_fingerprint_sha256": "82cfcf68e74cef8c8c8872136d0bfcc0bb619b0517f3a33cfc92bc1e3dde232e",
+  "status_field": "Specification status",
+  "allowed_specification_statuses": [
+    "UNSPECIFIED",
+    "RESEARCHING",
+    "DRAFTING",
+    "REVIEW_READY",
+    "SPECIFICATION_READY"
+  ],
+  "requirement_id_types": {
+    "FR": "Functional requirement",
+    "BR": "Business rule",
+    "DATA": "Data requirement",
+    "UX": "UX requirement",
+    "SEC": "Security requirement",
+    "INT": "Integration requirement",
+    "AI": "AI requirement",
+    "OBS": "Observability/reliability requirement",
+    "E2E": "End-to-end verification requirement",
+    "UAT": "Human UAT requirement"
+  },
+  "sections": [
+    [
+      "SPEC-IDENTITY",
+      "Identity and traceability"
+    ],
+    [
+      "SPEC-INTENT",
+      "Product intent"
+    ],
+    [
+      "SPEC-OUTCOMES",
+      "Measurable outcomes"
+    ],
+    [
+      "SPEC-PERSONAS",
+      "Personas, jobs to be done and permissions"
+    ],
+    [
+      "SPEC-SCOPE",
+      "Scope, non-goals, assumptions and dependencies"
+    ],
+    [
+      "SPEC-ENTRY-POINTS",
+      "Entry points and discoverability"
+    ],
+    [
+      "SPEC-BENCHMARK",
+      "Benchmark research"
+    ],
+    [
+      "SPEC-OMISSION-GATE",
+      "Enterprise omission gate"
+    ],
+    [
+      "SPEC-SUBCAPABILITIES",
+      "Sub-capabilities"
+    ],
+    [
+      "SPEC-FUNCTIONAL",
+      "Functional requirements"
+    ],
+    [
+      "SPEC-BUSINESS-RULES",
+      "Business rules and calculations"
+    ],
+    [
+      "SPEC-FLOWS",
+      "Primary, alternate, exception, reversal and recovery flows"
+    ],
+    [
+      "SPEC-STATE-MACHINE",
+      "Domain model and state machine"
+    ],
+    [
+      "SPEC-DATA",
+      "Data contract"
+    ],
+    [
+      "SPEC-VIEWS",
+      "Views and information architecture"
+    ],
+    [
+      "SPEC-UX",
+      "Interaction and workflow UX"
+    ],
+    [
+      "SPEC-RESPONSIVE",
+      "Responsive, native and offline behavior"
+    ],
+    [
+      "SPEC-ACCESSIBILITY",
+      "Accessibility contract"
+    ],
+    [
+      "SPEC-API",
+      "API and service contract"
+    ],
+    [
+      "SPEC-AUTOMATION",
+      "Automation and workflow rules"
+    ],
+    [
+      "SPEC-APPROVALS",
+      "Approvals and segregation of duties"
+    ],
+    [
+      "SPEC-NOTIFICATIONS",
+      "Notifications, documents and communications"
+    ],
+    [
+      "SPEC-REPORTING",
+      "Reporting, analytics and KPIs"
+    ],
+    [
+      "SPEC-AI",
+      "AI opportunity, authority boundary and safeguards"
+    ],
+    [
+      "SPEC-SECURITY",
+      "Security, privacy and field/record scope"
+    ],
+    [
+      "SPEC-AUDIT",
+      "Auditability and history"
+    ],
+    [
+      "SPEC-RELIABILITY",
+      "Concurrency, idempotency, recovery and observability"
+    ],
+    [
+      "SPEC-INTEGRATIONS",
+      "Cross-module and external integrations"
+    ],
+    [
+      "SPEC-CODE-AUDIT",
+      "Current-code evidence audit"
+    ],
+    [
+      "SPEC-GAPS",
+      "Gap analysis and implementation map"
+    ],
+    [
+      "SPEC-TESTS",
+      "Automated verification plan"
+    ],
+    [
+      "SPEC-UAT",
+      "Human UAT plan"
+    ],
+    [
+      "SPEC-DOD",
+      "Objective Definition of Done"
+    ],
+    [
+      "SPEC-OPEN-DECISIONS",
+      "Open decisions and decision links"
+    ]
+  ]
+}
