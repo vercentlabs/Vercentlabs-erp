@@ -10,4 +10,5 @@ python docs/scripts/validate_journeys.py
 python docs/scripts/validate_readiness.py
 python docs/scripts/validate_crm_pass1.py
 python docs/scripts/validate_sales_pass2.py
+python docs/scripts/validate_procurement_pass3.py
 git diff --check -- docs

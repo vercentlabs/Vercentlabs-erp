@@ -4,171 +4,209 @@
 - Canonical ID: `F080`
 - Canonical name: **Goods receipt / GRN**
 - Module: **Procurement**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `PROC-CAP-005`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+Record goods receipts/GRNs against eligible purchase orders or schedules with warehouse/location, received date, quantities, lot/serial where required and Stock/Quality handoff.
+
+**Primary operator outcome:** authorized users can post a GRN safely against an eligible PO and trace resulting Stock/Quality effects.
+
+**Non-goal:** this specification does not certify current implementation or transfer another module's private-state ownership into Procurement.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+- Business: Record goods receipts/GRNs against eligible purchase orders or schedules with warehouse/location, received date, quantities, lot/serial where required and Stock/Quality handoff.
+- Control: deterministic, permission-safe purchasing effects with visible failure/recovery.
+- Data: supplier/commercial/receipt/match history remains reproducible after configuration/master changes.
+- Readiness: specification may be ready while implementation and product readiness remain separately gated.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+- Requester / buyer / procurement operations: execute demand and purchasing work.
+- Procurement manager / approver / category manager: govern spend, sourcing and exceptions.
+- Receiver / Quality / AP / planner personas participate only through explicit responsibilities and cross-module journeys.
+- Supplier/portal personas can see only their own authorized invitations, documents and collaboration surfaces.
+- Negative case: users without supplier-sensitive, bid, match-override or approval permission cannot infer restricted values through any surface.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+- Procurement module navigation and role-specific work queues.
+- Authorization-safe global search / command palette.
+- Supplier, requisition, sourcing, PO, receipt and match 360 workspaces with durable deep links.
+- Contextual creation from Stock, Manufacturing, Sales, Projects or prior Procurement records where permitted.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+- `PROC-P3-BE-035` — official primary benchmark evidence in `BENCHMARK_REGISTER.csv`.
+- `PROC-P3-BE-036` — official primary benchmark evidence in `BENCHMARK_REGISTER.csv`.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+- `REQUIRED`: generally expected enterprise behavior needed for procurement integrity/control.
+- `DIFFERENTIATOR`: one coherent Vercentlabs modular experience rather than copied vendor object/UI structures.
+- `NOT_APPLICABLE`: vendor-specific licensing/proprietary object names and unrelated suite behavior are excluded.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Goods receipt / GRN** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+Independent omission review covered **PO/schedule/ASN linkage, warehouse/location, received date, UOM conversion, lot/serial/expiry where applicable, over-receipt tolerance, duplicate posting, quality inspection, stock posting, reversal and audit**. These expectations are requirements or explicit boundaries; none are silently omitted because the canonical title is short.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F080-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+- `F080-CAP-001` — The Goods receipt / GRN capability MUST let authorized Procurement users post a GRN safely against an eligible PO and trace resulting Stock/Quality effects.
+- `F080-CAP-002` — The capability MUST explicitly cover PO/schedule/ASN linkage, warehouse/location, received date, UOM conversion, lot/serial/expiry where applicable, over-receipt tolerance, duplicate posting, quality inspection, stock posting, reversal and audit; the canonical title is a traceability anchor, not complete scope.
+- `F080-CAP-003` — Goods receipt / GRN MUST preserve Procurement ownership and use public contracts/orchestration for Stock, Quality, Accounting, Manufacturing, Sales, Projects or Shared Platform effects.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F080-FR-###` and `F080-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+- `F080-FR-001` — The system MUST provide a complete server-backed workflow to post a GRN safely against an eligible PO and trace resulting Stock/Quality effects, including success, empty, validation, failure, permission and stale/conflict states.
+- `F080-FR-002` — Every material Goods receipt / GRN mutation MUST preserve actor, timestamp, prior/new state or immutable version, reason/approval where required and durable source/downstream lineage.
+- `F080-FR-003` — Goods receipt / GRN MUST remain usable at enterprise list/document volumes through stable pagination/sorting, background jobs, batching or virtualization where appropriate.
+- `F080-US-001` — As an authorized procurement operator, I can post a GRN safely against an eligible PO and trace resulting Stock/Quality effects without bypassing sourcing, approval, receipt, match or accounting controls.
+- `F080-US-002` — As a procurement manager/control user, I can review exceptions, approvals, history, risk and performance for Goods receipt / GRN within my permitted scope.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F080-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+- `F080-FLOW-001` — The governed lifecycle MUST follow DRAFT -> SUBMITTED/POSTED -> APPROVED/ACCEPTED -> REVERSED/CANCELLED only through governed reversal with explicit guards, failure states and cancellation/reversal/compensation semantics.
+- `F080-FLOW-002` — Validation, permission, concurrency and downstream failures MUST be actionable and safely retryable without duplicate purchase, stock, quality or financial effects.
+
+Lifecycle reference: `DRAFT -> SUBMITTED/POSTED -> APPROVED/ACCEPTED -> REVERSED/CANCELLED only through governed reversal`.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+- Aggregate owner: Procurement domain service for **Goods receipt / GRN**.
+- Lifecycle: `DRAFT -> SUBMITTED/POSTED -> APPROVED/ACCEPTED -> REVERSED/CANCELLED only through governed reversal`.
+- Transitions require current version/state, authorization and business guards.
+- Material historical facts are corrected by revision, reversal or compensation—not history rewrite.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F080-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+- `F080-DATA-001` — The authoritative Goods receipt / GRN model MUST define stable tenant/company-scoped keys, relationships, fields, constraints, lineage, retention and indexes.
+- `F080-DATA-002` — Commercial, supplier, quantity, receipt, matching or valuation facts that affect commitment or accounting MUST retain source IDs and immutable snapshots where later configuration could alter interpretation.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F080-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+- `F080-VAL-001` — All Goods receipt / GRN commands MUST validate required fields, references, tenant/company scope, lifecycle legality, supplier eligibility, currency/UOM/date rules and downstream preconditions server-side.
+- `F080-VAL-002` — Failures MUST return stable domain codes and corrective guidance without leaking restricted supplier banking, tax, bid, price, approval, cost or cross-company data.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F080-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+- `F080-BR-001` — The owning Procurement domain service is authoritative for Goods receipt / GRN; UI, API, import, bulk, automation and AI paths MUST reuse the same rules.
+- `F080-BR-002` — Later supplier, price, policy or master-data edits MUST NOT rewrite material historical Goods receipt / GRN evidence; corrections use version, reversal or linked adjustment semantics.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F080-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+- `F080-CALC-001` — All authoritative amount, quantity, currency conversion, bid score, tolerance, receipt, match, lead-time, landed-cost or KPI calculations applicable to Goods receipt / GRN MUST use deterministic decimal/rule logic with explicit rounding/UOM/date boundaries and reproducible inputs; AI is never authoritative.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F080-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
+- `F080-UX-001` — The Goods receipt / GRN workspace MUST expose identity/status, supplier/demand/document context, key totals/facts, next action, exceptions, related records and downstream state in one coherent Procurement shell.
+- `F080-UX-002` — Desktop/tablet/phone views MUST define loading, empty, validation, permission, stale/conflict, partial-downstream-failure, destructive confirmation and success feedback.
+- `F080-UX-003` — Dense requisition/RFQ/PO/matching tables and comparison views MUST support keyboard operation, visible focus, semantic labels, non-drag alternatives, touch-safe actions and usable small-screen transformation.
 
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+Use the view archetype appropriate to the job: supplier 360, requisition/approval queue, sourcing comparison, commercial document editor, receiving/match exception queue or analytics dashboard.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+Lists/work queues define stable server pagination/sorting, column/density behavior, authorization-safe counts, row states/actions, bulk eligibility and virtualization/async thresholds.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+Search defines identifiers/fields/operators/facets, stable sort, saved/shared views where useful and authorization-safe result/count semantics; confidential supplier/bid data never appears through unauthorized indexing.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+The detail/360 keeps identity, lifecycle, supplier/demand/document context, totals/key facts, next action, exceptions, related records, history and downstream request/reference status together.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+Create/quick-create applies governed defaults, validates references/duplicates/supplier eligibility, previews deterministic calculations where applicable and navigates to a durable created record.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+Editability depends on lifecycle/version. Issued RFQs, submitted bids, awarded sourcing, approved/dispatched POs, posted receipts and matched evidence become immutable or controlled through version/reversal flows.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+Bulk operations filter ineligible records, preserve permissions, support all-results semantics, move large jobs async, report partial failure and remain idempotent.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+Actions are state/permission/scope aware. High-impact supplier activation, award, approval, dispatch, receipt reversal, match override and return actions require confirmation/reason/approval as configured and have keyboard/mobile equivalents.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+Related supplier, requisition, sourcing, PO, Stock, Quality, invoice/AP, Manufacturing and replenishment links expose only authorized summaries and never perform direct private-table mutation.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F080-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+- `F080-AUTO-001` — Automation may act on Goods receipt / GRN only through normal domain commands with trigger provenance, recursion control, deterministic eligibility, retry/idempotency policy, audit and visible outcomes.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F080-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+- `F080-APP-001` — Configured high-impact Goods receipt / GRN exceptions MUST use explicit approval/override rules, segregation of duties, reason capture and stale-approval invalidation; normal low-risk work must not be universally blocked.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F080-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+- `F080-NOTIF-001` — Material Goods receipt / GRN assignments, approvals, supplier deadlines, late/exception states or downstream failures MUST be preference-aware, deduplicated, localized where needed and deep-linked to authorized records.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+Attachments/generated RFQs, POs, receipts, supplier documents and invoices bind to the relevant immutable business version, obey record/field permissions, use safe file handling/retention and support accessible print/PDF output.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+Imports use mapping, preview/dry-run, validation, duplicate handling, row results, resumability and domain commands; exports preserve authorization, bid confidentiality and injection-safe formats.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F080-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+- `F080-REP-001` — Reports/KPIs for Goods receipt / GRN MUST define grain, filters, period/timezone, currency basis, freshness, permission-safe aggregation, drilldown and reconciliation to authoritative source records.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F080-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+- `F080-AI-001` — Classification NO_AI applies. AI may operate only on authorized evidence and MUST NOT directly write database state or override deterministic supplier eligibility, approval, sourcing award, PO, receipt, match, landed-cost, stock, tax or accounting truth.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F080-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+- `F080-SEC-001` — Every Goods receipt / GRN query/command MUST enforce server-side organization, company/branch where applicable, action permission and requester/buyer/supplier/record scope before data is returned or mutated.
+- `F080-SEC-002` — Supplier bank/tax data, confidential bids, pricing, evaluations, exceptions and approval evidence MUST support stricter field/action restrictions and negative tests across search, export, reports, errors and AI.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+Reads/writes are organization-isolated and apply company/branch/site/requester/buyer/supplier/record scope where relevant. Cross-company access and supplier portal access are explicit and permissioned.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+Audit captures actor/channel/time, before-after or immutable version, reason/approval, request/correlation ID and downstream request/event references for material **Goods receipt / GRN** actions.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+Optimistic concurrency protects mutable purchasing records. Award, PO amendment, receipt, reorder and match races use transactional constraints/idempotency and user-visible retry rules.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+Externally visible/cross-module effects use business idempotency keys plus database uniqueness. Exact replay returns prior result/no-op; conflicting replay is rejected; reconciliation detects stranded or duplicate purchasing/stock/financial effects.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F080-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+- `F080-INT-001` — Every Goods receipt / GRN cross-module handoff MUST call the destination module public contract/orchestration, never mutate another module private tables.
+- `F080-INT-002` — Cross-module Goods receipt / GRN handoffs MUST define trigger, source/destination owner, transaction boundary, idempotency, retry/failure, audit/outbox, result, reversal/compensation and reconciliation.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F080-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+- `F080-API-001` — Mutating Goods receipt / GRN APIs MUST use explicit command intent, validated schemas, authorization, stable errors, optimistic concurrency where needed, idempotency for externally visible effects and audit/outbox correlation.
+- `F080-API-002` — Read APIs for Goods receipt / GRN MUST provide authorization-safe pagination/filter/sort, stable schemas, count semantics and field redaction appropriate to supplier/bid/price/compliance sensitivity.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+Mobile supports approval, supplier/PO/receipt lookup, exception triage and constrained receiving where device context permits; offline mutation is allowed only with explicit queue/conflict/idempotency rules and no confidential-bid leakage.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+Desktop favors dense sourcing/document work; tablet reflows secondary panels; phone uses stacked summaries/cards/action sheets. Intentional table comparison scrolling never hides critical identity/status/actions.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+Target WCAG 2.2 AA: semantics, labels/instructions, visible focus, keyboard use, announced validation/status, contrast/target sizing, reduced motion and non-drag alternatives; bid comparison cannot rely on color alone.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+Pass-level visual contract: `docs/11-visual-assets/wireframes/PROCUREMENT_PASS3_WORKSPACES.md`; complex workspaces require desktop/tablet/phone and normal/empty/error/permission/stale/conflict/failure states before implementation.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F080-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+- `F080-PERF-001` — Goods receipt / GRN MUST define representative 0/1/100/10k+ record behavior, latency/query budgets, async thresholds and protection against unbounded joins, comparison sets or exports.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F080-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+- `F080-OBS-001` — Structured logs/metrics/traces for Goods receipt / GRN MUST carry safe correlation/business-state/downstream-request data without logging secrets, supplier banking data or unnecessary PII.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+Cover empty/min/max/negative values where relevant, decimal/currency/UOM boundaries, duplicate supplier/invoice/submit, stale/archived references, concurrent actors, permission changes, supplier deadline/timezone, partial receipts/invoices, downstream partial failure, retry and reversal/reconciliation.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+Verified current-code evidence: `PROC-P3-CODE-018` at `services/api/src/modules/procurement/index.js`. It proves an inspected foundation only; code does not override this approved specification.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+The current artifact is not treated as complete. Implementation must be gap-audited against all approved requirement IDs above, especially the omission set: PO/schedule/ASN linkage, warehouse/location, received date, UOM conversion, lot/serial/expiry where applicable, over-receipt tolerance, duplicate posting, quality inspection, stock posting, reversal and audit.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+Implement by coherent Procurement capability/domain ownership rather than one source folder per F-ID. Reuse shared authorization/audit/outbox/approval/document/notification primitives and public cross-module contracts. Preserve existing working behavior only where it satisfies the approved contract.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated evidence must include domain/unit, database/RLS/constraint, API/contract, authorization-negative, deterministic calculation/property, concurrency/idempotency, integration/reconciliation, performance/volume and migration tests where applicable.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F080-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+- `F080-E2E-001` — Browser/API E2E MUST prove the primary authorized workflow to post a GRN safely against an eligible PO and trace resulting Stock/Quality effects and verify resulting state, history and downstream references.
+- `F080-E2E-002` — E2E MUST cover unauthorized access, invalid/stale data, concurrency/idempotent replay and at least one relevant downstream failure/retry, approval rejection, exception or reversal path for Goods receipt / GRN.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F080-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+- `F080-UAT-001` — A real requester/buyer/receiver/AP/manager persona as appropriate MUST execute the primary Goods receipt / GRN job with realistic data on desktop and an appropriate responsive path, capturing visible/business evidence.
+- `F080-UAT-002` — A manager/finance/quality/warehouse control persona as applicable MUST verify permissions, exception/approval behavior, audit/history and cross-module reconciliation for Goods receipt / GRN.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+Objective completion requires every approved requirement to have implementation/test evidence; server authorization and valid state transitions; deterministic calculations where applicable; idempotent/auditable cross-module effects; responsive/accessibility evidence; actionable failure/recovery; and executed UAT. A page, table, endpoint or existing code artifact alone is insufficient.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No unresolved material placeholder remains for Pass 3 specification readiness. Implementation-time product/config choices may be recorded as explicit decision IDs without changing canonical identity. Stock, Quality, Accounting, Manufacturing, Sales and Projects implementation readiness remains independently gated.

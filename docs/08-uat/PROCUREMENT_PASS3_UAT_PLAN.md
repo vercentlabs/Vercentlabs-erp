@@ -1,0 +1,3 @@
+# Procurement Pass 3 UAT Plan
+
+For each F063–F096 execute a realistic primary persona job and a manager/control path. The pass-level journeys must demonstrate: supplier onboarding; requisition→approval→RFQ→bid comparison→award→PO; partial/quality-aware GRN and return; supplier invoice with 2/3-way match exceptions; Stock reorder-generated purchasing; Manufacturing subcontract purchasing; and dashboard drilldown. UAT captures visible state, database/audit evidence and downstream/retry/reversal reconciliation. Specification-ready means scenarios are designed; product-ready requires executed evidence/sign-off.

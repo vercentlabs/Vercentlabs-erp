@@ -1,0 +1,3 @@
+# Procurement Pass 3 Workspace Wireframe Contract
+
+Before implementation create desktop/tablet/phone states for: supplier 360/onboarding; requisition editor and approval inbox; RFQ event and confidential bid workspace; bid-comparison/award matrix; PO/agreement editor with approval/version history; receiving/quality exception workbench; supplier-invoice 2/3-way match exception workspace; supplier scorecard/spend/history analytics; replenishment/subcontract queue; and procurement cockpit. Include normal, loading, empty, error, permission, stale/conflict, partial-downstream-failure and reversal states plus keyboard/non-drag paths.
