@@ -4,10 +4,10 @@
 - Canonical range: F145–F192
 - Feature count: 48
 - Product boundary: Plan-to-produce, shop-floor execution and manufacturing costing
-- Specification status: `UNSPECIFIED`
+- Specification status: `SPECIFICATION_READY`
 
-## Pass exit criteria
-Research complete; capability map approved; all canonical dossiers in this range fully decomposed; primary/alternate/exception/reversal flows modelled; data/API/security/integration contracts written; desktop/tablet/mobile/accessibility behavior specified; tests/UAT written; current-code gaps mapped; red-team omission review passed.
+## Capability model
+Product structures/engineering; process/resources; production execution/scheduling; MRP/material/WIP/output; loss/genealogy/production strategies; production quality; costing/performance/maintenance; engineering change/reporting.
 
-## Architecture rule
-F-IDs are traceability anchors. Implementation should converge on coherent module capabilities and public commands/queries rather than one directory/service per F-ID.
+## Pass exit evidence
+All 48 canonical dossiers contain 21 requirement types, official benchmark evidence and current-code evidence; critical manufacturing and cross-module journeys are specified with security, responsive/accessibility, E2E/UAT and reconciliation contracts. Product implementation remains uncertified.

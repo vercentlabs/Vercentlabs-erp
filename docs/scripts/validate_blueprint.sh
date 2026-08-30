@@ -12,4 +12,5 @@ python docs/scripts/validate_crm_pass1.py
 python docs/scripts/validate_sales_pass2.py
 python docs/scripts/validate_procurement_pass3.py
 python docs/scripts/validate_stock_pass4.py
+python docs/scripts/validate_manufacturing_pass5.py
 git diff --check -- docs
