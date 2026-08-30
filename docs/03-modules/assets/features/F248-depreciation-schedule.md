@@ -4,171 +4,208 @@
 - Canonical ID: `F248`
 - Canonical name: **Depreciation schedule**
 - Module: **Assets**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `AST-CAP-003`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+Provide versioned depreciation schedules per asset/book with period mapping, planned/posted/reversed states and recalculation rules.
+
+**Non-goal:** specification readiness does not certify current implementation, and Assets does not take private-state ownership from Procurement, Stock, Manufacturing, Projects, HR/Payroll, Quality or Accounting.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+- Operational outcome: assets remain identifiable, locatable, accountable and maintainable through their lifecycle.
+- Financial outcome: value/depreciation/disposal facts reconcile to Accounting without duplicate posting.
+- Control outcome: maker-checker, effective dating, period locks, audit and correction/reversal semantics are explicit.
+- Field outcome: scan/inspection/calibration/verification workflows work on tablet/phone with accessibility and evidence.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+- Asset manager controls registry, custody, movement and lifecycle.
+- Asset accountant/controller controls capitalization, depreciation, value adjustments and disposal accounting evidence.
+- Maintenance manager/technician controls maintenance, repair/downtime and field execution.
+- Inspector/calibration technician/auditor verifies condition/compliance/evidence.
+- Employee/custodian can view/acknowledge assigned assets only as policy allows.
+- Negative case: unauthorized users cannot infer cost/NBV, custodian, warranty, maintenance, inspection or financial details through search/aggregates.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+- Assets dashboard, asset register/360, categories, assignments/transfers, maintenance, inspection/calibration, depreciation/value, verification, disposals and reports.
+- Global search/command palette, durable deep links and contextual entry from Procurement, Projects, Manufacturing/maintenance, HR custody and Accounting where authorized.
+- Mobile scanner opens permitted asset detail and context action without bypassing server controls.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+- `AST-P7-BE-035` — official benchmark evidence in `BENCHMARK_REGISTER.csv`.
+- `AST-P7-BE-036` — official benchmark evidence in `BENCHMARK_REGISTER.csv`.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+- `REQUIRED`: mature lifecycle, fixed-asset accounting controls, maintenance/evidence, field identification and audit behavior supported by official benchmarks.
+- `DIFFERENTIATOR`: unified operational + financial lifecycle with public contracts and reconciliation, while keeping module ownership clean.
+- `NOT_APPLICABLE`: vendor-specific object names/licensing and capabilities outside canonical scope.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Depreciation schedule** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+Independent omission review for **Depreciation schedule** covered identity uniqueness, hierarchy/component/multi-book implications where relevant, effective dating, thresholds/CIP/partial-transfer/disposal expectations, depreciation convention/rounding, period close, warranty/maintenance/calibration, field/offline evidence, SoD, concurrency, idempotency, reversal/reconciliation, accessibility and scale. No material enterprise expectation is silently omitted because the canonical title is short.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F248-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+- `F248-CAP-001` — Depreciation schedule MUST provide versioned depreciation schedules per asset/book with period mapping, planned/posted/reversed states and recalculation rules.
+- `F248-CAP-002` — Depreciation schedule MUST define lifecycle/state, effective dating, authorization, approvals, corrections/reversal and immutable history where facts are financial or compliance relevant.
+- `F248-CAP-003` — Depreciation schedule MUST expose auditable public contracts/events and evidence needed for Procurement, Stock, Projects, Manufacturing, HR and Accounting interactions without direct private-table mutation.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F248-FR-###` and `F248-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+- `F248-FR-001` — Authorized users MUST be able to execute the primary Depreciation schedule lifecycle with actionable validation, explicit state and durable audit evidence.
+- `F248-FR-002` — Users MUST be able to search, filter, inspect exceptions/history/related records for Depreciation schedule and resolve eligible exceptions without bypassing controls.
+- `F248-FR-003` — Approved or posted Depreciation schedule facts MUST be corrected through controlled amendment/reversal/reopen mechanisms rather than silent destructive edits.
+- `F248-US-001` — As an asset operator, I can perform Depreciation schedule from a focused workspace and understand status, ownership, next action and downstream effect.
+- `F248-US-002` — As a controller/auditor, I can prove who changed or approved Depreciation schedule, why, under which effective date/book/company, and how it reconciles downstream.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F248-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+- `F248-FLOW-001` — The primary Depreciation schedule flow MUST validate prerequisites -> authorize -> lock/version relevant records -> apply one atomic domain transition -> audit -> emit idempotent downstream intent -> show outcome.
+- `F248-FLOW-002` — Depreciation schedule MUST cover invalid source, stale version, duplicate request, permission denial, closed period, partial downstream failure, retry, cancellation/reversal and reconciliation without duplicated business effect.
+
+Lifecycle reference: `planned/calculated -> reviewed -> approved -> posted -> reversed/corrected; historical book facts immutable`.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+- Aggregate owner: Assets domain service for **Depreciation schedule**.
+- Lifecycle: `planned/calculated -> reviewed -> approved -> posted -> reversed/corrected; historical book facts immutable`.
+- Transitions require current state/version, authorization, effective date, applicable custody/maintenance/accounting/period guards.
+- Approved/posted/compliance-significant history is corrected via linked reversal/reopen/revision, not silent overwrite.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F248-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+- `F248-DATA-001` — Depreciation schedule MUST persist stable identifiers, organization/company scope, asset/category/source references, status, effective dates, actor/version and feature-specific values required for versioned depreciation schedules per asset/book with period mapping, planned/posted/reversed states and recalculation rules.
+- `F248-DATA-002` — Depreciation schedule MUST retain lineage to source procurement/accounting/maintenance/inspection/disposal records, attachments/evidence, approvals, reversals and correlation/idempotency identifiers where applicable.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F248-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+- `F248-VAL-001` — Depreciation schedule MUST reject malformed identifiers, invalid dates/amounts/units, inactive references, cross-company references, duplicate identities and impossible lifecycle combinations with actionable errors.
+- `F248-VAL-002` — Depreciation schedule MUST validate current asset state, open assignments/maintenance/verification obligations, book/period status and downstream eligibility before committing a controlled transition.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F248-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+- `F248-BR-001` — Depreciation schedule MUST obey authoritative asset lifecycle, company/book/effective-date, valuation, custody/maintenance and period rules; AI or UI state cannot override these invariants.
+- `F248-BR-002` — Once Depreciation schedule creates an approved, posted, completed or compliance-significant fact, history MUST remain immutable and corrections MUST link to the original fact.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F248-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+- `F248-CALC-001` — Each schedule line MUST reconcile opening carrying value + period changes - depreciation to closing carrying value and map to a valid fiscal period/book; posted lines are immutable except through reversal.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F248-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
+- `F248-UX-001` — Desktop UX for Depreciation schedule MUST expose identity/status, key facts, exception banners, related records, audit and eligible actions without forcing operators through generic CRUD screens.
+- `F248-UX-002` — Mobile/tablet UX for Depreciation schedule MUST support field-relevant scan/search, large touch targets, evidence/photo/document capture where applicable, explicit offline boundary and conflict-safe sync.
+- `F248-UX-003` — Depreciation schedule MUST meet WCAG 2.2 AA intent with semantic labels, keyboard/focus order, announced errors/status, non-color-only state, target sizing and non-drag alternatives.
 
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+Applicable archetypes include asset register, 360/detail, exception queue, maintenance board/calendar, depreciation ledger/schedule, verification scan queue and reporting/dashboard.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+Lists/work queues define permission-safe server pagination/sorting, personalized columns/density, status/value/due/exception indicators, bulk eligibility, row actions and virtualization/async thresholds.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+Search supports asset number/tag/serial/category/location/custodian/department/status/vendor/warranty/maintenance/inspection/book/value fields as authorized, with stable filters, facets, saved views and permission-safe counts.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+Asset 360 keeps identity, category, acquisition/source, location/custody, value/books/depreciation, maintenance/downtime/warranty, inspections/calibration, physical verification, disposal and audit/event history together with permission-based sections.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+Create/quick-create defines required/default fields, category/source selection, numbering/tag uniqueness, capitalization threshold/source evidence, validation summary and post-create navigation; quick create cannot bypass lifecycle or accounting controls.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+Mutable descriptive/operational fields are distinguished from approved/posted financial/compliance facts. Cost, book, depreciation, revaluation/impairment, disposal, source IDs and signed evidence require governed amendment/reversal rather than silent inline edit.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+Bulk assign/transfer/verification/maintenance/report actions show per-record eligibility, preview intended effects, run through individual authorization/domain rules and return partial-result evidence; bulk financial postings use governed batches.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+Primary/contextual/destructive actions are permission/state aware; capitalize, transfer, assign, start/complete maintenance, inspect/calibrate, verify, post depreciation, revalue/impair, sell/scrap/dispose and reverse require confirmation/reason/evidence as policy dictates.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+Related navigation uses stable public IDs/contracts to procurement sources, stock parts/movements, manufacturing availability, project capex, HR custodian/resource identity, quality references and accounting journals/ledger without private cross-module writes.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F248-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+- `F248-AUTO-001` — Background automation for Depreciation schedule MAY generate due work, schedules, alerts, draft calculations or integration jobs, but MUST use normal domain authorization/system policy, idempotency, audit and reconciliation controls.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F248-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+- `F248-APP-001` — Approval-required Depreciation schedule transitions MUST snapshot material evidence/values, record approver/reason/time, block prohibited self-approval and invalidate/re-review when material inputs change.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F248-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+- `F248-NOTIF-001` — Depreciation schedule notifications MUST be event-driven, deduplicated, permission-safe and actionable for due/overdue, exception, approval, expiry/warranty, maintenance/calibration or reconciliation conditions as applicable.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+Attachments/generated documents include invoices/receipts, capitalization evidence, handover forms, warranty documents, maintenance records, inspection/calibration certificates, physical-verification evidence and disposal documents; define scanning, versioning, retention, access and provenance.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+Import/export/migration defines mapping, preview/dry-run, source/asset identity resolution, duplicate/tag/serial handling, row errors, background thresholds, resumability, permission-safe exports and audit. Historical financial/posted facts require controlled migration modes and reconciliation.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F248-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+- `F248-REP-001` — Depreciation schedule reporting MUST define metric formulas, as-of/effective-date/book/company scope, permission-safe drilldown, export and reconciliation to authoritative source facts.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F248-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+- `F248-AI-001` — AI for Depreciation schedule MAY extract documents, classify/analyze anomalies, explain schedules or recommend maintenance/verification priorities, but MUST show provenance/uncertainty and MUST NOT authoritatively determine ledger, depreciation, tax, authorization or legal state transitions.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F248-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+- `F248-SEC-001` — Every Depreciation schedule query/command MUST enforce server-side organization, company/branch/location/record scope plus action permission; unauthorized totals, finance fields, custodian data and documents MUST not leak.
+- `F248-SEC-002` — Sensitive Depreciation schedule actions MUST enforce maker-checker/SoD policy where configured; creators/requesters/technicians cannot self-approve capitalization, financial posting, impairment/revaluation, disposal or compliance closure when prohibited.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+Scope is organization -> company -> branch/site/location -> asset/category/record, with field-level controls for acquisition cost, carrying value, custodian, warranty, maintenance/inspection evidence and accounting references. Cross-company consolidation requires elevated permission and cannot leak unauthorized detail.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+Audit records actor/channel/time/reason, before/after or immutable event, effective date/book, request/correlation/idempotency IDs, approval/reversal/source links and retention for master, custody, maintenance, verification, value/depreciation and disposal changes.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+Use optimistic versions/expected state plus row/advisory locks where financial/assignment/maintenance races matter. Simultaneous transfer/assignment/disposal/depreciation/maintenance actions must not create double custody, duplicate posting or stale carrying value.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+Procurement auto-create, depreciation posting, maintenance parts issue, disposal/accounting handoff and other externally visible effects require source-scoped idempotency keys. Replay returns prior outcome/safe no-op; failures remain reconcilable.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F248-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+- `F248-INT-001` — Depreciation schedule MUST consume external-module facts only through versioned public contracts with source ID, company, effective date, payload validation, authorization/system trust, retry semantics and reconciliation.
+- `F248-INT-002` — Depreciation schedule MUST publish downstream intent/event with stable source identity and idempotency key; Procurement, Stock, Manufacturing, Projects, HR or Accounting retain ownership of their private state and may reject/reconcile independently.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F248-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+- `F248-API-001` — Depreciation schedule commands MUST define request schema, permission/scope, expected state/version, idempotency where externally visible, domain errors, transaction boundary, audit and downstream effects.
+- `F248-API-002` — Depreciation schedule queries MUST define pagination/filter/sort, as-of/effective-date semantics where relevant, permission-safe aggregates, stable identifiers and compatibility/versioning behavior.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+Phone/tablet supports scan/search, asset 360 summary, assignment/transfer handover, maintenance/repair, inspection/calibration, photo/document capture and physical verification. Offline write support is limited to explicitly safe field drafts/queues with encrypted storage, sync conflict review and server reauthorization.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+Desktop provides dense register/ledger/analytics; tablet adapts detail + field workflows; phone uses cards/step flows/scanner. Critical actions retain parity where operationally safe, with sticky action areas and no mandatory horizontal-table interaction.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+Target WCAG 2.2 AA: semantic labels, keyboard/focus, screen-reader status, announced validation, contrast, target sizes, reduced motion, accessible scanner fallback/manual code entry and non-drag alternatives.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+Reference `docs/11-visual-assets/wireframes/ASSETS_PASS7_WORKSPACES.md` for desktop/tablet/mobile asset register/360, maintenance, depreciation, verification/scanner and disposal states.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F248-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+- `F248-PERF-001` — Depreciation schedule MUST define behavior for 0/1/100/10k/1m relevant rows, server pagination/virtualization, batch/background thresholds and latency budgets so enterprise asset registers/history do not degrade into unbounded scans.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F248-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+- `F248-OBS-001` — Depreciation schedule MUST emit structured logs/metrics/traces with correlation IDs, job/retry/dead-letter state, business exception counters and reconciliation diagnostics without exposing sensitive financial/custodian data.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+Cover zero/large values, salvage >= cost, zero/changed useful life, backdated acquisition/disposal, leap/month-end conventions, closed periods, duplicate source receipt/invoice, lost/replaced tags, concurrent custody changes, overdue calibration, warranty overlaps, partially failed stock/accounting effects, deleted/archived references, currency/rate gaps and retry/recovery.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+- `AST-P7-CODE-018` — verified current-code evidence: `services/api/src/modules/accounting/assets.js`.
+- Evidence is a foundation/implementation observation only; it does not certify the target requirement set.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+Target requirements were compared against verified Assets/Accounting source foundations. Existing code covers meaningful register/category/capitalization/assignment/transfer/maintenance/inspection/depreciation/disposal foundations, but broad enterprise certification remains absent for multi-book/effectivity, revaluation/impairment depth, calibration/verification/barcode field workflows, partial lifecycle adjustments, accounting reconciliation, concurrency, mobile/offline, performance and E2E/UAT.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+Likely later implementation areas: `database/tenant`, `services/api/src/modules/assets`, `services/api/src/modules/accounting` public contracts, orchestration/worker jobs, `apps/web/src/modules/assets`, mobile/scanner surfaces, permissions/shared types/SDK, integration adapters and comprehensive DB/security/E2E tests. Pass 7 writes documentation only.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated plan covers calculation/property tests for depreciation/value/gain-loss, state-machine tests, DB constraints/RLS/tenant-company isolation, permission-negative/SoD, API contracts, concurrency/idempotency, procurement/stock/manufacturing/HR/accounting integrations, reversal/reconciliation, migration, performance and observability.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F248-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+- `F248-E2E-001` — Browser/device E2E MUST prove the primary authorized Depreciation schedule journey including visible state, persisted data, audit and downstream contract outcome.
+- `F248-E2E-002` — E2E MUST prove Depreciation schedule permission denial, stale/conflict handling, duplicate/retry behavior and reversal/reconciliation or exception recovery without duplicated effect.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F248-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+- `F248-UAT-001` — A realistic asset operator MUST execute Depreciation schedule using documented prerequisites/steps and verify visible, data, audit and downstream outcomes with evidence capture.
+- `F248-UAT-002` — A controller/auditor MUST independently verify Depreciation schedule authorization/SoD, history, calculation/reconciliation and exception/reversal behavior before sign-off.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+Done means approved dossier requirements, benchmark + code evidence, capability/dependency/journey mappings, security/SoD, data/API/integration, responsive/mobile/accessibility, test/E2E/UAT and omission/red-team gates are objectively satisfied. A table/API/page alone never qualifies, and specification readiness never certifies product readiness.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No unresolved material placeholder blocks specification readiness. Phased implementation choices such as first-release depreciation books/components/CIP breadth may be narrowed only by explicit change-control decisions without weakening the target enterprise data model.
