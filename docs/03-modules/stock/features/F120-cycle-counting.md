@@ -4,171 +4,206 @@
 - Canonical ID: `F120`
 - Canonical name: **Cycle counting**
 - Module: **Stock / Inventory**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `STOCK-CAP-005`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+Run recurring/threshold/spot cycle counts with blind-count options, discrepancy review and auditable adjustment outcomes.
+
+**Non-goal:** specification readiness does not certify current implementation, and Stock does not take private-state ownership from another module.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+- Quantity/state outcome: reproducible physical stock truth at explicit item/location/tracking grain.
+- Control outcome: no bypass of reservation, hold, negative-stock, valuation or permission rules.
+- Reconciliation outcome: movement, balance, valuation and downstream financial/control totals can be explained.
+- Readiness outcome: specification is independently gated from implementation/product readiness.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+- Warehouse operator / receiver / picker / packer / shipper executes physical work.
+- Inventory controller / warehouse manager governs balances, counts, exceptions and replenishment.
+- Quality, planner, Sales, Procurement, Manufacturing and Finance personas participate through explicit contracts.
+- Negative case: users outside permitted company/warehouse/cost scope cannot infer quantities, costs or restricted references through list counts, dashboards, exports or search.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+- Stock dashboard, availability workspace, operations workspace and role-specific queues.
+- Item/warehouse/lot/serial 360, global search/command palette and durable deep links.
+- Contextual entry from Procurement receipts, Sales orders, Manufacturing orders, POS, Quality holds and Accounting reconciliation where authorized.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+- `STOCK-P4-BE-047` — official primary benchmark evidence in `BENCHMARK_REGISTER.csv`.
+- `STOCK-P4-BE-048` — official primary benchmark evidence in `BENCHMARK_REGISTER.csv`.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+- `REQUIRED`: mature inventory integrity, warehouse execution, traceability, valuation and reconciliation behavior.
+- `DIFFERENTIATOR`: coherent Vercentlabs capability-oriented UX/contracts instead of copied vendor object structures.
+- `NOT_APPLICABLE`: vendor-specific licensing/object names and features outside the canonical product scope.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Cycle counting** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+Independent omission review covered **blind counts, count plans, thresholds, mobile/spot counts, recounts, approvals, variance limits and concurrent movement handling**. These expectations are requirements or explicit boundaries; none are silently omitted because the canonical title is short.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F120-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+- `F120-CAP-001` — The Cycle counting capability MUST run recurring/threshold/spot cycle counts with blind-count options, discrepancy review and auditable adjustment outcomes.
+- `F120-CAP-002` — The capability MUST explicitly cover blind counts, count plans, thresholds, mobile/spot counts, recounts, approvals, variance limits and concurrent movement handling; the canonical title is a traceability anchor, not complete scope.
+- `F120-CAP-003` — Cycle counting MUST preserve Stock ownership of physical quantity/stock-ledger effects and use public contracts for Procurement, Sales, Manufacturing, Quality, POS, Projects, Assets and Accounting effects.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F120-FR-###` and `F120-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+- `F120-FR-001` — The system MUST provide a server-backed Cycle counting workflow covering success, validation, permission, conflict, downstream failure, reversal/recovery and audit states.
+- `F120-FR-002` — Every material Cycle counting mutation MUST preserve actor, effective/posting time, reason, source reference, prior/new state or immutable event, and downstream lineage.
+- `F120-FR-003` — Cycle counting MUST remain usable at enterprise item/location/movement volumes through stable pagination, indexing, batching, virtualization or background processing as appropriate.
+- `F120-US-001` — As an authorized warehouse/inventory operator, I can perform Cycle counting accurately without bypassing quantity, traceability, quality, costing or permission controls.
+- `F120-US-002` — As an inventory manager/controller, I can review exceptions, history, reconciliation and policy for Cycle counting within my permitted company/warehouse scope.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F120-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+- `F120-FLOW-001` — The governed lifecycle MUST follow PLANNED -> OPEN -> COUNTING -> REVIEW -> POSTED/CLOSED or CANCELLED, with explicit guards and no silent history rewrite.
+- `F120-FLOW-002` — Validation, permission, concurrency and downstream failures for Cycle counting MUST be actionable and safely retryable without duplicate physical, reservation, valuation or accounting effects.
+
+Lifecycle reference: `PLANNED -> OPEN -> COUNTING -> REVIEW -> POSTED/CLOSED or CANCELLED`.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+- Aggregate owner: Stock domain service for **Cycle counting**.
+- Lifecycle: `PLANNED -> OPEN -> COUNTING -> REVIEW -> POSTED/CLOSED or CANCELLED`.
+- Transitions require current state/version, authorization, dimension eligibility and invariant checks.
+- Posted movement facts are corrected by reversal/compensation, never silent mutation.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F120-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+- `F120-DATA-001` — The Cycle counting model MUST define organization/company, item, warehouse/location and lot/batch/serial dimensions as applicable, with stable keys, constraints, indexes, retention and lineage.
+- `F120-DATA-002` — Quantity, UOM, cost, status, source and policy values that determine historical Cycle counting interpretation MUST remain reproducible after master/configuration changes.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F120-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+- `F120-VAL-001` — All Cycle counting commands MUST validate tenant/company scope, item/location eligibility, UOM, quantity sign/precision, tracking/status rules, lifecycle and reference integrity server-side.
+- `F120-VAL-002` — Cycle counting failures MUST use stable domain error codes and corrective guidance without exposing unauthorized cost, supplier, customer or cross-company data.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F120-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+- `F120-BR-001` — The Stock domain command responsible for Cycle counting is authoritative; UI, API, import, barcode, automation and AI paths MUST reuse the same invariant checks.
+- `F120-BR-002` — Posted stock facts for Cycle counting MUST be corrected by reversal/compensation or linked adjustment, never by rewriting authoritative movement history.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F120-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+- `F120-CALC-001` — All authoritative quantity, availability, ATP, conversion, valuation, aging or replenishment calculations applicable to Cycle counting MUST use deterministic decimal/date rules with explicit precision and reproducible inputs; AI is never authoritative.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F120-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
+- `F120-UX-001` — The Cycle counting workspace MUST expose item/location identity, state, quantity/cost facts as permitted, source/next action, exceptions, related records and history in one coherent Stock shell.
+- `F120-UX-002` — Desktop/tablet/phone views for Cycle counting MUST define loading, empty, validation, permission, stale/conflict, offline/retry, destructive confirmation and success states.
+- `F120-UX-003` — Warehouse-heavy Cycle counting interactions MUST support keyboard operation, touch-safe controls, scanner/manual alternatives, visible focus and non-drag alternatives.
 
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+Use the appropriate inventory view archetype: item/warehouse 360, availability grid, ledger, count work, replenishment queue, traceability graph, pick-pack-ship workbench, valuation/reporting dashboard or exception queue.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+Lists/work queues define server pagination/sorting, column/density personalization, authorization-safe counts, row state/actions, bulk eligibility and virtualization/async thresholds.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+Search defines item/SKU/barcode/location/lot/serial/reference fields, operators/facets, stable sort, saved views and authorization-safe result/count semantics.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+The detail/360 keeps identity, lifecycle/status, dimension grain, quantities/costs as permitted, source/related records, history and downstream state together.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+Create/quick-create applies governed defaults, scanner/manual input, dimensional validation and a deterministic preview before a physical/financial effect is posted.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+Master/configuration edits are version/effective-date aware; posted movements and historical valuation/traceability facts are immutable except through governed reversal/compensation.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+Bulk operations validate each selected row under the same server rules; partial success, failure export, retry and audit semantics are explicit.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+Primary and destructive actions are role/state aware; post/reverse/adjust/release/ship actions require explicit confirmation when they create irreversible or downstream effects.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+Related navigation links item, warehouse/location, movement, reservation, lot/serial, source document, quality hold, fulfilment and accounting references without cross-module private writes.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F120-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+- `F120-AUTO-001` — Automation MAY create proposals/work for Cycle counting only through idempotent Stock/public commands; no automation may directly mutate stock balance tables.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F120-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+- `F120-APP-001` — Where policy requires maker-checker for high-value adjustments, negative-stock exceptions, count variances or quality release affecting Cycle counting, approval MUST bind to the exact version/value being approved.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F120-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+- `F120-NOTIF-001` — Notifications for Cycle counting MUST be event-driven, deduplicated, preference/permission aware and deep-link to the exact exception or work item without leaking restricted data.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+Attachments/labels/count sheets/pick-pack documents/traceability exports use permission-safe templates, durable references, generated-at metadata and reprint history where material.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+Imports require mapping, dry-run/preview, dimension validation, duplicate/idempotency policy, background jobs and failure rows; exports respect company/warehouse/cost permissions and as-of semantics.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F120-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+- `F120-REP-001` — Reports/KPIs for Cycle counting MUST define grain, filters, freshness, drilldown, as-of semantics and reconciliation to authoritative movement/balance/valuation records.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F120-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+- `F120-AI-001` — AI for Cycle counting is limited to assist/recommend/generate workflows with provenance, explanation and permission filtering; it MUST NOT be authoritative for stock quantity, reservation, valuation, traceability, quality holds or posting legality.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F120-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+- `F120-SEC-001` — Every Cycle counting query and mutation MUST enforce authentication, module entitlement, organization/company/warehouse scope, action permission and record/dimension visibility server-side.
+- `F120-SEC-002` — Cost/valuation, customer/supplier references and administrative configuration in Cycle counting MUST be field/action restricted and protected against IDOR, aggregate leakage and unauthorized export.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+Every Stock query/mutation is organization-scoped and company-scoped; warehouse/location access is an additional dimension where configured. Cross-company inventory is never inferred by absence of UI filters.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+Audit records actor/channel/time, request/correlation/idempotency key, source document, state/reason, before/after master configuration when mutable, movement/reversal links and downstream event references.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+Physical quantity/reservation/valuation mutations use transaction-scoped locking or equivalent atomic compare-and-update at the authoritative dimension grain. Lock ordering, deadlock retry and stale-work recovery are specified.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+Externally visible stock effects require idempotency keys/source-effect uniqueness, replay/no-op behavior, durable outbox semantics and reconciliation for uncertain downstream delivery.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F120-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+- `F120-INT-001` — Inbound cross-module requests affecting Cycle counting MUST call a versioned public Stock command with authorization, idempotency key, source reference, validation and explicit failure result.
+- `F120-INT-002` — Outbound effects from Cycle counting MUST use outbox/public events or orchestration with retry, reversal/compensation and reconciliation; Stock MUST NOT write another module’s private tables.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F120-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+- `F120-API-001` — Cycle counting mutation APIs MUST define request schema, authorization, idempotency, expected state/version, stable errors, audit/outbox effects and compatibility semantics.
+- `F120-API-002` — Cycle counting query APIs MUST define dimension grain, pagination/filter/sort, as-of/freshness semantics, authorization-safe aggregates and stable response contracts.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+Receiving, transfers, picking, counting, packing, shipping and traceability lookup define scanner-first phone/handheld flows, manual fallback, offline boundaries, reconnect/retry and device-security behavior.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+Desktop supports dense grids and multi-pane workspaces; tablet supports warehouse work; phone transforms grids into actionable cards/step flows without losing critical actions or exception evidence.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+Target WCAG 2.2 AA: semantic labels/headings, full keyboard support, visible focus, status/error announcements, sufficient target sizing/contrast, non-color status cues, reduced motion and non-drag/manual alternatives to scanning.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+Reference `docs/11-visual-assets/wireframes/STOCK_PASS4_WORKSPACES.md` plus journey/state diagrams in Stock architecture and cross-module contracts.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F120-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+- `F120-PERF-001` — Cycle counting MUST define performance envelopes for 0/1/100/10k/1m movement or dimension records as applicable, with bounded queries and explicit asynchronous thresholds.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F120-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+- `F120-OBS-001` — Cycle counting MUST emit structured logs/metrics/traces for failures, retries, lock contention, drift/reconciliation, job lag and downstream delivery with correlation IDs.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+Red-team cases include duplicate/replayed scans, concurrent reservation/issue, backdated movement, expired/held stock, partial transfer/shipment, serial reuse, UOM rounding drift, count during movement, failed downstream accounting event, valuation reversal, stale ATP and cross-company IDOR.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+- Verified current-code evidence: `STOCK-P4-CODE-024` → `database/tenant/migrations/044_stock_module.sql`.
+- Evidence describes present foundations only; absence or presence never auto-certifies the canonical feature.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+Implementation/product readiness remains explicitly unverified. Pass 4 requires later code-level proof for every approved requirement, especially transaction isolation, quality-hold interlocks, valuation-layer integrity, historical/as-of reporting, warehouse mobile execution and cross-module reconciliation.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+Implement by capability and journey, not one source folder per F-ID. Priority order: inventory identity/dimensions -> ledger/locking/idempotency -> reservations/availability/ATP -> traceability/status -> warehouse execution/counting/replenishment -> valuation/reconciliation -> analytics/reporting.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated tests require domain/unit math, database/RLS and concurrency, API contract/auth-negative, idempotency/retry, cross-module integration, property/invariant tests for quantity/valuation, migration/data-reconciliation, performance and observability diagnostics.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F120-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+- `F120-E2E-001` — E2E MUST prove an authorized operator can complete the primary Cycle counting journey and observe correct quantity/state/history/downstream references.
+- `F120-E2E-002` — E2E MUST cover unauthorized access, invalid/stale data, concurrent/replayed mutation and one relevant failure, short/partial, hold, reversal or reconciliation path for Cycle counting.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F120-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+- `F120-UAT-001` — A real warehouse/inventory operator MUST execute the primary Cycle counting job with realistic data on desktop and an appropriate mobile/scanner path, capturing visible and data evidence.
+- `F120-UAT-002` — An inventory manager/controller plus relevant Quality/Finance/Sales/Procurement persona MUST verify permissions, exception/reversal behavior, audit and cross-module reconciliation for Cycle counting.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+Objective completion requires approved requirements with implementation/test evidence; server authorization; valid state transitions; deterministic quantity/UOM/availability/valuation; idempotent/auditable cross-module effects; responsive/accessibility evidence; actionable recovery; reconciliation and executed UAT. A page, table, endpoint or existing code artifact alone is insufficient.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No unresolved material placeholder remains for Pass 4 specification readiness. Implementation-time configuration choices (for example permitted negative-stock exceptions, valuation method by item group, removal strategy and warehouse work policy) must be recorded as explicit decisions and cannot weaken deterministic inventory invariants.

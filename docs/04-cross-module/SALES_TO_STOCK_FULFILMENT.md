@@ -1,3 +1,3 @@
-# Sales → Stock Fulfilment Contract
+# Sales to Stock Fulfilment
 
-Sales owns customer commitment; Stock owns availability, reservation, pick/pack/ship and physical movement. F045–F049 call Stock public contracts, retain returned request/result references, handle partial/failure/retry idempotently and reconcile ordered/remaining quantities to delivered evidence.
+Sales confirms demand and calls Stock availability/reservation contracts. Stock owns reservation, picking eligibility and physical issue. Shipment completion is idempotent; Sales never writes Stock private tables. Partial fulfilment/backorder, short pick, cancellation and retry/reversal are explicit.
