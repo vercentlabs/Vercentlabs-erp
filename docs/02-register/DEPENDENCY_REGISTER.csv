@@ -1,1 +1,43 @@
 dependency_id,source_id,target_id,dependency_type,owning_module,description,failure_if_missing,journey_ids,status,last_reviewed_on
+CRM-P1-DEP-001,F005,F001,REQUIRES,CRM,F005 requires F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-002,F006,F001,REQUIRES,CRM,F006 requires F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-003,F007,F001,REQUIRES,CRM,F007 requires F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-004,F008,F001,GOVERNS,CRM,F008 governs F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-005,F009,F002,REQUIRES,CRM,F009 requires F002 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-006,F009,F003,USES,CRM,F009 uses F003 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-007,F010,F009,REQUIRES,CRM,F010 requires F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-008,F010,F012,REQUIRES,CRM,F010 requires F012 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-009,F011,F009,REQUIRES,CRM,F011 requires F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-010,F012,F009,GOVERNS,CRM,F012 governs F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-011,F013,F019,PROJECTS_TO,CRM,F013 projects to F019 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-012,F014,F019,PROJECTS_TO,CRM,F014 projects to F019 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-013,F015,F019,PROJECTS_TO,CRM,F015 projects to F019 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-014,F016,F015,USES,CRM,F016 uses F015 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-015,F017,F019,PROJECTS_TO,CRM,F017 projects to F019 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-016,F018,F019,PROJECTS_TO,CRM,F018 projects to F019 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-017,F020,F005,GOVERNS,CRM,F020 governs F005 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-018,F020,F025,GOVERNS,CRM,F020 governs F025 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-019,F021,F008,REQUIRES,CRM,F021 requires F008 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-020,F022,F006,REQUIRES,CRM,F022 requires F006 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-021,F022,F008,REQUIRES,CRM,F022 requires F008 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-022,F022,F002,CREATES_OR_REUSES,CRM,F022 creates or reuses F002 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-023,F022,F003,CREATES_OR_REUSES,CRM,F022 creates or reuses F003 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-024,F022,F009,CREATES,CRM,F022 creates F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-025,F023,F009,REQUIRES,CRM,F023 requires F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-026,F023,F036,HANDOFF_TO,CRM,F023 handoff to F036 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-027,F024,F009,AGGREGATES,CRM,F024 aggregates F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-028,F024,F010,AGGREGATES,CRM,F024 aggregates F010 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-029,F025,F009,AGGREGATES,CRM,F025 aggregates F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-030,F025,F011,USES,CRM,F025 uses F011 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-031,F025,F012,USES,CRM,F025 uses F012 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-032,F025,F020,ROLLS_UP_BY,CRM,F025 rolls up by F020 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-033,F026,F009,GOVERNS_CLOSE,CRM,F026 governs close F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-034,F027,F001,DERIVES_FROM,CRM,F027 derives from F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-035,F027,F005,INFORMS,CRM,F027 informs F005 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-036,F027,F006,INFORMS,CRM,F027 informs F006 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-037,F028,F001,EXTENDS,CRM,F028 extends F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-038,F028,F009,EXTENDS,CRM,F028 extends F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-039,F029,F001,OPERATES_ON,CRM,F029 operates on F001 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-040,F029,F009,OPERATES_ON,CRM,F029 operates on F009 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-041,F030,F024,REPORTS,CRM,F030 reports F024 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
+CRM-P1-DEP-042,F030,F025,REPORTS,CRM,F030 reports F025 under the CRM Pass 1 specification.,Feature contract becomes incomplete or inconsistent.,,APPROVED,2026-08-30
