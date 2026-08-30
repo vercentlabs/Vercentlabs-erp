@@ -1,0 +1,3 @@
+# Feature Specification Standard
+
+Every F-ID dossier must define identity, intent, outcomes, personas/JTBD, benchmark evidence, omission gate, sub-capabilities, functional requirements, business rules, flows, state machine, data model, calculations, UX, search/filter/saved views, create/edit/detail/bulk actions, automation, approvals, notifications, reports/analytics, AI decision, security/scope/field controls, audit, concurrency, idempotency, integrations, API contracts, mobile/offline, responsive/accessibility, performance/observability, edge cases, code audit, gap analysis, implementation map, tests, UAT and objective exit criteria.

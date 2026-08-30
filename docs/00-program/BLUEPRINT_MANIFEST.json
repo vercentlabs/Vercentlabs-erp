@@ -1,0 +1,110 @@
+{
+  "canonical_feature_count": 510,
+  "canonical_first_id": "F001",
+  "canonical_last_id": "F510",
+  "shared_platform_requirements_are_separate": true,
+  "next_pass": {
+    "number": 1,
+    "module": "CRM",
+    "range": "F001-F030",
+    "mode": "SPECIFICATION_ONLY"
+  },
+  "module_passes": [
+    {
+      "pass": 1,
+      "module": "CRM",
+      "slug": "crm",
+      "start": "F001",
+      "end": "F030",
+      "count": 30
+    },
+    {
+      "pass": 2,
+      "module": "Sales",
+      "slug": "sales",
+      "start": "F031",
+      "end": "F062",
+      "count": 32
+    },
+    {
+      "pass": 3,
+      "module": "Procurement",
+      "slug": "procurement",
+      "start": "F063",
+      "end": "F096",
+      "count": 34
+    },
+    {
+      "pass": 4,
+      "module": "Stock / Inventory",
+      "slug": "stock",
+      "start": "F097",
+      "end": "F144",
+      "count": 48
+    },
+    {
+      "pass": 5,
+      "module": "Manufacturing",
+      "slug": "manufacturing",
+      "start": "F145",
+      "end": "F192",
+      "count": 48
+    },
+    {
+      "pass": 6,
+      "module": "Projects",
+      "slug": "projects",
+      "start": "F193",
+      "end": "F230",
+      "count": 38
+    },
+    {
+      "pass": 7,
+      "module": "Assets",
+      "slug": "assets",
+      "start": "F231",
+      "end": "F267",
+      "count": 37
+    },
+    {
+      "pass": 8,
+      "module": "Point of Sale",
+      "slug": "point-of-sale",
+      "start": "F268",
+      "end": "F307",
+      "count": 40
+    },
+    {
+      "pass": 9,
+      "module": "Quality",
+      "slug": "quality",
+      "start": "F308",
+      "end": "F342",
+      "count": 35
+    },
+    {
+      "pass": 10,
+      "module": "Support / Customer Service",
+      "slug": "support",
+      "start": "F343",
+      "end": "F380",
+      "count": 38
+    },
+    {
+      "pass": 11,
+      "module": "HR & Payroll",
+      "slug": "hr-payroll",
+      "start": "F381",
+      "end": "F452",
+      "count": 72
+    },
+    {
+      "pass": 12,
+      "module": "Accounting / Finance",
+      "slug": "accounting",
+      "start": "F453",
+      "end": "F510",
+      "count": 58
+    }
+  ]
+}
