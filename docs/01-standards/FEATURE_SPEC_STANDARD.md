@@ -1,19 +1,18 @@
-# Feature Specification Standard
+# Feature Dossier Standard — v3
 
-## Purpose
-This file is the normative contract for all canonical F001–F510 dossiers. The canonical feature IDs and names never change here. Deeper requirements are nested under their parent F-ID and must never become F511+.
+The canonical register contains exactly F001–F510. An F-ID is a permanent traceability anchor, not the maximum product scope and not a code-folder instruction. Enterprise behavior discovered underneath a feature is represented by nested IDs such as `F001-FR-001`, never F511+.
 
-## Machine-enforced schema
-The exact required section identifiers and order are defined in `FEATURE_DOSSIER_SCHEMA.json`. Each dossier heading begins with a stable identifier such as `SPEC-SECURITY` or `SPEC-UAT`; validators check these identifiers rather than fuzzy prose.
+## Normative language
+Use **MUST / MUST NOT / SHOULD / MAY** for requirements. Every material requirement receives a stable nested ID and is mirrored into `SUBREQUIREMENT_REGISTER.csv`.
 
-## Nested traceability IDs
-Use `{F-ID}-{TYPE}-{NNN}`. Allowed types are `FR`, `BR`, `DATA`, `UX`, `SEC`, `INT`, `AI`, `OBS`, `E2E`, and `UAT`. Example: `F001-SEC-004`. These IDs are requirements under a canonical feature, not new canonical features.
+## Requirement types
+`CAP`, `FR`, `US`, `FLOW`, `BR`, `DATA`, `VAL`, `CALC`, `UX`, `SEC`, `AUTO`, `APP`, `NOTIF`, `REP`, `AI`, `INT`, `API`, `PERF`, `OBS`, `E2E`, `UAT`.
 
 ## Evidence rule
-A section is not complete because prose exists. Material requirements must be traceable to one or more of: product-owner decision, official benchmark evidence, domain invariant, current-code evidence, security/control requirement, integration contract, automated test, or UAT evidence.
+Prose alone is never evidence. Requirements must trace to one or more of: official benchmark evidence, deliberate product decision, domain invariant, current-code evidence, standard/security control, integration contract, automated verification or human UAT.
 
 ## Omission rule
-The canonical feature name is a traceability anchor, not the maximum product scope. Each dossier must explicitly evaluate enterprise-expected behavior and classify researched benchmark capabilities as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+Every module pass must actively search for capabilities hidden behind short canonical names. Every material benchmark finding must be dispositioned as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale. Silence is not a valid decision.
 
-## Status rule
-Feature dossier status follows `SPECIFICATION_LIFECYCLE.md`. `SPECIFICATION_READY` requires objective evidence for every applicable dossier section, synchronized registers, parent capability coherence, and applicable critical-journey contracts.
+## Readiness rule
+`SPECIFICATION_READY` requires complete research, decomposed requirements, UX/domain/security/API/integration design, red-team omission review, test/E2E/UAT design, synchronized registers and applicable parent capability/journey contracts.

@@ -1,0 +1,26 @@
+# Capability Contract Template
+
+- Capability identity / noncanonical capability ID
+- Mapped F-IDs
+- Personas and jobs to be done
+- Business outcomes and success metrics
+- Benchmark evidence and product decisions
+- Boundaries and non-goals
+- Primary operating journey
+- Alternate / exception / reversal journeys
+- Information architecture and required views
+- Wireframes and responsive behavior
+- Domain aggregates and state machines
+- Calculations and invariants
+- Commands, queries and API contracts
+- Automations, approvals and notifications
+- Reporting and analytics
+- AI use and deterministic authority boundaries
+- Security, field controls and record scopes
+- Cross-module handoffs, idempotency and reconciliation
+- Performance and observability
+- Current-code audit and exact gap analysis
+- Implementation dependency order
+- Automated test, E2E and human UAT plans
+- Independent omission/red-team review
+- Working status and readiness gate

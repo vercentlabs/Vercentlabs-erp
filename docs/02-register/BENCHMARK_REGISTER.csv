@@ -1,50 +1,66 @@
-benchmark_id,evidence_id,module,vendor,product,source_type,source_title,source_url,source_published_or_updated_on,accessed_on,feature_ids,capability_ids,finding,decision,rationale,status
-BM-001,,CRM,Salesforce,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-002,,CRM,Microsoft Dynamics 365 Sales,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-003,,CRM,HubSpot,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-004,,CRM,Zoho CRM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-005,,CRM,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-006,,Sales,Microsoft Dynamics 365,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-007,,Sales,SAP,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-008,,Sales,Oracle,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-009,,Sales,NetSuite,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-010,,Sales,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-011,,Procurement,SAP,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-012,,Procurement,Oracle Procurement,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-013,,Procurement,Microsoft Dynamics 365 SCM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-014,,Procurement,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-015,,Stock / Inventory,SAP EWM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-016,,Stock / Inventory,Microsoft Dynamics 365 SCM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-017,,Stock / Inventory,Oracle Inventory,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-018,,Stock / Inventory,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-019,,Manufacturing,SAP PP,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-020,,Manufacturing,Microsoft Dynamics 365 SCM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-021,,Manufacturing,Oracle Manufacturing,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-022,,Manufacturing,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-023,,Projects,NetSuite SuiteProjects,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-024,,Projects,Microsoft Dynamics 365 Project Operations,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-025,,Projects,SAP,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-026,,Projects,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-027,,Assets,SAP Asset Management / FI-AA,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-028,,Assets,Microsoft Dynamics 365,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-029,,Assets,Oracle,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-030,,Point of Sale,Microsoft Dynamics 365 Commerce,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-031,,Point of Sale,Oracle Retail,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-032,,Point of Sale,Odoo POS,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-033,,Quality,SAP QM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-034,,Quality,Microsoft Dynamics 365 SCM Quality,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-035,,Quality,Oracle Quality,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-036,,Quality,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-037,,Support / Customer Service,Salesforce Service Cloud,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-038,,Support / Customer Service,Microsoft Dynamics 365 Customer Service,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-039,,Support / Customer Service,ServiceNow,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-040,,Support / Customer Service,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-041,,HR & Payroll,Workday,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-042,,HR & Payroll,SAP SuccessFactors,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-043,,HR & Payroll,Oracle HCM,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-044,,HR & Payroll,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-045,,Accounting / Finance,SAP Finance,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-046,,Accounting / Finance,Oracle Financials,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-047,,Accounting / Finance,Microsoft Dynamics 365 Finance,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-048,,Accounting / Finance,NetSuite,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
-BM-049,,Accounting / Finance,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,,PENDING_RESEARCH
+benchmark_id,evidence_id,module,feature_ids,capability_ids,vendor,product,source_type,source_title,source_url,source_published_or_updated_on,accessed_on,finding,decision,rationale,freshness_class,status
+BM-001,,CRM,,,Salesforce,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-002,,CRM,,,Microsoft Dynamics 365 Sales,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-003,,CRM,,,HubSpot,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-004,,CRM,,,Zoho CRM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-005,,CRM,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-006,,Sales,,,Microsoft Dynamics 365,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-007,,Sales,,,SAP,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-008,,Sales,,,Oracle,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-009,,Sales,,,NetSuite,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-010,,Sales,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-011,,Procurement,,,SAP,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-012,,Procurement,,,Oracle Procurement,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-013,,Procurement,,,Microsoft Dynamics 365 SCM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-014,,Procurement,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-015,,Stock / Inventory,,,SAP EWM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-016,,Stock / Inventory,,,Microsoft Dynamics 365 SCM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-017,,Stock / Inventory,,,Oracle Inventory,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-018,,Stock / Inventory,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-019,,Manufacturing,,,SAP PP,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-020,,Manufacturing,,,Microsoft Dynamics 365 SCM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-021,,Manufacturing,,,Oracle Manufacturing,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-022,,Manufacturing,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-023,,Projects,,,NetSuite SuiteProjects,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-024,,Projects,,,Microsoft Dynamics 365 Project Operations,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-025,,Projects,,,SAP,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-026,,Projects,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-027,,Assets,,,SAP Asset Management / FI-AA,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-028,,Assets,,,Microsoft Dynamics 365,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-029,,Assets,,,Oracle,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-030,,Point of Sale,,,Microsoft Dynamics 365 Commerce,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-031,,Point of Sale,,,Oracle Retail,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-032,,Point of Sale,,,Odoo POS,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-033,,Quality,,,SAP QM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-034,,Quality,,,Microsoft Dynamics 365 SCM Quality,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-035,,Quality,,,Oracle Quality,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-036,,Quality,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-037,,Support / Customer Service,,,Salesforce Service Cloud,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-038,,Support / Customer Service,,,Microsoft Dynamics 365 Customer Service,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-039,,Support / Customer Service,,,ServiceNow,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-040,,Support / Customer Service,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-041,,HR & Payroll,,,Workday,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-042,,HR & Payroll,,,SAP SuccessFactors,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-043,,HR & Payroll,,,Oracle HCM,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-044,,HR & Payroll,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-045,,Accounting / Finance,,,SAP Finance,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-046,,Accounting / Finance,,,Oracle Financials,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-047,,Accounting / Finance,,,Microsoft Dynamics 365 Finance,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-048,,Accounting / Finance,,,NetSuite,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+BM-049,,Accounting / Finance,,,Odoo,,OFFICIAL_PRIMARY,,,,,,,,,PENDING_RESEARCH
+SRC-CRM-SF,,CRM,,,Salesforce,Sales Cloud,OFFICIAL_PRODUCT_DOC,Salesforce Help — Manage Leads,https://help.salesforce.com/s/articleView?id=sales.leads_manage_parent.htm&language=en_US&type=5,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-CRM-D365,,CRM,,,Microsoft,Dynamics 365 Sales,OFFICIAL_PRODUCT_DOC,Dynamics 365 Sales documentation,https://learn.microsoft.com/en-us/dynamics365/sales/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-CRM-HUB,,CRM,,,HubSpot,Sales Hub / CRM,OFFICIAL_PRODUCT_DOC,HubSpot Knowledge Base — CRM / Leads,https://knowledge.hubspot.com/records/manage-leads,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-CRM-ZOHO,,CRM,,,Zoho,Zoho CRM,OFFICIAL_PRODUCT_DOC,Zoho CRM Help,https://help.zoho.com/portal/en/kb/crm,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-ODOO19,,Cross-module,,,Odoo,Odoo 19,OFFICIAL_PRODUCT_DOC,Odoo 19 Documentation,https://www.odoo.com/documentation/19.0/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-SAP-S4,,Operations,,,SAP,SAP S/4HANA,OFFICIAL_PRODUCT_DOC,SAP Help Portal — S/4HANA,https://help.sap.com/docs/SAP_S4HANA_CLOUD,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-D365-SCM,,Operations,,,Microsoft,Dynamics 365 Supply Chain Management,OFFICIAL_PRODUCT_DOC,Dynamics 365 Supply Chain Management documentation,https://learn.microsoft.com/en-us/dynamics365/supply-chain/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-ORACLE-SCM,,Operations,,,Oracle,Fusion Cloud SCM,OFFICIAL_PRODUCT_DOC,Oracle Fusion Cloud SCM documentation,https://docs.oracle.com/en/cloud/saas/supply-chain-and-manufacturing/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-NETSUITE,,Cross-module,,,Oracle,NetSuite,OFFICIAL_PRODUCT_DOC,NetSuite Applications Suite documentation,https://docs.oracle.com/en/cloud/saas/netsuite/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-ORACLE-FIN,,Accounting / Finance,,,Oracle,Fusion Cloud Financials,OFFICIAL_PRODUCT_DOC,Oracle Fusion Cloud Financials documentation,https://docs.oracle.com/en/cloud/saas/financials/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-WCAG22,,Shared platform,,,W3C,WCAG 2.2,PRIMARY_STANDARD,Web Content Accessibility Guidelines (WCAG) 2.2,https://www.w3.org/TR/WCAG22/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-OPENAPI32,,Shared platform,,,OpenAPI Initiative,OpenAPI Specification 3.2.0,PRIMARY_STANDARD,OpenAPI Specification,https://spec.openapis.org/oas/latest.html,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-ASVS50,,Shared platform,,,OWASP,ASVS 5.0,PRIMARY_STANDARD,OWASP Application Security Verification Standard,https://owasp.org/www-project-application-security-verification-standard/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-MASVS,,Shared platform,,,OWASP,MASVS,PRIMARY_STANDARD,OWASP Mobile Application Security Verification Standard,https://mas.owasp.org/MASVS/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-POSTGRES,,Shared platform,,,PostgreSQL,PostgreSQL,PRIMARY_TECH_DOC,PostgreSQL current documentation,https://www.postgresql.org/docs/current/,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY
+SRC-NIST-AIRMF,,Shared platform,,,NIST,AI RMF / GenAI Profile,PRIMARY_STANDARD,NIST AI Risk Management Framework,https://www.nist.gov/itl/ai-risk-management-framework,,2026-08-30,,,,SOURCE_LIBRARY,SOURCE_LIBRARY

@@ -1,29 +1,77 @@
 {
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "canonical_feature_count": 510,
   "canonical_id_range": [
     "F001",
     "F510"
   ],
   "canonical_fingerprint_sha256": "82cfcf68e74cef8c8c8872136d0bfcc0bb619b0517f3a33cfc92bc1e3dde232e",
-  "status_field": "Specification status",
-  "allowed_specification_statuses": [
+  "working_status_field": "Working status",
+  "allowed_working_statuses": [
     "UNSPECIFIED",
     "RESEARCHING",
     "DRAFTING",
     "REVIEW_READY",
     "SPECIFICATION_READY"
   ],
+  "readiness_gate_field": "Readiness gate",
+  "allowed_readiness_gates": [
+    "NONE",
+    "RESEARCH_READY",
+    "REQUIREMENTS_READY",
+    "DESIGN_READY",
+    "SPECIFICATION_READY"
+  ],
+  "implementation_statuses": [
+    "NOT_STARTED",
+    "FOUNDATION",
+    "IMPLEMENTING",
+    "TESTING",
+    "IMPLEMENTED"
+  ],
+  "product_statuses": [
+    "NOT_READY",
+    "PARTIAL_UI",
+    "FUNCTIONAL_UI",
+    "RESPONSIVE",
+    "UX_HARDENED",
+    "E2E_VERIFIED",
+    "PRODUCT_READY"
+  ],
+  "benchmark_decisions": [
+    "REQUIRED",
+    "DIFFERENTIATOR",
+    "NOT_APPLICABLE"
+  ],
+  "ai_classes": [
+    "NO_AI",
+    "AI_ASSIST",
+    "AI_RECOMMEND",
+    "AI_GENERATE",
+    "AI_AUTOMATE_WITH_APPROVAL",
+    "AI_AUTOMATE"
+  ],
   "requirement_id_types": {
+    "CAP": "Sub-capability",
     "FR": "Functional requirement",
+    "US": "User story",
+    "FLOW": "Flow requirement",
     "BR": "Business rule",
     "DATA": "Data requirement",
+    "VAL": "Validation requirement",
+    "CALC": "Calculation requirement",
     "UX": "UX requirement",
     "SEC": "Security requirement",
-    "INT": "Integration requirement",
+    "AUTO": "Automation requirement",
+    "APP": "Approval requirement",
+    "NOTIF": "Notification requirement",
+    "REP": "Reporting/analytics requirement",
     "AI": "AI requirement",
+    "INT": "Integration requirement",
+    "API": "API/contract requirement",
+    "PERF": "Performance/scale requirement",
     "OBS": "Observability/reliability requirement",
-    "E2E": "End-to-end verification requirement",
+    "E2E": "End-to-end/browser verification requirement",
     "UAT": "Human UAT requirement"
   },
   "sections": [
@@ -33,27 +81,27 @@
     ],
     [
       "SPEC-INTENT",
-      "Product intent"
+      "Product intent and business problem"
     ],
     [
       "SPEC-OUTCOMES",
-      "Measurable outcomes"
+      "Business outcomes and success measures"
     ],
     [
       "SPEC-PERSONAS",
-      "Personas, jobs to be done and permissions"
-    ],
-    [
-      "SPEC-SCOPE",
-      "Scope, non-goals, assumptions and dependencies"
+      "Personas and jobs to be done"
     ],
     [
       "SPEC-ENTRY-POINTS",
-      "Entry points and discoverability"
+      "Entry points, navigation and deep links"
     ],
     [
       "SPEC-BENCHMARK",
-      "Benchmark research"
+      "Benchmark research evidence"
+    ],
+    [
+      "SPEC-DECISION",
+      "Vercentlabs benchmark decisions"
     ],
     [
       "SPEC-OMISSION-GATE",
@@ -61,83 +109,155 @@
     ],
     [
       "SPEC-SUBCAPABILITIES",
-      "Sub-capabilities"
+      "Sub-capabilities and capability mapping"
     ],
     [
       "SPEC-FUNCTIONAL",
-      "Functional requirements"
-    ],
-    [
-      "SPEC-BUSINESS-RULES",
-      "Business rules and calculations"
+      "Functional requirements and user stories"
     ],
     [
       "SPEC-FLOWS",
-      "Primary, alternate, exception, reversal and recovery flows"
+      "Primary, alternate, exception, retry and reversal flows"
     ],
     [
       "SPEC-STATE-MACHINE",
-      "Domain model and state machine"
+      "State machine and transition rules"
     ],
     [
       "SPEC-DATA",
-      "Data contract"
+      "Data model, entities, relationships and fields"
+    ],
+    [
+      "SPEC-VALIDATION",
+      "Validation rules"
+    ],
+    [
+      "SPEC-BUSINESS-RULES",
+      "Business rules and invariants"
+    ],
+    [
+      "SPEC-CALCULATIONS",
+      "Calculations, precision and rounding"
     ],
     [
       "SPEC-VIEWS",
-      "Views and information architecture"
+      "Required view archetypes"
     ],
     [
-      "SPEC-UX",
-      "Interaction and workflow UX"
+      "SPEC-LIST",
+      "List, table and work-queue behavior"
     ],
     [
-      "SPEC-RESPONSIVE",
-      "Responsive, native and offline behavior"
+      "SPEC-SEARCH",
+      "Search, filters, sorting and saved views"
     ],
     [
-      "SPEC-ACCESSIBILITY",
-      "Accessibility contract"
+      "SPEC-DETAIL",
+      "Detail / 360 workspace"
     ],
     [
-      "SPEC-API",
-      "API and service contract"
+      "SPEC-CREATE",
+      "Create and quick-create UX"
+    ],
+    [
+      "SPEC-EDIT",
+      "Edit, inline edit and immutable fields"
+    ],
+    [
+      "SPEC-BULK",
+      "Bulk actions and selection semantics"
+    ],
+    [
+      "SPEC-ACTIONS",
+      "Primary, secondary, contextual and destructive actions"
+    ],
+    [
+      "SPEC-RELATED",
+      "Related records and contextual navigation"
     ],
     [
       "SPEC-AUTOMATION",
-      "Automation and workflow rules"
+      "Automation and workflow engine behavior"
     ],
     [
       "SPEC-APPROVALS",
-      "Approvals and segregation of duties"
+      "Approvals, maker-checker and segregation of duties"
     ],
     [
       "SPEC-NOTIFICATIONS",
-      "Notifications, documents and communications"
+      "Notifications and communication behavior"
+    ],
+    [
+      "SPEC-DOCUMENTS",
+      "Attachments, generated documents, print and templates"
+    ],
+    [
+      "SPEC-IMPORT-EXPORT",
+      "Import, export and migration behavior"
     ],
     [
       "SPEC-REPORTING",
-      "Reporting, analytics and KPIs"
+      "Reports, KPIs, analytics and drilldown"
     ],
     [
       "SPEC-AI",
-      "AI opportunity, authority boundary and safeguards"
+      "AI opportunities, authority boundary and safeguards"
     ],
     [
       "SPEC-SECURITY",
-      "Security, privacy and field/record scope"
+      "Security, permissions and field controls"
+    ],
+    [
+      "SPEC-SCOPE",
+      "Tenant, company, branch, team, owner and record scope"
     ],
     [
       "SPEC-AUDIT",
       "Auditability and history"
     ],
     [
-      "SPEC-RELIABILITY",
-      "Concurrency, idempotency, recovery and observability"
+      "SPEC-CONCURRENCY",
+      "Concurrency and conflict handling"
+    ],
+    [
+      "SPEC-IDEMPOTENCY",
+      "Idempotency, retry safety and exactly-once business effects"
     ],
     [
       "SPEC-INTEGRATIONS",
       "Cross-module and external integrations"
+    ],
+    [
+      "SPEC-API",
+      "Commands, queries and API contracts"
+    ],
+    [
+      "SPEC-MOBILE",
+      "Mobile-specific and offline behavior"
+    ],
+    [
+      "SPEC-RESPONSIVE",
+      "Responsive behavior"
+    ],
+    [
+      "SPEC-ACCESSIBILITY",
+      "Accessibility contract"
+    ],
+    [
+      "SPEC-VISUAL-EVIDENCE",
+      "Wireframes, diagrams and visual evidence"
+    ],
+    [
+      "SPEC-PERFORMANCE",
+      "Performance, scale and data-volume envelope"
+    ],
+    [
+      "SPEC-OBSERVABILITY",
+      "Logs, metrics, traces, jobs and support diagnostics"
+    ],
+    [
+      "SPEC-EDGE-CASES",
+      "Edge cases, abuse cases and recovery"
     ],
     [
       "SPEC-CODE-AUDIT",
@@ -145,11 +265,19 @@
     ],
     [
       "SPEC-GAPS",
-      "Gap analysis and implementation map"
+      "Exact gap analysis"
+    ],
+    [
+      "SPEC-IMPLEMENTATION",
+      "Implementation map and dependency order"
     ],
     [
       "SPEC-TESTS",
-      "Automated verification plan"
+      "Automated test plan"
+    ],
+    [
+      "SPEC-E2E",
+      "Browser and critical-journey E2E"
     ],
     [
       "SPEC-UAT",
@@ -161,7 +289,15 @@
     ],
     [
       "SPEC-OPEN-DECISIONS",
-      "Open decisions and decision links"
+      "Open decisions, assumptions and risks"
     ]
+  ],
+  "critical_rules": [
+    "Exactly 510 canonical features; never create F511+.",
+    "Nested requirements are noncanonical and remain under their parent F-ID.",
+    "Specification readiness never implies implementation readiness.",
+    "Implementation readiness never implies product readiness.",
+    "Cross-module writes use public module contracts/orchestration rather than private-table coupling.",
+    "Financial, payroll, tax, inventory valuation, authorization and governed state transitions remain deterministic/auditable authority."
   ]
 }

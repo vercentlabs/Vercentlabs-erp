@@ -1,1 +1,1 @@
-requirement_id,feature_id,type,statement,status,source,test_evidence
+requirement_id,feature_id,capability_id,requirement_type,title,normative_statement,priority,benchmark_decision,source_ids,depends_on_ids,acceptance_criteria_ids,test_ids,status,owner,last_reviewed_on

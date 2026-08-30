@@ -1,1 +1,1 @@
-dependency_id,source_feature_or_capability,target_feature_or_capability,dependency_type,description,status
+dependency_id,source_id,target_id,dependency_type,owning_module,description,failure_if_missing,journey_ids,status,last_reviewed_on

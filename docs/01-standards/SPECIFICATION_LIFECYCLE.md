@@ -1,18 +1,18 @@
-# Specification Lifecycle
+# Specification Lifecycle — v3
 
-This lifecycle prevents documentation prose from being mistaken for implementation readiness.
+Two independent axes are mandatory.
 
-| Status | Meaning | Promotion gate |
-|---|---|---|
-| `UNSPECIFIED` | Skeleton only | Canonical identity exists |
-| `RESEARCHING` | Domain/code/benchmark evidence being gathered | Research sources and current-code targets identified |
-| `DRAFTING` | Requirements and contracts are being decomposed | Capability placement and requirement IDs exist |
-| `REVIEW_READY` | Full dossier drafted | Schema validator passes; no material TBDs; traceability/registers synchronized |
-| `SPECIFICATION_READY` | Approved implementation contract | Omission/red-team review passes; dependencies/journeys/security/tests/UAT are complete |
+## Working status
+`UNSPECIFIED -> RESEARCHING -> DRAFTING -> REVIEW_READY -> SPECIFICATION_READY`
 
-Implementation and product readiness are tracked separately. A specification can be `SPECIFICATION_READY` while implementation remains `NOT_STARTED`.
+## Readiness gate
+`NONE -> RESEARCH_READY -> REQUIREMENTS_READY -> DESIGN_READY -> SPECIFICATION_READY`
 
-## Prohibited promotions
-- Never infer `SPECIFICATION_READY` from file existence.
-- Never infer implementation completion from an API route, table, or UI shell alone.
-- Never mark product ready without end-user workflow, trusted server authorization, valid state transitions/data effects, integrations where applicable, auditability, automated verification and human UAT.
+| Gate | Minimum evidence |
+|---|---|
+| `RESEARCH_READY` | Domain research, official benchmark evidence, current-code audit targets/evidence |
+| `REQUIREMENTS_READY` | Traceable subrequirements, workflows, business rules, edge cases, integrations and reversals |
+| `DESIGN_READY` | Data/state/API/UX/security/responsive/accessibility architecture |
+| `SPECIFICATION_READY` | Red-team review, tests, E2E, UAT, DoD and cross-reference validation |
+
+Implementation and product readiness are tracked separately. No implementation work should be started for a capability until the governing feature dossiers and capability contract are specification-ready, except explicitly approved infrastructure repairs.

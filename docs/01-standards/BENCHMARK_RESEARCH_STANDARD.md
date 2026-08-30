@@ -1,17 +1,20 @@
-# Benchmark Research Standard
+# Benchmark Research Standard — v3
 
-## Source priority
-Prefer current official product documentation, release documentation and primary standards. Secondary commentary can guide discovery but cannot be the sole evidence for a material requirement.
+## Source hierarchy
+1. Current official product documentation.
+2. Official release notes / product update documentation.
+3. Official developer/API documentation.
+4. Primary standards bodies (W3C, NIST, OWASP, OpenAPI, PostgreSQL documentation where relevant).
+5. Official vendor training/tutorials.
+6. High-quality implementation partners only when primary material is silent.
+7. Reviews/forums/blogs are discovery leads, not sufficient normative evidence.
 
-## Evidence granularity
-Each material benchmark finding receives its own `evidence_id` and maps to one or more canonical feature IDs and/or a noncanonical capability ID. Vendor-level rows are a research queue, not evidence by themselves.
+## Evidence record
+Every material finding gets a unique evidence ID, source title, URL, published/updated date when available, access date, mapped F-IDs/capabilities, observed behavior, product decision and rationale.
 
-## Required evidence fields
-Record module, vendor/product, source type, source title, source URL, publication/update date when available, access date, mapped F-IDs/capability IDs, concise observed capability, decision, rationale, and research status.
+## Product decisions
+- `REQUIRED`: mature Vercentlabs behavior should support it.
+- `DIFFERENTIATOR`: intentionally outperform/simplify it.
+- `NOT_APPLICABLE`: explicitly reject it with a business/domain reason.
 
-## Decision vocabulary
-- `REQUIRED`: mature enterprise behavior Vercentlabs should support.
-- `DIFFERENTIATOR`: behavior worth intentionally doing better or more simply.
-- `NOT_APPLICABLE`: deliberately excluded with explicit product/domain rationale.
-
-Vendor behavior is evidence, not automatic scope. No meaningful expected capability may be silently omitted merely because the canonical F-name is short.
+Competitor behavior is design-space evidence, not automatic scope. Vendor-specific proprietary details should not be cloned without user value.
