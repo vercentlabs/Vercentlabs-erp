@@ -4,171 +4,189 @@
 - Canonical ID: `F337`
 - Canonical name: **Quality audits**
 - Module: **Quality**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `QUALITY-CAP-007`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+Quality audits exists to provide planned/internal/supplier/process/product/system audit lifecycle with scope, criteria, evidence, findings, actions, independence and closure. Non-goal: Quality does not directly own Stock balances/valuation, Manufacturing execution, Procurement returns/AP, customer support cases or Accounting journals.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+- Reproducible, evidence-backed outcome for Quality audits.
+- Quality exceptions stop unsafe/nonconforming material or process flow before downstream escape.
+- Full lineage from source/specification/inspection through hold/disposition/CAPA and downstream reconciliation.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+Primary personas: inspector/technician, quality engineer, quality manager, supplier-quality engineer, auditor/metrology owner, warehouse/production supervisor, procurement/support counterpart and read-only auditor/executive. Negative cases include unauthorized release/use-as-is, self-approval, cross-site access and stale/expired instrument use.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+Entry points include Quality dashboard, plans/control points, inspection work queue, incoming/in-process/final source context, hold/NCR/disposition queue, CAPA board, supplier/customer quality, audits/calibration, traceability, CoA/documents, cost/KPI drilldowns and durable deep links from Procurement/Stock/Manufacturing/Support.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+- `QUALITY-P9-BM-030-A` — captured official-source benchmark evidence.
+- `QUALITY-P9-BM-030-B` — captured official-source benchmark evidence.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+Pass 9 adopts mature quality-management control patterns as REQUIRED where they protect product/material/evidence truth; vendor-specific screens/objects are not copied and no external certification is claimed. See `DECISION_REGISTER.csv` entries `QUALITY-P9-DEC-*`.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Quality audits** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+Red-team review for **Quality audits** covered effectivity/version drift, sampling/measurement precision, calibration expiry, duplicate submissions, concurrent hold/release/movement, partial quantities, maker-checker, rework/scrap/RTS/use-as-is, genealogy, document/CoA versioning, CAPA effectiveness, cross-module reconciliation, accessibility and recovery. No unresolved material placeholder remains.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F337-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+- `F337-CAP-001` — Quality audits MUST provide planned/internal/supplier/process/product/system audit lifecycle with scope, criteria, evidence, findings, actions, independence and closure.
+- `F337-CAP-002` — Quality audits MUST define version/effectivity, lifecycle/state, company/site/warehouse/plant/team scope, authorization/approval, correction/reversal and immutable evidence where decisions affect material or compliance truth.
+- `F337-CAP-003` — Quality audits MUST expose auditable public contracts/events for Procurement, Stock, Manufacturing, Sales/Support, Assets/Calibration and Accounting interactions without direct private-table mutation.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F337-FR-###` and `F337-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+- `F337-FR-001` — Authorized quality users MUST execute the primary Quality audits lifecycle from a focused quality workspace with explicit source scope, actionable validation and visible downstream effect.
+- `F337-FR-002` — Users MUST inspect history, active holds/exceptions, source inspection/NCR/CAPA/lot/instrument evidence and related cross-module effects for Quality audits without leaking unauthorized data.
+- `F337-FR-003` — Committed Quality audits evidence MUST be corrected through supersession, release, disposition, reversal, reopen or reconciliation mechanisms rather than silent destructive edits.
+- `F337-US-001` — As an authorized inspector/quality operator, I can perform Quality audits, understand the exact standard/specification/source scope and see whether material/process may proceed.
+- `F337-US-002` — As a quality manager/auditor, I can prove who decided Quality audits, under which approved version/authority, why, and how it affected inventory, production, supplier/customer and financial evidence.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F337-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+- `F337-FLOW-001` — The primary Quality audits flow MUST resolve source context -> approved effective quality rule -> authorize -> lock/version relevant quality/material state -> capture/evaluate evidence -> commit one atomic quality transition -> audit -> emit idempotent public downstream intent/gate -> show outcome.
+- `F337-FLOW-002` — Quality audits MUST cover missing/expired specification or calibration, invalid sample/result, permission denial, duplicate submit, concurrent hold/release/movement, stale state, downstream failure, retry, partial disposition, reopen/correction and reconciliation without duplicate business effect.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+Authoritative state model: `planned -> approved -> in_progress -> findings -> actions/verification -> closed/reopened/cancelled`. Every transition requires expected state/version, server authorization, evidence/audit and linked correction/reversal/reopen where history has already become authoritative.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F337-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+- `F337-DATA-001` — Quality audits MUST persist stable organization/company/site/warehouse/plant/team/source/item/lot/batch/serial/inspection/NCR/CAPA identifiers, status/version/effectivity, actor/time, quantities/measurements and feature-specific values required for planned/internal/supplier/process/product/system audit lifecycle with scope, criteria, evidence, findings, actions, independence and closure.
+- `F337-DATA-002` — Quality audits MUST retain lineage to source receipt/work order/shipment/return, samples/results, instrument/calibration, defect/NCR/hold/disposition/CAPA, supplier/customer, Stock movements and Accounting/cost references where applicable.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F337-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+- `F337-VAL-001` — Quality audits MUST reject malformed/inactive/cross-company references, invalid quantities/units/limits/sample membership, expired/ineligible instrument, duplicate identities and impossible lifecycle combinations with actionable errors.
+- `F337-VAL-002` — Quality audits MUST revalidate current specification/effectivity, source quantity/state, hold/calibration/approval status and downstream movement eligibility immediately before committing a material quality decision.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F337-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+- `F337-BR-001` — Quality audits MUST obey authoritative approved specification/tolerance/calibration/hold/disposition/authorization and owning-module Stock/accounting rules; AI/client UI cannot override pass/fail, hold/release, quantity/value or transition legality.
+- `F337-BR-002` — Approved/submitted Quality audits evidence MUST preserve exact standard/specification/plan/instrument/source versions and actor/time; corrections/supersessions remain linked to original evidence.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F337-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+- `F337-CALC-001` — Quality audits calculations, if numeric, MUST define source units/currency, precision, rounding, effective dates and reproducible formulas; if no authoritative derived numeric result applies, the requirement explicitly records that fact.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F337-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
-
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+- `F337-UX-001` — Quality audits UX MUST expose source identity, applicable spec/checks, sample/result progress, hold/disposition state, exceptions and next safe action without reducing critical inspection work to generic CRUD.
+- `F337-UX-002` — Quality audits tablet/mobile UX MUST support barcode/QR/lot/serial scanning, large touch targets, rapid measurement/pass-fail entry, instrument status, offline-safe read/capture boundaries where allowed and explicit sync/conflict recovery.
+- `F337-UX-003` — Quality audits MUST target WCAG 2.2 AA with semantic labels, keyboard/focus, announced validation/status/hold state, non-color-only pass/fail, target sizing and accessible manual alternatives to scanning/touch-only actions.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+Lists/queues define company/site/warehouse/plant/team scope, status/severity/age/due/hold badges, stable sorting, server pagination/virtualization where large, permission-aware rows/actions and bulk operations only where per-record authorization/effect can be preserved.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+Search/filters cover inspection/NCR/CAPA/hold/audit/CoA number, item/SKU, supplier/customer, lot/batch/serial, receipt/work order/shipment/return, status/severity/disposition/owner/due date/site/warehouse/time with authorization-safe counts and saved/shared views.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+Quality 360 detail shows identity/status/version, governing standard/spec/plan/control point, source/lot/sample/instrument, measurements/results, defects/NCR/hold/disposition/CAPA, supplier/customer/audit/CoA/document relationships, downstream Stock/Manufacturing/Procurement effects, audit and eligible controlled actions.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+Purpose-built create/quick-create covers plans/control points, manual inspections, NCR/CAPA/audit/quality-document records where allowed, with source context defaults, stable IDs, server validation and no bypass of approved version, sampling, calibration, hold or approval controls.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+Draft configuration/evidence fields have explicit edit rules. Submitted/approved inspection results, active/closed holds, approved dispositions, closed CAPA/audits and issued CoAs are immutable except through controlled correction/supersession/reopen/reissue/reversal paths.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+Bulk work is limited to safe assignment, scheduling, reminder, report/export or explicitly designed batch inspection/hold operations with preview, per-record authorization, bounded transaction/job behavior and exception output. Bulk release/use-as-is/disposition cannot bypass maker-checker.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+Primary/contextual/destructive actions are state/permission aware: start/submit inspection, fail/pass evaluation, create hold/NCR, release hold, approve/execute disposition, create/verify CAPA, return/rework/scrap/use-as-is, issue/reissue CoA and close/reopen audit require confirmation/reason/evidence as policy dictates.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+Related navigation uses stable public IDs/contracts to Procurement receipts/returns/suppliers, Stock movements/locations/lots/serials, Manufacturing orders/operations/rework, Support complaints, Assets calibration, Sales/customer context and Accounting quality-cost evidence without private cross-module writes.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F337-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+- `F337-AUTO-001` — Automation for Quality audits MAY generate inspections/holds/tasks/alerts, schedule reminders, classify defects or reconcile events, but MUST use normal domain/system authorization, deterministic guards, idempotency, audit and exception queues.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F337-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+- `F337-APP-001` — Approval-required Quality audits transitions MUST snapshot material values/evidence, capture approver/reason/time, block prohibited self-approval, and revalidate if source quantity, hold, specification, calibration or action state changed.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F337-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+- `F337-NOTIF-001` — Quality audits notifications MUST be event-driven, deduplicated, permission-safe and actionable for failed/overdue inspection, new/aging hold/NCR/CAPA, calibration expiry, supplier/customer escalation, audit finding or reconciliation failure as applicable.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+Attachments/generated documents include inspection worksheets/photos, defect/NCR evidence, deviation/use-as-is justification, calibration certificates, audit evidence/reports, CAPA evidence, controlled quality documents/SOPs and CoAs. Define version/provenance/hash or immutable locator where required, retention, print/reissue and permission-safe access.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+Import/export/migration covers standards/specifications/plans/control points, approved master mappings and controlled historical inspections/NCR/CAPA/audits/documents with mapping, validation, dry run, duplicate/stable-ID handling, version/effectivity preservation and reconciliation. Authoritative historical evidence cannot be silently re-keyed or re-evaluated under current rules.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F337-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+- `F337-REP-001` — Quality audits reporting MUST define formula/population, company/site/supplier/item/lot/severity/time scope, reopen/correction treatment, freshness, permission-safe drilldown/export and reconciliation to immutable source quality facts.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F337-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+- `F337-AI-001` — AI for Quality audits MAY suggest defect classification, anomaly/root-cause hypotheses, CAPA drafts, supplier-risk insights, document extraction or explanations with provenance/uncertainty, but MUST NOT determine pass/fail, tolerance truth, hold/release, disposition approval, calibration validity, inventory/accounting, authorization or transition legality.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F337-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+- `F337-SEC-001` — Every Quality audits query/command MUST enforce server-side organization, company, site/warehouse/plant, quality team and record scope; sensitive supplier/customer findings, deviations and aggregates MUST not leak.
+- `F337-SEC-002` — Sensitive Quality audits decisions such as use-as-is, hold release, disposition override, audit closure or CAPA effectiveness MUST support maker-checker/independence and prohibit self-approval where configured.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+Scope is organization -> company -> site/plant/warehouse -> quality team -> source/item/lot/record, with field controls for supplier/customer findings, deviation rationale, audit evidence and cost data. Cross-site consolidated reporting requires elevated permission and authorization-safe aggregation.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+Audit records actor/channel/time/reason, company/site/source/item/lot/inspection/NCR/CAPA/hold IDs, governing versions, before/after or immutable event, approvals, instrument/calibration, downstream contract IDs, request/correlation/idempotency and linked correction/reopen/release/reversal events.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+Use expected versions and transaction/row/advisory locks as appropriate. Simultaneous inspection submissions, NCR/disposition execution, CAPA close, hold release, Stock issue/transfer/pick/ship or Manufacturing consumption/release must resolve deterministically. F323 requires the Stock movement decision to observe active hold state atomically so a concurrent hold cannot be bypassed.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+Inspection submission, automatic hold generation, disposition execution, rework/scrap/RTS requests, CAPA automation, CoA issue/reissue, notifications and downstream Stock/Procurement/Manufacturing/Accounting effects use stable source-scoped idempotency keys. Replay returns the prior result/safe no-op and reconciliation remains visible.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F337-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+- `F337-INT-001` — Quality audits MUST consume Procurement/Stock/Manufacturing/Sales/Support/Assets/Accounting source facts only through versioned public contracts with source identity, scope, validation, authorization and retry/reconciliation semantics.
+- `F337-INT-002` — Quality audits MUST publish holds/releases/dispositions/returns/rework/scrap/complaint/cost or evidence effects with stable source identity and idempotency key; destination modules retain private-state ownership and may reject/reconcile independently.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F337-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+- `F337-API-001` — Quality audits commands MUST define request schema, company/site/record permission scope, expected state/version, idempotency for material effects, domain errors, transaction boundary, audit and downstream outcomes.
+- `F337-API-002` — Quality audits queries MUST define pagination/search/filter/sort, effective-version/history semantics, permission-safe aggregates, stable source identifiers and compatibility/versioning behavior.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+Quality is field/tablet capable: barcode/QR/lot/serial scan, source-context launch, large touch measurement/pass-fail controls, camera/evidence capture, instrument/status visibility and explicit offline boundaries. Offline may stage non-authoritative evidence only where policy permits; server sync reauthorizes/revalidates before authoritative pass/fail/release/disposition effects.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+Inspection execution preserves source/spec/sample/result and primary safe actions on tablet/phone; desktop manages plans, NCR/CAPA, audits, documents and analytics. Dense traceability/results tables reflow or provide card/detail alternatives, with critical action parity.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+Target WCAG 2.2 AA: semantic controls, keyboard/focus, screen-reader announcements for pass/fail/hold/error state, accessible measurement instructions/errors, contrast/target sizes, reduced motion, no color-only quality status and manual alternatives to scan/drag gestures.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+Reference `docs/11-visual-assets/wireframes/QUALITY_PASS9_WORKSPACES.md` for inspection execution, hold/NCR/disposition, CAPA, calibration/audit/CoA, traceability and KPI states across desktop/tablet/mobile.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F337-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+- `F337-PERF-001` — Quality audits MUST define p95/p99 latency and behavior for 0/1/100/10k/1m records, large inspection/result/traceability histories, bounded search/drilldown and background-job thresholds without unbounded request-time scans.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F337-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+- `F337-OBS-001` — Quality audits MUST emit structured logs/metrics/traces with correlation/source/inspection/NCR/CAPA/hold/lot identifiers, job retry/dead-letter state, hold-block denials, overdue/calibration/reconciliation counters and support diagnostics without exposing unauthorized evidence.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+Cover zero/oversized lots, destructive sampling, fractional units, borderline tolerance values, unit conversion/rounding, duplicate sample/result, deleted/inactive source, superseded specification, expired/out-of-tolerance instrument, active-hold vs Stock-movement race, partial release/disposition, over-disposition, duplicate rework/scrap/RTS, reopened NCR/CAPA/audit, CoA reissue, lot split/merge genealogy, supplier/customer record changes, closed Accounting period and retry/recovery.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+- `QUALITY-P9-CE-030` — verified current-code evidence: `database/tenant/migrations/049_quality_module.sql`.
+- Evidence is a foundation/gap observation only; it does not certify the target requirement set.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+Current code provides meaningful foundations for Quality settings/plans/points/inspections/results, auto-hold on failed inspection, holds, NCR, CAPA, supplier records, audits/events, permissions, web/API/SDK/dashboard and RLS tables. Enterprise gaps remain unverified/incomplete for comprehensive hard hold enforcement inside every Stock/Manufacturing movement path, controlled hold-release endpoint breadth, full disposition execution/reconciliation, root-cause/action/effectiveness workflows, calibration integration/impact assessment, customer complaints, CoA, controlled documents, complete genealogy, quality-cost accounting, field/offline UX, performance, fault/race tests, E2E and UAT.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+Likely later implementation areas: `database/tenant`, `services/api/src/modules/quality`, Stock/Procurement/Manufacturing/Support/Assets/Accounting public contracts and orchestration/worker jobs, `apps/web/src/modules/quality`, mobile/field surfaces, shared types/SDK/permissions and comprehensive DB/security/property/race/fault-injection/E2E tests. Pass 9 writes documentation only.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated plan covers tolerance/sampling/measurement property tests, inspection/NCR/hold/disposition/CAPA state machines, DB/RLS/scope and SoD negative tests, F323 concurrent hold-vs-movement races across Stock/Manufacturing commands, duplicate/retry/idempotency, calibration expiry/out-of-tolerance impact, rework/scrap/RTS/Accounting reconciliation, genealogy/CoA/document versioning, migration, performance and observability.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F337-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+- `F337-E2E-001` — Device/browser E2E MUST prove the primary authorized Quality audits journey including visible state, persisted quality evidence, audit and relevant Stock/Procurement/Manufacturing/Support/Assets/Accounting contract outcome.
+- `F337-E2E-002` — E2E MUST prove Quality audits permission denial, duplicate submit, stale/conflict, expired calibration/spec, concurrent hold/release/material movement, downstream failure, retry/reopen/reversal/reconciliation with no duplicate or unauthorized business effect.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F337-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+- `F337-UAT-001` — A realistic inspector/quality operator MUST execute Quality audits against actual source/lot/sample/instrument context and verify visible, stored, hold/disposition/downstream and audit outcomes with evidence.
+- `F337-UAT-002` — A quality manager/auditor MUST independently verify Quality audits approvals/SoD, traceability, correction/reopen/reconciliation, cross-module outcomes, responsive/accessibility behavior and exception recovery before sign-off.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+Done means approved 54-section dossiers, 21-type requirements, official benchmark + verified current-code evidence, capability/dependency/journey mappings, deterministic evaluation/calibration/hold/disposition contracts, F323 race-safe movement blocking, security/SoD/audit, cross-module reconciliation, responsive/mobile/accessibility, tests/E2E/UAT and omission/red-team gates are objectively satisfied. Specification readiness never certifies product readiness.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No unresolved material placeholder blocks specification readiness. Jurisdiction/industry-specific regulatory retention/e-signature/CoA fields, statistical sampling tables and external laboratory/instrument adapters remain configurable implementation decisions and must not weaken deterministic quality/evidence/hold/authorization contracts.

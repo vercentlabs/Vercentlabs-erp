@@ -1,0 +1,3 @@
+# Contract — Quality hard hold gate to Stock
+
+Before any relevant Stock issue, internal transfer, pick, pack/ship, production material issue/consumption, finished-goods release or other configured movement commits, Stock evaluates applicable Quality holds for organization/company/item/location/lot/batch/serial/source/quantity scope inside the same authoritative transaction/lock boundary. An active hold returns a stable blocking error with hold identity and allowed next action. Hold creation/release uses version/locking semantics so concurrent movement cannot slip through. Partial release exposes only the explicitly released quantity/scope. Retry is safe and auditable.

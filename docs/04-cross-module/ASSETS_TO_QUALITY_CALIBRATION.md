@@ -1,0 +1,3 @@
+# Contract — Assets calibration to Quality measurement
+
+Assets/Calibration owns instrument identity, calibration status, due dates, certificates and maintenance history. Quality measurement resolves the required instrument and reads an authoritative validity snapshot/reference at inspection time. Expired/out-of-tolerance/ineligible instrument blocks or flags measurement according to approved policy and initiates impact assessment of inspections performed since the last known-valid calibration. Quality stores the instrument/calibration version/reference with the result; it does not rewrite Assets state.

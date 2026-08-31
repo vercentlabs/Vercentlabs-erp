@@ -3,11 +3,13 @@
 - Pass: 9
 - Canonical range: F308–F342
 - Feature count: 35
-- Product boundary: Inspection, quality holds, NCR/CAPA, traceability and quality analytics
-- Specification status: `UNSPECIFIED`
+- Product boundary: Quality planning, inspection, nonconformance/hold/disposition, CAPA, metrology/audits/traceability and quality analytics
+- Specification status: `SPECIFICATION_READY`
 
-## Pass exit criteria
-Research complete; capability map approved; all canonical dossiers in this range fully decomposed; primary/alternate/exception/reversal flows modelled; data/API/security/integration contracts written; desktop/tablet/mobile/accessibility behavior specified; tests/UAT written; current-code gaps mapped; red-team omission review passed.
-
-## Architecture rule
-F-IDs are traceability anchors. Implementation should converge on coherent module capabilities and public commands/queries rather than one directory/service per F-ID.
+## Architecture invariants
+- F-IDs are traceability anchors; implementation is capability-oriented.
+- Approved/effective quality rules and submitted evidence are versioned and historically reproducible.
+- Pass/fail, tolerance, calibration validity, hold/release and disposition legality are deterministic and AI-independent.
+- F323 is a hard server-side Stock/Manufacturing movement gate evaluated in a race-safe transaction boundary; UI warnings are insufficient.
+- Quality decides/records quality state; Stock, Manufacturing, Procurement, Support/CRM, Assets and Accounting retain private domain ownership through public contracts.
+- Tablet/mobile inspection is first-class, barcode/lot aware, accessible, auditable and explicit about offline boundaries.

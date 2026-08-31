@@ -17,3 +17,4 @@ python docs/scripts/validate_projects_pass6.py
 python docs/scripts/validate_assets_pass7.py
 git diff --check -- docs
 python docs/scripts/validate_pos_pass8.py
+python docs/scripts/validate_quality_pass9.py
