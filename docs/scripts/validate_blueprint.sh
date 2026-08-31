@@ -26,3 +26,7 @@ python docs/scripts/validate_enterprise_audit.py
 if [[ -f docs/scripts/validate_planning_closure.py ]]; then
   python docs/scripts/validate_planning_closure.py
 fi
+
+if [[ -f docs/scripts/validate_final_technical_blueprint.py ]]; then
+  python docs/scripts/validate_final_technical_blueprint.py
+fi
