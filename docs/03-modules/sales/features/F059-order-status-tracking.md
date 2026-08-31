@@ -231,3 +231,16 @@ Cross-module context: **CRM;Stock / Inventory;Accounting / Finance;Projects**.
 Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP017;SP019;SP022;SP024;SP030;SP031;SP033;SP036`.
 
 Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.
+
+<!-- FINAL-PASS-C:START -->
+## [FINAL-PASS-C]
+
+**Frozen user-flow and state-machine authority.**
+
+- Flow review status: `APPROVED`
+- Required flow IDs: `F059-PFC-01`, `F059-PFC-02`, `F059-PFC-03`, `F059-PFC-04`, `F059-PFC-05`, `F059-PFC-06`, `F059-PFC-07`, `F059-PFC-08`, `F059-PFC-09`, `F059-PFC-10`
+- State transition IDs: `F059-STM-01`, `F059-STM-02`, `F059-STM-03`, `F059-STM-04`, `F059-STM-05`
+- Authority registers: `docs/02-register/FEATURE_FLOW_REGISTER.csv`, `docs/02-register/FEATURE_STATE_TRANSITION_REGISTER.csv`
+- Implementation must cover happy, alternate, permission/validation failure, concurrency, duplicate/retry, reversal/recovery, downstream failure and reconciliation paths; a happy-path-only screen or API cannot satisfy this feature.
+- These are planning contracts only and do not promote implementation/product readiness.
+<!-- FINAL-PASS-C:END -->

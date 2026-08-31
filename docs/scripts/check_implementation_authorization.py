@@ -24,6 +24,13 @@ else:
     pending=[r for r in sem if (r.get('review_status') or '').upper()!='APPROVED']
     if pending: blockers.append(f'P1 feature semantic/sub-capability review: {len(pending)} / 510 not APPROVED')
 
+
+flow=rows(R/'FLOW_STATE_REVIEW_REGISTER.csv')
+if len(flow)!=510: blockers.append(f'P1 flow/state review register: expected 510 rows, found {len(flow)}')
+else:
+    pending=[r for r in flow if (r.get('review_status') or '').upper()!='APPROVED']
+    if pending: blockers.append(f'P1 user-flow/state-machine review: {len(pending)} / 510 not APPROVED')
+
 bm=rows(R/'BENCHMARK_RELEVANCE_REVIEW.csv')
 if len(bm)!=510: blockers.append(f'P1 benchmark relevance register: expected 510 rows, found {len(bm)}')
 else:
