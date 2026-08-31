@@ -240,3 +240,15 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 - Implementation must cover happy, alternate, permission/validation failure, concurrency, duplicate/retry, reversal/recovery, downstream failure and reconciliation paths; a happy-path-only screen or API cannot satisfy this feature.
 - These are planning contracts only and do not promote implementation/product readiness.
 <!-- FINAL-PASS-C:END -->
+
+<!-- FINAL-PASS-D:START -->
+## [FINAL-PASS-D]
+
+**Final benchmark evidence authority.**
+
+- Review status: `APPROVED`
+- Curated authoritative benchmark IDs: `PFD-BM-F102-1`; `PFD-BM-F102-2`
+- The Pass D mappings are the implementation-planning benchmark authority for **UOM conversions**.
+- Legacy benchmark rows remain in the evidence register for provenance, but any row classified `REMAP_REQUIRED`, `NEEDS_BETTER_SOURCE`, or `NEEDS_BETTER_FINDING` in `BENCHMARK_EVIDENCE_AUDIT.csv` is non-authoritative.
+- Benchmark sources inform expected enterprise behavior; the Vercentlabs canonical dossier, Pass B semantic scope, Pass C state/flow contracts and explicit architecture decisions remain normative.
+<!-- FINAL-PASS-D:END -->

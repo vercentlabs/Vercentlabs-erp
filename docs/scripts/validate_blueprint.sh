@@ -35,4 +35,5 @@ if [[ -f docs/scripts/validate_shared_platform_pass_a.py ]]; then
   python docs/scripts/validate_shared_platform_pass_a.py
 python docs/scripts/validate_semantic_pass_b.py
 python docs/scripts/validate_flow_state_pass_c.py
+python docs/scripts/validate_benchmark_pass_d.py
 fi

@@ -37,6 +37,13 @@ else:
     pending=[r for r in bm if (r.get('review_status') or '').upper()!='APPROVED']
     if pending: blockers.append(f'P1 benchmark relevance review: {len(pending)} / 510 not APPROVED')
 
+
+arch=rows(R/'ARCHITECTURE_AI_FREEZE_REVIEW.csv')
+if len(arch)!=1 or (arch[0].get('review_status') or '').upper()!='APPROVED': blockers.append('P1 Final Pass E architecture + AI execution freeze is not APPROVED')
+
+final_auth=rows(R/'FINAL_IMPLEMENTATION_AUTHORIZATION_REVIEW.csv')
+if len(final_auth)!=1 or (final_auth[0].get('review_status') or '').upper()!='APPROVED': blockers.append('P1 Final Pass F master traceability / implementation authorization audit is not APPROVED')
+
 findings=rows(R/'ENTERPRISE_AUDIT_FINDINGS.csv')
 for r in findings:
     if (r.get('freeze_blocking') or '').upper()=='YES' and (r.get('priority') or '').upper() in {'P0','P1'} and (r.get('status') or '').upper() not in {'RESOLVED','ACCEPTED_RISK'}:
