@@ -41,8 +41,11 @@ test("F011 opportunity list exposes expected revenue but keeps probability out o
   assert.match(source,/name: "probability"[\s\S]*formHidden: true/);
 });
 
-test("F011 documentation and registers keep adjacent features unclaimed",()=>{
-  const spec=read("docs/erp-510/02-feature-specs/ERP-011.md");
-  assert.match(spec,/F012 Sales Stages/); assert.match(spec,/F024 Pipeline Dashboard/); assert.match(spec,/F025 Sales Forecast/); assert.match(spec,/not claimed/i);
-  assert.match(read("docs/erp-510/FEATURE_REGISTER.csv"),/^F011,CRM,Probability and Expected Revenue,P0,TESTING,NOT_READY,/m);
+test("F011 documentation/register remain canonical and NOT_READY until production acceptance",()=>{
+  const spec=read("docs/03-modules/crm/features/F011-probability-and-expected-revenue.md");
+  assert.match(spec,/Canonical ID: `F011`/);
+  assert.match(spec,/Canonical name: \*\*Probability and expected revenue\*\*/i);
+  assert.match(spec,/Implementation status: `NOT_STARTED`/);
+  assert.match(spec,/Product status: `NOT_READY`/);
+  assert.match(read("docs/02-register/FEATURE_REGISTER.csv"),/^F011,CRM,Probability and expected revenue,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
 });

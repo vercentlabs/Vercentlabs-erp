@@ -1,4 +1,6 @@
+import { nextDocumentNumber } from "../../core/document-numbering.js";
 import { omitFields, omitFieldsFromRows } from "../../core/field-visibility.js";
+import { requireCompanyRecord } from "../../core/references.js";
 
 // Personal/financial PII on tenant.hr_employees gated behind
 // hr_payroll.sensitive.view (see docs/implementation/
@@ -53,6 +55,41 @@ function requirePermission(context, permission) {
   }
 }
 
+function hasAnyPermission(context, permissions) {
+  return (
+    Boolean(context.roleSlugs?.includes("organization_owner")) ||
+    permissions.some((permission) => context.permissions?.includes(permission))
+  );
+}
+
+function requireAnyPermission(context, permissions) {
+  if (!hasAnyPermission(context, permissions)) {
+    const error = new Error(`Missing required HR & Payroll permission: ${permissions.join(" or ")}`);
+    error.code = "FORBIDDEN";
+    throw error;
+  }
+}
+
+const RESOURCE_READ_PERMISSIONS = Object.freeze({
+  hr_employees: ["hr_payroll.employee.view", "hr_payroll.employee.manage"],
+  hr_departments: ["hr_payroll.view"],
+  hr_designations: ["hr_payroll.view"],
+  hr_shifts: ["hr_payroll.view", "hr_payroll.shift.manage"],
+  hr_attendance: ["hr_payroll.view", "hr_payroll.attendance.manage"],
+  hr_leave_types: ["hr_payroll.view", "hr_payroll.leave.manage", "hr_payroll.leave.approve"],
+  hr_leave_requests: ["hr_payroll.view", "hr_payroll.leave.manage", "hr_payroll.leave.approve"],
+  hr_employee_expenses: ["hr_payroll.view", "hr_payroll.expense.manage", "hr_payroll.expense.approve"],
+  hr_salary_structures: ["hr_payroll.sensitive.view", "hr_payroll.compensation.manage"],
+  hr_payroll_runs: [
+    "hr_payroll.sensitive.view",
+    "hr_payroll.payroll.prepare",
+    "hr_payroll.payroll.approve",
+    "hr_payroll.payroll.post",
+  ],
+  hr_payslips: ["hr_payroll.payslip.view"],
+  hr_statutory_components: ["hr_payroll.sensitive.view", "hr_payroll.statutory.manage"],
+});
+
 function table(resource) {
   const value = TABLES[resource];
   if (!value) throw new Error("Unsupported HR & Payroll resource.");
@@ -95,6 +132,15 @@ export async function getHrPayrollDashboard(client, context) {
      WHERE organization_id=$1 AND company_id=$2`,
     [context.organizationId, context.companyId],
   );
+  const canViewPayroll = hasAnyPermission(context, RESOURCE_READ_PERMISSIONS.hr_payroll_runs);
+  if (!canViewPayroll) {
+    return {
+      ...employees.rows[0],
+      payroll_access: false,
+      open_payroll_runs: null,
+      latest_net_pay: null,
+    };
+  }
   const payroll = await client.query(
     `SELECT
        count(*) FILTER (WHERE status IN ('draft','calculated','pending_approval'))::int AS open_payroll_runs,
@@ -104,7 +150,7 @@ export async function getHrPayrollDashboard(client, context) {
        AND period_end >= date_trunc('month',current_date)::date`,
     [context.organizationId, context.companyId],
   );
-  return { ...employees.rows[0], ...payroll.rows[0] };
+  return { ...employees.rows[0], payroll_access: true, ...payroll.rows[0] };
 }
 
 export async function listHrPayrollResource(
@@ -115,6 +161,7 @@ export async function listHrPayrollResource(
 ) {
   requirePermission(context, "hr_payroll.view");
   const target = table(resource);
+  requireAnyPermission(context, RESOURCE_READ_PERMISSIONS[target] || ["hr_payroll.view"]);
   const values = [context.organizationId, context.companyId];
   let filter = "";
   if (
@@ -145,6 +192,13 @@ export async function listHrPayrollResource(
 
 export async function createEmployee(client, context, input) {
   requirePermission(context, "hr_payroll.employee.manage");
+  if (input.branchId) {
+    await requireCompanyRecord(client, context, "branch", input.branchId);
+  }
+  const employeeNumber = input.employeeNumber || await nextDocumentNumber(client, context, {
+    documentType: "hr_employee",
+    prefix: "EMP",
+  });
   const result = await client.query(
     `INSERT INTO tenant.hr_employees
       (organization_id,company_id,branch_id,employee_number,user_id,first_name,
@@ -161,7 +215,7 @@ export async function createEmployee(client, context, input) {
       context.organizationId,
       context.companyId,
       input.branchId || null,
-      input.employeeNumber || `EMP-${Date.now()}`,
+      employeeNumber,
       input.userId || null,
       input.firstName,
       input.middleName || null,
@@ -204,6 +258,7 @@ export async function createEmployee(client, context, input) {
 
 export async function createLeaveRequest(client, context, input) {
   requirePermission(context, "hr_payroll.leave.manage");
+  await requireCompanyRecord(client, context, "employee", input.employeeId);
   const result = await client.query(
     `INSERT INTO tenant.hr_leave_requests
       (organization_id,company_id,employee_id,leave_type_id,start_date,end_date,
@@ -304,6 +359,13 @@ export async function reviewLeaveRequest(
 
 export async function createPayrollRun(client, context, input) {
   requirePermission(context, "hr_payroll.payroll.prepare");
+  if (input.branchId) {
+    await requireCompanyRecord(client, context, "branch", input.branchId);
+  }
+  const payrollNumber = input.payrollNumber || await nextDocumentNumber(client, context, {
+    documentType: "hr_payroll_run",
+    prefix: "PAY",
+  });
   const result = await client.query(
     `INSERT INTO tenant.hr_payroll_runs
       (organization_id,company_id,branch_id,payroll_number,period_start,
@@ -314,7 +376,7 @@ export async function createPayrollRun(client, context, input) {
       context.organizationId,
       context.companyId,
       input.branchId || null,
-      input.payrollNumber || `PAY-${Date.now()}`,
+      payrollNumber,
       input.periodStart,
       input.periodEnd,
       input.paymentDate,

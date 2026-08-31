@@ -76,17 +76,26 @@ export const posReturnCreateSchema = z.object({
   saleId: uuid,
   returnNumber: z.string().max(100).optional(),
   reason: z.string().trim().min(1).max(1000),
-  refundTotal: z.coerce.number().min(0),
+  idempotencyKey: z.string().trim().min(8).max(200),
+  // Kept as optional compatibility assertions. The API calculates refund
+  // amounts from the original sale and rejects a mismatching client value.
+  refundTotal: z.coerce.number().min(0).optional(),
   lines: z
     .array(
       z.object({
         saleLineId: uuid,
         quantity: z.coerce.number().positive(),
-        refundAmount: z.coerce.number().min(0),
+        refundAmount: z.coerce.number().min(0).optional(),
         restock: z.boolean().default(true),
       }),
     )
     .min(1),
+});
+
+export const posReturnActionSchema = z.object({
+  action: z.enum(["approve", "complete"]),
+  idempotencyKey: z.string().trim().min(8).max(200),
+  reason: z.string().trim().min(1).max(1000).optional(),
 });
 
 export const posShiftCloseSchema = z.object({

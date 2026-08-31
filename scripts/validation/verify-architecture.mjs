@@ -22,7 +22,7 @@ const ok = (message) => console.log(`OK    ${message}`);
 
 const required = [
   "README.md",
-  "PROJECT_STRUCTURE.md",
+  "docs/01-standards/PROJECT_STRUCTURE_CONSTITUTION.md",
   "apps/web/src/app",
   "apps/web/src/core",
   "apps/web/src/modules",

@@ -369,3 +369,12 @@ export function reserveStock(client: QueryClient, context: any, input?: Record<s
 export function releaseStockReservation(client: QueryClient, context: any, id: string, options?: { status?: "released" | "cancelled" | "consumed" }): Promise<any>;
 export function listStockReorderCandidates(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function listStockOperationOptions(client: QueryClient, context: any): Promise<Record<string, any[]>>;
+
+
+
+
+// Wave 0 production-integrity primitives.
+export * from "./core/document-numbering.js";
+export * from "./core/idempotency.js";
+export * from "./core/inventory-lock.js";
+export * from "./core/references.js";

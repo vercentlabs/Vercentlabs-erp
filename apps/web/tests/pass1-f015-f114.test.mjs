@@ -6,7 +6,20 @@ import test from "node:test";
 const root=path.resolve(import.meta.dirname,"../../..");
 const read=(file)=>fs.readFileSync(path.join(root,file),"utf8");
 const exists=(file)=>fs.existsSync(path.join(root,file));
-const scope=JSON.parse(read("docs/erp-510/PASS_1_SCOPE.json"));
+const featureRegister=read("docs/02-register/FEATURE_REGISTER.csv");
+const featureRows=featureRegister.trim().split(/\r?\n/).slice(1).map((line)=>{
+  const [id,module,name]=line.split(",");
+  return {id,module,name};
+});
+const scope={features:featureRows.filter(({id})=>id>="F015"&&id<="F114")};
+const moduleSlug={CRM:"crm",Sales:"sales",Procurement:"procurement","Stock / Inventory":"stock"};
+const uatPlan={CRM:"docs/08-uat/CRM_PASS1_UAT_PLAN.md",Sales:"docs/08-uat/SALES_PASS2_UAT_PLAN.md",Procurement:"docs/08-uat/PROCUREMENT_PASS3_UAT_PLAN.md","Stock / Inventory":"docs/08-uat/STOCK_PASS4_UAT_PLAN.md"};
+const featureSpecPath=(f)=>{
+  const dir=path.join(root,"docs/03-modules",moduleSlug[f.module],"features");
+  const name=fs.readdirSync(dir).find((entry)=>entry.startsWith(`${f.id}-`)&&entry.endsWith(".md"));
+  assert.ok(name,`Missing canonical spec for ${f.id}`);
+  return path.relative(root,path.join(dir,name)).replaceAll("\\","/");
+};
 
 function pass1MigrationPath(){
   const dir=path.join(root,"database/tenant/migrations");
@@ -19,10 +32,10 @@ const PASS1_MIGRATION=pass1MigrationPath();
 
 function ids(start,end){return Array.from({length:end-start+1},(_,i)=>`F${String(start+i).padStart(3,"0")}`)}
 
-test("Pass 1 scope is exactly the canonical contiguous F015-F114 block",()=>{
-  assert.equal(scope.pass,1);assert.equal(scope.of,5);assert.equal(scope.features.length,100);
+test("Legacy Pass-1 implementation block still maps exactly to canonical F015-F114 IDs",()=>{
+  assert.equal(scope.features.length,100);
   assert.deepEqual(scope.features.map((f)=>f.id),ids(15,114));
-  assert.deepEqual([...new Set(scope.features.map((f)=>f.module))],["CRM","Sales","Procurement","Stock"]);
+  assert.deepEqual([...new Set(scope.features.map((f)=>f.module))],["CRM","Sales","Procurement","Stock / Inventory"]);
 });
 
 test("module feature catalogues preserve permanent IDs and exact pass-1 counts",()=>{
@@ -110,7 +123,7 @@ test("F106-F114 Stock has governed balance, ledger, receipt/issue/transfer/adjus
   const stock=read("services/api/src/modules/stock/index.js");const baseMigration=read("database/tenant/migrations/044_stock_module.sql");const passMigration=read(PASS1_MIGRATION);const availabilityUi=read("apps/web/src/modules/stock/components/availability-workspace.tsx");const operationsUi=read("apps/web/src/modules/stock/components/operations-workspace.tsx");
   for(const token of ["stock_balances","stock_movements","stock_transfers","stock_reservations","stock_reorder_rules"])assert.match(baseMigration,new RegExp(token));
   for(const fn of ["postStockMovement","createStockTransfer","completeStockTransfer","getStockAvailability","reserveStock","releaseStockReservation","listStockReorderCandidates","stockDimension"])assert.match(stock,new RegExp(fn));
-  assert.match(stock,/STOCK_ADJUSTMENT_DIRECTION_INVALID/);assert.match(stock,/idempotency_key=\$2/);assert.match(stock,/transfer:\$\{t\.id\}:issue/);assert.match(stock,/INSUFFICIENT_STOCK/);assert.match(stock,/availableToPromise/);
+  assert.match(stock,/STOCK_ADJUSTMENT_DIRECTION_INVALID/);assert.match(stock,/beginIdempotentOperation/);assert.match(stock,/assertQualityAllowsDecrease/);assert.match(stock,/transfer:\$\{t\.id\}:issue/);assert.match(stock,/INSUFFICIENT_STOCK/);assert.match(stock,/availableToPromise/);
   assert.match(passMigration,/stock_transfers_idempotency_idx/);
   for(const label of ["Goods receipt","Goods issue","Adjustment","Internal transfer","Movement ledger","Transfer register"])assert.match(operationsUi,new RegExp(label));
   assert.match(availabilityUi,/Check availability/);assert.match(availabilityUi,/Reserve stock/);assert.match(availabilityUi,/Release/);
@@ -127,10 +140,19 @@ test("Pass 1 UI is reachable from normal module navigation",()=>{
   for(const route of ["apps/web/src/app/(app)/sales/operations/page.tsx","apps/web/src/app/(app)/procurement/operations/page.tsx","apps/web/src/app/(app)/stock/operations/page.tsx","apps/web/src/app/(app)/stock/availability/page.tsx"])assert.ok(exists(route),route);
 });
 
-test("Pass 1 register/spec/UAT materialization never claims COMPLETE before human acceptance",()=>{
-  const register=read("docs/erp-510/FEATURE_REGISTER.csv");
-  for(const f of scope.features){assert.match(register,new RegExp(`^${f.id},${f.module.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")},`,"m"));assert.ok(exists(`docs/erp-510/02-feature-specs/ERP-${f.id.slice(1)}.md`));assert.ok(exists(`docs/erp-510/05-uat/${f.id}-UAT.md`));const spec=read(`docs/erp-510/02-feature-specs/ERP-${f.id.slice(1)}.md`);assert.match(spec,new RegExp(`Feature ID: ${f.id}`));assert.match(spec,/Status: TESTING/);assert.doesNotMatch(spec,/Status: COMPLETE/)}
-  assert.doesNotMatch(register,/^ERP-(?:0(?:1[5-9]|[2-9]\d)|1(?:0\d|1[0-4])),/m);
+test("Canonical register/spec/UAT materialization keeps F015-F114 NOT_READY until production acceptance",()=>{
+  const register=featureRegister;
+  for(const f of scope.features){
+    assert.match(register,new RegExp(`^${f.id},${f.module.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")},`,"m"));
+    const specPath=featureSpecPath(f);
+    assert.ok(exists(specPath));
+    assert.ok(exists(uatPlan[f.module]),`${f.module} UAT plan is missing`);
+    const spec=read(specPath);
+    assert.match(spec,new RegExp(`Canonical ID: \`${f.id}\``));
+    assert.match(spec,/Implementation status: `NOT_STARTED`/);
+    assert.match(spec,/Product status: `NOT_READY`/);
+    assert.doesNotMatch(spec,/Product status: `COMPLETE`/);
+  }
 });
 
 test("Pass 1 mutation routes retain transactional platform audit and scoped cross-module errors",()=>{

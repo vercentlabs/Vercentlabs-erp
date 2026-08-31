@@ -73,10 +73,10 @@ test("F010 web: approval path validates and executes with the same concurrency e
   assert.match(block, /expectedStageId: payload\.expectedStageId/);
 });
 
-test("F010 documentation keeps adjacent features explicitly unclaimed", () => {
-  const spec = read("docs/erp-510/02-feature-specs/ERP-010.md");
-  assert.match(spec, /F011 Probability and Expected Revenue/);
-  assert.match(spec, /F012 Sales Stages/);
-  assert.match(spec, /F026 Won \/ Lost Reasons/);
-  assert.match(spec, /not claimed/i);
+test("F010 documentation remains canonical and NOT_READY until production acceptance", () => {
+  const spec = read("docs/03-modules/crm/features/F010-opportunity-pipeline.md");
+  assert.match(spec, /Canonical ID: `F010`/);
+  assert.match(spec, /Canonical name: \*\*Opportunity pipeline\*\*/i);
+  assert.match(spec, /Implementation status: `NOT_STARTED`/);
+  assert.match(spec, /Product status: `NOT_READY`/);
 });

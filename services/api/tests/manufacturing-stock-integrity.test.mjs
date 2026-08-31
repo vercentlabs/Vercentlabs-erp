@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { postProduction } from "../src/modules/manufacturing/index.js";
+import { createWave0PrimitiveHarness } from "./helpers/wave0-primitives.mjs";
 
 // Prompt 12 (Emergency P0 Integrity Fixes) — regression coverage for the
 // confirmed-live defect documented in docs/implementation/
@@ -61,12 +62,15 @@ function trackingClient({ existingComponentBalance = null, existingFinishedBalan
   const stockMovementInserts = [];
   const stockBalanceUpserts = [];
   const valuationLayerInserts = [];
+  const wave0 = createWave0PrimitiveHarness();
 
   return {
     stockMovementInserts,
     stockBalanceUpserts,
     valuationLayerInserts,
     async query(sql, params) {
+      const wave0Result = wave0.handle(sql, params);
+      if (wave0Result) return wave0Result;
       if (/SELECT \* FROM tenant\.manufacturing_work_orders/.test(sql)) return { rows: [workOrder] };
       if (/SELECT allow_overproduction,require_operation_completion/.test(sql))
         return { rows: [{ allow_overproduction: false, require_operation_completion: false }] };
@@ -92,14 +96,14 @@ function trackingClient({ existingComponentBalance = null, existingFinishedBalan
           id: `movement-${stockMovementInserts.length + 1}`,
           organization_id: org,
           company_id: company,
-          movement_type: params[2],
-          item_id: params[3],
-          warehouse_id: params[4],
-          warehouse_location_id: params[5],
-          batch_id: params[6],
-          serial_id: params[7],
-          quantity: params[8],
-          unit_cost: params[9],
+          movement_type: params[3],
+          item_id: params[4],
+          warehouse_id: params[5],
+          warehouse_location_id: params[6],
+          batch_id: params[7],
+          serial_id: params[8],
+          quantity: params[9],
+          unit_cost: params[10],
         };
         stockMovementInserts.push(row);
         return { rows: [row] };
@@ -181,34 +185,17 @@ test("Manufacturing: serial-tracked finished goods preserve serial_id through th
   assert.equal(finishedMovement.serial_id, serialId);
 });
 
-test("Manufacturing: retry with the same idempotencyKey is rejected by canonical Stock's unique(organization_id, idempotency_key) constraint rather than double-posting", async () => {
-  // stock_movements has UNIQUE(organization_id, idempotency_key) — a real retry hits this
-  // constraint and the INSERT throws, which is the intended "fail loudly, never duplicate"
-  // behavior (see ERP_P0_INTEGRITY_FIXES_012.md Section 9). Simulate that here.
-  let firstAttempt = true;
-  const base = trackingClient({
+test("Manufacturing: exact retry replays the original production result without double-posting stock or work-order quantities", async () => {
+  const client = trackingClient({
     existingComponentBalance: { quantity: "1000", reserved_quantity: "0", average_cost: "2" },
     existingFinishedBalance: { quantity: "0", reserved_quantity: "0", average_cost: "0" },
   });
-  const client = {
-    ...base,
-    async query(sql, params) {
-      if (/INSERT INTO tenant\.stock_movements/.test(sql) && !firstAttempt) {
-        const error = new Error('duplicate key value violates unique constraint "stock_movements_organization_id_idempotency_key_key"');
-        error.code = "23505";
-        throw error;
-      }
-      return base.query(sql, params);
-    },
-  };
-  await postProduction(client, baseContext(), workOrderId, { quantity: "10", idempotencyKey: "posting-1" });
-  firstAttempt = false;
-  await assert.rejects(
-    () => postProduction(client, baseContext(), workOrderId, { quantity: "10", idempotencyKey: "posting-1" }),
-    /duplicate key value/,
-  );
-  // Exactly the first attempt's movements/balances exist — no duplicate posting occurred.
-  assert.equal(base.stockMovementInserts.length, 2);
+  const first = await postProduction(client, baseContext(), workOrderId, { quantity: "10", idempotencyKey: "posting-1" });
+  const second = await postProduction(client, baseContext(), workOrderId, { quantity: "10", idempotencyKey: "posting-1" });
+  assert.equal(second.id, first.id);
+  assert.equal(second.replayed, true);
+  assert.equal(client.stockMovementInserts.length, 2, "retry must not add another material issue or finished-goods receipt");
+  assert.equal(client.stockBalanceUpserts.length, 2, "retry must not mutate balances twice");
 });
 
 test("Manufacturing: insufficient component stock is rejected by canonical Stock's own row-locked balance check, not just the unlocked pre-check (concurrency-safe authoritative guard)", async () => {

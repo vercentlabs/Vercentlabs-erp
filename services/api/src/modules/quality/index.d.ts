@@ -14,3 +14,7 @@ export declare function completeInspection(client: any, context: QualityContext,
 export declare function releaseInspection(client: any, context: QualityContext, inspectionId: string, input?: Record<string, any>): Promise<any>;
 export declare function createNonconformance(client: any, context: QualityContext, input: Record<string, any>): Promise<any>;
 export declare function createCapa(client: any, context: QualityContext, input: Record<string, any>): Promise<any>;
+
+
+
+export declare function releaseQualityHold(client: any, context: QualityContext, holdId: string, input: {quantity?:number;reason:string;expectedVersion?:number;idempotencyKey:string}): Promise<any>;

@@ -57,7 +57,7 @@
     "verify": "corepack pnpm verify:architecture && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm verify:mobile && corepack pnpm verify:db && corepack pnpm verify:worker && corepack pnpm test:sdk && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:enterprise-rbac",
     "release:verify": "corepack pnpm verify && corepack pnpm build:web && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm test:landing && corepack pnpm test:landing:e2e",
     "release:gate": "corepack pnpm format:check && corepack pnpm audit:dependencies && corepack pnpm release:verify",
-    "verify:architecture": "node scripts/validation/verify-architecture.mjs",
+    "verify:architecture": "node scripts/validation/verify-architecture.mjs && node scripts/validation/verify-doc-links.mjs",
     "db:migrate:platform": "node scripts/database/migrate.mjs platform",
     "db:migrate:tenant": "node scripts/database/migrate.mjs tenant",
     "db:migrate": "corepack pnpm db:migrate:platform && corepack pnpm db:migrate:tenant",
@@ -69,7 +69,8 @@
     "test:platform-packages": "corepack pnpm --filter @vercentlabs/config --filter @vercentlabs/document-engine --filter @vercentlabs/localization --filter @vercentlabs/observability --filter @vercentlabs/reporting-engine --filter @vercentlabs/shared-ui --filter @vercentlabs/test-utils --filter @vercentlabs/workflows test",
     "verify:platform-foundation": "node scripts/validation/verify-platform-foundation.mjs",
     "verify:platform": "corepack pnpm verify:platform-foundation && corepack pnpm verify:architecture && corepack pnpm verify:db && corepack pnpm verify:worker && corepack pnpm test:platform-packages && corepack pnpm test:api && corepack pnpm test:sdk && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:enterprise-rbac && corepack pnpm typecheck:web && corepack pnpm lint:web && corepack pnpm build:web",
-    "verify:web-boundaries": "node scripts/validation/verify-web-boundaries.mjs"
+    "verify:web-boundaries": "node scripts/validation/verify-web-boundaries.mjs",
+    "verify:docs": "node scripts/validation/verify-doc-links.mjs"
   },
   "engines": {
     "node": ">=24 <25",

@@ -1,3 +1,7 @@
+import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
+import { lockInventoryItem } from "../../core/inventory-lock.js";
+
 export class StockError extends Error {
   constructor(status, message, code = "STOCK_ERROR") {
     super(message);
@@ -130,6 +134,57 @@ async function stockDimension(client, c, input) {
   return { item, warehouse };
 }
 
+async function assertQualityAllowsDecrease(client, c, input, quantity, oldBalance) {
+  const holds = await client.query(
+    `SELECT id,hold_number,hold_type,quantity,released_quantity,reason
+     FROM tenant.quality_holds
+     WHERE organization_id=$1 AND company_id=$2 AND status='active'
+       AND item_id=$3
+       AND hold_type IN ('inventory','batch','serial')
+       AND (warehouse_id IS NULL OR warehouse_id=$4)
+       AND (warehouse_location_id IS NULL OR warehouse_location_id IS NOT DISTINCT FROM $5)
+       AND (batch_id IS NULL OR batch_id IS NOT DISTINCT FROM $6)
+       AND (serial_id IS NULL OR serial_id IS NOT DISTINCT FROM $7)
+     ORDER BY placed_at,id
+     FOR UPDATE`,
+    [
+      c.organizationId,
+      c.companyId,
+      input.itemId,
+      input.warehouseId,
+      input.warehouseLocationId || null,
+      input.batchId || null,
+      input.serialId || null,
+    ],
+  );
+  if (!holds.rows.length) return;
+
+  const scopeHold = holds.rows.find((hold) => Number(hold.quantity) === 0);
+  const blockedQuantity = holds.rows.reduce((sum, hold) => {
+    const total = Number(hold.quantity);
+    if (total === 0) return sum;
+    return sum + Math.max(total - Number(hold.released_quantity || 0), 0);
+  }, 0);
+  const availableUnheld = Math.max(
+    Number(oldBalance.quantity) - Number(oldBalance.reserved_quantity) - blockedQuantity,
+    0,
+  );
+  if (scopeHold || quantity > availableUnheld) {
+    const hold = scopeHold || holds.rows.find((row) => Number(row.quantity) - Number(row.released_quantity || 0) > 0);
+    const error = new StockError(
+      409,
+      `Stock movement is blocked by quality hold ${hold?.hold_number || "unknown"}. Release the applicable hold before moving held stock.`,
+      "QUALITY_HOLD_BLOCKED",
+    );
+    error.holdId = hold?.id || null;
+    error.holdNumber = hold?.hold_number || null;
+    error.blockedQuantity = scopeHold ? null : String(blockedQuantity);
+    error.availableQuantity = String(scopeHold ? 0 : availableUnheld);
+    error.nextAction = "release_quality_hold";
+    throw error;
+  }
+}
+
 export async function postStockMovement(client, c, input = {}) {
   const movementType = String(input.movementType || "").toLowerCase();
   if (!new Set(["receipt", "issue", "adjustment"]).has(movementType))
@@ -138,13 +193,12 @@ export async function postStockMovement(client, c, input = {}) {
   need(c, permission);
 
   const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
-  if (idempotencyKey) {
-    const replay = (await client.query(
-      `SELECT * FROM tenant.stock_movements WHERE organization_id=$1 AND idempotency_key=$2`,
-      [c.organizationId, idempotencyKey],
-    )).rows[0];
-    if (replay) return { ...replay, replayed: true };
-  }
+  const idempotency = await beginIdempotentOperation(client, c, {
+    operation: "stock.movement",
+    key: idempotencyKey,
+    payload: { ...input, idempotencyKey: undefined },
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
 
   const qty = num(input.quantity, "Quantity");
   const direction = movementType === "adjustment" ? String(input.adjustmentDirection || "increase").toLowerCase() : null;
@@ -152,6 +206,7 @@ export async function postStockMovement(client, c, input = {}) {
     throw new StockError(400, "Adjustment direction must be increase or decrease.", "STOCK_ADJUSTMENT_DIRECTION_INVALID");
   const signed = movementType === "issue" || direction === "decrease" ? -qty : qty;
   const { item, warehouse } = await stockDimension(client, c, { ...input, movementType });
+  await lockInventoryItem(client, c, input.itemId);
   const cfg = await settings(client, c);
 
   const current = await client.query(
@@ -163,6 +218,9 @@ export async function postStockMovement(client, c, input = {}) {
   const canGoNegative = Boolean(cfg.allow_negative_stock || item.allow_negative_stock || warehouse.allow_negative_stock);
   if (next < Number(old.reserved_quantity) || (!canGoNegative && next < 0))
     throw new StockError(409, "Insufficient available stock.", "INSUFFICIENT_STOCK");
+  if (signed < 0) {
+    await assertQualityAllowsDecrease(client, c, input, qty, old);
+  }
 
   const explicitCost = input.unitCost == null || input.unitCost === "" ? null : Number(input.unitCost);
   if (explicitCost != null && (!Number.isFinite(explicitCost) || explicitCost < 0))
@@ -172,9 +230,13 @@ export async function postStockMovement(client, c, input = {}) {
     ? (Number(old.quantity) * Number(old.average_cost) + qty * cost) / next
     : Number(old.average_cost);
 
+  const movementNumber = await nextDocumentNumber(client, c, {
+    documentType: "stock_movement",
+    prefix: "STK",
+  });
   const movement = await client.query(
-    `INSERT INTO tenant.stock_movements(organization_id,company_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key) VALUES($1,$2,'STK-'||to_char(clock_timestamp(),'YYYYMMDDHH24MISSMS'),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [c.organizationId,c.companyId,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey],
+    `INSERT INTO tenant.stock_movements(organization_id,company_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+    [c.organizationId,c.companyId,movementNumber,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey],
   );
   await client.query(
     `INSERT INTO tenant.stock_balances(organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,reserved_quantity,average_cost) VALUES($1,$2,$3,$4,$5,$6,$7,0,$8) ON CONFLICT(organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id) DO UPDATE SET quantity=EXCLUDED.quantity,average_cost=EXCLUDED.average_cost,updated_at=now()`,
@@ -184,29 +246,44 @@ export async function postStockMovement(client, c, input = {}) {
     `INSERT INTO tenant.stock_valuation_layers(organization_id,company_id,movement_id,item_id,warehouse_id,quantity,unit_cost,remaining_quantity) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
     [c.organizationId,c.companyId,movement.rows[0].id,input.itemId,input.warehouseId,signed,cost,Math.max(signed, 0)],
   );
-  return { ...movement.rows[0], replayed: false };
+  const response = { ...movement.rows[0], replayed: false };
+  await completeIdempotentOperation(client, c, idempotency, {
+    response,
+    aggregateType: "stock_movement",
+    aggregateId: movement.rows[0].id,
+  });
+  return response;
 }
 
 export async function createStockTransfer(client, c, input = {}) {
   need(c, "stock.transfer");
   const q = num(input.quantity, "Quantity");
   const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
-  if (idempotencyKey) {
-    const replay = (await client.query(
-      `SELECT * FROM tenant.stock_transfers WHERE organization_id=$1 AND idempotency_key=$2`,
-      [c.organizationId,idempotencyKey],
-    )).rows[0];
-    if (replay) return { ...replay, replayed: true };
-  }
+  const idempotency = await beginIdempotentOperation(client, c, {
+    operation: "stock.transfer.create",
+    key: idempotencyKey,
+    payload: { ...input, idempotencyKey: undefined },
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   await stockDimension(client,c,{ itemId: input.itemId, warehouseId: input.sourceWarehouseId, warehouseLocationId: input.sourceLocationId || null, batchId: input.batchId || null });
   await stockDimension(client,c,{ itemId: input.itemId, warehouseId: input.destinationWarehouseId, warehouseLocationId: input.destinationLocationId || null, batchId: input.batchId || null });
   if (input.sourceWarehouseId === input.destinationWarehouseId && (input.sourceLocationId || null) === (input.destinationLocationId || null))
     throw new StockError(400,"Source and destination must be different.","STOCK_TRANSFER_SAME_LOCATION");
+  const transferNumber = await nextDocumentNumber(client, c, {
+    documentType: "stock_transfer",
+    prefix: "TRF",
+  });
   const { rows } = await client.query(
-    `INSERT INTO tenant.stock_transfers(organization_id,company_id,transfer_number,item_id,source_warehouse_id,source_location_id,destination_warehouse_id,destination_location_id,batch_id,quantity,requested_by,idempotency_key) VALUES($1,$2,'TRF-'||to_char(clock_timestamp(),'YYYYMMDDHH24MISSMS'),$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [c.organizationId,c.companyId,input.itemId,input.sourceWarehouseId,input.sourceLocationId || null,input.destinationWarehouseId,input.destinationLocationId || null,input.batchId || null,q,c.userId,idempotencyKey],
+    `INSERT INTO tenant.stock_transfers(organization_id,company_id,transfer_number,item_id,source_warehouse_id,source_location_id,destination_warehouse_id,destination_location_id,batch_id,quantity,requested_by,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [c.organizationId,c.companyId,transferNumber,input.itemId,input.sourceWarehouseId,input.sourceLocationId || null,input.destinationWarehouseId,input.destinationLocationId || null,input.batchId || null,q,c.userId,idempotencyKey],
   );
-  return { ...rows[0], replayed: false };
+  const response = { ...rows[0], replayed: false };
+  await completeIdempotentOperation(client, c, idempotency, {
+    response,
+    aggregateType: "stock_transfer",
+    aggregateId: rows[0].id,
+  });
+  return response;
 }
 
 export async function completeStockTransfer(client, c, id) {
@@ -338,16 +415,37 @@ export async function getStockAvailability(client, c, input = {}) {
     available_quantity: "0",
     available_to_promise: "0",
   };
+  const holdValues = [c.organizationId, c.companyId, input.itemId];
+  let holdWarehouseFilter = "";
+  if (input.warehouseId) {
+    holdValues.push(input.warehouseId);
+    holdWarehouseFilter = ` AND (warehouse_id IS NULL OR warehouse_id=$${holdValues.length})`;
+  }
+  const holdResult = await client.query(
+    `SELECT
+       bool_or(quantity=0) AS scope_blocked,
+       COALESCE(sum(CASE WHEN quantity=0 THEN 0 ELSE greatest(quantity-released_quantity,0) END),0)::text AS held_quantity
+     FROM tenant.quality_holds
+     WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND status='active'
+       AND hold_type IN ('inventory','batch','serial')${holdWarehouseFilter}`,
+    holdValues,
+  );
+  const scopeBlocked = Boolean(holdResult.rows[0]?.scope_blocked);
+  const heldQuantity = Number(holdResult.rows[0]?.held_quantity || 0);
+  const adjustedAvailable = scopeBlocked ? 0 : Math.max(Number(row.available_quantity) - heldQuantity, 0);
+  const adjustedAtp = scopeBlocked ? 0 : Math.max(Number(row.available_to_promise) - heldQuantity, 0);
   const requested = input.requestedQuantity == null || input.requestedQuantity === "" ? null : num(input.requestedQuantity, "Requested quantity");
   return {
     itemId: row.item_id,
     warehouseId: row.warehouse_id,
     onHandQuantity: row.on_hand_quantity,
     reservedQuantity: row.reserved_quantity,
-    availableQuantity: row.available_quantity,
-    availableToPromise: row.available_to_promise,
+    qualityHeldQuantity: scopeBlocked ? null : String(heldQuantity),
+    qualityScopeBlocked: scopeBlocked,
+    availableQuantity: String(adjustedAvailable),
+    availableToPromise: String(adjustedAtp),
     requestedQuantity: requested,
-    canPromise: requested == null ? null : Number(row.available_to_promise) >= requested,
+    canPromise: requested == null ? null : adjustedAtp >= requested,
   };
 }
 
@@ -365,13 +463,13 @@ export async function reserveStock(client, c, input = {}) {
     batchId: input.batchId || null,
   });
   const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
-  if (idempotencyKey) {
-    const replay = await client.query(
-      `SELECT * FROM tenant.stock_reservations WHERE organization_id=$1 AND idempotency_key=$2 LIMIT 1`,
-      [c.organizationId, idempotencyKey],
-    );
-    if (replay.rows[0]) return { ...replay.rows[0], replayed: true };
-  }
+  const idempotency = await beginIdempotentOperation(client, c, {
+    operation: "stock.reservation.create",
+    key: idempotencyKey,
+    payload: { ...input, idempotencyKey: undefined },
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+  await lockInventoryItem(client, c, input.itemId);
   const values = [c.organizationId, c.companyId, input.itemId, input.warehouseId];
   let dimensionFilter = "";
   if (input.warehouseLocationId) { values.push(input.warehouseLocationId); dimensionFilter += ` AND warehouse_location_id=$${values.length}`; }
@@ -387,6 +485,19 @@ export async function reserveStock(client, c, input = {}) {
   const balance = balances.rows[0];
   if (!balance)
     throw new StockError(409, "Insufficient available stock for this reservation.", "STOCK_RESERVATION_INSUFFICIENT");
+  await assertQualityAllowsDecrease(
+    client,
+    c,
+    {
+      itemId: input.itemId,
+      warehouseId: input.warehouseId,
+      warehouseLocationId: balance.warehouse_location_id,
+      batchId: balance.batch_id,
+      serialId: null,
+    },
+    quantity,
+    balance,
+  );
   const created = await client.query(
     `INSERT INTO tenant.stock_reservations(
        organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,
@@ -401,7 +512,13 @@ export async function reserveStock(client, c, input = {}) {
         AND warehouse_location_id IS NOT DISTINCT FROM $5 AND batch_id IS NOT DISTINCT FROM $6`,
     [c.organizationId,c.companyId,input.itemId,input.warehouseId,balance.warehouse_location_id,balance.batch_id,quantity],
   );
-  return { ...created.rows[0], replayed: false };
+  const response = { ...created.rows[0], replayed: false };
+  await completeIdempotentOperation(client, c, idempotency, {
+    response,
+    aggregateType: "stock_reservation",
+    aggregateId: created.rows[0].id,
+  });
+  return response;
 }
 
 export async function releaseStockReservation(client, c, id, { status = "released" } = {}) {

@@ -93,15 +93,15 @@ test("F014 responsive Meeting workspace is imported and preserves mobile-safe co
   assert.match(css, /prefers-reduced-motion/);
 });
 
-test("F014 docs/register claim Meetings only and leave F015 Tasks / F016 Follow-ups unclaimed", () => {
-  const spec = read("docs/erp-510/02-feature-specs/ERP-014.md");
-  const register = read("docs/erp-510/FEATURE_REGISTER.csv");
-  assert.match(spec, /Feature ID: F014/);
-  assert.match(spec, /Feature: Meetings/);
-  assert.match(spec, /F015 Tasks/);
-  assert.match(spec, /F016 Follow-ups and reminders/);
-  assert.match(register, /^F014,CRM,Meetings,P0,TESTING,NOT_READY,/m);
-  assert.match(register, /^F013,CRM,Calls,P0,TESTING,NOT_READY,/m);
+test("F014 docs/register preserve the canonical Meetings identity and NOT_READY production gate", () => {
+  const spec = read("docs/03-modules/crm/features/F014-meetings.md");
+  const register = read("docs/02-register/FEATURE_REGISTER.csv");
+  assert.match(spec, /Canonical ID: `F014`/);
+  assert.match(spec, /Canonical name: \*\*Meetings\*\*/);
+  assert.match(spec, /Implementation status: `NOT_STARTED`/);
+  assert.match(spec, /Product status: `NOT_READY`/);
+  assert.match(register, /^F014,CRM,Meetings,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
+  assert.match(register, /^F013,CRM,Calls,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
 });
 
 test("F014 regression: F013 Calls remain governed and historical evidence does not pin CURRENT_FEATURE", () => {

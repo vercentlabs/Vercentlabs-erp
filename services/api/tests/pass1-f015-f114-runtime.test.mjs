@@ -5,6 +5,7 @@ import { createSalesCommissionRule } from "../src/modules/sales/pass1-operations
 import { createSalesDropShipWithSupplierValidation } from "../src/orchestration/sales-pass1-options.js";
 import { upsertSupplierLeadTime } from "../src/modules/procurement/pass1-operations.js";
 import { reserveStock } from "../src/modules/stock/index.js";
+import { createWave0PrimitiveHarness } from "./helpers/wave0-primitives.mjs";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const company = "22222222-2222-4222-8222-222222222222";
@@ -79,7 +80,10 @@ test("Pass1 supplier lead time validates item scope and persists an effective ca
 
 test("Pass1 stock reservation validates the inventory dimension and updates reserved balance once", async () => {
   let balanceUpdates = 0;
+  const wave0 = createWave0PrimitiveHarness();
   const client = { async query(sql, params) {
+    const wave0Result = wave0.handle(sql, params);
+    if (wave0Result) return wave0Result;
     if (/SELECT id,company_id,track_inventory/.test(sql)) return { rows: [{ id: itemId, company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "10" }] };
     if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql)) return { rows: [{ id: warehouseId, company_id: company, allow_negative_stock: false }] };
     if (/FROM tenant\.stock_balances[\s\S]*quantity-reserved_quantity >=/.test(sql)) return { rows: [{ warehouse_location_id: null, batch_id: null, quantity: "10", reserved_quantity: "0" }] };

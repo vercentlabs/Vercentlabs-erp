@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { nextDocumentNumber } from "../../core/document-numbering.js";
+
 const TABLES = Object.freeze({
   assets: "assets",
   categories: "asset_categories",
@@ -148,7 +150,10 @@ export async function createManagedAsset(client, context, input) {
   );
   if (!category.rows[0]) throw new Error("Active asset category not found.");
 
-  const number = input.assetNumber || `AST-${Date.now()}`;
+  const number = input.assetNumber || await nextDocumentNumber(client, context, {
+    documentType: "asset",
+    prefix: "AST",
+  });
   const acquisitionCost = Number(input.acquisitionCost || 0);
   const residualValue =
     input.residualValue !== undefined
@@ -312,6 +317,10 @@ export async function assignAsset(client, context, assetId, input) {
 
 export async function createMaintenanceOrder(client, context, assetId, input) {
   requirePermission(context, "assets.maintain");
+  const workOrderNumber = input.workOrderNumber || await nextDocumentNumber(client, context, {
+    documentType: "asset_maintenance_order",
+    prefix: "AMO",
+  });
   const result = await client.query(
     `INSERT INTO tenant.asset_maintenance_orders
       (organization_id,company_id,asset_id,maintenance_plan_id,work_order_number,
@@ -324,7 +333,7 @@ export async function createMaintenanceOrder(client, context, assetId, input) {
       context.companyId,
       assetId,
       input.maintenancePlanId || null,
-      input.workOrderNumber || `AMO-${Date.now()}`,
+      workOrderNumber,
       input.maintenanceType || "preventive",
       input.priority || "normal",
       input.scheduledStartAt || null,
@@ -415,6 +424,10 @@ export async function disposeManagedAsset(client, context, assetId, input) {
   const disposalCost = Number(input.disposalCost || 0);
   const netBookValue = Number(asset.net_book_value);
   const gainLoss = proceeds - disposalCost - netBookValue;
+  const disposalNumber = input.disposalNumber || await nextDocumentNumber(client, context, {
+    documentType: "asset_disposal",
+    prefix: "DSP",
+  });
 
   const disposal = await client.query(
     `INSERT INTO tenant.asset_disposals
@@ -429,7 +442,7 @@ export async function disposeManagedAsset(client, context, assetId, input) {
       context.organizationId,
       context.companyId,
       assetId,
-      input.disposalNumber || `DSP-${Date.now()}`,
+      disposalNumber,
       input.disposalDate || new Date().toISOString().slice(0, 10),
       input.disposalMethod,
       String(proceeds),

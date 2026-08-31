@@ -55,9 +55,25 @@ const resources = [
 
 export default function HrPayrollDashboard({
   summary,
+  allowedResources,
 }: {
   summary: Record<string, unknown>;
+  allowedResources?: readonly string[];
 }) {
+  const visibleResources = allowedResources
+    ? resources.filter(([, href]) => allowedResources.includes(href.split("/").at(-1) || ""))
+    : resources;
+  const metrics = [
+    ["Active employees", summary.active_employees],
+    ["Employees on leave", summary.employees_on_leave],
+    ["New joiners", summary.new_joiners],
+    ...(summary.payroll_access
+      ? [
+          ["Open payroll runs", summary.open_payroll_runs],
+          ["Latest net pay", summary.latest_net_pay],
+        ]
+      : []),
+  ];
   return (
     <div className="module-workbench">
       <section className="panel">
@@ -70,13 +86,7 @@ export default function HrPayrollDashboard({
       </section>
 
       <section className="metric-grid">
-        {[
-          ["Active employees", summary.active_employees],
-          ["Employees on leave", summary.employees_on_leave],
-          ["New joiners", summary.new_joiners],
-          ["Open payroll runs", summary.open_payroll_runs],
-          ["Latest net pay", summary.latest_net_pay],
-        ].map(([label, value]) => (
+        {metrics.map(([label, value]) => (
           <article className="metric-card" key={String(label)}>
             <span>{String(label)}</span>
             <strong>{String(value ?? 0)}</strong>
@@ -85,7 +95,7 @@ export default function HrPayrollDashboard({
       </section>
 
       <section className="resource-cards">
-        {resources.map(([title, href, description]) => (
+        {visibleResources.map(([title, href, description]) => (
           <Link className="resource-card" href={href} key={href}>
             <span className="eyebrow">HR workflow</span>
             <h2>{title}</h2>

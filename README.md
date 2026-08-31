@@ -23,15 +23,14 @@ database/
 └── tenant/    # operational ERP state protected by tenant context/RLS
 ```
 
-See `PROJECT_STRUCTURE.md` and `docs/architecture/ERP_STRUCTURE.md`.
+See `docs/01-standards/PROJECT_STRUCTURE_CONSTITUTION.md` and `docs/00-program/ARCHITECTURE_FREEZE_GATE.md`.
 
 ## Company email
 
 The primary B2B contact is `sales@vercentlabs.com`. Customer support, privacy,
 security, billing, careers, authentication delivery, and infrastructure alerts
 use dedicated `@vercentlabs.com` Workspace role addresses. See
-`docs/operations/WORKSPACE_EMAIL_DIRECTORY.md` for the canonical ownership and
-provisioning map.
+`docs/00-program/COMMUNICATIONS_PLAN.md` and `docs/00-program/STAKEHOLDER_MANAGEMENT_PLAN.md` for current communication ownership and governance.
 
 ## Toolchain
 
@@ -96,6 +95,6 @@ pnpm build:web
 
 ## Development rule
 
-Requirement IDs stay in `docs/erp-510`; code is organised by business capability, not by one folder per feature ID. New capability code belongs under the owning module's `features/` boundary. A module may call another module only through that module's public `index.js` contract. Larger multi-module workflows belong in `services/api/src/orchestration`.
+Requirement IDs stay in the canonical `docs/02-register/FEATURE_REGISTER.csv` and `docs/03-modules/*/features/` specifications; code is organised by business capability, not by one folder per feature ID. New capability code belongs under the owning module's `features/` boundary. A module may call another module only through that module's public `index.js` contract. Larger multi-module workflows belong in `services/api/src/orchestration`.
 
 Do not recreate `apps/web/src/lib`, `apps/web/src/components`, `database/control-plane`, or top-level API module directories.

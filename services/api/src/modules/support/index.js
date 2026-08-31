@@ -1,3 +1,5 @@
+import { nextDocumentNumber } from "../../core/document-numbering.js";
+
 // tenant.support_communications rows marked private_note=true are internal
 // staff-only notes not meant to be visible to every ticket viewer. Gated
 // behind support.sensitive.view (see docs/implementation/
@@ -193,6 +195,10 @@ export async function createSupportTicket(client, context, input) {
   const resolutionDueAt = sla
     ? new Date(now.getTime() + Number(sla.resolution_minutes) * 60000)
     : null;
+  const ticketNumber = input.ticketNumber || await nextDocumentNumber(client, context, {
+    documentType: "support_ticket",
+    prefix: "SUP",
+  });
 
   const ticket = await client.query(
     `INSERT INTO tenant.support_tickets
@@ -210,7 +216,7 @@ export async function createSupportTicket(client, context, input) {
       context.organizationId,
       context.companyId,
       input.branchId || null,
-      input.ticketNumber || `SUP-${Date.now()}`,
+      ticketNumber,
       input.subject,
       input.description,
       input.channel || "web",
@@ -457,6 +463,10 @@ export async function transitionSupportTicket(
 
 export async function createKnowledgeArticle(client, context, input) {
   requirePermission(context, "support.knowledge.manage");
+  const articleNumber = input.articleNumber || await nextDocumentNumber(client, context, {
+    documentType: "support_knowledge_article",
+    prefix: "KB",
+  });
   const result = await client.query(
     `INSERT INTO tenant.support_knowledge_articles
       (organization_id,company_id,article_number,title,summary,content,
@@ -466,7 +476,7 @@ export async function createKnowledgeArticle(client, context, input) {
     [
       context.organizationId,
       context.companyId,
-      input.articleNumber || `KB-${Date.now()}`,
+      articleNumber,
       input.title,
       input.summary || null,
       input.content,

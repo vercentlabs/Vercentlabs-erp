@@ -5,6 +5,7 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { hrPayrollContext } from "@/modules/hr-payroll";
+import { canReadHrPayrollResource } from "@/modules/hr-payroll/access";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +15,14 @@ export default async function HrPayrollResourcePage({
   params: Promise<{ resource: string }>;
 }) {
   const session = await requireWorkspace();
-  if (!hasPermission(session, PERMISSIONS.hrPayrollView)) {
+  const { resource } = await params;
+  if (
+    !hasPermission(session, PERMISSIONS.hrPayrollView) ||
+    !canReadHrPayrollResource(session, resource)
+  ) {
     return <AccessDenied area="HR & Payroll" />;
   }
 
-  const { resource } = await params;
   const rows = await tenantTransaction(session.organizationId, (client) =>
     listHrPayrollResource(client, hrPayrollContext(session), resource, {
       limit: 100,

@@ -83,13 +83,13 @@ test("F012 Web: responsive stage workspace is globally imported and keyboard con
   assert.match(css, /prefers-reduced-motion/);
 });
 
-test("F012 documentation keeps later pipeline analytics and outcome reasons unclaimed", () => {
-  const spec = read("docs/erp-510/02-feature-specs/ERP-012.md");
-  assert.match(spec, /F024 Pipeline Dashboard/);
-  assert.match(spec, /F025 Sales Forecast/);
-  assert.match(spec, /F026 Won \/ Lost Reasons/);
-  assert.match(spec, /not claimed/i);
-  assert.match(read("docs/erp-510/FEATURE_REGISTER.csv"), /^F012,CRM,Sales stages,P0,TESTING,NOT_READY,/m);
+test("F012 documentation/register remain canonical and NOT_READY until production acceptance",()=>{
+  const spec = read("docs/03-modules/crm/features/F012-sales-stages.md");
+  assert.match(spec,/Canonical ID: `F012`/);
+  assert.match(spec,/Canonical name: \*\*Sales stages\*\*/i);
+  assert.match(spec,/Implementation status: `NOT_STARTED`/);
+  assert.match(spec,/Product status: `NOT_READY`/);
+  assert.match(read("docs/02-register/FEATURE_REGISTER.csv"), /^F012,CRM,Sales stages,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
 });
 
 

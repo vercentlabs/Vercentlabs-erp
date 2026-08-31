@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 
+import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { requireCompanyRecord, requireProjectChild } from "../../core/references.js";
+
 const TABLES = Object.freeze({
   projects: "projects",
   milestones: "project_milestones",
@@ -139,7 +142,13 @@ export async function createProject(client, context, input) {
     approvedBudget: String(input.approvedBudget || 0),
     contractedRevenue: String(input.contractedRevenue || 0),
   };
-  const number = input.projectNumber || `PRJ-${Date.now()}`;
+  if (input.branchId) {
+    await requireCompanyRecord(client, context, "branch", input.branchId);
+  }
+  const number = input.projectNumber || await nextDocumentNumber(client, context, {
+    documentType: "project",
+    prefix: "PRJ",
+  });
   const result = await client.query(
     `INSERT INTO tenant.projects
       (organization_id,company_id,branch_id,project_number,name,description,
@@ -194,6 +203,17 @@ export async function createProject(client, context, input) {
 
 export async function createProjectTask(client, context, input) {
   requirePermission(context, "projects.tasks.manage");
+  await requireCompanyRecord(client, context, "project", input.projectId);
+  if (input.milestoneId) {
+    await requireProjectChild(client, context, "milestone", input.milestoneId, input.projectId);
+  }
+  if (input.parentTaskId) {
+    await requireProjectChild(client, context, "task", input.parentTaskId, input.projectId);
+  }
+  const taskNumber = input.taskNumber || await nextDocumentNumber(client, context, {
+    documentType: `project_task:${input.projectId}`,
+    prefix: "TASK",
+  });
   const result = await client.query(
     `INSERT INTO tenant.project_tasks
       (organization_id,project_id,milestone_id,parent_task_id,task_number,name,
@@ -206,7 +226,7 @@ export async function createProjectTask(client, context, input) {
       input.projectId,
       input.milestoneId || null,
       input.parentTaskId || null,
-      input.taskNumber || `TASK-${Date.now()}`,
+      taskNumber,
       input.name,
       input.description || null,
       input.priority || "normal",
@@ -230,6 +250,10 @@ export async function createProjectTask(client, context, input) {
 
 export async function createTimeEntry(client, context, input) {
   requirePermission(context, "projects.time.enter");
+  await requireCompanyRecord(client, context, "project", input.projectId);
+  if (input.taskId) {
+    await requireProjectChild(client, context, "task", input.taskId, input.projectId);
+  }
   const result = await client.query(
     `INSERT INTO tenant.project_time_entries
       (organization_id,company_id,project_id,task_id,user_id,work_date,hours,

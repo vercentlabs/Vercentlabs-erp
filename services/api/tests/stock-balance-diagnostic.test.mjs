@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { diagnoseStockBalanceDrift, postStockMovement, createStockTransfer, completeStockTransfer } from "../src/modules/stock/index.js";
+import { createWave0PrimitiveHarness } from "./helpers/wave0-primitives.mjs";
 
 // Prompt 12 (Emergency P0 Integrity Fixes) — regression coverage for
 // diagnoseStockBalanceDrift(), the safe, dry-run-by-default, tenant-scoped
@@ -119,8 +120,11 @@ test("diagnostic: a balance row with zero movements (orphaned balance) is also d
 // --- Cross-module regression: canonical Stock functions are unaffected ---
 
 test("regression: postStockMovement still supports serialId as an addition, without breaking callers that omit it", async () => {
+  const wave0 = createWave0PrimitiveHarness();
   const c = {
     async query(sql, params) {
+      const wave0Result = wave0.handle(sql, params);
+      if (wave0Result) return wave0Result;
       if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
       if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql)) return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "10" }] };
       if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql)) return { rows: [{ id: params[1], company_id: company, allow_negative_stock: false }] };
@@ -146,8 +150,11 @@ test("regression: postStockMovement still supports serialId as an addition, with
 
 test("regression: createStockTransfer / completeStockTransfer (Stock's own internal augmented-permissions precedent this fix's pattern was modeled on) are unmodified and still work", async () => {
   const transferId = "77777777-7777-4777-8777-777777777777";
+  const wave0 = createWave0PrimitiveHarness();
   const c = {
     async query(sql, params) {
+      const wave0Result = wave0.handle(sql, params);
+      if (wave0Result) return wave0Result;
       if (/SELECT \* FROM tenant\.stock_transfers WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
       if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
       if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql)) return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "10" }] };

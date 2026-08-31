@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { completePointOfSale } from "../src/modules/point-of-sale/index.js";
+import { createWave0PrimitiveHarness } from "./helpers/wave0-primitives.mjs";
 
 // Prompt 12 (Emergency P0 Integrity Fixes) — regression coverage for the
 // confirmed-live defect documented in docs/implementation/
@@ -36,6 +37,7 @@ function shiftRow() {
     warehouse_id: warehouseId,
     currency_code: "INR",
     receipt_prefix: "POS",
+    price_list_id: "price-list-1",
   };
 }
 
@@ -53,15 +55,19 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
   const stockMovementInserts = [];
   const stockBalanceUpserts = [];
   const valuationLayerInserts = [];
+  const wave0 = createWave0PrimitiveHarness();
 
   return {
     stockMovementInserts,
     stockBalanceUpserts,
     valuationLayerInserts,
     async query(sql, params) {
+      const wave0Result = wave0.handle(sql, params);
+      if (wave0Result) return wave0Result;
       if (/FROM tenant\.pos_shifts shift[\s\S]*FOR UPDATE/.test(sql)) return { rows: [shiftRow()] };
       if (/SELECT allow_negative_stock,allow_price_override\s+FROM tenant\.pos_settings/.test(sql))
         return { rows: [{ allow_negative_stock: false, allow_price_override: false }] };
+      if (/SELECT price_item\.rate/.test(sql)) return { rows: [{ rate: "100" }] };
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available\s+FROM tenant\.stock_balances/.test(sql))
         return { rows: [{ available: availableStock }] }; // POS's own unlocked pre-check
       if (/INSERT INTO tenant\.pos_sales/.test(sql)) return { rows: [{ id: saleId, store_id: "store-1", terminal_id: "terminal-1" }] };
@@ -78,12 +84,12 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       if (/INSERT INTO tenant\.stock_movements/.test(sql)) {
         const row = {
           id: `movement-${stockMovementInserts.length + 1}`,
-          movement_type: params[2],
-          item_id: params[3],
-          warehouse_id: params[4],
-          batch_id: params[6],
-          serial_id: params[7],
-          quantity: params[8],
+          movement_type: params[3],
+          item_id: params[4],
+          warehouse_id: params[5],
+          batch_id: params[7],
+          serial_id: params[8],
+          quantity: params[9],
         };
         stockMovementInserts.push(row);
         return { rows: [row] };
@@ -135,29 +141,14 @@ test("POS: ledger and balance stay consistent — every stock_movements insert h
   assert.equal(client.valuationLayerInserts.length, 2);
 });
 
-test("POS: duplicate/retry request does not double-decrement — pos_sales.idempotency_key uniqueness rejects the retry before any second stock movement is posted", async () => {
-  // pos_sales has UNIQUE(organization_id, idempotency_key) (048_point_of_sale_module.sql).
-  // A retried completePointOfSale with the same idempotencyKey fails at the pos_sales
-  // INSERT itself, before any stock movement for the retry is ever attempted.
-  let attempts = 0;
-  const base = trackingClient();
-  const client = {
-    ...base,
-    async query(sql, params) {
-      if (/INSERT INTO tenant\.pos_sales/.test(sql)) {
-        attempts += 1;
-        if (attempts > 1) {
-          const error = new Error('duplicate key value violates unique constraint "pos_sales_organization_id_idempotency_key_key"');
-          error.code = "23505";
-          throw error;
-        }
-      }
-      return base.query(sql, params);
-    },
-  };
-  await completePointOfSale(client, baseContext(), saleInput());
-  await assert.rejects(() => completePointOfSale(client, baseContext(), saleInput()), /duplicate key value/);
-  assert.equal(base.stockMovementInserts.length, 1, "the rejected retry must not have posted a second stock movement");
+test("POS: duplicate/retry request replays the original sale and never double-decrements stock", async () => {
+  const client = trackingClient();
+  const first = await completePointOfSale(client, baseContext(), saleInput());
+  const second = await completePointOfSale(client, baseContext(), saleInput());
+  assert.equal(second.id, first.id);
+  assert.equal(second.replayed, true);
+  assert.equal(client.stockMovementInserts.length, 1, "the replay must not post a second stock movement");
+  assert.equal(client.stockBalanceUpserts.length, 1, "the replay must not decrement inventory twice");
 });
 
 test("POS: insufficient stock is rejected by canonical Stock's own row-locked balance check, not just the unlocked pre-check (concurrency-safe authoritative guard)", async () => {

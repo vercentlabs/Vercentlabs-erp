@@ -1,3 +1,7 @@
+import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
+import { lockInventoryItem } from "../../core/inventory-lock.js";
+
 function requirePermission(context, permission) {
   if (
     !context.roleSlugs?.includes("organization_owner") &&
@@ -199,6 +203,10 @@ export async function createInspection(client, context, input) {
     [context.organizationId, context.companyId, input.planId],
   );
   if (!plan.rows[0]) throw new Error("An active quality plan is required.");
+  const inspectionNumber = input.inspectionNumber || await nextDocumentNumber(client, context, {
+    documentType: "quality_inspection",
+    prefix: "QI",
+  });
 
   const inspection = await client.query(
     `INSERT INTO tenant.quality_inspections
@@ -210,7 +218,7 @@ export async function createInspection(client, context, input) {
     [
       context.organizationId,
       context.companyId,
-      input.inspectionNumber || `QI-${Date.now()}`,
+      inspectionNumber,
       input.planId,
       input.inspectionType,
       input.sourceType,
@@ -303,20 +311,29 @@ export async function completeInspection(client, context, inspectionId, input) {
        WHERE organization_id=$1 AND company_id=$2`,
       [context.organizationId, context.companyId],
     );
-    if (settings.rows[0]?.auto_hold_on_failure !== false) {
+    if (
+      settings.rows[0]?.auto_hold_on_failure !== false &&
+      inspection.rows[0].item_id
+    ) {
+      await lockInventoryItem(client, context, inspection.rows[0].item_id);
+      const holdNumber = await nextDocumentNumber(client, context, {
+        documentType: "quality_hold",
+        prefix: "QH",
+      });
       await client.query(
         `INSERT INTO tenant.quality_holds
           (organization_id,company_id,hold_number,hold_type,source_type,source_id,
-           item_id,warehouse_id,batch_id,serial_id,quantity,reason,placed_by)
-         VALUES ($1,$2,$3,'inventory',$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+           item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,reason,placed_by)
+         VALUES ($1,$2,$3,'inventory',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           context.organizationId,
           context.companyId,
-          `QH-${Date.now()}`,
+          holdNumber,
           inspection.rows[0].source_type,
           inspection.rows[0].source_id || inspectionId,
           inspection.rows[0].item_id,
           inspection.rows[0].warehouse_id,
+          null,
           inspection.rows[0].batch_id,
           inspection.rows[0].serial_id,
           String(
@@ -394,6 +411,10 @@ export async function releaseInspection(
 
 export async function createNonconformance(client, context, input) {
   requirePermission(context, "quality.nonconformance.manage");
+  const nonconformanceNumber = input.nonconformanceNumber || await nextDocumentNumber(client, context, {
+    documentType: "quality_nonconformance",
+    prefix: "NC",
+  });
   const result = await client.query(
     `INSERT INTO tenant.quality_nonconformances
       (organization_id,company_id,nonconformance_number,inspection_id,source_type,
@@ -405,7 +426,7 @@ export async function createNonconformance(client, context, input) {
     [
       context.organizationId,
       context.companyId,
-      input.nonconformanceNumber || `NC-${Date.now()}`,
+      nonconformanceNumber,
       input.inspectionId || null,
       input.sourceType,
       input.sourceId || null,
@@ -435,6 +456,10 @@ export async function createNonconformance(client, context, input) {
 
 export async function createCapa(client, context, input) {
   requirePermission(context, "quality.capa.manage");
+  const capaNumber = input.capaNumber || await nextDocumentNumber(client, context, {
+    documentType: "quality_capa",
+    prefix: "CAPA",
+  });
   const result = await client.query(
     `INSERT INTO tenant.quality_capa
       (organization_id,company_id,capa_number,nonconformance_id,title,
@@ -446,7 +471,7 @@ export async function createCapa(client, context, input) {
     [
       context.organizationId,
       context.companyId,
-      input.capaNumber || `CAPA-${Date.now()}`,
+      capaNumber,
       input.nonconformanceId || null,
       input.title,
       input.rootCauseMethod || null,
@@ -468,4 +493,113 @@ export async function createCapa(client, context, input) {
     "quality.capa.created",
   );
   return result.rows[0];
+}
+
+export async function releaseQualityHold(client, context, holdId, input = {}) {
+  requirePermission(context, "quality.release");
+  const token = await beginIdempotentOperation(client, context, {
+    operation: "quality.hold.release",
+    key: input.idempotencyKey,
+    payload: { holdId, quantity: input.quantity ?? null, reason: input.reason, expectedVersion: input.expectedVersion ?? null },
+    required: true,
+  });
+  if (token.replayed) return { ...token.response, replayed: true };
+
+  const snapshot = await client.query(
+    `SELECT id,item_id FROM tenant.quality_holds
+     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
+    [context.organizationId, context.companyId, holdId],
+  );
+  if (!snapshot.rows[0]) {
+    const error = new Error("Quality hold was not found for the active company.");
+    error.status = 404;
+    error.code = "QUALITY_HOLD_NOT_FOUND";
+    throw error;
+  }
+  if (snapshot.rows[0].item_id) {
+    await lockInventoryItem(client, context, snapshot.rows[0].item_id);
+  }
+
+  const locked = await client.query(
+    `SELECT * FROM tenant.quality_holds
+     WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
+    [context.organizationId, context.companyId, holdId],
+  );
+  const hold = locked.rows[0];
+  if (!hold || hold.status !== "active") {
+    const error = new Error("Only an active quality hold can be released.");
+    error.status = hold ? 409 : 404;
+    error.code = hold ? "QUALITY_HOLD_STATE_INVALID" : "QUALITY_HOLD_NOT_FOUND";
+    throw error;
+  }
+  if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(hold.version)) {
+    const error = new Error("The quality hold changed before this release was applied. Reload and retry.");
+    error.status = 409;
+    error.code = "QUALITY_HOLD_VERSION_CONFLICT";
+    throw error;
+  }
+
+  const total = Number(hold.quantity);
+  const alreadyReleased = Number(hold.released_quantity || 0);
+  const scopeHold = total === 0;
+  const remaining = Math.max(total - alreadyReleased, 0);
+  if (!scopeHold && !(remaining > 0)) {
+    const error = new Error("The quality hold has no remaining held quantity.");
+    error.status = 409;
+    error.code = "QUALITY_HOLD_ALREADY_RELEASED";
+    throw error;
+  }
+  if (scopeHold && input.quantity != null) {
+    const error = new Error("A scope-wide quality hold must be fully released; omit quantity.");
+    error.status = 400;
+    error.code = "QUALITY_HOLD_RELEASE_QUANTITY_INVALID";
+    throw error;
+  }
+  const requested = scopeHold ? 0 : (input.quantity == null ? remaining : Number(input.quantity));
+  if (!scopeHold && (!(requested > 0) || requested > remaining)) {
+    const error = new Error("Release quantity must be greater than zero and cannot exceed the remaining held quantity.");
+    error.status = 400;
+    error.code = "QUALITY_HOLD_RELEASE_QUANTITY_INVALID";
+    throw error;
+  }
+  const reason = String(input.reason || "").trim();
+  if (!reason) {
+    const error = new Error("A release reason is required.");
+    error.status = 400;
+    error.code = "QUALITY_HOLD_RELEASE_REASON_REQUIRED";
+    throw error;
+  }
+
+  await client.query(
+    `INSERT INTO tenant.quality_hold_releases
+      (organization_id,company_id,hold_id,quantity,reason,released_by,idempotency_key)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [context.organizationId, context.companyId, holdId, String(requested), reason, context.userId, input.idempotencyKey],
+  );
+  const nextReleased = alreadyReleased + requested;
+  const fullyReleased = scopeHold || nextReleased >= total;
+  const updated = await client.query(
+    `UPDATE tenant.quality_holds
+     SET released_quantity=$4,
+       status=CASE WHEN $5 THEN 'released' ELSE 'active' END,
+       released_by=CASE WHEN $5 THEN $6 ELSE released_by END,
+       released_at=CASE WHEN $5 THEN now() ELSE released_at END,
+       release_reason=CASE WHEN $5 THEN $7 ELSE release_reason END,
+       version=version+1
+     WHERE organization_id=$1 AND company_id=$2 AND id=$3
+     RETURNING *`,
+    [context.organizationId, context.companyId, holdId, String(nextReleased), fullyReleased, context.userId, reason],
+  );
+  await event(client, context, "hold", holdId, fullyReleased ? "quality.hold.released" : "quality.hold.partially_released", {
+    quantity: requested,
+    remainingQuantity: Math.max(total - nextReleased, 0),
+    reason,
+  });
+  const response = { ...updated.rows[0], replayed: false };
+  await completeIdempotentOperation(client, context, token, {
+    response,
+    aggregateType: "quality_hold",
+    aggregateId: holdId,
+  });
+  return response;
 }

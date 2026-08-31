@@ -53,11 +53,10 @@ test("F009 web: Opportunity detail is owner-scoped, actionable and responsive th
   assert.match(page, /CrmOpportunityActions/);
 });
 
-test("F009 web: later features remain explicitly separate", () => {
-  const spec = read("docs/erp-510/02-feature-specs/ERP-009.md");
-  assert.match(spec, /F010 Opportunity Pipeline/);
-  assert.match(spec, /F011 Probability and Expected Revenue/);
-  assert.match(spec, /F012 Sales Stages/);
-  assert.match(spec, /F023 Opportunity-to-Quotation Conversion/);
-  assert.match(spec, /not claimed/i);
+test("F009 documentation remains canonical and NOT_READY until production acceptance", () => {
+  const spec = read("docs/03-modules/crm/features/F009-opportunities.md");
+  assert.match(spec, /Canonical ID: `F009`/);
+  assert.match(spec, /Canonical name: \*\*Opportunities\*\*/);
+  assert.match(spec, /Implementation status: `NOT_STARTED`/);
+  assert.match(spec, /Product status: `NOT_READY`/);
 });

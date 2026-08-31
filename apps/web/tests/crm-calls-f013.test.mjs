@@ -86,15 +86,14 @@ test("F013 Web: responsive Call workspace is globally imported with mobile-safe 
   assert.match(css, /prefers-reduced-motion/);
 });
 
-test("F013 docs/register claim Calls only and leave F014-F016 unclaimed", () => {
-  const spec = read("docs/erp-510/02-feature-specs/ERP-013.md");
-  const register = read("docs/erp-510/FEATURE_REGISTER.csv");
-  assert.match(spec, /Feature ID: F013/);
-  assert.match(spec, /Feature: Calls/);
-  assert.match(spec, /F014 Meetings/);
-  assert.match(spec, /F015 Tasks/);
-  assert.match(spec, /F016 Follow-ups and reminders/);
-  assert.match(register, /^F013,CRM,Calls,P0,TESTING,NOT_READY,/m);
+test("F013 docs/register preserve the canonical Calls identity and NOT_READY production gate", () => {
+  const spec = read("docs/03-modules/crm/features/F013-calls.md");
+  const register = read("docs/02-register/FEATURE_REGISTER.csv");
+  assert.match(spec, /Canonical ID: `F013`/);
+  assert.match(spec, /Canonical name: \*\*Calls\*\*/);
+  assert.match(spec, /Implementation status: `NOT_STARTED`/);
+  assert.match(spec, /Product status: `NOT_READY`/);
+  assert.match(register, /^F013,CRM,Calls,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
 });
 
 test("F013 Web: native mobile Call completion narrows optional outcome code before governed completion", () => {

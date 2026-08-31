@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { add, allocate, decimal, format, mul } from "./money.js";
 import { hasAnyOwnField, omitFields } from "../../core/field-visibility.js";
+import { nextDocumentNumber } from "../../core/document-numbering.js";
 
 // Supplier banking/financial-account keys inside tenant.procurement_suppliers'
 // jsonb `data` column, gated behind procurement.suppliers.sensitive (see
@@ -824,7 +825,12 @@ async function nextNumber(client, context, entityType, fallbackPrefix) {
     [context.organizationId, entityType],
   );
   const row = result.rows[0];
-  if (!row) return `${fallbackPrefix}${Date.now().toString().slice(-9)}`;
+  if (!row) {
+    return nextDocumentNumber(client, context, {
+      documentType: `procurement:${entityType}`,
+      prefix: String(fallbackPrefix || "DOC").replace(/-+$/, "") || "DOC",
+    });
+  }
   return `${row.prefix}${String(row.number).padStart(Number(row.padding || 6), "0")}`;
 }
 

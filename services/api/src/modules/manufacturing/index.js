@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
 
 const RESOURCE_TABLES = Object.freeze({
@@ -229,7 +231,10 @@ export async function createWorkOrder(client, context, input) {
     throw error;
   }
 
-  const workOrderNumber = input.workOrderNumber || `WO-${Date.now()}`;
+  const workOrderNumber = input.workOrderNumber || await nextDocumentNumber(client, context, {
+    documentType: "manufacturing_work_order",
+    prefix: "WO",
+  });
   const snapshot = {
     bomId: input.bomId,
     routingId: input.routingId || null,
@@ -396,6 +401,14 @@ export async function startWorkOrder(client, context, workOrderId) {
 
 export async function postProduction(client, context, workOrderId, input) {
   assertPermission(context, "manufacturing.production.post");
+  const idempotency = await beginIdempotentOperation(client, context, {
+    operation: "manufacturing.production.post",
+    key: input.idempotencyKey,
+    payload: { workOrderId, ...input, idempotencyKey: undefined },
+    required: true,
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+
   const workOrder = await client.query(
     `SELECT * FROM tenant.manufacturing_work_orders
      WHERE organization_id=$1 AND company_id=$2 AND id=$3
@@ -602,5 +615,11 @@ export async function postProduction(client, context, workOrderId, input) {
     "manufacturing.production.posted",
     { quantity, finishedMovementId },
   );
-  return updated.rows[0];
+  const response = { ...updated.rows[0], replayed: false };
+  await completeIdempotentOperation(client, context, idempotency, {
+    response,
+    aggregateType: "manufacturing_work_order",
+    aggregateId: workOrderId,
+  });
+  return response;
 }

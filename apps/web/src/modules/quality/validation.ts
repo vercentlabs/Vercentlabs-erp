@@ -92,3 +92,13 @@ export const qualityNonconformanceCreateSchema = z.object({
   ownerUserId: uuid.nullish(),
   dueDate: z.string().date().nullish(),
 });
+
+
+
+
+export const qualityHoldReleaseSchema = z.object({
+  quantity: z.coerce.number().positive().optional(),
+  reason: z.string().trim().min(1).max(2000),
+  expectedVersion: z.coerce.number().int().positive().optional(),
+  idempotencyKey: z.string().trim().min(8).max(200),
+});
