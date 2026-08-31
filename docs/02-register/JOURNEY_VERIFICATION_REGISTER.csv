@@ -1,0 +1,606 @@
+verification_id,journey_id,journey_name,verification_type,objective,status,execution_evidence
+CRM-JRN-001-E2E-01,CRM-JRN-001,Prospect to opportunity,E2E,Happy path for Prospect to opportunity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-001-E2E-02,CRM-JRN-001,Prospect to opportunity,E2E,Permission/concurrency/validation failure for Prospect to opportunity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-001-E2E-03,CRM-JRN-001,Prospect to opportunity,E2E,Retry/reversal/reconciliation for Prospect to opportunity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-001-UAT-01,CRM-JRN-001,Prospect to opportunity,UAT,Primary business-role acceptance for Prospect to opportunity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-001-UAT-02,CRM-JRN-001,Prospect to opportunity,UAT,Exception/recovery business-role acceptance for Prospect to opportunity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-002-E2E-01,CRM-JRN-002,Opportunity to quotation,E2E,Happy path for Opportunity to quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-002-E2E-02,CRM-JRN-002,Opportunity to quotation,E2E,Permission/concurrency/validation failure for Opportunity to quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-002-E2E-03,CRM-JRN-002,Opportunity to quotation,E2E,Retry/reversal/reconciliation for Opportunity to quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-002-UAT-01,CRM-JRN-002,Opportunity to quotation,UAT,Primary business-role acceptance for Opportunity to quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-002-UAT-02,CRM-JRN-002,Opportunity to quotation,UAT,Exception/recovery business-role acceptance for Opportunity to quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-003-E2E-01,CRM-JRN-003,Seller daily work,E2E,Happy path for Seller daily work,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-003-E2E-02,CRM-JRN-003,Seller daily work,E2E,Permission/concurrency/validation failure for Seller daily work,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-003-E2E-03,CRM-JRN-003,Seller daily work,E2E,Retry/reversal/reconciliation for Seller daily work,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-003-UAT-01,CRM-JRN-003,Seller daily work,UAT,Primary business-role acceptance for Seller daily work,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-003-UAT-02,CRM-JRN-003,Seller daily work,UAT,Exception/recovery business-role acceptance for Seller daily work,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-004-E2E-01,CRM-JRN-004,Pipeline to forecast and analytics,E2E,Happy path for Pipeline to forecast and analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-004-E2E-02,CRM-JRN-004,Pipeline to forecast and analytics,E2E,Permission/concurrency/validation failure for Pipeline to forecast and analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-004-E2E-03,CRM-JRN-004,Pipeline to forecast and analytics,E2E,Retry/reversal/reconciliation for Pipeline to forecast and analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-004-UAT-01,CRM-JRN-004,Pipeline to forecast and analytics,UAT,Primary business-role acceptance for Pipeline to forecast and analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+CRM-JRN-004-UAT-02,CRM-JRN-004,Pipeline to forecast and analytics,UAT,Exception/recovery business-role acceptance for Pipeline to forecast and analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-001-E2E-01,SALES-JRN-001,CRM opportunity to accepted quotation,E2E,Happy path for CRM opportunity to accepted quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-001-E2E-02,SALES-JRN-001,CRM opportunity to accepted quotation,E2E,Permission/concurrency/validation failure for CRM opportunity to accepted quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-001-E2E-03,SALES-JRN-001,CRM opportunity to accepted quotation,E2E,Retry/reversal/reconciliation for CRM opportunity to accepted quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-001-UAT-01,SALES-JRN-001,CRM opportunity to accepted quotation,UAT,Primary business-role acceptance for CRM opportunity to accepted quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-001-UAT-02,SALES-JRN-001,CRM opportunity to accepted quotation,UAT,Exception/recovery business-role acceptance for CRM opportunity to accepted quotation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-002-E2E-01,SALES-JRN-002,Quotation to confirmed sales order,E2E,Happy path for Quotation to confirmed sales order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-002-E2E-02,SALES-JRN-002,Quotation to confirmed sales order,E2E,Permission/concurrency/validation failure for Quotation to confirmed sales order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-002-E2E-03,SALES-JRN-002,Quotation to confirmed sales order,E2E,Retry/reversal/reconciliation for Quotation to confirmed sales order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-002-UAT-01,SALES-JRN-002,Quotation to confirmed sales order,UAT,Primary business-role acceptance for Quotation to confirmed sales order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-002-UAT-02,SALES-JRN-002,Quotation to confirmed sales order,UAT,Exception/recovery business-role acceptance for Quotation to confirmed sales order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-003-E2E-01,SALES-JRN-003,"Order to reservation, fulfilment and delivery",E2E,"Happy path for Order to reservation, fulfilment and delivery",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-003-E2E-02,SALES-JRN-003,"Order to reservation, fulfilment and delivery",E2E,"Permission/concurrency/validation failure for Order to reservation, fulfilment and delivery",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-003-E2E-03,SALES-JRN-003,"Order to reservation, fulfilment and delivery",E2E,"Retry/reversal/reconciliation for Order to reservation, fulfilment and delivery",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-003-UAT-01,SALES-JRN-003,"Order to reservation, fulfilment and delivery",UAT,"Primary business-role acceptance for Order to reservation, fulfilment and delivery",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-003-UAT-02,SALES-JRN-003,"Order to reservation, fulfilment and delivery",UAT,"Exception/recovery business-role acceptance for Order to reservation, fulfilment and delivery",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-004-E2E-01,SALES-JRN-004,Order and delivery to invoice and cash,E2E,Happy path for Order and delivery to invoice and cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-004-E2E-02,SALES-JRN-004,Order and delivery to invoice and cash,E2E,Permission/concurrency/validation failure for Order and delivery to invoice and cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-004-E2E-03,SALES-JRN-004,Order and delivery to invoice and cash,E2E,Retry/reversal/reconciliation for Order and delivery to invoice and cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-004-UAT-01,SALES-JRN-004,Order and delivery to invoice and cash,UAT,Primary business-role acceptance for Order and delivery to invoice and cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-004-UAT-02,SALES-JRN-004,Order and delivery to invoice and cash,UAT,Exception/recovery business-role acceptance for Order and delivery to invoice and cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-005-E2E-01,SALES-JRN-005,Return to stock reversal and financial correction,E2E,Happy path for Return to stock reversal and financial correction,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-005-E2E-02,SALES-JRN-005,Return to stock reversal and financial correction,E2E,Permission/concurrency/validation failure for Return to stock reversal and financial correction,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-005-E2E-03,SALES-JRN-005,Return to stock reversal and financial correction,E2E,Retry/reversal/reconciliation for Return to stock reversal and financial correction,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-005-UAT-01,SALES-JRN-005,Return to stock reversal and financial correction,UAT,Primary business-role acceptance for Return to stock reversal and financial correction,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SALES-JRN-005-UAT-02,SALES-JRN-005,Return to stock reversal and financial correction,UAT,Exception/recovery business-role acceptance for Return to stock reversal and financial correction,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-001-E2E-01,PROC-JRN-001,Supplier onboarding to spend authorization,E2E,Happy path for Supplier onboarding to spend authorization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-001-E2E-02,PROC-JRN-001,Supplier onboarding to spend authorization,E2E,Permission/concurrency/validation failure for Supplier onboarding to spend authorization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-001-E2E-03,PROC-JRN-001,Supplier onboarding to spend authorization,E2E,Retry/reversal/reconciliation for Supplier onboarding to spend authorization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-001-UAT-01,PROC-JRN-001,Supplier onboarding to spend authorization,UAT,Primary business-role acceptance for Supplier onboarding to spend authorization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-001-UAT-02,PROC-JRN-001,Supplier onboarding to spend authorization,UAT,Exception/recovery business-role acceptance for Supplier onboarding to spend authorization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-002-E2E-01,PROC-JRN-002,Requisition to competitive sourcing award and purchase order,E2E,Happy path for Requisition to competitive sourcing award and purchase order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-002-E2E-02,PROC-JRN-002,Requisition to competitive sourcing award and purchase order,E2E,Permission/concurrency/validation failure for Requisition to competitive sourcing award and purchase order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-002-E2E-03,PROC-JRN-002,Requisition to competitive sourcing award and purchase order,E2E,Retry/reversal/reconciliation for Requisition to competitive sourcing award and purchase order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-002-UAT-01,PROC-JRN-002,Requisition to competitive sourcing award and purchase order,UAT,Primary business-role acceptance for Requisition to competitive sourcing award and purchase order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-002-UAT-02,PROC-JRN-002,Requisition to competitive sourcing award and purchase order,UAT,Exception/recovery business-role acceptance for Requisition to competitive sourcing award and purchase order,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-003-E2E-01,PROC-JRN-003,"Purchase order to receipt, stock and supplier return",E2E,"Happy path for Purchase order to receipt, stock and supplier return",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-003-E2E-02,PROC-JRN-003,"Purchase order to receipt, stock and supplier return",E2E,"Permission/concurrency/validation failure for Purchase order to receipt, stock and supplier return",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-003-E2E-03,PROC-JRN-003,"Purchase order to receipt, stock and supplier return",E2E,"Retry/reversal/reconciliation for Purchase order to receipt, stock and supplier return",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-003-UAT-01,PROC-JRN-003,"Purchase order to receipt, stock and supplier return",UAT,"Primary business-role acceptance for Purchase order to receipt, stock and supplier return",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-003-UAT-02,PROC-JRN-003,"Purchase order to receipt, stock and supplier return",UAT,"Exception/recovery business-role acceptance for Purchase order to receipt, stock and supplier return",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-004-E2E-01,PROC-JRN-004,"PO and receipt to supplier invoice, match and accounts payable",E2E,"Happy path for PO and receipt to supplier invoice, match and accounts payable",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-004-E2E-02,PROC-JRN-004,"PO and receipt to supplier invoice, match and accounts payable",E2E,"Permission/concurrency/validation failure for PO and receipt to supplier invoice, match and accounts payable",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-004-E2E-03,PROC-JRN-004,"PO and receipt to supplier invoice, match and accounts payable",E2E,"Retry/reversal/reconciliation for PO and receipt to supplier invoice, match and accounts payable",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-004-UAT-01,PROC-JRN-004,"PO and receipt to supplier invoice, match and accounts payable",UAT,"Primary business-role acceptance for PO and receipt to supplier invoice, match and accounts payable",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-004-UAT-02,PROC-JRN-004,"PO and receipt to supplier invoice, match and accounts payable",UAT,"Exception/recovery business-role acceptance for PO and receipt to supplier invoice, match and accounts payable",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-005-E2E-01,PROC-JRN-005,Stock replenishment to governed purchasing,E2E,Happy path for Stock replenishment to governed purchasing,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-005-E2E-02,PROC-JRN-005,Stock replenishment to governed purchasing,E2E,Permission/concurrency/validation failure for Stock replenishment to governed purchasing,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-005-E2E-03,PROC-JRN-005,Stock replenishment to governed purchasing,E2E,Retry/reversal/reconciliation for Stock replenishment to governed purchasing,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-005-UAT-01,PROC-JRN-005,Stock replenishment to governed purchasing,UAT,Primary business-role acceptance for Stock replenishment to governed purchasing,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-005-UAT-02,PROC-JRN-005,Stock replenishment to governed purchasing,UAT,Exception/recovery business-role acceptance for Stock replenishment to governed purchasing,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-006-E2E-01,PROC-JRN-006,Manufacturing subcontract demand to purchase and receipt,E2E,Happy path for Manufacturing subcontract demand to purchase and receipt,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-006-E2E-02,PROC-JRN-006,Manufacturing subcontract demand to purchase and receipt,E2E,Permission/concurrency/validation failure for Manufacturing subcontract demand to purchase and receipt,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-006-E2E-03,PROC-JRN-006,Manufacturing subcontract demand to purchase and receipt,E2E,Retry/reversal/reconciliation for Manufacturing subcontract demand to purchase and receipt,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-006-UAT-01,PROC-JRN-006,Manufacturing subcontract demand to purchase and receipt,UAT,Primary business-role acceptance for Manufacturing subcontract demand to purchase and receipt,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-006-UAT-02,PROC-JRN-006,Manufacturing subcontract demand to purchase and receipt,UAT,Exception/recovery business-role acceptance for Manufacturing subcontract demand to purchase and receipt,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-007-E2E-01,PROC-JRN-007,Incoming receipt quality exception and disposition,E2E,Happy path for Incoming receipt quality exception and disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-007-E2E-02,PROC-JRN-007,Incoming receipt quality exception and disposition,E2E,Permission/concurrency/validation failure for Incoming receipt quality exception and disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-007-E2E-03,PROC-JRN-007,Incoming receipt quality exception and disposition,E2E,Retry/reversal/reconciliation for Incoming receipt quality exception and disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-007-UAT-01,PROC-JRN-007,Incoming receipt quality exception and disposition,UAT,Primary business-role acceptance for Incoming receipt quality exception and disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PROC-JRN-007-UAT-02,PROC-JRN-007,Incoming receipt quality exception and disposition,UAT,Exception/recovery business-role acceptance for Incoming receipt quality exception and disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-001-E2E-01,STOCK-JRN-001,Procure to available stock,E2E,Happy path for Procure to available stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-001-E2E-02,STOCK-JRN-001,Procure to available stock,E2E,Permission/concurrency/validation failure for Procure to available stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-001-E2E-03,STOCK-JRN-001,Procure to available stock,E2E,Retry/reversal/reconciliation for Procure to available stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-001-UAT-01,STOCK-JRN-001,Procure to available stock,UAT,Primary business-role acceptance for Procure to available stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-001-UAT-02,STOCK-JRN-001,Procure to available stock,UAT,Exception/recovery business-role acceptance for Procure to available stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-002-E2E-01,STOCK-JRN-002,Sales reservation to shipment,E2E,Happy path for Sales reservation to shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-002-E2E-02,STOCK-JRN-002,Sales reservation to shipment,E2E,Permission/concurrency/validation failure for Sales reservation to shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-002-E2E-03,STOCK-JRN-002,Sales reservation to shipment,E2E,Retry/reversal/reconciliation for Sales reservation to shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-002-UAT-01,STOCK-JRN-002,Sales reservation to shipment,UAT,Primary business-role acceptance for Sales reservation to shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-002-UAT-02,STOCK-JRN-002,Sales reservation to shipment,UAT,Exception/recovery business-role acceptance for Sales reservation to shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-003-E2E-01,STOCK-JRN-003,Warehouse transfer,E2E,Happy path for Warehouse transfer,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-003-E2E-02,STOCK-JRN-003,Warehouse transfer,E2E,Permission/concurrency/validation failure for Warehouse transfer,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-003-E2E-03,STOCK-JRN-003,Warehouse transfer,E2E,Retry/reversal/reconciliation for Warehouse transfer,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-003-UAT-01,STOCK-JRN-003,Warehouse transfer,UAT,Primary business-role acceptance for Warehouse transfer,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-003-UAT-02,STOCK-JRN-003,Warehouse transfer,UAT,Exception/recovery business-role acceptance for Warehouse transfer,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-004-E2E-01,STOCK-JRN-004,Count to reconciliation,E2E,Happy path for Count to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-004-E2E-02,STOCK-JRN-004,Count to reconciliation,E2E,Permission/concurrency/validation failure for Count to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-004-E2E-03,STOCK-JRN-004,Count to reconciliation,E2E,Retry/reversal/reconciliation for Count to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-004-UAT-01,STOCK-JRN-004,Count to reconciliation,UAT,Primary business-role acceptance for Count to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-004-UAT-02,STOCK-JRN-004,Count to reconciliation,UAT,Exception/recovery business-role acceptance for Count to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-005-E2E-01,STOCK-JRN-005,Replenishment to procurement,E2E,Happy path for Replenishment to procurement,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-005-E2E-02,STOCK-JRN-005,Replenishment to procurement,E2E,Permission/concurrency/validation failure for Replenishment to procurement,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-005-E2E-03,STOCK-JRN-005,Replenishment to procurement,E2E,Retry/reversal/reconciliation for Replenishment to procurement,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-005-UAT-01,STOCK-JRN-005,Replenishment to procurement,UAT,Primary business-role acceptance for Replenishment to procurement,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-005-UAT-02,STOCK-JRN-005,Replenishment to procurement,UAT,Exception/recovery business-role acceptance for Replenishment to procurement,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-006-E2E-01,STOCK-JRN-006,Manufacturing material flow,E2E,Happy path for Manufacturing material flow,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-006-E2E-02,STOCK-JRN-006,Manufacturing material flow,E2E,Permission/concurrency/validation failure for Manufacturing material flow,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-006-E2E-03,STOCK-JRN-006,Manufacturing material flow,E2E,Retry/reversal/reconciliation for Manufacturing material flow,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-006-UAT-01,STOCK-JRN-006,Manufacturing material flow,UAT,Primary business-role acceptance for Manufacturing material flow,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-006-UAT-02,STOCK-JRN-006,Manufacturing material flow,UAT,Exception/recovery business-role acceptance for Manufacturing material flow,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-007-E2E-01,STOCK-JRN-007,Quality hold and release,E2E,Happy path for Quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-007-E2E-02,STOCK-JRN-007,Quality hold and release,E2E,Permission/concurrency/validation failure for Quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-007-E2E-03,STOCK-JRN-007,Quality hold and release,E2E,Retry/reversal/reconciliation for Quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-007-UAT-01,STOCK-JRN-007,Quality hold and release,UAT,Primary business-role acceptance for Quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-007-UAT-02,STOCK-JRN-007,Quality hold and release,UAT,Exception/recovery business-role acceptance for Quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-008-E2E-01,STOCK-JRN-008,Inventory valuation to books,E2E,Happy path for Inventory valuation to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-008-E2E-02,STOCK-JRN-008,Inventory valuation to books,E2E,Permission/concurrency/validation failure for Inventory valuation to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-008-E2E-03,STOCK-JRN-008,Inventory valuation to books,E2E,Retry/reversal/reconciliation for Inventory valuation to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-008-UAT-01,STOCK-JRN-008,Inventory valuation to books,UAT,Primary business-role acceptance for Inventory valuation to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-008-UAT-02,STOCK-JRN-008,Inventory valuation to books,UAT,Exception/recovery business-role acceptance for Inventory valuation to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-009-E2E-01,STOCK-JRN-009,Traceability and recall,E2E,Happy path for Traceability and recall,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-009-E2E-02,STOCK-JRN-009,Traceability and recall,E2E,Permission/concurrency/validation failure for Traceability and recall,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-009-E2E-03,STOCK-JRN-009,Traceability and recall,E2E,Retry/reversal/reconciliation for Traceability and recall,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-009-UAT-01,STOCK-JRN-009,Traceability and recall,UAT,Primary business-role acceptance for Traceability and recall,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+STOCK-JRN-009-UAT-02,STOCK-JRN-009,Traceability and recall,UAT,Exception/recovery business-role acceptance for Traceability and recall,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-001-E2E-01,MFG-JRN-001,Plan to produce,E2E,Happy path for Plan to produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-001-E2E-02,MFG-JRN-001,Plan to produce,E2E,Permission/concurrency/validation failure for Plan to produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-001-E2E-03,MFG-JRN-001,Plan to produce,E2E,Retry/reversal/reconciliation for Plan to produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-001-UAT-01,MFG-JRN-001,Plan to produce,UAT,Primary business-role acceptance for Plan to produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-001-UAT-02,MFG-JRN-001,Plan to produce,UAT,Exception/recovery business-role acceptance for Plan to produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-002-E2E-01,MFG-JRN-002,Engineering change to effective production,E2E,Happy path for Engineering change to effective production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-002-E2E-02,MFG-JRN-002,Engineering change to effective production,E2E,Permission/concurrency/validation failure for Engineering change to effective production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-002-E2E-03,MFG-JRN-002,Engineering change to effective production,E2E,Retry/reversal/reconciliation for Engineering change to effective production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-002-UAT-01,MFG-JRN-002,Engineering change to effective production,UAT,Primary business-role acceptance for Engineering change to effective production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-002-UAT-02,MFG-JRN-002,Engineering change to effective production,UAT,Exception/recovery business-role acceptance for Engineering change to effective production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-003-E2E-01,MFG-JRN-003,MRP shortage to procurement supply,E2E,Happy path for MRP shortage to procurement supply,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-003-E2E-02,MFG-JRN-003,MRP shortage to procurement supply,E2E,Permission/concurrency/validation failure for MRP shortage to procurement supply,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-003-E2E-03,MFG-JRN-003,MRP shortage to procurement supply,E2E,Retry/reversal/reconciliation for MRP shortage to procurement supply,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-003-UAT-01,MFG-JRN-003,MRP shortage to procurement supply,UAT,Primary business-role acceptance for MRP shortage to procurement supply,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-003-UAT-02,MFG-JRN-003,MRP shortage to procurement supply,UAT,Exception/recovery business-role acceptance for MRP shortage to procurement supply,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-004-E2E-01,MFG-JRN-004,Release to material issue and WIP,E2E,Happy path for Release to material issue and WIP,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-004-E2E-02,MFG-JRN-004,Release to material issue and WIP,E2E,Permission/concurrency/validation failure for Release to material issue and WIP,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-004-E2E-03,MFG-JRN-004,Release to material issue and WIP,E2E,Retry/reversal/reconciliation for Release to material issue and WIP,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-004-UAT-01,MFG-JRN-004,Release to material issue and WIP,UAT,Primary business-role acceptance for Release to material issue and WIP,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-004-UAT-02,MFG-JRN-004,Release to material issue and WIP,UAT,Exception/recovery business-role acceptance for Release to material issue and WIP,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-005-E2E-01,MFG-JRN-005,Shop floor to finished goods,E2E,Happy path for Shop floor to finished goods,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-005-E2E-02,MFG-JRN-005,Shop floor to finished goods,E2E,Permission/concurrency/validation failure for Shop floor to finished goods,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-005-E2E-03,MFG-JRN-005,Shop floor to finished goods,E2E,Retry/reversal/reconciliation for Shop floor to finished goods,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-005-UAT-01,MFG-JRN-005,Shop floor to finished goods,UAT,Primary business-role acceptance for Shop floor to finished goods,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-005-UAT-02,MFG-JRN-005,Shop floor to finished goods,UAT,Exception/recovery business-role acceptance for Shop floor to finished goods,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-006-E2E-01,MFG-JRN-006,Production inspection hold and rework,E2E,Happy path for Production inspection hold and rework,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-006-E2E-02,MFG-JRN-006,Production inspection hold and rework,E2E,Permission/concurrency/validation failure for Production inspection hold and rework,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-006-E2E-03,MFG-JRN-006,Production inspection hold and rework,E2E,Retry/reversal/reconciliation for Production inspection hold and rework,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-006-UAT-01,MFG-JRN-006,Production inspection hold and rework,UAT,Primary business-role acceptance for Production inspection hold and rework,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-006-UAT-02,MFG-JRN-006,Production inspection hold and rework,UAT,Exception/recovery business-role acceptance for Production inspection hold and rework,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-007-E2E-01,MFG-JRN-007,Batch and serial genealogy,E2E,Happy path for Batch and serial genealogy,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-007-E2E-02,MFG-JRN-007,Batch and serial genealogy,E2E,Permission/concurrency/validation failure for Batch and serial genealogy,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-007-E2E-03,MFG-JRN-007,Batch and serial genealogy,E2E,Retry/reversal/reconciliation for Batch and serial genealogy,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-007-UAT-01,MFG-JRN-007,Batch and serial genealogy,UAT,Primary business-role acceptance for Batch and serial genealogy,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-007-UAT-02,MFG-JRN-007,Batch and serial genealogy,UAT,Exception/recovery business-role acceptance for Batch and serial genealogy,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-008-E2E-01,MFG-JRN-008,Production cost to books,E2E,Happy path for Production cost to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-008-E2E-02,MFG-JRN-008,Production cost to books,E2E,Permission/concurrency/validation failure for Production cost to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-008-E2E-03,MFG-JRN-008,Production cost to books,E2E,Retry/reversal/reconciliation for Production cost to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-008-UAT-01,MFG-JRN-008,Production cost to books,UAT,Primary business-role acceptance for Production cost to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-008-UAT-02,MFG-JRN-008,Production cost to books,UAT,Exception/recovery business-role acceptance for Production cost to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-009-E2E-01,MFG-JRN-009,Make to order status loop,E2E,Happy path for Make to order status loop,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-009-E2E-02,MFG-JRN-009,Make to order status loop,E2E,Permission/concurrency/validation failure for Make to order status loop,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-009-E2E-03,MFG-JRN-009,Make to order status loop,E2E,Retry/reversal/reconciliation for Make to order status loop,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-009-UAT-01,MFG-JRN-009,Make to order status loop,UAT,Primary business-role acceptance for Make to order status loop,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-009-UAT-02,MFG-JRN-009,Make to order status loop,UAT,Exception/recovery business-role acceptance for Make to order status loop,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-010-E2E-01,MFG-JRN-010,Subcontract production,E2E,Happy path for Subcontract production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-010-E2E-02,MFG-JRN-010,Subcontract production,E2E,Permission/concurrency/validation failure for Subcontract production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-010-E2E-03,MFG-JRN-010,Subcontract production,E2E,Retry/reversal/reconciliation for Subcontract production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-010-UAT-01,MFG-JRN-010,Subcontract production,UAT,Primary business-role acceptance for Subcontract production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-010-UAT-02,MFG-JRN-010,Subcontract production,UAT,Exception/recovery business-role acceptance for Subcontract production,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-011-E2E-01,MFG-JRN-011,Maintenance to production capacity,E2E,Happy path for Maintenance to production capacity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-011-E2E-02,MFG-JRN-011,Maintenance to production capacity,E2E,Permission/concurrency/validation failure for Maintenance to production capacity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-011-E2E-03,MFG-JRN-011,Maintenance to production capacity,E2E,Retry/reversal/reconciliation for Maintenance to production capacity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-011-UAT-01,MFG-JRN-011,Maintenance to production capacity,UAT,Primary business-role acceptance for Maintenance to production capacity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+MFG-JRN-011-UAT-02,MFG-JRN-011,Maintenance to production capacity,UAT,Exception/recovery business-role acceptance for Maintenance to production capacity,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-001-E2E-01,PRJ-JRN-001,Customer order to project initiation,E2E,Happy path for Customer order to project initiation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-001-E2E-02,PRJ-JRN-001,Customer order to project initiation,E2E,Permission/concurrency/validation failure for Customer order to project initiation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-001-E2E-03,PRJ-JRN-001,Customer order to project initiation,E2E,Retry/reversal/reconciliation for Customer order to project initiation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-001-UAT-01,PRJ-JRN-001,Customer order to project initiation,UAT,Primary business-role acceptance for Customer order to project initiation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-001-UAT-02,PRJ-JRN-001,Customer order to project initiation,UAT,Exception/recovery business-role acceptance for Customer order to project initiation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-002-E2E-01,PRJ-JRN-002,Plan and schedule delivery,E2E,Happy path for Plan and schedule delivery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-002-E2E-02,PRJ-JRN-002,Plan and schedule delivery,E2E,Permission/concurrency/validation failure for Plan and schedule delivery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-002-E2E-03,PRJ-JRN-002,Plan and schedule delivery,E2E,Retry/reversal/reconciliation for Plan and schedule delivery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-002-UAT-01,PRJ-JRN-002,Plan and schedule delivery,UAT,Primary business-role acceptance for Plan and schedule delivery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-002-UAT-02,PRJ-JRN-002,Plan and schedule delivery,UAT,Exception/recovery business-role acceptance for Plan and schedule delivery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-003-E2E-01,PRJ-JRN-003,Staff to approved time,E2E,Happy path for Staff to approved time,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-003-E2E-02,PRJ-JRN-003,Staff to approved time,E2E,Permission/concurrency/validation failure for Staff to approved time,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-003-E2E-03,PRJ-JRN-003,Staff to approved time,E2E,Retry/reversal/reconciliation for Staff to approved time,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-003-UAT-01,PRJ-JRN-003,Staff to approved time,UAT,Primary business-role acceptance for Staff to approved time,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-003-UAT-02,PRJ-JRN-003,Staff to approved time,UAT,Exception/recovery business-role acceptance for Staff to approved time,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-004-E2E-01,PRJ-JRN-004,Budget to actual cost,E2E,Happy path for Budget to actual cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-004-E2E-02,PRJ-JRN-004,Budget to actual cost,E2E,Permission/concurrency/validation failure for Budget to actual cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-004-E2E-03,PRJ-JRN-004,Budget to actual cost,E2E,Retry/reversal/reconciliation for Budget to actual cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-004-UAT-01,PRJ-JRN-004,Budget to actual cost,UAT,Primary business-role acceptance for Budget to actual cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-004-UAT-02,PRJ-JRN-004,Budget to actual cost,UAT,Exception/recovery business-role acceptance for Budget to actual cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-005-E2E-01,PRJ-JRN-005,Project procurement commitments and actuals,E2E,Happy path for Project procurement commitments and actuals,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-005-E2E-02,PRJ-JRN-005,Project procurement commitments and actuals,E2E,Permission/concurrency/validation failure for Project procurement commitments and actuals,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-005-E2E-03,PRJ-JRN-005,Project procurement commitments and actuals,E2E,Retry/reversal/reconciliation for Project procurement commitments and actuals,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-005-UAT-01,PRJ-JRN-005,Project procurement commitments and actuals,UAT,Primary business-role acceptance for Project procurement commitments and actuals,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-005-UAT-02,PRJ-JRN-005,Project procurement commitments and actuals,UAT,Exception/recovery business-role acceptance for Project procurement commitments and actuals,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-006-E2E-01,PRJ-JRN-006,Project materials to cost,E2E,Happy path for Project materials to cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-006-E2E-02,PRJ-JRN-006,Project materials to cost,E2E,Permission/concurrency/validation failure for Project materials to cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-006-E2E-03,PRJ-JRN-006,Project materials to cost,E2E,Retry/reversal/reconciliation for Project materials to cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-006-UAT-01,PRJ-JRN-006,Project materials to cost,UAT,Primary business-role acceptance for Project materials to cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-006-UAT-02,PRJ-JRN-006,Project materials to cost,UAT,Exception/recovery business-role acceptance for Project materials to cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-007-E2E-01,PRJ-JRN-007,Fixed/T&M/milestone to invoice,E2E,Happy path for Fixed/T&M/milestone to invoice,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-007-E2E-02,PRJ-JRN-007,Fixed/T&M/milestone to invoice,E2E,Permission/concurrency/validation failure for Fixed/T&M/milestone to invoice,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-007-E2E-03,PRJ-JRN-007,Fixed/T&M/milestone to invoice,E2E,Retry/reversal/reconciliation for Fixed/T&M/milestone to invoice,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-007-UAT-01,PRJ-JRN-007,Fixed/T&M/milestone to invoice,UAT,Primary business-role acceptance for Fixed/T&M/milestone to invoice,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-007-UAT-02,PRJ-JRN-007,Fixed/T&M/milestone to invoice,UAT,Exception/recovery business-role acceptance for Fixed/T&M/milestone to invoice,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-008-E2E-01,PRJ-JRN-008,Live profitability and reconciliation,E2E,Happy path for Live profitability and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-008-E2E-02,PRJ-JRN-008,Live profitability and reconciliation,E2E,Permission/concurrency/validation failure for Live profitability and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-008-E2E-03,PRJ-JRN-008,Live profitability and reconciliation,E2E,Retry/reversal/reconciliation for Live profitability and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-008-UAT-01,PRJ-JRN-008,Live profitability and reconciliation,UAT,Primary business-role acceptance for Live profitability and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-008-UAT-02,PRJ-JRN-008,Live profitability and reconciliation,UAT,Exception/recovery business-role acceptance for Live profitability and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-009-E2E-01,PRJ-JRN-009,Risk/issue to controlled resolution,E2E,Happy path for Risk/issue to controlled resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-009-E2E-02,PRJ-JRN-009,Risk/issue to controlled resolution,E2E,Permission/concurrency/validation failure for Risk/issue to controlled resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-009-E2E-03,PRJ-JRN-009,Risk/issue to controlled resolution,E2E,Retry/reversal/reconciliation for Risk/issue to controlled resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-009-UAT-01,PRJ-JRN-009,Risk/issue to controlled resolution,UAT,Primary business-role acceptance for Risk/issue to controlled resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-009-UAT-02,PRJ-JRN-009,Risk/issue to controlled resolution,UAT,Exception/recovery business-role acceptance for Risk/issue to controlled resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-010-E2E-01,PRJ-JRN-010,Project close and reopen,E2E,Happy path for Project close and reopen,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-010-E2E-02,PRJ-JRN-010,Project close and reopen,E2E,Permission/concurrency/validation failure for Project close and reopen,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-010-E2E-03,PRJ-JRN-010,Project close and reopen,E2E,Retry/reversal/reconciliation for Project close and reopen,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-010-UAT-01,PRJ-JRN-010,Project close and reopen,UAT,Primary business-role acceptance for Project close and reopen,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRJ-JRN-010-UAT-02,PRJ-JRN-010,Project close and reopen,UAT,Exception/recovery business-role acceptance for Project close and reopen,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-001-E2E-01,AST-JRN-001,Procure to asset capitalization,E2E,Happy path for Procure to asset capitalization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-001-E2E-02,AST-JRN-001,Procure to asset capitalization,E2E,Permission/concurrency/validation failure for Procure to asset capitalization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-001-E2E-03,AST-JRN-001,Procure to asset capitalization,E2E,Retry/reversal/reconciliation for Procure to asset capitalization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-001-UAT-01,AST-JRN-001,Procure to asset capitalization,UAT,Primary business-role acceptance for Procure to asset capitalization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-001-UAT-02,AST-JRN-001,Procure to asset capitalization,UAT,Exception/recovery business-role acceptance for Procure to asset capitalization,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-002-E2E-01,AST-JRN-002,Assign transfer and custody,E2E,Happy path for Assign transfer and custody,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-002-E2E-02,AST-JRN-002,Assign transfer and custody,E2E,Permission/concurrency/validation failure for Assign transfer and custody,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-002-E2E-03,AST-JRN-002,Assign transfer and custody,E2E,Retry/reversal/reconciliation for Assign transfer and custody,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-002-UAT-01,AST-JRN-002,Assign transfer and custody,UAT,Primary business-role acceptance for Assign transfer and custody,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-002-UAT-02,AST-JRN-002,Assign transfer and custody,UAT,Exception/recovery business-role acceptance for Assign transfer and custody,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-003-E2E-01,AST-JRN-003,Depreciation schedule to books,E2E,Happy path for Depreciation schedule to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-003-E2E-02,AST-JRN-003,Depreciation schedule to books,E2E,Permission/concurrency/validation failure for Depreciation schedule to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-003-E2E-03,AST-JRN-003,Depreciation schedule to books,E2E,Retry/reversal/reconciliation for Depreciation schedule to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-003-UAT-01,AST-JRN-003,Depreciation schedule to books,UAT,Primary business-role acceptance for Depreciation schedule to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-003-UAT-02,AST-JRN-003,Depreciation schedule to books,UAT,Exception/recovery business-role acceptance for Depreciation schedule to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-004-E2E-01,AST-JRN-004,Revaluation and impairment to books,E2E,Happy path for Revaluation and impairment to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-004-E2E-02,AST-JRN-004,Revaluation and impairment to books,E2E,Permission/concurrency/validation failure for Revaluation and impairment to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-004-E2E-03,AST-JRN-004,Revaluation and impairment to books,E2E,Retry/reversal/reconciliation for Revaluation and impairment to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-004-UAT-01,AST-JRN-004,Revaluation and impairment to books,UAT,Primary business-role acceptance for Revaluation and impairment to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-004-UAT-02,AST-JRN-004,Revaluation and impairment to books,UAT,Exception/recovery business-role acceptance for Revaluation and impairment to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-005-E2E-01,AST-JRN-005,Preventive maintenance to completion,E2E,Happy path for Preventive maintenance to completion,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-005-E2E-02,AST-JRN-005,Preventive maintenance to completion,E2E,Permission/concurrency/validation failure for Preventive maintenance to completion,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-005-E2E-03,AST-JRN-005,Preventive maintenance to completion,E2E,Retry/reversal/reconciliation for Preventive maintenance to completion,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-005-UAT-01,AST-JRN-005,Preventive maintenance to completion,UAT,Primary business-role acceptance for Preventive maintenance to completion,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-005-UAT-02,AST-JRN-005,Preventive maintenance to completion,UAT,Exception/recovery business-role acceptance for Preventive maintenance to completion,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-006-E2E-01,AST-JRN-006,Maintenance parts to stock cost,E2E,Happy path for Maintenance parts to stock cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-006-E2E-02,AST-JRN-006,Maintenance parts to stock cost,E2E,Permission/concurrency/validation failure for Maintenance parts to stock cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-006-E2E-03,AST-JRN-006,Maintenance parts to stock cost,E2E,Retry/reversal/reconciliation for Maintenance parts to stock cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-006-UAT-01,AST-JRN-006,Maintenance parts to stock cost,UAT,Primary business-role acceptance for Maintenance parts to stock cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-006-UAT-02,AST-JRN-006,Maintenance parts to stock cost,UAT,Exception/recovery business-role acceptance for Maintenance parts to stock cost,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-007-E2E-01,AST-JRN-007,Inspection calibration and corrective action,E2E,Happy path for Inspection calibration and corrective action,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-007-E2E-02,AST-JRN-007,Inspection calibration and corrective action,E2E,Permission/concurrency/validation failure for Inspection calibration and corrective action,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-007-E2E-03,AST-JRN-007,Inspection calibration and corrective action,E2E,Retry/reversal/reconciliation for Inspection calibration and corrective action,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-007-UAT-01,AST-JRN-007,Inspection calibration and corrective action,UAT,Primary business-role acceptance for Inspection calibration and corrective action,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-007-UAT-02,AST-JRN-007,Inspection calibration and corrective action,UAT,Exception/recovery business-role acceptance for Inspection calibration and corrective action,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-008-E2E-01,AST-JRN-008,Physical verification and reconciliation,E2E,Happy path for Physical verification and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-008-E2E-02,AST-JRN-008,Physical verification and reconciliation,E2E,Permission/concurrency/validation failure for Physical verification and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-008-E2E-03,AST-JRN-008,Physical verification and reconciliation,E2E,Retry/reversal/reconciliation for Physical verification and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-008-UAT-01,AST-JRN-008,Physical verification and reconciliation,UAT,Primary business-role acceptance for Physical verification and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-008-UAT-02,AST-JRN-008,Physical verification and reconciliation,UAT,Exception/recovery business-role acceptance for Physical verification and reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-009-E2E-01,AST-JRN-009,Asset sale scrap and disposal to books,E2E,Happy path for Asset sale scrap and disposal to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-009-E2E-02,AST-JRN-009,Asset sale scrap and disposal to books,E2E,Permission/concurrency/validation failure for Asset sale scrap and disposal to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-009-E2E-03,AST-JRN-009,Asset sale scrap and disposal to books,E2E,Retry/reversal/reconciliation for Asset sale scrap and disposal to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-009-UAT-01,AST-JRN-009,Asset sale scrap and disposal to books,UAT,Primary business-role acceptance for Asset sale scrap and disposal to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-009-UAT-02,AST-JRN-009,Asset sale scrap and disposal to books,UAT,Exception/recovery business-role acceptance for Asset sale scrap and disposal to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-010-E2E-01,AST-JRN-010,Project capex to asset,E2E,Happy path for Project capex to asset,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-010-E2E-02,AST-JRN-010,Project capex to asset,E2E,Permission/concurrency/validation failure for Project capex to asset,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-010-E2E-03,AST-JRN-010,Project capex to asset,E2E,Retry/reversal/reconciliation for Project capex to asset,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-010-UAT-01,AST-JRN-010,Project capex to asset,UAT,Primary business-role acceptance for Project capex to asset,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+AST-JRN-010-UAT-02,AST-JRN-010,Project capex to asset,UAT,Exception/recovery business-role acceptance for Project capex to asset,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-001-E2E-01,POS-JRN-001,Store terminal and shift open,E2E,Happy path for Store terminal and shift open,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-001-E2E-02,POS-JRN-001,Store terminal and shift open,E2E,Permission/concurrency/validation failure for Store terminal and shift open,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-001-E2E-03,POS-JRN-001,Store terminal and shift open,E2E,Retry/reversal/reconciliation for Store terminal and shift open,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-001-UAT-01,POS-JRN-001,Store terminal and shift open,UAT,Primary business-role acceptance for Store terminal and shift open,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-001-UAT-02,POS-JRN-001,Store terminal and shift open,UAT,Exception/recovery business-role acceptance for Store terminal and shift open,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-002-E2E-01,POS-JRN-002,Scan cart price and checkout,E2E,Happy path for Scan cart price and checkout,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-002-E2E-02,POS-JRN-002,Scan cart price and checkout,E2E,Permission/concurrency/validation failure for Scan cart price and checkout,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-002-E2E-03,POS-JRN-002,Scan cart price and checkout,E2E,Retry/reversal/reconciliation for Scan cart price and checkout,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-002-UAT-01,POS-JRN-002,Scan cart price and checkout,UAT,Primary business-role acceptance for Scan cart price and checkout,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-002-UAT-02,POS-JRN-002,Scan cart price and checkout,UAT,Exception/recovery business-role acceptance for Scan cart price and checkout,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-003-E2E-01,POS-JRN-003,Tender to completed sale,E2E,Happy path for Tender to completed sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-003-E2E-02,POS-JRN-003,Tender to completed sale,E2E,Permission/concurrency/validation failure for Tender to completed sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-003-E2E-03,POS-JRN-003,Tender to completed sale,E2E,Retry/reversal/reconciliation for Tender to completed sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-003-UAT-01,POS-JRN-003,Tender to completed sale,UAT,Primary business-role acceptance for Tender to completed sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-003-UAT-02,POS-JRN-003,Tender to completed sale,UAT,Exception/recovery business-role acceptance for Tender to completed sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-004-E2E-01,POS-JRN-004,Hold and resume sale,E2E,Happy path for Hold and resume sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-004-E2E-02,POS-JRN-004,Hold and resume sale,E2E,Permission/concurrency/validation failure for Hold and resume sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-004-E2E-03,POS-JRN-004,Hold and resume sale,E2E,Retry/reversal/reconciliation for Hold and resume sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-004-UAT-01,POS-JRN-004,Hold and resume sale,UAT,Primary business-role acceptance for Hold and resume sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-004-UAT-02,POS-JRN-004,Hold and resume sale,UAT,Exception/recovery business-role acceptance for Hold and resume sale,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-005-E2E-01,POS-JRN-005,Return refund and exchange,E2E,Happy path for Return refund and exchange,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-005-E2E-02,POS-JRN-005,Return refund and exchange,E2E,Permission/concurrency/validation failure for Return refund and exchange,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-005-E2E-03,POS-JRN-005,Return refund and exchange,E2E,Retry/reversal/reconciliation for Return refund and exchange,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-005-UAT-01,POS-JRN-005,Return refund and exchange,UAT,Primary business-role acceptance for Return refund and exchange,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-005-UAT-02,POS-JRN-005,Return refund and exchange,UAT,Exception/recovery business-role acceptance for Return refund and exchange,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-006-E2E-01,POS-JRN-006,POS sale to Stock,E2E,Happy path for POS sale to Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-006-E2E-02,POS-JRN-006,POS sale to Stock,E2E,Permission/concurrency/validation failure for POS sale to Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-006-E2E-03,POS-JRN-006,POS sale to Stock,E2E,Retry/reversal/reconciliation for POS sale to Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-006-UAT-01,POS-JRN-006,POS sale to Stock,UAT,Primary business-role acceptance for POS sale to Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-006-UAT-02,POS-JRN-006,POS sale to Stock,UAT,Exception/recovery business-role acceptance for POS sale to Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-007-E2E-01,POS-JRN-007,Offline sale to synchronized truth,E2E,Happy path for Offline sale to synchronized truth,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-007-E2E-02,POS-JRN-007,Offline sale to synchronized truth,E2E,Permission/concurrency/validation failure for Offline sale to synchronized truth,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-007-E2E-03,POS-JRN-007,Offline sale to synchronized truth,E2E,Retry/reversal/reconciliation for Offline sale to synchronized truth,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-007-UAT-01,POS-JRN-007,Offline sale to synchronized truth,UAT,Primary business-role acceptance for Offline sale to synchronized truth,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-007-UAT-02,POS-JRN-007,Offline sale to synchronized truth,UAT,Exception/recovery business-role acceptance for Offline sale to synchronized truth,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-008-E2E-01,POS-JRN-008,Shift close Z and payment reconciliation,E2E,Happy path for Shift close Z and payment reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-008-E2E-02,POS-JRN-008,Shift close Z and payment reconciliation,E2E,Permission/concurrency/validation failure for Shift close Z and payment reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-008-E2E-03,POS-JRN-008,Shift close Z and payment reconciliation,E2E,Retry/reversal/reconciliation for Shift close Z and payment reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-008-UAT-01,POS-JRN-008,Shift close Z and payment reconciliation,UAT,Primary business-role acceptance for Shift close Z and payment reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-008-UAT-02,POS-JRN-008,Shift close Z and payment reconciliation,UAT,Exception/recovery business-role acceptance for Shift close Z and payment reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-009-E2E-01,POS-JRN-009,POS batch to Accounting,E2E,Happy path for POS batch to Accounting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-009-E2E-02,POS-JRN-009,POS batch to Accounting,E2E,Permission/concurrency/validation failure for POS batch to Accounting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-009-E2E-03,POS-JRN-009,POS batch to Accounting,E2E,Retry/reversal/reconciliation for POS batch to Accounting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-009-UAT-01,POS-JRN-009,POS batch to Accounting,UAT,Primary business-role acceptance for POS batch to Accounting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-009-UAT-02,POS-JRN-009,POS batch to Accounting,UAT,Exception/recovery business-role acceptance for POS batch to Accounting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-010-E2E-01,POS-JRN-010,Loyalty earn redeem and reversal,E2E,Happy path for Loyalty earn redeem and reversal,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-010-E2E-02,POS-JRN-010,Loyalty earn redeem and reversal,E2E,Permission/concurrency/validation failure for Loyalty earn redeem and reversal,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-010-E2E-03,POS-JRN-010,Loyalty earn redeem and reversal,E2E,Retry/reversal/reconciliation for Loyalty earn redeem and reversal,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-010-UAT-01,POS-JRN-010,Loyalty earn redeem and reversal,UAT,Primary business-role acceptance for Loyalty earn redeem and reversal,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+POS-JRN-010-UAT-02,POS-JRN-010,Loyalty earn redeem and reversal,UAT,Exception/recovery business-role acceptance for Loyalty earn redeem and reversal,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-001-E2E-01,QUALITY-JRN-001,Purchase receipt to incoming inspection and release,E2E,Happy path for Purchase receipt to incoming inspection and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-001-E2E-02,QUALITY-JRN-001,Purchase receipt to incoming inspection and release,E2E,Permission/concurrency/validation failure for Purchase receipt to incoming inspection and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-001-E2E-03,QUALITY-JRN-001,Purchase receipt to incoming inspection and release,E2E,Retry/reversal/reconciliation for Purchase receipt to incoming inspection and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-001-UAT-01,QUALITY-JRN-001,Purchase receipt to incoming inspection and release,UAT,Primary business-role acceptance for Purchase receipt to incoming inspection and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-001-UAT-02,QUALITY-JRN-001,Purchase receipt to incoming inspection and release,UAT,Exception/recovery business-role acceptance for Purchase receipt to incoming inspection and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-002-E2E-01,QUALITY-JRN-002,In-process inspection to production continuation or containment,E2E,Happy path for In-process inspection to production continuation or containment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-002-E2E-02,QUALITY-JRN-002,In-process inspection to production continuation or containment,E2E,Permission/concurrency/validation failure for In-process inspection to production continuation or containment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-002-E2E-03,QUALITY-JRN-002,In-process inspection to production continuation or containment,E2E,Retry/reversal/reconciliation for In-process inspection to production continuation or containment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-002-UAT-01,QUALITY-JRN-002,In-process inspection to production continuation or containment,UAT,Primary business-role acceptance for In-process inspection to production continuation or containment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-002-UAT-02,QUALITY-JRN-002,In-process inspection to production continuation or containment,UAT,Exception/recovery business-role acceptance for In-process inspection to production continuation or containment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-003-E2E-01,QUALITY-JRN-003,Final inspection to release and shipment,E2E,Happy path for Final inspection to release and shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-003-E2E-02,QUALITY-JRN-003,Final inspection to release and shipment,E2E,Permission/concurrency/validation failure for Final inspection to release and shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-003-E2E-03,QUALITY-JRN-003,Final inspection to release and shipment,E2E,Retry/reversal/reconciliation for Final inspection to release and shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-003-UAT-01,QUALITY-JRN-003,Final inspection to release and shipment,UAT,Primary business-role acceptance for Final inspection to release and shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-003-UAT-02,QUALITY-JRN-003,Final inspection to release and shipment,UAT,Exception/recovery business-role acceptance for Final inspection to release and shipment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-004-E2E-01,QUALITY-JRN-004,Defect and NCR to disposition,E2E,Happy path for Defect and NCR to disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-004-E2E-02,QUALITY-JRN-004,Defect and NCR to disposition,E2E,Permission/concurrency/validation failure for Defect and NCR to disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-004-E2E-03,QUALITY-JRN-004,Defect and NCR to disposition,E2E,Retry/reversal/reconciliation for Defect and NCR to disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-004-UAT-01,QUALITY-JRN-004,Defect and NCR to disposition,UAT,Primary business-role acceptance for Defect and NCR to disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-004-UAT-02,QUALITY-JRN-004,Defect and NCR to disposition,UAT,Exception/recovery business-role acceptance for Defect and NCR to disposition,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-005-E2E-01,QUALITY-JRN-005,Race-safe quality hold and release,E2E,Happy path for Race-safe quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-005-E2E-02,QUALITY-JRN-005,Race-safe quality hold and release,E2E,Permission/concurrency/validation failure for Race-safe quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-005-E2E-03,QUALITY-JRN-005,Race-safe quality hold and release,E2E,Retry/reversal/reconciliation for Race-safe quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-005-UAT-01,QUALITY-JRN-005,Race-safe quality hold and release,UAT,Primary business-role acceptance for Race-safe quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-005-UAT-02,QUALITY-JRN-005,Race-safe quality hold and release,UAT,Exception/recovery business-role acceptance for Race-safe quality hold and release,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-006-E2E-01,QUALITY-JRN-006,NCR to root cause and CAPA effectiveness,E2E,Happy path for NCR to root cause and CAPA effectiveness,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-006-E2E-02,QUALITY-JRN-006,NCR to root cause and CAPA effectiveness,E2E,Permission/concurrency/validation failure for NCR to root cause and CAPA effectiveness,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-006-E2E-03,QUALITY-JRN-006,NCR to root cause and CAPA effectiveness,E2E,Retry/reversal/reconciliation for NCR to root cause and CAPA effectiveness,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-006-UAT-01,QUALITY-JRN-006,NCR to root cause and CAPA effectiveness,UAT,Primary business-role acceptance for NCR to root cause and CAPA effectiveness,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-006-UAT-02,QUALITY-JRN-006,NCR to root cause and CAPA effectiveness,UAT,Exception/recovery business-role acceptance for NCR to root cause and CAPA effectiveness,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-007-E2E-01,QUALITY-JRN-007,Supplier defect to return and supplier quality,E2E,Happy path for Supplier defect to return and supplier quality,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-007-E2E-02,QUALITY-JRN-007,Supplier defect to return and supplier quality,E2E,Permission/concurrency/validation failure for Supplier defect to return and supplier quality,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-007-E2E-03,QUALITY-JRN-007,Supplier defect to return and supplier quality,E2E,Retry/reversal/reconciliation for Supplier defect to return and supplier quality,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-007-UAT-01,QUALITY-JRN-007,Supplier defect to return and supplier quality,UAT,Primary business-role acceptance for Supplier defect to return and supplier quality,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-007-UAT-02,QUALITY-JRN-007,Supplier defect to return and supplier quality,UAT,Exception/recovery business-role acceptance for Supplier defect to return and supplier quality,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-008-E2E-01,QUALITY-JRN-008,Customer complaint to traceability and CAPA,E2E,Happy path for Customer complaint to traceability and CAPA,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-008-E2E-02,QUALITY-JRN-008,Customer complaint to traceability and CAPA,E2E,Permission/concurrency/validation failure for Customer complaint to traceability and CAPA,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-008-E2E-03,QUALITY-JRN-008,Customer complaint to traceability and CAPA,E2E,Retry/reversal/reconciliation for Customer complaint to traceability and CAPA,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-008-UAT-01,QUALITY-JRN-008,Customer complaint to traceability and CAPA,UAT,Primary business-role acceptance for Customer complaint to traceability and CAPA,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-008-UAT-02,QUALITY-JRN-008,Customer complaint to traceability and CAPA,UAT,Exception/recovery business-role acceptance for Customer complaint to traceability and CAPA,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-009-E2E-01,QUALITY-JRN-009,Calibration validity to measurement acceptance,E2E,Happy path for Calibration validity to measurement acceptance,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-009-E2E-02,QUALITY-JRN-009,Calibration validity to measurement acceptance,E2E,Permission/concurrency/validation failure for Calibration validity to measurement acceptance,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-009-E2E-03,QUALITY-JRN-009,Calibration validity to measurement acceptance,E2E,Retry/reversal/reconciliation for Calibration validity to measurement acceptance,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-009-UAT-01,QUALITY-JRN-009,Calibration validity to measurement acceptance,UAT,Primary business-role acceptance for Calibration validity to measurement acceptance,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-009-UAT-02,QUALITY-JRN-009,Calibration validity to measurement acceptance,UAT,Exception/recovery business-role acceptance for Calibration validity to measurement acceptance,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-010-E2E-01,QUALITY-JRN-010,Lot inspection to Certificate of Analysis,E2E,Happy path for Lot inspection to Certificate of Analysis,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-010-E2E-02,QUALITY-JRN-010,Lot inspection to Certificate of Analysis,E2E,Permission/concurrency/validation failure for Lot inspection to Certificate of Analysis,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-010-E2E-03,QUALITY-JRN-010,Lot inspection to Certificate of Analysis,E2E,Retry/reversal/reconciliation for Lot inspection to Certificate of Analysis,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-010-UAT-01,QUALITY-JRN-010,Lot inspection to Certificate of Analysis,UAT,Primary business-role acceptance for Lot inspection to Certificate of Analysis,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-010-UAT-02,QUALITY-JRN-010,Lot inspection to Certificate of Analysis,UAT,Exception/recovery business-role acceptance for Lot inspection to Certificate of Analysis,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-011-E2E-01,QUALITY-JRN-011,Quality event to cost and KPI review,E2E,Happy path for Quality event to cost and KPI review,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-011-E2E-02,QUALITY-JRN-011,Quality event to cost and KPI review,E2E,Permission/concurrency/validation failure for Quality event to cost and KPI review,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-011-E2E-03,QUALITY-JRN-011,Quality event to cost and KPI review,E2E,Retry/reversal/reconciliation for Quality event to cost and KPI review,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-011-UAT-01,QUALITY-JRN-011,Quality event to cost and KPI review,UAT,Primary business-role acceptance for Quality event to cost and KPI review,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+QUALITY-JRN-011-UAT-02,QUALITY-JRN-011,Quality event to cost and KPI review,UAT,Exception/recovery business-role acceptance for Quality event to cost and KPI review,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-001-E2E-01,SUPPORT-JRN-001,Email to resolved case,E2E,Happy path for Email to resolved case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-001-E2E-02,SUPPORT-JRN-001,Email to resolved case,E2E,Permission/concurrency/validation failure for Email to resolved case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-001-E2E-03,SUPPORT-JRN-001,Email to resolved case,E2E,Retry/reversal/reconciliation for Email to resolved case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-001-UAT-01,SUPPORT-JRN-001,Email to resolved case,UAT,Primary business-role acceptance for Email to resolved case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-001-UAT-02,SUPPORT-JRN-001,Email to resolved case,UAT,Exception/recovery business-role acceptance for Email to resolved case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-002-E2E-01,SUPPORT-JRN-002,Web or manual intake to governed assignment,E2E,Happy path for Web or manual intake to governed assignment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-002-E2E-02,SUPPORT-JRN-002,Web or manual intake to governed assignment,E2E,Permission/concurrency/validation failure for Web or manual intake to governed assignment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-002-E2E-03,SUPPORT-JRN-002,Web or manual intake to governed assignment,E2E,Retry/reversal/reconciliation for Web or manual intake to governed assignment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-002-UAT-01,SUPPORT-JRN-002,Web or manual intake to governed assignment,UAT,Primary business-role acceptance for Web or manual intake to governed assignment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-002-UAT-02,SUPPORT-JRN-002,Web or manual intake to governed assignment,UAT,Exception/recovery business-role acceptance for Web or manual intake to governed assignment,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-003-E2E-01,SUPPORT-JRN-003,Customer conversation with private collaboration,E2E,Happy path for Customer conversation with private collaboration,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-003-E2E-02,SUPPORT-JRN-003,Customer conversation with private collaboration,E2E,Permission/concurrency/validation failure for Customer conversation with private collaboration,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-003-E2E-03,SUPPORT-JRN-003,Customer conversation with private collaboration,E2E,Retry/reversal/reconciliation for Customer conversation with private collaboration,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-003-UAT-01,SUPPORT-JRN-003,Customer conversation with private collaboration,UAT,Primary business-role acceptance for Customer conversation with private collaboration,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-003-UAT-02,SUPPORT-JRN-003,Customer conversation with private collaboration,UAT,Exception/recovery business-role acceptance for Customer conversation with private collaboration,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-004-E2E-01,SUPPORT-JRN-004,SLA risk to escalation and recovery,E2E,Happy path for SLA risk to escalation and recovery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-004-E2E-02,SUPPORT-JRN-004,SLA risk to escalation and recovery,E2E,Permission/concurrency/validation failure for SLA risk to escalation and recovery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-004-E2E-03,SUPPORT-JRN-004,SLA risk to escalation and recovery,E2E,Retry/reversal/reconciliation for SLA risk to escalation and recovery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-004-UAT-01,SUPPORT-JRN-004,SLA risk to escalation and recovery,UAT,Primary business-role acceptance for SLA risk to escalation and recovery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-004-UAT-02,SUPPORT-JRN-004,SLA risk to escalation and recovery,UAT,Exception/recovery business-role acceptance for SLA risk to escalation and recovery,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-005-E2E-01,SUPPORT-JRN-005,Duplicate merge and reopen with preserved lineage,E2E,Happy path for Duplicate merge and reopen with preserved lineage,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-005-E2E-02,SUPPORT-JRN-005,Duplicate merge and reopen with preserved lineage,E2E,Permission/concurrency/validation failure for Duplicate merge and reopen with preserved lineage,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-005-E2E-03,SUPPORT-JRN-005,Duplicate merge and reopen with preserved lineage,E2E,Retry/reversal/reconciliation for Duplicate merge and reopen with preserved lineage,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-005-UAT-01,SUPPORT-JRN-005,Duplicate merge and reopen with preserved lineage,UAT,Primary business-role acceptance for Duplicate merge and reopen with preserved lineage,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-005-UAT-02,SUPPORT-JRN-005,Duplicate merge and reopen with preserved lineage,UAT,Exception/recovery business-role acceptance for Duplicate merge and reopen with preserved lineage,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-006-E2E-01,SUPPORT-JRN-006,Knowledge-assisted resolution and self-service,E2E,Happy path for Knowledge-assisted resolution and self-service,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-006-E2E-02,SUPPORT-JRN-006,Knowledge-assisted resolution and self-service,E2E,Permission/concurrency/validation failure for Knowledge-assisted resolution and self-service,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-006-E2E-03,SUPPORT-JRN-006,Knowledge-assisted resolution and self-service,E2E,Retry/reversal/reconciliation for Knowledge-assisted resolution and self-service,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-006-UAT-01,SUPPORT-JRN-006,Knowledge-assisted resolution and self-service,UAT,Primary business-role acceptance for Knowledge-assisted resolution and self-service,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-006-UAT-02,SUPPORT-JRN-006,Knowledge-assisted resolution and self-service,UAT,Exception/recovery business-role acceptance for Knowledge-assisted resolution and self-service,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-007-E2E-01,SUPPORT-JRN-007,Entitlement-aware service case,E2E,Happy path for Entitlement-aware service case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-007-E2E-02,SUPPORT-JRN-007,Entitlement-aware service case,E2E,Permission/concurrency/validation failure for Entitlement-aware service case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-007-E2E-03,SUPPORT-JRN-007,Entitlement-aware service case,E2E,Retry/reversal/reconciliation for Entitlement-aware service case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-007-UAT-01,SUPPORT-JRN-007,Entitlement-aware service case,UAT,Primary business-role acceptance for Entitlement-aware service case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-007-UAT-02,SUPPORT-JRN-007,Entitlement-aware service case,UAT,Exception/recovery business-role acceptance for Entitlement-aware service case,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-008-E2E-01,SUPPORT-JRN-008,Customer quality complaint to investigation,E2E,Happy path for Customer quality complaint to investigation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-008-E2E-02,SUPPORT-JRN-008,Customer quality complaint to investigation,E2E,Permission/concurrency/validation failure for Customer quality complaint to investigation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-008-E2E-03,SUPPORT-JRN-008,Customer quality complaint to investigation,E2E,Retry/reversal/reconciliation for Customer quality complaint to investigation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-008-UAT-01,SUPPORT-JRN-008,Customer quality complaint to investigation,UAT,Primary business-role acceptance for Customer quality complaint to investigation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-008-UAT-02,SUPPORT-JRN-008,Customer quality complaint to investigation,UAT,Exception/recovery business-role acceptance for Customer quality complaint to investigation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-009-E2E-01,SUPPORT-JRN-009,Resolution to CSAT and supervisor analytics,E2E,Happy path for Resolution to CSAT and supervisor analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-009-E2E-02,SUPPORT-JRN-009,Resolution to CSAT and supervisor analytics,E2E,Permission/concurrency/validation failure for Resolution to CSAT and supervisor analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-009-E2E-03,SUPPORT-JRN-009,Resolution to CSAT and supervisor analytics,E2E,Retry/reversal/reconciliation for Resolution to CSAT and supervisor analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-009-UAT-01,SUPPORT-JRN-009,Resolution to CSAT and supervisor analytics,UAT,Primary business-role acceptance for Resolution to CSAT and supervisor analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-009-UAT-02,SUPPORT-JRN-009,Resolution to CSAT and supervisor analytics,UAT,Exception/recovery business-role acceptance for Resolution to CSAT and supervisor analytics,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-010-E2E-01,SUPPORT-JRN-010,Portal customer case lifecycle,E2E,Happy path for Portal customer case lifecycle,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-010-E2E-02,SUPPORT-JRN-010,Portal customer case lifecycle,E2E,Permission/concurrency/validation failure for Portal customer case lifecycle,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-010-E2E-03,SUPPORT-JRN-010,Portal customer case lifecycle,E2E,Retry/reversal/reconciliation for Portal customer case lifecycle,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-010-UAT-01,SUPPORT-JRN-010,Portal customer case lifecycle,UAT,Primary business-role acceptance for Portal customer case lifecycle,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+SUPPORT-JRN-010-UAT-02,SUPPORT-JRN-010,Portal customer case lifecycle,UAT,Exception/recovery business-role acceptance for Portal customer case lifecycle,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-001-E2E-01,HR-JRN-001,Candidate to employee,E2E,Happy path for Candidate to employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-001-E2E-02,HR-JRN-001,Candidate to employee,E2E,Permission/concurrency/validation failure for Candidate to employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-001-E2E-03,HR-JRN-001,Candidate to employee,E2E,Retry/reversal/reconciliation for Candidate to employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-001-UAT-01,HR-JRN-001,Candidate to employee,UAT,Primary business-role acceptance for Candidate to employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-001-UAT-02,HR-JRN-001,Candidate to employee,UAT,Exception/recovery business-role acceptance for Candidate to employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-002-E2E-01,HR-JRN-002,Join to productive employee,E2E,Happy path for Join to productive employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-002-E2E-02,HR-JRN-002,Join to productive employee,E2E,Permission/concurrency/validation failure for Join to productive employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-002-E2E-03,HR-JRN-002,Join to productive employee,E2E,Retry/reversal/reconciliation for Join to productive employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-002-UAT-01,HR-JRN-002,Join to productive employee,UAT,Primary business-role acceptance for Join to productive employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-002-UAT-02,HR-JRN-002,Join to productive employee,UAT,Exception/recovery business-role acceptance for Join to productive employee,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-003-E2E-01,HR-JRN-003,Attendance and leave to payroll inputs,E2E,Happy path for Attendance and leave to payroll inputs,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-003-E2E-02,HR-JRN-003,Attendance and leave to payroll inputs,E2E,Permission/concurrency/validation failure for Attendance and leave to payroll inputs,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-003-E2E-03,HR-JRN-003,Attendance and leave to payroll inputs,E2E,Retry/reversal/reconciliation for Attendance and leave to payroll inputs,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-003-UAT-01,HR-JRN-003,Attendance and leave to payroll inputs,UAT,Primary business-role acceptance for Attendance and leave to payroll inputs,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-003-UAT-02,HR-JRN-003,Attendance and leave to payroll inputs,UAT,Exception/recovery business-role acceptance for Attendance and leave to payroll inputs,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-004-E2E-01,HR-JRN-004,Gross-to-net payroll run,E2E,Happy path for Gross-to-net payroll run,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-004-E2E-02,HR-JRN-004,Gross-to-net payroll run,E2E,Permission/concurrency/validation failure for Gross-to-net payroll run,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-004-E2E-03,HR-JRN-004,Gross-to-net payroll run,E2E,Retry/reversal/reconciliation for Gross-to-net payroll run,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-004-UAT-01,HR-JRN-004,Gross-to-net payroll run,UAT,Primary business-role acceptance for Gross-to-net payroll run,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-004-UAT-02,HR-JRN-004,Gross-to-net payroll run,UAT,Exception/recovery business-role acceptance for Gross-to-net payroll run,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-005-E2E-01,HR-JRN-005,Payroll approval to payment evidence,E2E,Happy path for Payroll approval to payment evidence,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-005-E2E-02,HR-JRN-005,Payroll approval to payment evidence,E2E,Permission/concurrency/validation failure for Payroll approval to payment evidence,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-005-E2E-03,HR-JRN-005,Payroll approval to payment evidence,E2E,Retry/reversal/reconciliation for Payroll approval to payment evidence,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-005-UAT-01,HR-JRN-005,Payroll approval to payment evidence,UAT,Primary business-role acceptance for Payroll approval to payment evidence,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-005-UAT-02,HR-JRN-005,Payroll approval to payment evidence,UAT,Exception/recovery business-role acceptance for Payroll approval to payment evidence,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-006-E2E-01,HR-JRN-006,Payroll to books,E2E,Happy path for Payroll to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-006-E2E-02,HR-JRN-006,Payroll to books,E2E,Permission/concurrency/validation failure for Payroll to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-006-E2E-03,HR-JRN-006,Payroll to books,E2E,Retry/reversal/reconciliation for Payroll to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-006-UAT-01,HR-JRN-006,Payroll to books,UAT,Primary business-role acceptance for Payroll to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-006-UAT-02,HR-JRN-006,Payroll to books,UAT,Exception/recovery business-role acceptance for Payroll to books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-007-E2E-01,HR-JRN-007,India statutory payroll and reporting,E2E,Happy path for India statutory payroll and reporting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-007-E2E-02,HR-JRN-007,India statutory payroll and reporting,E2E,Permission/concurrency/validation failure for India statutory payroll and reporting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-007-E2E-03,HR-JRN-007,India statutory payroll and reporting,E2E,Retry/reversal/reconciliation for India statutory payroll and reporting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-007-UAT-01,HR-JRN-007,India statutory payroll and reporting,UAT,Primary business-role acceptance for India statutory payroll and reporting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-007-UAT-02,HR-JRN-007,India statutory payroll and reporting,UAT,Exception/recovery business-role acceptance for India statutory payroll and reporting,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-008-E2E-01,HR-JRN-008,Retroactive correction and arrears,E2E,Happy path for Retroactive correction and arrears,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-008-E2E-02,HR-JRN-008,Retroactive correction and arrears,E2E,Permission/concurrency/validation failure for Retroactive correction and arrears,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-008-E2E-03,HR-JRN-008,Retroactive correction and arrears,E2E,Retry/reversal/reconciliation for Retroactive correction and arrears,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-008-UAT-01,HR-JRN-008,Retroactive correction and arrears,UAT,Primary business-role acceptance for Retroactive correction and arrears,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-008-UAT-02,HR-JRN-008,Retroactive correction and arrears,UAT,Exception/recovery business-role acceptance for Retroactive correction and arrears,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-009-E2E-01,HR-JRN-009,Separation to final settlement and offboarding,E2E,Happy path for Separation to final settlement and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-009-E2E-02,HR-JRN-009,Separation to final settlement and offboarding,E2E,Permission/concurrency/validation failure for Separation to final settlement and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-009-E2E-03,HR-JRN-009,Separation to final settlement and offboarding,E2E,Retry/reversal/reconciliation for Separation to final settlement and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-009-UAT-01,HR-JRN-009,Separation to final settlement and offboarding,UAT,Primary business-role acceptance for Separation to final settlement and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-009-UAT-02,HR-JRN-009,Separation to final settlement and offboarding,UAT,Exception/recovery business-role acceptance for Separation to final settlement and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-010-E2E-01,HR-JRN-010,Projects time and labor cost context,E2E,Happy path for Projects time and labor cost context,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-010-E2E-02,HR-JRN-010,Projects time and labor cost context,E2E,Permission/concurrency/validation failure for Projects time and labor cost context,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-010-E2E-03,HR-JRN-010,Projects time and labor cost context,E2E,Retry/reversal/reconciliation for Projects time and labor cost context,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-010-UAT-01,HR-JRN-010,Projects time and labor cost context,UAT,Primary business-role acceptance for Projects time and labor cost context,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-010-UAT-02,HR-JRN-010,Projects time and labor cost context,UAT,Exception/recovery business-role acceptance for Projects time and labor cost context,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-011-E2E-01,HR-JRN-011,Employee asset custody and offboarding,E2E,Happy path for Employee asset custody and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-011-E2E-02,HR-JRN-011,Employee asset custody and offboarding,E2E,Permission/concurrency/validation failure for Employee asset custody and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-011-E2E-03,HR-JRN-011,Employee asset custody and offboarding,E2E,Retry/reversal/reconciliation for Employee asset custody and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-011-UAT-01,HR-JRN-011,Employee asset custody and offboarding,UAT,Primary business-role acceptance for Employee asset custody and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-011-UAT-02,HR-JRN-011,Employee asset custody and offboarding,UAT,Exception/recovery business-role acceptance for Employee asset custody and offboarding,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-012-E2E-01,HR-JRN-012,"Goals to appraisal, skills and learning",E2E,"Happy path for Goals to appraisal, skills and learning",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-012-E2E-02,HR-JRN-012,"Goals to appraisal, skills and learning",E2E,"Permission/concurrency/validation failure for Goals to appraisal, skills and learning",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-012-E2E-03,HR-JRN-012,"Goals to appraisal, skills and learning",E2E,"Retry/reversal/reconciliation for Goals to appraisal, skills and learning",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-012-UAT-01,HR-JRN-012,"Goals to appraisal, skills and learning",UAT,"Primary business-role acceptance for Goals to appraisal, skills and learning",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+HR-JRN-012-UAT-02,HR-JRN-012,"Goals to appraisal, skills and learning",UAT,"Exception/recovery business-role acceptance for Goals to appraisal, skills and learning",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-001-E2E-01,ACC-JRN-001,"Journal draft to approval, posting and reversal",E2E,"Happy path for Journal draft to approval, posting and reversal",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-001-E2E-02,ACC-JRN-001,"Journal draft to approval, posting and reversal",E2E,"Permission/concurrency/validation failure for Journal draft to approval, posting and reversal",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-001-E2E-03,ACC-JRN-001,"Journal draft to approval, posting and reversal",E2E,"Retry/reversal/reconciliation for Journal draft to approval, posting and reversal",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-001-UAT-01,ACC-JRN-001,"Journal draft to approval, posting and reversal",UAT,"Primary business-role acceptance for Journal draft to approval, posting and reversal",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-001-UAT-02,ACC-JRN-001,"Journal draft to approval, posting and reversal",UAT,"Exception/recovery business-role acceptance for Journal draft to approval, posting and reversal",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-002-E2E-01,ACC-JRN-002,"Order to invoice, receipt and books",E2E,"Happy path for Order to invoice, receipt and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-002-E2E-02,ACC-JRN-002,"Order to invoice, receipt and books",E2E,"Permission/concurrency/validation failure for Order to invoice, receipt and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-002-E2E-03,ACC-JRN-002,"Order to invoice, receipt and books",E2E,"Retry/reversal/reconciliation for Order to invoice, receipt and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-002-UAT-01,ACC-JRN-002,"Order to invoice, receipt and books",UAT,"Primary business-role acceptance for Order to invoice, receipt and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-002-UAT-02,ACC-JRN-002,"Order to invoice, receipt and books",UAT,"Exception/recovery business-role acceptance for Order to invoice, receipt and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-003-E2E-01,ACC-JRN-003,"Procure to payable, payment and books",E2E,"Happy path for Procure to payable, payment and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-003-E2E-02,ACC-JRN-003,"Procure to payable, payment and books",E2E,"Permission/concurrency/validation failure for Procure to payable, payment and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-003-E2E-03,ACC-JRN-003,"Procure to payable, payment and books",E2E,"Retry/reversal/reconciliation for Procure to payable, payment and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-003-UAT-01,ACC-JRN-003,"Procure to payable, payment and books",UAT,"Primary business-role acceptance for Procure to payable, payment and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-003-UAT-02,ACC-JRN-003,"Procure to payable, payment and books",UAT,"Exception/recovery business-role acceptance for Procure to payable, payment and books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-004-E2E-01,ACC-JRN-004,Bank statement to reconciliation,E2E,Happy path for Bank statement to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-004-E2E-02,ACC-JRN-004,Bank statement to reconciliation,E2E,Permission/concurrency/validation failure for Bank statement to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-004-E2E-03,ACC-JRN-004,Bank statement to reconciliation,E2E,Retry/reversal/reconciliation for Bank statement to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-004-UAT-01,ACC-JRN-004,Bank statement to reconciliation,UAT,Primary business-role acceptance for Bank statement to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-004-UAT-02,ACC-JRN-004,Bank statement to reconciliation,UAT,Exception/recovery business-role acceptance for Bank statement to reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-005-E2E-01,ACC-JRN-005,Transaction tax to tax report,E2E,Happy path for Transaction tax to tax report,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-005-E2E-02,ACC-JRN-005,Transaction tax to tax report,E2E,Permission/concurrency/validation failure for Transaction tax to tax report,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-005-E2E-03,ACC-JRN-005,Transaction tax to tax report,E2E,Retry/reversal/reconciliation for Transaction tax to tax report,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-005-UAT-01,ACC-JRN-005,Transaction tax to tax report,UAT,Primary business-role acceptance for Transaction tax to tax report,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-005-UAT-02,ACC-JRN-005,Transaction tax to tax report,UAT,Exception/recovery business-role acceptance for Transaction tax to tax report,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-006-E2E-01,ACC-JRN-006,Budget to actual control,E2E,Happy path for Budget to actual control,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-006-E2E-02,ACC-JRN-006,Budget to actual control,E2E,Permission/concurrency/validation failure for Budget to actual control,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-006-E2E-03,ACC-JRN-006,Budget to actual control,E2E,Retry/reversal/reconciliation for Budget to actual control,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-006-UAT-01,ACC-JRN-006,Budget to actual control,UAT,Primary business-role acceptance for Budget to actual control,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-006-UAT-02,ACC-JRN-006,Budget to actual control,UAT,Exception/recovery business-role acceptance for Budget to actual control,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-007-E2E-01,ACC-JRN-007,"Accrual, prepayment and revenue schedule to books",E2E,"Happy path for Accrual, prepayment and revenue schedule to books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-007-E2E-02,ACC-JRN-007,"Accrual, prepayment and revenue schedule to books",E2E,"Permission/concurrency/validation failure for Accrual, prepayment and revenue schedule to books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-007-E2E-03,ACC-JRN-007,"Accrual, prepayment and revenue schedule to books",E2E,"Retry/reversal/reconciliation for Accrual, prepayment and revenue schedule to books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-007-UAT-01,ACC-JRN-007,"Accrual, prepayment and revenue schedule to books",UAT,"Primary business-role acceptance for Accrual, prepayment and revenue schedule to books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-007-UAT-02,ACC-JRN-007,"Accrual, prepayment and revenue schedule to books",UAT,"Exception/recovery business-role acceptance for Accrual, prepayment and revenue schedule to books",PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-008-E2E-01,ACC-JRN-008,Foreign currency transaction to revaluation,E2E,Happy path for Foreign currency transaction to revaluation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-008-E2E-02,ACC-JRN-008,Foreign currency transaction to revaluation,E2E,Permission/concurrency/validation failure for Foreign currency transaction to revaluation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-008-E2E-03,ACC-JRN-008,Foreign currency transaction to revaluation,E2E,Retry/reversal/reconciliation for Foreign currency transaction to revaluation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-008-UAT-01,ACC-JRN-008,Foreign currency transaction to revaluation,UAT,Primary business-role acceptance for Foreign currency transaction to revaluation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-008-UAT-02,ACC-JRN-008,Foreign currency transaction to revaluation,UAT,Exception/recovery business-role acceptance for Foreign currency transaction to revaluation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-009-E2E-01,ACC-JRN-009,Intercompany to consolidation,E2E,Happy path for Intercompany to consolidation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-009-E2E-02,ACC-JRN-009,Intercompany to consolidation,E2E,Permission/concurrency/validation failure for Intercompany to consolidation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-009-E2E-03,ACC-JRN-009,Intercompany to consolidation,E2E,Retry/reversal/reconciliation for Intercompany to consolidation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-009-UAT-01,ACC-JRN-009,Intercompany to consolidation,UAT,Primary business-role acceptance for Intercompany to consolidation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-009-UAT-02,ACC-JRN-009,Intercompany to consolidation,UAT,Exception/recovery business-role acceptance for Intercompany to consolidation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-010-E2E-01,ACC-JRN-010,Subledgers to financial close,E2E,Happy path for Subledgers to financial close,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-010-E2E-02,ACC-JRN-010,Subledgers to financial close,E2E,Permission/concurrency/validation failure for Subledgers to financial close,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-010-E2E-03,ACC-JRN-010,Subledgers to financial close,E2E,Retry/reversal/reconciliation for Subledgers to financial close,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-010-UAT-01,ACC-JRN-010,Subledgers to financial close,UAT,Primary business-role acceptance for Subledgers to financial close,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-010-UAT-02,ACC-JRN-010,Subledgers to financial close,UAT,Exception/recovery business-role acceptance for Subledgers to financial close,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-011-E2E-01,ACC-JRN-011,Ledger to financial statements and drilldown,E2E,Happy path for Ledger to financial statements and drilldown,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-011-E2E-02,ACC-JRN-011,Ledger to financial statements and drilldown,E2E,Permission/concurrency/validation failure for Ledger to financial statements and drilldown,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-011-E2E-03,ACC-JRN-011,Ledger to financial statements and drilldown,E2E,Retry/reversal/reconciliation for Ledger to financial statements and drilldown,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-011-UAT-01,ACC-JRN-011,Ledger to financial statements and drilldown,UAT,Primary business-role acceptance for Ledger to financial statements and drilldown,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-011-UAT-02,ACC-JRN-011,Ledger to financial statements and drilldown,UAT,Exception/recovery business-role acceptance for Ledger to financial statements and drilldown,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-012-E2E-01,ACC-JRN-012,Cross-module accounting reconciliation,E2E,Happy path for Cross-module accounting reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-012-E2E-02,ACC-JRN-012,Cross-module accounting reconciliation,E2E,Permission/concurrency/validation failure for Cross-module accounting reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-012-E2E-03,ACC-JRN-012,Cross-module accounting reconciliation,E2E,Retry/reversal/reconciliation for Cross-module accounting reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-012-UAT-01,ACC-JRN-012,Cross-module accounting reconciliation,UAT,Primary business-role acceptance for Cross-module accounting reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+ACC-JRN-012-UAT-02,ACC-JRN-012,Cross-module accounting reconciliation,UAT,Exception/recovery business-role acceptance for Cross-module accounting reconciliation,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-001-E2E-01,PRG-JRN-001,Lead to Cash,E2E,Happy path for Lead to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-001-E2E-02,PRG-JRN-001,Lead to Cash,E2E,Permission/concurrency/validation failure for Lead to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-001-E2E-03,PRG-JRN-001,Lead to Cash,E2E,Retry/reversal/reconciliation for Lead to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-001-UAT-01,PRG-JRN-001,Lead to Cash,UAT,Primary business-role acceptance for Lead to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-001-UAT-02,PRG-JRN-001,Lead to Cash,UAT,Exception/recovery business-role acceptance for Lead to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-002-E2E-01,PRG-JRN-002,Order to Cash,E2E,Happy path for Order to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-002-E2E-02,PRG-JRN-002,Order to Cash,E2E,Permission/concurrency/validation failure for Order to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-002-E2E-03,PRG-JRN-002,Order to Cash,E2E,Retry/reversal/reconciliation for Order to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-002-UAT-01,PRG-JRN-002,Order to Cash,UAT,Primary business-role acceptance for Order to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-002-UAT-02,PRG-JRN-002,Order to Cash,UAT,Exception/recovery business-role acceptance for Order to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-003-E2E-01,PRG-JRN-003,Procure to Pay,E2E,Happy path for Procure to Pay,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-003-E2E-02,PRG-JRN-003,Procure to Pay,E2E,Permission/concurrency/validation failure for Procure to Pay,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-003-E2E-03,PRG-JRN-003,Procure to Pay,E2E,Retry/reversal/reconciliation for Procure to Pay,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-003-UAT-01,PRG-JRN-003,Procure to Pay,UAT,Primary business-role acceptance for Procure to Pay,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-003-UAT-02,PRG-JRN-003,Procure to Pay,UAT,Exception/recovery business-role acceptance for Procure to Pay,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-004-E2E-01,PRG-JRN-004,Plan to Produce,E2E,Happy path for Plan to Produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-004-E2E-02,PRG-JRN-004,Plan to Produce,E2E,Permission/concurrency/validation failure for Plan to Produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-004-E2E-03,PRG-JRN-004,Plan to Produce,E2E,Retry/reversal/reconciliation for Plan to Produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-004-UAT-01,PRG-JRN-004,Plan to Produce,UAT,Primary business-role acceptance for Plan to Produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-004-UAT-02,PRG-JRN-004,Plan to Produce,UAT,Exception/recovery business-role acceptance for Plan to Produce,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-005-E2E-01,PRG-JRN-005,Manufacturing → Quality → Stock,E2E,Happy path for Manufacturing → Quality → Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-005-E2E-02,PRG-JRN-005,Manufacturing → Quality → Stock,E2E,Permission/concurrency/validation failure for Manufacturing → Quality → Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-005-E2E-03,PRG-JRN-005,Manufacturing → Quality → Stock,E2E,Retry/reversal/reconciliation for Manufacturing → Quality → Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-005-UAT-01,PRG-JRN-005,Manufacturing → Quality → Stock,UAT,Primary business-role acceptance for Manufacturing → Quality → Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-005-UAT-02,PRG-JRN-005,Manufacturing → Quality → Stock,UAT,Exception/recovery business-role acceptance for Manufacturing → Quality → Stock,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-006-E2E-01,PRG-JRN-006,POS to Cash,E2E,Happy path for POS to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-006-E2E-02,PRG-JRN-006,POS to Cash,E2E,Permission/concurrency/validation failure for POS to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-006-E2E-03,PRG-JRN-006,POS to Cash,E2E,Retry/reversal/reconciliation for POS to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-006-UAT-01,PRG-JRN-006,POS to Cash,UAT,Primary business-role acceptance for POS to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-006-UAT-02,PRG-JRN-006,POS to Cash,UAT,Exception/recovery business-role acceptance for POS to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-007-E2E-01,PRG-JRN-007,Hire → Payroll → Books,E2E,Happy path for Hire → Payroll → Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-007-E2E-02,PRG-JRN-007,Hire → Payroll → Books,E2E,Permission/concurrency/validation failure for Hire → Payroll → Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-007-E2E-03,PRG-JRN-007,Hire → Payroll → Books,E2E,Retry/reversal/reconciliation for Hire → Payroll → Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-007-UAT-01,PRG-JRN-007,Hire → Payroll → Books,UAT,Primary business-role acceptance for Hire → Payroll → Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-007-UAT-02,PRG-JRN-007,Hire → Payroll → Books,UAT,Exception/recovery business-role acceptance for Hire → Payroll → Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-008-E2E-01,PRG-JRN-008,Asset to Books,E2E,Happy path for Asset to Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-008-E2E-02,PRG-JRN-008,Asset to Books,E2E,Permission/concurrency/validation failure for Asset to Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-008-E2E-03,PRG-JRN-008,Asset to Books,E2E,Retry/reversal/reconciliation for Asset to Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-008-UAT-01,PRG-JRN-008,Asset to Books,UAT,Primary business-role acceptance for Asset to Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-008-UAT-02,PRG-JRN-008,Asset to Books,UAT,Exception/recovery business-role acceptance for Asset to Books,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-009-E2E-01,PRG-JRN-009,Project to Cash,E2E,Happy path for Project to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-009-E2E-02,PRG-JRN-009,Project to Cash,E2E,Permission/concurrency/validation failure for Project to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-009-E2E-03,PRG-JRN-009,Project to Cash,E2E,Retry/reversal/reconciliation for Project to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-009-UAT-01,PRG-JRN-009,Project to Cash,UAT,Primary business-role acceptance for Project to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-009-UAT-02,PRG-JRN-009,Project to Cash,UAT,Exception/recovery business-role acceptance for Project to Cash,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-010-E2E-01,PRG-JRN-010,Service to Resolution,E2E,Happy path for Service to Resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-010-E2E-02,PRG-JRN-010,Service to Resolution,E2E,Permission/concurrency/validation failure for Service to Resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-010-E2E-03,PRG-JRN-010,Service to Resolution,E2E,Retry/reversal/reconciliation for Service to Resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-010-UAT-01,PRG-JRN-010,Service to Resolution,UAT,Primary business-role acceptance for Service to Resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY
+PRG-JRN-010-UAT-02,PRG-JRN-010,Service to Resolution,UAT,Exception/recovery business-role acceptance for Service to Resolution,PLANNED,NOT_EXECUTED_PLANNING_ONLY

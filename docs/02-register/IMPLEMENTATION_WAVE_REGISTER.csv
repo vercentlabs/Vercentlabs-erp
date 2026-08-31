@@ -1,0 +1,18 @@
+wave_id,name,scope,depends_on,status,implementation_authority
+T00,Technical safety foundation,Tenant/RLS transaction correctness; toolchain; migration safety; architecture validators,None,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+T01,Shared Platform + Experience Kernel,SP001-SP036; shared UI/runtime contracts,T00,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W01,Master-data foundation,Company/customer/supplier/item/UOM/currency/tax/warehouse masters used by downstream modules,T00;T01,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W02,Accounting + inventory primitives,Ledger/journal/period/money/tax/stock-ledger/reservation/valuation primitives,T00;T01;W01,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W03,CRM,F001-F030,T01;W01,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W04,Sales,F031-F062,W01;W02;W03,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W05,Procurement + Stock,F063-F144,W01;W02,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W06,Finance integration,F453-F510 and subledger integration,W02;W04;W05,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W07,Manufacturing + Quality,F145-F192;F308-F342,W05;W06,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W08,Projects + Assets,F193-F267,W04;W05;W06,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W09,Point of Sale,F268-F307,W01;W02;W06,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W10,Support / Customer Service,F343-F380,W03;W04;W08,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W11,HR & Payroll,F381-F452,T01;W06,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W12,Enterprise journey certification,All mandatory cross-module journeys,W03-W11,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W13,ERP Copilot,Authorization-safe AI after deterministic truth exists,W12,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W14,Enterprise hardening,Security/load/accessibility/mobile/offline/DR/reconciliation,W12;W13,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
+W15,"Migration, pilot and production readiness","Migration rehearsal, pilot, restore/rollback rehearsal, production certification",W14,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS

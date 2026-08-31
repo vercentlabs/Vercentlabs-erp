@@ -2,38 +2,42 @@
 
 Status: `SPECIFICATION_READY`
 
-## Scope
-Modules: Projects; Sales; HR & Payroll; Procurement; Accounting / Finance. Outcome: project delivery to billing and margin.
+Journey ID: `PRG-JRN-009`
 
-## Canonical sequence
-1. **project/contract setup** — owned by the module that owns the aggregate; cross-module effects use public commands/events only.
-2. **work/time/expense/procurement actuals** — owned by the module that owns the aggregate; cross-module effects use public commands/events only.
-3. **billing eligibility** — owned by the module that owns the aggregate; cross-module effects use public commands/events only.
-4. **invoice** — owned by the module that owns the aggregate; cross-module effects use public commands/events only.
-5. **receipt** — owned by the module that owns the aggregate; cross-module effects use public commands/events only.
-6. **profitability reconciliation** — owned by the module that owns the aggregate; cross-module effects use public commands/events only.
+Modules: Sales;Projects;Procurement;Stock / Inventory;HR & Payroll;Accounting / Finance
 
-## Transaction and consistency contract
-A single module owns each local ACID transaction. No distributed transaction spans modules. The source transaction persists business truth plus an outbox/event or invokes a public synchronous command only when the receiving invariant must be checked atomically. Every cross-module command/event carries organization/company scope, actor/system identity, correlation ID, source aggregate/version and an idempotency key derived from the source business event.
+Feature anchors: `F193;F197;F198;F199;F208;F210;F211;F213;F214;F216;F217;F218;F219;F220;F221;F222`
 
-## Authorization
-The initiating actor is authorized for the source command; destination modules re-check the public command's system/user policy and organization/company scope. Service context is not blanket authorization.
+## Trigger and completion
+The journey begins only from an authenticated, authorized business trigger. Completion means the destination business outcome is durable **and** all required stock/financial/approval/audit consequences reconcile; a UI success message alone is never completion.
 
-## Idempotency and concurrency
-Duplicate commands/events return or reconcile to the original result. Optimistic version/row locking protects state transitions where concurrent actors can conflict. Monetary, stock, payroll and payment side effects use unique business keys so retries cannot duplicate truth.
+## Stage chain
+| # | Stage | Owner | Public contract | Authoritative outcome |
+|---:|---|---|---|---|
+| 1 | Initiate | Sales;Projects | Order/opportunity-to-project contract | Authorized project |
+| 2 | Plan/resource | Projects;HR & Payroll | WBS/milestone/resource plan | Baseline delivery plan |
+| 3 | Capture cost | Projects;Procurement;Stock / Inventory;HR & Payroll | Time/expense/material/procurement contracts | Project actuals/commitments |
+| 4 | Bill | Projects;Accounting / Finance | Fixed/T&M/milestone billing eligibility | Invoiceable amount |
+| 5 | Recognize/reconcile | Projects;Accounting / Finance | Revenue/cost/profitability read model | Project margin reconciled |
+| 6 | Close/reopen | Projects | Controlled close/reopen | No hidden unbilled/unposted exceptions |
 
-## Failure/retry/dead-letter
-Synchronous validation failures leave the source transition unapplied when atomicity is required. Asynchronous failures remain visible as pending/exception states, retry with bounded backoff and enter a dead-letter/exception queue after policy exhaustion. Operators can retry/reconcile without manually editing private tables.
+## Frozen cross-cutting contract
+- Ownership: each module mutates only its private state; cross-module effects use public commands/queries/events and `services/api/src/orchestration` where coordination is required.
+- Authorization: organization, entitlement, company, branch/site/warehouse/project/team, record and field scope are rechecked server-side at every authoritative boundary.
+- Transaction: a single aggregate write uses one request-scoped DB transaction/client with tenant/RLS context; multi-module workflows do not fake a distributed transaction.
+- Idempotency: retry-sensitive commands carry stable business/idempotency keys; duplicate requests/callbacks/jobs return the prior outcome or a safe no-op.
+- Async: audit + outbox/job trigger are committed with authoritative state when required; workers use trusted persisted tenant scope, bounded retry/backoff, DLQ/exception state and reconciliation.
+- Failure visibility: pending/failed/partial/uncertain states are explicit. No downstream timeout is silently treated as success or blindly repeated if the external outcome is uncertain.
+- Concurrency: stale version/lock/constraint conflicts return an actionable conflict; invariants are rechecked inside the authoritative transaction.
+- Reversal: posted/consumed/financial truth is reversed or compensated through the owning module; history is not silently rewritten.
+- Reconciliation: every asynchronous or cross-module leg exposes source/destination identifiers, correlation IDs and an exception queue/report sufficient to prove both sides agree.
 
-## Reversal/compensation
-Posted/consumed/financial truth is never silently deleted. Corrections create domain-specific reversal, return, credit, cancellation or compensating records with links to originals and period/permission checks.
+## Verification plan
+- `PRG-JRN-009-E2E-01`: happy path across every owning module with visible, audit, stock and financial outcomes.
+- `PRG-JRN-009-E2E-02`: permission/concurrency/validation failure proves no partial or cross-tenant state.
+- `PRG-JRN-009-E2E-03`: retry, downstream uncertainty, reversal and reconciliation path proves exactly-once business effect.
+- `PRG-JRN-009-UAT-01`: named business roles execute the primary journey from realistic prerequisites and sign off visible/data/audit outcomes.
+- `PRG-JRN-009-UAT-02`: named business roles execute exception/recovery/reversal and confirm operational diagnostics/reconciliation.
 
-## Reconciliation
-Scheduled/on-demand reconciliation compares source business events with destination effects and exposes missing, duplicate, stale or amount/quantity mismatches. Reconciliation itself never fabricates financial or inventory truth without an authorized command.
-
-## Audit/observability
-Every transition emits structured audit evidence and correlation IDs; metrics cover success, latency, retries, dead letters and reconciliation exceptions.
-
-## Verification IDs
-- E2E: `ENT-PROJECT_TO_CASH-E2E-001` happy path; `ENT-PROJECT_TO_CASH-E2E-002` permission/failure; `ENT-PROJECT_TO_CASH-E2E-003` retry/reversal/reconciliation.
-- UAT: `ENT-PROJECT_TO_CASH-UAT-001` operator journey with visible state and downstream reconciliation.
+## Definition of planning-complete
+This journey is specification-ready when all stage owners/public contracts are represented in approved module/shared-platform requirements, implementation wave dependencies are known, the verification IDs above are planned, and no product readiness is inferred before implementation/E2E/UAT evidence exists.

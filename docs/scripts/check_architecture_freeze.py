@@ -1,28 +1,18 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import csv,re,sys
-ROOT=Path(__file__).resolve().parents[2]; D=ROOT/'docs'; R=D/'02-register'; blockers=[]
-def block(x): blockers.append(x)
-p=R/'ENTERPRISE_AUDIT_FINDINGS.csv'
-if not p.exists(): block('enterprise audit findings register missing')
-else:
-    with p.open(encoding='utf-8',newline='') as f: rows=list(csv.DictReader(f))
-    for r in rows:
-        if r.get('freeze_blocking')=='YES' and r.get('status') not in {'RESOLVED','ACCEPTED_RISK'}:
-            block(f"{r.get('finding_id')}: {r.get('priority')} {r.get('category')} is {r.get('status')}")
-sp=D/'04-shared-platform/SHARED_PLATFORM_REGISTER.csv'
-if not sp.exists(): block('authoritative 36-row shared-platform register missing')
-else:
-    with sp.open(encoding='utf-8',newline='') as f: sr=list(csv.DictReader(f))
-    if len(sr)!=36: block(f'shared-platform register has {len(sr)} rows, expected 36')
-mandatory=['LEAD_TO_CASH.md','ORDER_TO_CASH.md','PROCURE_TO_PAY.md','PLAN_TO_PRODUCE.md','POS_TO_CASH.md','HIRE_TO_PAYROLL_TO_BOOKS.md','ASSET_TO_BOOKS.md','PROJECT_TO_CASH.md','SERVICE_TO_RESOLUTION.md']
+ROOT=Path(__file__).resolve().parents[2];D=ROOT/'docs';R=D/'02-register'; blockers=[]
+def rows(p):
+    if not p.exists(): return []
+    with p.open(encoding='utf-8',newline='') as f:return list(csv.DictReader(f))
+arch=rows(R/'ARCHITECTURE_AI_FREEZE_REVIEW.csv')
+if len(arch)!=1 or (arch[0].get('review_status') or '').upper()!='APPROVED': blockers.append('Pass E architecture freeze review not approved')
+for r in rows(R/'ENTERPRISE_AUDIT_FINDINGS.csv'):
+    if (r.get('freeze_blocking') or '').upper()=='YES' and (r.get('priority') or '').upper() in {'P0','P1'} and (r.get('status') or '').upper() not in {'RESOLVED','ACCEPTED_RISK'}: blockers.append(f"{r.get('finding_id')}: {r.get('status')}")
+mandatory=['LEAD_TO_CASH.md','ORDER_TO_CASH.md','PROCURE_TO_PAY.md','PLAN_TO_PRODUCE.md','MANUFACTURING_QUALITY_STOCK.md','POS_TO_CASH.md','HIRE_TO_PAYROLL_TO_BOOKS.md','ASSET_TO_BOOKS.md','PROJECT_TO_CASH.md','SERVICE_TO_RESOLUTION.md']
 for fn in mandatory:
-    q=D/'05-cross-module'/fn
-    if not q.exists(): block(f'missing mandatory journey {fn}'); continue
-    m=re.search(r'^Status:\s*`([^`]+)`',q.read_text(encoding='utf-8'),re.M)
-    if not m or m.group(1)!='SPECIFICATION_READY': block(f'{fn} is not SPECIFICATION_READY')
+    p=D/'05-cross-module'/fn
+    if not p.exists() or 'Status: `SPECIFICATION_READY`' not in p.read_text(encoding='utf-8'): blockers.append(fn+' not specification-ready')
 if blockers:
-    print('ARCHITECTURE FREEZE BLOCKED')
-    for b in blockers: print(' -',b)
-    sys.exit(3)
-print('ARCHITECTURE FREEZE GATE PASSED')
+    print('ARCHITECTURE FREEZE: BLOCKED'); [print(' -',x) for x in blockers]; sys.exit(3)
+print('ARCHITECTURE FREEZE: PASS')

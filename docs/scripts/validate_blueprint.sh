@@ -41,3 +41,7 @@ fi
 if [[ -f docs/scripts/validate_architecture_ai_pass_e.py ]]; then
   python docs/scripts/validate_architecture_ai_pass_e.py
 fi
+
+if [[ -f docs/scripts/validate_traceability_pass_f.py ]]; then
+  python docs/scripts/validate_traceability_pass_f.py
+fi
