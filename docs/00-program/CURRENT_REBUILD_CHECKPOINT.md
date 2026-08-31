@@ -22,3 +22,10 @@ bash docs/scripts/validate_blueprint.sh
 **Pass 1 / 12 — CRM F001–F030 — evidence-backed specification only.**
 
 Pass 1 must populate actual researched subfeatures, benchmark evidence, capability contracts, current-code evidence, requirements, flows, UX/data/security/API/integration design, tests/E2E/UAT and red-team omission review before any CRM dossier can reach `SPECIFICATION_READY`.
+
+## Post-Pass-12 enterprise audit
+
+- Enterprise documentation omission audit installed on 2026-08-31.
+- Architecture freeze is **BLOCKED** while freeze-blocking findings remain open.
+- Run `python docs/scripts/check_architecture_freeze.py` for the explicit freeze decision.
+- Product implementation remains out of scope until documentation remediation and architecture freeze complete.

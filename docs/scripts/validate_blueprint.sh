@@ -21,3 +21,4 @@ python docs/scripts/validate_quality_pass9.py
 python docs/scripts/validate_support_pass10.py
 python docs/scripts/validate_hr_payroll_pass11.py
 python docs/scripts/validate_accounting_pass12.py
+python docs/scripts/validate_enterprise_audit.py
