@@ -1,5 +1,7 @@
-# Shared Platform Authority Required
+# Shared Platform Authority
 
-Planning cannot be declared complete until the founder-approved exact 36 shared-platform requirement identities/names are present in `SHARED_PLATFORM_REGISTER.csv`, exactly 36 rows, separate from F001-F510. This installer deliberately does not invent them.
+Status: `RESOLVED_BY_FINAL_PASS_A`
 
-Once supplied, each shared-platform requirement receives the same depth as a business capability where applicable: intent, personas, flows, data/state, authorization, APIs/jobs/events, UX/admin surfaces, security, observability, performance, tests/UAT and implementation evidence.
+The former authority gap is closed. The exact founder-approved shared-platform baseline is now `SP001-SP036` in `SHARED_PLATFORM_REGISTER.csv`.
+
+This file remains only as a compatibility/history pointer for earlier audit tooling. Do not use it as an active blocker.

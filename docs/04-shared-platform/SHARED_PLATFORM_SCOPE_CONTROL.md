@@ -1,7 +1,12 @@
 # Shared Platform Scope Control
 
-The canonical business-feature register remains exactly F001–F510. The separately governed shared-platform baseline is not counted in the 510 and must never be renumbered into F511+.
+Status: `AUTHORITY_FROZEN`
 
-This v3 migration intentionally does **not** invent canonical IDs or exact names for the separately governed 36 shared-platform requirements. When the authoritative 36-item list is present, preserve its names/identity exactly.
+The canonical business-feature register remains exactly **F001-F510**. The exact shared-platform baseline is separately governed as **SP001-SP036** and is not counted inside the 510.
 
-Research coverage must nevertheless include the cross-cutting areas that affect every module: tenant isolation and multi-company structure; identity/authentication/session security; roles/permissions and record/field scope; module entitlements/billing; audit/history; outbox/events/jobs; notifications; files/documents; custom fields/configuration; workflow/approvals; search; reporting/analytics; localization/time zones/currency/UOM; import/export; API/webhooks/integrations; observability; privacy/retention; feature flags; accessibility/responsive behavior; mobile/offline; and AI governance.
+## Rules
+- Never invent F511+ to represent platform requirements.
+- `SHARED_PLATFORM_REGISTER.csv` is the controlling identity/name/count authority for SP001-SP036.
+- Shared-platform requirements are reusable platform capabilities, not a hidden thirteenth business module.
+- A business module may depend on SP capabilities but may not clone weaker private implementations of tenancy, authorization, audit, jobs, files, API security, accessibility, etc.
+- Changing an SP ID/name/count after this freeze requires explicit change control and an impact analysis across module requirements, architecture, tests and implementation waves.

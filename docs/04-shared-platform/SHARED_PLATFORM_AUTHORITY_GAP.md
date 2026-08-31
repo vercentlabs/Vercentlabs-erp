@@ -1,5 +1,7 @@
 # Shared Platform Authority Gap
 
-The documentation states that the 36 shared-platform requirements are separate from F001-F510, but the authoritative exact 36 identities/names are not present in the current blueprint. They must not be invented or converted into F511+.
+Status: `RESOLVED_BY_FINAL_PASS_A`
 
-Before architecture freeze, provide the founder-approved 36-item source of truth and materialize `SHARED_PLATFORM_REGISTER.csv` plus specifications, dependency/test/UAT mappings and readiness.
+The former P0 gap is resolved by the exact `SP001-SP036` authority in `SHARED_PLATFORM_REGISTER.csv`, with specification dossiers, atomic requirements, benchmark/source evidence, dependencies, tests and UAT.
+
+The canonical business register remains exactly F001-F510; no F511+ identifiers were introduced.

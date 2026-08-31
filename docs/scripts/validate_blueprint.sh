@@ -30,3 +30,7 @@ fi
 if [[ -f docs/scripts/validate_final_technical_blueprint.py ]]; then
   python docs/scripts/validate_final_technical_blueprint.py
 fi
+
+if [[ -f docs/scripts/validate_shared_platform_pass_a.py ]]; then
+  python docs/scripts/validate_shared_platform_pass_a.py
+fi

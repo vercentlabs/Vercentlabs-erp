@@ -8,8 +8,9 @@ def rows(p):
 
 sp=D/'04-shared-platform/SHARED_PLATFORM_REGISTER.csv'
 spr=rows(sp)
-if len(spr)!=36:
-    blockers.append(f'P0 shared-platform authority: expected exact founder-approved 36 rows, found {len(spr)}')
+expected_sp=[f'SP{i:03d}' for i in range(1,37)]
+if len(spr)!=36 or [r.get('sp_id') for r in spr]!=expected_sp:
+    blockers.append(f'P0 shared-platform authority: expected exact SP001-SP036 register (36 rows), found {len(spr)}')
 else:
     not_ready=[]
     for r in spr:

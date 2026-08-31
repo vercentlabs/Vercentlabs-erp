@@ -1,5 +1,5 @@
-# Shared Platform Requirements
+# Shared Platform Requirements — Final Pass A
 
-The 36 shared-platform requirements are separate from canonical F001–F510 and must never be renumbered into F511+.
+The platform baseline is now frozen as **36 exact requirements, SP001-SP036**. They are separate from the canonical **510 business features F001-F510** and do not alter that count.
 
-During the documentation program, place approved shared-platform specifications here for identity/tenancy, authorization, billing/entitlements, audit, security, customization, workflows, notifications, files, imports/exports, search, observability, integration/webhooks, localization, accessibility, responsive behavior, mobile/offline and other cross-cutting platform concerns.
+Use the register, 36 dossiers, atomic subrequirement register, benchmark/source registers, dependency/decision/test/UAT registers and reference architecture as the authoritative planning package.
