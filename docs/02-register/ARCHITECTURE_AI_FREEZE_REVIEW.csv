@@ -1,0 +1,2 @@
+pass_id,review_status,canonical_feature_count,shared_platform_count,architecture_decisions,placement_rules,feature_placements,experience_kernel_components,ai_execution_controls,product_source_modified,product_readiness_promoted,next_gate
+PASS_E,APPROVED,510,36,36,26,510,36,15,NO,NO,PASS_F_MASTER_TRACEABILITY_IMPLEMENTATION_AUTHORIZATION

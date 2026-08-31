@@ -1,0 +1,27 @@
+placement_id,artifact_type,path,owner,rule,review_status
+PLC001,Web route/page composition,apps/web/src/app,web-shell,"Routing, transport, composition; no duplicate domain authority",APPROVED
+PLC002,Web platform capabilities,apps/web/src/core,platform,Auth/session/org/company/permission/billing/audit/notification/security UI/runtime,APPROVED
+PLC003,Web module UX,apps/web/src/modules/<module>,business-module,Module-owned components/workspaces/hooks/adapters,APPROVED
+PLC004,Generic reusable web UI,apps/web/src/shared,experience,Cross-module generic UI/helpers only,APPROVED
+PLC005,Server platform support,services/api/src/core,platform,Server platform policies/contracts,APPROVED
+PLC006,Server module domain,services/api/src/modules/<module>,business-module,Public commands/queries/domain rules/private persistence access,APPROVED
+PLC007,Cross-module orchestration,services/api/src/orchestration,orchestration,Coordinate public module contracts; no private-table mutation,APPROVED
+PLC008,Durable background work,services/worker,worker,"Persisted trusted scope, retry/backoff/idempotency/DLQ/reconciliation",APPROVED
+PLC009,Platform/control-plane schema,database/platform,database-platform,Platform migrations/configuration,APPROVED
+PLC010,Tenant business schema,database/tenant,database-tenant,Tenant module tables/RLS/index/constraints/migrations,APPROVED
+PLC011,Reusable permissions,packages/permissions,platform-package,Permission vocabulary/evaluation primitives,APPROVED
+PLC012,Reusable workflow engine,packages/workflows,platform-package,"Approvals/workflow primitives, not module business shortcuts",APPROVED
+PLC013,Shared types,packages/shared-types,platform-package,Stable cross-surface DTO/types,APPROVED
+PLC014,Shared SDK,packages/shared-sdk,platform-package,Versioned client integration helpers,APPROVED
+PLC015,Experience components,packages/shared-ui,experience,Experience Kernel implementation primitives,APPROVED
+PLC016,Localization,packages/localization,platform-package,Locale/timezone/currency formatting primitives,APPROVED
+PLC017,Observability,packages/observability,platform-package,Logs/metrics/traces/correlation primitives,APPROVED
+PLC018,Reporting,packages/reporting-engine,platform-package,Permission-aware reporting/read-model primitives,APPROVED
+PLC019,Documents,packages/document-engine,platform-package,Document generation/rendering primitives,APPROVED
+PLC020,Mobile routes,apps/mobile/src/app,mobile-shell,Native route composition only,APPROVED
+PLC021,Mobile platform,apps/mobile/src/core,mobile-platform,Auth/API/security/local encrypted data/providers,APPROVED
+PLC022,Mobile module,apps/mobile/src/modules/<module>,mobile-module,Approved native screens/hooks/offline handlers,APPROVED
+PLC023,Mobile shared UI,apps/mobile/src/shared,mobile-experience,Reusable native Experience Kernel counterparts,APPROVED
+PLC024,Cross-module tests,tests/integration,verification,Contract/journey/reconciliation tests,APPROVED
+PLC025,Security tests,tests/security,verification,Tenant/RLS/RBAC/IDOR/security-negative tests,APPROVED
+PLC026,Architecture validators,scripts/validation,verification,Automated source-boundary/DB/worker/release invariants,APPROVED

@@ -37,3 +37,7 @@ python docs/scripts/validate_semantic_pass_b.py
 python docs/scripts/validate_flow_state_pass_c.py
 python docs/scripts/validate_benchmark_pass_d.py
 fi
+
+if [[ -f docs/scripts/validate_architecture_ai_pass_e.py ]]; then
+  python docs/scripts/validate_architecture_ai_pass_e.py
+fi

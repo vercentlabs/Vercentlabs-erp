@@ -1,0 +1,7 @@
+# Experience Kernel Standard
+
+Status: `ARCHITECTURE_FROZEN_PASS_E`
+
+`EXPERIENCE_KERNEL_REGISTER.csv` is the canonical reusable UX contract. Modules reuse these primitives but retain domain-specific workflows; reusable UI never means generic CRUD. Every major screen must define loading, empty, error, permission, stale/conflict, saving/pending, partial-failure and offline states where relevant. Desktop/tablet/phone behavior preserves critical actions or explicitly classifies them as not applicable. WCAG 2.2 AA intent, keyboard/focus, screen-reader status/errors, target sizing, zoom/reflow, reduced motion and non-drag alternatives are implementation requirements.
+
+Major modules may compose specialized workbenches, but cannot create a parallel design system without an approved ADR.

@@ -1,0 +1,16 @@
+stack_id,layer,technology,version,freeze_policy,change_control
+STK001,Runtime,Node.js,>=24 <25,PIN_REPOSITORY_ENGINE,ADR_REQUIRED
+STK002,Package manager,pnpm,pnpm@11.21.0,PIN_LOCKFILE_TOOLCHAIN,ADR_REQUIRED
+STK003,Web,Next.js,16.2.11,PIN_PACKAGE,ADR_REQUIRED
+STK004,Web UI runtime,React,19.2.3,PIN_PACKAGE,ADR_REQUIRED
+STK005,Application language,TypeScript,^5.9.3,REPOSITORY_STANDARD,ADR_REQUIRED
+STK006,Validation,Zod,^4.1.12,REUSE_EXISTING,ADR_REQUIRED
+STK007,Database,PostgreSQL,16-class target,AUTHORITATIVE_TRANSACTIONAL_STORE,ARCHITECTURE_BOARD
+STK008,Database client,pg,^8.16.3,REUSE_EXISTING,ADR_REQUIRED
+STK009,Mobile,Expo,~57.0.8,PIN_PACKAGE,ADR_REQUIRED
+STK010,Mobile runtime,React Native,0.86.0,PIN_PACKAGE,ADR_REQUIRED
+STK011,Mobile server state,TanStack Query,^5.101.2,REUSE_EXISTING,ADR_REQUIRED
+STK012,Mobile local data,Expo SQLite / encrypted local storage pattern,~57.0.1,OFFLINE_OPT_IN_ONLY,CAPABILITY_DESIGN
+STK013,Async,services/worker,repository-owned,ONE_DURABLE_JOB_SYSTEM,ADR_REQUIRED
+STK014,Containers,Docker,repository Dockerfiles,REUSE_EXISTING,ADR_REQUIRED
+STK015,CI/CD,GitHub Actions + repository validation,repository-owned,RELEASE_GATE_AUTHORITY,CHANGE_CONTROL
