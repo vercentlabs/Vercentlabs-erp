@@ -4,10 +4,10 @@
 - Canonical range: F453–F510
 - Feature count: 58
 - Product boundary: Financial control, subledgers, tax, close, reporting and auditability
-- Specification status: `UNSPECIFIED`
+- Specification status: `SPECIFICATION_READY`
 
-## Pass exit criteria
-Research complete; capability map approved; all canonical dossiers in this range fully decomposed; primary/alternate/exception/reversal flows modelled; data/API/security/integration contracts written; desktop/tablet/mobile/accessibility behavior specified; tests/UAT written; current-code gaps mapped; red-team omission review passed.
+## Architecture
+Accounting is the ledger authority. Other modules emit public, balanced/idempotent accounting intents; Accounting validates company, ledger, accounts, dimensions, periods, currency/tax rules and posts atomically. Posted truth is corrected by linked reversal/adjustment, never silent mutation. Money/rates use explicit decimal contracts and JSON-safe serialization.
 
-## Architecture rule
-F-IDs are traceability anchors. Implementation should converge on coherent module capabilities and public commands/queries rather than one directory/service per F-ID.
+## Pass exit decision
+Research, requirements, domain/security/integration/UX/test/UAT and red-team omission review are complete for specification readiness only. Product implementation remains uncertified. The next program stage is the enterprise omission audit before architecture freeze.

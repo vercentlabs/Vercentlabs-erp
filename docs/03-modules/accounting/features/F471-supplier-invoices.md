@@ -4,171 +4,168 @@
 - Canonical ID: `F471`
 - Canonical name: **Supplier invoices**
 - Module: **Accounting / Finance**
-- Working status: `UNSPECIFIED`
-- Readiness gate: `NONE`
+- Working status: `SPECIFICATION_READY`
+- Readiness gate: `SPECIFICATION_READY`
 - Implementation status: `NOT_STARTED`
 - Product status: `NOT_READY`
-- Parent capability IDs: `TBD`
+- Parent capability IDs: `ACC-CAP-003`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 
 ## [SPEC-INTENT] Product intent and business problem
-Define the business problem, why this capability exists, its operator value and explicit non-goals.
+For **Supplier invoices**, define and verify business purpose, accounting owner and explicit non-goals. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-OUTCOMES] Business outcomes and success measures
-Define measurable operator, business, control, data-quality and system outcomes.
+For **Supplier invoices**, define and verify measurable financial-control, operator, reconciliation and data-quality outcomes. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-PERSONAS] Personas and jobs to be done
-Define personas, JTBD, role distinctions, approval authority, negative-permission cases and high-frequency workflows.
+For **Supplier invoices**, define and verify accountant/controller/CFO/AP/AR/treasury/tax/auditor jobs, authority and negative permissions. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-ENTRY-POINTS] Entry points, navigation and deep links
-Define module navigation, global search/command palette, dashboards, related-record entry, contextual creation and durable deep links.
+For **Supplier invoices**, define and verify finance navigation, work queues, search, drilldown and deep-link authorization. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-BENCHMARK] Benchmark research evidence
-List benchmark evidence IDs from `BENCHMARK_REGISTER.csv`. Evidence must describe observed behavior, not marketing adjectives.
+Official benchmark evidence: `ACC-P12-BM-019-A`, `ACC-P12-BM-019-B`. Tax/legal values remain dated configuration from authoritative sources.
 
 ## [SPEC-DECISION] Vercentlabs benchmark decisions
-Disposition every material benchmark discovery as `REQUIRED`, `DIFFERENTIATOR`, or `NOT_APPLICABLE` with rationale.
+For **Supplier invoices**, define and verify benchmark disposition, deterministic authority and public-contract boundaries. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-OMISSION-GATE] Enterprise omission gate
-Independently challenge what an experienced enterprise operator would expect from **Supplier invoices** that the short canonical name does not explicitly state. No material expectation may remain silently unreviewed.
+For **Supplier invoices**, define and verify mature ERP omissions including close, reversal, reconciliation, multi-company/currency, tax, audit and failure recovery. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-SUBCAPABILITIES] Sub-capabilities and capability mapping
-Use `F471-CAP-###` and map coherent sub-capabilities to noncanonical module capability contracts.
+Parent capability `ACC-CAP-003`. Explicit contract: `F471-CAP-001`. All 21 requirement types are materialized in the control-plane register.
 
 ## [SPEC-FUNCTIONAL] Functional requirements and user stories
-Use `F471-FR-###` and `F471-US-###`. Write normative MUST/SHOULD/MAY behavior and acceptance intent.
+Functional/user contracts: `F471-FR-001`, `F471-FR-002`, `F471-FR-003`, `F471-US-001`.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-Use `F471-FLOW-###`; cover happy path, alternates, validation failures, permission denials, conflicts, cancellation, reversal/compensation, retries and reconciliation.
+Flow contracts: `F471-FLOW-001`, `F471-FLOW-002`, `F471-FLOW-003`.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-Define aggregate owner, states, transition commands, guards, side effects, terminal states, reversible/irreversible transitions and history.
+For **Supplier invoices**, define and verify aggregate states, approval/post/reverse/close guards, terminal/reopen behavior and immutable history. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-DATA] Data model, entities, relationships and fields
-Use `F471-DATA-###`; define entities, value objects, keys, relationships, required/optional/calculated/system fields, constraints, indexes, retention and lineage.
+Data contracts: `F471-DATA-001`, `F471-DATA-002`.
 
 ## [SPEC-VALIDATION] Validation rules
-Use `F471-VAL-###`; define field, cross-field, cross-record, temporal, uniqueness, reference and lifecycle validation with actionable errors.
+Validation contracts: `F471-VAL-001`, `F471-VAL-002`.
 
 ## [SPEC-BUSINESS-RULES] Business rules and invariants
-Use `F471-BR-###`; define deterministic rules, ownership, effective dating, configuration scope and precedence.
+Business-rule contracts: `F471-BR-001`, `F471-BR-002`.
 
 ## [SPEC-CALCULATIONS] Calculations, precision and rounding
-Use `F471-CALC-###`; define formulas, units, currency, precision/scale, rounding, timezone/date boundaries and reproducibility where applicable.
+Calculation contract: `F471-CALC-001`. Money/rates use explicit precision/rounding and JSON-safe decimal serialization.
 
 ## [SPEC-VIEWS] Required view archetypes
-Use `F471-UX-###` for explicit interaction, information-architecture, workspace, view, action, feedback, responsive/mobile and accessibility requirements; replace the placeholder with materialized UX IDs during the module specification pass.
-
-Determine applicable table/list, work queue, board/Kanban, calendar, Gantt, ledger, map, chart/dashboard and exception-management views.
+UX contracts: `F471-UX-001`, `F471-UX-002`.
 
 ## [SPEC-LIST] List, table and work-queue behavior
-Define columns, density, personalization, pagination, selection, inline actions, row states, virtualization/large datasets and permission behavior.
+For **Supplier invoices**, define and verify server pagination/filter/sort, safe counts, bulk preflight, exception queues and large-ledger virtualization. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-SEARCH] Search, filters, sorting and saved views
-Define query semantics, indexes, advanced filters, operators, facets, sort stability, saved/shared views, defaults, URL state and authorization-safe counts.
+For **Supplier invoices**, define and verify authorization-aware account/document/reference search with stable filters and safe aggregates. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-DETAIL] Detail / 360 workspace
-Define summary, related records, history/timeline, actions, context panels, tabs, derived insights, edit affordances and permissions.
+For **Supplier invoices**, define and verify source-to-posting 360 detail, approvals, allocations, settlement, reconciliation and audit drilldown. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-CREATE] Create and quick-create UX
-Define full create, quick create, defaults, required associations, duplicate/precondition checks, draft behavior and post-create navigation.
+For **Supplier invoices**, define and verify number/source identity, duplicate detection, period/account validation and idempotent creation. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-EDIT] Edit, inline edit and immutable fields
-Define edit modes, optimistic concurrency, field immutability, dependent fields, validation, unsaved changes and history.
+For **Supplier invoices**, define and verify draft edit, immutable posted fields, stale-write protection and controlled correction/reversal. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-BULK] Bulk actions and selection semantics
-Define eligible actions, all-results selection, permission filtering, partial failure, asynchronous jobs, progress/result reports and idempotency.
+For **Supplier invoices**, define and verify per-record authorization/state/period preflight, bounded batches and explicit partial outcomes. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-ACTIONS] Primary, secondary, contextual and destructive actions
-Define action availability by state/permission/scope, confirmations, reasons, irreversible effects and keyboard/mobile equivalents.
+For **Supplier invoices**, define and verify risk/state-aware primary/destructive actions with reason, approval and returned posting/audit references. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-RELATED] Related records and contextual navigation
-Define upstream/downstream relationships, counts, previews, creation from context, navigation and permissions.
+For **Supplier invoices**, define and verify permission-safe public relationships to customer/supplier/order/receipt/stock/payroll/assets/project/POS source records. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-AUTOMATION] Automation and workflow engine behavior
-Use `F471-AUTO-###`; define triggers, conditions, actions, schedules, evaluation order, recursion control, retries, audit and operator visibility.
+Automation contract: `F471-AUTO-001`.
 
 ## [SPEC-APPROVALS] Approvals, maker-checker and segregation of duties
-Use `F471-APP-###`; define thresholds, routing, delegation, escalation, reject/resubmit, SoD, override and audit where applicable.
+Approval contracts: `F471-APP-001`, `F471-APP-002`.
 
 ## [SPEC-NOTIFICATIONS] Notifications and communication behavior
-Use `F471-NOTIF-###`; define in-app/email/push/event/digest triggers, templates, preferences, throttling, localization, delivery status and deep links.
+Notification contract: `F471-NOTIF-001`.
 
 ## [SPEC-DOCUMENTS] Attachments, generated documents, print and templates
-Define file types, limits, virus/safety handling, permissions, versioning, generated documents, print/PDF/template behavior and retention.
+For **Supplier invoices**, define and verify permissioned/versioned invoices/statements/reports/attachments/templates with retention and audit. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-IMPORT-EXPORT] Import, export and migration behavior
-Define mapping, preview, validation, duplicate handling, dry run, partial failure, resumability, background jobs, permissions, exports and audit.
+For **Supplier invoices**, define and verify preview/dry-run, schema/duplicate validation, decimal-safe serialization, per-row errors, source hash and audit. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-REPORTING] Reports, KPIs, analytics and drilldown
-Use `F471-REP-###`; define metrics, dimensions, filters, drilldown, freshness, snapshots, reconciliation, export and permission-safe aggregation.
+Reporting contract: `F471-REP-001`.
 
 ## [SPEC-AI] AI opportunities, authority boundary and safeguards
-Decision: `UNASSESSED` from `NO_AI | AI_ASSIST | AI_RECOMMEND | AI_GENERATE | AI_AUTOMATE_WITH_APPROVAL | AI_AUTOMATE`.
-Use `F471-AI-###`; define inputs, provenance/freshness, uncertainty, explanation, human override, permission boundary, mutation authority, fallback, feedback, PII handling, retention and audit. Deterministic ERP invariants remain authoritative.
+AI contracts: `F471-AI-001`, `F471-AI-002`; ledger/tax/payment/authorization/period truth remains deterministic.
 
 ## [SPEC-SECURITY] Security, permissions and field controls
-Use `F471-SEC-###`; define server authorization, action permissions, field visibility/editability, sensitive data, impersonation/admin cases, abuse cases and negative tests.
+Security contracts: `F471-SEC-001`, `F471-SEC-002`.
 
 ## [SPEC-SCOPE] Tenant, company, branch, team, owner and record scope
-Define organization isolation, company/branch/location/team/territory/owner/record scope, scope inheritance, cross-company exceptions and authorization-safe queries.
+For **Supplier invoices**, define and verify tenant/company/ledger/branch/dimension/account/record scope and cross-company privilege boundaries. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-AUDIT] Auditability and history
-Define auditable events, actor/channel/time/reason, before/after values, request/correlation IDs, approval/reversal links, retention, tamper resistance and operator-visible history.
+For **Supplier invoices**, define and verify actor/time/reason/source/correlation/approval/posting/period/reversal/reconciliation evidence without secrets. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-CONCURRENCY] Concurrency and conflict handling
-Define optimistic/pessimistic locking, version fields, stale writes, atomic transitions, deadlock avoidance/retry and user-visible conflict recovery.
+For **Supplier invoices**, define and verify row/version locks for posting, allocation, reconciliation, close and report snapshot races. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-IDEMPOTENCY] Idempotency, retry safety and exactly-once business effects
-Define idempotency keys, replay/no-op rules, duplicate prevention, outbox/worker guarantees, retry windows and reconciliation for externally visible effects.
+For **Supplier invoices**, define and verify stable source/external identities for invoices, payments, bank imports, journals, callbacks, reversals and outbox effects. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-INTEGRATIONS] Cross-module and external integrations
-Use `F471-INT-###`; every handoff defines trigger, source owner/state, destination public contract, auth, validation, transaction boundary, retry, failure, audit/event, result, reversal and reconciliation.
+Integration contracts: `F471-INT-001`, `F471-INT-002`.
 
 ## [SPEC-API] Commands, queries and API contracts
-Use `F471-API-###`; define command/query intent, schemas, errors, authorization, pagination/filter/sort, concurrency/idempotency, audit/outbox effects and compatibility/OpenAPI mapping.
+API contract: `F471-API-001`; monetary values/rates use explicit JSON-safe decimal representations rather than raw BigInt.
 
 ## [SPEC-MOBILE] Mobile-specific and offline behavior
-Define mobile entry points, card/workspace adaptations, device features, offline read/write boundaries, sync/conflict behavior and security where applicable.
+For **Supplier invoices**, define and verify mobile approval/read/exception workflows without exposing unsupported full ledger editing. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-RESPONSIVE] Responsive behavior
-Define desktop/laptop/tablet/phone layout, reflow, sticky regions, dense-table alternatives, horizontal boards, touch behavior and parity of critical actions.
+For **Supplier invoices**, define and verify desktop/tablet/phone reflow preserving critical approvals, exceptions, reports and drilldown. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-ACCESSIBILITY] Accessibility contract
-Target WCAG 2.2 AA intent: semantics, labels, keyboard, focus, screen reader, status announcements, errors, target sizing, contrast, reduced motion and non-drag alternatives.
+For **Supplier invoices**, define and verify WCAG 2.2 AA semantics, keyboard/focus, accessible grids/errors/status and non-drag alternatives. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-VISUAL-EVIDENCE] Wireframes, diagrams and visual evidence
-Reference desktop/tablet/mobile wireframes and relevant state/data-flow diagrams under `docs/11-visual-assets/`. Text-only UX is insufficient for major operator workspaces.
+For **Supplier invoices**, define and verify desktop/tablet/mobile workspaces plus posting/reconciliation/close/consolidation data-flow diagrams. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-PERFORMANCE] Performance, scale and data-volume envelope
-Use `F471-PERF-###`; define expected 0/1/100/10k/1m-record behavior where relevant, latency budgets, query limits, pagination/virtualization, async thresholds and bulk-job envelopes.
+Performance contracts: `F471-PERF-001`, `F471-PERF-002`.
 
 ## [SPEC-OBSERVABILITY] Logs, metrics, traces, jobs and support diagnostics
-Use `F471-OBS-###`; define business/technical metrics, structured logs, correlation IDs, background jobs, retries/dead letters, alerts, dashboards and reconciliation/support diagnostics.
+Observability contracts: `F471-OBS-001`, `F471-OBS-002`.
 
 ## [SPEC-EDGE-CASES] Edge cases, abuse cases and recovery
-Cover empty/min/max values, stale references, duplicates, concurrent actors, partial integration failure, timezones/DST, localization, deleted/archived related records, permission changes, retries and recovery.
+For **Supplier invoices**, define and verify zero/negative/large amounts, rounding, duplicate sources, stale periods/rates, partial integrations, retries, reversals, cross-company and timezone failures. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Record exact evidence IDs from `EVIDENCE_REGISTER.csv` with commit SHA, path/symbol/locator, verified behavior and confidence. File names alone are not proof of behavior.
+Current-code evidence `ACC-P12-CE-019` is foundation/gap evidence only and does not certify complete behavior. The audit retains the known money/BigInt JSON boundary as an implementation-risk item.
 
 ## [SPEC-GAPS] Exact gap analysis
-For each target requirement, map current verified evidence and the precise missing behavior. Target scope must not be weakened to match current code.
+For **Supplier invoices**, define and verify target minus verified current evidence, including exact missing financial-control and reconciliation behavior. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Identify likely database/API/module/orchestration/web/mobile/test areas, dependency sequence, migrations, rollout/flags and compatibility risks without writing implementation code during specification passes.
+For **Supplier invoices**, define and verify later DB/domain/orchestration/web/worker/reporting/test areas and dependency order without product-source changes in this pass. Requirement IDs in the control-plane registers are normative and current code never weakens the target.
 
 ## [SPEC-TESTS] Automated test plan
-Define unit/domain, database/RLS, API/contract, authorization-negative, integration/idempotency/retry, performance/volume, migration and reconciliation tests.
+Automated verification includes double-entry/property/golden tests, decimal/rounding/JSON-boundary tests, DB/RLS/SoD negatives, idempotency/race/fault injection, period-close conflicts, subledger/GL/bank/tax reconciliation, migration/opening-balance and performance tests.
 
 ## [SPEC-E2E] Browser and critical-journey E2E
-Use `F471-E2E-###`; define browser/device journeys covering happy, failure, permission, conflict, reversal and cross-module outcomes.
+E2E contracts: `F471-E2E-001`, `F471-E2E-002`.
 
 ## [SPEC-UAT] Human UAT plan
-Use `F471-UAT-###`; define role, prerequisites, exact steps, expected visible/data/audit/downstream outcomes, evidence and sign-off.
+UAT contracts: `F471-UAT-001`, `F471-UAT-002`.
 
 ## [SPEC-DOD] Objective Definition of Done
-Feature-specific DoD must be objectively testable and consistent with parent capability and critical journey gates. A table/API/page alone can never satisfy completion.
+Specification done requires complete requirements/flows/data/security/integration/UX/test/UAT and omission review. This does not certify implementation or Product Ready.
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
-List decision IDs and unresolved assumptions. No material TBD may remain when promoting to `SPECIFICATION_READY`.
+No material placeholder remains for module specification readiness. Tax rates/thresholds/forms, exchange-rate sources, reporting mappings and jurisdiction rules remain governed effective-dated configuration. Enterprise omission audit remains mandatory before architecture freeze.
