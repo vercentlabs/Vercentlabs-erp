@@ -1,0 +1,9 @@
+raid_id,type,priority,description,owner,status,response
+R-001,Risk,P0,Missing authoritative exact 36 shared-platform requirements,Founder/Product Architect,Open,Architecture freeze blocked; obtain approved source list
+R-002,Risk,P1,Semantic/template completeness may create false-positive specification readiness,Product Architect,Open,Feature-specific red-team sample and semantic validator
+R-003,Risk,P1,Benchmark evidence may be attached to semantically irrelevant features,Research QA,Open,Benchmark relevance review and validator
+R-004,Risk,P0,Tenant context can fail if RLS context is not transaction/client scoped,Security Architect,Mitigated,Tenant transaction/RLS standard plus DB negative tests
+R-005,Risk,P0,Cross-module retries can duplicate stock/payment/accounting effects,Integration Architect,Mitigated,Journey idempotency/reversal/reconciliation contracts
+R-006,Risk,P1,Large implementation can diverge visually across modules,UX Architect,Mitigated,Experience Kernel and visual regression gate
+A-001,Assumption,P1,Modular monolith remains target architecture unless ADR changes it,Product Architect,Open,Confirm during architecture freeze
+D-001,Dependency,P0,All implementation waves depend on architecture freeze,Project Manager,Open,Freeze validator must pass before W01

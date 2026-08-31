@@ -1,0 +1,13 @@
+wave_id,name,scope,depends_on,exit_gate
+W00,Architecture & Experience Kernel,Shared platform architecture; Experience Kernel; module public-contract conventions,Planning closure,Architecture freeze passed
+W01,"Identity, tenancy & security platform",Tenant transaction/RLS; auth/session; RBAC/record/field scope; audit,W00,Cross-org negative tests and audit evidence pass
+W02,Durable platform services,Jobs/outbox; notifications; files; search; import/export; integrations; observability,W01,Retry/idempotency/DLQ/security tests pass
+W03,Master data & revenue core,CRM + Sales foundations/customer/item/pricing/quotation/order capabilities,W01;W02,CRM-to-order capability and UAT pass
+W04,Supply chain core,Procurement + Stock + Quality receiving/reservation/warehouse capabilities,W02;W03,Procure-to-stock and stock integrity journeys pass
+W05,Manufacturing operations,BOM/MRP/work orders/consumption/WIP/quality/cost capture,W04,Plan-to-produce and quality-hold journeys pass
+W06,Finance backbone,Accounting GL/subledgers/tax/bank/close and deterministic posting APIs,W01;W02,"Double-entry, period-lock and subledger reconciliation pass"
+W07,Commercial-to-cash integration,Sales/Stock/POS/Projects to Accounting,W03;W04;W06,Order/POS/Project-to-cash journeys pass
+W08,People & asset operations,HR/Payroll + Assets with payroll/asset accounting handoffs,W06,Hire-to-payroll-to-books and asset-to-books pass
+W09,Service operations,Support/customer service linked to CRM/Sales/Assets/Quality,W03;W08,Service-to-resolution journey passes
+W10,AI assistive layer,"Authorization-safe retrieval, copilots, recommendations and approval-gated actions",W01-W09,AI eval/security/rollback gates pass
+W11,Enterprise certification,"Scale, security, accessibility, DR, migration rehearsal, pilot and production readiness",W00-W10,Enterprise readiness gate passes

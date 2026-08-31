@@ -22,3 +22,7 @@ python docs/scripts/validate_support_pass10.py
 python docs/scripts/validate_hr_payroll_pass11.py
 python docs/scripts/validate_accounting_pass12.py
 python docs/scripts/validate_enterprise_audit.py
+
+if [[ -f docs/scripts/validate_planning_closure.py ]]; then
+  python docs/scripts/validate_planning_closure.py
+fi
