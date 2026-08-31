@@ -3,11 +3,11 @@
 - Pass: 10
 - Canonical range: F343–F380
 - Feature count: 38
-- Product boundary: Case management, SLAs, routing, customer service and customer 360
-- Specification status: `UNSPECIFIED`
+- Product boundary: Customer-service case intake, assignment, conversation, SLA/entitlement, knowledge, self-service and service analytics
+- Specification status: `SPECIFICATION_READY`
 
-## Pass exit criteria
-Research complete; capability map approved; all canonical dossiers in this range fully decomposed; primary/alternate/exception/reversal flows modelled; data/API/security/integration contracts written; desktop/tablet/mobile/accessibility behavior specified; tests/UAT written; current-code gaps mapped; red-team omission review passed.
+## Enterprise architecture
+Support is a governed case/conversation system, not a generic ticket table. Public commands own ticket state, assignment, communication visibility, SLA/entitlement evaluation and history. Cross-module context is consumed through public contracts. Private notes/attachments remain separately permissioned. Durable jobs are idempotent and auditable.
 
-## Architecture rule
-F-IDs are traceability anchors. Implementation should converge on coherent module capabilities and public commands/queries rather than one directory/service per F-ID.
+## Pass 10 exit decision
+Research, capability modelling, requirement decomposition, UX, security, SLA/routing/threading/merge/portal contracts, cross-module integration, testing/UAT and red-team omission review are complete for the specification axis. Implementation/product readiness is not certified.

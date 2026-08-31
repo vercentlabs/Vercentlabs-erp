@@ -1,0 +1,5 @@
+# Support Pass 10 Research Summary
+
+Pass 10 benchmarks official Microsoft Dynamics 365 Customer Service, Zendesk, ServiceNow, Odoo Helpdesk and WCAG 2.2 guidance. The target is an enterprise service-control plane: canonical case identity, deduplicated channel ingestion, governed routing, deterministic business-calendar SLA clocks, strict public/private conversation boundaries, knowledge/self-service, effective-dated entitlement context and reproducible analytics/audit.
+
+Current Vercentlabs foundations include Support settings/categories/queues/members, SLA policies, tickets, status/assignment history, communications with private-note flag, escalation policies/events, knowledge articles/links, dashboard counts and Support permissions/API routes. Gaps remain around robust email threading/loop prevention, attachment security pipeline, full routing/schedule semantics, SLA event-clock persistence, merge workflow, customer portal isolation, entitlement evaluation, CSAT workflow, mature analytics, mobile and fault-injection evidence. Current code is evidence, not the requirements source.
