@@ -190,3 +190,23 @@ Done means approved dossier requirements, benchmark + code evidence, capability/
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder blocks specification readiness. Payment-provider, fiscal-invoice and jurisdiction-specific GST/UPI implementation choices remain configurable/integration decisions and must not weaken deterministic transaction/reconciliation contracts.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F289-SEM-01` — **Checkout/session/shift transaction lifecycle**: Define terminal/session/cart/sale/return/shift states, immutable transaction identity and offline identity strategy.
+- `F289-SEM-02` — **Store/terminal/cart/tender/customer/receipt linkage**: Freeze line/tax/discount/tender/stock/customer/lot-serial/cash-drawer data and original-sale linkage.
+- `F289-SEM-03` — **Price/tax/promotion/tender/return rules**: Define price precedence, tax and promotion stacking, split tender, return/refund/exchange policy and loyalty earn/redeem/reversal.
+- `F289-SEM-04` — **Cashier/manager/terminal/payment authority**: Enforce terminal identity, cashier permissions, manager overrides, PCI data minimization and cash/refund SoD.
+- `F289-SEM-05` — **Touch/scanner/printer/offline checkout experience**: Cover fast search/scan/cart/payment/hold-resume/receipt, peripheral failures, offline feedback, keyboard/touch accessibility.
+- `F289-SEM-06` — **Stock/payment/accounting/customer contracts**: Use idempotent payment callbacks, atomic stock effects, customer context and retry-safe accounting posting/reconciliation.
+- `F289-SEM-07` — **Last-unit race, uncertain payment, offline replay and refund duplication**: Handle concurrent terminal sales, timeout-after-authorization, duplicate offline IDs, sync conflicts and replay-safe returns.
+- `F289-SEM-08` — **Payment/stock/offline/cash reconciliation verification**: Require fault injection, duplicate callbacks, stock races, offline sync, till/Z reconciliation, E2E and UAT.
+
+Cross-module context: **Sales;Stock / Inventory;CRM;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP014;SP015;SP016;SP017;SP022;SP024;SP025;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

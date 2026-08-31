@@ -208,3 +208,23 @@ Objective completion requires approved requirements with implementation/test evi
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder remains for Pass 5 specification readiness. Implementation-time policies (finite/infinite scheduling, overproduction tolerance, backflush points, co-product allocation, subcontract ownership, labor/rate treatment, period/backdating rules) must be explicit configuration/decisions and cannot weaken deterministic manufacturing, inventory, quality or financial invariants.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F177-SEM-01` — **Feature-specific lifecycle and operator outcome**: Freeze entry conditions, valid states/actions, terminal outcomes and explicit non-goals for this feature. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F177-SEM-02` — **Authoritative data, relationships and historical truth**: Define identifiers, required/optional fields, references, effective dates, lineage, retention and immutable historical facts.
+- `F177-SEM-03` — **Eligibility, validation, precedence and invariant rules**: Specify server-side guards, configuration precedence, deterministic decisions and actionable failure messages. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F177-SEM-04` — **Role, scope, sensitive field and override authority**: Define permissions, tenant/company/branch/team/owner scope, field visibility and privileged override audit.
+- `F177-SEM-05` — **Primary/alternate/exception operator workflow**: Cover list/search/detail/create/edit/actions, bulk behavior, empty/error/conflict states, responsive/mobile applicability and accessibility.
+- `F177-SEM-06` — **Cross-module/external ownership and contract boundaries**: Identify authoritative owner, public commands/queries, event/outbox effects, idempotency and reconciliation. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F177-SEM-07` — **Concurrency, duplicate, retry, cancellation and recovery**: Define stale writes, duplicate submissions, retries, partial integration failure, reversal/compensation and exception queues. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F177-SEM-08` — **Audit, observability, automated tests and UAT**: Require auditable state changes, metrics/logs, negative/concurrency/integration tests, E2E and human sign-off.
+
+Cross-module context: **Stock / Inventory;Procurement;Quality;Assets;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP019;SP022;SP024;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

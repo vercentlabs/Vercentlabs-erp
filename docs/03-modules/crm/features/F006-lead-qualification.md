@@ -217,3 +217,23 @@ Specification DoD is satisfied when all materialized `F006-*` requirements are a
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No material specification blocker remains. Implementation-time choices (exact component composition, migration mechanics, provider adapters and measured performance tuning) must remain within these contracts and be recorded as new decision IDs if they change behavior. Sales F036 is not pre-certified; only the CRM side of F023's public handoff is fixed here.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F006-SEM-01` — **Decision request, eligibility and lifecycle**: Define trigger, candidate records, pending/approved/rejected/reassigned/escalated states and terminal/reopen behavior. Lead capture/identity/qualification/assignment/conversion context must remain distinct from customer/account truth.
+- `F006-SEM-02` — **Decision context, evidence, reason and delegation**: Store decision inputs, approver/assignee, reasons, evidence, effective time, delegation/escalation and immutable history.
+- `F006-SEM-03` — **Deterministic routing, thresholds and precedence**: Define routing/ranking/eligibility rules, thresholds, calendars, fallback, overrides and tie-breaking. Lead capture/identity/qualification/assignment/conversion context must remain distinct from customer/account truth.
+- `F006-SEM-04` — **Authority, segregation of duties and override governance**: Block self-approval where prohibited, scope decisions by role/company/team and audit privileged overrides.
+- `F006-SEM-05` — **Queue, action, explanation and exception experience**: Provide work queues, bulk-safe actions, reasons, SLA/age, conflict feedback, responsive/mobile approval and accessibility.
+- `F006-SEM-06` — **Trigger and downstream side-effect contracts**: Define source event, public command, notifications, downstream state and exactly-once/reconciliation behavior. Lead capture/identity/qualification/assignment/conversion context must remain distinct from customer/account truth.
+- `F006-SEM-07` — **Race, withdrawal, supersession and retry recovery**: Handle simultaneous actors, changed source state, withdrawn request, duplicate job, retry and manual exception resolution. Lead capture/identity/qualification/assignment/conversion context must remain distinct from customer/account truth.
+- `F006-SEM-08` — **Decision audit and negative-path verification**: Require routing tests, SoD tests, concurrency tests, notification/outbox tests, E2E and UAT evidence.
+
+Cross-module context: **Sales;Support / Customer Service**.
+Shared-platform dependencies: `SP008;SP009;SP014;SP015;SP017;SP018;SP020;SP021;SP023;SP024;SP030;SP033;SP036`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

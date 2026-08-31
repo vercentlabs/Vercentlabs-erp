@@ -208,3 +208,23 @@ Objective completion requires approved requirements with implementation/test evi
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder remains for Pass 5 specification readiness. Implementation-time policies (finite/infinite scheduling, overproduction tolerance, backflush points, co-product allocation, subcontract ownership, labor/rate treatment, period/backdating rules) must be explicit configuration/decisions and cannot weaken deterministic manufacturing, inventory, quality or financial invariants.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F175-SEM-01` — **Production definition/execution lifecycle**: Define version/effectivity or planned/released/in-progress/completed/closed states appropriate to the feature.
+- `F175-SEM-02` — **Material, operation, resource, quantity and revision lineage**: Freeze BOM/routing/order/resource links, UOM, revisions, batches/serials, time/cost inputs and genealogy.
+- `F175-SEM-03` — **Material/capacity/sequence/yield/cost rules**: Define availability, reservations, sequencing, capacity calendars, consumption, yield/scrap and deterministic costing behavior.
+- `F175-SEM-04` — **Planner/operator/supervisor authority and plant scope**: Enforce plant/work-centre/order scope, release/close/rework authority and maker-checker where financially material.
+- `F175-SEM-05` — **Planning/shop-floor execution and exception workspace**: Cover planning boards, job/work views, scan/issue/consume/complete actions, downtime/rework, mobile/tablet and accessibility.
+- `F175-SEM-06` — **Stock/quality/assets/procurement/accounting contracts**: Define public movements, quality gates, maintenance impacts, subcontracting and costing/accounting handoffs.
+- `F175-SEM-07` — **Shortage, capacity conflict, partial completion, rework and reversal**: Handle shortage/race, over/under consumption, failed operations, rework/scrap, cancellation and reconciliation.
+- `F175-SEM-08` — **MRP/material/genealogy/cost invariant verification**: Require deterministic planning/cost goldens, concurrency, traceability, integration journeys and UAT.
+
+Cross-module context: **Stock / Inventory;Procurement;Quality;Assets;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP019;SP022;SP024;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

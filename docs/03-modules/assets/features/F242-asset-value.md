@@ -209,3 +209,23 @@ Done means approved dossier requirements, benchmark + code evidence, capability/
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder blocks specification readiness. Phased implementation choices such as first-release depreciation books/components/CIP breadth may be narrowed only by explicit change-control decisions without weakening the target enterprise data model.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F242-SEM-01` — **Asset lifecycle from acquisition through disposal**: Define acquired/CIP/capitalized/in-service/held/disposed states, transfers/assignments and effective-dated ownership/custody.
+- `F242-SEM-02` — **Asset identity, book/value/location/custody/maintenance history**: Freeze identifiers, category, cost/value, useful life, salvage, books, location/custodian, maintenance and source lineage.
+- `F242-SEM-03` — **Capitalization/depreciation/revaluation/maintenance/disposal rules**: Define thresholds/effectivity, depreciation methods/conventions, impairment/revaluation, maintenance/calibration and gain/loss behavior.
+- `F242-SEM-04` — **Custody/finance/maintenance authority and SoD**: Separate create/capitalize/transfer/revalue/dispose/post authority and protect financial/sensitive asset data.
+- `F242-SEM-05` — **Register, custody, maintenance, verification and disposal workspace**: Cover barcode/QR, field verification, transfer/assignment, maintenance/inspection, financial book view, mobile and accessibility.
+- `F242-SEM-06` — **Procurement/hr/projects/accounting contracts**: Create from procurement, link employee/project custody, post depreciation/disposal via public finance contracts and reconcile.
+- `F242-SEM-07` — **Partial transfer/disposal, backdating, book lock and missing asset recovery**: Handle concurrent custody changes, retro changes, locked periods, duplicate posting, lost/damaged assets and reversals.
+- `F242-SEM-08` — **Depreciation/book/custody/reconciliation verification**: Require calculation goldens, effective-date tests, barcode verification, accounting reconciliation, E2E and UAT.
+
+Cross-module context: **Procurement;HR & Payroll;Projects;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP019;SP022;SP024;SP030;SP031;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

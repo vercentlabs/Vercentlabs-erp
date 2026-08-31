@@ -169,3 +169,23 @@ Specification done requires complete requirements/flows/data/security/integratio
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No material placeholder remains for module specification readiness. Tax rates/thresholds/forms, exchange-rate sources, reporting mappings and jurisdiction rules remain governed effective-dated configuration. Enterprise omission audit remains mandatory before architecture freeze.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F461-SEM-01` — **Definition, lifecycle and active/inactive semantics**: Define creation, uniqueness, lifecycle, effective use and archival without destroying historical references.
+- `F461-SEM-02` — **Identity, hierarchy and reference integrity**: Freeze canonical identifiers, parent/child or classification relationships, required fields, deduplication and historical reference behavior.
+- `F461-SEM-03` — **Defaults, precedence and effective dating**: Define configuration scope, defaults, overrides, precedence, future-dated changes and non-retroactive history.
+- `F461-SEM-04` — **Administration and field-level authority**: Separate view/use/manage authority, sensitive fields, cross-company scope and unauthorized reference prevention.
+- `F461-SEM-05` — **Search, selection, maintenance and bulk administration**: Cover list/search/select/create/edit/archive, bulk changes, imports, exports, conflicts and accessible responsive maintenance.
+- `F461-SEM-06` — **Downstream consumption contract**: Define how dependent modules reference this configuration without duplicating ownership or mutating private tables.
+- `F461-SEM-07` — **Deletion, merge, duplicate and stale-reference recovery**: Handle duplicate definitions, attempted delete-in-use, merge/remap where legal and deterministic operator errors.
+- `F461-SEM-08` — **Audit, reporting and verification evidence**: Require before/after history, usage visibility, negative tests, migration tests and UAT proving downstream consistency.
+
+Cross-module context: **Sales;Procurement;Stock / Inventory;Manufacturing;Projects;Assets;Point of Sale;HR & Payroll**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP019;SP022;SP023;SP024;SP027;SP030;SP031;SP033;SP036`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

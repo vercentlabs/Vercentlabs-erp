@@ -208,3 +208,23 @@ Automated plan includes unit/domain hierarchy and billing rules; DB constraints/
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder blocks `SPECIFICATION_READY`. Implementation-time product choices (for example exact visual density or optional scheduling heuristics) must stay within the approved invariants and be recorded through change control.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F204-SEM-01` — **Project planning/execution/financial lifecycle**: Define planned/active/on-hold/completed/closed/reopened semantics and baseline/change control where applicable.
+- `F204-SEM-02` — **WBS/task/resource/time/cost/revenue linkage**: Freeze hierarchy, dependencies, milestones, assignments, time/expense/material/procurement/budget/billing and history.
+- `F204-SEM-03` — **Schedule/resource/budget/progress/billing rules**: Define dependency cycles, capacity, progress rollups, budget revisions, billing eligibility and profitability formulas.
+- `F204-SEM-04` — **Project/team/financial authority and SoD**: Enforce project/team/customer scope, time approval, budget/billing authority and restricted margin/cost visibility.
+- `F204-SEM-05` — **Plan/board/Gantt/calendar/team/financial workspace**: Provide desktop planning, task boards, Gantt/calendar, mobile assigned work/time/expense/approval and accessibility.
+- `F204-SEM-06` — **Sales/procurement/stock/hr/accounting/assets contracts**: Use public contracts for initiation, commitments, materials, resource time, invoices, assets and profitability reconciliation.
+- `F204-SEM-07` — **Dependency cycle, stale baseline, overrun, retro time and close/reopen recovery**: Handle concurrent planning, failed procurement/billing, retro actuals, partial close and controlled reopen.
+- `F204-SEM-08` — **Graph/budget/profitability/reconciliation verification**: Require cycle tests, financial invariants, integration journeys, role-negative E2E and UAT.
+
+Cross-module context: **Sales;Procurement;Stock / Inventory;HR & Payroll;Accounting / Finance;Assets**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP017;SP019;SP024;SP030;SP031;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

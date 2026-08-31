@@ -190,3 +190,23 @@ Done means approved 54-section dossiers, 21-type requirements, official benchmar
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder blocks specification readiness. Jurisdiction/industry-specific regulatory retention/e-signature/CoA fields, statistical sampling tables and external laboratory/instrument adapters remain configurable implementation decisions and must not weaken deterministic quality/evidence/hold/authorization contracts.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F312-SEM-01` — **Quality definition/inspection/nonconformance lifecycle**: Define specification/plan/inspection/result/hold/NCR/CAPA states and effectivity where applicable.
+- `F312-SEM-02` — **Characteristic, sample, measurement, defect and evidence model**: Store units, precision, instrument, sample/lot, results, defects, documents and immutable correction history.
+- `F312-SEM-03` — **Sampling, tolerance, pass/fail and disposition rules**: Specify deterministic acceptance, severity, sample selection, calibration validity, hold and disposition eligibility.
+- `F312-SEM-04` — **Inspector/quality-manager authority and maker-checker**: Separate perform/review/release/use-as-is authority, protect controlled documents and scope by plant/site/quality team.
+- `F312-SEM-05` — **Inspection, scan, exception, CAPA and audit workspace**: Support tablet/mobile capture, barcode/lot scan, offline boundary, queues, attachments, signatures/approvals and accessibility.
+- `F312-SEM-06` — **Stock/manufacturing/procurement/support/assets contracts**: Quality holds must atomically block relevant stock/manufacturing commands; supplier/customer/calibration links use public contracts.
+- `F312-SEM-07` — **Concurrent hold/release, correction, repeated disposition and instrument failure**: Handle races, duplicate results, invalid calibration, rework/scrap/RTS replay and controlled corrections.
+- `F312-SEM-08` — **Tolerance/hold/race/traceability verification**: Require deterministic pass/fail tests, atomic hold race tests, genealogy, security negatives, E2E and UAT.
+
+Cross-module context: **Procurement;Stock / Inventory;Manufacturing;Support / Customer Service;Assets**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP019;SP022;SP024;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

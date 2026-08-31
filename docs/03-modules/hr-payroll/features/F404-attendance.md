@@ -169,3 +169,23 @@ Specification done requires complete requirements/flows/data/security/integratio
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No material unresolved placeholder remains for specification readiness. Statutory rates/ceilings/forms remain maintained effective-dated configuration from authoritative sources.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F404-SEM-01` — **Schedule/time/leave lifecycle and authoritative source**: Define planned, recorded, corrected, approved/locked states and authoritative time/leave balances.
+- `F404-SEM-02` — **Shift, punch, calendar, leave and timezone model**: Store source/device, timezone, shift/calendar, punch intervals, leave periods, balances, approvals and correction lineage.
+- `F404-SEM-03` — **Overlap, lateness, overtime, accrual and balance rules**: Define timezone/DST, duplicates, grace, overtime, accrual/proration, carry-forward, holiday and negative-balance policy.
+- `F404-SEM-04` — **Employee/manager/HR approval and privacy boundaries**: Enforce self/manager/team scope, regularization/leave approval authority, SoD and sensitive attendance visibility.
+- `F404-SEM-05` — **Employee/manager mobile-first time and leave workflow**: Cover check-in/out, requests, balances, calendar, approvals, corrections, offline/device states and accessibility.
+- `F404-SEM-06` — **Payroll/project time and notification contracts**: Freeze approved snapshots consumed by payroll/projects; later corrections create explicit retro/reconciliation effects.
+- `F404-SEM-07` — **Duplicate punch, overlap, offline replay and payroll-lock conflict**: Handle device replay, missing punch, concurrent approval, retro correction during locked payroll and exception queues.
+- `F404-SEM-08` — **Temporal/property/payroll-snapshot verification**: Require DST/timezone tests, duplicate/replay tests, balance properties, payroll integration, E2E and UAT.
+
+Cross-module context: **Projects;Assets;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP012;SP014;SP015;SP016;SP017;SP019;SP023;SP024;SP028;SP030;SP033;SP034;SP036`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

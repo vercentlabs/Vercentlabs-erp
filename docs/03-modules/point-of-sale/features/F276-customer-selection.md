@@ -190,3 +190,23 @@ Done means approved dossier requirements, benchmark + code evidence, capability/
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder blocks specification readiness. Payment-provider, fiscal-invoice and jurisdiction-specific GST/UPI implementation choices remain configurable/integration decisions and must not weaken deterministic transaction/reconciliation contracts.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F276-SEM-01` — **Decision request, eligibility and lifecycle**: Define trigger, candidate records, pending/approved/rejected/reassigned/escalated states and terminal/reopen behavior.
+- `F276-SEM-02` — **Decision context, evidence, reason and delegation**: Store decision inputs, approver/assignee, reasons, evidence, effective time, delegation/escalation and immutable history.
+- `F276-SEM-03` — **Deterministic routing, thresholds and precedence**: Define routing/ranking/eligibility rules, thresholds, calendars, fallback, overrides and tie-breaking.
+- `F276-SEM-04` — **Authority, segregation of duties and override governance**: Block self-approval where prohibited, scope decisions by role/company/team and audit privileged overrides.
+- `F276-SEM-05` — **Queue, action, explanation and exception experience**: Provide work queues, bulk-safe actions, reasons, SLA/age, conflict feedback, responsive/mobile approval and accessibility.
+- `F276-SEM-06` — **Trigger and downstream side-effect contracts**: Define source event, public command, notifications, downstream state and exactly-once/reconciliation behavior.
+- `F276-SEM-07` — **Race, withdrawal, supersession and retry recovery**: Handle simultaneous actors, changed source state, withdrawn request, duplicate job, retry and manual exception resolution.
+- `F276-SEM-08` — **Decision audit and negative-path verification**: Require routing tests, SoD tests, concurrency tests, notification/outbox tests, E2E and UAT evidence.
+
+Cross-module context: **Sales;Stock / Inventory;CRM;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP014;SP015;SP016;SP017;SP022;SP024;SP025;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

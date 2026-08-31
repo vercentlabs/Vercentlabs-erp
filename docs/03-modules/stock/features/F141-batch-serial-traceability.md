@@ -207,3 +207,23 @@ Objective completion requires approved requirements with implementation/test evi
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder remains for Pass 4 specification readiness. Implementation-time configuration choices (for example permitted negative-stock exceptions, valuation method by item group, removal strategy and warehouse work policy) must be recorded as explicit decisions and cannot weaken deterministic inventory invariants.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F141-SEM-01` — **Stock-state lifecycle and authoritative ledger effect**: Define movement/reservation/hold/availability lifecycle and make the stock ledger the authoritative quantity history. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F141-SEM-02` — **Item, warehouse/bin, lot/serial/UOM and ownership dimensions**: Freeze quantity dimensions, locations, tracking identifiers, ownership/status and source-document lineage.
+- `F141-SEM-03` — **Availability, negative-stock, reservation and valuation guards**: Define available/ATP logic, allocation precedence, UOM conversion, tracking requirements, holds and negative-stock policy. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F141-SEM-04` — **Warehouse/location/action scope and controlled overrides**: Enforce company/warehouse/bin/action scope, restricted stock states and audited override authority.
+- `F141-SEM-05` — **Scan/select/move/count/exception workflow**: Cover barcode/manual entry, work queues, bulk/scanner use, partial completion, conflicts, mobile/offline boundaries and accessibility.
+- `F141-SEM-06` — **Sales/procurement/manufacturing/quality/accounting contracts**: Use public commands for reservations/movements/holds and publish idempotent effects for valuation/accounting/reconciliation. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F141-SEM-07` — **Last-unit race, duplicate movement, reversal and reconciliation**: Handle concurrent demand, stale availability, duplicate scans/submits, partial failure, reversal and orphan reconciliation. Identifier uniqueness, genealogy, split/merge, correction and end-to-end trace semantics must be explicit.
+- `F141-SEM-08` — **Ledger invariant, concurrency, traceability and UAT tests**: Require non-negative/allowed-negative invariants, lot/serial trace, race tests, reconciliation, E2E and human UAT.
+
+Cross-module context: **Sales;Procurement;Manufacturing;Quality;Point of Sale;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP014;SP015;SP016;SP020;SP022;SP023;SP024;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.

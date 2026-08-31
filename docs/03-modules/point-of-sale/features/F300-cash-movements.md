@@ -190,3 +190,23 @@ Done means approved dossier requirements, benchmark + code evidence, capability/
 
 ## [SPEC-OPEN-DECISIONS] Open decisions, assumptions and risks
 No unresolved material placeholder blocks specification readiness. Payment-provider, fiscal-invoice and jurisdiction-specific GST/UPI implementation choices remain configurable/integration decisions and must not weaken deterministic transaction/reconciliation contracts.
+
+## [PASS-B-SEMANTIC-FREEZE]
+
+Status: `APPROVED` — Final Pass B semantic/sub-feature review.
+
+The canonical F-ID remains unchanged. The following mandatory enterprise semantic scopes are owned by this dossier and must be represented by implementation/test evidence before `FEATURE_READY`:
+
+- `F300-SEM-01` — **Money-movement lifecycle and processor/bank truth**: Define initiated/pending/authorized/settled/failed/voided/refunded/reconciled states and authoritative external truth.
+- `F300-SEM-02` — **Tender/account/allocation/reference model**: Store amount, currency, account/tender, allocation, external reference, idempotency key and immutable reconciliation evidence.
+- `F300-SEM-03` — **Amount, allocation, eligibility and settlement rules**: Define allowed methods, partial/split allocation, over/under payment, rounding, settlement dates and policy constraints.
+- `F300-SEM-04` — **Payment authority, PCI/PII boundary and SoD**: Minimize sensitive payment data, separate initiate/approve/reconcile authority and protect bank/payment details.
+- `F300-SEM-05` — **Initiate, confirm, uncertain-state and reconciliation experience**: Show pending/uncertain outcomes, duplicate prevention, retry guidance, allocation, receipt and accessible operator feedback.
+- `F300-SEM-06` — **Gateway/bank/accounting contract**: Define request/response/webhook, signature validation, callback dedupe, posting/outbox and reconciliation contracts.
+- `F300-SEM-07` — **Timeout-after-success, replay, reversal and charge/refund races**: Handle unknown outcome, duplicate callback, retry, void/refund replay, partial settlement and exception queue.
+- `F300-SEM-08` — **Idempotency, fault-injection and financial reconciliation tests**: Require callback replay, timeout fault injection, duplicate prevention, ledger reconciliation, E2E and UAT.
+
+Cross-module context: **Sales;Stock / Inventory;CRM;Accounting / Finance**.
+Shared-platform dependencies: `SP008;SP009;SP014;SP015;SP016;SP017;SP022;SP024;SP025;SP030;SP033;SP034`.
+
+Pass B decision: **no new canonical F-ID required**; mature behavior expands this feature dossier rather than fragmenting the F001–F510 register.
