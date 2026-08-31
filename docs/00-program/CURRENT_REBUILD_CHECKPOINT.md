@@ -1,31 +1,34 @@
 # Current Rebuild Checkpoint
 
-## Completed
-- Documentation bootstrap and audit hardening completed.
-- Exact canonical F001–F510 fingerprint enforced.
-- Feature Dossier schema upgraded to v3.0.0.
-- Separate working-status and readiness-gate axes installed.
-- Expanded nested requirement taxonomy installed.
-- Evidence, decision, capability, dependency, benchmark, journey and readiness control-plane registers installed.
-- Official research source library seeded without fabricating benchmark findings.
-- Reference, benchmark and readiness validators installed.
+## Current authoritative state
+- Canonical business authority: F001-F510 preserved.
+- Canonical business specifications: 510/510 specification-ready.
+- Shared-platform authority: 36/36 specification-ready.
+- Semantic review: 510/510 approved.
+- Flow/state review: 510/510 approved.
+- Benchmark relevance review: 510/510 approved.
+- Master traceability graph: 20,202 obligations.
+- Planned verification register: 20,202 obligations.
+- Enterprise journeys: 121/121 specification-ready.
+- Final Pass-F implementation authorization review: approved.
+- Sole accountable human role: Project Manager.
+- Canonical implementation sequence: `T00 → T01 → W01 → … → W15`, governed by predecessor evidence.
+- Calendar timeline policy: `NO_CALENDAR_TIMELINE_BASELINED`.
 
-## Critical truth
-All 510 canonical feature dossiers remain intentionally `UNSPECIFIED` / `NONE`. The v3 migration implements the research and governance system; it does **not** pretend that every advanced subfeature has already been researched and approved.
+## Gate decision
+- PLANNING CLOSURE: PASS
+- PM PLANNING BASELINE: PASS
+- ARCHITECTURE FREEZE: PASS
+- IMPLEMENTATION AUTHORIZATION: PASS
+
+## Important boundary
+Implementation has not been marked complete by this planning pass. Product readiness and production authorization remain future evidence gates.
+
+## Next authorized action
+Begin `T00` only when the Project Manager chooses to begin. No start date, finish date, deadline, duration or delivery forecast is implied.
 
 ## Mandatory validation
 ```bash
 bash docs/scripts/validate_blueprint.sh
+python docs/scripts/validate_pm_planning.py
 ```
-
-## Next task
-**Pass 1 / 12 — CRM F001–F030 — evidence-backed specification only.**
-
-Pass 1 must populate actual researched subfeatures, benchmark evidence, capability contracts, current-code evidence, requirements, flows, UX/data/security/API/integration design, tests/E2E/UAT and red-team omission review before any CRM dossier can reach `SPECIFICATION_READY`.
-
-## Post-Pass-12 enterprise audit
-
-- Enterprise documentation omission audit installed on 2026-08-31.
-- Architecture freeze is **BLOCKED** while freeze-blocking findings remain open.
-- Run `python docs/scripts/check_architecture_freeze.py` for the explicit freeze decision.
-- Product implementation remains out of scope until documentation remediation and architecture freeze complete.

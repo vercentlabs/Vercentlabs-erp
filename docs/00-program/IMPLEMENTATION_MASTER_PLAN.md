@@ -1,6 +1,6 @@
 # ERP Implementation Master Plan
 
-Status: `PLANNING_CLOSURE`
+Status: `PLANNING_BASELINED`
 
 ## Execution principle
 Implement by coherent capability waves and dependency order, not F-ID order. F001-F510 remain traceability anchors.
@@ -16,3 +16,9 @@ Implement by coherent capability waves and dependency order, not F-ID order. F00
 
 ## Exit rule
 No implementation wave is COMPLETE because code merged. Completion requires capability acceptance criteria, negative authorization tests, data/state invariants, integration reconciliation, responsive/accessibility evidence and UAT.
+
+
+## Sole-person PM baseline
+Implementation is governed by `SOLE_PROJECT_MANAGER_OPERATING_MODEL.md`, `SCHEDULE_MANAGEMENT_POLICY.md`, `PROJECT_CAPACITY_PLAN.md`, `PROJECT_COST_MANAGEMENT_PLAN.md`, `STAKEHOLDER_MANAGEMENT_PLAN.md`, `COMMUNICATIONS_PLAN.md`, `PROCUREMENT_EXTERNAL_SERVICES_PLAN.md` and `IMPLEMENTATION_SEQUENCE_BASELINE.csv`.
+
+The sole accountable owner is Project Manager and human WIP is one wave. The sequence is dependency/evidence based only; `NO_CALENDAR_TIMELINE_BASELINED` means there are no planning dates, deadlines, durations, effort-hour commitments or delivery forecasts.

@@ -1,15 +1,14 @@
 # AI Operating Model for a One-Person ERP Program
 
-Use separate AI roles against the same repository truth. A writer must not self-approve.
+Status: `PM_BASELINE_FROZEN`
 
-| Role | Responsibility | Cannot self-approve |
-|---|---|---|
-| Product Manager | scope, capability map, dependencies, checkpoints | detailed feature completeness |
-| Researcher | official benchmark/source evidence | product decision |
-| Specification Writer | dossiers and normative requirements | research completeness |
-| UX Designer | IA, workspaces, wireframes, responsive/mobile | domain correctness |
-| Domain Architect | data/state/API/integrations | own red-team review |
-| QA Engineer | tests, E2E, UAT, edge cases | implementation claims |
-| Red-team Reviewer | omissions, inconsistencies, unsupported assumptions | original draft |
+There is one accountable human role: **Project Manager**. AI is a tool, not a project assignee.
 
-Every new chat/session begins from repository checkpoints and ends by updating evidence, registers, validators and the checkpoint. The conversation is disposable; the repository is authoritative.
+## Functional AI review lenses
+The Project Manager may ask separate AI sessions/lenses to act as product analysis, research, specification, UX, domain architecture, security, QA, SRE or red-team reviewers. These labels exist only to improve review independence and focus.
+
+They do **not** create additional people, owners, approvers or accountable roles. A drafting AI lens should not be treated as evidence that its own work was independently validated; another review lens may challenge it, but final acceptance remains a Project Manager decision backed by repository validators/evidence.
+
+Every new AI session begins from repository checkpoints and authoritative registers and ends by updating evidence, registers, validators and the checkpoint when project truth changes. The conversation is disposable; the repository is authoritative.
+
+AI must not invent calendar dates, deadlines, duration estimates, effort-hour estimates or delivery forecasts. The current timeline policy is `NO_CALENDAR_TIMELINE_BASELINED`.

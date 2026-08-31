@@ -1,0 +1,7 @@
+cost_id,category,cost_type,authorized_amount_inr,estimate_basis,approval_status,accountable_owner,change_trigger
+CB-001,Development hardware/software purchases,INCREMENTAL_CASH,0,No new purchase is authorized by the current repository baseline,NOT_AUTHORIZED_UNTIL_CHANGE,Project Manager,Before any new development hardware/software purchase
+CB-002,Paid AI/API/SaaS services,EXTERNAL_SERVICE,0,No paid provider/pricing authority is frozen in the repository,NOT_AUTHORIZED_UNTIL_CHANGE,Project Manager,Before enabling any paid AI/API/SaaS plan
+CB-003,Development/staging hosting and database,EXTERNAL_INFRASTRUCTURE,0,Runtime architecture exists but provider/pricing is not frozen,NOT_AUTHORIZED_UNTIL_CHANGE,Project Manager,Before first paid development/staging deployment
+CB-004,Observability/backup/storage providers,EXTERNAL_INFRASTRUCTURE,0,Operational requirements exist; provider/pricing is not selected,NOT_AUTHORIZED_UNTIL_CHANGE,Project Manager,Before selecting a paid observability/backup/storage provider
+CB-005,Razorpay production transaction charges,OPERATING_COST,0,Live transaction charges are operational and usage-dependent,NOT_AUTHORIZED_UNTIL_CHANGE,Project Manager,Before production billing activation
+CB-006,Production hosting/release services,OPERATING_COST,0,Production provider and usage are not selected in the planning source,NOT_AUTHORIZED_UNTIL_CHANGE,Project Manager,Before production-service commitment

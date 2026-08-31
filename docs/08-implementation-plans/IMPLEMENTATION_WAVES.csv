@@ -1,13 +1,18 @@
-wave_id,name,scope,depends_on,exit_gate
-W00,Architecture & Experience Kernel,Shared platform architecture; Experience Kernel; module public-contract conventions,Planning closure,Architecture freeze passed
-W01,"Identity, tenancy & security platform",Tenant transaction/RLS; auth/session; RBAC/record/field scope; audit,W00,Cross-org negative tests and audit evidence pass
-W02,Durable platform services,Jobs/outbox; notifications; files; search; import/export; integrations; observability,W01,Retry/idempotency/DLQ/security tests pass
-W03,Master data & revenue core,CRM + Sales foundations/customer/item/pricing/quotation/order capabilities,W01;W02,CRM-to-order capability and UAT pass
-W04,Supply chain core,Procurement + Stock + Quality receiving/reservation/warehouse capabilities,W02;W03,Procure-to-stock and stock integrity journeys pass
-W05,Manufacturing operations,BOM/MRP/work orders/consumption/WIP/quality/cost capture,W04,Plan-to-produce and quality-hold journeys pass
-W06,Finance backbone,Accounting GL/subledgers/tax/bank/close and deterministic posting APIs,W01;W02,"Double-entry, period-lock and subledger reconciliation pass"
-W07,Commercial-to-cash integration,Sales/Stock/POS/Projects to Accounting,W03;W04;W06,Order/POS/Project-to-cash journeys pass
-W08,People & asset operations,HR/Payroll + Assets with payroll/asset accounting handoffs,W06,Hire-to-payroll-to-books and asset-to-books pass
-W09,Service operations,Support/customer service linked to CRM/Sales/Assets/Quality,W03;W08,Service-to-resolution journey passes
-W10,AI assistive layer,"Authorization-safe retrieval, copilots, recommendations and approval-gated actions",W01-W09,AI eval/security/rollback gates pass
-W11,Enterprise certification,"Scale, security, accessibility, DR, migration rehearsal, pilot and production readiness",W00-W10,Enterprise readiness gate passes
+wave_id,name,scope,depends_on,exit_gate,accountable_owner,status,calendar_timeline_policy
+T00,Technical safety foundation,Tenant/RLS transaction correctness; toolchain; migration safety; architecture validators,None,Architecture validators pass; coding constitutions and migration safety remain green,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+T01,Shared Platform + Experience Kernel,SP001-SP036; shared UI/runtime contracts,T00,Shared platform + Experience Kernel tenant/security/authorization evidence passes,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W01,Master-data foundation,Company/customer/supplier/item/UOM/currency/tax/warehouse masters used by downstream modules,T00;T01,Master-data invariants and migrations pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W02,Accounting + inventory primitives,Ledger/journal/period/money/tax/stock-ledger/reservation/valuation primitives,T00;T01;W01,Ledger/stock deterministic primitives pass property/golden/concurrency checks,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W03,CRM,F001-F030,T01;W01,CRM capability pack and CRM enterprise journey acceptance pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W04,Sales,F031-F062,W01;W02;W03,Sales capability pack and order-to-cash upstream acceptance pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W05,Procurement + Stock,F063-F144,W01;W02,Procurement/Stock capability packs and procure-to-stock reconciliation pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W06,Finance integration,F453-F510 and subledger integration,W02;W04;W05,"Finance integration balances, locks, postings and subledger reconciliation pass",Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W07,Manufacturing + Quality,F145-F192;F308-F342,W05;W06,Manufacturing/Quality plan-to-produce and atomic quality-hold journeys pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W08,Projects + Assets,F193-F267,W04;W05;W06,Projects/Assets project-to-cash and asset-to-books journeys pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W09,Point of Sale,F268-F307,W01;W02;W06,POS payment uncertainty/offline/stock/accounting reconciliation passes,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W10,Support / Customer Service,F343-F380,W03;W04;W08,Support service-to-resolution journey and linked-domain handoffs pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W11,HR & Payroll,F381-F452,T01;W06,HR/Payroll hire-to-payroll-to-books and statutory/effective-date golden tests pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W12,Enterprise journey certification,All mandatory cross-module journeys,W03-W11,All mandatory cross-module failure/retry/reversal/reconciliation E2E and UAT pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W13,ERP Copilot,Authorization-safe AI after deterministic truth exists,W12,ERP Copilot authorization/eval/provenance/approval/kill-switch gates pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W14,Enterprise hardening,Security/load/accessibility/mobile/offline/DR/reconciliation,W12;W13,Security/load/accessibility/mobile/offline/DR/reconciliation hardening passes,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
+W15,"Migration, pilot and production readiness","Migration rehearsal, pilot, restore/rollback rehearsal, production certification",W14,"Migration rehearsal, pilot, restore/rollback rehearsal and production certification pass",Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
