@@ -15,7 +15,7 @@ export function ContentFreshnessMeta({ author, freshness }: { author: ContentAut
       {items.map(([label, value]) => (
         <div key={label} className="border-l border-(--color-border-default) pl-3">
           <dt className="text-[0.62rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">{label}</dt>
-          <dd className="mt-1 text-xs font-semibold text-(--color-text-primary)" role={label === "Reviewed" ? "note" : undefined}>{value}</dd>
+          <dd className="mt-1 text-xs font-semibold text-(--color-text-primary)">{value}</dd>
         </div>
       ))}
     </dl>

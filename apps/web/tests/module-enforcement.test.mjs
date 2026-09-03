@@ -97,8 +97,8 @@ const groupC = [
   ["apps/web/src/app/api/manufacturing", "manufacturing", 6],
   ["apps/web/src/app/api/projects", "projects", 4],
   ["apps/web/src/app/api/assets", "assets", 3],
-  ["apps/web/src/app/api/point-of-sale", "point-of-sale", 5],
-  ["apps/web/src/app/api/quality", "quality", 3],
+  ["apps/web/src/app/api/point-of-sale", "point-of-sale", 6],
+  ["apps/web/src/app/api/quality", "quality", 4],
   ["apps/web/src/app/api/support", "support", 4],
   ["apps/web/src/app/api/hr-payroll", "hr-payroll", 4],
 ];

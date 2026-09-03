@@ -65,28 +65,28 @@ export default function GlossaryIndexPage() {
         <Container>
           <SectionHeader eyebrow="Lexicon" title={`${sorted.length} terms, one operating language.`} description="Standalone terms open a full definition sheet. Index-only terms route to the product or workflow page that actually owns the concept." />
           <Reveal group>
-            <div className="mt-10 border-y border-(--color-border-strong)">
+            <ul className="mt-10 border-y border-(--color-border-strong)">
               {sorted.map((entry, index) => {
                 const href = glossaryHref(entry);
                 const initial = entry.term.charAt(0).toUpperCase();
                 const row = (
-                  <div className="group grid gap-4 border-t border-(--color-border-default) py-5 first:border-t-0 sm:grid-cols-[60px_minmax(190px,.6fr)_minmax(0,1fr)_110px] sm:items-start sm:gap-6 sm:py-6">
-                    <span className="font-mono text-2xl font-semibold leading-none tracking-[-0.05em] text-(--color-border-strong)">{initial}</span>
+                  <div className="group grid gap-4 py-5 sm:grid-cols-[60px_minmax(190px,.6fr)_minmax(0,1fr)_110px] sm:items-start sm:gap-6 sm:py-6">
+                    <span className="font-mono text-2xl font-semibold leading-none tracking-[-0.05em] text-(--color-text-muted)" aria-hidden="true">{initial}</span>
                     <div>
-                      <dt className="text-base font-semibold text-(--color-text-primary) group-hover:text-(--color-text-brand)">{entry.term}</dt>
+                      <h3 className="text-base font-semibold text-(--color-text-primary) group-hover:text-(--color-text-brand)">{entry.term}</h3>
                       <span className="vl-index mt-1 block">{entry.standalone ? "TERM / FULL SHEET" : "TERM / ROUTED"}</span>
                     </div>
-                    <dd className="max-w-[76ch] text-sm leading-relaxed text-(--color-text-secondary)">{entry.shortDefinition}</dd>
-                    <span className="vl-index sm:text-right">{String(index + 1).padStart(2, "0")} {href ? "→" : ""}</span>
+                    <p className="max-w-[76ch] text-sm leading-relaxed text-(--color-text-secondary)">{entry.shortDefinition}</p>
+                    <span className="vl-index sm:text-right" aria-hidden="true">{String(index + 1).padStart(2, "0")} {href ? "→" : ""}</span>
                   </div>
                 );
-                return href ? (
-                  <Link key={entry.term} href={href} prefetch={false} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 40}ms` }} className="block">{row}</Link>
-                ) : (
-                  <div key={entry.term} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 40}ms` }}>{row}</div>
+                return (
+                  <li key={entry.term} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 40}ms` }} className="border-t border-(--color-border-default) first:border-t-0">
+                    {href ? <Link href={href} prefetch={false} className="block">{row}</Link> : row}
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </Reveal>
         </Container>
       </Section>

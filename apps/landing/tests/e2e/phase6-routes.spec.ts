@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { RESOURCE_GUIDES, STANDALONE_GLOSSARY_SLUGS, GLOSSARY_TERMS, VERCENTLABS_VS_ODOO } from "@vercentlabs/landing-content";
+import { CAPABILITY_GROUPS, RESOURCE_GUIDES, STANDALONE_GLOSSARY_SLUGS, GLOSSARY_TERMS, VERCENTLABS_VS_ODOO, getTotalRequirementCount } from "@vercentlabs/landing-content";
 
 const PROSE_GUIDE_SLUGS = RESOURCE_GUIDES.filter((g) => g.slug !== "erp-requirements-checklist").map((g) => g.slug);
 
@@ -75,9 +75,9 @@ test.describe("ERP requirements checklist", () => {
     const response = await page.goto("/resources/erp-requirements-checklist");
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    await expect(page.getByText("991 requirements across 70 capability groups.")).toBeVisible();
+    await expect(page.getByText(`capability groups / ${getTotalRequirementCount()} source requirements`)).toBeVisible();
     const checkboxes = page.locator('input[type="checkbox"]');
-    await expect(checkboxes).toHaveCount(70);
+    await expect(checkboxes).toHaveCount(CAPABILITY_GROUPS.length);
     expect(consoleErrors).toEqual([]);
   });
 
@@ -89,7 +89,7 @@ test.describe("ERP requirements checklist", () => {
     const checkboxes = page.locator('input[type="checkbox"]');
     const count = await checkboxes.count();
     expect(count).toBeGreaterThan(0);
-    expect(count).toBeLessThan(73);
+    expect(count).toBeLessThan(CAPABILITY_GROUPS.length);
     expect(consoleErrors).toEqual([]);
   });
 

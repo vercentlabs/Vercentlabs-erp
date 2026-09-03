@@ -91,6 +91,7 @@ test.describe("mobile navigation reachability", () => {
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("button", { name: "Revenue" })).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Site navigation" })).toBeHidden();
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect(page.locator("footer")).toBeVisible();

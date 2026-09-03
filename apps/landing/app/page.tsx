@@ -101,12 +101,12 @@ export default function HomePage() {
                 {HERO.evidence.map((item, index) => (
                   <div
                     key={item.label}
-                    className="min-w-0 border-b border-(--color-border-default) py-4 pr-4 sm:border-b-0 sm:border-r sm:px-5 sm:first:pl-0 sm:last:border-r-0"
+                    className="grid min-w-0 border-b border-(--color-border-default) py-4 pr-4 sm:border-b-0 sm:border-r sm:px-5 sm:first:pl-0 sm:last:border-r-0"
                   >
-                    <dd className="tabular-data truncate text-[clamp(1.55rem,2.5vw,2.2rem)] font-semibold leading-none tracking-[-0.055em] text-(--color-text-primary)">
+                    <dt className="vl-index order-2 mt-3">{String(index + 1).padStart(2, "0")} / {item.label}</dt>
+                    <dd className="tabular-data order-1 truncate text-[clamp(1.55rem,2.5vw,2.2rem)] font-semibold leading-none tracking-[-0.055em] text-(--color-text-primary)">
                       {item.value}
                     </dd>
-                    <dt className="vl-index mt-3">{String(index + 1).padStart(2, "0")} / {item.label}</dt>
                   </div>
                 ))}
               </dl>
@@ -153,7 +153,7 @@ export default function HomePage() {
         <Section tone="inverse" className="vl-noise-free">
           <Container>
             <div className="grid grid-cols-1 gap-8 border-t border-white/25 pt-5 lg:grid-cols-[150px_minmax(0,1fr)] lg:gap-12">
-              <p className="vl-kicker text-white before:bg-white">{CONNECTED_SYSTEM_SECTION.eyebrow}</p>
+              <p className="vl-kicker vl-kicker-inverse">{CONNECTED_SYSTEM_SECTION.eyebrow}</p>
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)] xl:gap-12">
                 <Heading level="h1" as="h2" className="max-w-[13ch] text-white">
                   {CONNECTED_SYSTEM_SECTION.heading}
@@ -176,7 +176,7 @@ export default function HomePage() {
                       style={{ backgroundColor: accentColor }}
                       aria-hidden="true"
                     />
-                    <span className="vl-index text-white/45">{String(index + 1).padStart(2, "0")} / {moduleInfo?.name ?? step.module}</span>
+                    <span className="vl-index vl-index-inverse">{String(index + 1).padStart(2, "0")} / {moduleInfo?.name ?? step.module}</span>
                     <h3 className="mt-3 text-sm font-semibold text-white">{step.label}</h3>
                     <p className="mt-2 text-[0.78rem] leading-[1.6] text-white/55">{step.detail}</p>
                   </li>
@@ -331,7 +331,7 @@ export default function HomePage() {
           <Container>
             <div className="grid grid-cols-1 gap-12 border-t border-white/25 pt-5 lg:grid-cols-[minmax(280px,.7fr)_minmax(0,1.3fr)] lg:gap-16">
               <div>
-                <p className="vl-kicker text-white before:bg-white">{SECURITY_SECTION.eyebrow}</p>
+                <p className="vl-kicker vl-kicker-inverse">{SECURITY_SECTION.eyebrow}</p>
                 <Heading level="h1" as="h2" className="mt-6 max-w-[11ch] text-white">{SECURITY_SECTION.heading}</Heading>
                 <Text variant="lead" className="mt-6 text-white/62">{SECURITY_SECTION.supportingText}</Text>
                 <ButtonLink href="/security" variant="inverse" prefetch={false} className="mt-8">
@@ -341,7 +341,7 @@ export default function HomePage() {
               <div className="grid grid-cols-1 border-t border-white/20 sm:grid-cols-2">
                 {SECURITY_SECTION.items.map((item, index) => (
                   <div key={item.title} className="min-h-44 border-b border-white/15 py-5 sm:border-r sm:px-5 sm:even:border-r-0">
-                    <span className="vl-index text-white/42">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="vl-index vl-index-inverse">{String(index + 1).padStart(2, "0")}</span>
                     <h3 className="mt-7 text-sm font-semibold text-white">{item.title}</h3>
                     <p className="mt-2 text-xs leading-[1.65] text-white/55">{item.description}</p>
                   </div>
@@ -413,7 +413,7 @@ export default function HomePage() {
           <Container>
             <div className="grid grid-cols-1 items-end gap-10 border-t border-white/35 pt-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
               <div>
-                <p className="vl-kicker text-white before:bg-white">Built around your workflow</p>
+                <p className="vl-kicker vl-kicker-inverse">Built around your workflow</p>
                 <Heading level="h1" as="h2" className="mt-7 max-w-[14ch] text-white">{FINAL_CTA_SECTION.heading}</Heading>
                 <Text variant="lead" className="mt-6 max-w-[62ch] text-white/68">{FINAL_CTA_SECTION.supportingText}</Text>
               </div>

@@ -50,6 +50,15 @@ const employeeRow = {
 function hrClient() {
   return {
     async query(sql) {
+      if (/INSERT INTO tenant\.document_sequences/.test(sql)) {
+        return {
+          rows: [{
+            allocated_value: "1",
+            prefix: "EMP",
+            padding: 6,
+          }],
+        };
+      }
       if (/INSERT INTO tenant\.hr_employees/.test(sql)) return { rows: [employeeRow] };
       if (/INSERT INTO tenant\.hr_payroll_events/.test(sql)) return { rows: [] };
       if (/SELECT record\.\* FROM tenant\.hr_employees/.test(sql)) return { rows: [employeeRow] };

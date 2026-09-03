@@ -58,7 +58,7 @@ export default function ModulesIndexPage() {
             {MODULE_NAV_GROUPS.map((group, groupIndex) => (
               <Reveal key={group.key} group className="grid border-t border-(--color-border-default) py-8 first:border-t-0 lg:grid-cols-[190px_1fr] lg:gap-10 lg:py-10">
                 <div className="mb-6 lg:mb-0">
-                  <span className="font-mono text-4xl font-semibold leading-none tracking-[-0.06em] text-(--color-border-strong)">{String(groupIndex + 1).padStart(2, "0")}</span>
+                  <span className="font-mono text-4xl font-semibold leading-none tracking-[-0.06em] text-(--color-text-muted)">{String(groupIndex + 1).padStart(2, "0")}</span>
                   <Text variant="dataLabel" className="mt-3 block">Territory</Text>
                   <p className="mt-1 text-base font-semibold text-(--color-text-primary)">{group.label}</p>
                 </div>

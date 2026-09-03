@@ -72,7 +72,7 @@ export default function ResourcesIndexPage() {
             <Container>
               <div className="grid gap-8 lg:grid-cols-[190px_1fr] lg:gap-12">
                 <div className="border-t border-(--color-border-strong) pt-4">
-                  <span className="font-mono text-4xl font-semibold leading-none tracking-[-0.06em] text-(--color-border-strong)">{String(categoryIndex + 1).padStart(2, "0")}</span>
+                  <span className="font-mono text-4xl font-semibold leading-none tracking-[-0.06em] text-(--color-text-muted)">{String(categoryIndex + 1).padStart(2, "0")}</span>
                   <Text variant="dataLabel" className="mt-3 block">Desk</Text>
                   <p className="mt-1 text-base font-semibold text-(--color-text-primary)">{category}</p>
                 </div>

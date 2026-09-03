@@ -1,4 +1,5 @@
 import { test, type Page } from "@playwright/test";
+import { setTimeout as delay } from "node:timers/promises";
 import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS, ROUTED_WORKFLOW_SLUGS, VERCENTLABS_VS_ODOO } from "@vercentlabs/landing-content";
 
 /**
@@ -18,16 +19,52 @@ import { LANDING_MODULES, PLATFORM_PAGES, LANDING_INDUSTRIES, LANDING_SOLUTIONS,
  * fix). Call this immediately before every `fullPage: true` screenshot.
  */
 async function scrollThroughPage(page: Page) {
-  await page.evaluate(async () => {
-    const step = window.innerHeight;
-    const height = document.body.scrollHeight;
-    for (let y = 0; y < height; y += step) {
-      window.scrollTo(0, y);
-      await new Promise((resolve) => setTimeout(resolve, 60));
+  const viewportHeight = Math.max(page.viewportSize()?.height ?? 900, 1);
+  const documentHeight = await page.evaluate(() =>
+    Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+    ),
+  );
+
+  // A visual-capture helper must always have a hard upper bound. The homepage
+  // is far below this limit; the cap prevents a responsive/layout regression
+  // from turning screenshot preparation into an effectively infinite task.
+  const maxSteps = 96;
+  const lastUsefulY = Math.max(documentHeight - viewportHeight, 0);
+  const positions: number[] = [];
+
+  for (let y = 0; y <= lastUsefulY && positions.length < maxSteps; y += viewportHeight) {
+    positions.push(y);
+  }
+
+  if (positions.at(-1) !== lastUsefulY) {
+    positions.push(lastUsefulY);
+  }
+
+  for (const y of positions) {
+    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), y);
+
+    // Keep the wait in the Playwright/Node process. Browser-context timers can
+    // be throttled/starved while several full-page visual captures are running.
+    await delay(45);
+  }
+
+  await page.evaluate(() => {
+    // The purpose of this suite is to photograph the final visual state.
+    // Normal E2E suites exercise actual runtime behavior; if an observer has
+    // not fired by the last scroll position, make the final capture fail-open
+    // rather than photographing intentionally hidden pre-animation content.
+    for (const node of document.querySelectorAll<HTMLElement>(
+      "[data-reveal], [data-reveal-group]",
+    )) {
+      node.setAttribute("data-revealed", "true");
     }
+
     window.scrollTo(0, 0);
-    await new Promise((resolve) => setTimeout(resolve, 60));
   });
+
+  await delay(90);
 }
 const VIEWPORTS = {
   w320: { width: 320, height: 568 },
@@ -41,6 +78,10 @@ const VIEWPORTS = {
 };
 
 test.describe("visual review captures — homepage across required viewports", () => {
+  // This suite intentionally creates multiple very large full-page images.
+  // Opt out of the repository-wide fullyParallel mode for this one matrix;
+  // each viewport still remains an independent test/retry.
+  test.describe.configure({ mode: "default" });
   for (const [name, size] of Object.entries(VIEWPORTS)) {
     test(`homepage — ${name}`, async ({ page }) => {
       await page.setViewportSize(size);

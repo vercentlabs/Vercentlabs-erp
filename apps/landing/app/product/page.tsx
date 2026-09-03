@@ -44,7 +44,7 @@ export default function ProductOverviewPage() {
             <div className="flex flex-wrap gap-x-5 gap-y-3">
               {LANDING_MODULES.map((moduleInfo, index) => (
                 <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false} className="group flex items-center gap-2 border-b border-(--color-border-default) pb-2">
-                  <span className="vl-index" style={{ color: moduleInfo.accentColor.hex }}>{String(index + 1).padStart(2, "0")}</span>
+                  <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
                   <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
                 </Link>
               ))}
@@ -58,7 +58,7 @@ export default function ProductOverviewPage() {
           <Container>
             <div className="grid gap-8 lg:grid-cols-[180px_1fr] lg:gap-12">
               <div className="border-t border-(--color-border-strong) pt-4">
-                <span className="font-mono text-4xl font-semibold leading-none tracking-[-0.06em] text-(--color-border-strong)">{String(sectionIndex + 1).padStart(2, "0")}</span>
+                <span className="font-mono text-4xl font-semibold leading-none tracking-[-0.06em] text-(--color-text-muted)">{String(sectionIndex + 1).padStart(2, "0")}</span>
                 <Text variant="dataLabel" className="mt-3 block">{section.eyebrow}</Text>
               </div>
               <div>

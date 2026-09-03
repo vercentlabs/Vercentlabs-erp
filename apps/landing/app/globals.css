@@ -315,7 +315,7 @@
   --vl-paper-strong: #ffffff;
   --vl-ink: #171713;
   --vl-ink-soft: #62625b;
-  --vl-ink-faint: #7b7a72;
+  --vl-ink-faint: #65645c;
   --vl-rule: #d0cdc3;
   --vl-rule-strong: #aaa69a;
   --vl-brand: #4a46a3;
@@ -417,6 +417,19 @@
     letter-spacing: 0.125em;
     text-transform: uppercase;
     color: var(--color-text-muted);
+  }
+
+  /*
+   * Explicit inverse variants for operational labels.
+   * Two-class specificity intentionally wins over the base .vl-kicker/.vl-index
+   * color declarations and over single-class text-color utilities.
+   */
+  .vl-kicker.vl-kicker-inverse {
+    color: rgb(255 255 255 / 85%);
+  }
+
+  .vl-index.vl-index-inverse {
+    color: rgb(255 255 255 / 70%);
   }
 
   .vl-folio {

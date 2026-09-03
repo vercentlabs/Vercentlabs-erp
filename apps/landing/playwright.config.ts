@@ -18,7 +18,7 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
+    { name: "mobile-chromium", use: { ...devices["Pixel 7"] }, testIgnore: /visual-review\.spec\.ts/ },
     // Phase 8: cross-browser coverage. Scoped to cross-browser-smoke.spec.ts
     // only (via testMatch) — re-running the full 578-test Chromium-oriented
     // suite on every engine would mostly re-validate browser-agnostic

@@ -179,7 +179,7 @@ function ModuleRegister({ modules, compact = false }: { modules: Array<NonNullab
       {modules.slice(0, 6).map((moduleInfo, index) => (
         <li key={moduleInfo.key}>
           <Link href={`/modules/${moduleInfo.key}`} prefetch={false} className="group grid grid-cols-[2rem_1fr_auto] items-center gap-3 border-b border-(--color-border-default) py-3.5">
-            <span className="vl-index" style={{ color: moduleInfo.accentColor.hex }}>{String(index + 1).padStart(2, "0")}</span>
+            <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
             <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
             <span className="vl-hover-arrow text-xs text-(--color-text-muted)">→</span>
           </Link>

@@ -24,6 +24,24 @@ const ROUTES = [
   "/terms",
 ];
 
+const ATTRIBUTION_STORAGE_KEY = "vercentlabs_attribution_v1";
+
+async function readCrossBrowserAttribution(page: import("@playwright/test").Page) {
+  // AttributionInit writes first-touch data from a client-side useEffect.
+  // Synchronize on that real product effect, but keep the wait bounded so one
+  // resource-starved browser worker cannot consume the entire global timeout.
+  await page.waitForFunction(
+    (key) => window.localStorage.getItem(key) !== null,
+    ATTRIBUTION_STORAGE_KEY,
+    { timeout: 10_000 },
+  );
+
+  return page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }, ATTRIBUTION_STORAGE_KEY);
+}
+
 test.describe("cross-browser rendering and console-error sweep", () => {
   for (const route of ROUTES) {
     test(`${route} renders with no console errors`, async ({ page }) => {
@@ -41,6 +59,11 @@ test.describe("cross-browser rendering and console-error sweep", () => {
 });
 
 test.describe("cross-browser interaction checks", () => {
+  // The repository enables fullyParallel globally. These five browser-level
+  // interactions are intentionally sequential within each browser project
+  // to avoid starving Firefox/WebKit contexts during the release-wide run.
+  // Rendering-route smoke tests remain fully parallel.
+  test.describe.configure({ mode: "default" });
   test("demo form fields accept input and required-field validation fires", async ({ page }) => {
     await page.goto("/book-demo");
     await page.getByLabel("First name").fill("Test");
@@ -50,10 +73,18 @@ test.describe("cross-browser interaction checks", () => {
   });
 
   test("attribution localStorage write/read works", async ({ page }) => {
-    await page.goto("/?utm_source=crossbrowser&utm_medium=test&utm_campaign=smoke");
-    await page.waitForFunction(() => window.localStorage.getItem("vercentlabs_attribution_v1") !== null);
-    const record = await page.evaluate(() => JSON.parse(window.localStorage.getItem("vercentlabs_attribution_v1") ?? "null"));
-    expect(record?.utmSource).toBe("crossbrowser");
+    await page.goto(
+      "/?utm_source=crossbrowser&utm_medium=test&utm_campaign=smoke",
+      { waitUntil: "domcontentloaded" },
+    );
+
+    const record = await readCrossBrowserAttribution(page);
+
+    expect(record).not.toBeNull();
+    expect(record.utmSource).toBe("crossbrowser");
+    expect(record.utmMedium).toBe("test");
+    expect(record.utmCampaign).toBe("smoke");
+    expect(record.landingPath).toBe("/");
   });
 
   test("comparison table/cards render on /compare/vercentlabs-vs-odoo", async ({ page }) => {
@@ -65,9 +96,10 @@ test.describe("cross-browser interaction checks", () => {
 
   test("footer legal links resolve", async ({ page }) => {
     await page.goto("/");
-    const privacyLink = page.getByRole("link", { name: "Privacy Policy" });
+    const footer = page.locator("footer");
+    const privacyLink = footer.getByRole("link", { name: "Privacy Policy", exact: true });
     await expect(privacyLink).toHaveAttribute("href", "/privacy");
-    const termsLink = page.getByRole("link", { name: "Terms of Use" });
+    const termsLink = footer.getByRole("link", { name: "Terms of Use", exact: true });
     await expect(termsLink).toHaveAttribute("href", "/terms");
   });
 
