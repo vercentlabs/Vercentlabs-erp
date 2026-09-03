@@ -62,16 +62,44 @@ export async function PATCH(request: Request, route: { params: Promise<{ resourc
     assertCrmIdentifier(id); requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId!);
     const rawInput = (await readJson(request)) as Record<string, unknown>;
+    const expectedUpdatedAt =
+      resource === "leads" ? String(rawInput.expectedUpdatedAt || "").trim() : "";
+    if (resource === "leads") {
+      if (!expectedUpdatedAt)
+        throw new HttpError(
+          400,
+          "Refresh this Lead before changing it.",
+          "CRM_LEAD_VERSION_REQUIRED",
+        );
+      delete rawInput.expectedUpdatedAt;
+    }
     if (resource === "leads" && ["status", "stage", "stageId", "stageCode", "recordStatus"].some((field) => Object.prototype.hasOwnProperty.call(rawInput, field)))
       throw new HttpError(409, "Use the governed Lead lifecycle transition action.", "CRM_LEAD_STAGE_ACTION_REQUIRED");
     const input = await crmPatchSchemas[resource].parseAsync(rawInput);
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
     const context = await crmApiContext(session);
-    const response = await tenantTransaction(context.organizationId, (client) => withMobileIdempotency(client, session, request, input, async () => {
-      const record = await updateCrmRecord(client, context, resource, id, input);
-      await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.updated`, entityType: resource, entityId: id, afterData: crmAuditSnapshot(resource, record, Object.keys(input)), request, client });
-      return { message: "CRM record updated.", record };
-    }));
+    const response = await tenantTransaction(context.organizationId, (client) =>
+      withMobileIdempotency(
+        client,
+        session,
+        request,
+        resource === "leads" ? { ...input, expectedUpdatedAt } : input,
+        async () => {
+          const record = await updateCrmRecord(
+            client,
+            context,
+            resource,
+            id,
+            input,
+            resource === "leads"
+              ? { expectedUpdatedAt, requireVersion: true }
+              : undefined,
+          );
+          await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.updated`, entityType: resource, entityId: id, afterData: crmAuditSnapshot(resource, record, Object.keys(input)), request, client });
+          return { message: "CRM record updated.", record };
+        },
+      ),
+    );
     return mobileOk(request, response);
   } catch (error) { try { rethrowCrmError(error); } catch (mapped) { return mobileError(request, mapped); } }
 }
@@ -83,12 +111,30 @@ export async function DELETE(request: Request, route: { params: Promise<{ resour
     valid(resource);
     if (resource === "stages") throw new HttpError(410, "Use the governed Sales Stages workspace on Web.", "CRM_SALES_STAGE_API_MOVED");
     assertCrmIdentifier(id); requireCrmManage(session, resource);
+    const expectedUpdatedAt =
+      resource === "leads"
+        ? String(new URL(request.url).searchParams.get("expectedUpdatedAt") || "").trim()
+        : "";
+    if (resource === "leads" && !expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead before archiving it.",
+        "CRM_LEAD_VERSION_REQUIRED",
+      );
     await requireBillingWriteAccess(session.organizationId!);
     await incrementBillingUsage(session.organizationId!, "api_requests_monthly");
     const context = await crmApiContext(session);
     const response = await tenantTransaction(context.organizationId, (client) =>
       withMobileIdempotency(client, session, request, { archive: true }, async () => {
-        const record = await archiveCrmRecord(client, context, resource, id);
+        const record = await archiveCrmRecord(
+          client,
+          context,
+          resource,
+          id,
+          resource === "leads"
+            ? { expectedUpdatedAt, requireVersion: true }
+            : undefined,
+        );
         await audit({ organizationId: context.organizationId, actorUserId: session.userId, eventType: `crm.${resource}.archived`, entityType: resource, entityId: id, afterData: crmAuditSnapshot(resource, record), request, client });
         return { message: "CRM record archived.", record };
       }),

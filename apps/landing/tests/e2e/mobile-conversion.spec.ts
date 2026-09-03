@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+// Release stability: this file performs repeated full-page navigations and/or
+// browser-level interactions. Keep its tests sequential inside each project;
+// projects may still run concurrently up to playwright.config.ts's worker cap.
+test.describe.configure({ mode: "default" });
+
+
 /**
  * Real, narrow-viewport conversion-path checks — distinct from
  * visual-review.spec.ts (which only captures screenshots for human review).
@@ -50,6 +56,9 @@ test.describe("sticky mobile CTA behavior", () => {
   });
 
   test("header CTA and sticky CTA never both render at the same width (the Phase 6 duplication bug this guards against)", async ({ page }) => {
+    // Five complete production navigations are intentional here; keep the
+    // invariant but do not squeeze the whole matrix into the generic 30s budget.
+    test.setTimeout(60_000);
     for (const width of MOBILE_WIDTHS) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/");

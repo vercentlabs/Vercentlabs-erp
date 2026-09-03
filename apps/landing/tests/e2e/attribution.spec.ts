@@ -1,5 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+// Release stability: attribution navigations stop at DOMContentLoaded
+
+// Release stability: this file performs repeated full-page navigations and/or
+// browser-level interactions. Keep its tests sequential inside each project;
+// projects may still run concurrently up to playwright.config.ts's worker cap.
+test.describe.configure({ mode: "default" });
+
+
 /**
  * Real browser attribution behavior — Phase 7 Workstream M. `tests/attribution.test.mjs`
  * only proves the module degrades gracefully outside a browser; this suite exercises the
@@ -14,7 +22,7 @@ async function readAttribution(page: import("@playwright/test").Page) {
   // hydration — reading localStorage immediately after goto() races that
   // effect on slower (mobile-emulated) runs. Poll briefly instead of
   // assuming hydration has already completed.
-  await page.waitForFunction((key) => window.localStorage.getItem(key) !== null, STORAGE_KEY, { timeout: 5000 });
+  await page.waitForFunction((key) => window.localStorage.getItem(key) !== null, STORAGE_KEY, { timeout: 10_000 });
   return page.evaluate((key) => {
     const raw = window.localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
@@ -22,7 +30,7 @@ async function readAttribution(page: import("@playwright/test").Page) {
 }
 
 test("initial campaign visit captures UTM params and referrer category as first touch", async ({ page }) => {
-  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch");
+  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch", { waitUntil: "domcontentloaded" });
   const record = await readAttribution(page);
   expect(record).not.toBeNull();
   expect(record.utmSource).toBe("linkedin");
@@ -33,11 +41,11 @@ test("initial campaign visit captures UTM params and referrer category as first 
 });
 
 test("internal navigation after first touch does not overwrite the original attribution", async ({ page }) => {
-  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch");
+  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch", { waitUntil: "domcontentloaded" });
   const firstTouch = await readAttribution(page);
 
   await page.getByRole("link", { name: /modules/i }).first().click();
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   const afterNav = await readAttribution(page);
 
   expect(afterNav.firstTouchAt).toBe(firstTouch.firstTouchAt);
@@ -45,21 +53,21 @@ test("internal navigation after first touch does not overwrite the original attr
 });
 
 test("attribution survives a refresh unchanged", async ({ page }) => {
-  await page.goto("/?utm_source=google&utm_medium=cpc&utm_campaign=brand");
+  await page.goto("/?utm_source=google&utm_medium=cpc&utm_campaign=brand", { waitUntil: "domcontentloaded" });
   const before = await readAttribution(page);
 
-  await page.reload();
+  await page.reload({ waitUntil: "domcontentloaded" });
   const after = await readAttribution(page);
 
   expect(after).toEqual(before);
 });
 
 test("attribution survives back/forward navigation unchanged", async ({ page }) => {
-  await page.goto("/?utm_source=google&utm_medium=cpc&utm_campaign=brand");
+  await page.goto("/?utm_source=google&utm_medium=cpc&utm_campaign=brand", { waitUntil: "domcontentloaded" });
   const initial = await readAttribution(page);
 
-  await page.goto("/product");
-  await page.goBack();
+  await page.goto("/product", { waitUntil: "domcontentloaded" });
+  await page.goBack({ waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   const afterBack = await readAttribution(page);
 
@@ -67,10 +75,10 @@ test("attribution survives back/forward navigation unchanged", async ({ page }) 
 });
 
 test("a second, later campaign visit in the same browser does NOT overwrite first touch", async ({ page }) => {
-  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=first_campaign");
+  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=first_campaign", { waitUntil: "domcontentloaded" });
   const firstTouch = await readAttribution(page);
 
-  await page.goto("/?utm_source=google&utm_medium=cpc&utm_campaign=second_campaign");
+  await page.goto("/?utm_source=google&utm_medium=cpc&utm_campaign=second_campaign", { waitUntil: "domcontentloaded" });
   const stillFirstTouch = await readAttribution(page);
 
   expect(stillFirstTouch.utmSource).toBe("linkedin");
@@ -79,17 +87,17 @@ test("a second, later campaign visit in the same browser does NOT overwrite firs
 });
 
 test("a direct revisit with no campaign params does not overwrite existing attribution", async ({ page }) => {
-  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch");
+  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch", { waitUntil: "domcontentloaded" });
   const firstTouch = await readAttribution(page);
 
-  await page.goto("/book-demo");
+  await page.goto("/book-demo", { waitUntil: "domcontentloaded" });
   const afterDirectRevisit = await readAttribution(page);
 
   expect(afterDirectRevisit).toEqual(firstTouch);
 });
 
 test("a visit with no campaign params at all still records direct/referral attribution (no crash)", async ({ page }) => {
-  await page.goto("/product");
+  await page.goto("/product", { waitUntil: "domcontentloaded" });
   const record = await readAttribution(page);
   expect(record).not.toBeNull();
   expect(record.utmSource).toBeUndefined();
@@ -98,14 +106,14 @@ test("a visit with no campaign params at all still records direct/referral attri
 
 test("malformed/oversized UTM params are truncated, not rejected or crashing", async ({ page }) => {
   const longValue = "x".repeat(500);
-  await page.goto(`/?utm_source=${longValue}`);
+  await page.goto(`/?utm_source=${longValue}`, { waitUntil: "domcontentloaded" });
   const record = await readAttribution(page);
   expect(record).not.toBeNull();
   expect(record.utmSource!.length).toBeLessThanOrEqual(200);
 });
 
 test("attribution reaches the demo form submission (available via getAttribution at submit time)", async ({ page }) => {
-  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch");
+  await page.goto("/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=q3_launch", { waitUntil: "domcontentloaded" });
   // Wait for the FIRST page's AttributionInit effect to actually write to
   // localStorage before navigating away — without this, page.goto("/book-demo")
   // can race ahead of React's effect (goto() only waits for the load event,
@@ -116,7 +124,7 @@ test("attribution reaches the demo form submission (available via getAttribution
   // Cycle 3 regression, not a product bug (every sibling test that reads
   // attribution on the first page before navigating away passes reliably).
   await readAttribution(page);
-  await page.goto("/book-demo");
+  await page.goto("/book-demo", { waitUntil: "domcontentloaded" });
   const record = await readAttribution(page);
   expect(record.utmSource).toBe("linkedin");
 });

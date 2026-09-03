@@ -1762,6 +1762,46 @@ export async function getCrmRecord(client, context, resource, id) {
   return camelizeRow(result.rows[0]);
 }
 
+async function getLeadRecordForUpdate(client, context, id) {
+  const parameters = [context.organizationId, id];
+  const result = await client.query(
+    `SELECT record.* FROM tenant.crm_leads record
+      WHERE record.organization_id=$1 AND record.id=$2${recordScope(resources.leads, context, parameters)}
+      FOR UPDATE`,
+    parameters,
+  );
+  if (!result.rows[0])
+    throw new CrmError(404, "CRM record not found.", "CRM_LEAD_NOT_FOUND");
+  return camelizeRow(result.rows[0]);
+}
+
+function assertLeadExpectedVersion(record, expectedUpdatedAt, required = false) {
+  const supplied = String(expectedUpdatedAt || "").trim();
+  if (!supplied) {
+    if (required)
+      throw new CrmError(
+        400,
+        "Refresh this Lead before changing it.",
+        "CRM_LEAD_VERSION_REQUIRED",
+      );
+    return;
+  }
+  const expected = new Date(supplied);
+  if (!Number.isFinite(expected.getTime()))
+    throw new CrmError(
+      400,
+      "The Lead version is invalid. Refresh and try again.",
+      "CRM_LEAD_VERSION_INVALID",
+    );
+  const actual = new Date(String(record.updatedAt || ""));
+  if (!Number.isFinite(actual.getTime()) || expected.getTime() !== actual.getTime())
+    throw new CrmError(
+      409,
+      "This Lead changed after you loaded it. Refresh and try again.",
+      "CRM_STALE_WRITE",
+    );
+}
+
 function mutableEntries(definition, input) {
   return Object.entries(input).filter(
     ([key, value]) => definition.fields[key] && value !== undefined,
@@ -2079,6 +2119,11 @@ export async function assignLeadOwner(
   if (!current.rows[0])
     throw new CrmError(404, "CRM record not found.", "CRM_LEAD_NOT_FOUND");
   const before = camelizeRow(current.rows[0]);
+  assertLeadExpectedVersion(
+    before,
+    options.expectedUpdatedAt,
+    options.requireVersion === true,
+  );
   const normalizedOwner = ownerUserId ? String(ownerUserId) : null;
   if ((before.ownerUserId || null) === normalizedOwner)
     return {
@@ -2565,7 +2610,14 @@ export async function createCrmRecord(client, context, resource, input) {
   return created;
 }
 
-export async function updateCrmRecord(client, context, resource, id, input) {
+export async function updateCrmRecord(
+  client,
+  context,
+  resource,
+  id,
+  input,
+  expectations = {},
+) {
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -2589,7 +2641,16 @@ export async function updateCrmRecord(client, context, resource, id, input) {
     );
   const definition = definitionFor(resource);
   if (resource === "leads") assertNoQualificationMutation(input);
-  const before = await getCrmRecord(client, context, resource, id);
+  const before =
+    resource === "leads"
+      ? await getLeadRecordForUpdate(client, context, id)
+      : await getCrmRecord(client, context, resource, id);
+  if (resource === "leads")
+    assertLeadExpectedVersion(
+      before,
+      expectations.expectedUpdatedAt,
+      expectations.requireVersion === true,
+    );
   if (resource === "activities") {
     const requestedActivityType = String(input?.activityType || "").toLowerCase();
     if (before.activityType === "call" || requestedActivityType === "call")
@@ -2773,7 +2834,13 @@ export async function updateCrmRecord(client, context, resource, id, input) {
   return updated;
 }
 
-export async function archiveCrmRecord(client, context, resource, id) {
+export async function archiveCrmRecord(
+  client,
+  context,
+  resource,
+  id,
+  expectations = {},
+) {
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -2787,7 +2854,16 @@ export async function archiveCrmRecord(client, context, resource, id) {
       "CRM_LEAD_SOURCE_API_MOVED",
     );
   const definition = definitionFor(resource);
-  const before = await getCrmRecord(client, context, resource, id);
+  const before =
+    resource === "leads"
+      ? await getLeadRecordForUpdate(client, context, id)
+      : await getCrmRecord(client, context, resource, id);
+  if (resource === "leads")
+    assertLeadExpectedVersion(
+      before,
+      expectations.expectedUpdatedAt,
+      expectations.requireVersion === true,
+    );
   if (resource === "activities" && before.activityType === "call")
     throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
   if (resource === "activities" && before.activityType === "meeting")
@@ -3152,6 +3228,20 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
 export async function mergeCrmLead(client, context, sourceId, targetId) {
   if (sourceId === targetId)
     throw new CrmError(400, "A lead cannot be merged into itself.");
+  const parameters = [context.organizationId, [sourceId, targetId]];
+  const rows = await client.query(
+    `SELECT record.* FROM tenant.crm_leads record
+      WHERE record.organization_id = $1 AND record.id = ANY($2::uuid[])${recordScope(resources.leads, context, parameters)}
+      ORDER BY record.id FOR UPDATE`,
+    parameters,
+  );
+  const source = rows.rows.find((row) => row.id === sourceId);
+  const target = rows.rows.find((row) => row.id === targetId);
+  if (!source || !target)
+    throw new CrmError(404, "Source or target lead was not found.");
+
+  // Check the durable replay marker only after both Lead rows are locked.
+  // Concurrent exact retries therefore serialize before any merge side effect.
   const existingMerge = await client.query(
     `SELECT * FROM tenant.crm_merge_records WHERE organization_id = $1 AND entity_type = 'lead' AND source_id = $2`,
     [context.organizationId, sourceId],
@@ -3164,18 +3254,9 @@ export async function mergeCrmLead(client, context, sourceId, targetId) {
       );
     return { ...camelizeRow(existingMerge.rows[0]), replayed: true };
   }
-  const parameters = [context.organizationId, [sourceId, targetId]];
-  const rows = await client.query(
-    `SELECT record.* FROM tenant.crm_leads record WHERE record.organization_id = $1 AND record.id = ANY($2::uuid[])${recordScope(resources.leads, context, parameters)} FOR UPDATE`,
-    parameters,
-  );
-  const source = rows.rows.find((row) => row.id === sourceId);
-  const target = rows.rows.find((row) => row.id === targetId);
-  if (!source || !target)
-    throw new CrmError(404, "Source or target lead was not found.");
-  if (["converted", "archived"].includes(source.status))
+  if (["converted", "archived"].includes(source.record_status))
     throw new CrmError(409, "This lead is no longer available to merge.");
-  if (["converted", "archived"].includes(target.status))
+  if (["converted", "archived"].includes(target.record_status))
     throw new CrmError(
       409,
       "The selected lead is no longer available as a merge target.",

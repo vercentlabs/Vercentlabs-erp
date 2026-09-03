@@ -94,7 +94,10 @@ function LeadOwnerDialog({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ownerUserId: selected.id }),
+          body: JSON.stringify({
+            ownerUserId: selected.id,
+            expectedUpdatedAt: String(lead.updatedAt || ""),
+          }),
         },
       );
       if (!result.ok)
@@ -325,7 +328,11 @@ export default function CrmLeadDetailWorkspace({
   async function moveStatus(nextStatus: string) {
     await api(
       `/api/crm/leads/${id}/stage`,
-      { stageCode: nextStatus, source: "manual" },
+      {
+        stageCode: nextStatus,
+        source: "manual",
+        expectedUpdatedAt: String(lead.updatedAt || ""),
+      },
       "status",
     );
   }
@@ -339,9 +346,10 @@ export default function CrmLeadDetailWorkspace({
     setPending("archive");
     setMessage("");
     try {
-      const result = await requestJson<Row>(`/api/crm/leads/${id}`, {
-        method: "DELETE",
-      });
+      const result = await requestJson<Row>(
+        `/api/crm/leads/${id}?expectedUpdatedAt=${encodeURIComponent(String(lead.updatedAt || ""))}`,
+        { method: "DELETE" },
+      );
       if (!result.ok)
         throw new Error(result.message || "Lead could not be archived.");
       router.push("/crm/leads");

@@ -1,4 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+// Release stability: this file performs repeated full-page navigations and/or
+// browser-level interactions. Keep its tests sequential inside each project;
+// projects may still run concurrently up to playwright.config.ts's worker cap.
+test.describe.configure({ mode: "default" });
+
 
 /**
  * Phase 2's real P0 (CSP blocking Next.js's own inline scripts — see
@@ -22,6 +28,61 @@ const REPRESENTATIVE_ROUTES = [
   "/resources/erp-requirements-checklist",
   "/compare/vercentlabs-vs-odoo",
 ];
+
+
+/**
+ * A server-rendered button can be visible before React has attached its click
+ * handler on a heavily loaded production-build test run. A click in that
+ * narrow hydration window is legitimately lost. Retry only while the
+ * React-owned aria-expanded state remains false; a real broken disclosure
+ * still fails within the bounded synchronization window.
+ */
+async function openHydratedDisclosure(
+  page: Page,
+  label: "Modules" | "Product",
+) {
+  const trigger = page.getByRole("button", { name: label, exact: true });
+  const panel = page.getByRole("region", { name: label, exact: true });
+
+  await expect(trigger).toBeVisible();
+
+  await expect(async () => {
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    await expect(trigger).toHaveAttribute("aria-expanded", "true", {
+      timeout: 1_500,
+    });
+  }).toPass({
+    timeout: 10_000,
+    intervals: [100, 250, 500],
+  });
+
+  await expect(panel).toBeVisible({ timeout: 5_000 });
+  return { trigger, panel };
+}
+
+async function openHydratedMobileNav(page: Page) {
+  const trigger = page.getByRole("button", { name: "Open menu", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Site navigation" });
+
+  await expect(trigger).toBeVisible();
+
+  await expect(async () => {
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    await expect(trigger).toHaveAttribute("aria-expanded", "true", {
+      timeout: 1_500,
+    });
+  }).toPass({
+    timeout: 10_000,
+    intervals: [100, 250, 500],
+  });
+
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  return { trigger, dialog };
+}
 
 test.describe("no console errors across representative routes (catches CSP regressions)", () => {
   for (const route of REPRESENTATIVE_ROUTES) {
@@ -48,6 +109,10 @@ test.describe("header and footer links all resolve (catches dead internal links)
   // DOM (not a hardcoded link list, so it catches any future addition too) and
   // asserts every internal link returns a real 200, not just "has an href."
   test("every internal href in the header and footer returns 200", async ({ page, request }) => {
+    // This one assertion deliberately crawls every rendered internal
+    // header/footer destination. Its work scales with the nav catalogue,
+    // so give the crawl its own budget rather than weakening each request.
+    test.setTimeout(90_000);
     await page.goto("/");
     const hrefs = await page.evaluate(() => {
       const header = document.querySelector("header");
@@ -115,10 +180,8 @@ test.describe("navigation", () => {
 
   test("desktop mega menu opens, is keyboard-dismissible with Escape, and returns focus", async ({ page }) => {
     await page.goto("/");
-    const trigger = page.getByRole("button", { name: "Modules" });
-    await trigger.click();
-    await expect(page.getByRole("region", { name: "Modules" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /CRM/ }).first()).toBeVisible();
+    const { trigger, panel } = await openHydratedDisclosure(page, "Modules");
+    await expect(panel.getByRole("link", { name: /CRM/ }).first()).toBeVisible();
 
     await page.keyboard.press("Escape");
     await expect(page.getByRole("region", { name: "Modules" })).toBeHidden();
@@ -127,17 +190,14 @@ test.describe("navigation", () => {
 
   test("clicking outside the open mega menu closes it", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Product" }).click();
-    await expect(page.getByRole("region", { name: "Product" })).toBeVisible();
+    const { panel } = await openHydratedDisclosure(page, "Product");
     await page.mouse.click(10, 500);
-    await expect(page.getByRole("region", { name: "Product" })).toBeHidden();
+    await expect(panel).toBeHidden();
   });
 
   test("product mega menu presents a grouped product system map", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Product" }).click();
-
-    const panel = page.getByRole("region", { name: "Product" });
+    const { panel } = await openHydratedDisclosure(page, "Product");
     await expect(panel.getByText("Product system map", { exact: true })).toBeVisible();
     await expect(panel.getByText("Core platform", { exact: true })).toBeVisible();
     await expect(panel.getByText("Experience & trust", { exact: true })).toBeVisible();
@@ -154,8 +214,8 @@ test.describe("navigation", () => {
     const previousScroll = await page.evaluate(() => window.scrollY);
     expect(previousScroll).toBeGreaterThan(1000);
 
-    await page.getByRole("button", { name: "Product" }).click();
-    await page.getByRole("region", { name: "Product" }).getByRole("link", { name: /^Security/ }).click();
+    const { panel } = await openHydratedDisclosure(page, "Product");
+    await panel.getByRole("link", { name: /^Security/ }).click();
     await page.waitForURL("**/security");
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 
@@ -187,11 +247,7 @@ test.describe("mobile navigation", () => {
 
   test("opens, expands a module group, locks scroll, and closes on Escape returning focus", async ({ page }) => {
     await page.goto("/");
-    const openButton = page.getByRole("button", { name: "Open menu" });
-    await openButton.click();
-
-    const dialog = page.getByRole("dialog", { name: "Site navigation" });
-    await expect(dialog).toBeVisible();
+    const { trigger: openButton, dialog } = await openHydratedMobileNav(page);
 
     await page.getByRole("button", { name: "Revenue" }).click();
     // Scoped to the dialog: the footer also links to every module (including CRM),

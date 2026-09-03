@@ -307,8 +307,16 @@ export async function transitionLeadStage(client, context, leadId, input = {}) {
     if (!lead) throw new CrmError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
     if (lead.record_status !== "active")
       throw new CrmError(409, `A ${lead.record_status} Lead cannot move lifecycle stage.`, "CRM_LEAD_STAGE_RECORD_CLOSED");
-    if (input.expectedUpdatedAt && new Date(input.expectedUpdatedAt).toISOString() !== new Date(lead.updated_at).toISOString())
-      throw new CrmError(409, "This Lead changed after the board loaded. Refresh and try again.", "CRM_LEAD_STAGE_CONFLICT");
+    const expectedUpdatedAt = text(input.expectedUpdatedAt);
+    if (input.requireVersion === true && !expectedUpdatedAt)
+      throw new CrmError(400, "Refresh this Lead before moving it.", "CRM_LEAD_VERSION_REQUIRED");
+    if (expectedUpdatedAt) {
+      const expected = new Date(expectedUpdatedAt);
+      if (!Number.isFinite(expected.getTime()))
+        throw new CrmError(400, "The Lead version is invalid. Refresh and try again.", "CRM_LEAD_VERSION_INVALID");
+      if (expected.getTime() !== new Date(lead.updated_at).getTime())
+        throw new CrmError(409, "This Lead changed after the board loaded. Refresh and try again.", "CRM_LEAD_STAGE_CONFLICT");
+    }
     const target = await getLeadStage(client, context, targetValue);
     if (target.status !== "active")
       throw new CrmError(409, "Inactive stages cannot receive new transitions.", "CRM_LEAD_STAGE_INACTIVE");

@@ -49,6 +49,10 @@ const ownedLead = {
 };
 const unownedLead = { ...ownedLead, owner_user_id: null };
 
+function hasRecordWhere(sql, table) {
+  return new RegExp(`FROM\\s+tenant\\.${table}\\s+record\\s+WHERE`, "i").test(sql);
+}
+
 // A faithful-enough mock: it inspects the ACTUAL generated SQL/parameters
 // rather than hardcoding pass/fail. When recordScope() has added the
 // owner-scope predicate (detected by the literal "IS NULL OR" fragment the
@@ -68,10 +72,10 @@ function crmClient({ leadRow = ownedLead, table = "crm_leads", ownerColumn = "ow
   }
   return {
     async query(sql, params = []) {
-      if (sql.includes(`FROM tenant.${table} record WHERE`) && sql.includes("count(*)::int AS total")) {
+      if (hasRecordWhere(sql, table) && sql.includes("count(*)::int AS total")) {
         return { rows: [{ total: visible(sql, params) ? 1 : 0 }] };
       }
-      if (sql.includes(`FROM tenant.${table} record WHERE`)) {
+      if (hasRecordWhere(sql, table)) {
         return { rows: visible(sql, params) ? [leadRow] : [] };
       }
       throw new Error(`Unexpected query: ${sql}`);
@@ -301,10 +305,10 @@ function companyAwareCrmClient({ leadRow = ownedLead } = {}) {
   }
   return {
     async query(sql, params = []) {
-      if (sql.includes("FROM tenant.crm_leads record WHERE") && sql.includes("count(*)::int AS total")) {
+      if (hasRecordWhere(sql, "crm_leads") && sql.includes("count(*)::int AS total")) {
         return { rows: [{ total: visible(sql, params) ? 1 : 0 }] };
       }
-      if (sql.includes("FROM tenant.crm_leads record WHERE")) {
+      if (hasRecordWhere(sql, "crm_leads")) {
         return { rows: visible(sql, params) ? [leadRow] : [] };
       }
       throw new Error(`Unexpected query: ${sql}`);
@@ -371,7 +375,7 @@ function scopeWriteClient() {
     calls,
     async query(sql) {
       calls.push(sql);
-      if (sql.includes("FROM tenant.crm_leads record WHERE")) {
+      if (hasRecordWhere(sql, "crm_leads")) {
         return {
           rows: [
             {

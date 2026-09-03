@@ -45,13 +45,18 @@ export function updateCrmRecord(
   resource: CrmResourceKey,
   id: string,
   input: Record<string, unknown>,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;
 export function assignLeadOwner(
   client: QueryClient,
   context: CrmContext,
   leadId: string,
   ownerUserId: string | null,
-  options?: { reason?: string },
+  options?: {
+    reason?: string;
+    expectedUpdatedAt?: string;
+    requireVersion?: boolean;
+  },
 ): Promise<any>;
 export function listLeadStages(client: QueryClient, context: CrmContext, options?: { status?: string }): Promise<any>;
 export function getLeadStage(client: QueryClient, context: CrmContext, idOrCode: string): Promise<any>;
@@ -65,6 +70,7 @@ export function archiveCrmRecord(
   context: CrmContext,
   resource: CrmResourceKey,
   id: string,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;
 export function convertCrmLead(
   client: QueryClient,

@@ -36,6 +36,13 @@ export async function POST(
     if (!Object.prototype.hasOwnProperty.call(input, "ownerUserId"))
       throw new HttpError(400, "Select a Lead owner.");
     const ownerUserId = input.ownerUserId ? String(input.ownerUserId) : null;
+    const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead before changing its owner.",
+        "CRM_LEAD_VERSION_REQUIRED",
+      );
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = await crmApiContext(session);
@@ -49,6 +56,8 @@ export async function POST(
           ownerUserId,
           {
             reason: "manual:lead-detail",
+            expectedUpdatedAt,
+            requireVersion: true,
           },
         );
         if (assigned.assignment.changed)

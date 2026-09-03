@@ -284,13 +284,6 @@ export function setLeadAssignmentPolicyStatus(
   policyId: string,
   status: "active" | "inactive",
 ): Promise<Record<string, unknown>>;
-export function assignLeadOwner(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  leadId: string,
-  ownerUserId: string | null,
-  options?: { reason?: string },
-): Promise<any>;
 
 export * from "./modules/crm/lead-operations.js";
 

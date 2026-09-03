@@ -338,7 +338,7 @@ function LeadEditPanel({
     ],
     [
       "Ownership & attribution",
-      ["companyId", "branchId", "sourceId", "ownerUserId"],
+      ["companyId", "branchId", "sourceId"],
     ],
     [
       "Qualification",
@@ -690,13 +690,23 @@ export default function CrmLeadsWorkspace({
 
   async function moveLead(id: string, nextStatus: string) {
     if (!canManage || working || isRefreshingBoard) return;
+    const lead = boardRows.find((row) => String(row.id) === id);
+    const expectedUpdatedAt = String(lead?.updatedAt || "").trim();
+    if (!expectedUpdatedAt) {
+      setLocalMessage("Refresh the board before moving this Lead.");
+      return;
+    }
     setWorking(id);
     setLocalMessage("");
     try {
       const result = await requestJson(`/api/crm/leads/${id}/stage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stageCode: nextStatus, source: "kanban" }),
+        body: JSON.stringify({
+          stageCode: nextStatus,
+          source: "kanban",
+          expectedUpdatedAt,
+        }),
       });
       if (!result.ok)
         throw new Error(result.message || "Lead could not be moved.");

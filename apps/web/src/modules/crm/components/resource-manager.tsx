@@ -253,6 +253,12 @@ export default function CrmResourceManager({
         }
       }
       const id = String(editing.id || "");
+      if (definition.key === "leads" && id) {
+        const expectedUpdatedAt = String(editing.updatedAt || "").trim();
+        if (!expectedUpdatedAt)
+          throw new Error("Refresh this Lead before saving changes.");
+        body.expectedUpdatedAt = expectedUpdatedAt;
+      }
       const result = await requestJson<{
         errors?: Record<string, string[]>;
       }>(
@@ -298,7 +304,11 @@ export default function CrmResourceManager({
     if (!confirm(confirmation)) return;
     setPending(true);
     setMessage("");
-    const result = await requestJson(`/api/crm/${definition.key}/${id}`, {
+    const archivePath =
+      definition.key === "leads"
+        ? `/api/crm/${definition.key}/${id}?expectedUpdatedAt=${encodeURIComponent(String(row?.updatedAt || ""))}`
+        : `/api/crm/${definition.key}/${id}`;
+    const result = await requestJson(archivePath, {
       method: "DELETE",
     });
     setMessage(result.message || (result.ok ? "Archived." : "Archive failed."));

@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+// Release stability: this file performs repeated full-page navigations and/or
+// browser-level interactions. Keep its tests sequential inside each project;
+// projects may still run concurrently up to playwright.config.ts's worker cap.
+test.describe.configure({ mode: "default" });
+
+
 /**
  * Phase 8 cross-browser coverage. Runs on desktop-firefox, desktop-webkit,
  * and mobile-webkit (see playwright.config.ts's per-project testMatch) in

@@ -98,6 +98,17 @@ export async function PATCH(
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
     const rawInput = (await readJson(request)) as Record<string, unknown>;
+    const expectedUpdatedAt =
+      resource === "leads" ? String(rawInput.expectedUpdatedAt || "").trim() : "";
+    if (resource === "leads") {
+      if (!expectedUpdatedAt)
+        throw new HttpError(
+          400,
+          "Refresh this Lead before changing it.",
+          "CRM_LEAD_VERSION_REQUIRED",
+        );
+      delete rawInput.expectedUpdatedAt;
+    }
     if (
       resource === "leads" &&
       ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
@@ -143,7 +154,11 @@ export async function PATCH(
             context,
             id,
             input.ownerUserId ? String(input.ownerUserId) : null,
-            { reason: "manual:patch" },
+            {
+              reason: "manual:patch",
+              expectedUpdatedAt,
+              requireVersion: true,
+            },
           );
           if (assigned.assignment.changed)
             await audit({
@@ -188,7 +203,16 @@ export async function PATCH(
             updated = await updateCrmRecord(client, context, resource, id, input);
           }
         } else {
-          updated = await updateCrmRecord(client, context, resource, id, input);
+          updated = await updateCrmRecord(
+            client,
+            context,
+            resource,
+            id,
+            input,
+            resource === "leads"
+              ? { expectedUpdatedAt, requireVersion: true }
+              : undefined,
+          );
         }
         await audit({
           organizationId: context.organizationId,
@@ -247,6 +271,16 @@ export async function DELETE(
       );
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
+    const expectedUpdatedAt =
+      resource === "leads"
+        ? String(new URL(request.url).searchParams.get("expectedUpdatedAt") || "").trim()
+        : "";
+    if (resource === "leads" && !expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead before archiving it.",
+        "CRM_LEAD_VERSION_REQUIRED",
+      );
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = await crmApiContext(session);
@@ -256,7 +290,15 @@ export async function DELETE(
         const before = resource === "activities" ? await getCrmRecord(client, context, resource, id) : null;
         const archived = before && String(before.activityType || "").toLowerCase() === "task"
           ? await cancelCrmTask(client, context, id)
-          : await archiveCrmRecord(client, context, resource, id);
+          : await archiveCrmRecord(
+              client,
+              context,
+              resource,
+              id,
+              resource === "leads"
+                ? { expectedUpdatedAt, requireVersion: true }
+                : undefined,
+            );
         await audit({
           organizationId: context.organizationId,
           actorUserId: session.userId,

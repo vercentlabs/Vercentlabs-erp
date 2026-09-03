@@ -20,6 +20,30 @@ export class LeadOperationsError extends Error {
 }
 const text = (v) => String(v ?? "").trim();
 const finite = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+function scopedLeadWhere(context, values, alias = "lead") {
+  let sql = "";
+  if (context.activeCompanyId) {
+    values.push(context.activeCompanyId);
+    sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=$${values.length})`;
+  } else if (!context.allowAllCompanies) {
+    sql += " AND false";
+  }
+  if (context.activeBranchId) {
+    values.push(context.activeBranchId);
+    sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=$${values.length})`;
+  } else if (!context.allowAllCompanies) {
+    sql += " AND false";
+  }
+  const viewAll =
+    context.roleSlugs?.includes("organization_owner") ||
+    context.permissions?.includes("crm.records.view_all");
+  if (!viewAll) {
+    values.push(context.userId);
+    sql += ` AND (${alias}.owner_user_id IS NULL OR ${alias}.owner_user_id=$${values.length})`;
+  }
+  return sql;
+}
 export function evaluateLeadReadiness(lead, now = new Date(), options = {}) {
   const reasons = [];
   const scoringConfigured = options.scoringConfigured !== false;
@@ -69,9 +93,12 @@ export function buildLeadAgingBuckets(rows, now = new Date()) {
   return buckets;
 }
 export async function getLeadTimeline(client, context, leadId) {
+  const leadValues = [context.organizationId, leadId];
   const lead = await client.query(
-    `SELECT id,code,full_name,status,score,owner_user_id,next_follow_up_at,created_at,updated_at FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, leadId],
+    `SELECT lead.id,lead.code,lead.full_name,lead.status,lead.score,lead.owner_user_id,lead.next_follow_up_at,lead.created_at,lead.updated_at
+       FROM tenant.crm_leads lead
+      WHERE lead.organization_id=$1 AND lead.id=$2${scopedLeadWhere(context, leadValues)}`,
+    leadValues,
   );
   if (!lead.rows[0])
     throw new LeadOperationsError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
@@ -222,10 +249,13 @@ export async function bulkUpdateLeads(client, context, input) {
   return { requested: ids.length, updated: result.rowCount, rows: result.rows };
 }
 export async function getLeadOperationsDashboard(client, context) {
+  const leadValues = [context.organizationId];
   const [result, scoringConfigured] = await Promise.all([
     client.query(
-      `SELECT id,status,score,next_follow_up_at,created_at,updated_at FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active'`,
-      [context.organizationId],
+      `SELECT lead.id,lead.status,lead.score,lead.next_follow_up_at,lead.created_at,lead.updated_at
+         FROM tenant.crm_leads lead
+        WHERE lead.organization_id=$1 AND lead.record_status='active'${scopedLeadWhere(context, leadValues)}`,
+      leadValues,
     ),
     isLeadScoringConfigured(client, context.organizationId),
   ]);

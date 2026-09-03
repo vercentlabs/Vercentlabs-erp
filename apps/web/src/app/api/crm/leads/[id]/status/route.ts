@@ -23,11 +23,19 @@ export async function POST(request: Request, { params }: Params) {
     assertCrmIdentifier(id);
     const input = (await readJson(request)) as Record<string, unknown>;
     const status = String(input.status || "");
+    const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead before moving it.",
+        "CRM_LEAD_VERSION_REQUIRED",
+      );
     const context = await crmApiContext(session);
     const record = await tenantTransaction(context.organizationId, async (client) => {
       const transition = await transitionLeadStage(client, context, id, {
         stageCode: status,
-        expectedUpdatedAt: input.expectedUpdatedAt,
+        expectedUpdatedAt,
+        requireVersion: true,
         source: input.source || "legacy",
       });
       if (transition.changed) await audit({

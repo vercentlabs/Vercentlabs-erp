@@ -36,9 +36,20 @@ export async function POST(request: Request, route: Route) {
     const { id } = await route.params;
     assertCrmIdentifier(id);
     const input = (await readJson(request)) as Record<string, unknown>;
+    const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead before moving it.",
+        "CRM_LEAD_VERSION_REQUIRED",
+      );
     const context = await crmApiContext(session);
     const result = await tenantTransaction(context.organizationId, async (client) => {
-      const transition = await transitionLeadStage(client, context, id, input);
+      const transition = await transitionLeadStage(client, context, id, {
+        ...input,
+        expectedUpdatedAt,
+        requireVersion: true,
+      });
       if (transition.changed)
         await audit({
           organizationId: context.organizationId,
