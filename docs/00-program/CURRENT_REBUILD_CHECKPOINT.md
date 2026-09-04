@@ -25,20 +25,28 @@
 
 ## Runtime execution transition
 
-Current repository implementation activity predates the new live execution/AWP registers. Therefore current runtime wave state is **RECONCILIATION_REQUIRED**, not “Begin T00” and not an inferred COMPLETE state.
+Parallel-governance machine controls are installed and the initial execution-state reconciliation has been performed against implementation commit `e7c0dfe27fdd19d11a29e8b2ad9ff1628cf651ca`.
 
-Code, migrations, routes, tests and prior release evidence are inputs to reconciliation; they are not automatic wave-exit evidence.
+Reconciled result:
+
+- `T00` — `COMPLETE`, exit gate `PASS`;
+- `T01` — `IN_PROGRESS`, exit gate `PENDING`;
+- `W01` — `BLOCKED`, predecessor evidence `PENDING`;
+- `W02` — `BLOCKED`, predecessor evidence `PENDING`;
+- `W03` — `BLOCKED`, predecessor evidence `PENDING`;
+- `W04–W15` — remain `RECONCILIATION_REQUIRED` until their reconciliation boundary is reached.
+
+The evidence packet is `docs/08-implementation-plans/evidence/EXECUTION_STATE_RECONCILIATION_20260904.md`. No business feature or downstream wave is promoted from code existence alone.
 
 ## Next authorized action
 
-1. finish installing parallel-governance machine controls;
-2. reconcile existing repository implementation evidence into `IMPLEMENTATION_EXECUTION_REGISTER.csv`;
-3. evaluate canonical predecessor and wave exit gates objectively;
-4. register dependency-safe Agent Work Packages with exact branch/base commit/path ownership;
-5. reserve migration prefixes where required;
-6. only then authorize parallel package execution.
+1. register conflict-free `T01` SHARED_PLATFORM/HARDENING/INTEGRATION work packages to reconcile and close the remaining T01 acceptance evidence;
+2. keep W01/W02/W03 business packages non-ACTIVE while T01 exit status is `PENDING`;
+3. after T01 reaches `PASS`, complete/certify W01 master-data foundation;
+4. after W01 reaches `PASS`, W02 and W03 may become independently eligible according to the canonical dependency DAG;
+5. reserve migration prefixes before any package creates a migration and keep PM integration/acceptance WIP at one.
 
-No new Sales, Accounting, CRM or other business package is authorized by this checkpoint alone.
+No new W01/W02/W03 business AWP is authorized by this checkpoint alone.
 
 ## Mandatory validation after governance tooling installation
 
