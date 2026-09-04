@@ -257,6 +257,11 @@ export default async function CrmResourcePage({
           session,
           PERMISSIONS.crmCommunicationsManage,
         )}
+        canManagePrivacy={hasPermission(session, PERMISSIONS.crmPrivacyManage)}
+        canManageDataQuality={hasPermission(
+          session,
+          PERMISSIONS.crmDataQualityManage,
+        )}
       />
     </>
   );

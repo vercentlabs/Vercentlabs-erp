@@ -27,6 +27,13 @@ function canViewAllCrmRecords(context: CrmContext) {
   );
 }
 
+function canUsePermission(context: CrmContext, permission: string) {
+  return (
+    context.roleSlugs?.includes("organization_owner") ||
+    context.permissions?.includes(permission)
+  );
+}
+
 function opportunityScope(context: CrmContext, values: unknown[]) {
   let sql = "";
   if (context.activeCompanyId) {
@@ -100,6 +107,13 @@ export async function getLeadDetailData(
     assignmentHistory,
     qualification,
     lifecycleHistory,
+    provenance,
+    consentEvents,
+    enrichmentReviews,
+    slaCases,
+    slaEvents,
+    dataQuality,
+    aiPredictions,
   ] = await Promise.all([
     canSeeSensitive
       ? db.query(
@@ -160,6 +174,48 @@ export async function getLeadDetailData(
       canSeeSensitive ? value : redactedQualification(value),
     ),
     listLeadStageHistory(db, context, id),
+    canSeeSensitive
+      ? db.query(
+          `SELECT id,source_channel,source_record_id,provider,external_id,attribution,consent_evidence,content_hash,created_at FROM tenant.crm_lead_provenance WHERE organization_id=$1 AND lead_id=$2 ORDER BY created_at DESC,id DESC LIMIT 50`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
+    canSeeSensitive && canUsePermission(context, "crm.privacy.manage")
+      ? db.query(
+          `SELECT id,channel,purpose,action,lawful_basis,source,evidence,occurred_at,expires_at,created_at FROM tenant.crm_consent_events WHERE organization_id=$1 AND lead_id=$2 ORDER BY occurred_at DESC,created_at DESC LIMIT 100`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
+    canSeeSensitive && canUsePermission(context, "crm.data-quality.manage")
+      ? db.query(
+          `SELECT review.id,review.proposed_changes,review.accepted_changes,review.rejected_changes,review.provenance,review.confidence,review.status,review.reviewed_at,review.created_at,job.id AS enrichment_job_id,job.provider,job.requested_fields,job.result_data,job.error_message,job.status AS job_status,job.requested_at,job.completed_at FROM tenant.crm_enrichment_reviews review JOIN tenant.crm_enrichment_jobs job ON job.organization_id=review.organization_id AND job.id=review.enrichment_job_id WHERE review.organization_id=$1 AND lower(job.entity_type)='lead' AND job.entity_id=$2 ORDER BY review.created_at DESC LIMIT 50`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
+    canSeeSensitive
+      ? db.query(
+          `SELECT sla.*,policy.name AS policy_name,policy.first_response_minutes,policy.escalation_after_minutes FROM tenant.crm_lead_sla_cases sla JOIN tenant.crm_lead_sla_policies policy ON policy.organization_id=sla.organization_id AND policy.id=sla.policy_id WHERE sla.organization_id=$1 AND sla.lead_id=$2 ORDER BY sla.created_at DESC LIMIT 25`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
+    canSeeSensitive
+      ? db.query(
+          `SELECT id,sla_case_id,event_type,occurred_at,evidence,created_by FROM tenant.crm_lead_sla_events WHERE organization_id=$1 AND lead_id=$2 ORDER BY occurred_at DESC,id DESC LIMIT 100`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
+    canSeeSensitive && canUsePermission(context, "crm.data-quality.manage")
+      ? db.query(
+          `SELECT id,completeness_score,validity_score,freshness_score,duplicate_risk_score,overall_score,issues,calculated_at,calculation_version FROM tenant.crm_data_quality_scores WHERE organization_id=$1 AND lower(entity_type)='lead' AND entity_id=$2 ORDER BY calculated_at DESC LIMIT 1`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
+    canSeeSensitive && canUsePermission(context, "crm.ai.manage")
+      ? db.query(
+          `SELECT id,prediction_type,score,label,explanation,model_provider,model_name,model_version,generated_at,expires_at,status FROM tenant.crm_ai_predictions WHERE organization_id=$1 AND lower(entity_type)='lead' AND entity_id=$2 ORDER BY generated_at DESC LIMIT 25`,
+          [context.organizationId, id],
+        )
+      : emptyRows,
   ]);
 
   return {
@@ -180,6 +236,13 @@ export async function getLeadDetailData(
     lifecycleHistory: canSeeSensitive
       ? lifecycleHistory
       : lifecycleHistory.map((row: Record<string, unknown>) => ({ ...row, note: null })),
+    provenance: provenance.rows,
+    consentEvents: consentEvents.rows,
+    enrichmentReviews: enrichmentReviews.rows,
+    slaCases: slaCases.rows,
+    slaEvents: slaEvents.rows,
+    dataQuality: dataQuality.rows[0] || null,
+    aiPredictions: aiPredictions.rows,
   };
 }
 

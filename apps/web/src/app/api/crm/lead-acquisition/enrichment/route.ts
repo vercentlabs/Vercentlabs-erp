@@ -4,15 +4,18 @@ import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization"
 import { crmApiContext } from "@/modules/crm";
 import { crmLeadAcquisitionErrorResponse } from "@/modules/crm/server/lead-acquisition";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok } from "@/core/http";
+import { HttpError, ok, readJson } from "@/core/http";
+import { assertSameOrigin } from "@/core/security";
 
 export async function POST(request: Request) {
   try {
+    assertSameOrigin(request);
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmDataQualityManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const context = await crmApiContext(session);
-    const input = (await request.json()) as Record<string, unknown>;
+    const input = (await readJson(request)) as Record<string, unknown>;
     const result = await tenantTransaction(context.organizationId, (client) =>
       input.action === "review"
         ? reviewLeadEnrichment(

@@ -1,4 +1,4 @@
-wave_id,name,scope,depends_on,status,implementation_authority
+wave_id,name,scope,depends_on,planning_status,implementation_authority
 T00,Technical safety foundation,Tenant/RLS transaction correctness; toolchain; migration safety; architecture validators,None,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
 T01,Shared Platform + Experience Kernel,SP001-SP036; shared UI/runtime contracts,T00,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS
 W01,Master-data foundation,Company/customer/supplier/item/UOM/currency/tax/warehouse masters used by downstream modules,T00;T01,PLANNED_FROZEN,PASS_F_AUTHORIZED_WHEN_PREDECESSORS_PASS

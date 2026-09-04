@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import csv, hashlib, sys
+import csv, hashlib, subprocess, sys
 ROOT=Path(__file__).resolve().parents[2];D=ROOT/'docs';R=D/'02-register';errors=[]
 def err(x): errors.append(x)
 def csvrows(p):
@@ -10,7 +10,8 @@ required=[
  D/'00-program/FINAL_TECHNICAL_EXECUTION_BLUEPRINT.md',D/'00-program/AI_ENGINEERING_EXECUTION_PROTOCOL.md',
  D/'00-program/MASTER_TRACEABILITY_MODEL.md',D/'00-program/TECHNICAL_IMPLEMENTATION_WAVES.md',
  D/'00-program/DEPLOYMENT_ENVIRONMENT_PLAN.md',D/'00-program/MIGRATION_RECONCILIATION_STANDARD.md',
- D/'00-program/FINAL_PLANNING_FINISH_LINE.md',
+ D/'00-program/FINAL_PLANNING_FINISH_LINE.md',D/'00-program/PARALLEL_AI_IMPLEMENTATION_OPERATING_MODEL.md',
+ R/'IMPLEMENTATION_EXECUTION_REGISTER.csv',R/'AGENT_WORK_PACKAGE_REGISTER.csv',R/'MIGRATION_RESERVATION_REGISTER.csv',
  D/'01-standards/TECH_STACK_ADR.md',D/'01-standards/PROJECT_STRUCTURE_CONSTITUTION.md',
  D/'01-standards/WRITE_OPERATION_CONSTITUTION.md',D/'01-standards/DATABASE_CONSTITUTION.md',
  D/'01-standards/API_COMMAND_QUERY_STANDARD.md',D/'01-standards/CROSS_MODULE_OWNERSHIP_STANDARD.md',
@@ -58,6 +59,10 @@ for name,tokens in checks.items():
     for token in tokens:
         if token not in txt: err(f'{name}: missing semantic token {token}')
 
+
+parallel=subprocess.run([sys.executable,str(D/'scripts/validate_parallel_implementation.py')],cwd=ROOT,text=True,capture_output=True)
+if parallel.returncode!=0: err('parallel governance validation failed: '+(parallel.stdout+parallel.stderr).strip().replace('\n',' | '))
+
 if errors:
     print('FINAL TECHNICAL BLUEPRINT VALIDATION FAILED')
     for x in errors[:100]: print(' -',x)
@@ -68,3 +73,4 @@ print(' - project structure / tech stack / write / DB / API / module ownership s
 print(' - AI engineering protocol and implementation waves present')
 print(' - 510-row build and semantic/benchmark review manifests present')
 print(' - requirement-level traceability graph present')
+print(' - parallel AWP/execution/migration governance authority validated')

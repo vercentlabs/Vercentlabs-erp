@@ -1,5 +1,8 @@
 # Procurement Pass 3 Specification Report
 
+Classification: SPECIFICATION PASS — NOT AN IMPLEMENTATION WAVE
+Canonical implementation wave: `W05`
+
 - Canonical range: F063–F096
 - Canonical count: 34 / 34
 - CRM Pass 1 + Sales Pass 2 prerequisites: PASS

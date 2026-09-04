@@ -1,5 +1,8 @@
 # CRM Pass 1 Specification Report
 
+Classification: SPECIFICATION PASS — NOT AN IMPLEMENTATION WAVE
+Canonical implementation wave: `W03`
+
 - Canonical range: F001–F030
 - Canonical count: 30 / 30
 - Research coverage: COMPLETE

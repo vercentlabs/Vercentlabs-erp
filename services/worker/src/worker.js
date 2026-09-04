@@ -20,7 +20,7 @@ export function generateWorkerId() {
   return `${os.hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
 }
 
-export async function processGenericJob(pool, workerId, organizationId, job) {
+export async function processGenericJob(pool, workerId, organizationId, job, { leaseMilliseconds = 60_000 } = {}) {
   const definition = getJobHandler(job.job_type);
   const context = buildSystemContext(organizationId);
   if (!definition) {
@@ -35,11 +35,21 @@ export async function processGenericJob(pool, workerId, organizationId, job) {
   }
   try {
     const payload = validatePayload(definition, job.payload);
-    const result = await withTenantClient(pool, organizationId, async (client) => {
-      const handlerResult = await definition.handler(client, context, payload);
-      await completeJob(client, job.id, workerId);
-      return handlerResult;
-    });
+    let result;
+    if (definition.transactionMode === "managed") {
+      result = await definition.handler(null, context, payload, {
+        pool, job, workerId, organizationId, leaseMilliseconds, withTenantClient,
+      });
+      await withTenantClient(pool, organizationId, (client) =>
+        completeJob(client, job.id, workerId, { resultManifest: result }),
+      );
+    } else {
+      result = await withTenantClient(pool, organizationId, async (client) => {
+        const handlerResult = await definition.handler(client, context, payload);
+        await completeJob(client, job.id, workerId);
+        return handlerResult;
+      });
+    }
     logger.info("job completed", { jobId: job.id, jobType: job.job_type, organizationId, attempts: job.attempts, result: redact(result) });
   } catch (error) {
     const terminal = error instanceof HandlerValidationError;
@@ -107,7 +117,7 @@ async function processOrganization(pool, workerId, config, organizationId) {
     }),
   );
   for (const job of claimedJobs) {
-    await processGenericJob(pool, workerId, organizationId, job);
+    await processGenericJob(pool, workerId, organizationId, job, { leaseMilliseconds: config.worker.leaseMilliseconds });
   }
 
   const claimedEvents = await withTenantClient(pool, organizationId, (client) =>

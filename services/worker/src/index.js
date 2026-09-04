@@ -1,5 +1,5 @@
 export { getWorkerConfig, getPool, closePool, listActiveOrganizationIds, withTenantClient } from "./db.js";
-export { enqueueJob, claimJobs, completeJob, failJob, QueueError } from "./queue.js";
+export { enqueueJob, claimJobs, completeJob, extendJobLease, failJob, QueueError } from "./queue.js";
 export { claimOutboxEvents, completeOutboxEvent, failOutboxEvent, DEFAULT_MAX_OUTBOX_ATTEMPTS } from "./outbox.js";
 export { registerJobHandler, getJobHandler, listRegisteredJobTypes, validatePayload, HandlerValidationError, _resetRegistryForTests } from "./registry.js";
 export { internalJobBackoff, webhookBackoff, boundedRetryAfterMilliseconds } from "./backoff.js";
@@ -7,6 +7,7 @@ export { isBlockedAddress, validateWebhookUrl, resolveSafeAddress, SsrfError } f
 export { deliverWebhook, WebhookDeliveryError } from "./webhook-delivery.js";
 export { findMatchingSubscriptions, deliverOutboxEvent } from "./handlers/crm-webhook-deliver.js";
 export { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./handlers/crm-automation-overdue.js";
+export { leadBulkUpdateHandler, JOB_TYPE as LEAD_BULK_JOB_TYPE, payloadSchema as leadBulkPayloadSchema } from "./handlers/crm-lead-bulk-update.js";
 export { buildSystemContext, SYSTEM_ACTOR_ROLE_SLUG } from "./system-context.js";
 export { runSchedulerTick } from "./scheduler.js";
 export { createWorker, generateWorkerId } from "./worker.js";

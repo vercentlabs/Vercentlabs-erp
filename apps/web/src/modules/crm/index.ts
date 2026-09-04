@@ -2,6 +2,7 @@ import {
   CrmError,
   LeadDuplicateError,
   LeadGovernanceError,
+  LeadOperationsError,
   LeadQualificationError,
 } from "@vercentlabs/api";
 import { ZodError } from "zod";
@@ -3520,6 +3521,7 @@ export function crmErrorResponse(error: unknown) {
     error instanceof CrmError ||
     error instanceof LeadDuplicateError ||
     error instanceof LeadGovernanceError ||
+    error instanceof LeadOperationsError ||
     error instanceof LeadQualificationError
   ) {
     const details =
@@ -3562,6 +3564,7 @@ export function rethrowCrmError(error: unknown): never {
     error instanceof CrmError ||
     error instanceof LeadDuplicateError ||
     error instanceof LeadGovernanceError ||
+    error instanceof LeadOperationsError ||
     error instanceof LeadQualificationError
   )
     throw new HttpError(error.status, error.message, error.code);

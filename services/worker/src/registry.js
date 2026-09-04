@@ -15,12 +15,13 @@ export class HandlerValidationError extends Error {
 // 10's classification requirement); actual retry-safety is enforced by
 // each handler's own implementation and by the queue's idempotency-key
 // uniqueness, not by this field.
-export function registerJobHandler(jobType, { schema, handler, backoff, idempotency = "IDEMPOTENCY_KEY_REQUIRED", maxAttempts }) {
+export function registerJobHandler(jobType, { schema, handler, backoff, idempotency = "IDEMPOTENCY_KEY_REQUIRED", maxAttempts, transactionMode = "tenant_transaction" }) {
   if (!jobType || typeof jobType !== "string") throw new Error("registerJobHandler requires a non-empty job type string.");
   if (typeof handler !== "function") throw new Error(`registerJobHandler("${jobType}") requires a handler function.`);
   if (typeof backoff !== "function") throw new Error(`registerJobHandler("${jobType}") requires a backoff(attempt) function.`);
+  if (!["tenant_transaction", "managed"].includes(transactionMode)) throw new Error(`registerJobHandler("${jobType}") received an invalid transactionMode.`);
   if (handlers.has(jobType)) throw new Error(`A handler is already registered for job type "${jobType}".`);
-  handlers.set(jobType, { jobType, schema, handler, backoff, idempotency, maxAttempts });
+  handlers.set(jobType, { jobType, schema, handler, backoff, idempotency, maxAttempts, transactionMode });
 }
 
 export function getJobHandler(jobType) {

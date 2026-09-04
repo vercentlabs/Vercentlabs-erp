@@ -167,8 +167,8 @@ test("Lead layouts respond to the usable workspace and preserve mobile task prio
   assert.match(suite, /@container lead-workspace \(max-width: 1080px\)/);
   assert.match(list, /aria-controls="crm-leads-advanced-filters"/);
   assert.match(list, /crm-leads-filter-grid\$\{filtersExpanded/);
-  assert.match(list, /if \(!canManage \|\| !selected\.size\) return/);
-  assert.match(list, /\{canManage && selected\.size \? \(/);
+  assert.match(list, /const selectedCount = selectionMode === "filter" \? total : selected\.size;[\s\S]*?if \(!canManage \|\| !selectedCount\) return/);
+  assert.match(list, /\{canManage && \(selected\.size \|\| selectionMode === "filter"\) \? \(/);
   assert.match(drawer, /role="dialog"/);
   assert.match(drawer, /aria-modal="true"/);
   assert.match(drawer, /event\.key === "Escape"/);

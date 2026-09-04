@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
+python docs/scripts/validate_parallel_implementation.py
 python docs/scripts/validate_blueprint.py
 python docs/scripts/validate_requirement_contract.py
 python docs/scripts/validate_references.py
@@ -15,7 +16,7 @@ python docs/scripts/validate_stock_pass4.py
 python docs/scripts/validate_manufacturing_pass5.py
 python docs/scripts/validate_projects_pass6.py
 python docs/scripts/validate_assets_pass7.py
-git diff --check -- docs
+python docs/scripts/validate_worktree_hygiene.py --scope docs
 python docs/scripts/validate_pos_pass8.py
 python docs/scripts/validate_quality_pass9.py
 python docs/scripts/validate_support_pass10.py

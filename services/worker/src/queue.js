@@ -79,16 +79,31 @@ export async function claimJobs(client, organizationId, { workerId, leaseMillise
   return rows;
 }
 
-export async function completeJob(client, jobId, workerId) {
+export async function completeJob(client, jobId, workerId, { resultManifest = null } = {}) {
   const { rows } = await client.query(
     `UPDATE tenant.background_jobs
         SET status = 'completed', completed_at = now(), updated_at = now(),
+            result_manifest = CASE WHEN $3::jsonb IS NULL THEN result_manifest ELSE $3::jsonb END,
+            progress = CASE WHEN $3::jsonb IS NULL THEN progress ELSE $3::jsonb END,
             locked_by = NULL, locked_at = NULL, lease_expires_at = NULL
       WHERE id = $1 AND locked_by = $2
       RETURNING *`,
-    [jobId, workerId],
+    [jobId, workerId, resultManifest == null ? null : JSON.stringify(resultManifest)],
   );
   return rows[0] || null;
+}
+
+export async function extendJobLease(client, jobId, workerId, leaseMilliseconds) {
+  const { rows } = await client.query(
+    `UPDATE tenant.background_jobs
+        SET lease_expires_at = now() + ($3 || ' milliseconds')::interval,
+            updated_at = now()
+      WHERE id = $1 AND locked_by = $2 AND status = 'processing'
+      RETURNING *`,
+    [jobId, workerId, String(Math.max(1_000, Number(leaseMilliseconds) || 60_000))],
+  );
+  if (!rows[0]) throw new QueueError("Job lease is no longer owned by this worker.", "JOB_LEASE_LOST");
+  return rows[0];
 }
 
 // A retryable failure returns the job to 'pending' with a future run_at;

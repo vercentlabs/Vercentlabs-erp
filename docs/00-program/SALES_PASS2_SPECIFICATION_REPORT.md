@@ -1,5 +1,8 @@
 # Sales Pass 2 Specification Report
 
+Classification: SPECIFICATION PASS — NOT AN IMPLEMENTATION WAVE
+Canonical implementation wave: `W04`
+
 - Canonical range: F031–F062
 - Canonical count: 32 / 32
 - CRM Pass 1 prerequisite: PASS

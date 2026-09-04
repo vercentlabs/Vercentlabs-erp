@@ -3,15 +3,15 @@
 Status: `PM_BASELINE_FROZEN`
 Accountable owner: `Project Manager`
 
-The project currently has one accountable human executor: the Project Manager.
+The project has one accountable human: the Project Manager. AI agents are execution tools, not additional accountable project owners.
 
-Capacity is controlled by **WIP**, not by invented time estimates:
+Capacity is governed by two separate WIP controls:
 
-- maximum human WIP is one implementation wave;
-- capability work inside a wave is finished to its evidence gate before unrelated work is opened;
-- repository checkpoints preserve context whenever project truth changes;
-- AI tools may assist analysis or implementation but do not create additional human capacity or project ownership;
-- no daily, weekly or monthly capacity assumption is baselined;
-- no effort hours, implementation duration, project start date, project finish date or delivery forecast is baselined.
+- **PM integration/acceptance WIP:** one package at a time;
+- **AI execution WIP:** multiple registered work packages may execute concurrently only when dependency, path ownership, branch/base-commit, migration and shared-change controls pass.
 
-The Project Manager may change this capacity policy later through explicit change control. Until then, dependency sequence and exit evidence govern progress, not a calendar commitment.
+Parallel AI execution does not create approval capacity. The Project Manager serializes integration/acceptance and remains responsible for scope, architecture, quality, risk and gate decisions.
+
+Repository checkpoints and package evidence preserve context whenever project truth changes. No daily/weekly/monthly capacity assumption, effort hours, implementation duration, project start/finish date or delivery forecast is baselined.
+
+Any change to accountability, integration WIP, parallel-execution controls or calendar commitments requires explicit Project Manager change control.

@@ -5,6 +5,7 @@ import {
 } from "./lead-governance.js";
 import { resolveIngestionLeadSource } from "./features/lead-sources/validation.js";
 import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
 
 export const CRM_LEAD_ACQUISITION_CAPABILITY_IDS = Object.freeze([
   "CRM-054",
@@ -89,6 +90,33 @@ function boolean(value) {
 function assertUuid(value, label) {
   if (!UUID.test(String(value || "")))
     throw new CrmLeadAcquisitionError(400, `${label} is invalid.`);
+}
+
+async function getScopedSensitiveEnrichmentLead(
+  client,
+  context,
+  leadId,
+  { lock = false } = {},
+) {
+  if (!canViewSensitiveLeadContent(context))
+    throw new CrmLeadAcquisitionError(
+      403,
+      "You do not have permission to access sensitive Lead enrichment.",
+      "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+    );
+  const values = [context.organizationId, leadId];
+  const scope = leadScopeSql(context, values, "lead");
+  const result = await client.query(
+    `SELECT lead.id,lead.company_id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2${scope}${lock ? " FOR UPDATE" : ""}`,
+    values,
+  );
+  if (!result.rows[0])
+    throw new CrmLeadAcquisitionError(
+      404,
+      "Lead not found.",
+      "CRM_LEAD_NOT_FOUND",
+    );
+  return result.rows[0];
 }
 function mapped(row, mapping, name) {
   const source = mapping[name] || name;
@@ -1008,13 +1036,18 @@ export async function appendLeadChatMessage(
 
 export async function queueLeadEnrichment(client, context, input = {}) {
   assertUuid(input.entityId, "Entity");
+  const entityType = text(input.entityType || "lead", 20).toLowerCase();
+  const scopedLead =
+    entityType === "lead"
+      ? await getScopedSensitiveEnrichmentLead(client, context, input.entityId, { lock: true })
+      : null;
   const review = buildEnrichmentReview(input);
   const job = await client.query(
     `INSERT INTO tenant.crm_enrichment_jobs(organization_id,company_id,entity_type,entity_id,provider,requested_fields,status,requested_by) VALUES($1,$2,$3,$4,$5,$6::jsonb,'queued',$7) RETURNING *`,
     [
       context.organizationId,
-      input.companyId || context.activeCompanyId,
-      text(input.entityType || "lead", 20),
+      scopedLead?.company_id || input.companyId || context.activeCompanyId,
+      entityType,
       input.entityId,
       review.provider,
       JSON.stringify(
@@ -1059,6 +1092,10 @@ export async function reviewLeadEnrichment(
       409,
       "Enrichment review is already complete.",
     );
+  if (String(row.entity_type || "").toLowerCase() === "lead")
+    await getScopedSensitiveEnrichmentLead(client, context, row.entity_id, {
+      lock: true,
+    });
   const decision = text(input.decision, 20).toLowerCase();
   if (decision && !["approved", "rejected"].includes(decision)) {
     throw new CrmLeadAcquisitionError(

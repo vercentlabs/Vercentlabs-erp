@@ -2,7 +2,9 @@
 
 Status: `PASS_F_AUTHORIZED_BASELINE`
 
-This document mirrors `docs/02-register/IMPLEMENTATION_WAVE_REGISTER.csv`, which is the canonical wave authority. Older T02-T15 or W00-W11 numbering is retired and must not be used for implementation sequencing.
+This document mirrors `docs/02-register/IMPLEMENTATION_WAVE_REGISTER.csv`, which is the canonical wave-planning authority.
+
+Noncanonical historical schemes using `T02–T15`, `W00`, or informal plain numeric labels such as `Wave 0`, `Wave 1`, or `Wave 2` are retired for active implementation scheduling. **Canonical zero-padded `W01–W15` identifiers remain active and unchanged.**
 
 | Wave | Scope | Dependency rule |
 |---|---|---|
@@ -24,4 +26,10 @@ This document mirrors `docs/02-register/IMPLEMENTATION_WAVE_REGISTER.csv`, which
 | W14 | Enterprise hardening | after W12/W13 |
 | W15 | Migration, pilot and production readiness | after W14 |
 
-Because one person executes the project, human WIP is limited to one wave. This is an execution-order rule only. No date, duration, effort estimate or delivery forecast is attached to the sequence.
+## Sequence versus dependency DAG
+
+`sequence` is the canonical topological/reference ordering; it is not a global serialization mandate. `depends_on` is the authoritative eligibility gate.
+
+After predecessor evidence has been reconciled and passed, multiple registered, non-overlapping Agent Work Packages may execute concurrently. The Project Manager still integrates and accepts one package at a time (`pm_integration_wip_limit=1`).
+
+Parallel execution is governed by `PARALLEL_AI_IMPLEMENTATION_OPERATING_MODEL.md`, the execution/AWP/migration registers and their validators. It does not introduce dates, durations, effort estimates or delivery forecasts.

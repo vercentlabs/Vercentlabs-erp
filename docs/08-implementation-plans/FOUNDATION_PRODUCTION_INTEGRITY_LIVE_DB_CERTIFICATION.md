@@ -1,4 +1,4 @@
-# Wave 0 Live Database Certification
+# Foundation Production Integrity — Live Database Certification
 
 Status: **PASS**
 
@@ -17,13 +17,13 @@ Certified at: `2026-09-03T19:32:39+05:30`
 
 The certification ran against a freshly created local PostgreSQL database after applying every platform and tenant migration.
 
-The following Wave 0 invariants passed:
+The following production-integrity foundation invariants passed:
 
 1. Certification seed/schema contract covers every mandatory no-default column in all seeded application tables.
 2. Migration 072 is applied exactly once with a recorded checksum.
 3. `tenant.document_sequences`, `tenant.operation_idempotency`, and `tenant.quality_hold_releases` have enabled and forced RLS.
 4. The runtime role is NOINHERIT, NOSUPERUSER, NOBYPASSRLS, NOCREATEDB, and NOCREATEROLE and cannot read `public.schema_migrations`.
-5. Cross-organization access to Wave 0 rows is hidden/rejected by RLS.
+5. Cross-organization access to foundation rows is hidden/rejected by RLS.
 6. 100 concurrent company-scoped business-number allocations produce 100 unique deterministic numbers.
 7. A 20-way same-key idempotency race performs one mutation and replays the other 19; reusing the key with a different payload is rejected.
 8. A same-organization UUID belonging to another company is rejected by company-reference validation.
@@ -35,7 +35,7 @@ The following Wave 0 invariants passed:
 
 ## Release evidence
 
-The repository release gate was separately run on the same Wave 0 working tree before this live certification and reached:
+The repository release gate was separately run on the same production-integrity foundation working tree before this live certification and reached:
 
 - landing E2E: 544 / 544 passed
 - `Full release verification passed`
@@ -43,4 +43,4 @@ The repository release gate was separately run on the same Wave 0 working tree b
 
 ## Scope note
 
-Wave 0 certifies the production-integrity foundation. It does **not** mark F001-F510 complete. Feature completion remains governed by the canonical end-to-end completion standard.
+This certification covers the production-integrity foundation. It does **not** mark F001-F510 complete. Feature completion remains governed by the canonical end-to-end completion standard.

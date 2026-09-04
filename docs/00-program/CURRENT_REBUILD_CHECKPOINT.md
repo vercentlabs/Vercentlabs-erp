@@ -1,6 +1,7 @@
 # Current Rebuild Checkpoint
 
-## Current authoritative state
+## Current authoritative planning state
+
 - Canonical business authority: F001-F510 preserved.
 - Canonical business specifications: 510/510 specification-ready.
 - Shared-platform authority: 36/36 specification-ready.
@@ -12,23 +13,40 @@
 - Enterprise journeys: 121/121 specification-ready.
 - Final Pass-F implementation authorization review: approved.
 - Sole accountable human role: Project Manager.
-- Canonical implementation sequence: `T00 → T01 → W01 → … → W15`, governed by predecessor evidence.
+- Canonical implementation authority: `T00`, `T01`, `W01–W15`, governed by predecessor evidence.
 - Calendar timeline policy: `NO_CALENDAR_TIMELINE_BASELINED`.
 
-## Gate decision
+## Planning gate decision
+
 - PLANNING CLOSURE: PASS
 - PM PLANNING BASELINE: PASS
 - ARCHITECTURE FREEZE: PASS
 - IMPLEMENTATION AUTHORIZATION: PASS
 
-## Important boundary
-Implementation has not been marked complete by this planning pass. Product readiness and production authorization remain future evidence gates.
+## Runtime execution transition
+
+Current repository implementation activity predates the new live execution/AWP registers. Therefore current runtime wave state is **RECONCILIATION_REQUIRED**, not “Begin T00” and not an inferred COMPLETE state.
+
+Code, migrations, routes, tests and prior release evidence are inputs to reconciliation; they are not automatic wave-exit evidence.
 
 ## Next authorized action
-Begin `T00` only when the Project Manager chooses to begin. No start date, finish date, deadline, duration or delivery forecast is implied.
 
-## Mandatory validation
+1. finish installing parallel-governance machine controls;
+2. reconcile existing repository implementation evidence into `IMPLEMENTATION_EXECUTION_REGISTER.csv`;
+3. evaluate canonical predecessor and wave exit gates objectively;
+4. register dependency-safe Agent Work Packages with exact branch/base commit/path ownership;
+5. reserve migration prefixes where required;
+6. only then authorize parallel package execution.
+
+No new Sales, Accounting, CRM or other business package is authorized by this checkpoint alone.
+
+## Mandatory validation after governance tooling installation
+
 ```bash
-bash docs/scripts/validate_blueprint.sh
+node scripts/validation/verify-toolchain.mjs
+python docs/scripts/validate_parallel_implementation.py
 python docs/scripts/validate_pm_planning.py
+bash docs/scripts/validate_blueprint.sh
 ```
+
+No start date, finish date, deadline, duration or delivery forecast is implied.

@@ -60,7 +60,7 @@ const resources = Object.freeze({
       "company_name",
       "product_interest",
     ],
-    orderBy: "updated_at DESC, created_at DESC",
+    orderBy: "updated_at DESC, created_at DESC, id DESC",
     statusColumn: "status",
     companyScoped: true,
     ownerField: "ownerUserId",
@@ -1363,6 +1363,14 @@ const LEAD_LINKED_GENERIC_TABLES = new Set([
 ]);
 
 function directLeadLinkedScope(definition, context, parameters, alias) {
+  if (definition.table === "tenant.crm_consent_events") {
+    const leadIdColumn = definition.fields?.leadId;
+    if (!leadIdColumn) return "";
+    if (!canViewSensitiveLeadContent(context))
+      return ` AND ${alias}.${leadIdColumn} IS NULL`;
+    const leadScope = recordScope(resources.leads, context, parameters, "lead");
+    return ` AND (${alias}.${leadIdColumn} IS NULL OR EXISTS (SELECT 1 FROM tenant.crm_leads lead WHERE lead.organization_id=${alias}.organization_id AND lead.id=${alias}.${leadIdColumn}${leadScope}))`;
+  }
   if (!LEAD_LINKED_GENERIC_TABLES.has(definition.table)) return "";
   const entityTypeColumn = definition.fields?.entityType;
   const entityIdColumn = definition.fields?.entityId;
@@ -1542,6 +1550,16 @@ const LEAD_LINKED_GENERIC_RESOURCES = new Set([
 ]);
 
 async function assertGenericLeadLinkedTarget(client, context, resource, effective) {
+  if (resource === "consent-events" && effective?.leadId) {
+    if (!canViewSensitiveLeadContent(context))
+      throw new CrmError(
+        403,
+        "You do not have permission to access Lead consent evidence.",
+        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+      );
+    await getCrmRecord(client, context, "leads", effective.leadId);
+    return;
+  }
   if (LEAD_LINKED_GENERIC_RESOURCES.has(resource)) {
     if (String(effective?.entityType || "").toLowerCase() !== "lead") return;
     if (!canViewSensitiveLeadContent(context))
@@ -1864,6 +1882,66 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   };
 }
 
+
+export async function snapshotLeadBulkJobSelection(
+  client,
+  context,
+  jobId,
+  selection = {},
+  { maximum = 50_000 } = {},
+) {
+  const definition = resources.leads;
+  const parameters = [context.organizationId, jobId];
+  let where = "record.organization_id = $1";
+  where += recordScope(definition, context, parameters);
+
+  const type = String(selection.type || "explicit");
+  if (type === "explicit") {
+    const ids = Array.isArray(selection.ids)
+      ? [...new Set(selection.ids.map((value) => String(value)))]
+      : [];
+    if (!ids.length) return { requested: 0, snapshotted: 0 };
+    where += ` AND record.id = ANY(${addParameter(parameters, ids)}::uuid[])`;
+    // Explicit bulk edits are only valid for active Lead records.
+    where += buildFilters(definition, {}, parameters, "record", context);
+  } else if (type === "filter") {
+    const filters = selection.filters && typeof selection.filters === "object"
+      ? selection.filters
+      : {};
+    where += buildSearch(definition, filters.search, parameters, "record", context);
+    where += buildFilters(definition, filters, parameters, "record", context);
+  } else {
+    throw new CrmError(400, "Unsupported Lead bulk selection.", "CRM_LEAD_BULK_SELECTION_INVALID");
+  }
+
+  const countResult = await client.query(
+    `SELECT count(*)::int AS total FROM tenant.crm_leads record WHERE ${where}`,
+    parameters,
+  );
+  const total = Number(countResult.rows[0]?.total || 0);
+  if (total > maximum) {
+    throw new CrmError(
+      413,
+      `This bulk operation matches ${total} Leads. Narrow the selection to ${maximum} or fewer records.`,
+      "CRM_LEAD_BULK_SELECTION_TOO_LARGE",
+      { total, maximum },
+    );
+  }
+  if (!total) return { requested: 0, snapshotted: 0 };
+
+  const inserted = await client.query(
+    `INSERT INTO tenant.crm_lead_bulk_job_items
+       (organization_id,job_id,lead_id,expected_updated_at)
+     SELECT $1,$2,record.id,record.updated_at
+       FROM tenant.crm_leads record
+      WHERE ${where}
+      ORDER BY record.id
+     ON CONFLICT (organization_id,job_id,lead_id) DO NOTHING`,
+    parameters,
+  );
+  return { requested: total, snapshotted: inserted.rowCount };
+}
+
 export async function getCrmRecord(client, context, resource, id) {
   if (resource === "stages") return getSalesStageResourceRecord(client, context, id);
   const definition = definitionFor(resource);
@@ -1907,7 +1985,7 @@ function assertLeadExpectedVersion(record, expectedUpdatedAt, required = false) 
       "The Lead version is invalid. Refresh and try again.",
       "CRM_LEAD_VERSION_INVALID",
     );
-  const actual = new Date(String(record.updatedAt || ""));
+  const actual = new Date(record.updatedAt ?? "");
   if (!Number.isFinite(actual.getTime()) || expected.getTime() !== actual.getTime())
     throw new CrmError(
       409,

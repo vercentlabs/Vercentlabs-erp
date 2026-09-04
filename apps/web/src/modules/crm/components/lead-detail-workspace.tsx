@@ -40,6 +40,23 @@ function dateTime(value: unknown) {
     ? String(value)
     : date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
+function objectValue(value: unknown): Row {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Row;
+}
+function jsonText(value: unknown) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "—";
+  }
+}
+function scoreText(value: unknown) {
+  const score = Number(value);
+  return Number.isFinite(score) ? `${Math.round(score)}%` : "—";
+}
 function assignmentReason(event: Row) {
   if (event.policy_name) return `Automatic rule: ${String(event.policy_name)}`;
   const reason = String(event.reason || "manual");
@@ -196,10 +213,19 @@ export default function CrmLeadDetailWorkspace({
   assignmentHistory,
   qualification,
   lifecycleHistory,
+  provenance,
+  consentEvents,
+  enrichmentReviews,
+  slaCases,
+  slaEvents,
+  dataQuality,
+  aiPredictions,
   canManage,
   canAssignOwner,
   canManageActivities,
   canManageCommunications,
+  canManagePrivacy,
+  canManageDataQuality,
   embedded = false,
   onEdit,
 }: {
@@ -216,10 +242,19 @@ export default function CrmLeadDetailWorkspace({
   assignmentHistory: Row[];
   qualification: Row;
   lifecycleHistory: Row[];
+  provenance: Row[];
+  consentEvents: Row[];
+  enrichmentReviews: Row[];
+  slaCases: Row[];
+  slaEvents: Row[];
+  dataQuality: Row | null;
+  aiPredictions: Row[];
   canManage: boolean;
   canAssignOwner: boolean;
   canManageActivities: boolean;
   canManageCommunications: boolean;
+  canManagePrivacy: boolean;
+  canManageDataQuality: boolean;
   embedded?: boolean;
   onEdit?: (lead: Row) => void;
 }) {
@@ -229,6 +264,7 @@ export default function CrmLeadDetailWorkspace({
   const [message, setMessage] = useState("");
   const [conflictMessage, setConflictMessage] = useState("");
   const [changingOwner, setChangingOwner] = useState(false);
+  const [enrichmentSelections, setEnrichmentSelections] = useState<Record<string, string[]>>({});
   const customData =
     lead.customData &&
     typeof lead.customData === "object" &&
@@ -458,6 +494,48 @@ export default function CrmLeadDetailWorkspace({
     );
     if (result) event.currentTarget.reset();
   }
+  async function recordConsent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const occurredAt = String(form.get("occurredAt") || "").trim();
+    const note = String(form.get("evidenceNote") || "").trim();
+    const body: Row = {
+      leadId: id,
+      channel: String(form.get("channel") || "email"),
+      purpose: String(form.get("purpose") || "sales"),
+      action: String(form.get("action") || "granted"),
+      lawfulBasis: String(form.get("lawfulBasis") || "consent"),
+      source: "manual",
+      evidence: note ? { note } : {},
+    };
+    if (occurredAt) body.occurredAt = occurredAt;
+    const result = await api("/api/crm/consent-events", body, "consent");
+    if (result) event.currentTarget.reset();
+  }
+  async function reviewEnrichment(
+    reviewId: string,
+    input: { decision?: "approved" | "rejected"; acceptedKeys?: string[] },
+  ) {
+    await api(
+      "/api/crm/lead-acquisition/enrichment",
+      { action: "review", reviewId, ...input },
+      `enrichment-${reviewId}`,
+    );
+  }
+  async function startSlaTracking() {
+    await api(
+      "/api/crm/lead-intelligence/sla",
+      { action: "open", leadId: id, evidence: { source: "lead_360" } },
+      "sla-open",
+    );
+  }
+  async function recordSlaResponse() {
+    await api(
+      "/api/crm/lead-intelligence/sla",
+      { action: "respond", leadId: id, responseType: "manual" },
+      "sla-respond",
+    );
+  }
   async function uploadAttachment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending("attachment");
@@ -518,6 +596,7 @@ export default function CrmLeadDetailWorkspace({
     ? ["overview", "opportunities"]
     : [
         "overview",
+        "governance",
         "timeline",
         "activities",
         "communications",
@@ -530,6 +609,8 @@ export default function CrmLeadDetailWorkspace({
   const tabLabel = (item: string) =>
     item === "communications"
       ? "Email"
+      : item === "governance"
+        ? "Governance & AI"
       : item === "notes"
         ? "Notes & files"
         : item === "custom"
@@ -541,6 +622,24 @@ export default function CrmLeadDetailWorkspace({
   const leadContext = [lead.companyName, lead.jobTitle]
     .filter(Boolean)
     .join(" · ");
+  const currentSla = slaCases.find((item) =>
+    ["open", "paused", "breached"].includes(String(item.status || "")),
+  ) || slaCases[0];
+  const scoreExplanation = objectValue(lead.scoreExplanation);
+  const scoreModel = objectValue(scoreExplanation.model);
+  const scoreContributionsRaw = scoreExplanation.contributions;
+  const scoreContributions = (() => {
+    if (Array.isArray(scoreContributionsRaw)) return scoreContributionsRaw;
+    if (typeof scoreContributionsRaw === "string") {
+      try {
+        const parsed = JSON.parse(scoreContributionsRaw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  })();
 
   return (
     <div
@@ -866,6 +965,299 @@ export default function CrmLeadDetailWorkspace({
                 ) : null}
               </div>
             </aside>
+          </div>
+        ) : null}
+
+        {tab === "governance" ? (
+          <div className="crm-suite-two-column wide">
+            <section className="crm-suite-surface">
+              <div className="crm-suite-section-heading">
+                <div>
+                  <p className="eyebrow">Trust & acquisition</p>
+                  <h2>Provenance and consent evidence</h2>
+                </div>
+              </div>
+              <h3>Lead provenance</h3>
+              <div className="crm-suite-list">
+                {provenance.map((row) => (
+                  <article key={String(row.id)}>
+                    <div>
+                      <strong>{nice(row.source_channel || "source")}</strong>
+                      <small>
+                        {String(row.provider || "Internal")} · {dateTime(row.created_at)}
+                      </small>
+                      <p>
+                        External reference: {String(row.external_id || row.source_record_id || "—")}
+                      </p>
+                      {row.attribution ? <small>Attribution: {jsonText(row.attribution)}</small> : null}
+                    </div>
+                    <span>{row.content_hash ? `#${String(row.content_hash).slice(0, 10)}` : "Recorded"}</span>
+                  </article>
+                ))}
+                {!provenance.length ? <p>No provenance evidence recorded yet.</p> : null}
+              </div>
+
+              <h3 className="crm-suite-subheading">Consent history</h3>
+              <div className="crm-suite-list">
+                {consentEvents.map((row) => (
+                  <article key={String(row.id)}>
+                    <div>
+                      <strong>{nice(row.action)} · {nice(row.channel)}</strong>
+                      <small>{nice(row.purpose)} · {dateTime(row.occurred_at)}</small>
+                      <p>{nice(row.lawful_basis || "not specified")} · {nice(row.source || "manual")}</p>
+                    </div>
+                    <span>{row.expires_at ? `Expires ${dateTime(row.expires_at)}` : "No expiry"}</span>
+                  </article>
+                ))}
+                {canManagePrivacy && !consentEvents.length ? <p>No consent events recorded for this Lead.</p> : null}
+                {!canManagePrivacy ? <p>Consent evidence is limited to privacy managers.</p> : null}
+              </div>
+              {canManagePrivacy ? (
+                <form className="crm-suite-form" onSubmit={recordConsent}>
+                  <h3>Record consent event</h3>
+                  <label>
+                    Channel
+                    <select name="channel" defaultValue="email">
+                      <option value="email">Email</option>
+                      <option value="sms">SMS</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="call">Call</option>
+                      <option value="postal">Postal</option>
+                      <option value="all">All channels</option>
+                    </select>
+                  </label>
+                  <label>
+                    Purpose
+                    <select name="purpose" defaultValue="sales">
+                      <option value="sales">Sales</option>
+                      <option value="marketing">Marketing</option>
+                      <option value="service">Service</option>
+                      <option value="transactional">Transactional</option>
+                      <option value="research">Research</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  <label>
+                    Action
+                    <select name="action" defaultValue="granted">
+                      <option value="granted">Granted</option>
+                      <option value="withdrawn">Withdrawn</option>
+                      <option value="suppressed">Suppressed</option>
+                      <option value="resubscribed">Resubscribed</option>
+                      <option value="expired">Expired</option>
+                    </select>
+                  </label>
+                  <label>
+                    Lawful basis
+                    <select name="lawfulBasis" defaultValue="consent">
+                      <option value="consent">Consent</option>
+                      <option value="contract">Contract</option>
+                      <option value="legal_obligation">Legal obligation</option>
+                      <option value="legitimate_interest">Legitimate interest</option>
+                      <option value="vital_interest">Vital interest</option>
+                      <option value="public_task">Public task</option>
+                    </select>
+                  </label>
+                  <label>
+                    Occurred at
+                    <input name="occurredAt" type="datetime-local" />
+                  </label>
+                  <label>
+                    Evidence note
+                    <textarea name="evidenceNote" rows={2} maxLength={1000} />
+                  </label>
+                  <button className="primary-button" disabled={pending === "consent"}>
+                    {pending === "consent" ? "Recording…" : "Record immutable event"}
+                  </button>
+                </form>
+              ) : null}
+            </section>
+
+            <section className="crm-suite-surface">
+              <div className="crm-suite-section-heading">
+                <div>
+                  <p className="eyebrow">Lead operations</p>
+                  <h2>SLA and data quality</h2>
+                </div>
+              </div>
+              <h3>First-response SLA</h3>
+              {currentSla ? (
+                <dl className="crm-lead-profile-grid">
+                  <div><dt>Policy</dt><dd>{String(currentSla.policy_name || "—")}</dd></div>
+                  <div><dt>Status</dt><dd>{nice(currentSla.status)}</dd></div>
+                  <div><dt>Response due</dt><dd>{dateTime(currentSla.response_due_at)}</dd></div>
+                  <div><dt>First response</dt><dd>{dateTime(currentSla.first_responded_at)}</dd></div>
+                </dl>
+              ) : (
+                <p>No SLA case is active for this Lead.</p>
+              )}
+              {canManage ? (
+                <div className="crm-inline-actions">
+                  {!currentSla || !["open", "paused", "breached"].includes(String(currentSla.status || "")) ? (
+                    <button className="secondary-button" disabled={pending === "sla-open"} type="button" onClick={() => void startSlaTracking()}>
+                      {pending === "sla-open" ? "Starting…" : "Start SLA tracking"}
+                    </button>
+                  ) : null}
+                  {currentSla && !currentSla.first_responded_at && ["open", "paused", "breached"].includes(String(currentSla.status || "")) ? (
+                    <button className="secondary-button" disabled={pending === "sla-respond"} type="button" onClick={() => void recordSlaResponse()}>
+                      {pending === "sla-respond" ? "Recording…" : "Record first response"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="crm-suite-list">
+                {slaEvents.slice(0, 8).map((row) => (
+                  <article key={String(row.id)}>
+                    <div><strong>{nice(row.event_type)}</strong><small>{dateTime(row.occurred_at)}</small></div>
+                    <span>{jsonText(row.evidence)}</span>
+                  </article>
+                ))}
+              </div>
+
+              <h3 className="crm-suite-subheading">Data quality</h3>
+              {canManageDataQuality && dataQuality ? (
+                <>
+                  <dl className="crm-lead-profile-grid">
+                    <div><dt>Overall</dt><dd>{scoreText(dataQuality.overall_score)}</dd></div>
+                    <div><dt>Completeness</dt><dd>{scoreText(dataQuality.completeness_score)}</dd></div>
+                    <div><dt>Validity</dt><dd>{scoreText(dataQuality.validity_score)}</dd></div>
+                    <div><dt>Freshness</dt><dd>{scoreText(dataQuality.freshness_score)}</dd></div>
+                    <div><dt>Duplicate risk</dt><dd>{scoreText(dataQuality.duplicate_risk_score)}</dd></div>
+                    <div><dt>Calculated</dt><dd>{dateTime(dataQuality.calculated_at)}</dd></div>
+                  </dl>
+                  {dataQuality.issues ? <p className="crm-helper-copy">Issues: {jsonText(dataQuality.issues)}</p> : null}
+                </>
+              ) : canManageDataQuality ? (
+                <p>No data-quality score has been calculated yet.</p>
+              ) : (
+                <p>Data-quality evidence is limited to data-quality managers.</p>
+              )}
+            </section>
+
+            <section className="crm-suite-surface">
+              <div className="crm-suite-section-heading">
+                <div>
+                  <p className="eyebrow">Human-reviewed enrichment</p>
+                  <h2>Enrichment review queue</h2>
+                </div>
+              </div>
+              {canManageDataQuality ? (
+                <div className="crm-suite-list">
+                  {enrichmentReviews.map((row) => {
+                    const reviewKey = String(row.id);
+                    const proposed = objectValue(row.proposed_changes);
+                    const proposedKeys = Object.keys(proposed);
+                    const selectedKeys = enrichmentSelections[reviewKey] ?? proposedKeys;
+                    return (
+                      <article key={reviewKey}>
+                        <div>
+                          <strong>{String(row.provider || "Enrichment")} · {nice(row.status)}</strong>
+                          <small>Confidence {scoreText(row.confidence)} · {dateTime(row.created_at)}</small>
+                          {String(row.status) === "pending" && proposedKeys.length ? (
+                            <div className="crm-tag-picker">
+                              {proposedKeys.map((key) => (
+                                <label key={key} className={selectedKeys.includes(key) ? "selected" : ""}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedKeys.includes(key)}
+                                    onChange={(event) => {
+                                      const next = event.currentTarget.checked
+                                        ? [...new Set([...selectedKeys, key])]
+                                        : selectedKeys.filter((item) => item !== key);
+                                      setEnrichmentSelections((current) => ({ ...current, [reviewKey]: next }));
+                                    }}
+                                  />
+                                  <span>{nice(key)}: {jsonText(proposed[key])}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : (
+                            <p>Proposed: {jsonText(row.proposed_changes)}</p>
+                          )}
+                          {row.accepted_changes && Object.keys(objectValue(row.accepted_changes)).length ? <small>Accepted: {jsonText(row.accepted_changes)}</small> : null}
+                          {row.rejected_changes && Object.keys(objectValue(row.rejected_changes)).length ? <small>Rejected: {jsonText(row.rejected_changes)}</small> : null}
+                        </div>
+                        {String(row.status) === "pending" ? (
+                          <div className="crm-inline-actions">
+                            <button
+                              className="link-button"
+                              disabled={pending === `enrichment-${reviewKey}` || !selectedKeys.length}
+                              type="button"
+                              onClick={() => void reviewEnrichment(reviewKey, { acceptedKeys: selectedKeys })}
+                            >
+                              Apply selected
+                            </button>
+                            <button
+                              className="link-button danger"
+                              disabled={pending === `enrichment-${reviewKey}`}
+                              type="button"
+                              onClick={() => void reviewEnrichment(reviewKey, { decision: "rejected" })}
+                            >
+                              Reject all
+                            </button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                  {!enrichmentReviews.length ? <p>No enrichment reviews for this Lead.</p> : null}
+                </div>
+              ) : (
+                <p>Enrichment reviews are limited to data-quality managers.</p>
+              )}
+            </section>
+
+            <section className="crm-suite-surface">
+              <div className="crm-suite-section-heading">
+                <div>
+                  <p className="eyebrow">Explainable intelligence</p>
+                  <h2>Score explanation and AI predictions</h2>
+                </div>
+                {canManage ? (
+                  <button className="secondary-button" disabled={pending === "score"} type="button" onClick={() => void api(`/api/crm/leads/${id}/score`, { reason: "Lead 360 governance recalculation" }, "score")}>
+                    Recalculate score
+                  </button>
+                ) : null}
+              </div>
+              <dl className="crm-lead-profile-grid">
+                <div><dt>Current score</dt><dd>{String(lead.score || 0)}</dd></div>
+                <div><dt>Grade</dt><dd>{nice(lead.leadGrade || lead.rating || "ungraded")}</dd></div>
+                <div><dt>Calculated</dt><dd>{dateTime(lead.scoreCalculatedAt)}</dd></div>
+                <div><dt>Model</dt><dd>{String(scoreModel.name || scoreModel.id || scoreExplanation.modelId || "Deterministic rules")}</dd></div>
+                <div><dt>Version</dt><dd>{String(scoreModel.version || scoreExplanation.version || "—")}</dd></div>
+                <div><dt>Uncertainty</dt><dd>{String(scoreExplanation.uncertainty || "—")}</dd></div>
+              </dl>
+              {scoreContributions.length ? (
+                <div className="crm-suite-list">
+                  {scoreContributions.slice(0, 12).map((item, index) => {
+                    const row = objectValue(item);
+                    return (
+                      <article key={`${String(row.key || row.factor || "factor")}-${index}`}>
+                        <div><strong>{nice(row.label || row.key || row.factor || "Score factor")}</strong><small>{String(row.reason || row.source || "Rule contribution")}</small></div>
+                        <span>{String(row.points ?? row.weight ?? row.value ?? "—")}</span>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : <p>No detailed deterministic contribution breakdown is available yet.</p>}
+              {aiPredictions.length ? (
+                <>
+                  <h3 className="crm-suite-subheading">AI predictions</h3>
+                  <div className="crm-suite-list">
+                    {aiPredictions.map((row) => (
+                      <article key={String(row.id)}>
+                        <div>
+                          <strong>{nice(row.prediction_type)} · {String(row.label || "Unlabelled")}</strong>
+                          <small>{String(row.model_provider || "model")} / {String(row.model_name || "unknown")} / {String(row.model_version || "unversioned")} · {dateTime(row.generated_at)}</small>
+                          <p>{jsonText(row.explanation)}</p>
+                        </div>
+                        <span>{row.score === null || row.score === undefined ? nice(row.status) : scoreText(Number(row.score) <= 1 ? Number(row.score) * 100 : row.score)}</span>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </section>
           </div>
         ) : null}
 

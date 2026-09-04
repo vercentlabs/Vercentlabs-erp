@@ -37,6 +37,23 @@ type LeadFilters = {
   followup?: string;
   qualification?: string;
 };
+type BulkJob = {
+  id: string;
+  status: "pending" | "processing" | "completed" | "dead";
+  progress?: {
+    requested?: number;
+    processed?: number;
+    pending?: number;
+    applied?: number;
+    conflict?: number;
+    skipped?: number;
+    failed?: number;
+    percent?: number;
+  };
+  resultManifest?: Record<string, number>;
+  lastError?: string | null;
+};
+
 type SavedView = {
   id: string;
   name: string;
@@ -580,6 +597,7 @@ export default function CrmLeadsWorkspace({
   const fileRef = useRef<HTMLInputElement>(null);
   const kanbanRef = useRef<HTMLDivElement>(null);
   const kanbanScrollFrame = useRef<number | null>(null);
+  const bulkRetryIdentity = useRef<{ fingerprint: string; key: string } | null>(null);
   const [preferredView, setPreferredView] = useState<"table" | "kanban">(
     "table",
   );
@@ -595,6 +613,7 @@ export default function CrmLeadsWorkspace({
   });
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState<"explicit" | "filter">("explicit");
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [savedViewName, setSavedViewName] = useState("");
@@ -604,6 +623,10 @@ export default function CrmLeadsWorkspace({
   const [working, setWorking] = useState("");
   const [localMessage, setLocalMessage] = useState("");
   const [bulkPriority, setBulkPriority] = useState("");
+  const [bulkRating, setBulkRating] = useState("");
+  const [bulkSourceId, setBulkSourceId] = useState("");
+  const [bulkFollowUpAt, setBulkFollowUpAt] = useState("");
+  const [bulkJob, setBulkJob] = useState<BulkJob | null>(null);
   const [kanbanPages, setKanbanPages] = useState<Record<string, number>>({});
   const [kanbanStageIndex, setKanbanStageIndex] = useState(0);
   const [dropStage, setDropStage] = useState("");
@@ -649,6 +672,38 @@ export default function CrmLeadsWorkspace({
     void refreshViews();
     return () => window.clearTimeout(restoreTimer);
   }, [terminalStatus]);
+  useEffect(() => {
+    if (!bulkJob?.id || ["completed", "dead"].includes(bulkJob.status)) return;
+    let stopped = false;
+    const refresh = async () => {
+      try {
+        const result = await requestJson<{ job?: BulkJob }>(
+          `/api/crm/leads/operations?jobId=${encodeURIComponent(bulkJob.id)}`,
+        );
+        if (!stopped && result.ok && result.job) {
+          setBulkJob(result.job);
+          if (result.job.status === "completed") {
+            const progress = result.job.resultManifest || result.job.progress || {};
+            setLocalMessage(
+              `Bulk job completed: ${Number(progress.applied || 0)} applied, ${Number(progress.conflict || 0)} conflict, ${Number(progress.skipped || 0)} skipped, ${Number(progress.failed || 0)} failed.`,
+            );
+            startBoardRefresh(() => router.refresh());
+          }
+          if (result.job.status === "dead") {
+            setLocalMessage(result.job.lastError || "Bulk Lead job failed.");
+          }
+        }
+      } catch {
+        // A transient polling failure is non-destructive; the durable job keeps running.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 2_000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [bulkJob?.id, bulkJob?.status, router]);
   async function refreshViews() {
     try {
       const result = await requestJson<{ views?: SavedView[] }>(
@@ -686,6 +741,11 @@ export default function CrmLeadsWorkspace({
     router.push(`/crm/leads${query.size ? `?${query.toString()}` : ""}`);
   }
   function toggle(id: string) {
+    if (selectionMode === "filter") {
+      setSelectionMode("explicit");
+      setSelected(new Set(rows.map((row) => String(row.id)).filter((rowId) => rowId !== id)));
+      return;
+    }
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -694,6 +754,11 @@ export default function CrmLeadsWorkspace({
     });
   }
   function toggleAll() {
+    if (selectionMode === "filter") {
+      setSelectionMode("explicit");
+      setSelected(new Set());
+      return;
+    }
     setSelected(
       selected.size === rows.length
         ? new Set()
@@ -762,33 +827,87 @@ export default function CrmLeadsWorkspace({
     if (id && sourceStage !== nextStatus) void moveLead(id, nextStatus);
   }
   async function bulkApply() {
-    if (!canManage || !selected.size) return;
+    const selectedCount = selectionMode === "filter" ? total : selected.size;
+    if (!canManage || !selectedCount) return;
     const changes: Record<string, unknown> = {};
     if (bulkPriority) changes.priority = bulkPriority;
+    if (bulkRating) changes.rating = bulkRating;
+    if (bulkSourceId) changes.sourceId = bulkSourceId;
+    if (bulkFollowUpAt) changes.nextFollowUpAt = new Date(bulkFollowUpAt).toISOString();
     if (!Object.keys(changes).length) {
       setLocalMessage("Choose a bulk change first.");
       return;
     }
     setWorking("bulk");
+    setLocalMessage("");
+    const expectedVersions = Object.fromEntries(
+      rows
+        .filter((row) => selected.has(String(row.id)))
+        .map((row) => [String(row.id), String(row.updatedAt || "")]),
+    );
     try {
-      const result = await requestJson<{ updated?: number }>(
-        "/api/crm/leads/operations",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "bulk-update",
-            ids: [...selected],
-            changes,
-          }),
-        },
-      );
+      const selection =
+        selectionMode === "filter"
+          ? {
+              type: "filter" as const,
+              filters: { search, status, ...filters },
+            }
+          : null;
+      const asyncFingerprint = selection
+        ? JSON.stringify({ selection, changes })
+        : "";
+      let idempotencyKey = "";
+      if (selection) {
+        if (bulkRetryIdentity.current?.fingerprint === asyncFingerprint) {
+          idempotencyKey = bulkRetryIdentity.current.key;
+        } else {
+          idempotencyKey = `lead-bulk:${crypto.randomUUID()}`;
+          bulkRetryIdentity.current = { fingerprint: asyncFingerprint, key: idempotencyKey };
+        }
+      }
+      const result = await requestJson<{
+        mode?: "synchronous" | "asynchronous";
+        updated?: number;
+        applied?: number;
+        conflict?: number;
+        skipped?: number;
+        failed?: number;
+        items?: Array<{ id: string; status: string }>;
+        job?: BulkJob;
+      }>("/api/crm/leads/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulk-update",
+          ...(selection
+            ? { selection, idempotencyKey }
+            : { ids: [...selected], expectedVersions }),
+          changes,
+        }),
+      });
       if (!result.ok) throw new Error(result.message || "Bulk update failed.");
+      if (result.mode === "asynchronous" && result.job) {
+        bulkRetryIdentity.current = null;
+        setBulkJob(result.job);
+        setLocalMessage(
+          `Bulk job queued for ${Number(result.job.progress?.requested || selectedCount)} Leads. You can keep working while it runs.`,
+        );
+        setSelectionMode("explicit");
+        setSelected(new Set());
+        return;
+      }
+      const applied = Number(result.applied ?? result.updated ?? 0);
+      const conflict = Number(result.conflict || 0);
+      const skipped = Number(result.skipped || 0);
+      const failed = Number(result.failed || 0);
       setLocalMessage(
-        `${String(result.updated ?? selected.size)} lead(s) updated.`,
+        `Bulk update: ${applied} applied, ${conflict} conflict, ${skipped} skipped, ${failed} failed.`,
       );
-      setSelected(new Set());
-      router.refresh();
+      const retryIds = (result.items || [])
+        .filter((item) => item.status !== "applied")
+        .map((item) => item.id);
+      setSelected(new Set(retryIds));
+      startBoardRefresh(() => router.refresh());
     } catch (error) {
       setLocalMessage(
         error instanceof Error ? error.message : "Bulk update failed.",
@@ -1349,9 +1468,14 @@ export default function CrmLeadsWorkspace({
             {localMessage || message}
           </p>
         ) : null}
-        {canManage && selected.size ? (
+        {canManage && (selected.size || selectionMode === "filter") ? (
           <section className="crm-leads-bulk-bar">
-            <strong>{selected.size} selected</strong>
+            <strong>{selectionMode === "filter" ? `${total} matching selected` : `${selected.size} selected`}</strong>
+            {selectionMode === "explicit" && selected.size === rows.length && total > rows.length ? (
+              <button type="button" className="secondary-button" onClick={() => setSelectionMode("filter")}>
+                Select all {total} matching
+              </button>
+            ) : null}
             <label>
               Priority
               <select
@@ -1366,6 +1490,30 @@ export default function CrmLeadsWorkspace({
                 ))}
               </select>
             </label>
+            <label>
+              Rating
+              <select value={bulkRating} onChange={(event) => setBulkRating(event.currentTarget.value)}>
+                <option value="">No rating change</option>
+                {[
+                  "cold",
+                  "warm",
+                  "hot",
+                ].map((item) => <option key={item} value={item}>{nice(item)}</option>)}
+              </select>
+            </label>
+            <label>
+              Source
+              <select value={bulkSourceId} onChange={(event) => setBulkSourceId(event.currentTarget.value)}>
+                <option value="">No source change</option>
+                {(options.sources || []).filter((item) => item.status !== "inactive").map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Follow-up
+              <input type="datetime-local" value={bulkFollowUpAt} onChange={(event) => setBulkFollowUpAt(event.currentTarget.value)} />
+            </label>
             <button
               className="primary-button"
               type="button"
@@ -1377,10 +1525,27 @@ export default function CrmLeadsWorkspace({
             <button
               className="link-button"
               type="button"
-              onClick={() => setSelected(new Set())}
+              onClick={() => { setSelected(new Set()); setSelectionMode("explicit"); }}
             >
               Clear selection
             </button>
+          </section>
+        ) : null}
+
+        {bulkJob ? (
+          <section className="panel crm-leads-bulk-job" aria-live="polite">
+            <div className="crm-suite-actions">
+              <div>
+                <p className="eyebrow">Background bulk job</p>
+                <strong>{nice(bulkJob.status)} · {Number(bulkJob.progress?.percent || bulkJob.resultManifest?.percent || 0)}%</strong>
+              </div>
+              {bulkJob.status === "completed" || bulkJob.status === "dead" ? (
+                <button type="button" className="link-button" onClick={() => setBulkJob(null)}>Dismiss</button>
+              ) : null}
+            </div>
+            <p>
+              {Number(bulkJob.progress?.processed || bulkJob.resultManifest?.processed || 0)} of {Number(bulkJob.progress?.requested || bulkJob.resultManifest?.requested || 0)} processed · {Number(bulkJob.progress?.applied || bulkJob.resultManifest?.applied || 0)} applied · {Number(bulkJob.progress?.conflict || bulkJob.resultManifest?.conflict || 0)} conflicts.
+            </p>
           </section>
         ) : null}
 
@@ -1418,7 +1583,7 @@ export default function CrmLeadsWorkspace({
                           type="checkbox"
                           aria-label="Select visible leads"
                           checked={
-                            rows.length > 0 && selected.size === rows.length
+                            rows.length > 0 && (selectionMode === "filter" || selected.size === rows.length)
                           }
                           onChange={toggleAll}
                         />

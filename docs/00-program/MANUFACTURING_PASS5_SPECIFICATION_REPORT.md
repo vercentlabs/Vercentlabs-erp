@@ -1,5 +1,8 @@
 # Manufacturing Pass 5 Specification Report
 
+Classification: SPECIFICATION PASS — NOT AN IMPLEMENTATION WAVE
+Canonical implementation wave: `W07`
+
 - Canonical range: F145–F192 (48 features)
 - Status: `SPECIFICATION_READY`
 - Nested requirement contracts: 1776

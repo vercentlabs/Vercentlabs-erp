@@ -38,3 +38,22 @@ test("validatePayload: a well-formed payload passes through", () => {
 test("validatePayload: a handler with no schema passes the payload through unchanged", () => {
   assert.deepEqual(validatePayload({ jobType: "test.job" }, { anything: true }), { anything: true });
 });
+
+test("registerJobHandler: managed transaction mode is explicit and invalid modes fail closed", () => {
+  _resetRegistryForTests();
+  registerJobHandler("managed.job", {
+    handler: async () => {},
+    backoff: () => 1000,
+    transactionMode: "managed",
+  });
+  assert.equal(getJobHandler("managed.job")?.transactionMode, "managed");
+  assert.throws(
+    () =>
+      registerJobHandler("invalid.job", {
+        handler: async () => {},
+        backoff: () => 1000,
+        transactionMode: "implicit-global-transaction",
+      }),
+    /invalid transactionMode/,
+  );
+});

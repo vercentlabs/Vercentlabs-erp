@@ -1,4 +1,4 @@
-wave_id,name,scope,depends_on,exit_gate,accountable_owner,status,calendar_timeline_policy
+wave_id,name,scope,depends_on,exit_gate,accountable_owner,planning_status,calendar_timeline_policy
 T00,Technical safety foundation,Tenant/RLS transaction correctness; toolchain; migration safety; architecture validators,None,Architecture validators pass; coding constitutions and migration safety remain green,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
 T01,Shared Platform + Experience Kernel,SP001-SP036; shared UI/runtime contracts,T00,Shared platform + Experience Kernel tenant/security/authorization evidence passes,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED
 W01,Master-data foundation,Company/customer/supplier/item/UOM/currency/tax/warehouse masters used by downstream modules,T00;T01,Master-data invariants and migrations pass,Project Manager,PLANNED_FROZEN,NO_CALENDAR_TIMELINE_BASELINED

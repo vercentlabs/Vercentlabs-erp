@@ -34,6 +34,13 @@ type LeadDetail = {
   assignmentHistory: Row[];
   qualification: Row;
   lifecycleHistory: Row[];
+  provenance: Row[];
+  consentEvents: Row[];
+  enrichmentReviews: Row[];
+  slaCases: Row[];
+  slaEvents: Row[];
+  dataQuality: Row | null;
+  aiPredictions: Row[];
 };
 
 function dateInput(value: unknown, includeTime = false) {
@@ -101,6 +108,8 @@ export default function CrmResourceManager({
   preservedQuery = {},
   canManageActivities = false,
   canManageCommunications = false,
+  canManagePrivacy = false,
+  canManageDataQuality = false,
 }: {
   definition: CrmDefinition;
   rows: Row[];
@@ -125,6 +134,8 @@ export default function CrmResourceManager({
   preservedQuery?: Record<string, string>;
   canManageActivities?: boolean;
   canManageCommunications?: boolean;
+  canManagePrivacy?: boolean;
+  canManageDataQuality?: boolean;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -477,6 +488,8 @@ export default function CrmResourceManager({
               canAssignOwner={canAssignOwner}
               canManageActivities={canManageActivities}
               canManageCommunications={canManageCommunications}
+              canManagePrivacy={canManagePrivacy}
+              canManageDataQuality={canManageDataQuality}
               onEdit={(lead) => {
                 setEditing(lead);
                 router.replace(leadModeUrl("edit", String(lead.id)), {

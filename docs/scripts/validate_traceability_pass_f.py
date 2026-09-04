@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import csv, hashlib, re, sys
+import csv, hashlib, re, subprocess, sys
 ROOT=Path(__file__).resolve().parents[2];D=ROOT/'docs';R=D/'02-register';SP=D/'04-shared-platform'; errors=[]
 def err(x): errors.append(x)
 def rows(p):
@@ -84,6 +84,10 @@ for p in [D/'00-program/FINAL_PASS_F_MASTER_TRACEABILITY.md',D/'01-standards/IMP
     if p.exists():
         for x in re.findall(r'\bF(\d{3,})\b',p.read_text(encoding='utf-8')):
             if int(x)>510: err(f'{p.name}: invented F{x}')
+
+parallel=subprocess.run([sys.executable,str(D/'scripts/validate_parallel_implementation.py')],cwd=ROOT,text=True,capture_output=True)
+if parallel.returncode!=0: err('parallel governance validation failed: '+(parallel.stdout+parallel.stderr).strip().replace('\n',' | '))
+
 if errors:
     print('FINAL PASS F TRACEABILITY / AUTHORIZATION VALIDATION FAILED')
     for e in errors[:160]: print(' -',e)
@@ -99,3 +103,4 @@ print(' - master authority coverage: 546 / 546 PASS')
 print(' - implementation waves/surfaces/architecture mappings: PASS')
 print(' - unresolved freeze-blocking P0/P1 planning findings: NONE')
 print(' - product readiness promotion: NONE')
+print(' - runtime implementation may execute only through parallel-governance controls')

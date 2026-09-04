@@ -1,5 +1,8 @@
 # Assets Pass 7 Specification Report
 
+Classification: SPECIFICATION PASS — NOT AN IMPLEMENTATION WAVE
+Canonical implementation wave: `W08`
+
 - Canonical range: F231–F267 (37 features)
 - Status: `SPECIFICATION_READY`
 - Nested requirement contracts: 1369

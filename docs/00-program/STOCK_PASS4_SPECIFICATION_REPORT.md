@@ -1,5 +1,8 @@
 # Stock Pass 4 Specification Report
 
+Classification: SPECIFICATION PASS — NOT AN IMPLEMENTATION WAVE
+Canonical implementation wave: `W05`
+
 - Canonical range: F097–F144 (48 features)
 - Status: `SPECIFICATION_READY`
 - Nested requirement contracts: 1776

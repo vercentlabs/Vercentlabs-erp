@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { enqueueJob, claimJobs, completeJob, failJob, QueueError } from "../src/queue.js";
+import { enqueueJob, claimJobs, completeJob, extendJobLease, failJob, QueueError } from "../src/queue.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 
@@ -75,6 +75,49 @@ test("completeJob: only completes a job still owned by the calling worker (locke
   const result = await completeJob(client, "job-1", "worker-1");
   assert.equal(result.status, "completed");
   assert.match(client.calls[0].sql, /WHERE id = \$1 AND locked_by = \$2/);
+});
+
+test("completeJob: can atomically persist the handler result manifest before releasing the lease", async () => {
+  const client = mockClient([
+    [
+      /UPDATE tenant\.background_jobs\s+SET status = 'completed'/,
+      (params) => {
+        assert.equal(params[2], JSON.stringify({ requested: 10, applied: 9, failed: 1 }));
+        return { rows: [{ id: "job-1", status: "completed", result_manifest: { requested: 10, applied: 9, failed: 1 } }] };
+      },
+    ],
+  ]);
+  const result = await completeJob(client, "job-1", "worker-1", {
+    resultManifest: { requested: 10, applied: 9, failed: 1 },
+  });
+  assert.equal(result.status, "completed");
+  assert.match(client.calls[0].sql, /result_manifest = CASE WHEN \$3::jsonb IS NULL/);
+  assert.match(client.calls[0].sql, /progress = CASE WHEN \$3::jsonb IS NULL/);
+});
+
+test("extendJobLease: refreshes only a processing job still owned by this worker", async () => {
+  const client = mockClient([
+    [
+      /SET lease_expires_at = now\(\) \+/,
+      (params) => {
+        assert.equal(params[0], "job-1");
+        assert.equal(params[1], "worker-1");
+        assert.equal(params[2], "60000");
+        return { rows: [{ id: "job-1", status: "processing" }] };
+      },
+    ],
+  ]);
+  const result = await extendJobLease(client, "job-1", "worker-1", 60_000);
+  assert.equal(result.id, "job-1");
+  assert.match(client.calls[0].sql, /locked_by = \$2 AND status = 'processing'/);
+});
+
+test("extendJobLease: fails closed when queue ownership was lost", async () => {
+  const client = mockClient([[/UPDATE tenant\.background_jobs/, () => ({ rows: [] })]]);
+  await assert.rejects(
+    () => extendJobLease(client, "job-1", "worker-1", 60_000),
+    (error) => error instanceof QueueError && error.code === "JOB_LEASE_LOST",
+  );
 });
 
 test("failJob: retryable failure returns to pending with a future run_at; last_error is recorded", async () => {

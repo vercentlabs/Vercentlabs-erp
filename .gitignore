@@ -74,3 +74,6 @@ apps/landing/scripts/.captured-screenshots.local.json
 apps/landing/scripts/.demo-org-record-ids.local.json
 vercentlabs-full-code.txt
 *-full-code.txt
+# Python generated cache
+__pycache__/
+*.py[cod]

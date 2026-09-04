@@ -41,7 +41,16 @@ export default async function LeadDetailPage({
       assignmentHistory={JSON.parse(JSON.stringify(data.assignmentHistory))}
       qualification={JSON.parse(JSON.stringify(data.qualification))}
       lifecycleHistory={JSON.parse(JSON.stringify(data.lifecycleHistory))}
+      provenance={JSON.parse(JSON.stringify(data.provenance))}
+      consentEvents={JSON.parse(JSON.stringify(data.consentEvents))}
+      enrichmentReviews={JSON.parse(JSON.stringify(data.enrichmentReviews))}
+      slaCases={JSON.parse(JSON.stringify(data.slaCases))}
+      slaEvents={JSON.parse(JSON.stringify(data.slaEvents))}
+      dataQuality={JSON.parse(JSON.stringify(data.dataQuality))}
+      aiPredictions={JSON.parse(JSON.stringify(data.aiPredictions))}
       canManage={hasPermission(session, PERMISSIONS.crmLeadsManage)}
+      canManagePrivacy={hasPermission(session, PERMISSIONS.crmPrivacyManage)}
+      canManageDataQuality={hasPermission(session, PERMISSIONS.crmDataQualityManage)}
       canAssignOwner={
         hasPermission(session, PERMISSIONS.crmLeadsManage) &&
         (hasPermission(session, PERMISSIONS.crmRecordsViewAll) ||
