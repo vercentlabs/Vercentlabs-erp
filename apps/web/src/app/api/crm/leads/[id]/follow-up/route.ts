@@ -30,6 +30,7 @@ export async function POST(request: Request, { params }: Params) {
       throw new HttpError(401, "Sign in to an organisation workspace.");
 
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     requirePermissionFromSession(session, PERMISSIONS.crmActivitiesManage);
     await requireBillingWriteAccess(session.organizationId);
 

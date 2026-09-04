@@ -88,6 +88,8 @@ export default function CrmResourceManager({
   options,
   canManage,
   canAssignOwner = false,
+  canShareSavedViews = false,
+  canShareOrganizationViews = false,
   startCreating = false,
   startEditing = null,
   startViewingLead = null,
@@ -110,6 +112,8 @@ export default function CrmResourceManager({
   options: Record<string, Option[]>;
   canManage: boolean;
   canAssignOwner?: boolean;
+  canShareSavedViews?: boolean;
+  canShareOrganizationViews?: boolean;
   startCreating?: boolean;
   startEditing?: Row | null;
   startViewingLead?: LeadDetail | null;
@@ -396,6 +400,8 @@ export default function CrmResourceManager({
           initialStatus={initialStatus}
           options={options}
           canManage={canManage}
+          canShareSavedViews={canShareSavedViews}
+          canShareOrganizationViews={canShareOrganizationViews}
           canImport={canImport}
           canExport={canExport}
           pending={pending}

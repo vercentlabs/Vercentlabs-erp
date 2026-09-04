@@ -18,6 +18,8 @@ export async function GET(request: Request) {
         .map((key) => [key, url.searchParams.get(key)])
         .filter(([, value]) => value),
     );
+    if (input.leadId)
+      requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const timeline = await tenantTransaction(context.organizationId, (client) =>
       getCommunicationTimeline(client, context, input),
     );

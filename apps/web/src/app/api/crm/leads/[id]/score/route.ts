@@ -16,6 +16,7 @@ export async function GET(_request: Request, { params }: Params) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const { id } = await params;
     assertCrmIdentifier(id);
     const context = await crmApiContext(session);
@@ -35,6 +36,7 @@ export async function POST(request: Request, { params }: Params) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
 

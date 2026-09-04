@@ -224,6 +224,12 @@ export default async function CrmResourcePage({
           hasPermission(session, PERMISSIONS.crmRecordsViewAll) ||
           session.roleSlugs.includes("organization_owner")
         }
+        canShareSavedViews={hasPermission(session, PERMISSIONS.crmSavedViewsShare)}
+        canShareOrganizationViews={
+          hasPermission(session, PERMISSIONS.crmSavedViewsShare) &&
+          (hasPermission(session, PERMISSIONS.crmRecordsViewAll) ||
+            session.roleSlugs.includes("organization_owner"))
+        }
         startCreating={dedicatedLeadCreate}
         startEditing={JSON.parse(JSON.stringify(result.editingRecord))}
         startViewingLead={JSON.parse(JSON.stringify(result.leadDetail))}

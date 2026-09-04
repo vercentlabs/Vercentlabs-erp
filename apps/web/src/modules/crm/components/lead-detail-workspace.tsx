@@ -227,6 +227,7 @@ export default function CrmLeadDetailWorkspace({
   const [tab, setTab] = useState("overview");
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
+  const [conflictMessage, setConflictMessage] = useState("");
   const [changingOwner, setChangingOwner] = useState(false);
   const customData =
     lead.customData &&
@@ -314,7 +315,15 @@ export default function CrmLeadDetailWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!result.ok) throw new Error(result.message || "Request failed.");
+      if (!result.ok) {
+        const code = String((result as Record<string, unknown>).code || "");
+        if (result.status === 409 && (code === "CRM_STALE_WRITE" || code.includes("VERSION") || code.includes("CONFLICT"))) {
+          setConflictMessage("This Lead changed after you opened it. Review the latest Lead before retrying your action.");
+          return null;
+        }
+        throw new Error(result.message || "Request failed.");
+      }
+      setConflictMessage("");
       setMessage(result.message || "Completed.");
       router.refresh();
       return result;
@@ -350,8 +359,14 @@ export default function CrmLeadDetailWorkspace({
         `/api/crm/leads/${id}?expectedUpdatedAt=${encodeURIComponent(String(lead.updatedAt || ""))}`,
         { method: "DELETE" },
       );
-      if (!result.ok)
+      if (!result.ok) {
+        const code = String((result as Record<string, unknown>).code || "");
+        if (result.status === 409 && (code === "CRM_STALE_WRITE" || code.includes("VERSION") || code.includes("CONFLICT"))) {
+          setConflictMessage("This Lead changed after you opened it. Review the latest Lead before archiving.");
+          return;
+        }
         throw new Error(result.message || "Lead could not be archived.");
+      }
       router.push("/crm/leads");
       router.refresh();
     } catch (error) {
@@ -498,17 +513,20 @@ export default function CrmLeadDetailWorkspace({
     );
     await api(`/api/crm/leads/${id}/custom-fields`, { fields }, "custom");
   }
-  const tabs = [
-    "overview",
-    "timeline",
-    "activities",
-    "communications",
-    "notes",
-    "opportunities",
-    "score",
-    "custom",
-    "duplicates",
-  ];
+  const sensitiveDataRestricted = lead.sensitiveDataRestricted === true;
+  const tabs = sensitiveDataRestricted
+    ? ["overview", "opportunities"]
+    : [
+        "overview",
+        "timeline",
+        "activities",
+        "communications",
+        "notes",
+        "opportunities",
+        "score",
+        "custom",
+        "duplicates",
+      ];
   const tabLabel = (item: string) =>
     item === "communications"
       ? "Email"
@@ -540,7 +558,7 @@ export default function CrmLeadDetailWorkspace({
                 {String(lead.mobile || lead.phone)}
               </a>
             ) : null}
-            {!contact ? <span>No contact details</span> : null}
+            {!contact ? <span>{sensitiveDataRestricted ? "Contact details restricted" : "No contact details"}</span> : null}
           </div>
         </div>
         <div className="crm-lead-detail-right">
@@ -557,7 +575,7 @@ export default function CrmLeadDetailWorkspace({
           {canManage &&
           recordStatus === "active" ? (
             <div className="crm-lead-detail-actions">
-              {onEdit ? (
+              {!sensitiveDataRestricted && onEdit ? (
                 <button
                   className="secondary-button"
                   type="button"
@@ -565,14 +583,14 @@ export default function CrmLeadDetailWorkspace({
                 >
                   Edit lead
                 </button>
-              ) : (
+              ) : !sensitiveDataRestricted ? (
                 <Link
                   className="secondary-button"
                   href={`/crm/leads?edit=${encodeURIComponent(id)}`}
                 >
                   Edit lead
                 </Link>
-              )}
+              ) : null}
               <button
                 className="secondary-button danger"
                 disabled={pending === "archive"}
@@ -650,6 +668,17 @@ export default function CrmLeadDetailWorkspace({
           </select>
           <small>Lifecycle and qualification are governed separately.</small>
         </section>
+      ) : null}
+      {sensitiveDataRestricted ? (
+        <div className="notice" role="status">
+          <strong>Restricted Lead content.</strong> Contact details, communications, notes, files, score evidence and duplicate signals are hidden by your role.
+        </div>
+      ) : null}
+      {conflictMessage ? (
+        <div className="notice" role="alert">
+          <strong>{conflictMessage}</strong>{" "}
+          <button type="button" className="link-button" onClick={() => { setConflictMessage(""); router.refresh(); }}>Review latest Lead</button>
+        </div>
       ) : null}
       {message ? (
         <p className="notice" role="status">

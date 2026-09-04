@@ -20,6 +20,7 @@ export async function POST(request: Request, { params }: Params) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     await requireBillingWriteAccess(session.organizationId);
 
     const { id } = await params;

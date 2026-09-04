@@ -20,6 +20,7 @@ export async function GET(_request: Request, { params }: Params) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const { id, attachmentId } = await params;
     assertCrmIdentifier(id);
     assertCrmIdentifier(attachmentId);
@@ -57,6 +58,7 @@ export async function DELETE(request: Request, { params }: Params) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     await requireBillingWriteAccess(session.organizationId);
     const { id, attachmentId } = await params;
     assertCrmIdentifier(id);

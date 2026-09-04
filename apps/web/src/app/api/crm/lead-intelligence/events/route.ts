@@ -12,6 +12,7 @@ export async function POST(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const context = await crmApiContext(session);
     const input = (await readJson(request)) as Record<string, unknown>;
     return ok(

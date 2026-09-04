@@ -14,7 +14,7 @@ const branch = "33333333-3333-4333-8333-333333333333";
 const user = "44444444-4444-4444-8444-444444444444";
 const lead = "55555555-5555-4555-8555-555555555555";
 const call = "66666666-6666-4666-8666-666666666666";
-const context = { organizationId: org, userId: user, activeCompanyId: company, activeBranchId: branch, allowAllCompanies: false, roleSlugs: [], permissions: ["crm.view"] };
+const context = { organizationId: org, userId: user, activeCompanyId: company, activeBranchId: branch, allowAllCompanies: false, roleSlugs: [], permissions: ["crm.view", "crm.leads.view_sensitive"] };
 
 function createClient({ dnc = false } = {}) {
   const calls = [];

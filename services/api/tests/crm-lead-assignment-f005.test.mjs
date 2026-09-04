@@ -34,14 +34,14 @@ const manager = {
   activeCompanyId: companyId,
   activeBranchId: branchId,
   allowAllCompanies: true,
-  permissions: ["crm.view", "crm.leads.manage", "crm.records.view_all"],
+  permissions: ["crm.view", "crm.leads.manage", "crm.leads.view_sensitive", "crm.records.view_all"],
   roleSlugs: [],
 };
 
 const rep = {
   ...manager,
   allowAllCompanies: false,
-  permissions: ["crm.view", "crm.leads.manage"],
+  permissions: ["crm.view", "crm.leads.manage", "crm.leads.view_sensitive"],
 };
 
 const leadRow = (ownerUserId = ownerA) => ({

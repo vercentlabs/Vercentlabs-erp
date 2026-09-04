@@ -11,7 +11,7 @@ import { listSecurityAuditEvents } from "@/core/audit/query";
 export const metadata = { title: "Account security" };
 export const dynamic = "force-dynamic";
 
-// Field-level protections are still exactly these three (Prompt 3) —
+// Field/content protections remain explicit product contracts rather than a generic configurable engine —
 // there is no generic/configurable field-security policy engine, so this
 // stays a static, accurate list rather than a "configure field security"
 // control (Part 54: "Do not claim generic customizable field-security
@@ -20,6 +20,7 @@ const FIELD_LEVEL_PROTECTIONS = [
   "HR & Payroll — employee sensitive fields (bank details, PII, statutory identifiers)",
   "Procurement — supplier banking fields",
   "Support — private communication notes",
+  "CRM — Lead contact, consent, communications, notes, files, scoring evidence and duplicate signals",
 ];
 
 export default async function SecurityPage() {

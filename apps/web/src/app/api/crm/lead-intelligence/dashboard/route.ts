@@ -10,6 +10,7 @@ export async function GET() {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const context = await crmApiContext(session);
     const dashboard = await tenantTransaction(
       context.organizationId,

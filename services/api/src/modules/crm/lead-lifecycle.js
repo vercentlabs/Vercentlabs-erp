@@ -1,4 +1,5 @@
 import { CrmError, queueOutboxEvent } from "./index.js";
+import { canViewSensitiveLeadContent, projectLeadForContext } from "./lead-security.js";
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -287,7 +288,11 @@ export async function listLeadStageHistory(client, context, leadId) {
       ORDER BY event.created_at DESC,event.id DESC LIMIT 200`,
     [context.organizationId, leadId],
   );
-  return result.rows.map(dto);
+  return result.rows.map((row) => {
+    const value = dto(row);
+    if (!canViewSensitiveLeadContent(context)) delete value.note;
+    return value;
+  });
 }
 
 export async function transitionLeadStage(client, context, leadId, input = {}) {
@@ -321,7 +326,7 @@ export async function transitionLeadStage(client, context, leadId, input = {}) {
     if (target.status !== "active")
       throw new CrmError(409, "Inactive stages cannot receive new transitions.", "CRM_LEAD_STAGE_INACTIVE");
     if (target.code === lead.status) {
-      return { changed: false, record: dto(lead), stage: target, history: await listLeadStageHistory(client, context, leadId) };
+      return { changed: false, record: projectLeadForContext(context, dto(lead)), stage: target, history: await listLeadStageHistory(client, context, leadId) };
     }
     const allowed = await client.query(
       `SELECT 1 FROM tenant.crm_lead_stage_transitions
@@ -360,7 +365,7 @@ export async function transitionLeadStage(client, context, leadId, input = {}) {
     });
     return {
       changed: true,
-      record: dto(updated.rows[0]),
+      record: projectLeadForContext(context, dto(updated.rows[0])),
       stage: target,
       event: dto(event.rows[0]),
       history: await listLeadStageHistory(client, context, leadId),

@@ -15,6 +15,7 @@ export async function GET() {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const context = await crmApiContext(session);
     const dashboard = await tenantTransaction(
       context.organizationId,
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const context = await crmApiContext(session);
     const input = (await readJson(request)) as Record<string, unknown>;
     const result = await tenantTransaction(context.organizationId, (client) =>

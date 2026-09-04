@@ -25,6 +25,12 @@ import {
   resolveIngestionLeadSource,
   validateLeadSourceAssignment,
 } from "./features/lead-sources/validation.js";
+import {
+  canViewSensitiveLeadContent,
+  firstSensitiveLeadInputField,
+  leadSearchColumnsForContext,
+  projectLeadForContext,
+} from "./lead-security.js";
 
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
@@ -1350,10 +1356,43 @@ function canViewAllCrmRecords(context) {
   );
 }
 
+const LEAD_LINKED_GENERIC_TABLES = new Set([
+  "tenant.crm_data_quality_scores",
+  "tenant.crm_enrichment_jobs",
+  "tenant.crm_ai_predictions",
+]);
+
+function directLeadLinkedScope(definition, context, parameters, alias) {
+  if (!LEAD_LINKED_GENERIC_TABLES.has(definition.table)) return "";
+  const entityTypeColumn = definition.fields?.entityType;
+  const entityIdColumn = definition.fields?.entityId;
+  if (!entityTypeColumn || !entityIdColumn) return "";
+  if (!canViewSensitiveLeadContent(context))
+    return ` AND lower(COALESCE(${alias}.${entityTypeColumn},'')) <> 'lead'`;
+  const leadScope = recordScope(resources.leads, context, parameters, "lead");
+  return ` AND (lower(COALESCE(${alias}.${entityTypeColumn},'')) <> 'lead' OR EXISTS (SELECT 1 FROM tenant.crm_leads lead WHERE lead.organization_id=${alias}.organization_id AND lead.id=${alias}.${entityIdColumn}${leadScope}))`;
+}
+
+function aiFeedbackLeadScope(definition, context, parameters, alias) {
+  if (definition.table !== "tenant.crm_ai_feedback") return "";
+  const predictionColumn = definition.fields?.predictionId;
+  if (!predictionColumn) return "";
+  if (!canViewSensitiveLeadContent(context))
+    return ` AND NOT EXISTS (SELECT 1 FROM tenant.crm_ai_predictions prediction WHERE prediction.organization_id=${alias}.organization_id AND prediction.id=${alias}.${predictionColumn} AND lower(prediction.entity_type)='lead')`;
+  const leadScope = recordScope(resources.leads, context, parameters, "lead");
+  return ` AND (NOT EXISTS (SELECT 1 FROM tenant.crm_ai_predictions prediction WHERE prediction.organization_id=${alias}.organization_id AND prediction.id=${alias}.${predictionColumn} AND lower(prediction.entity_type)='lead') OR EXISTS (SELECT 1 FROM tenant.crm_ai_predictions prediction JOIN tenant.crm_leads lead ON lead.organization_id=prediction.organization_id AND lead.id=prediction.entity_id WHERE prediction.organization_id=${alias}.organization_id AND prediction.id=${alias}.${predictionColumn} AND lower(prediction.entity_type)='lead'${leadScope}))`;
+}
+
 function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
   if (definition.table === "tenant.crm_saved_views") {
     sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
+  }
+  if (!canViewSensitiveLeadContent(context)) {
+    if (definition.table === "tenant.crm_communications")
+      sql += ` AND ${alias}.lead_id IS NULL`;
+    if (definition.table === "tenant.crm_activities")
+      sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   }
   if (definition.companyScoped) {
     // `allowAllCompanies` (organization_owner/system_administrator) means
@@ -1393,6 +1432,8 @@ function recordScope(definition, context, parameters, alias = "record") {
     const column = definition.fields[definition.ownerField];
     sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)})`;
   }
+  sql += directLeadLinkedScope(definition, context, parameters, alias);
+  sql += aiFeedbackLeadScope(definition, context, parameters, alias);
   return sql;
 }
 
@@ -1457,6 +1498,66 @@ function canAssignLeadOwners(context) {
     (Boolean(context.permissions?.includes("crm.records.view_all")) &&
       Boolean(context.permissions?.includes("crm.leads.manage")))
   );
+}
+
+function projectCrmRecord(context, resource, record) {
+  return resource === "leads" ? projectLeadForContext(context, record) : record;
+}
+
+function assertSensitiveLeadMutationAllowed(context, input) {
+  // Server-owned ingestion contexts (public capture/webhooks) predate the
+  // interactive permission vector and are constructed internally, not from
+  // caller input. Interactive workspace contexts always carry permissions.
+  if (!Array.isArray(context.permissions) && !Array.isArray(context.roleSlugs))
+    return;
+  if (canViewSensitiveLeadContent(context)) return;
+  const field = firstSensitiveLeadInputField(input);
+  if (!field) return;
+  throw new CrmError(
+    403,
+    "You do not have permission to change sensitive Lead content.",
+    "CRM_LEAD_SENSITIVE_FIELD_FORBIDDEN",
+    { field },
+  );
+}
+
+function assertLeadLinkedContentAllowed(context, resource, input, before = null) {
+  if (canViewSensitiveLeadContent(context)) return;
+  const leadLinked =
+    (resource === "communications" && Boolean(input?.leadId ?? before?.leadId)) ||
+    (resource === "activities" &&
+      String(input?.entityType ?? before?.entityType ?? "").toLowerCase() === "lead");
+  if (!leadLinked) return;
+  throw new CrmError(
+    403,
+    "You do not have permission to access Lead-linked CRM content.",
+    "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+  );
+}
+
+const LEAD_LINKED_GENERIC_RESOURCES = new Set([
+  "data-quality-scores",
+  "enrichment-jobs",
+  "ai-predictions",
+]);
+
+async function assertGenericLeadLinkedTarget(client, context, resource, effective) {
+  if (LEAD_LINKED_GENERIC_RESOURCES.has(resource)) {
+    if (String(effective?.entityType || "").toLowerCase() !== "lead") return;
+    if (!canViewSensitiveLeadContent(context))
+      throw new CrmError(
+        403,
+        "You do not have permission to access Lead-linked CRM intelligence.",
+        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+      );
+    const leadId = String(effective?.entityId || "").trim();
+    if (!leadId)
+      throw new CrmError(400, "A Lead reference is required.", "CRM_LEAD_REFERENCE_REQUIRED");
+    await getCrmRecord(client, context, "leads", leadId);
+    return;
+  }
+  if (resource === "ai-feedback" && effective?.predictionId)
+    await getCrmRecord(client, context, "ai-predictions", effective.predictionId);
 }
 
 function assertLifecycleUpdate(resource, before, input) {
@@ -1561,11 +1662,22 @@ async function nextCode(client, organizationId, entityType) {
   return `${row.prefix}${String(row.number).padStart(Number(row.padding || 5), "0")}`;
 }
 
-function buildSearch(definition, search, parameters, alias = "record") {
+function buildSearch(
+  definition,
+  search,
+  parameters,
+  alias = "record",
+  context = {},
+) {
   const value = String(search || "").trim();
   if (!value || !definition.search?.length) return "";
+  const columns =
+    definition.table === "tenant.crm_leads"
+      ? leadSearchColumnsForContext(context, definition.search)
+      : definition.search;
+  if (!columns.length) return "";
   const parameter = addParameter(parameters, `%${value}%`);
-  return ` AND (${definition.search.map((column) => `COALESCE(${alias}.${column}::text, '') ILIKE ${parameter}`).join(" OR ")})`;
+  return ` AND (${columns.map((column) => `COALESCE(${alias}.${column}::text, '') ILIKE ${parameter}`).join(" OR ")})`;
 }
 
 function buildFilters(
@@ -1726,7 +1838,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   const parameters = [context.organizationId];
   let where = "record.organization_id = $1";
   where += recordScope(definition, context, parameters);
-  where += buildSearch(definition, filters.search, parameters);
+  where += buildSearch(definition, filters.search, parameters, "record", context);
   where += buildFilters(definition, filters, parameters, "record", context);
   const limit = limitValue(filters.limit);
   const offset = Math.max(
@@ -1743,7 +1855,9 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
     parameters,
   );
   return {
-    rows: result.rows.map(camelizeRow),
+    rows: result.rows.map((row) =>
+      projectCrmRecord(context, resource, camelizeRow(row)),
+    ),
     total,
     limit,
     offset,
@@ -1759,7 +1873,7 @@ export async function getCrmRecord(client, context, resource, id) {
     parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
-  return camelizeRow(result.rows[0]);
+  return projectCrmRecord(context, resource, camelizeRow(result.rows[0]));
 }
 
 async function getLeadRecordForUpdate(client, context, id) {
@@ -1832,6 +1946,12 @@ function normalizeStorageInput(resource, input) {
     typeof prepared.comparisonValue === "string"
   ) {
     prepared.comparisonValue = JSON.stringify(prepared.comparisonValue);
+  }
+  if (
+    LEAD_LINKED_GENERIC_RESOURCES.has(resource) &&
+    Object.prototype.hasOwnProperty.call(prepared, "entityType")
+  ) {
+    prepared.entityType = String(prepared.entityType || "").trim().toLowerCase();
   }
   return prepared;
 }
@@ -2127,7 +2247,7 @@ export async function assignLeadOwner(
   const normalizedOwner = ownerUserId ? String(ownerUserId) : null;
   if ((before.ownerUserId || null) === normalizedOwner)
     return {
-      lead: before,
+      lead: projectLeadForContext(context, before),
       assignment: {
         changed: false,
         previousOwnerUserId: before.ownerUserId || null,
@@ -2162,7 +2282,7 @@ export async function assignLeadOwner(
     reason: options.reason || "manual",
   });
   return {
-    lead,
+    lead: projectLeadForContext(context, lead),
     assignment: {
       changed: true,
       eventId: event?.id || null,
@@ -2369,8 +2489,10 @@ export async function createCrmRecord(client, context, resource, input) {
       "CRM_LEAD_SOURCE_API_MOVED",
     );
   const definition = definitionFor(resource);
+  assertLeadLinkedContentAllowed(context, resource, input);
   if (resource === "leads") {
     assertNoQualificationMutation(input);
+    assertSensitiveLeadMutationAllowed(context, input);
     if (
       ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
         (field) => Object.prototype.hasOwnProperty.call(input, field),
@@ -2453,6 +2575,7 @@ export async function createCrmRecord(client, context, resource, input) {
     definition.fields.branchId
   )
     prepared.branchId = context.activeBranchId;
+  await assertGenericLeadLinkedTarget(client, context, resource, prepared);
   let leadDuplicateEvaluation = null;
   if (resource === "leads") {
     // F008 commit-time duplicate protection runs before F005 assignment
@@ -2607,7 +2730,7 @@ export async function createCrmRecord(client, context, resource, input) {
       policyId: initialLeadAssignment?.policyId || null,
       reason: initialLeadAssignment?.reason || "manual:create",
     });
-  return created;
+  return projectCrmRecord(context, resource, created);
 }
 
 export async function updateCrmRecord(
@@ -2640,11 +2763,15 @@ export async function updateCrmRecord(
       "CRM_LEAD_SOURCE_API_MOVED",
     );
   const definition = definitionFor(resource);
-  if (resource === "leads") assertNoQualificationMutation(input);
+  if (resource === "leads") {
+    assertNoQualificationMutation(input);
+    assertSensitiveLeadMutationAllowed(context, input);
+  }
   const before =
     resource === "leads"
       ? await getLeadRecordForUpdate(client, context, id)
       : await getCrmRecord(client, context, resource, id);
+  assertLeadLinkedContentAllowed(context, resource, input, before);
   if (resource === "leads")
     assertLeadExpectedVersion(
       before,
@@ -2754,6 +2881,10 @@ export async function updateCrmRecord(
     prepared.data ??= before.data;
     await validateCustomRecord(client, context, prepared, id);
   }
+  await assertGenericLeadLinkedTarget(client, context, resource, {
+    ...before,
+    ...prepared,
+  });
   await validateOrganizationUserReferences(
     client,
     context,
@@ -2831,7 +2962,7 @@ export async function updateCrmRecord(
         ? { before: opportunityOutboxSnapshot(before), after: opportunityOutboxSnapshot(updated), changedFields }
         : { before, after: updated, changedFields },
     );
-  return updated;
+  return projectCrmRecord(context, resource, updated);
 }
 
 export async function archiveCrmRecord(
@@ -2905,7 +3036,8 @@ export async function archiveCrmRecord(
   }
 
   if (resource === "leads") {
-    if (before.recordStatus === "archived") return before;
+    if (before.recordStatus === "archived")
+      return projectLeadForContext(context, before);
     if (before.recordStatus === "converted")
       throw new CrmError(409, "Converted Leads cannot be archived.", "CRM_LEAD_RECORD_CLOSED");
     const userParameter = addParameter(parameters, context.userId);
@@ -2917,7 +3049,7 @@ export async function archiveCrmRecord(
     if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
     const record = camelizeRow(result.rows[0]);
     await queueOutboxEvent(client, context, "crm.leads.archived", "leads", id, record);
-    return record;
+    return projectLeadForContext(context, record);
   }
 
   const archiveStatuses = {

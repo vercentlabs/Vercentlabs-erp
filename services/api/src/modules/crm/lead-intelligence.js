@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { assignLeadOwner } from "./index.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
 
 export const CRM_LEAD_INTELLIGENCE_CAPABILITY_IDS = Object.freeze([
   "CRM-060",
@@ -32,6 +33,32 @@ const object = (value) =>
 const array = (value) => (Array.isArray(value) ? value : []);
 const clamp = (value, minimum, maximum) =>
   Math.min(maximum, Math.max(minimum, value));
+
+function assertSensitiveLeadIntelligenceAccess(context) {
+  if (canViewSensitiveLeadContent(context)) return;
+  throw new CrmLeadIntelligenceError(
+    403,
+    "You do not have permission to view sensitive Lead intelligence.",
+    "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+  );
+}
+
+async function getScopedLead(client, context, leadId, { lock = false } = {}) {
+  const values = [context.organizationId, leadId];
+  const scope = leadScopeSql(context, values, "lead");
+  const result = await client.query(
+    `SELECT lead.* FROM tenant.crm_leads lead
+      WHERE lead.organization_id=$1 AND lead.id=$2${scope}${lock ? " FOR UPDATE" : ""}`,
+    values,
+  );
+  if (!result.rows[0])
+    throw new CrmLeadIntelligenceError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
+  return result.rows[0];
+}
+
+function scopedLeadWhere(context, values, alias = "lead") {
+  return leadScopeSql(context, values, alias);
+}
 
 export function crmLeadIntelligenceHash(value) {
   const stable = (input) => {
@@ -380,6 +407,7 @@ async function activeModel(client, organizationId) {
 }
 
 export async function recordLeadBehaviorEvent(client, context, input = {}) {
+  assertSensitiveLeadIntelligenceAccess(context);
   const leadId = text(input.leadId || input.lead_id);
   if (!leadId) throw new CrmLeadIntelligenceError(400, "Lead is required.");
   const eventType = text(input.eventType || input.event_type);
@@ -396,6 +424,7 @@ export async function recordLeadBehaviorEvent(client, context, input = {}) {
       sourceId: input.sourceId,
       occurredAt,
     });
+  await getScopedLead(client, context, leadId);
   const result = await client.query(
     `INSERT INTO tenant.crm_lead_behavior_events(organization_id,company_id,lead_id,event_type,event_value,source_type,source_id,idempotency_key,metadata,occurred_at,created_by)
      SELECT $1,lead.company_id,lead.id,$3,$4,$5,$6,$7,$8,$9,$10 FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2
@@ -435,17 +464,8 @@ export async function recalculateLeadScore(
   leadId,
   reason = "Lead intelligence recalculation",
 ) {
-  const leadResult = await client.query(
-    `SELECT * FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, leadId],
-  );
-  const lead = leadResult.rows[0];
-  if (!lead)
-    throw new CrmLeadIntelligenceError(
-      404,
-      "Lead not found.",
-      "CRM_LEAD_NOT_FOUND",
-    );
+  assertSensitiveLeadIntelligenceAccess(context);
+  const lead = await getScopedLead(client, context, leadId, { lock: true });
   const model = await activeModel(client, context.organizationId);
   const [rulesResult, eventsResult] = await Promise.all([
     client.query(
@@ -522,9 +542,12 @@ export async function recalculateLeadScore(
 }
 
 export async function getLeadScoreExplanation(client, context, leadId) {
+  assertSensitiveLeadIntelligenceAccess(context);
+  const values = [context.organizationId, leadId];
+  const scope = scopedLeadWhere(context, values);
   const result = await client.query(
-    `SELECT lead.id,lead.code,lead.full_name,lead.score,lead.lead_grade,lead.score_calculated_at,lead.score_explanation,snapshot.content_hash,snapshot.calculated_at AS snapshot_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT * FROM tenant.crm_lead_score_snapshots s WHERE s.organization_id=lead.organization_id AND s.lead_id=lead.id ORDER BY s.calculated_at DESC LIMIT 1) snapshot ON true WHERE lead.organization_id=$1 AND lead.id=$2`,
-    [context.organizationId, leadId],
+    `SELECT lead.id,lead.code,lead.full_name,lead.score,lead.lead_grade,lead.score_calculated_at,lead.score_explanation,snapshot.content_hash,snapshot.calculated_at AS snapshot_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT * FROM tenant.crm_lead_score_snapshots s WHERE s.organization_id=lead.organization_id AND s.lead_id=lead.id ORDER BY s.calculated_at DESC LIMIT 1) snapshot ON true WHERE lead.organization_id=$1 AND lead.id=$2${scope}`,
+    values,
   );
   if (!result.rows[0])
     throw new CrmLeadIntelligenceError(
@@ -536,17 +559,8 @@ export async function getLeadScoreExplanation(client, context, leadId) {
 }
 
 export async function openLeadSlaCase(client, context, leadId, input = {}) {
-  const leadResult = await client.query(
-    `SELECT * FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, leadId],
-  );
-  const lead = leadResult.rows[0];
-  if (!lead)
-    throw new CrmLeadIntelligenceError(
-      404,
-      "Lead not found.",
-      "CRM_LEAD_NOT_FOUND",
-    );
+  assertSensitiveLeadIntelligenceAccess(context);
+  const lead = await getScopedLead(client, context, leadId, { lock: true });
   const policies = await client.query(
     `SELECT * FROM tenant.crm_lead_sla_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
     [context.organizationId],
@@ -598,7 +612,9 @@ export async function openLeadSlaCase(client, context, leadId, input = {}) {
 }
 
 export async function recordLeadResponse(client, context, leadId, input = {}) {
+  assertSensitiveLeadIntelligenceAccess(context);
   const respondedAt = new Date(input.respondedAt || Date.now());
+  await getScopedLead(client, context, leadId, { lock: true });
   const leadResult = await client.query(
     `UPDATE tenant.crm_leads SET first_responded_at=COALESCE(first_responded_at,$1),last_contacted_at=GREATEST(COALESCE(last_contacted_at,$1),$1),updated_by=$2,updated_at=now() WHERE organization_id=$3 AND id=$4 RETURNING *`,
     [respondedAt, context.userId, context.organizationId, leadId],
@@ -651,6 +667,7 @@ export async function scanLeadSlaBreaches(
   context,
   nowValue = new Date(),
 ) {
+  assertSensitiveLeadIntelligenceAccess(context);
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
   const result = await client.query(
     `SELECT sla.*,policy.escalation_user_id,policy.reassign_on_breach
@@ -722,15 +739,18 @@ export async function refreshLeadNurtureQueue(
   context,
   nowValue = new Date(),
 ) {
+  assertSensitiveLeadIntelligenceAccess(context);
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
+  const leadValues = [context.organizationId];
+  const leadScope = scopedLeadWhere(context, leadValues);
   const [policiesResult, leadsResult] = await Promise.all([
     client.query(
       `SELECT * FROM tenant.crm_lead_nurture_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
       [context.organizationId],
     ),
     client.query(
-      `SELECT lead.*,sla.status AS sla_status,sla.response_due_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT status,response_due_at FROM tenant.crm_lead_sla_cases c WHERE c.organization_id=lead.organization_id AND c.lead_id=lead.id ORDER BY c.created_at DESC LIMIT 1) sla ON true WHERE lead.organization_id=$1 AND lead.record_status='active'`,
-      [context.organizationId],
+      `SELECT lead.*,sla.status AS sla_status,sla.response_due_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT status,response_due_at FROM tenant.crm_lead_sla_cases c WHERE c.organization_id=lead.organization_id AND c.lead_id=lead.id ORDER BY c.created_at DESC LIMIT 1) sla ON true WHERE lead.organization_id=$1 AND lead.record_status='active'${leadScope}`,
+      leadValues,
     ),
   ]);
   let generated = 0;
@@ -805,6 +825,7 @@ export async function updateLeadNurtureItem(
   itemId,
   input = {},
 ) {
+  assertSensitiveLeadIntelligenceAccess(context);
   const action = text(input.action);
   const itemResult = await client.query(
     `SELECT * FROM tenant.crm_lead_nurture_queue WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
@@ -817,6 +838,7 @@ export async function updateLeadNurtureItem(
       "Nurture item not found.",
       "CRM_NURTURE_ITEM_NOT_FOUND",
     );
+  await getScopedLead(client, context, item.lead_id);
   let result;
   if (action === "claim")
     result = await client.query(
@@ -858,35 +880,40 @@ export async function updateLeadNurtureItem(
 }
 
 export async function getLeadIntelligenceDashboard(client, context) {
+  assertSensitiveLeadIntelligenceAccess(context);
+  const summaryValues = [context.organizationId];
+  const summaryScope = scopedLeadWhere(context, summaryValues);
+  const gradeValues = [context.organizationId];
+  const gradeScope = scopedLeadWhere(context, gradeValues);
+  const slaValues = [context.organizationId];
+  const slaScope = scopedLeadWhere(context, slaValues);
+  const queueValues = [context.organizationId];
+  const queueScope = scopedLeadWhere(context, queueValues);
+  const topValues = [context.organizationId];
+  const topScope = scopedLeadWhere(context, topValues);
   const [summary, grades, sla, queue, topQueue] = await Promise.all([
     client.query(
-      `SELECT count(*) FILTER (WHERE record_status='active')::int AS active_leads,count(*) FILTER (WHERE lead_grade='qualified')::int AS qualified_leads,round(avg(score),2) AS average_score,count(*) FILTER (WHERE score_calculated_at IS NULL)::int AS unscored_leads FROM tenant.crm_leads WHERE organization_id=$1`,
-      [context.organizationId],
+      `SELECT count(*) FILTER (WHERE lead.record_status='active')::int AS active_leads,count(*) FILTER (WHERE lead.lead_grade='qualified')::int AS qualified_leads,round(avg(lead.score),2) AS average_score,count(*) FILTER (WHERE lead.score_calculated_at IS NULL)::int AS unscored_leads FROM tenant.crm_leads lead WHERE lead.organization_id=$1${summaryScope}`,
+      summaryValues,
     ),
     client.query(
-      `SELECT lead_grade,count(*)::int AS leads FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active' GROUP BY lead_grade ORDER BY CASE lead_grade WHEN 'qualified' THEN 1 WHEN 'hot' THEN 2 WHEN 'warm' THEN 3 ELSE 4 END`,
-      [context.organizationId],
+      `SELECT lead.lead_grade,count(*)::int AS leads FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.record_status='active'${gradeScope} GROUP BY lead.lead_grade ORDER BY CASE lead.lead_grade WHEN 'qualified' THEN 1 WHEN 'hot' THEN 2 WHEN 'warm' THEN 3 ELSE 4 END`,
+      gradeValues,
     ),
     client.query(
-      `SELECT status,count(*)::int AS cases FROM tenant.crm_lead_sla_cases WHERE organization_id=$1 GROUP BY status ORDER BY status`,
-      [context.organizationId],
+      `SELECT sla_case.status,count(*)::int AS cases FROM tenant.crm_lead_sla_cases sla_case JOIN tenant.crm_leads lead ON lead.organization_id=sla_case.organization_id AND lead.id=sla_case.lead_id WHERE sla_case.organization_id=$1${slaScope} GROUP BY sla_case.status ORDER BY sla_case.status`,
+      slaValues,
     ),
     client.query(
-      `SELECT status,count(*)::int AS items FROM tenant.crm_lead_nurture_queue WHERE organization_id=$1 GROUP BY status ORDER BY status`,
-      [context.organizationId],
+      `SELECT queue.status,count(*)::int AS items FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1${queueScope} GROUP BY queue.status ORDER BY queue.status`,
+      queueValues,
     ),
     client.query(
-      `SELECT queue.id,queue.priority_score,queue.recommended_action,queue.reason_codes,queue.due_at,queue.status,lead.id AS lead_id,lead.code,lead.full_name,lead.company_name,lead.score,lead.lead_grade,lead.owner_user_id FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1 AND queue.status IN ('active','claimed','snoozed') AND (queue.snoozed_until IS NULL OR queue.snoozed_until<=now()) ORDER BY queue.priority_score DESC,queue.due_at LIMIT 50`,
-      [context.organizationId],
+      `SELECT queue.id,queue.priority_score,queue.recommended_action,queue.reason_codes,queue.due_at,queue.status,lead.id AS lead_id,lead.code,lead.full_name,lead.company_name,lead.score,lead.lead_grade,lead.owner_user_id FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1 AND queue.status IN ('active','claimed','snoozed') AND (queue.snoozed_until IS NULL OR queue.snoozed_until<=now())${topScope} ORDER BY queue.priority_score DESC,queue.due_at LIMIT 50`,
+      topValues,
     ),
   ]);
-  return {
-    summary: summary.rows[0],
-    grades: grades.rows,
-    sla: sla.rows,
-    queue: queue.rows,
-    topQueue: topQueue.rows,
-  };
+  return { summary: summary.rows[0], grades: grades.rows, sla: sla.rows, queue: queue.rows, topQueue: topQueue.rows };
 }
 
 export async function recordCrmLeadIntelligenceAcceptance(

@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const session = await getSessionContext();
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmView);
+    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
     const context = await crmApiContext(session);
     const commitSha = new URL(request.url).searchParams.get("commitSha");
     return ok(

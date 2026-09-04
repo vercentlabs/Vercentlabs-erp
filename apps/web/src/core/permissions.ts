@@ -37,6 +37,8 @@ export const PERMISSIONS = {
   businessDataImport: BUSINESS_DATA_PERMISSIONS.import,
   crmView: CRM_PERMISSIONS.view,
   crmRecordsViewAll: CRM_PERMISSIONS.recordsViewAll,
+  crmLeadsViewSensitive: CRM_PERMISSIONS.leadsViewSensitive,
+  crmSavedViewsShare: CRM_PERMISSIONS.savedViewsShare,
   crmLeadsManage: CRM_PERMISSIONS.leadsManage,
   crmOpportunitiesManage: CRM_PERMISSIONS.opportunitiesManage,
   crmActivitiesManage: CRM_PERMISSIONS.activitiesManage,

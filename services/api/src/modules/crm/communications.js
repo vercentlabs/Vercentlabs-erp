@@ -4,6 +4,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -1834,6 +1835,18 @@ export async function rescheduleMeetingBooking(
 }
 
 export async function getCommunicationTimeline(client, context, input = {}) {
+  if (input.leadId) {
+    if (!canViewSensitiveLeadContent(context))
+      throw new CrmCommunicationsError(403, "You do not have permission to view Lead communication content.", "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN");
+    const leadValues = [context.organizationId, assertId(input.leadId, "leadId")];
+    const leadScope = leadScopeSql(context, leadValues, "lead");
+    const visibleLead = await client.query(
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2${leadScope} LIMIT 1`,
+      leadValues,
+    );
+    if (!visibleLead.rows[0])
+      throw new CrmCommunicationsError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
+  }
   const clauses = ["communication.organization_id=$1"];
   const parameters = [context.organizationId];
   for (const [field, column] of [

@@ -41,6 +41,10 @@ type SavedView = {
   id: string;
   name: string;
   filters?: Record<string, unknown>;
+  visibility?: "private" | "team" | "organization";
+  team_id?: string | null;
+  team_name?: string | null;
+  can_delete?: boolean;
 };
 
 const KANBAN_PAGE_SIZE = 6;
@@ -524,6 +528,8 @@ export default function CrmLeadsWorkspace({
   initialStatus,
   options,
   canManage,
+  canShareSavedViews = false,
+  canShareOrganizationViews = false,
   canImport,
   canExport,
   pending,
@@ -550,6 +556,8 @@ export default function CrmLeadsWorkspace({
   initialStatus: string;
   options: Record<string, Option[]>;
   canManage: boolean;
+  canShareSavedViews?: boolean;
+  canShareOrganizationViews?: boolean;
   canImport: boolean;
   canExport: boolean;
   pending: boolean;
@@ -588,6 +596,11 @@ export default function CrmLeadsWorkspace({
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [savedViewName, setSavedViewName] = useState("");
+  const [savedViewVisibility, setSavedViewVisibility] = useState<"private" | "team" | "organization">("private");
+  const [savedViewTeamId, setSavedViewTeamId] = useState("");
+  const [conflictLeadId, setConflictLeadId] = useState("");
   const [working, setWorking] = useState("");
   const [localMessage, setLocalMessage] = useState("");
   const [bulkPriority, setBulkPriority] = useState("");
@@ -708,8 +721,16 @@ export default function CrmLeadsWorkspace({
           expectedUpdatedAt,
         }),
       });
-      if (!result.ok)
+      if (!result.ok) {
+        const code = String((result as Record<string, unknown>).code || "");
+        if (result.status === 409 && (code === "CRM_STALE_WRITE" || code.includes("VERSION") || code.includes("CONFLICT"))) {
+          setConflictLeadId(id);
+          setLocalMessage("This Lead changed since the board loaded. Review the latest data before retrying.");
+          return;
+        }
         throw new Error(result.message || "Lead could not be moved.");
+      }
+      setConflictLeadId("");
       setLocalMessage(result.message || "Lead updated.");
       startBoardRefresh(() => router.refresh());
     } catch (error) {
@@ -777,15 +798,38 @@ export default function CrmLeadsWorkspace({
     }
   }
   async function saveView() {
-    const name = window.prompt("Name this Lead view")?.trim();
-    if (!name) return;
+    const name = savedViewName.trim();
+    if (!name) {
+      setLocalMessage("Enter a saved-view name.");
+      return;
+    }
+    if (savedViewVisibility !== "private" && search.trim()) {
+      setLocalMessage("Shared Lead views cannot contain free-text search because it may contain sensitive data.");
+      return;
+    }
+    if (savedViewVisibility === "team" && !savedViewTeamId) {
+      setLocalMessage("Choose a sales team for the shared view.");
+      return;
+    }
+    setWorking("save-view");
     const result = await requestJson("/api/crm/leads/views", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, filters: { search, status, ...filters } }),
+      body: JSON.stringify({
+        action: "save",
+        name,
+        visibility: savedViewVisibility,
+        teamId: savedViewVisibility === "team" ? savedViewTeamId : undefined,
+        filters: { search, status, ...filters },
+      }),
     });
+    setWorking("");
     if (result.ok) {
       setLocalMessage("Saved view stored.");
+      setSaveViewOpen(false);
+      setSavedViewName("");
+      setSavedViewVisibility("private");
+      setSavedViewTeamId("");
       await refreshViews();
     } else setLocalMessage(result.message || "Saved view could not be stored.");
   }
@@ -1199,12 +1243,54 @@ export default function CrmLeadsWorkspace({
               <button
                 className="link-button"
                 type="button"
-                onClick={() => void saveView()}
+                onClick={() => setSaveViewOpen((value) => !value)}
               >
                 Save view
               </button>
             </div>
           </div>
+          {saveViewOpen ? (
+            <section className="crm-leads-save-view" aria-label="Save Lead view">
+              <label>
+                <span>View name</span>
+                <input value={savedViewName} onChange={(event) => setSavedViewName(event.currentTarget.value)} maxLength={120} />
+              </label>
+              {canShareSavedViews ? (
+                <label>
+                  <span>Visibility</span>
+                  <select value={savedViewVisibility} onChange={(event) => {
+                    const value = event.currentTarget.value as "private" | "team" | "organization";
+                    setSavedViewVisibility(value);
+                    if (value !== "team") setSavedViewTeamId("");
+                  }}>
+                    <option value="private">Private</option>
+                    <option value="team">Sales team</option>
+                    {canShareOrganizationViews ? <option value="organization">Organization</option> : null}
+                  </select>
+                </label>
+              ) : null}
+              {savedViewVisibility === "team" ? (
+                <label>
+                  <span>Sales team</span>
+                  <select value={savedViewTeamId} onChange={(event) => setSavedViewTeamId(event.currentTarget.value)}>
+                    <option value="">Choose team</option>
+                    {(options.salesTeams || []).filter((team) => team.status !== "inactive").map((team) => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {savedViewVisibility !== "private" && search.trim() ? (
+                <p className="notice">Clear free-text search before sharing this view.</p>
+              ) : null}
+              <div className="crm-suite-actions">
+                <button type="button" className="primary-button" disabled={working === "save-view"} onClick={() => void saveView()}>
+                  {working === "save-view" ? "Saving…" : "Save view"}
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setSaveViewOpen(false)}>Cancel</button>
+              </div>
+            </section>
+          ) : null}
           {savedViews.length ? (
             <div className="crm-leads-saved-views">
               <span>Saved views</span>
@@ -1212,14 +1298,17 @@ export default function CrmLeadsWorkspace({
                 <span className="crm-leads-saved-view" key={saved.id}>
                   <button type="button" onClick={() => applySaved(saved)}>
                     {saved.name}
+                    {saved.visibility === "team" ? ` · Team${saved.team_name ? `: ${saved.team_name}` : ""}` : saved.visibility === "organization" ? " · Organization" : " · Private"}
                   </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${saved.name}`}
-                    onClick={() => void deleteView(saved)}
-                  >
-                    ×
-                  </button>
+                  {saved.can_delete !== false ? (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${saved.name}`}
+                      onClick={() => void deleteView(saved)}
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </span>
               ))}
             </div>
@@ -1249,6 +1338,12 @@ export default function CrmLeadsWorkspace({
             ))}
           </nav>
         </section>
+        {conflictLeadId ? (
+          <div className="notice crm-suite-notice" role="alert">
+            <strong>Lead changed in another session.</strong>{" "}
+            <button type="button" className="link-button" onClick={() => { setConflictLeadId(""); startBoardRefresh(() => router.refresh()); }}>Refresh board</button>
+          </div>
+        ) : null}
         {message || localMessage ? (
           <p className="notice crm-suite-notice" role="status">
             {localMessage || message}

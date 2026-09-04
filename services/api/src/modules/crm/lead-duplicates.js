@@ -48,11 +48,9 @@ function canDisclose(context, row) {
 
 function safeMatch(context, match) {
   if (!canDisclose(context, match.row)) {
-    return {
-      restricted: true,
-      classification: match.classification,
-      signals: match.signals,
-    };
+    // Duplicate prevention still uses internalMatches, but public callers must
+    // not learn which hidden identity signal matched another seller's Lead.
+    return { restricted: true };
   }
   return {
     id: match.row.id,
@@ -210,10 +208,19 @@ export async function evaluateLeadDuplicateRisk(
   };
 }
 
-function publicResult(evaluation) {
+export function publicLeadDuplicateResult(evaluation) {
+  const visibleMatches = evaluation.matches.filter((match) => !match.restricted);
+  const classification = visibleMatches.some((match) => match.classification === "exact")
+    ? "exact"
+    : visibleMatches.length
+      ? "probable"
+      : evaluation.matches.some((match) => match.restricted)
+        ? "restricted"
+        : "none";
   return {
-    classification: evaluation.classification,
-    matches: evaluation.matches,
+    classification,
+    matches: visibleMatches,
+    restrictedMatch: evaluation.matches.some((match) => match.restricted),
     canOverride: evaluation.canOverride,
   };
 }
@@ -236,7 +243,7 @@ export async function assertLeadDuplicatePolicy(
       409,
       "A matching Lead already exists.",
       "CRM_LEAD_DUPLICATE_EXACT",
-      publicResult(evaluation),
+      publicLeadDuplicateResult(evaluation),
     );
   }
   if (!canOverrideLeadDuplicate(context)) {
@@ -244,7 +251,7 @@ export async function assertLeadDuplicatePolicy(
       403,
       "You do not have permission to override an exact Lead duplicate.",
       "CRM_LEAD_DUPLICATE_OVERRIDE_FORBIDDEN",
-      publicResult(evaluation),
+      publicLeadDuplicateResult(evaluation),
     );
   }
   if (reason.length < 10 || reason.length > 1000) {
@@ -252,7 +259,7 @@ export async function assertLeadDuplicatePolicy(
       400,
       "Enter an override reason between 10 and 1,000 characters.",
       "CRM_LEAD_DUPLICATE_OVERRIDE_REASON_REQUIRED",
-      publicResult(evaluation),
+      publicLeadDuplicateResult(evaluation),
     );
   }
   return { ...evaluation, overrideReason: reason };

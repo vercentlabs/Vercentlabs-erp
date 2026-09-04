@@ -129,11 +129,8 @@ test("F008: integrity search is organization-wide but hidden records are redacte
     email: "priya@example.com",
   });
   assert.equal(result.classification, "exact");
-  assert.deepEqual(result.matches[0], {
-    restricted: true,
-    classification: "exact",
-    signals: ["email"],
-  });
+  assert.deepEqual(result.matches[0], { restricted: true });
+  assert.doesNotMatch(JSON.stringify(result.matches[0]), /classification|signals|email/);
   const select = db.calls.find((call) => /FROM tenant\.crm_leads/.test(call.sql));
   assert.equal(select.params[0], org);
   assert.doesNotMatch(select.sql, /owner_user_id\s*=/);

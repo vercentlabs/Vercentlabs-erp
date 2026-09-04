@@ -1,5 +1,6 @@
 import { CrmError, queueOutboxEvent } from "./index.js";
 import { assertEligibleLeadAssignee } from "./lead-governance.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
@@ -118,6 +119,8 @@ function scopeSql(context, values, alias = "activity") {
   else if (!context.allowAllCompanies) return " AND false";
   const canViewAll = Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
   if (!canViewAll) sql += ` AND (${alias}.assigned_to IS NULL OR ${alias}.assigned_to=${add(values, context.userId)})`;
+  if (!canViewSensitiveLeadContent(context))
+    sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   return sql;
 }
 function assertWritableScope(context, prepared) {
@@ -138,10 +141,14 @@ async function relationRecord(client, context, entityType, entityId) {
   if (!entityId) throw new CrmError(400, "Select the related CRM record for this Meeting.", "CRM_MEETING_RELATION_REQUIRED");
   let result;
   if (entityType === "lead") {
+    if (!canViewSensitiveLeadContent(context))
+      throw new CrmError(403, "You do not have permission to create Lead-related meeting content.", "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN");
+    const values = [context.organizationId, entityId];
+    const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
-      `SELECT id,company_id,branch_id FROM tenant.crm_leads
-       WHERE organization_id=$1 AND id=$2 AND record_status <> 'archived' LIMIT 1`,
-      [context.organizationId, entityId],
+      `SELECT lead.id,lead.company_id,lead.branch_id FROM tenant.crm_leads lead
+       WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+      values,
     );
   } else if (entityType === "contact") {
     result = await client.query(

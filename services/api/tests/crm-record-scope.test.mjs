@@ -31,7 +31,7 @@ function baseContext(userId, permissions) {
 
 // Sales Representative: crm.leads.manage but NOT crm.records.view_all — the
 // exact real-world role Prompt 1 flagged as having no ownership scoping.
-const repPermissions = ["crm.view", "crm.leads.manage", "crm.opportunities.manage", "crm.activities.manage"];
+const repPermissions = ["crm.view", "crm.leads.manage", "crm.leads.view_sensitive", "crm.opportunities.manage", "crm.activities.manage"];
 const ownerContext = baseContext(owner, repPermissions);
 const otherRepContext = baseContext(otherUser, repPermissions);
 // Sales Manager: same base permissions plus crm.records.view_all.

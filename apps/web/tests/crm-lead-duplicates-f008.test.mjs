@@ -9,9 +9,11 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("F008 pre-check route uses the canonical duplicate engine and safe result shape", () => {
   const source = read("src/app/api/crm/leads/duplicates/route.ts");
   assert.match(source, /evaluateLeadDuplicateRisk/);
-  assert.match(source, /classification: evaluation\.classification/);
-  assert.match(source, /matches: evaluation\.matches/);
+  assert.match(source, /publicDuplicateResult\(evaluation\)/);
+  assert.match(source, /classification,\s*matches,/);
+  assert.match(source, /restrictedMatch:/);
   assert.match(source, /canOverride: evaluation\.canOverride/);
+  assert.doesNotMatch(source, /classification: evaluation\.classification/);
   assert.doesNotMatch(source, /findCrmDuplicates\(client/);
 });
 
