@@ -98,3 +98,9 @@ pnpm build:web
 Requirement IDs stay in the canonical `docs/02-register/FEATURE_REGISTER.csv` and `docs/03-modules/*/features/` specifications; code is organised by business capability, not by one folder per feature ID. New capability code belongs under the owning module's `features/` boundary. A module may call another module only through that module's public `index.js` contract. Larger multi-module workflows belong in `services/api/src/orchestration`.
 
 Do not recreate `apps/web/src/lib`, `apps/web/src/components`, `database/control-plane`, or top-level API module directories.
+
+<!-- AI_CONTINUATION_ENTRY_POINT:START -->
+## AI / ChatGPT continuation entry point
+
+When continuing ERP implementation in a new chat, the repository itself carries the prompt. Read `docs/00-program/NEXT_CHAT_START_HERE.md`, then `docs/00-program/EXECUTION_PLAYBOOK.md`, and determine the next stage with `python docs/scripts/next_execution_step.py`.
+<!-- AI_CONTINUATION_ENTRY_POINT:END -->

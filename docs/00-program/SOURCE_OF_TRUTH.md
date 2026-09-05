@@ -19,3 +19,17 @@ Planning status and runtime execution status are intentionally separate. Ordinar
 No F511+ identifiers may be invented for canonical product features. Nested requirement IDs use forms such as `F001-FR-001`, `F001-UX-001`, `F001-BR-001`, `F001-SEC-001`, `F001-AI-001`, `F001-INT-001`, and `F001-E2E-001`.
 
 Current calendar policy: `NO_CALENDAR_TIMELINE_BASELINED`. Dependency order and parallel execution must not be interpreted as a date or duration commitment.
+
+<!-- EXECUTION_OVERLAY:START -->
+## Active execution overlay
+
+The canonical product/wave authorities above remain unchanged. For live implementation continuation, the execution workflow is additionally governed by:
+
+- `NEXT_CHAT_START_HERE.md` and `EXECUTION_PLAYBOOK.md` for the five-go -> Codex QA -> human UAT lifecycle;
+- `WAVE_GO_EXECUTION_REGISTER.csv` for GO/QA/UAT progress;
+- `FEATURE_EXECUTION_STATUS.csv` for per-feature implementation/QA/UAT/acceptance state;
+- `DEFECT_REGISTER.csv` for reproducible implementation/QA/UAT defects;
+- `EXECUTION_DASHBOARD.md` as a generated view only.
+
+These execution overlays may not redefine canonical F-IDs, specifications, dependencies or wave scope.
+<!-- EXECUTION_OVERLAY:END -->

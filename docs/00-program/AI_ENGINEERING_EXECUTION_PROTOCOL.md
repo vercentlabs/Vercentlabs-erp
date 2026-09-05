@@ -58,3 +58,9 @@ AI stops implementation and reports a governance/planning blocker when any of th
 `approved requirement + authoritative data/state behavior + server authorization + correct UI + automated evidence + integration/reconciliation + E2E/UAT = readiness`.
 
 A route, table, button, test stub, closed AWP or merged change alone never satisfies a feature, wave or product-readiness gate.
+
+<!-- FIVE_GO_SINGLE_LANE_EXTENSION:START -->
+## Single-lane ChatGPT command execution + independent Codex QA
+
+For the owner-driven workflow, execution is serialized: ChatGPT audits and authors the implementation command; the owner runs it; Codex is used only as the independent post-GO5 user-style tester; the owner performs final UAT. Existing AWP/migration/governance controls remain applicable and must be updated automatically by implementation commands when required. The owner should not need to restate this protocol in each chat; `NEXT_CHAT_START_HERE.md` is the handoff entry point.
+<!-- FIVE_GO_SINGLE_LANE_EXTENSION:END -->
