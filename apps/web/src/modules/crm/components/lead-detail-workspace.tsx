@@ -1,5 +1,6 @@
 "use client";
 
+import { Record360Archetype } from "@/shared/design";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -642,7 +643,7 @@ export default function CrmLeadDetailWorkspace({
   })();
 
   return (
-    <div
+    <Record360Archetype
       className={`crm-suite-page crm-lead-detail-page${embedded ? " is-embedded" : ""}`}
     >
       <header className="crm-lead-detail-command">
@@ -1893,6 +1894,6 @@ export default function CrmLeadDetailWorkspace({
           </section>
         ) : null}
       </div>
-    </div>
+    </Record360Archetype>
   );
 }

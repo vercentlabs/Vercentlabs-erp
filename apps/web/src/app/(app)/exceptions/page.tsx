@@ -1,3 +1,4 @@
+import { ListWorkQueueArchetype } from "@/shared/design";
 import Link from "next/link";
 
 import WorkItemList from "@/shared/components/work-item-list";
@@ -53,7 +54,7 @@ export default async function ExceptionsPage({
   const visible = exceptions.filter(activeCategory.match);
 
   return (
-    <>
+    <ListWorkQueueArchetype aria-label="Work queue">
       <section className="page-heading">
         <div>
           <p className="eyebrow">Work</p>
@@ -90,6 +91,6 @@ export default async function ExceptionsPage({
           emptyIcon="security"
         />
       </section>
-    </>
+    </ListWorkQueueArchetype>
   );
 }

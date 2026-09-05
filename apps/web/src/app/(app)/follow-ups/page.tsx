@@ -1,3 +1,4 @@
+import { ListWorkQueueArchetype } from "@/shared/design";
 import Link from "next/link";
 
 import WorkItemList from "@/shared/components/work-item-list";
@@ -52,7 +53,7 @@ export default async function FollowUpsPage({
   };
 
   return (
-    <>
+    <ListWorkQueueArchetype aria-label="Work queue">
       <section className="page-heading">
         <div>
           <p className="eyebrow">Work</p>
@@ -84,6 +85,6 @@ export default async function FollowUpsPage({
           emptyDescription="No follow-ups match this view right now."
         />
       </section>
-    </>
+    </ListWorkQueueArchetype>
   );
 }

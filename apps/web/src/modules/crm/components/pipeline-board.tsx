@@ -1,5 +1,6 @@
 "use client";
 
+import { BoardArchetype } from "@/shared/design";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type DragEvent, type FormEvent } from "react";
@@ -211,19 +212,19 @@ export default function CrmPipelineBoard({
 
   if (!selectedPipeline || !selectedPipelineId) {
     return (
-      <div className="empty-state">
+      <BoardArchetype className="empty-state" aria-label="Opportunity pipeline board">
         <h2>No active opportunity pipeline</h2>
         <p>
           Configure an active CRM pipeline before creating or moving
           opportunities.
         </p>
         {canManage ? <Link href="/crm/pipelines">Open pipeline setup</Link> : null}
-      </div>
+      </BoardArchetype>
     );
   }
 
   return (
-    <>
+    <BoardArchetype aria-label="Opportunity pipeline board">
       <section className="crm-action-panel" aria-label="Pipeline controls">
         <div>
           <p className="eyebrow">Active pipeline</p>
@@ -431,6 +432,6 @@ export default function CrmPipelineBoard({
           ))}
         </div>
       )}
-    </>
+    </BoardArchetype>
   );
 }

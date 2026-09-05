@@ -1,3 +1,4 @@
+import { TransactionDocumentArchetype } from "@/shared/design";
 import { assessSalesOrderReadiness, getSalesOrder } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
@@ -80,7 +81,7 @@ export default async function OrderDetailPage({
   };
 
   return (
-    <>
+    <TransactionDocumentArchetype aria-label="Transaction document">
       <section className="page-heading">
         <div>
           <p className="eyebrow">Sales order</p>
@@ -229,6 +230,6 @@ export default async function OrderDetailPage({
           </div>
         </section>
       </div>
-    </>
+    </TransactionDocumentArchetype>
   );
 }

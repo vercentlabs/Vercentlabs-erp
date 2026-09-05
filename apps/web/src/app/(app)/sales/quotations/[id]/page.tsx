@@ -1,3 +1,4 @@
+import { TransactionDocumentArchetype } from "@/shared/design";
 import { getQuotation } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
@@ -63,7 +64,7 @@ export default async function QuotationDetailPage({
   const quotation = data.quotation;
 
   return (
-    <>
+    <TransactionDocumentArchetype aria-label="Transaction document">
       <section className="page-heading">
         <div>
           <p className="eyebrow">Quotation · Revision {quotation.version_number}</p>
@@ -184,6 +185,6 @@ export default async function QuotationDetailPage({
           </div>
         </section>
       </div>
-    </>
+    </TransactionDocumentArchetype>
   );
 }

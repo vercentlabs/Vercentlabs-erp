@@ -1,5 +1,6 @@
 "use client";
 
+import { Record360Archetype } from "@/shared/design";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -63,7 +64,7 @@ export default function AccountDetailWorkspace({
   }
 
   return (
-    <div className="crm-account-detail">
+    <Record360Archetype className="crm-account-detail">
       <Link className="crm-record-back" href="/crm/accounts">
         ← Accounts
       </Link>
@@ -294,6 +295,6 @@ export default function AccountDetailWorkspace({
           closeHref={`/crm/accounts/${String(account.id)}`}
         />
       ) : null}
-    </div>
+    </Record360Archetype>
   );
 }

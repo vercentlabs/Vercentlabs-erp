@@ -1,5 +1,13 @@
 export { ActionButton, ActionLink, type ActionSize, type ActionTone } from "./action";
 export { ConvergenceBoundary, ShellBoundary, type ConvergenceArea } from "./convergence-boundary";
+export {
+  BoardArchetype,
+  ListWorkQueueArchetype,
+  OperationsWorkspaceArchetype,
+  Record360Archetype,
+  TransactionDocumentArchetype,
+  type PageArchetypeKind,
+} from "./page-archetypes";
 export { BulkActionBar } from "./bulk-action-bar";
 export { cx } from "./cx";
 export {

@@ -1,5 +1,6 @@
 "use client";
 
+import { OperationsWorkspaceArchetype } from "@/shared/design";
 import { useEffect, useMemo, useState } from "react";
 
 type Row = Record<string, unknown>;
@@ -129,7 +130,7 @@ export default function StockOperationsWorkspace() {
     finally { setBusy(false); }
   }
 
-  return <div className="stack-list">
+  return <OperationsWorkspaceArchetype className="stack-list" aria-label="Stock operations workspace">
     <section className="panel">
       <p className="eyebrow">F108–F111</p><h1>Stock operations</h1>
       <p>Post governed receipts, issues, signed adjustments and internal transfers. Every write is company-scoped, permission-gated, audited and replay-safe.</p>
@@ -161,5 +162,5 @@ export default function StockOperationsWorkspace() {
     <section className="panel"><p className="eyebrow">Movement ledger</p><h2>Recent stock movements</h2><div className="table-panel"><table><thead><tr><th>Movement</th><th>Type</th><th>Quantity</th><th>Item</th><th>Occurred</th></tr></thead><tbody>{movements.map((row) => <tr key={String(row.id)}><td><code>{String(row.movement_number || row.id)}</code></td><td>{String(row.movement_type)}</td><td>{String(row.quantity)}</td><td><code>{String(row.item_id)}</code></td><td>{String(row.occurred_at || row.created_at || "")}</td></tr>)}</tbody></table></div></section>
 
     <section className="panel"><p className="eyebrow">Transfer register</p><h2>Internal transfers</h2><div className="table-panel"><table><thead><tr><th>Transfer</th><th>Quantity</th><th>Status</th><th>Action</th></tr></thead><tbody>{transfers.map((row) => <tr key={String(row.id)}><td><code>{String(row.transfer_number || row.id)}</code></td><td>{String(row.quantity)}</td><td>{String(row.status)}</td><td>{row.status === "draft" ? <button type="button" className="secondary-button" disabled={busy} onClick={() => void completeTransfer(String(row.id))}>Complete</button> : null}</td></tr>)}</tbody></table></div></section>
-  </div>;
+  </OperationsWorkspaceArchetype>;
 }

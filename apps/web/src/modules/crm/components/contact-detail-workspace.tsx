@@ -1,5 +1,6 @@
 "use client";
 
+import { Record360Archetype } from "@/shared/design";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -52,7 +53,7 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
   }
 
   return (
-    <div className="crm-contact-detail">
+    <Record360Archetype className="crm-contact-detail">
       <Link className="crm-record-back" href="/crm/contacts">← Contacts</Link>
       <header className="crm-contact-detail-header">
         <div>
@@ -129,6 +130,6 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
         {message ? <p className="field-error" role="alert">{message}</p> : null}
         <div><button className="secondary-button" type="button" disabled={pending} onClick={() => setConfirming(false)}>Cancel</button><button className="danger-button" type="button" disabled={pending} onClick={() => void archiveContact()}>{pending ? "Archiving…" : "Archive contact"}</button></div>
       </dialog>
-    </div>
+    </Record360Archetype>
   );
 }

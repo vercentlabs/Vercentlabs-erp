@@ -11,7 +11,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --test",
-    "verify:routes": "node scripts/verify-routes.mjs"
+    "verify:routes": "node scripts/verify-routes.mjs",
+    "test:e2e:erp": "playwright test -c playwright.erp.config.ts",
+    "test:e2e:erp:update": "playwright test -c playwright.erp.config.ts --update-snapshots"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",
@@ -43,6 +45,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "prettier": "^3.7.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "1.61.1"
   }
 }
