@@ -20,6 +20,45 @@ A feature counts as done when, for its dossier's requirements:
 
 "Code exists" is not the bar — reconcile against the dossier before marking anything done.
 
+## CRM (module 1/12): atomic trace complete, gap-closing pass pending
+
+All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with cited code evidence — see `docs/03-modules/crm/features/F0##-AUDIT.md` for each. Consolidated gap list for the gap-closing pass:
+
+**Security-relevant (prioritize first):**
+- F003 Contacts: no sensitive-field redaction for contact email/phone (Leads has this via `lead-security.js`; Contacts doesn't).
+- F028 Custom fields: no field-level role-visibility mechanism.
+
+**Missing reverse/reopen paths (same bug class, found repeatedly — fix once, apply everywhere):**
+- F003 Contacts: no reactivation path for an archived contact.
+- F009 Opportunities: no reopen path for a closed deal (code comments imply one should exist).
+- F026 Won/lost reasons: inherits F009's gap.
+- F020 Territories: no cycle-detection on `parent_territory_id` (F002 Accounts solved the identical problem — copy that pattern).
+
+**Real but scoped gaps:**
+- F004 Lead sources: no original-vs-current source lineage, no campaign/referral fields.
+- F005 Lead assignment: no out-of-office awareness, no fallback queue, no reassignment-SLA timer.
+- F006 Lead qualification: readiness criteria hardcoded, not admin-configurable.
+- F007 Lead stages: transition graph is adjacency-based not truly directional; no dwell-SLA; no reason-code vocabulary; no live-config migration tooling.
+- F008 Duplicate detection: `mergeCrmLead` exists and is well-built but has zero routes/UI calling it (cheapest fix in this list — just wire it up); no dismiss action; no cross-object matching.
+- F009 Opportunities: no stakeholders/products/risks/close-plan entities.
+- F010 Pipeline board: stale-deal/aging data computed server-side but never rendered on cards.
+- F013 Calls: a full 10-table telephony/recording/transcription schema exists with zero application code (scope decision needed: build it or drop the schema).
+- F016 Follow-ups: scope-naming ambiguity with the separate nurture-queue system — needs an owner decision, not a code fix.
+- F014 + F016: no confirmed reminder-notification delivery mechanism anywhere (cross-feature, worth one dedicated investigation).
+- F019 Activity timeline: fixed per-source row cap (100-200), no cursor pagination — long-lived records lose old history.
+- F021 Import/export: no dry-run, no upsert policy, no async/resumable path over 1,000 rows.
+- F022 Conversion: converted-lead immutability not enforced (cheap fix — extend `assertLifecycleUpdate`).
+- F025 Sales forecast: no accuracy/backtesting.
+- F026 Won/lost reasons: no reason-label snapshot at close time (renaming a reason retroactively rewrites history).
+- F028 Custom fields: no dependent-option picklists, no required-field-rollout safety check.
+- F029 Bulk actions: no job cancellation, no per-row retry.
+- Module-wide: AI-adjacent dossier requirements (AI-001) are consistently unbuilt — this is a real, consistent scope gap, not a bug.
+- Module-wide (from F015's audit, code-comment-confirmed): 3 known-missing automation trigger call sites (`lead.updated`, `lead.qualified`, `campaign.member_responded`).
+
+**Standing, not feature-specific:** no live E2E was run (blocked earlier on missing auth/seed fixtures — still unresolved), no human UAT, no load/perf testing exists anywhere in CRM.
+
+**Best-in-class patterns worth reusing elsewhere in the codebase:** F027's deterministic scoring engine, F024/F030's cross-referenced dashboard/report security hardening, F021's shared formula-injection-safe CSV export, F017's fail-closed malware scanning, F012's disjoint-temporary-sequence reorder algorithm, F005/F014's correct concurrency locking.
+
 ## Module order
 
 Following the build order already established in the existing codebase (`apps/web/src/modules/*`, `services/api/src/modules/*`):
