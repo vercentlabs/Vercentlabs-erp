@@ -59,8 +59,9 @@ export default async function FollowUpsPage({
           <p className="eyebrow">Work</p>
           <h1>Follow-ups &amp; reminders</h1>
           <p>
-            CRM leads you own with a scheduled follow-up date. Access follows
-            the same lead-ownership rules CRM already enforces.
+            Your prioritized lead nurture queue — recommended next actions,
+            ranked and due-dated. Access follows the same lead-ownership
+            rules CRM already enforces.
           </p>
         </div>
       </section>

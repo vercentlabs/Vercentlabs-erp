@@ -23,6 +23,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const crmSource = () => read("apps/web/src/modules/crm/index.ts");
 const crmContextTypeSource = () => read("packages/shared-types/src/crm.d.ts");
 const followUpsSource = () => read("apps/web/src/orchestration/work/follow-ups.ts");
+const leadIntelligenceSource = () => read("services/api/src/modules/crm/lead-intelligence.js");
 const tasksSource = () => read("apps/web/src/orchestration/work/tasks.ts");
 const systemContextSource = () => read("services/worker/src/system-context.js");
 
@@ -62,12 +63,19 @@ test("CrmContext type: permissions and roleSlugs are required (non-optional) fie
   assert.doesNotMatch(source, /roleSlugs\?:\s*readonly string\[\]/);
 });
 
-test("My Work — Follow-ups: strips permissions/roleSlugs before querying, so crm.records.view_all can never broaden 'my follow-ups' to the whole team", () => {
-  const source = followUpsSource();
+test("My Work — Follow-ups: delegates to the nurture-queue reader, which strips roleSlugs and narrows permissions to just the sensitivity gate, so crm.records.view_all can never broaden 'my follow-ups' to the whole team", () => {
+  // Follow-ups & Reminders (F016) was rewired 2026-09-05 to read the lead
+  // nurture queue instead of a bare next_follow_up_at field (see
+  // follow-ups.ts's header comment); the "mine, full stop" scoping guarantee
+  // moved with it into listMyNurtureQueueItems, which needs
+  // crm.leads.view_sensitive to pass its own sensitivity gate and so cannot
+  // strip permissions to a literal empty array the way Tasks does.
+  assert.match(followUpsSource(), /listMyNurtureQueueItems/);
+  const source = leadIntelligenceSource();
   assert.match(
     source,
-    /crmApiContext\(session\)\),\s*permissions:\s*\[\],\s*roleSlugs:\s*\[\]\s*\}/,
-    "listMyFollowUps must override permissions/roleSlugs to empty arrays before calling listCrmRecords",
+    /permissions:\s*\["crm\.leads\.view_sensitive"\],\s*roleSlugs:\s*\[\]\s*\}/,
+    "listMyNurtureQueueItems must override roleSlugs to an empty array and permissions to just the sensitivity permission before scoping the nurture queue",
   );
 });
 

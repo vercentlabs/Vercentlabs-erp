@@ -879,6 +879,39 @@ export async function updateLeadNurtureItem(
   return result.rows[0];
 }
 
+// F016 Follow-ups and reminders: per owner decision, the nurture queue IS
+// F016's real implementation (it already has the snooze/claim/complete/
+// dedup/priority-scoring behavior the dossier asks for) rather than the
+// thin next_follow_up_at field. "My Follow-ups" means mine, full stop —
+// mirroring the existing rule for the old next_follow_up_at-based list
+// (see apps/web/src/orchestration/work/follow-ups.ts), a manager's
+// crm.records.view_all must never broaden this to everyone's queue, so the
+// permission used for owner-scoping is deliberately stripped down to just
+// the sensitive-intelligence permission the dashboard query itself requires.
+export async function listMyNurtureQueueItems(client, context, limit = 50) {
+  assertSensitiveLeadIntelligenceAccess(context);
+  const scopedContext = { ...context, permissions: ["crm.leads.view_sensitive"], roleSlugs: [] };
+  const values = [context.organizationId];
+  const scope = scopedLeadWhere(scopedContext, values);
+  const boundedLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit) || 50)));
+  const result = await client.query(
+    `SELECT queue.id, queue.priority_score, queue.recommended_action, queue.reason_codes,
+            queue.due_at, queue.status, queue.snoozed_until,
+            lead.id AS lead_id, lead.code, lead.full_name, lead.company_name,
+            lead.score, lead.lead_grade
+       FROM tenant.crm_lead_nurture_queue queue
+       JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id
+      WHERE queue.organization_id=$1
+        AND queue.status IN ('active','claimed','snoozed')
+        AND (queue.snoozed_until IS NULL OR queue.snoozed_until<=now())
+        AND lead.record_status='active'${scope}
+      ORDER BY queue.priority_score DESC, queue.due_at
+      LIMIT ${boundedLimit}`,
+    values,
+  );
+  return result.rows;
+}
+
 export async function getLeadIntelligenceDashboard(client, context) {
   assertSensitiveLeadIntelligenceAccess(context);
   const summaryValues = [context.organizationId];

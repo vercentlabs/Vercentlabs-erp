@@ -50,7 +50,11 @@ test("F007 native capture and shared follow-ups use governed lifecycle boundarie
   const capture = await read("../mobile/src/modules/crm/components/lead-capture.tsx");
   const detail = await read("../mobile/src/app/(protected)/crm/[resource]/[id].tsx");
   const manager = await read("../mobile/src/shared/components/resource-manager-screen.tsx");
-  const followups = await read("src/orchestration/work/follow-ups.ts");
+  // Follow-ups (F016) was rewired 2026-09-05 to read the lead nurture queue
+  // instead of filtering raw lead rows client-side; the same
+  // active/qualified-only guarantee now lives in evaluateNurtureEligibility
+  // (checked when a lead is added to the queue, not when it's read back).
+  const leadIntelligence = await read("../../services/api/src/modules/crm/lead-intelligence.js");
   assert.doesNotMatch(capture, /status:\s*"new"/);
   assert.match(detail, /record\.recordStatus !== "converted"/);
   assert.match(detail, /record\.recordStatus !== "archived"/);
@@ -58,6 +62,8 @@ test("F007 native capture and shared follow-ups use governed lifecycle boundarie
   assert.doesNotMatch(manager, /"qualified", "unqualified"/);
   assert.match(manager, /resource !== "leads" \|\| !\["status", "qualificationState", "unqualifiedReason"\]/);
   assert.doesNotMatch(manager, /name,email,status/);
-  assert.match(followups, /row\.recordStatus === "active"/);
-  assert.match(followups, /row\.qualificationState !== "unqualified"/);
+  assert.match(
+    leadIntelligence,
+    /\["converted", "archived"\]\.includes\(text\(lead\.record_status\)\) \|\|\s*\n\s*text\(lead\.qualification_state\) === "unqualified"/,
+  );
 });

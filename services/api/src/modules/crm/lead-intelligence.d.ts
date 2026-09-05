@@ -82,6 +82,11 @@ export function getLeadIntelligenceDashboard(
   client: QueryClient,
   context: CrmFoundationContext,
 ): Promise<Record<string, unknown>>;
+export function listMyNurtureQueueItems(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  limit?: number,
+): Promise<Record<string, unknown>[]>;
 export function recordCrmLeadIntelligenceAcceptance(
   client: QueryClient,
   context: CrmFoundationContext,
