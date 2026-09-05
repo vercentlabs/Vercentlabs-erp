@@ -75,4 +75,21 @@
 
   --erp-motion-fast: 120ms;
   --erp-motion-standard: 160ms;
+
+  --erp-font-size-xs: 12px;
+  --erp-font-size-sm: 13px;
+  --erp-font-size-md: 14px;
+  --erp-font-size-lg: 16px;
+  --erp-font-size-xl: 20px;
+  --erp-font-size-2xl: 28px;
+  --erp-line-height-tight: 1.25;
+  --erp-line-height-body: 1.5;
+  --erp-font-weight-medium: 500;
+  --erp-font-weight-semibold: 600;
+  --erp-font-weight-bold: 700;
+
+  --erp-control-height-compact: 34px;
+  --erp-control-height-large: 48px;
+  --erp-color-on-accent: #ffffff;
+  --erp-color-overlay-backdrop: rgba(15, 23, 42, 0.42);
 }

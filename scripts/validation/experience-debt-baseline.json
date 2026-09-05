@@ -311,5 +311,27 @@
     "legacyHardcodedColorLiterals": 1255,
     "legacyRawTableOccurrences": 39,
     "legacyRawTableFiles": 30
-  }
+  },
+  "canonicalComponentFiles": [
+    "apps/web/src/shared/design/action.tsx",
+    "apps/web/src/shared/design/bulk-action-bar.tsx",
+    "apps/web/src/shared/design/enterprise-data-grid.tsx",
+    "apps/web/src/shared/design/filter-bar.tsx",
+    "apps/web/src/shared/design/form-field.tsx",
+    "apps/web/src/shared/design/form-section.tsx",
+    "apps/web/src/shared/design/metric-card.tsx",
+    "apps/web/src/shared/design/page-header.tsx",
+    "apps/web/src/shared/design/record-header.tsx",
+    "apps/web/src/shared/design/section-header.tsx",
+    "apps/web/src/shared/design/state-panel.tsx",
+    "apps/web/src/shared/design/status-badge.tsx",
+    "apps/web/src/shared/design/surface.tsx",
+    "apps/web/src/shared/design/tabs.tsx"
+  ],
+  "canonicalRawTableCountsByFile": {
+    "apps/web/src/shared/design/enterprise-data-grid.tsx": 1
+  },
+  "canonicalStyleFiles": [
+    "apps/web/src/shared/design/experience-kernel.module.css"
+  ]
 }

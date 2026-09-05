@@ -13,3 +13,18 @@ This directory is the canonical design-token and reusable web-experience boundar
 - Existing application CSS remains a compatibility layer and is migrated incrementally.
 
 Run `corepack pnpm verify:experience` before integrating web UI changes.
+
+## Implemented component foundation
+
+Design Convergence Go 2 establishes the canonical component layer exported by `index.ts`:
+
+- page / record / section headers
+- surfaces and actions
+- status and metric cards
+- empty, error, permission, conflict and loading states
+- filter and bulk-action bars
+- semantic form sections
+- link-based tabs
+- `EnterpriseDataGrid` with optional mobile-card rendering
+
+`EnterpriseDataGrid` is the sole new raw-table owner. Consumer routes must compose it instead of adding raw `<table>` markup.

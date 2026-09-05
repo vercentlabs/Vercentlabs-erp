@@ -57,6 +57,9 @@ function fixture() {
       "apps/web/src/app/globals.css": 2,
     },
     legacyRawTableCountsByFile: {},
+    canonicalComponentFiles: [],
+    canonicalStyleFiles: [],
+    canonicalRawTableCountsByFile: {},
   };
 
   return { root, baseline };
@@ -103,4 +106,51 @@ test("new raw table fails closed", () => {
   );
   const failures = validateExperience(analyzeExperience(root), baseline);
   assert.ok(failures.some((failure) => failure.includes("raw <table> debt increased")));
+});
+
+test("canonical data-grid primitive may own one raw table while consumers may not", () => {
+  const { root, baseline } = fixture();
+  const grid = "apps/web/src/shared/design/enterprise-data-grid.tsx";
+  write(root, grid, "export function Grid(){ return <table><tbody /></table>; }\n");
+  baseline.canonicalComponentFiles = [grid];
+  baseline.canonicalRawTableCountsByFile = { [grid]: 1 };
+
+  const canonicalFailures = validateExperience(analyzeExperience(root), baseline);
+  assert.deepEqual(canonicalFailures, []);
+
+  write(
+    root,
+    "apps/web/src/modules/crm/consumer-table.tsx",
+    "export function Consumer(){ return <table><tbody /></table>; }\n",
+  );
+  const consumerFailures = validateExperience(analyzeExperience(root), baseline);
+  assert.ok(
+    consumerFailures.some((failure) => failure.includes("raw <table> debt increased")),
+  );
+});
+
+test("missing canonical Experience Kernel component fails closed", () => {
+  const { root, baseline } = fixture();
+  baseline.canonicalComponentFiles = [
+    "apps/web/src/shared/design/page-header.tsx",
+  ];
+  const failures = validateExperience(analyzeExperience(root), baseline);
+  assert.ok(
+    failures.some((failure) =>
+      failure.includes("missing canonical Experience Kernel component"),
+    ),
+  );
+});
+
+test("missing canonical Experience Kernel stylesheet fails closed", () => {
+  const { root, baseline } = fixture();
+  baseline.canonicalStyleFiles = [
+    "apps/web/src/shared/design/experience-kernel.module.css",
+  ];
+  const failures = validateExperience(analyzeExperience(root), baseline);
+  assert.ok(
+    failures.some((failure) =>
+      failure.includes("missing canonical Experience Kernel stylesheet"),
+    ),
+  );
 });

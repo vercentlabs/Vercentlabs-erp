@@ -63,6 +63,7 @@ function cssImportsFromRootLayout(root) {
 export function analyzeExperience(root) {
   const appRoot = path.join(root, "apps/web/src/app");
   const webRoot = path.join(root, "apps/web/src");
+  const designRoot = path.join(root, "apps/web/src/shared/design");
   const canonicalTokenFile = "apps/web/src/shared/design/tokens.css";
 
   const appCssFiles = walk(
@@ -73,6 +74,13 @@ export function analyzeExperience(root) {
     .sort();
 
   const allCssFiles = walk(webRoot, (file) => file.endsWith(".css"))
+    .map((file) => posix(path.relative(root, file)))
+    .sort();
+
+  const designComponentFiles = walk(
+    designRoot,
+    (file) => UI_SOURCE_EXTENSIONS.has(path.extname(file)),
+  )
     .map((file) => posix(path.relative(root, file)))
     .sort();
 
@@ -104,6 +112,7 @@ export function analyzeExperience(root) {
     canonicalTokenFile,
     appCssFiles,
     allCssFiles,
+    designComponentFiles,
     rootLayoutCssImports: cssImportsFromRootLayout(root),
     rootBlocksByFile,
     mediaQueriesByFile,
@@ -122,9 +131,24 @@ export function validateExperience(analysis, baseline) {
   const canonicalTokenFile = baseline.canonicalTokenFile;
   const legacyAppCss = new Set(baseline.legacyAppCssFiles);
   const canonicalMedia = new Set(baseline.canonicalMediaQueries);
+  const canonicalComponents = new Set(baseline.canonicalComponentFiles ?? []);
+  const canonicalStyles = new Set(baseline.canonicalStyleFiles ?? []);
+  const canonicalRawTables = baseline.canonicalRawTableCountsByFile ?? {};
 
   if (!analysis.allCssFiles.includes(canonicalTokenFile)) {
     failures.push(`missing canonical token file: ${canonicalTokenFile}`);
+  }
+
+  for (const file of canonicalComponents) {
+    if (!analysis.designComponentFiles.includes(file)) {
+      failures.push(`missing canonical Experience Kernel component: ${file}`);
+    }
+  }
+
+  for (const file of canonicalStyles) {
+    if (!analysis.allCssFiles.includes(file)) {
+      failures.push(`missing canonical Experience Kernel stylesheet: ${file}`);
+    }
   }
 
   const newAppGlobalCss = analysis.appCssFiles.filter(
@@ -234,6 +258,16 @@ export function validateExperience(analysis, baseline) {
   }
 
   for (const [file, count] of Object.entries(analysis.rawTableCountsByFile)) {
+    if (Object.hasOwn(canonicalRawTables, file)) {
+      const canonicalLimit = canonicalRawTables[file];
+      if (count > canonicalLimit) {
+        failures.push(
+          `${file}: canonical raw <table> ownership increased from ${canonicalLimit} to ${count}`,
+        );
+      }
+      continue;
+    }
+
     const legacyLimit = baseline.legacyRawTableCountsByFile[file] ?? 0;
     if (count > legacyLimit) {
       failures.push(
@@ -263,8 +297,14 @@ function summarize(analysis, baseline) {
   )
     .filter(([file]) => legacyCss.has(file))
     .reduce((sum, [, count]) => sum + count, 0);
-  const rawTables = Object.values(analysis.rawTableCountsByFile).reduce(
-    (sum, count) => sum + count,
+  const canonicalRawTables = new Set(
+    Object.keys(baseline.canonicalRawTableCountsByFile ?? {}),
+  );
+  const legacyRawTableEntries = Object.entries(analysis.rawTableCountsByFile).filter(
+    ([file]) => !canonicalRawTables.has(file),
+  );
+  const rawTables = legacyRawTableEntries.reduce(
+    (sum, [, count]) => sum + count,
     0,
   );
 
@@ -277,7 +317,7 @@ function summarize(analysis, baseline) {
     legacyMediaQueryFilePairs: mediaPairs,
     legacyHardcodedColorLiterals: hardcodedColors,
     legacyRawTableOccurrences: rawTables,
-    legacyRawTableFiles: Object.keys(analysis.rawTableCountsByFile).length,
+    legacyRawTableFiles: legacyRawTableEntries.length,
   };
 }
 

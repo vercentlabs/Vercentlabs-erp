@@ -33,4 +33,12 @@ export const ERP_DESIGN_TOKENS = Object.freeze({
     overlay: "var(--erp-shadow-overlay)",
     focus: "var(--erp-shadow-focus)",
   },
+  typography: {
+    xs: "var(--erp-font-size-xs)",
+    sm: "var(--erp-font-size-sm)",
+    md: "var(--erp-font-size-md)",
+    lg: "var(--erp-font-size-lg)",
+    xl: "var(--erp-font-size-xl)",
+    title: "var(--erp-font-size-2xl)",
+  },
 } as const);
