@@ -6,13 +6,13 @@ export const JOB_TYPE = "crm.automation.detect_overdue_activities";
 export const payloadSchema = z.object({}).strict();
 
 // Fires the ALREADY-REAL, already-tested automation engine
-// (runCrmAutomation, services/api/src/modules/crm/index.js) for the "activity.overdue"
-// event — one of the 4 event types Prompt 10/11 found never fire. This is
-// the one of the four that is genuinely a scheduled/time-based trigger
-// (the other three — lead.updated, lead.qualified,
-// campaign.member_responded — are missing synchronous call sites in
-// mutation code paths, an unrelated, non-scheduling gap this prompt does
-// not touch; see ERP_WORKER_SCHEDULER_013.md Section 16).
+// (runCrmAutomation, services/api/src/modules/crm/index.js) for the
+// "activity.overdue" event — the one genuinely scheduled/time-based
+// trigger of the module's 7 event types. The other 3 non-scheduled
+// triggers (lead.updated, lead.qualified, campaign.member_responded)
+// previously had no synchronous call site in their mutation code paths;
+// fixed 2026-09-05 in updateCrmRecord, decideLeadQualification and
+// captureCrmLead respectively.
 //
 // Idempotency: the WHERE clause on the status-transition UPDATE below is
 // the whole idempotency mechanism — it only ever matches an activity

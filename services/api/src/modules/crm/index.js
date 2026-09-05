@@ -3185,6 +3185,8 @@ export async function updateCrmRecord(
         ? { before: opportunityOutboxSnapshot(before), after: opportunityOutboxSnapshot(updated), changedFields }
         : { before, after: updated, changedFields },
     );
+  if (resource === "leads" && changedFields.length)
+    await runCrmAutomation(client, context, "lead.updated", "lead", id, updated);
   return projectCrmRecord(client, context, resource, updated);
 }
 
@@ -4889,11 +4891,17 @@ export async function captureCrmLead(
     campaignId: form.campaign_id,
     ownerUserId: configuredCaptureOwner?.id || null,
   });
-  if (form.campaign_id)
-    await client.query(
-      `INSERT INTO tenant.crm_campaign_members (organization_id,campaign_id,lead_id,member_status,created_by) VALUES ($1,$2,$3,'responded',$4) ON CONFLICT DO NOTHING`,
+  if (form.campaign_id) {
+    const membership = await client.query(
+      `INSERT INTO tenant.crm_campaign_members (organization_id,campaign_id,lead_id,member_status,created_by) VALUES ($1,$2,$3,'responded',$4) ON CONFLICT DO NOTHING RETURNING id`,
       [form.organization_id, form.campaign_id, lead.id, context.userId],
     );
+    if (membership.rows[0])
+      await runCrmAutomation(client, context, "campaign.member_responded", "lead", lead.id, {
+        ...lead,
+        campaignId: form.campaign_id,
+      });
+  }
   return {
     message: form.success_message,
     leadId: lead.id,

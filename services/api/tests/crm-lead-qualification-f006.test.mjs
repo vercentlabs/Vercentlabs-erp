@@ -92,6 +92,7 @@ function qualificationClient(initial = {}) {
         writes.push({ kind: "outbox", sql, values });
         return { rows: [] };
       }
+      if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -248,6 +249,27 @@ test("F006: scoped reads bind organization, company, branch and owner boundaries
   assert.match(scoped.sql, /branch_id/);
   assert.match(scoped.sql, /owner_user_id/);
   assert.deepEqual(scoped.values, [organizationId, leadId, companyId, branchId, actorId]);
+});
+
+test("F006: qualifying a Lead fires the lead.qualified automation trigger, unqualifying does not", async () => {
+  const calls = [];
+  const client = qualificationClient();
+  const original = client.query.bind(client);
+  client.query = async (sql, values) => {
+    calls.push({ sql, values });
+    return original(sql, values);
+  };
+  await decideLeadQualification(client, manager, leadId, { decision: "qualified" });
+  const automationCall = calls.find((call) => call.sql.includes("FROM tenant.crm_automation_rules"));
+  assert.ok(automationCall);
+  assert.deepEqual(automationCall.values, [organizationId, "lead.qualified"]);
+
+  calls.length = 0;
+  await decideLeadQualification(client, manager, leadId, {
+    decision: "unqualified",
+    reasonCode: "no_current_requirement",
+  });
+  assert.equal(calls.some((call) => call.sql.includes("FROM tenant.crm_automation_rules")), false);
 });
 
 test("F006: domain serializes decisions with a row lock before update", () => {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { captureCrmLead } from "../src/modules/crm/index.js";
@@ -99,6 +100,16 @@ test("public capture: tenant resolution comes only from the form key, never from
   const tenantCall = client.calls.find((call) => /SELECT set_config/.test(call.sql));
   assert.ok(tenantCall, "expected the tenant context to be set");
   assert.equal(tenantCall.params[0], org);
+});
+
+test("public capture: a campaign-attributed submission fires campaign.member_responded only when the membership insert actually happens", () => {
+  const source = readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
+  const start = source.indexOf("export async function captureCrmLead(");
+  const end = source.indexOf("\nexport ", start + 1);
+  const block = source.slice(start, end);
+  assert.match(block, /VALUES \(\$1,\$2,\$3,'responded',\$4\) ON CONFLICT DO NOTHING RETURNING id/);
+  assert.match(block, /if \(membership\.rows\[0\]\)/);
+  assert.match(block, /runCrmAutomation\(client, context, "campaign\.member_responded", "lead", lead\.id/);
 });
 
 function leadAcquisitionClient({ formId: id = formId, attempts = 1 } = {}) {

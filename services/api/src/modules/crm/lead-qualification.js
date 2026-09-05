@@ -1,3 +1,5 @@
+import { runCrmAutomation } from "./index.js";
+
 export const LEAD_QUALIFICATION_STATES = Object.freeze([
   "not_reviewed",
   "qualified",
@@ -311,9 +313,13 @@ export async function decideLeadQualification(client, context, leadId, input = {
       },
     ],
   );
+  const camelizedLead = camelize(updated.rows[0]);
+  if (decision === "qualified") {
+    await runCrmAutomation(client, context, "lead.qualified", "lead", leadId, camelizedLead);
+  }
   return {
     changed: true,
-    lead: camelize(updated.rows[0]),
+    lead: camelizedLead,
     event: camelize(event.rows[0]),
     qualification: await getLeadQualification(client, context, leadId),
   };
