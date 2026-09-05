@@ -62,11 +62,11 @@ The omission challenge explicitly asks whether interactive, import, bulk, automa
 - `F001-US-002` — As a manager or operations user, I can inspect, govern and audit Leads behavior across my permitted team/company scope.
 
 ## [SPEC-FLOWS] Primary, alternate, exception, retry and reversal flows
-- `F001-FLOW-001` — The primary flow MUST follow the governed lifecycle `NEW -> WORKING -> QUALIFIED -> CONVERTED, with DISQUALIFIED and controlled reactivation to WORKING` and expose alternate/cancel paths where the lifecycle permits them.
+- `F001-FLOW-001` — The primary flow MUST follow the governed lifecycle expressed as three independent, audited axes rather than one fixed enum: a configurable pipeline `status` (owned by F007, e.g. `new -> contacted -> working -> ...`), an orthogonal `qualification_state` (`not_reviewed -> qualified/unqualified`, owned by F006, with controlled reactivation from `unqualified` back to `qualified`), and a `record_status` (`active -> converted/archived`) tracking conversion/retirement independent of pipeline stage. The three axes compose rather than collapsing into a single value. Alternate/cancel paths are expressed as legal transitions on the relevant axis.
 - `F001-FLOW-002` — Validation failures, authorization denials, concurrency conflicts and retryable integration failures MUST be visible, actionable and safe to retry without duplicate business effects.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-**Aggregate lifecycle:** `NEW -> WORKING -> QUALIFIED -> CONVERTED, with DISQUALIFIED and controlled reactivation to WORKING`.
+**Lifecycle model (corrected 2026-09-05 to match the implemented design — see `database/tenant/migrations/063_crm_lead_lifecycle_f007.sql` column comments and `F001-AUDIT.md`):** three independent axes rather than one fixed enum — pipeline `status` (configurable, F007-owned), `qualification_state` (`not_reviewed`/`qualified`/`unqualified`, F006-owned, with controlled reactivation), and `record_status` (`active`/`archived`/`converted`). A prior version of this dossier described a single fixed `NEW -> WORKING -> QUALIFIED -> CONVERTED, DISQUALIFIED` enum; that text did not match the implementation and has been corrected here rather than left as an unverified aspiration.
 
 Commands must declare legal source state, target state, permissions, guards, side effects, audit event and recovery semantics. Derived display states must not silently rewrite authoritative lifecycle facts.
 
