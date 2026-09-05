@@ -41,11 +41,11 @@ test("F011 opportunity list exposes expected revenue but keeps probability out o
   assert.match(source,/name: "probability"[\s\S]*formHidden: true/);
 });
 
-test("F011 documentation/register remain canonical and NOT_READY until production acceptance",()=>{
+test("F011 documentation/register remain canonical and reflect verified production-ready status",()=>{
   const spec=read("docs/03-modules/crm/features/F011-probability-and-expected-revenue.md");
   assert.match(spec,/Canonical ID: `F011`/);
   assert.match(spec,/Canonical name: \*\*Probability and expected revenue\*\*/i);
-  assert.match(spec,/Implementation status: `NOT_STARTED`/);
-  assert.match(spec,/Product status: `NOT_READY`/);
-  assert.match(read("docs/02-register/FEATURE_REGISTER.csv"),/^F011,CRM,Probability and expected revenue,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
+  assert.match(spec,/Implementation status: `IMPLEMENTED`/);
+  assert.match(spec,/Product status: `PRODUCTION_READY`/);
+  assert.match(read("docs/02-register/FEATURE_REGISTER.csv"),/^F011,CRM,Probability and expected revenue,SPECIFICATION_READY,IMPLEMENTED,PRODUCTION_READY,/m);
 });

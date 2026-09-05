@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ConvergenceBoundary } from "@/shared/design";
 import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
 import OpenCommandPaletteButton from "@/core/components/open-command-palette-button";
-import WorkItemList from "@/shared/components/work-item-list";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { query } from "@/core/db";

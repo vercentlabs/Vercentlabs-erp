@@ -1,5 +1,0 @@
-# Projects Pass 6 Current-Code Audit
-
-Current repository foundations include `database/tenant/migrations/046_projects_module.sql`, `services/api/src/modules/projects/index.js`, web Projects routes/validation and a real dashboard. Verified structures include projects, milestones, tasks, task dependencies, members/allocations, time entries, expenses, versioned budgets, billing milestones, procurement links, profitability snapshots/events and RLS. API foundations include project/task/time creation, permissions, project dashboard, event history, approvals/self-approval controls, procurement actual linkage, billing idempotency and profitability calculations.
-
-Important target gaps remain unverified/shallow: complete project templates; robust WBS/dependency scheduling/baselines; rich Gantt/Kanban/calendar; resource availability/leveling; project material consumption; full fixed/T&M/milestone invoice eligibility; project invoice/credit/reversal reconciliation; issues/risks/documents/comments; deep progress analytics; mobile/offline; broad cross-module/security/concurrency/property/E2E/UAT certification. Code is evidence only, not product certification.

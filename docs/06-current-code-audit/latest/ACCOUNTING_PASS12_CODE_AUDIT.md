@@ -1,3 +1,0 @@
-# Accounting Pass 12 Current-Code Audit
-
-Verified module foundations span accounting migrations, foundation/core/money/journals, AR/AP, banking, tax, schedules/accruals, advanced/consolidation, close, reports and web editors. Existing code includes company/ledger/period/account mapping, decimal helper usage, numbering, posting/event foundations, subledger governance and close/reconciliation logic. This remains evidence only. P0 implementation audit item: prove every request/API serialization boundary converts BigInt-backed decimal values to JSON-safe strings/numbers intentionally, and prove posted/close concurrency and cross-module reconciliation with database-level tests.

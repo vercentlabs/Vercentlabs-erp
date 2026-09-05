@@ -23,14 +23,13 @@ database/
 └── tenant/    # operational ERP state protected by tenant context/RLS
 ```
 
-See `docs/01-standards/PROJECT_STRUCTURE_CONSTITUTION.md` and `docs/00-program/ARCHITECTURE_FREEZE_GATE.md`.
+See `docs/01-standards/PROJECT_STRUCTURE_CONSTITUTION.md`.
 
 ## Company email
 
 The primary B2B contact is `sales@vercentlabs.com`. Customer support, privacy,
 security, billing, careers, authentication delivery, and infrastructure alerts
-use dedicated `@vercentlabs.com` Workspace role addresses. See
-`docs/00-program/COMMUNICATIONS_PLAN.md` and `docs/00-program/STAKEHOLDER_MANAGEMENT_PLAN.md` for current communication ownership and governance.
+use dedicated `@vercentlabs.com` Workspace role addresses.
 
 ## Toolchain
 
@@ -100,7 +99,7 @@ Requirement IDs stay in the canonical `docs/02-register/FEATURE_REGISTER.csv` an
 Do not recreate `apps/web/src/lib`, `apps/web/src/components`, `database/control-plane`, or top-level API module directories.
 
 <!-- AI_CONTINUATION_ENTRY_POINT:START -->
-## AI / ChatGPT continuation entry point
+## AI continuation entry point
 
-When continuing ERP implementation in a new chat, the repository itself carries the prompt. Read `docs/00-program/NEXT_CHAT_START_HERE.md`, then `docs/00-program/EXECUTION_PLAYBOOK.md`, and determine the next stage with `python docs/scripts/next_execution_step.py`.
+When continuing ERP implementation in a new chat, read `docs/README.md` and `docs/PRODUCTION_TRACKER.md` for the current module-by-module status, then audit the relevant module's existing code in `apps/web/src/modules/*` and `services/api/src/modules/*` against its dossiers in `docs/03-modules/*/features/` before writing anything new.
 <!-- AI_CONTINUATION_ENTRY_POINT:END -->

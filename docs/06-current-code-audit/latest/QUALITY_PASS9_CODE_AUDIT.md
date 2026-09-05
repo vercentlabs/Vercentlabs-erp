@@ -1,5 +1,0 @@
-# Quality Pass 9 Current-Code Audit
-
-Verified foundations include `database/tenant/migrations/049_quality_module.sql`, `services/api/src/modules/quality/index.js`, web Quality routes/dashboard/validation, permissions, shared SDK/types and Quality event/RLS structures. Current code already models quality settings, plans/inspection points, inspection source types, results, failed-inspection auto-holds, holds, NCR dispositions, CAPA, supplier quality, audits/findings and quality events.
-
-Material target gaps remain unverified/incomplete: server-enforced F323 hard hold checks inside every Stock/Manufacturing movement path and race tests; full hold release/partial release workflows; executable disposition/rework/scrap/RTS reconciliation; root-cause/action/effectiveness lifecycle depth; customer complaints; calibration integration and impact assessment; CoA and controlled quality documents; end-to-end genealogy; quality cost/accounting; advanced sampling; field/offline UX; performance/security/fault injection/E2E/UAT. Current code is evidence only and does not lower the target specification.

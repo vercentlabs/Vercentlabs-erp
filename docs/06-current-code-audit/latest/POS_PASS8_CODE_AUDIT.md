@@ -1,5 +1,0 @@
-# POS Pass 8 Current-Code Audit
-
-Verified current foundations include `database/tenant/migrations/048_point_of_sale_module.sql`, `services/api/src/modules/point-of-sale/index.js`, web POS routes/dashboard/validation, permissions/types/SDK and a Stock-integrity test. Current code already shows stores, terminals, shifts, sale lines, payments, returns, cash movements, reconciliations/events, permission checks, transactional shift locking, stock availability checks, sale idempotency input, Stock public movement handoff and RLS.
-
-Material target gaps remain unverified/incomplete: production-grade scanner/search/cart UX; pricing/promotion/coupon engine; real payment-provider authorization/callback/timeout reconciliation; printer/invoice peripheral handling; exchange and refund lifecycle breadth; offline POS/synchronization; loyalty; Z/fiscal numbering depth; Accounting posting/reconciliation; PCI/security review; cross-store/terminal concurrency property tests; mobile/device fault recovery; performance; browser E2E and UAT. Current code is evidence only and does not lower the target specification.

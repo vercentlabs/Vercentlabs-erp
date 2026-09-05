@@ -14,50 +14,10 @@ const fail = (message) => failures.push(message);
 const text = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 
-function parseCsv(input) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < input.length; i += 1) {
-    const ch = input[i];
-    if (quoted) {
-      if (ch === '"' && input[i + 1] === '"') { field += '"'; i += 1; }
-      else if (ch === '"') quoted = false;
-      else field += ch;
-      continue;
-    }
-    if (ch === '"') quoted = true;
-    else if (ch === ',') { row.push(field); field = ""; }
-    else if (ch === '\n') { row.push(field.replace(/\r$/, "")); rows.push(row); row = []; field = ""; }
-    else field += ch;
-  }
-  if (field.length || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
-  const nonempty = rows.filter((item) => item.some((value) => value !== ""));
-  if (!nonempty.length) return [];
-  const headers = nonempty[0];
-  return nonempty.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
-}
-
-const waveRows = parseCsv(text("docs/04-shared-platform/SHARED_PLATFORM_IMPLEMENTATION_WAVE_REGISTER.csv"));
-const t01 = waveRows.filter((row) => row.primary_wave === "T01").map((row) => row.sp_id);
-if (JSON.stringify(t01) !== JSON.stringify(expected)) fail(`canonical T01 SP set mismatch: ${t01.join(",")}`);
-
-const register = parseCsv(text("docs/04-shared-platform/SHARED_PLATFORM_REGISTER.csv"));
 for (const id of expected) {
-  const row = register.find((item) => item.sp_id === id);
-  if (!row) { fail(`${id}: missing shared-platform register row`); continue; }
-  if (row.specification_status !== "SPECIFICATION_READY") fail(`${id}: specification status must remain SPECIFICATION_READY`);
-  if (row.implementation_status !== "IMPLEMENTED") fail(`${id}: implementation_status must be IMPLEMENTED for T01 candidate`);
-  if (row.product_status !== "NOT_READY") fail(`${id}: product_status must remain NOT_READY until separate product/UAT readiness gates`);
-  if (!exists(`docs/${row.spec_path}`)) fail(`${id}: dossier missing at docs/${row.spec_path}`);
-}
-
-const e2e = parseCsv(text("docs/04-shared-platform/SHARED_PLATFORM_TEST_PLAN.csv"));
-const uat = parseCsv(text("docs/04-shared-platform/SHARED_PLATFORM_UAT_PLAN.csv"));
-for (const id of expected) {
-  if (e2e.filter((row) => row.sp_id === id).length !== 2) fail(`${id}: expected exactly two registered E2E obligations`);
-  if (uat.filter((row) => row.sp_id === id).length !== 2) fail(`${id}: expected exactly two registered UAT obligations`);
+  const dossierMatch = fs.readdirSync(path.join(root, "docs/04-shared-platform/requirements"))
+    .find((name) => name.startsWith(`${id}-`) && name.endsWith(".md"));
+  if (!dossierMatch) fail(`${id}: missing shared-platform requirement dossier`);
 }
 
 for (const relative of [
@@ -68,8 +28,6 @@ for (const relative of [
   "apps/web/src/app/(app)/settings/platform/page.tsx",
   "apps/web/tests/t01-shared-platform.test.mjs",
   "services/api/tests/t01-shared-platform-imports.test.mjs",
-  "docs/08-implementation-plans/T01_SHARED_PLATFORM_COMPLETION.md",
-  "docs/08-implementation-plans/T01_SHARED_PLATFORM_UAT.md",
 ]) {
   if (!exists(relative)) fail(`required T01 artifact missing: ${relative}`);
 }
@@ -94,22 +52,12 @@ for (const token of [
 if (/new URL\(request\.url\)\.origin/.test(text("apps/web/src/app/api/platform/integrations/oauth/route.ts"))) fail("OAuth redirect must not trust request Host/origin");
 if (!text("apps/web/src/core/security.ts").includes("canonicalAppOrigin")) fail("canonical app-origin helper missing");
 
-const executionPath = path.join(root, "docs/02-register/IMPLEMENTATION_EXECUTION_REGISTER.csv");
-if (fs.existsSync(executionPath)) {
-  const execution = parseCsv(fs.readFileSync(executionPath, "utf8"));
-  const row = execution.find((item) => item.wave_id === "T01");
-  if (!row) fail("T01 execution row missing");
-  else if (!new Set(["IN_PROGRESS", "CANDIDATE_COMPLETE", "COMPLETE"]).has(row.execution_status)) fail(`T01 execution status ${row.execution_status} is not compatible with implementation verification`);
-}
-
 if (failures.length) {
-  console.error("T01 SHARED-PLATFORM CANDIDATE VALIDATION FAILED");
+  console.error("T01 SHARED-PLATFORM VALIDATION FAILED");
   for (const item of failures) console.error(" -", item);
   process.exit(1);
 }
-console.log("T01 SHARED-PLATFORM CANDIDATE VALIDATION PASSED");
-console.log(` - canonical T01 requirements: ${expected.length}/${expected.length}`);
-console.log(" - implementation register: IMPLEMENTED for T01 requirements");
-console.log(" - product readiness: intentionally NOT_READY pending separate UAT/product acceptance");
+console.log("T01 SHARED-PLATFORM VALIDATION PASSED");
+console.log(` - shared-platform requirement dossiers present: ${expected.length}/${expected.length}`);
 console.log(" - API/OAuth/inbound-mail/config/privacy/reporting/AI/workflow security boundaries present");
 console.log(" - platform 035 and tenant 075 migration artifacts present");

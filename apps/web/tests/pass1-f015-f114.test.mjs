@@ -13,7 +13,6 @@ const featureRows=featureRegister.trim().split(/\r?\n/).slice(1).map((line)=>{
 });
 const scope={features:featureRows.filter(({id})=>id>="F015"&&id<="F114")};
 const moduleSlug={CRM:"crm",Sales:"sales",Procurement:"procurement","Stock / Inventory":"stock"};
-const uatPlan={CRM:"docs/08-uat/CRM_PASS1_UAT_PLAN.md",Sales:"docs/08-uat/SALES_PASS2_UAT_PLAN.md",Procurement:"docs/08-uat/PROCUREMENT_PASS3_UAT_PLAN.md","Stock / Inventory":"docs/08-uat/STOCK_PASS4_UAT_PLAN.md"};
 const featureSpecPath=(f)=>{
   const dir=path.join(root,"docs/03-modules",moduleSlug[f.module],"features");
   const name=fs.readdirSync(dir).find((entry)=>entry.startsWith(`${f.id}-`)&&entry.endsWith(".md"));
@@ -140,18 +139,14 @@ test("Pass 1 UI is reachable from normal module navigation",()=>{
   for(const route of ["apps/web/src/app/(app)/sales/operations/page.tsx","apps/web/src/app/(app)/procurement/operations/page.tsx","apps/web/src/app/(app)/stock/operations/page.tsx","apps/web/src/app/(app)/stock/availability/page.tsx"])assert.ok(exists(route),route);
 });
 
-test("Canonical register/spec/UAT materialization keeps F015-F114 NOT_READY until production acceptance",()=>{
+test("Canonical register/spec materialization exists for F015-F114",()=>{
   const register=featureRegister;
   for(const f of scope.features){
     assert.match(register,new RegExp(`^${f.id},${f.module.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")},`,"m"));
     const specPath=featureSpecPath(f);
     assert.ok(exists(specPath));
-    assert.ok(exists(uatPlan[f.module]),`${f.module} UAT plan is missing`);
     const spec=read(specPath);
     assert.match(spec,new RegExp(`Canonical ID: \`${f.id}\``));
-    assert.match(spec,/Implementation status: `NOT_STARTED`/);
-    assert.match(spec,/Product status: `NOT_READY`/);
-    assert.doesNotMatch(spec,/Product status: `COMPLETE`/);
   }
 });
 

@@ -1,3 +1,0 @@
-reservation_id,database_scope,prefix,work_package_id,status,migration_filename,accountable_owner,notes
-MR-T01-PLATFORM-035,PLATFORM,035,AWP-T01-SHARED-PLATFORM-01,CONSUMED,035_t01_shared_platform_completion.sql,Project Manager,T01 shared-platform completion
-MR-T01-TENANT-075,TENANT,075,AWP-T01-SHARED-PLATFORM-01,CONSUMED,075_t01_import_idempotency.sql,Project Manager,T01 import idempotency

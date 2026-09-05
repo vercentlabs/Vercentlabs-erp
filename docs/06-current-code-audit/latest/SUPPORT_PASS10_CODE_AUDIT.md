@@ -1,5 +1,0 @@
-# Support Pass 10 Current-Code Audit
-
-Verified foundations: `database/tenant/migrations/050_support_module.sql`, `services/api/src/modules/support/index.js`, Support validation/dashboard/routes, shared types/SDK and permissions. Present models include settings, categories, queues/members, SLA policies, tickets, status/assignment history, communications/private-note flag, escalation policies/events, knowledge articles/links and Support events.
-
-Material unverified/incomplete enterprise gaps: durable human numbering service; full email mailbox/threading/message-id/loop/bounce pipeline; safe attachment object/scan/quarantine/download model; business-calendar SLA event-clock engine; skills/presence/capacity routing execution; merge canonicalization and redirect lineage; complete customer portal auth surface; entitlement evaluation; canned-response entity/workflow; tags; CSAT collection; agent/SLA analytics definitions; robust order/product/asset/Quality contracts; native/mobile coverage; race/idempotency/fault-injection and reconciliation tests.

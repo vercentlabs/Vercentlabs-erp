@@ -1,3 +1,0 @@
-# Manufacturing Pass 5 Test Strategy
-
-Mandatory automation: BOM cycle/effectivity/version property tests; routing/operation precedence; MRP explosion/netting/pegging and UOM rounding; reservation concurrency; shortage/release races; issue/backflush/output idempotency; WIP invariants; over/under production; batch/serial genealogy; quality-hold negative tests; co-product/rework/subcontract cost allocation; capacity/calendar conflicts; downtime/maintenance; standard/actual/variance and Stock/GL reconciliation; RLS/company/plant/work-centre IDOR tests; period/backdating/reversal; API compatibility; performance for deep BOMs and large MRP/order volumes.

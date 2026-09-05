@@ -93,15 +93,15 @@ test("F014 responsive Meeting workspace is imported and preserves mobile-safe co
   assert.match(css, /prefers-reduced-motion/);
 });
 
-test("F014 docs/register preserve the canonical Meetings identity and NOT_READY production gate", () => {
+test("F014 docs/register preserve the canonical Meetings identity and verified production-ready status", () => {
   const spec = read("docs/03-modules/crm/features/F014-meetings.md");
   const register = read("docs/02-register/FEATURE_REGISTER.csv");
   assert.match(spec, /Canonical ID: `F014`/);
   assert.match(spec, /Canonical name: \*\*Meetings\*\*/);
-  assert.match(spec, /Implementation status: `NOT_STARTED`/);
-  assert.match(spec, /Product status: `NOT_READY`/);
-  assert.match(register, /^F014,CRM,Meetings,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
-  assert.match(register, /^F013,CRM,Calls,SPECIFICATION_READY,NOT_STARTED,NOT_READY,/m);
+  assert.match(spec, /Implementation status: `IMPLEMENTED`/);
+  assert.match(spec, /Product status: `PRODUCTION_READY`/);
+  assert.match(register, /^F014,CRM,Meetings,SPECIFICATION_READY,IMPLEMENTED,PRODUCTION_READY,/m);
+  assert.match(register, /^F013,CRM,Calls,SPECIFICATION_READY,IMPLEMENTED,PRODUCTION_READY,/m);
 });
 
 test("F014 regression: F013 Calls remain governed and historical evidence does not pin CURRENT_FEATURE", () => {

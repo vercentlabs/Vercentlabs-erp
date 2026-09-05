@@ -1,5 +1,0 @@
-stakeholder_id,stakeholder_group,interest,influence,engagement,accountable_owner,assignment_status
-STK-001,Sole Project Manager,Product quality; planning integrity; implementation governance; commercial viability,DECISION_AUTHORITY,Continuous repository-based governance and explicit gate decisions,Project Manager,SOLE_ACCOUNTABLE_PERSON
-STK-002,Future pilot users,Usable end-to-end workflows; correctness; responsiveness; recoverability,ACCEPTANCE_INPUT,Engage only when pilot/UAT is explicitly opened; no project role is assigned now,Project Manager,NO_CURRENT_ASSIGNMENT
-STK-003,Future production customers/users,Security; reliability; data integrity; accessibility; supportability,PRODUCT_OUTCOME_INPUT,Represent through frozen requirements and UAT until direct engagement is explicitly opened,Project Manager,NO_CURRENT_ASSIGNMENT
-STK-004,External service providers and applicable authorities,Provider constraints; payment/email/hosting contracts; statutory requirements,EXTERNAL_CONSTRAINT,Engage only when a procurement/compliance gate requires it; no project role is assigned,Project Manager,NO_CURRENT_ASSIGNMENT

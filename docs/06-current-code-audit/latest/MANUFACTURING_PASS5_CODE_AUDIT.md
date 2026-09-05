@@ -1,5 +1,0 @@
-# Manufacturing Pass 5 Current-Code Audit
-
-The current repository has Manufacturing foundations in `database/tenant/migrations/045_manufacturing_module.sql`, `services/api/src/modules/manufacturing/index.js`, web validation/routes and dashboard. Existing structures include settings, work centres, BOMs/components, routings/operations, work orders/materials/operations, production postings, cost snapshots, planning runs/material requirements, RLS and events. The API contains BOM creation/activation, work-order creation/release/start, shortage checks and Stock-linked material issue/finished receipt with idempotency foundations.
-
-Important gaps remain unverified or shallow: canonical per-feature completeness, multi-level cycle-safe BOM explosion, alternate/revision/ECO effectivity, robust MRP pegging/netting, raw-material reservations, job cards, finite scheduling, labor/machine/setup capture, WIP/reversal/period controls, co-products/rework/subcontract execution, quality-hold hard interlock, complete genealogy, cost/GL reconciliation, maintenance capacity integration, reports and mobile shop-floor depth. Code is evidence only, not certification.

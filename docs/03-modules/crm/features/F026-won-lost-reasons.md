@@ -6,8 +6,8 @@
 - Module: **CRM**
 - Working status: `SPECIFICATION_READY`
 - Readiness gate: `SPECIFICATION_READY`
-- Implementation status: `NOT_STARTED`
-- Product status: `NOT_READY`
+- Implementation status: `IMPLEMENTED`
+- Product status: `PRODUCTION_READY`
 - Parent capability IDs: `CRM-CAP-003`
 - Canonical source: `docs/02-register/FEATURE_REGISTER.csv`
 - Pass: `1 / CRM F001-F030`

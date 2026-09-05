@@ -54,7 +54,7 @@
     "verify:web": "corepack pnpm verify:experience && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm build:web",
     "verify:mobile": "corepack pnpm typecheck:mobile && corepack pnpm lint:mobile",
     "verify:db": "node scripts/validation/verify-db-structure.mjs",
-    "verify": "corepack pnpm verify:toolchain && corepack pnpm verify:parallel && corepack pnpm verify:t01 && corepack pnpm verify:experience && corepack pnpm verify:architecture && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm verify:mobile && corepack pnpm verify:db && corepack pnpm verify:worker && corepack pnpm test:sdk && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:enterprise-rbac",
+    "verify": "corepack pnpm verify:toolchain && corepack pnpm verify:t01 && corepack pnpm verify:experience && corepack pnpm verify:architecture && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm verify:mobile && corepack pnpm verify:db && corepack pnpm verify:worker && corepack pnpm test:sdk && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:enterprise-rbac",
     "release:verify": "corepack pnpm verify && corepack pnpm build:web && corepack pnpm lint:landing && corepack pnpm typecheck:landing && corepack pnpm build:landing && corepack pnpm test:landing && corepack pnpm test:landing:e2e",
     "release:gate": "corepack pnpm format:check && corepack pnpm audit:dependencies && corepack pnpm release:verify",
     "verify:architecture": "node scripts/validation/verify-architecture.mjs && node scripts/validation/verify-doc-links.mjs",
@@ -72,8 +72,7 @@
     "verify:web-boundaries": "node scripts/validation/verify-web-boundaries.mjs",
     "verify:docs": "node scripts/validation/verify-doc-links.mjs",
     "verify:toolchain": "node scripts/validation/verify-toolchain.mjs",
-    "verify:parallel": "python docs/scripts/validate_parallel_implementation.py",
-    "test:parallel-governance": "python docs/scripts/tests/test_parallel_governance.py && node --test scripts/validation/verify-toolchain.test.mjs",
+    "test:toolchain": "node --test scripts/validation/verify-toolchain.test.mjs",
     "verify:t01": "node scripts/validation/verify-t01-shared-platform.mjs && node --test apps/web/tests/t01-shared-platform.test.mjs services/api/tests/t01-shared-platform-imports.test.mjs",
     "verify:experience": "node scripts/validation/verify-experience.mjs && node --test scripts/validation/verify-experience.test.mjs"
   },

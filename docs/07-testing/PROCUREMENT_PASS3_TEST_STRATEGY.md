@@ -1,3 +1,0 @@
-# Procurement Pass 3 Test Strategy
-
-Every F063–F096 later maps to domain/unit, DB/RLS/constraint, API/contract, authorization-negative, calculation/property, concurrency/idempotency, integration/reconciliation, browser E2E and human UAT evidence. Critical deterministic suites cover supplier duplicate/sensitive-field rules, approval SoD, RFQ confidentiality/versioning, bid normalization/scoring, PO amendments, partial/over/rejected receipt, Stock/Quality handoff, duplicate supplier invoices, 2/3-way tolerance logic, landed-cost allocation invariants, supplier rating/lead-time metrics, reorder idempotency/consolidation, subcontract lineage and cross-module retry/reversal/reconciliation.

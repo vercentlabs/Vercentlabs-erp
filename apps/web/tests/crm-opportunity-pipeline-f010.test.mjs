@@ -73,10 +73,10 @@ test("F010 web: approval path validates and executes with the same concurrency e
   assert.match(block, /expectedStageId: payload\.expectedStageId/);
 });
 
-test("F010 documentation remains canonical and NOT_READY until production acceptance", () => {
+test("F010 documentation remains canonical and reflects verified production-ready status", () => {
   const spec = read("docs/03-modules/crm/features/F010-opportunity-pipeline.md");
   assert.match(spec, /Canonical ID: `F010`/);
   assert.match(spec, /Canonical name: \*\*Opportunity pipeline\*\*/i);
-  assert.match(spec, /Implementation status: `NOT_STARTED`/);
-  assert.match(spec, /Product status: `NOT_READY`/);
+  assert.match(spec, /Implementation status: `IMPLEMENTED`/);
+  assert.match(spec, /Product status: `PRODUCTION_READY`/);
 });

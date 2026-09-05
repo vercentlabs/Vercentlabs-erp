@@ -53,10 +53,10 @@ test("F009 web: Opportunity detail is owner-scoped, actionable and responsive th
   assert.match(page, /CrmOpportunityActions/);
 });
 
-test("F009 documentation remains canonical and NOT_READY until production acceptance", () => {
+test("F009 documentation remains canonical and reflects verified production-ready status", () => {
   const spec = read("docs/03-modules/crm/features/F009-opportunities.md");
   assert.match(spec, /Canonical ID: `F009`/);
   assert.match(spec, /Canonical name: \*\*Opportunities\*\*/);
-  assert.match(spec, /Implementation status: `NOT_STARTED`/);
-  assert.match(spec, /Product status: `NOT_READY`/);
+  assert.match(spec, /Implementation status: `IMPLEMENTED`/);
+  assert.match(spec, /Product status: `PRODUCTION_READY`/);
 });

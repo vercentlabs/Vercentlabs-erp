@@ -1,1 +1,0 @@
-defect_id,wave_id,feature_ids,source,severity,title,steps_to_reproduce,expected_result,actual_result,status,fix_reference,evidence_path,opened_commit,resolved_commit
