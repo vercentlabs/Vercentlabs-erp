@@ -66,7 +66,7 @@ The omission challenge explicitly asks whether interactive, import, bulk, automa
 - `F002-FLOW-002` — Validation failures, authorization denials, concurrency conflicts and retryable integration failures MUST be visible, actionable and safe to retry without duplicate business effects.
 
 ## [SPEC-STATE-MACHINE] State machine and transition rules
-**Lifecycle model (corrected 2026-09-05 to match the implementation — see `F002-AUDIT.md`):** `party_type` (prospect/customer/both) and `status` (active/inactive) are two independent columns, not a single `PROSPECT -> ACTIVE -> INACTIVE/ARCHIVED` chain. `archiveCrmAccount` is the only path that changes `status`; merge is tracked via `crm_account_merge_history`, never as a status value.
+**Lifecycle model (corrected 2026-09-05 to match the implementation — see `docs/03-modules/crm/audits/F002-AUDIT.md`):** `party_type` (prospect/customer/both) and `status` (active/inactive) are two independent columns, not a single `PROSPECT -> ACTIVE -> INACTIVE/ARCHIVED` chain. `archiveCrmAccount` is the only path that changes `status`; merge is tracked via `crm_account_merge_history`, never as a status value.
 
 Commands must declare legal source state, target state, permissions, guards, side effects, audit event and recovery semantics. Derived display states must not silently rewrite authoritative lifecycle facts.
 

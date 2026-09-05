@@ -1,6 +1,7 @@
 import {
   archiveCrmContact,
   getCrmContact,
+  getCrmContactForCaller,
   updateCrmContact,
 } from "@vercentlabs/api";
 
@@ -65,7 +66,7 @@ export async function GET(
     const context = await crmApiContext(session);
     const { id } = await route.params;
     const record = await tenantTransaction(context.organizationId, (client) =>
-      getCrmContact(client, context, id),
+      getCrmContactForCaller(client, context, id),
     );
     return ok({ record });
   } catch (error) {

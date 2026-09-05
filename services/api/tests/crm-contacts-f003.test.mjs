@@ -8,6 +8,7 @@ import {
 import {
   archiveCrmContact,
   createCrmContact,
+  getCrmContactForCaller,
   listCrmContacts,
   updateCrmContact,
 } from "../src/modules/crm/contact-operations.js";
@@ -18,8 +19,12 @@ const context = Object.freeze({
   activeCompanyId: "33333333-3333-4333-8333-333333333333",
   activeBranchId: null,
   allowAllCompanies: false,
-  permissions: ["crm.view", "parties.manage"],
+  permissions: ["crm.view", "parties.manage", "crm.contacts.view_sensitive"],
   roleSlugs: ["crm_manager"],
+});
+const restrictedContext = Object.freeze({
+  ...context,
+  permissions: ["crm.view", "parties.manage"],
 });
 const accountId = "44444444-4444-4444-8444-444444444444";
 const contactId = "55555555-5555-4555-8555-555555555555";
@@ -243,6 +248,66 @@ test("F003 QA: repeated archive is idempotent at the lifecycle-event boundary", 
       call.values?.[1] === "crm.contacts.archived",
   );
   assert.equal(archiveEvents.length, 1);
+});
+
+test("F003 SEC: a restricted viewer never sees email/phone/mobile on list or detail", async () => {
+  const listClient = {
+    async query(sql) {
+      if (sql.includes("count(*)::int AS count")) return { rows: [{ count: 1 }] };
+      return { rows: [contactRow] };
+    },
+  };
+  const list = await listCrmContacts(listClient, restrictedContext, {});
+  assert.equal(list.rows[0].email, undefined);
+  assert.equal(list.rows[0].mobile, undefined);
+  assert.equal(list.rows[0].sensitiveDataRestricted, true);
+  assert.equal(list.rows[0].firstName, "Rahul");
+
+  const detail = await getCrmContactForCaller(lifecycleClient(), restrictedContext, contactId);
+  assert.equal(detail.email, undefined);
+  assert.equal(detail.mobile, undefined);
+  assert.equal(detail.sensitiveDataRestricted, true);
+});
+
+test("F003 SEC: an authorized viewer still sees email/phone/mobile", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes("count(*)::int AS count")) return { rows: [{ count: 1 }] };
+      return { rows: [contactRow] };
+    },
+  };
+  const list = await listCrmContacts(client, context, {});
+  assert.equal(list.rows[0].email, contactRow.email);
+  assert.equal(list.rows[0].sensitiveDataRestricted, undefined);
+});
+
+test("F003 SEC: a restricted user cannot set email/phone/mobile on create or update", async () => {
+  await assert.rejects(
+    () => createCrmContact(lifecycleClient({ linked: false }), restrictedContext, { firstName: "Priya", email: "priya@example.com" }),
+    (error) => error.status === 403 && error.code === "CRM_CONTACT_SENSITIVE_FIELD_FORBIDDEN",
+  );
+  await assert.rejects(
+    () => updateCrmContact(lifecycleClient(), restrictedContext, contactId, { mobile: "+91 90000 00000" }),
+    (error) => error.status === 403 && error.code === "CRM_CONTACT_SENSITIVE_FIELD_FORBIDDEN",
+  );
+  // Non-sensitive fields remain editable without the sensitive permission.
+  const updated = await updateCrmContact(lifecycleClient(), restrictedContext, contactId, { designation: "VP Sales" });
+  assert.equal(updated.designation, "VP Sales");
+});
+
+test("F003 SEC: restricted search cannot match on email/phone/mobile, and doesn't select those columns for tsvector", async () => {
+  const calls = [];
+  const client = {
+    async query(sql, values) {
+      calls.push({ sql, values });
+      if (sql.includes("count(*)::int AS count")) return { rows: [{ count: 0 }] };
+      return { rows: [] };
+    },
+  };
+  await listCrmContacts(client, restrictedContext, { search: "rahul@acme.example" });
+  assert.doesNotMatch(calls[0].sql, /contact\.email/);
+  assert.doesNotMatch(calls[0].sql, /contact\.mobile/);
+  assert.doesNotMatch(calls[0].sql, /contact\.phone/);
 });
 
 test("F003: fabricated owner and scope assignments are rejected server-side", async () => {

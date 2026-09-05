@@ -14,6 +14,11 @@ export function getCrmContact(
   context: CrmContext,
   id: string,
 ): Promise<any>;
+export function getCrmContactForCaller(
+  client: QueryClient,
+  context: CrmContext,
+  id: string,
+): Promise<any>;
 export function createCrmContact(
   client: QueryClient,
   context: CrmContext,

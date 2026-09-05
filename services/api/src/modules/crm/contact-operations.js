@@ -4,6 +4,11 @@ import {
   normalizeContactInput,
   validateContactInput,
 } from "./features/contacts/record-validation.js";
+import {
+  canViewSensitiveContactContent,
+  firstSensitiveContactInputField,
+  projectContactForContext,
+} from "./contact-security.js";
 
 const ACCOUNT_TYPES = ["customer", "both", "prospect"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,6 +79,18 @@ function assertWritableScope(context) {
       "CRM_CONTACT_SCOPE_FORBIDDEN",
     );
   }
+}
+
+function assertSensitiveContactMutationAllowed(context, input) {
+  if (canViewSensitiveContactContent(context)) return;
+  const field = firstSensitiveContactInputField(input);
+  if (!field) return;
+  throw new CrmError(
+    403,
+    "You do not have permission to change sensitive Contact content.",
+    "CRM_CONTACT_SENSITIVE_FIELD_FORBIDDEN",
+    { field },
+  );
 }
 
 function assertGovernedFields(input) {
@@ -197,20 +214,22 @@ export async function listCrmContacts(client, context, options = {}) {
   if (search) {
     const query = addParameter(parameters, search);
     const pattern = addParameter(parameters, `%${search}%`);
+    const sensitive = canViewSensitiveContactContent(context);
     where += ` AND (
       to_tsvector(
         'simple',
         coalesce(contact.first_name, '') || ' ' ||
         coalesce(contact.last_name, '') || ' ' ||
-        coalesce(contact.designation, '') || ' ' ||
-        coalesce(contact.email, '') || ' ' ||
-        coalesce(contact.mobile, '') || ' ' ||
-        coalesce(contact.phone, '')
+        coalesce(contact.designation, '')${
+          sensitive
+            ? " || ' ' || coalesce(contact.email, '') || ' ' || coalesce(contact.mobile, '') || ' ' || coalesce(contact.phone, '')"
+            : ""
+        }
       ) @@ plainto_tsquery('simple', ${query})
       OR concat_ws(' ', contact.first_name, contact.last_name) ILIKE ${pattern}
-      OR coalesce(contact.email, '') ILIKE ${pattern}
-      OR coalesce(contact.mobile, '') ILIKE ${pattern}
-      OR coalesce(contact.phone, '') ILIKE ${pattern}
+      ${sensitive ? `OR coalesce(contact.email, '') ILIKE ${pattern}` : ""}
+      ${sensitive ? `OR coalesce(contact.mobile, '') ILIKE ${pattern}` : ""}
+      ${sensitive ? `OR coalesce(contact.phone, '') ILIKE ${pattern}` : ""}
       OR coalesce(account.display_name, '') ILIKE ${pattern}
     )`;
   }
@@ -239,7 +258,7 @@ export async function listCrmContacts(client, context, options = {}) {
     listParameters,
   );
   return {
-    rows: result.rows.map(contactDto),
+    rows: result.rows.map((row) => projectContactForContext(context, contactDto(row))),
     total: Number(count.rows[0]?.count || 0),
     limit,
     offset,
@@ -278,6 +297,17 @@ export async function getCrmContact(client, context, id) {
   };
 }
 
+// getCrmContact intentionally returns unredacted data: it is reused
+// internally (e.g. updateCrmContact's "existing" merge for validation, which
+// needs the real email/phone/mobile to correctly evaluate "at least one
+// contact method remains" even for a caller who cannot themselves set those
+// fields). Callers returning a contact to the outside world must apply
+// projectContactForContext themselves — see createCrmContact,
+// updateCrmContact and archiveCrmContact below.
+export async function getCrmContactForCaller(client, context, id) {
+  return projectContactForContext(context, await getCrmContact(client, context, id));
+}
+
 async function setPrimaryState(client, context, contactId, accountId, isPrimary) {
   if (!accountId || !isPrimary) return;
   await client.query(
@@ -292,6 +322,7 @@ async function setPrimaryState(client, context, contactId, accountId, isPrimary)
 export async function createCrmContact(client, context, input = {}) {
   try {
     assertGovernedFields(input);
+    assertSensitiveContactMutationAllowed(context, input);
     assertWritableScope(context);
     if (input.status && String(input.status).trim().toLowerCase() !== "active") {
       throw new CrmError(
@@ -353,7 +384,7 @@ export async function createCrmContact(client, context, input = {}) {
       result.rows[0].id,
       { contactId: result.rows[0].id, accountId: normalized.accountId },
     );
-    return getCrmContact(client, context, result.rows[0].id);
+    return getCrmContactForCaller(client, context, result.rows[0].id);
   } catch (error) {
     throw persistenceError(error);
   }
@@ -362,6 +393,7 @@ export async function createCrmContact(client, context, input = {}) {
 export async function updateCrmContact(client, context, id, input = {}) {
   try {
     assertGovernedFields(input);
+    assertSensitiveContactMutationAllowed(context, input);
     assertWritableScope(context);
     if (hasOwn(input, "status")) {
       throw new CrmError(
@@ -423,7 +455,7 @@ export async function updateCrmContact(client, context, id, input = {}) {
       id,
       { contactId: id, changedFields: Object.keys(normalized) },
     );
-    return getCrmContact(client, context, id);
+    return getCrmContactForCaller(client, context, id);
   } catch (error) {
     throw persistenceError(error);
   }
@@ -450,7 +482,7 @@ export async function archiveCrmContact(client, context, id) {
         { contactId: id, accountId: existing.accountId },
       );
     }
-    return getCrmContact(client, context, id);
+    return getCrmContactForCaller(client, context, id);
   } catch (error) {
     throw persistenceError(error);
   }

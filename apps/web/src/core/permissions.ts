@@ -45,6 +45,7 @@ export const PERMISSIONS = {
   crmView: CRM_PERMISSIONS.view,
   crmRecordsViewAll: CRM_PERMISSIONS.recordsViewAll,
   crmLeadsViewSensitive: CRM_PERMISSIONS.leadsViewSensitive,
+  crmContactsViewSensitive: CRM_PERMISSIONS.contactsViewSensitive,
   crmSavedViewsShare: CRM_PERMISSIONS.savedViewsShare,
   crmLeadsManage: CRM_PERMISSIONS.leadsManage,
   crmOpportunitiesManage: CRM_PERMISSIONS.opportunitiesManage,
