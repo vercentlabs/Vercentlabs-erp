@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ConvergenceBoundary } from "@/shared/design";
 import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -137,7 +138,7 @@ export default async function SettingsPage() {
   if (!allowedItems.length) notFound();
 
   return (
-    <>
+    <ConvergenceBoundary area="platform">
       <section className="page-heading">
         <div>
           <p className="eyebrow">Platform settings</p>
@@ -196,6 +197,6 @@ export default async function SettingsPage() {
           </div>
         </section>
       ))}
-    </>
+    </ConvergenceBoundary>
   );
 }

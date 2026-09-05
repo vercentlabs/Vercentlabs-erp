@@ -1,4 +1,5 @@
 export { ActionButton, ActionLink, type ActionSize, type ActionTone } from "./action";
+export { ConvergenceBoundary, ShellBoundary, type ConvergenceArea } from "./convergence-boundary";
 export { BulkActionBar } from "./bulk-action-bar";
 export { cx } from "./cx";
 export {

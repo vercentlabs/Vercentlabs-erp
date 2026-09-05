@@ -1,6 +1,7 @@
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import Link from "next/link";
 
+import { ConvergenceBoundary } from "@/shared/design";
 import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
 import OpenCommandPaletteButton from "@/core/components/open-command-palette-button";
 import WorkItemList from "@/shared/components/work-item-list";
@@ -227,7 +228,7 @@ export default async function DashboardPage() {
   }).format(new Date());
 
   return (
-    <>
+    <ConvergenceBoundary area="platform">
       <section className="erp-home-hero">
         <div className="erp-home-hero__copy">
           <p className="dashboard-date">{today}</p>
@@ -548,6 +549,6 @@ export default async function DashboardPage() {
           </article>
         ) : null}
       </section>
-    </>
+    </ConvergenceBoundary>
   );
 }

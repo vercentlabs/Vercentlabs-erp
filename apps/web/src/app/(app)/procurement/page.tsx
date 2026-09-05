@@ -1,3 +1,4 @@
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 import { ProcurementDashboard } from "@/modules/procurement/components/procurement-workspace";
 import { requireWorkspace } from "@/core/auth";
@@ -15,7 +16,7 @@ export default async function Page() {
     );
   }
   return (
-    <>
+    <ConvergenceBoundary area="module">
       <ProcurementDashboard />
       <section className="panel">
         <p className="eyebrow">Stage 10 governance</p>
@@ -28,6 +29,6 @@ export default async function Page() {
           Open Procurement governance
         </Link>
       </section>
-    </>
+    </ConvergenceBoundary>
   );
 }

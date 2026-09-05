@@ -1,3 +1,4 @@
+import { ShellBoundary } from "@/shared/design";
 import BottomNav from "@/core/components/bottom-nav";
 import Breadcrumbs from "@/core/components/breadcrumbs";
 import CommandPalette from "@/core/components/command-palette";
@@ -37,7 +38,7 @@ export default function AppShell({
     "member";
 
   return (
-    <div className="workspace-shell navigation-v2-shell">
+    <ShellBoundary className="workspace-shell navigation-v2-shell">
       <a className="skip-link" href="#workspace-content">
         Skip to main content
       </a>
@@ -128,6 +129,6 @@ export default function AppShell({
       </div>
 
       <BottomNav />
-    </div>
+    </ShellBoundary>
   );
 }

@@ -1,3 +1,4 @@
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 
 const resources = [
@@ -75,7 +76,7 @@ export default function HrPayrollDashboard({
       : []),
   ];
   return (
-    <div className="module-workbench">
+    <ConvergenceBoundary area="module" className="module-workbench">
       <section className="panel">
         <p className="eyebrow">HR &amp; Payroll</p>
         <h1>Workforce and payroll control</h1>
@@ -103,6 +104,6 @@ export default function HrPayrollDashboard({
           </Link>
         ))}
       </section>
-    </div>
+    </ConvergenceBoundary>
   );
 }

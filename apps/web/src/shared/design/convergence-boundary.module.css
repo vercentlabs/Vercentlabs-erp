@@ -1,0 +1,27 @@
+.boundary {
+  min-width: 0;
+  display: grid;
+  gap: var(--erp-space-6);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.module {
+  width: 100%;
+  max-width: var(--erp-content-max);
+  margin-inline: auto;
+}
+
+.platform {
+  width: 100%;
+  max-width: var(--erp-content-max);
+  margin-inline: auto;
+}
+
+.shell {
+  min-height: 100dvh;
+  background: var(--erp-color-canvas);
+  color: var(--erp-color-text);
+  font-family: var(--erp-font-sans);
+}

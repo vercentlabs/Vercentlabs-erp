@@ -56,6 +56,10 @@ dialogs/drawers/tabs and an internal design-system gallery.
 Migrate the authenticated shell, shared platform/settings surfaces and module
 overview pages onto the shared primitives while deleting replaced legacy CSS.
 
+### Go 3 implementation status
+
+`GO3_COMPLETE` — the authenticated shell, Home, Settings and all twelve module overview entry surfaces are now hosted by the shared Experience Kernel boundary while retaining domain-specific workflows and compatibility selectors. Go 3 does not change business logic, permissions, database state transitions or API contracts. Legacy CSS remains a shrinking compatibility layer and is still constrained by `verify:experience`; selector deletion continues only when ownership is proven safe.
+
 ### Go 4 — page archetypes and visual gates
 
 Standardize list/work-queue, Record 360, transaction document, board and

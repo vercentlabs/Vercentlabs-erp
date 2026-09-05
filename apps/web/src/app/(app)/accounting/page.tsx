@@ -1,3 +1,4 @@
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 import {
   getAccountingDashboard,
@@ -55,7 +56,7 @@ export default async function AccountingOverviewPage() {
     Number(dashboard.receivables || 0) - Number(dashboard.payables || 0);
 
   return (
-    <div className="module-workbench accounting-workbench">
+    <ConvergenceBoundary area="module" className="module-workbench accounting-workbench">
       <section className="module-hero">
         <div className="module-hero-copy">
           <span className="module-hero-icon" aria-hidden="true">
@@ -314,6 +315,6 @@ export default async function AccountingOverviewPage() {
           ))}
         </div>
       </section>
-    </div>
+    </ConvergenceBoundary>
   );
 }

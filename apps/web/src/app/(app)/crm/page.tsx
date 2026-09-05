@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCrmDashboard } from "@vercentlabs/api";
 import { formatDateTime, formatMoney } from "@vercentlabs/localization";
 
+import { ConvergenceBoundary } from "@/shared/design";
 import AppIcon from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -77,7 +78,7 @@ export default async function CrmDashboardPage() {
   );
 
   return (
-    <div className="crm-overview-shell">
+    <ConvergenceBoundary area="module" className="crm-overview-shell">
       <header className="crm-overview-command">
         <div className="crm-overview-command__identity">
           <span className="crm-overview-command__mark" aria-hidden="true">
@@ -389,6 +390,6 @@ export default async function CrmDashboardPage() {
         </section>
       </div>
 
-    </div>
+    </ConvergenceBoundary>
   );
 }

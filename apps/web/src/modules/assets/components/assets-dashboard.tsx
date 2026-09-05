@@ -1,3 +1,4 @@
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 
 const resources = [
@@ -54,7 +55,7 @@ export default function AssetsDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workbench">
+    <ConvergenceBoundary area="module" className="module-workbench">
       <section className="panel">
         <p className="eyebrow">Assets</p>
         <h1>Lifecycle and maintenance control</h1>
@@ -88,6 +89,6 @@ export default function AssetsDashboard({
           </Link>
         ))}
       </section>
-    </div>
+    </ConvergenceBoundary>
   );
 }

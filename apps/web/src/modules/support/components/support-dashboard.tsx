@@ -1,3 +1,4 @@
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 
 const resources = [
@@ -37,7 +38,7 @@ export default function SupportDashboard({
   summary: Record<string, unknown>;
 }) {
   return (
-    <div className="module-workbench">
+    <ConvergenceBoundary area="module" className="module-workbench">
       <section className="panel">
         <p className="eyebrow">Support</p>
         <h1>Customer service operations</h1>
@@ -71,6 +72,6 @@ export default function SupportDashboard({
           </Link>
         ))}
       </section>
-    </div>
+    </ConvergenceBoundary>
   );
 }

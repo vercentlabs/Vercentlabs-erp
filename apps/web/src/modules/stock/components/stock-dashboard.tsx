@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 type D = Record<string, string | number>;
 export default function StockDashboard() {
@@ -11,7 +12,7 @@ export default function StockDashboard() {
       .catch(() => setD({}));
   }, []);
   return (
-    <div className="module-workbench">
+    <ConvergenceBoundary area="module" className="module-workbench">
       <section className="module-hero">
         <p className="eyebrow">Inventory control</p>
         <h1>Stock</h1>
@@ -50,6 +51,6 @@ export default function StockDashboard() {
           </Link>
         </div>
       </section>
-    </div>
+    </ConvergenceBoundary>
   );
 }

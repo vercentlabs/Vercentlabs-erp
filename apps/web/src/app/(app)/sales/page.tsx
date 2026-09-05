@@ -1,3 +1,4 @@
+import { ConvergenceBoundary } from "@/shared/design";
 import Link from "next/link";
 import {
   getSalesDashboard,
@@ -54,7 +55,7 @@ export default async function SalesOverviewPage() {
     Number(dashboard.orders_on_hold || 0);
 
   return (
-    <div className="module-workbench sales-workbench">
+    <ConvergenceBoundary area="module" className="module-workbench sales-workbench">
       <section className="module-hero">
         <div className="module-hero-copy">
           <span className="module-hero-icon" aria-hidden="true">
@@ -280,6 +281,6 @@ export default async function SalesOverviewPage() {
           ))}
         </div>
       </section>
-    </div>
+    </ConvergenceBoundary>
   );
 }
