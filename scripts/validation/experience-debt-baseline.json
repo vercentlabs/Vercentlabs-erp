@@ -1,0 +1,315 @@
+{
+  "schemaVersion": 1,
+  "reviewedSnapshot": "vercentlabs-all-code-20260905-095621.txt.gz",
+  "reviewedDate": "2026-09-05",
+  "policy": "EXPERIENCE_DEBT_MUST_NOT_INCREASE",
+  "canonicalTokenFile": "apps/web/src/shared/design/tokens.css",
+  "canonicalModuleCssSuffix": ".module.css",
+  "canonicalMediaQueries": [
+    "(max-width:479px)",
+    "(max-width:767px)",
+    "(min-width:768px)and(max-width:1023px)",
+    "(min-width:1024px)",
+    "(min-width:1440px)",
+    "(prefers-reduced-motion:reduce)",
+    "print"
+  ],
+  "legacyAppCssFiles": [
+    "apps/web/src/app/accounting-extension.css",
+    "apps/web/src/app/billing-extension.css",
+    "apps/web/src/app/business-data-extension.css",
+    "apps/web/src/app/crm-accounts.css",
+    "apps/web/src/app/crm-calls.css",
+    "apps/web/src/app/crm-contacts.css",
+    "apps/web/src/app/crm-extension.css",
+    "apps/web/src/app/crm-hci-redesign.css",
+    "apps/web/src/app/crm-lead-create.css",
+    "apps/web/src/app/crm-lead-lifecycle.css",
+    "apps/web/src/app/crm-lead-sources.css",
+    "apps/web/src/app/crm-lead-suite-enterprise.css",
+    "apps/web/src/app/crm-meetings.css",
+    "apps/web/src/app/crm-overview-redesign.css",
+    "apps/web/src/app/crm-product.css",
+    "apps/web/src/app/crm-sales-stages.css",
+    "apps/web/src/app/enterprise-modules.css",
+    "apps/web/src/app/globals.css",
+    "apps/web/src/app/navigation-v2.css",
+    "apps/web/src/app/operator-workbench.css",
+    "apps/web/src/app/procurement-extension.css",
+    "apps/web/src/app/sales-extension.css",
+    "apps/web/src/app/workspace-redesign-v3.css"
+  ],
+  "rootLayoutLegacyCssImports": [
+    "./globals.css",
+    "./business-data-extension.css",
+    "./crm-extension.css",
+    "./billing-extension.css",
+    "./operator-workbench.css",
+    "./enterprise-modules.css",
+    "./crm-product.css",
+    "./crm-overview-redesign.css",
+    "./crm-lead-create.css",
+    "./crm-lead-suite-enterprise.css",
+    "./navigation-v2.css",
+    "./workspace-redesign-v3.css",
+    "./crm-hci-redesign.css",
+    "./crm-accounts.css",
+    "./crm-contacts.css",
+    "./crm-lead-sources.css",
+    "./crm-lead-lifecycle.css",
+    "./crm-sales-stages.css",
+    "./crm-calls.css",
+    "./crm-meetings.css"
+  ],
+  "legacyRootBlocksByFile": {
+    "apps/web/src/app/accounting-extension.css": 0,
+    "apps/web/src/app/billing-extension.css": 0,
+    "apps/web/src/app/business-data-extension.css": 0,
+    "apps/web/src/app/crm-accounts.css": 0,
+    "apps/web/src/app/crm-calls.css": 0,
+    "apps/web/src/app/crm-contacts.css": 0,
+    "apps/web/src/app/crm-extension.css": 0,
+    "apps/web/src/app/crm-hci-redesign.css": 0,
+    "apps/web/src/app/crm-lead-create.css": 0,
+    "apps/web/src/app/crm-lead-lifecycle.css": 0,
+    "apps/web/src/app/crm-lead-sources.css": 0,
+    "apps/web/src/app/crm-lead-suite-enterprise.css": 0,
+    "apps/web/src/app/crm-meetings.css": 0,
+    "apps/web/src/app/crm-overview-redesign.css": 0,
+    "apps/web/src/app/crm-product.css": 0,
+    "apps/web/src/app/crm-sales-stages.css": 0,
+    "apps/web/src/app/enterprise-modules.css": 1,
+    "apps/web/src/app/globals.css": 1,
+    "apps/web/src/app/navigation-v2.css": 2,
+    "apps/web/src/app/operator-workbench.css": 1,
+    "apps/web/src/app/procurement-extension.css": 0,
+    "apps/web/src/app/sales-extension.css": 0,
+    "apps/web/src/app/workspace-redesign-v3.css": 1
+  },
+  "legacyMediaQueriesByFile": {
+    "apps/web/src/app/accounting-extension.css": [
+      "(max-width:1200px)",
+      "(max-width:760px)"
+    ],
+    "apps/web/src/app/billing-extension.css": [
+      "(max-width:1100px)",
+      "(max-width:760px)"
+    ],
+    "apps/web/src/app/business-data-extension.css": [
+      "(max-width:1180px)",
+      "(max-width:720px)"
+    ],
+    "apps/web/src/app/crm-accounts.css": [
+      "(max-width:1100px)",
+      "(max-width:520px)",
+      "(max-width:900px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-calls.css": [
+      "(max-width:780px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-contacts.css": [
+      "(max-width:1100px)",
+      "(max-width:620px)",
+      "(max-width:900px)",
+      "(min-width:901px)and(max-width:1100px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-extension.css": [
+      "(max-width:1180px)",
+      "(max-width:760px)"
+    ],
+    "apps/web/src/app/crm-hci-redesign.css": [
+      "(max-width:1200px)",
+      "(max-width:420px)",
+      "(max-width:680px)",
+      "(max-width:960px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-lead-create.css": [
+      "(max-width:1100px)",
+      "(max-width:1180px)",
+      "(max-width:430px)",
+      "(max-width:480px)",
+      "(max-width:640px)",
+      "(max-width:720px)",
+      "(max-width:820px)",
+      "(max-width:900px)",
+      "(max-width:960px)",
+      "(max-width:980px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-lead-lifecycle.css": [
+      "(max-width:1100px)",
+      "(max-width:380px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-lead-sources.css": [
+      "(max-width:640px)",
+      "(max-width:900px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-lead-suite-enterprise.css": [
+      "(max-width:1080px)",
+      "(max-width:1180px)",
+      "(max-width:1320px)",
+      "(max-width:1500px)",
+      "(max-width:430px)",
+      "(max-width:520px)",
+      "(max-width:680px)",
+      "(max-width:700px)",
+      "(max-width:768px)",
+      "(max-width:820px)",
+      "(max-width:900px)",
+      "(max-width:960px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-meetings.css": [
+      "(max-width:780px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-overview-redesign.css": [
+      "(max-width:1040px)",
+      "(max-width:1240px)",
+      "(max-width:430px)",
+      "(max-width:640px)",
+      "(max-width:720px)",
+      "(max-width:900px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/crm-product.css": [
+      "(max-width:1100px)",
+      "(max-width:720px)",
+      "(max-width:960px)",
+      "(min-width:1101px)"
+    ],
+    "apps/web/src/app/crm-sales-stages.css": [
+      "(max-width:640px)",
+      "(max-width:980px)",
+      "(prefers-reduced-motion:reduce)"
+    ],
+    "apps/web/src/app/enterprise-modules.css": [
+      "(max-width:1180px)",
+      "(max-width:430px)",
+      "(max-width:720px)",
+      "(max-width:900px)",
+      "(prefers-reduced-motion:reduce)",
+      "print"
+    ],
+    "apps/web/src/app/globals.css": [
+      "(max-width:1240px)",
+      "(max-width:430px)",
+      "(max-width:620px)",
+      "(max-width:720px)",
+      "(max-width:960px)",
+      "(min-width:961px)",
+      "(prefers-reduced-motion:reduce)",
+      "print"
+    ],
+    "apps/web/src/app/navigation-v2.css": [
+      "(max-width:1180px)and(min-width:961px)",
+      "(max-width:720px)",
+      "(max-width:960px)",
+      "(prefers-reduced-motion:reduce)",
+      "print"
+    ],
+    "apps/web/src/app/operator-workbench.css": [
+      "(max-width:1080px)",
+      "(max-width:1240px)",
+      "(max-width:1380px)",
+      "(max-width:430px)",
+      "(max-width:720px)",
+      "(max-width:960px)",
+      "(prefers-reduced-motion:reduce)",
+      "print"
+    ],
+    "apps/web/src/app/procurement-extension.css": [
+      "(max-width:1000px)",
+      "(max-width:600px)",
+      "(max-width:650px)",
+      "(max-width:900px)"
+    ],
+    "apps/web/src/app/sales-extension.css": [
+      "(max-width:1180px)",
+      "(max-width:760px)"
+    ],
+    "apps/web/src/app/workspace-redesign-v3.css": [
+      "(max-width:1080px)",
+      "(max-width:1240px)and(min-width:961px)",
+      "(max-width:1380px)",
+      "(max-width:1450px)",
+      "(max-width:420px)",
+      "(max-width:720px)",
+      "(max-width:960px)",
+      "(prefers-reduced-motion:reduce)"
+    ]
+  },
+  "legacyHardcodedColorLiteralsByFile": {
+    "apps/web/src/app/accounting-extension.css": 6,
+    "apps/web/src/app/billing-extension.css": 10,
+    "apps/web/src/app/business-data-extension.css": 2,
+    "apps/web/src/app/crm-accounts.css": 26,
+    "apps/web/src/app/crm-calls.css": 15,
+    "apps/web/src/app/crm-contacts.css": 6,
+    "apps/web/src/app/crm-extension.css": 7,
+    "apps/web/src/app/crm-hci-redesign.css": 41,
+    "apps/web/src/app/crm-lead-create.css": 72,
+    "apps/web/src/app/crm-lead-lifecycle.css": 2,
+    "apps/web/src/app/crm-lead-sources.css": 8,
+    "apps/web/src/app/crm-lead-suite-enterprise.css": 407,
+    "apps/web/src/app/crm-meetings.css": 15,
+    "apps/web/src/app/crm-overview-redesign.css": 53,
+    "apps/web/src/app/crm-product.css": 5,
+    "apps/web/src/app/crm-sales-stages.css": 1,
+    "apps/web/src/app/enterprise-modules.css": 75,
+    "apps/web/src/app/globals.css": 241,
+    "apps/web/src/app/navigation-v2.css": 75,
+    "apps/web/src/app/operator-workbench.css": 104,
+    "apps/web/src/app/procurement-extension.css": 0,
+    "apps/web/src/app/sales-extension.css": 6,
+    "apps/web/src/app/workspace-redesign-v3.css": 78
+  },
+  "legacyRawTableCountsByFile": {
+    "apps/web/src/app/(app)/approvals/page.tsx": 1,
+    "apps/web/src/app/(app)/assets/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/audit-logs/security/page.tsx": 1,
+    "apps/web/src/app/(app)/crm/forecast/page.tsx": 1,
+    "apps/web/src/app/(app)/crm/reports/page.tsx": 1,
+    "apps/web/src/app/(app)/hr-payroll/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/integrations/page.tsx": 2,
+    "apps/web/src/app/(app)/manufacturing/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/point-of-sale/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/profile/page.tsx": 1,
+    "apps/web/src/app/(app)/projects/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/quality/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/sales/reports/page.tsx": 1,
+    "apps/web/src/app/(app)/stock/[resource]/page.tsx": 1,
+    "apps/web/src/app/(app)/support/[resource]/page.tsx": 1,
+    "apps/web/src/core/components/audit-event-table.tsx": 1,
+    "apps/web/src/core/components/business-data-manager.tsx": 1,
+    "apps/web/src/core/components/integration-developer-manager.tsx": 2,
+    "apps/web/src/core/components/notification-preferences.tsx": 1,
+    "apps/web/src/core/components/platform-governance-console.tsx": 6,
+    "apps/web/src/modules/crm/components/accounts-workspace.tsx": 1,
+    "apps/web/src/modules/crm/components/contacts-workspace.tsx": 1,
+    "apps/web/src/modules/crm/components/lead-sources-workspace.tsx": 1,
+    "apps/web/src/modules/crm/components/leads-workspace.tsx": 1,
+    "apps/web/src/modules/crm/components/resource-manager.tsx": 1,
+    "apps/web/src/modules/procurement/components/pass1-operations-workspace.tsx": 1,
+    "apps/web/src/modules/procurement/components/procurement-workspace.tsx": 2,
+    "apps/web/src/modules/sales/components/pass1-operations-workspace.tsx": 1,
+    "apps/web/src/modules/stock/components/availability-workspace.tsx": 1,
+    "apps/web/src/modules/stock/components/operations-workspace.tsx": 2
+  },
+  "summary": {
+    "legacyAppCssFiles": 23,
+    "rootLayoutLegacyCssImports": 20,
+    "legacyRootBlocks": 6,
+    "legacyDistinctMediaQueries": 37,
+    "legacyMediaQueryFilePairs": 111,
+    "legacyHardcodedColorLiterals": 1255,
+    "legacyRawTableOccurrences": 39,
+    "legacyRawTableFiles": 30
+  }
+}

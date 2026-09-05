@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import "../shared/design/tokens.css";
 import "./globals.css";
 import "./business-data-extension.css";
 import "./crm-extension.css";

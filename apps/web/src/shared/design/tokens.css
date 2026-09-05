@@ -1,0 +1,78 @@
+/*
+ * Vercentlabs ERP canonical web design tokens.
+ *
+ * New Experience Kernel components consume only --erp-* tokens.
+ * Legacy --color-*, --v2-* and --v3-* variables remain temporarily in
+ * apps/web/src/app/*.css and are measured by verify:experience until migrated.
+ */
+:root {
+  --erp-font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+
+  --erp-color-canvas: #f5f6f8;
+  --erp-color-canvas-strong: #eef0f3;
+  --erp-color-surface: #ffffff;
+  --erp-color-surface-subtle: #f8f9fb;
+  --erp-color-surface-raised: #ffffff;
+
+  --erp-color-text: #171a1f;
+  --erp-color-text-secondary: #3f4652;
+  --erp-color-text-muted: #667085;
+  --erp-color-text-subtle: #98a2b3;
+
+  --erp-color-border: #e3e6eb;
+  --erp-color-border-strong: #cfd5e2;
+
+  --erp-color-accent: #3f46d8;
+  --erp-color-accent-strong: #292f9d;
+  --erp-color-accent-soft: #eef0ff;
+  --erp-color-accent-border: #d9dcff;
+
+  --erp-color-success: #087a55;
+  --erp-color-success-soft: #edf8f3;
+  --erp-color-warning: #9a5b08;
+  --erp-color-warning-soft: #fff7e8;
+  --erp-color-danger: #b42318;
+  --erp-color-danger-soft: #fff1f0;
+  --erp-color-info: #315efb;
+  --erp-color-info-soft: #edf2ff;
+
+  --erp-shadow-subtle: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --erp-shadow-panel: 0 8px 24px rgba(16, 24, 40, 0.07);
+  --erp-shadow-overlay: 0 24px 64px rgba(15, 23, 42, 0.2);
+  --erp-shadow-focus: 0 0 0 3px rgba(63, 70, 216, 0.16);
+
+  --erp-radius-control: 8px;
+  --erp-radius-card: 10px;
+  --erp-radius-panel: 12px;
+  --erp-radius-overlay: 14px;
+  --erp-radius-pill: 999px;
+
+  --erp-control-height: 42px;
+
+  --erp-space-1: 4px;
+  --erp-space-2: 8px;
+  --erp-space-3: 12px;
+  --erp-space-4: 16px;
+  --erp-space-5: 20px;
+  --erp-space-6: 24px;
+  --erp-space-8: 32px;
+  --erp-space-10: 40px;
+  --erp-space-12: 48px;
+
+  --erp-primary-rail-width: 68px;
+  --erp-secondary-sidebar-width: 276px;
+  --erp-content-max: 1680px;
+  --erp-topbar-height: 68px;
+
+  --erp-z-base: 1;
+  --erp-z-sticky: 20;
+  --erp-z-dropdown: 30;
+  --erp-z-drawer: 40;
+  --erp-z-modal: 50;
+  --erp-z-toast: 60;
+
+  --erp-motion-fast: 120ms;
+  --erp-motion-standard: 160ms;
+}
