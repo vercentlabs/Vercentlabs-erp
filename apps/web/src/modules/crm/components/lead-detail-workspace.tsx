@@ -282,7 +282,32 @@ export default function CrmLeadDetailWorkspace({
   const [tagIds, setTagIds] = useState(
     () => new Set(selectedTags.map((tag) => String(tag.id))),
   );
+  const [activityRows, setActivityRows] = useState(activities);
+  const [activitiesHasMore, setActivitiesHasMore] = useState(activities.length >= 200);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [communicationRows, setCommunicationRows] = useState(communications);
+  const [communicationsHasMore, setCommunicationsHasMore] = useState(communications.length >= 200);
+  const [loadingCommunications, setLoadingCommunications] = useState(false);
   const id = String(lead.id);
+
+  async function loadOlderTimelineItems(source: "activities" | "communications") {
+    const rows = source === "activities" ? activityRows : communicationRows;
+    const setLoading = source === "activities" ? setLoadingActivities : setLoadingCommunications;
+    const setRows = source === "activities" ? setActivityRows : setCommunicationRows;
+    const setHasMore = source === "activities" ? setActivitiesHasMore : setCommunicationsHasMore;
+    setLoading(true);
+    try {
+      const result = await requestJson(
+        `/api/crm/leads/${id}/timeline?source=${source}&offset=${rows.length}&limit=50`,
+      );
+      if (result.ok) {
+        setRows((current) => [...current, ...(result.rows as Row[])]);
+        setHasMore(Boolean(result.hasMore));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
   const leadSource = options.allSources?.find(
     (item) => item.id === String(lead.sourceId),
   );
@@ -306,13 +331,13 @@ export default function CrmLeadDetailWorkspace({
   const timeline = useMemo<TimelineEvent[]>(
     () =>
       [
-        ...activities.map((row) => ({
+        ...activityRows.map((row) => ({
           ...row,
           __kind: "Activity",
           __date: row.completed_at || row.due_at || row.created_at,
           __title: row.subject,
         })),
-        ...communications.map((row) => ({
+        ...communicationRows.map((row) => ({
           ...row,
           __kind: "Communication",
           __date: row.occurred_at,
@@ -341,7 +366,7 @@ export default function CrmLeadDetailWorkspace({
           new Date(String(b.__date || 0)).getTime() -
           new Date(String(a.__date || 0)).getTime(),
       ),
-    [activities, communications, notes, opportunities, lifecycleHistory],
+    [activityRows, communicationRows, notes, opportunities, lifecycleHistory],
   );
   async function api(path: string, body: Row, key = "action") {
     setPending(key);
@@ -895,11 +920,11 @@ export default function CrmLeadDetailWorkspace({
               <h2>Relationship summary</h2>
               <div className="crm-lead-relationship-counts">
                 <button type="button" onClick={() => setTab("activities")}>
-                  <strong>{activities.length}</strong>
+                  <strong>{activityRows.length}</strong>
                   <span>Activities</span>
                 </button>
                 <button type="button" onClick={() => setTab("communications")}>
-                  <strong>{communications.length}</strong>
+                  <strong>{communicationRows.length}</strong>
                   <span>Email history</span>
                 </button>
                 <button type="button" onClick={() => setTab("notes")}>
@@ -1293,6 +1318,21 @@ export default function CrmLeadDetailWorkspace({
                   <strong>No timeline events yet.</strong>
                 </div>
               ) : null}
+              {activitiesHasMore || communicationsHasMore ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={loadingActivities || loadingCommunications}
+                  onClick={() => {
+                    if (activitiesHasMore) void loadOlderTimelineItems("activities");
+                    if (communicationsHasMore) void loadOlderTimelineItems("communications");
+                  }}
+                >
+                  {loadingActivities || loadingCommunications
+                    ? "Loading…"
+                    : "Load older timeline events"}
+                </button>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -1302,7 +1342,7 @@ export default function CrmLeadDetailWorkspace({
             <section className="crm-suite-surface">
               <h2>Activity history</h2>
               <div className="crm-suite-list">
-                {activities.map((row) => (
+                {activityRows.map((row) => (
                   <article key={String(row.id)}>
                     <div>
                       <strong>{String(row.subject)}</strong>
@@ -1318,7 +1358,17 @@ export default function CrmLeadDetailWorkspace({
                     <span>{nice(row.status)}</span>
                   </article>
                 ))}
-                {!activities.length ? <p>No activities yet.</p> : null}
+                {!activityRows.length ? <p>No activities yet.</p> : null}
+                {activitiesHasMore ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={loadingActivities}
+                    onClick={() => void loadOlderTimelineItems("activities")}
+                  >
+                    {loadingActivities ? "Loading…" : "Load older activities"}
+                  </button>
+                ) : null}
               </div>
             </section>
             <section className="crm-suite-surface">
@@ -1403,7 +1453,7 @@ export default function CrmLeadDetailWorkspace({
                 </div>
               </div>
               <div className="crm-suite-list">
-                {communications.map((row) => (
+                {communicationRows.map((row) => (
                   <article key={String(row.id)}>
                     <div>
                       <strong>
@@ -1419,8 +1469,18 @@ export default function CrmLeadDetailWorkspace({
                     <span>{nice(row.status)}</span>
                   </article>
                 ))}
-                {!communications.length ? (
+                {!communicationRows.length ? (
                   <p>No communication history yet.</p>
+                ) : null}
+                {communicationsHasMore ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={loadingCommunications}
+                    onClick={() => void loadOlderTimelineItems("communications")}
+                  >
+                    {loadingCommunications ? "Loading…" : "Load older communications"}
+                  </button>
                 ) : null}
               </div>
             </section>

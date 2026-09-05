@@ -13,7 +13,7 @@ type CrmClient = Parameters<typeof getCrmRecord>[0];
 type CrmContext = Parameters<typeof getCrmRecord>[1];
 
 
-function canViewSensitiveLeadContent(context: CrmContext) {
+export function canViewSensitiveLeadContent(context: CrmContext) {
   return (
     context.roleSlugs?.includes("organization_owner") ||
     context.permissions?.includes("crm.leads.view_sensitive")
@@ -244,6 +244,40 @@ export async function getLeadDetailData(
     dataQuality: dataQuality.rows[0] || null,
     aiPredictions: aiPredictions.rows,
   };
+}
+
+const TIMELINE_SOURCES = new Set(["activities", "communications"]);
+
+export async function getLeadTimelinePage(
+  client: CrmClient,
+  context: CrmContext,
+  id: string,
+  source: string,
+  offset: number,
+  limit: number,
+) {
+  if (!TIMELINE_SOURCES.has(source))
+    throw new Error(`Unsupported lead timeline source: ${source}`);
+  // Mirrors getLeadDetailData's own guard: confirm the caller can see this
+  // Lead at all (organization/company/branch/owner scope) before paging
+  // through its activities/communications — those tables are filtered only
+  // by entity id below, not independently re-scoped per row.
+  await getCrmRecord(client, context, "leads", id);
+  if (!canViewSensitiveLeadContent(context)) return { rows: [], hasMore: false };
+  const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 50));
+  const boundedOffset = Math.max(0, Math.trunc(offset) || 0);
+  const result =
+    source === "activities"
+      ? await client.query(
+          `SELECT a.*,u.full_name AS assigned_name FROM tenant.crm_activities a LEFT JOIN public.users u ON u.id=a.assigned_to WHERE a.organization_id=$1 AND a.entity_type='lead' AND a.entity_id=$2 ORDER BY COALESCE(a.completed_at,a.due_at,a.created_at) DESC LIMIT $3 OFFSET $4`,
+          [context.organizationId, id, boundedLimit + 1, boundedOffset],
+        )
+      : await client.query(
+          `SELECT * FROM tenant.crm_communications WHERE organization_id=$1 AND lead_id=$2 ORDER BY occurred_at DESC LIMIT $3 OFFSET $4`,
+          [context.organizationId, id, boundedLimit + 1, boundedOffset],
+        );
+  const hasMore = result.rows.length > boundedLimit;
+  return { rows: hasMore ? result.rows.slice(0, boundedLimit) : result.rows, hasMore };
 }
 
 export type LeadDetailData = Awaited<ReturnType<typeof getLeadDetailData>>;
