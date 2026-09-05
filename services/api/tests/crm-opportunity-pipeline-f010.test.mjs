@@ -194,7 +194,7 @@ test("F010: same-stage replay is a mutation-free no-op", async () => {
   );
 });
 
-test("F010: cross-pipeline destination and closed-record reopening are blocked", async () => {
+test("F010: cross-pipeline destination is blocked and archived opportunities stay permanently read-only", async () => {
   const wrongPipeline = movingClient({ stage: null });
   await assert.rejects(
     () =>
@@ -209,16 +209,84 @@ test("F010: cross-pipeline destination and closed-record reopening are blocked",
     /selected stage is not part of this opportunity pipeline/i,
   );
 
-  const closed = movingClient({ current: row({ status: "won" }) });
+  const archived = movingClient({ current: row({ status: "archived" }) });
   await assert.rejects(
     () =>
-      moveOpportunityStage(closed.client, context, opportunity, targetStage, null, {
+      moveOpportunityStage(archived.client, context, opportunity, targetStage, null, {
         expectedUpdatedAt: updatedAt,
         expectedStageId: fromStage,
       }),
-    (error) => error.code === "CRM_OPPORTUNITY_PIPELINE_CLOSED",
+    (error) => error.code === "CRM_OPPORTUNITY_ARCHIVED",
   );
-  assert.equal(closed.calls.length, 1);
+  assert.equal(archived.calls.length, 1);
+});
+
+test("F009: a closed opportunity can only be reopened into an open stage, and only with a reason", async () => {
+  const noReason = movingClient({ current: row({ status: "won" }) });
+  await assert.rejects(
+    () =>
+      moveOpportunityStage(noReason.client, context, opportunity, targetStage, null, {
+        expectedUpdatedAt: updatedAt,
+        expectedStageId: fromStage,
+      }),
+    (error) => error.code === "CRM_OPPORTUNITY_REOPEN_REASON_REQUIRED" && error.status === 400,
+  );
+
+  const backIntoTerminal = movingClient({
+    current: row({ status: "won" }),
+    stage: {
+      id: terminalStage,
+      pipeline_id: pipeline,
+      probability: "0.00",
+      forecast_category: "closed",
+      is_won: false,
+      is_lost: true,
+    },
+  });
+  await assert.rejects(
+    () =>
+      moveOpportunityStage(
+        backIntoTerminal.client,
+        context,
+        opportunity,
+        terminalStage,
+        "Reopening to reclose as lost",
+        { expectedUpdatedAt: updatedAt, expectedStageId: fromStage },
+      ),
+    (error) => error.code === "CRM_OPPORTUNITY_REOPEN_TARGET_INVALID",
+  );
+});
+
+test("F009: a reopened opportunity clears its prior outcome and preserves the close event in stage history", async () => {
+  const reopened = movingClient({
+    current: row({
+      status: "won",
+      stage_id: terminalStage,
+      actual_close_date: "2026-08-20",
+      outcome_reason_id: reason,
+      outcome_notes: "Signed contract",
+    }),
+  });
+  const record = await moveOpportunityStage(
+    reopened.client,
+    context,
+    opportunity,
+    targetStage,
+    "Customer requested renegotiation",
+    { expectedUpdatedAt: updatedAt, expectedStageId: terminalStage },
+  );
+  assert.equal(record.status, "open");
+  assert.equal(record.stageId, targetStage);
+  const history = reopened.calls.find((call) =>
+    call.sql.includes("INSERT INTO tenant.crm_opportunity_stage_history"),
+  );
+  assert.equal(history.values.at(-4), "open");
+  const reopenEvent = reopened.calls.find(
+    (call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events") && call.values[1] === "crm.opportunity.reopened",
+  );
+  assert.equal(reopenEvent.values[4].previousStatus, "won");
+  assert.equal(reopenEvent.values[4].previousOutcomeReasonId, reason);
+  assert.equal(reopenEvent.values[4].reopenReason, "Customer requested renegotiation");
 });
 
 test("F010: terminal stages require a compatible governed outcome reason", async () => {

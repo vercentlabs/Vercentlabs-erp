@@ -12,6 +12,118 @@ type OutcomeReason = {
   outcomeType?: "won" | "lost" | "both";
 };
 
+export function CrmOpportunityReopenAction({
+  id,
+  status,
+  stageId,
+  updatedAt,
+  stages,
+}: {
+  id: string;
+  status: string;
+  stageId: string;
+  updatedAt: string;
+  stages: Stage[];
+}) {
+  const router = useRouter();
+  const openStages = useMemo(
+    () => stages.filter((stage) => !stage.isWon && !stage.isLost),
+    [stages],
+  );
+  const [targetStageId, setTargetStageId] = useState(openStages[0]?.id || "");
+  const [reason, setReason] = useState("");
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function reopen() {
+    if (!targetStageId || !reason.trim()) return;
+    setPending(true);
+    setMessage("");
+    try {
+      const result = await requestJson(`/api/crm/opportunities/${id}/stage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stageId: targetStageId,
+          note: reason.trim(),
+          expectedUpdatedAt: updatedAt,
+          expectedStageId: stageId,
+        }),
+      });
+      if (!result.ok)
+        throw new Error(result.message || "The opportunity could not be reopened.");
+      setMessage(result.message || "Opportunity reopened.");
+      router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "The opportunity could not be reopened.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (!openStages.length) return null;
+
+  return (
+    <section className="crm-action-panel crm-opportunity-stage-action" aria-label="Reopen opportunity">
+      <div className="crm-action-panel__heading">
+        <div>
+          <p className="eyebrow">Governed reopen</p>
+          <h2>Reopen this {status === "won" ? "won" : "lost"} opportunity</h2>
+        </div>
+      </div>
+      <p className="field-help">
+        Reopening returns this opportunity to an open pipeline stage. The
+        prior close is preserved in stage history — it isn&apos;t erased.
+      </p>
+      <div className="crm-opportunity-stage-action__fields">
+        <label>
+          Reopen into stage
+          <select
+            value={targetStageId}
+            disabled={pending}
+            onChange={(event) => setTargetStageId(event.target.value)}
+          >
+            {openStages.map((stage) => (
+              <option key={stage.id} value={stage.id}>
+                {stage.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="crm-opportunity-stage-action__note">
+          Reason for reopening
+          <textarea
+            rows={3}
+            required
+            maxLength={1000}
+            value={reason}
+            placeholder="Why is this deal coming back into the pipeline?"
+            onChange={(event) => setReason(event.target.value)}
+            disabled={pending}
+          />
+        </label>
+      </div>
+      <div className="form-row">
+        <button
+          className="primary-button"
+          type="button"
+          disabled={pending || !targetStageId || !reason.trim()}
+          onClick={() => void reopen()}
+        >
+          {pending ? "Reopening…" : "Reopen opportunity"}
+        </button>
+      </div>
+      {message ? (
+        <p className="notice" role="status">
+          {message}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export default function CrmOpportunityActions({
   id,
   stageId,

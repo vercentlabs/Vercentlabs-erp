@@ -3813,15 +3813,18 @@ export async function moveOpportunityStage(
       "CRM_STAGE_CONFLICT",
     );
   }
-  // F010: replaying the current stage is a no-op; closed/archived records cannot
-  // be reopened by bypassing the governed UI. F012 may introduce richer stage
-  // transition policy later, but F010 keeps the open-pipeline lifecycle safe.
+  // Replaying the current stage is a no-op. Archived records are permanently
+  // read-only. Won/Lost records can only move again through the controlled
+  // reopen path below (F009-FLOW-001/F026-FLOW-001: "controlled reopen
+  // preserving prior close events").
   if (opportunity.stage_id === stageId) return camelizeRow(opportunity);
-  if (String(opportunity.status) !== "open") {
+  const currentStatus = String(opportunity.status);
+  const reopening = currentStatus === "won" || currentStatus === "lost";
+  if (currentStatus !== "open" && !reopening) {
     throw new CrmError(
       409,
-      "Only open opportunities can move through the opportunity pipeline.",
-      "CRM_OPPORTUNITY_PIPELINE_CLOSED",
+      "Archived opportunities cannot be reopened.",
+      "CRM_OPPORTUNITY_ARCHIVED",
     );
   }
 
@@ -3836,8 +3839,24 @@ export async function moveOpportunityStage(
       "The selected stage is not part of this opportunity pipeline.",
     );
   const status = stage.is_won ? "won" : stage.is_lost ? "lost" : "open";
+  const reopenReason = reopening ? String(note || "").trim() : null;
+  if (reopening && status !== "open") {
+    throw new CrmError(
+      409,
+      "A closed opportunity can only be reopened into an open pipeline stage.",
+      "CRM_OPPORTUNITY_REOPEN_TARGET_INVALID",
+    );
+  }
+  if (reopening && !reopenReason) {
+    throw new CrmError(
+      400,
+      "Provide a reason before reopening this opportunity.",
+      "CRM_OPPORTUNITY_REOPEN_REASON_REQUIRED",
+    );
+  }
   let outcomeReasonId = null;
   let outcomeNotes = null;
+  let outcomeReasonLabel = null;
   if (status === "won" || status === "lost") {
     outcomeReasonId = expectations.outcomeReasonId || null;
     outcomeNotes =
@@ -3850,7 +3869,7 @@ export async function moveOpportunityStage(
       );
     }
     const reasonResult = await client.query(
-      `SELECT id,outcome_type FROM tenant.crm_lost_reasons WHERE organization_id=$1 AND id=$2 AND status='active'`,
+      `SELECT id,name,outcome_type FROM tenant.crm_lost_reasons WHERE organization_id=$1 AND id=$2 AND status='active'`,
       [context.organizationId, outcomeReasonId],
     );
     const reason = reasonResult.rows[0];
@@ -3861,6 +3880,7 @@ export async function moveOpportunityStage(
         "CRM_OUTCOME_REASON_INVALID",
       );
     }
+    outcomeReasonLabel = reason.name;
   }
   const result = await client.query(
     `UPDATE tenant.crm_opportunities
@@ -3885,7 +3905,10 @@ export async function moveOpportunityStage(
     ],
   );
   await client.query(
-    `INSERT INTO tenant.crm_opportunity_stage_history (organization_id, opportunity_id, from_stage_id, to_stage_id, probability, changed_by, note) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO tenant.crm_opportunity_stage_history
+       (organization_id, opportunity_id, from_stage_id, to_stage_id, probability, changed_by, note,
+        status, outcome_reason_id, outcome_reason_label, outcome_notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       context.organizationId,
       opportunityId,
@@ -3894,6 +3917,10 @@ export async function moveOpportunityStage(
       stage.probability,
       context.userId,
       note,
+      status,
+      outcomeReasonId,
+      outcomeReasonLabel,
+      outcomeNotes,
     ],
   );
   const updated = camelizeRow(result.rows[0]);
@@ -3913,6 +3940,21 @@ export async function moveOpportunityStage(
     opportunityId,
     { fromStageId: opportunity.stage_id, toStageId: stageId, status },
   );
+  if (reopening) {
+    await queueOutboxEvent(
+      client,
+      context,
+      "crm.opportunity.reopened",
+      "opportunity",
+      opportunityId,
+      {
+        previousStatus: currentStatus,
+        previousOutcomeReasonId: opportunity.outcome_reason_id || opportunity.lost_reason_id || null,
+        reopenReason,
+        toStageId: stageId,
+      },
+    );
+  }
   return updated;
 }
 

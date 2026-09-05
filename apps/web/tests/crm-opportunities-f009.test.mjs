@@ -53,6 +53,26 @@ test("F009 web: Opportunity detail is owner-scoped, actionable and responsive th
   assert.match(page, /CrmOpportunityActions/);
 });
 
+test("F009 web: a closed opportunity offers a governed reopen action instead of the open-pipeline action panel", () => {
+  const page = read("apps/web/src/app/(app)/crm/opportunities/[id]/page.tsx");
+  assert.match(page, /CrmOpportunityReopenAction/);
+  assert.match(page, /\["won", "lost"\]\.includes\(String\(record\.status\)\)/);
+  const actions = read("apps/web/src/modules/crm/components/opportunity-actions.tsx");
+  assert.match(actions, /export function CrmOpportunityReopenAction/);
+  assert.match(actions, /stages\.filter\(\(stage\) => !stage\.isWon && !stage\.isLost\)/);
+  assert.match(actions, /disabled=\{pending \|\| !targetStageId \|\| !reason\.trim\(\)\}/);
+  assert.match(page, /outcome_reason_label/);
+});
+
+test("F009 backend: reopen is a controlled transition on the same governed stage endpoint, not a new bypass", () => {
+  const backend = read("services/api/src/modules/crm/index.js");
+  assert.match(backend, /CRM_OPPORTUNITY_REOPEN_REASON_REQUIRED/);
+  assert.match(backend, /CRM_OPPORTUNITY_REOPEN_TARGET_INVALID/);
+  assert.match(backend, /crm\.opportunity\.reopened/);
+  const route = read("apps/web/src/app/api/crm/opportunities/[id]/stage/route.ts");
+  assert.match(route, /moveOpportunityStage/);
+});
+
 test("F009 documentation remains canonical and reflects verified production-ready status", () => {
   const spec = read("docs/03-modules/crm/features/F009-opportunities.md");
   assert.match(spec, /Canonical ID: `F009`/);

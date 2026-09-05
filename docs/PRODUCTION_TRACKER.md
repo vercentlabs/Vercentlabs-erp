@@ -33,12 +33,9 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F016 Follow-ups: "My Follow-ups" rewired to the lead nurture queue per owner decision — the "gap" was a naming/wiring problem, not missing engineering (30/37 rows now PASS, biggest single jump in the pass).
 - F010 Pipeline board: stale-deal/aging data (already computed by `evaluateOpportunityHealth`) is now rendered on each card as overdue/stale badges; stage's `stale_after_days` threshold is now selected and compared.
 - F003 Contacts: added `reactivateCrmContact` (mirrors `archiveCrmContact`), wired to `PATCH .../contacts/[id]` with `{action:"reactivate"}` and a "Reactivate" button on the detail page; blocks reactivation while the linked account is still archived.
+- F009 Opportunities + F026 Won/lost reasons: `moveOpportunityStage` now allows a won/lost opportunity to reopen into a non-terminal stage of the same pipeline (required reason, `archived` opportunities stay permanently blocked). Migration `078_f009_opportunity_reopen_history.sql` adds `status`/`outcome_reason_id`/`outcome_reason_label`/`outcome_notes` to `crm_opportunity_stage_history`, so every close and reopen is permanently snapshotted with the reason's label at that moment — this single change closed F009's reopen gap and F026's reason-label-snapshot gap together, since they were the same missing capability. Governed "Reopen" UI added to the Opportunity detail page; stage-history timeline now shows the snapshotted outcome per transition.
 
 **Correction, not a fix needed:** F008 Duplicate detection's "merge is unreachable" finding was wrong (twice) — the merge workflow (backend + route + UI + confirmation) is fully built and working. Root cause: bash `**` globs silently fail to recurse into `[id]` route directories in this environment without `shopt -s globstar`; several existence checks this session used that pattern. Re-verified with the Grep tool: F009/F013/F003-reactivation/F016-reminders/F029-cancellation all hold up; F008 was the only false negative found. F008's real remaining gaps: no "dismiss" outcome distinct from override, matching rules hardcoded, no cross-object (Lead vs Contact/Account) matching, no field-conflict reconciliation on merge.
-
-**Missing reverse/reopen paths (same bug class, found repeatedly — fix once, apply everywhere):**
-- F009 Opportunities: no reopen path for a closed deal (code comments imply one should exist).
-- F026 Won/lost reasons: inherits F009's gap.
 
 **Real but scoped gaps:**
 - F004 Lead sources: no original-vs-current source lineage, no campaign/referral fields.
@@ -51,7 +48,6 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F019 Activity timeline: fixed per-source row cap (100-200), no cursor pagination — long-lived records lose old history.
 - F021 Import/export: no dry-run, no upsert policy, no async/resumable path over 1,000 rows.
 - F025 Sales forecast: no accuracy/backtesting.
-- F026 Won/lost reasons: no reason-label snapshot at close time (renaming a reason retroactively rewrites history).
 - F028 Custom fields: no dependent-option picklists, no required-field-rollout safety check.
 - F029 Bulk actions: no job cancellation, no per-row retry — re-verified with Grep tool, holds up.
 - Module-wide: AI-adjacent dossier requirements (AI-001) are consistently unbuilt — this is a real, consistent scope gap, not a bug.

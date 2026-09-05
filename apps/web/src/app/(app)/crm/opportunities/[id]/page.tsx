@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCrmOptions, getCrmRecord } from "@vercentlabs/api";
 
-import CrmOpportunityActions from "@/modules/crm/components/opportunity-actions";
+import CrmOpportunityActions, { CrmOpportunityReopenAction } from "@/modules/crm/components/opportunity-actions";
 import CrmOpportunityProbabilityAction from "@/modules/crm/components/opportunity-probability-action";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -115,6 +115,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         </>
       ) : null}
 
+      {canManage && ["won", "lost"].includes(String(record.status)) ? (
+        <CrmOpportunityReopenAction id={id} status={String(record.status)} stageId={String(record.stageId)} updatedAt={String(record.updatedAt)} stages={stages} />
+      ) : null}
+
       <section className="panel">
         <p className="eyebrow">Probability history</p>
         <h2>Revenue confidence changes</h2>
@@ -139,7 +143,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           <h2>Pipeline movement</h2>
           <div className="crm-timeline">
             {data.history.map((row) => (
-              <article key={String(row.id)}><span>→</span><div><strong>{String(row.from_stage || "Created")} → {String(row.to_stage || "Stage")}</strong><p>{String(row.note || "")}</p><time>{dateTime(row.changed_at)}</time></div></article>
+              <article key={String(row.id)}><span>→</span><div><strong>{String(row.from_stage || "Created")} → {String(row.to_stage || "Stage")}</strong>{row.outcome_reason_label ? <p><em>{nice(row.status)} reason at the time: {String(row.outcome_reason_label)}</em></p> : null}<p>{String(row.note || "")}</p><time>{dateTime(row.changed_at)}</time></div></article>
             ))}
             {!data.history.length ? <div className="empty-state"><p>No stage movement recorded yet.</p></div> : null}
           </div>
