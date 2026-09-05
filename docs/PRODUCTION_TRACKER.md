@@ -24,38 +24,42 @@ A feature counts as done when, for its dossier's requirements:
 
 All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with cited code evidence — see `docs/03-modules/crm/features/F0##-AUDIT.md` for each. Consolidated gap list for the gap-closing pass:
 
-**Security-relevant (prioritize first):**
-- F003 Contacts: no sensitive-field redaction for contact email/phone (Leads has this via `lead-security.js`; Contacts doesn't).
+**Fixed (2026-09-05):**
+- F003 Contacts: sensitive-field redaction for email/phone/mobile added (`contact-security.js`, mirrors Leads).
+- F022 Conversion: converted-lead immutability now enforced in `assertLifecycleUpdate`.
+- F020 Territories: cycle detection added on `parent_territory_id` (copied F002 Accounts' recursive-CTE pattern).
+
+**Correction, not a fix needed:** F008 Duplicate detection's "merge is unreachable" finding was wrong (twice) — the merge workflow (backend + route + UI + confirmation) is fully built and working. Root cause: bash `**` globs silently fail to recurse into `[id]` route directories in this environment without `shopt -s globstar`; several existence checks this session used that pattern. Re-verified with the Grep tool: F009/F013/F003-reactivation/F016-reminders/F029-cancellation all hold up; F008 was the only false negative found. F008's real remaining gaps: no "dismiss" outcome distinct from override, matching rules hardcoded, no cross-object (Lead vs Contact/Account) matching, no field-conflict reconciliation on merge.
+
+**Security-relevant (prioritize next):**
 - F028 Custom fields: no field-level role-visibility mechanism.
 
 **Missing reverse/reopen paths (same bug class, found repeatedly — fix once, apply everywhere):**
 - F003 Contacts: no reactivation path for an archived contact.
 - F009 Opportunities: no reopen path for a closed deal (code comments imply one should exist).
 - F026 Won/lost reasons: inherits F009's gap.
-- F020 Territories: no cycle-detection on `parent_territory_id` (F002 Accounts solved the identical problem — copy that pattern).
 
 **Real but scoped gaps:**
 - F004 Lead sources: no original-vs-current source lineage, no campaign/referral fields.
 - F005 Lead assignment: no out-of-office awareness, no fallback queue, no reassignment-SLA timer.
 - F006 Lead qualification: readiness criteria hardcoded, not admin-configurable.
 - F007 Lead stages: transition graph is adjacency-based not truly directional; no dwell-SLA; no reason-code vocabulary; no live-config migration tooling.
-- F008 Duplicate detection: `mergeCrmLead` exists and is well-built but has zero routes/UI calling it (cheapest fix in this list — just wire it up); no dismiss action; no cross-object matching.
+- F008 Duplicate detection: no dismiss action, no cross-object matching, no field-conflict reconciliation on merge (see correction above).
 - F009 Opportunities: no stakeholders/products/risks/close-plan entities.
 - F010 Pipeline board: stale-deal/aging data computed server-side but never rendered on cards.
-- F013 Calls: a full 10-table telephony/recording/transcription schema exists with zero application code (scope decision needed: build it or drop the schema).
-- F016 Follow-ups: scope-naming ambiguity with the separate nurture-queue system — needs an owner decision, not a code fix.
-- F014 + F016: no confirmed reminder-notification delivery mechanism anywhere (cross-feature, worth one dedicated investigation).
+- F013 Calls: **owner decision made — drop the unused 10-table telephony/recording schema**, keep Calls as manual logging.
+- F016 Follow-ups: **owner decision made — the nurture queue IS this feature; wire Follow-ups to use it.**
+- F014 + F016: no confirmed reminder-notification delivery mechanism anywhere (cross-feature, worth one dedicated investigation) — re-verified with Grep tool, holds up.
 - F019 Activity timeline: fixed per-source row cap (100-200), no cursor pagination — long-lived records lose old history.
 - F021 Import/export: no dry-run, no upsert policy, no async/resumable path over 1,000 rows.
-- F022 Conversion: converted-lead immutability not enforced (cheap fix — extend `assertLifecycleUpdate`).
 - F025 Sales forecast: no accuracy/backtesting.
 - F026 Won/lost reasons: no reason-label snapshot at close time (renaming a reason retroactively rewrites history).
 - F028 Custom fields: no dependent-option picklists, no required-field-rollout safety check.
-- F029 Bulk actions: no job cancellation, no per-row retry.
+- F029 Bulk actions: no job cancellation, no per-row retry — re-verified with Grep tool, holds up.
 - Module-wide: AI-adjacent dossier requirements (AI-001) are consistently unbuilt — this is a real, consistent scope gap, not a bug.
 - Module-wide (from F015's audit, code-comment-confirmed): 3 known-missing automation trigger call sites (`lead.updated`, `lead.qualified`, `campaign.member_responded`).
 
-**Standing, not feature-specific:** no live E2E was run (blocked earlier on missing auth/seed fixtures — still unresolved), no human UAT, no load/perf testing exists anywhere in CRM.
+**Standing, not feature-specific:** no live E2E was run (blocked earlier on missing auth/seed fixtures — still unresolved), no human UAT (cannot be performed by the AI — needs the owner), no load/perf testing exists anywhere in CRM.
 
 **Best-in-class patterns worth reusing elsewhere in the codebase:** F027's deterministic scoring engine, F024/F030's cross-referenced dashboard/report security hardening, F021's shared formula-injection-safe CSV export, F017's fail-closed malware scanning, F012's disjoint-temporary-sequence reorder algorithm, F005/F014's correct concurrency locking.
 
