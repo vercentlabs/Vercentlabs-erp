@@ -2,6 +2,12 @@
 
 Replaces the old five-GO/Codex/human-UAT choreography that used to live under `00-program/`, `07-testing/` through `10-uat/`. Requirements stay in the registers/dossiers (`docs/README.md`); this file only tracks how far each module actually is.
 
+## Verification methodology (revised 2026-09-05 after owner challenge)
+
+"Production ready" now means a full atomic-requirement trace: every row in `SUBREQUIREMENT_REGISTER.csv` for a feature is checked against real, cited code/test evidence (file+line), not pattern-matched by test name. `FEATURE_SEMANTIC_SUBCAPABILITY_REGISTER.csv`, `FEATURE_FLOW_REGISTER.csv` and `FEATURE_STATE_TRANSITION_REGISTER.csv` were found to be ~90%+ generated boilerplate (identical text across thousands of rows, and in some cases placeholder state names that contradict the feature's own real state machine) — see commit history for the measurements. They are not traced row-by-row; the dossier + subrequirement register are the real source of truth.
+
+Per-feature output is `docs/03-modules/<module>/features/F###-AUDIT.md` with a verdict (PASS/PARTIAL/GAP/NOT INDEPENDENTLY VERIFIED) and cited evidence per row. Gaps found during the trace are **recorded, not fixed inline** — fixing happens in one dedicated pass per module after all its features are traced, so the trace isn't constantly context-switching into implementation. Exception: a live, exploitable, cross-cutting security bug (like the approval-rejection permission bypass found this session) gets fixed immediately regardless of what pass is in progress.
+
 ## Definition of "production ready" (per feature)
 
 A feature counts as done when, for its dossier's requirements:
