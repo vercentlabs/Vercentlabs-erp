@@ -1589,6 +1589,18 @@ function assertLifecycleUpdate(resource, before, input) {
       "CRM_LEAD_QUALIFICATION_ACTION_REQUIRED",
     );
   }
+  // F022 CAP-002: a converted Lead is a closed historical record. Its
+  // recordStatus/stage/qualification are already separately governed, but
+  // ordinary fields (name, email, company, ...) were still editable through
+  // this generic path after conversion, silently rewriting what the
+  // conversion decision was actually based on.
+  if (resource === "leads" && before.recordStatus === "converted") {
+    throw new CrmError(
+      409,
+      "Converted Leads are read-only. Edit the resulting Account, Contact or Opportunity instead.",
+      "CRM_LEAD_CONVERTED_READ_ONLY",
+    );
+  }
   if (resource === "consent-events") {
     throw new CrmError(
       409,
