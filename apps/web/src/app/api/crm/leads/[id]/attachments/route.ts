@@ -3,6 +3,7 @@ import { attachmentStorageKey, sha256, validateAttachment } from "@vercentlabs/d
 import { getCrmRecord } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
+import { scanAttachmentForUpload } from "@/core/attachment-security";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
 import { tenantTransaction } from "@/core/db";
@@ -33,6 +34,7 @@ export async function POST(request: Request, { params }: Params) {
       { maximumBytes: MAX_BYTES },
     );
     const bytes = Buffer.from(await file.arrayBuffer());
+    const scan = await scanAttachmentForUpload(bytes, governed.mimeType);
     const attachmentId = randomUUID();
     const context = await crmApiContext(session);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
@@ -41,8 +43,8 @@ export async function POST(request: Request, { params }: Params) {
       await getCrmRecord(client, context, "leads", id);
       const result = await client.query(
         `INSERT INTO public.attachments(
-           id,organization_id,entity_type,entity_id,file_name,storage_key,mime_type,size_bytes,uploaded_by,content,content_sha256
-         ) VALUES($1,$2,'crm.lead',$3,$4,$5,$6,$7,$8,$9,$10)
+           id,organization_id,entity_type,entity_id,file_name,storage_key,mime_type,size_bytes,uploaded_by,content,content_sha256,lifecycle_status,scan_status
+         ) VALUES($1,$2,'crm.lead',$3,$4,$5,$6,$7,$8,$9,$10,'clean',$11)
          RETURNING id,file_name,mime_type,size_bytes,created_at`,
         [
           attachmentId,
@@ -55,6 +57,7 @@ export async function POST(request: Request, { params }: Params) {
           session.userId,
           bytes,
           sha256(bytes),
+          scan.scanStatus,
         ],
       );
       await audit({

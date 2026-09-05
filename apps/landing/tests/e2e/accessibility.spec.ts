@@ -40,6 +40,19 @@ for (const route of REPRESENTATIVE_ROUTES) {
     // parallel-worker contention.
     test.slow();
     await page.goto(route, { waitUntil: "networkidle" });
+    // CSS entrance/reveal animations can temporarily alpha-blend otherwise
+    // compliant text against its background (for example 5.21:1 settling
+    // through ~4.49:1 mid-fade). Axe must evaluate the stable rendered state,
+    // not an arbitrary animation frame whose timing varies by browser/device.
+    await page.evaluate(async () => {
+      // Give style/layout two frames to register animations before sampling them.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      while (true) {
+        const active = document.getAnimations().filter((animation) => animation.playState === "running");
+        if (active.length === 0) break;
+        await Promise.allSettled(active.map((animation) => animation.finished));
+      }
+    });
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
 
     const seriousOrCritical = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");

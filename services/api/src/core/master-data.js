@@ -1222,20 +1222,28 @@ export async function getBusinessDataOverview(client, context) {
   return camelizeRow(result.rows[0] || {});
 }
 
-export async function createImportJob(client, context, resource, input) {
+export async function beginImportJob(client, context, resource, input) {
   definitionFor(resource);
-  const result = await client.query(
+  const idempotencyKey = String(input.idempotencyKey || "").trim();
+  const requestFingerprint = String(input.requestFingerprint || "").trim().toLowerCase();
+  if (!idempotencyKey || idempotencyKey.length > 200) {
+    throw new BusinessDataError(400, "A bounded Idempotency-Key is required for imports.", "BUSINESS_DATA_IMPORT_IDEMPOTENCY_REQUIRED");
+  }
+  if (!/^[0-9a-f]{64}$/.test(requestFingerprint)) {
+    throw new BusinessDataError(400, "Import request fingerprint is invalid.", "BUSINESS_DATA_IMPORT_FINGERPRINT_INVALID");
+  }
+
+  const inserted = await client.query(
     `
       INSERT INTO tenant.master_data_import_jobs (
-        organization_id,
-        resource,
-        file_name,
-        status,
-        total_rows,
-        created_by
+        organization_id, resource, file_name, status, total_rows, created_by,
+        idempotency_key, request_fingerprint
       )
-      VALUES ($1, $2, $3, 'processing', $4, $5)
-      RETURNING id
+      VALUES ($1, $2, $3, 'processing', $4, $5, $6, $7)
+      ON CONFLICT (organization_id, resource, idempotency_key)
+        WHERE idempotency_key IS NOT NULL
+      DO NOTHING
+      RETURNING id,status,total_rows,processed_rows,succeeded_rows,failed_rows,error_report,result_payload,request_fingerprint
     `,
     [
       context.organizationId,
@@ -1243,12 +1251,45 @@ export async function createImportJob(client, context, resource, input) {
       input.fileName || null,
       input.totalRows,
       context.userId,
+      idempotencyKey,
+      requestFingerprint,
     ],
+  );
+  if (inserted.rows[0]) {
+    return { ...camelizeRow(inserted.rows[0]), replayed: false };
+  }
+
+  const existing = await client.query(
+    `SELECT id,status,total_rows,processed_rows,succeeded_rows,failed_rows,error_report,result_payload,request_fingerprint
+       FROM tenant.master_data_import_jobs
+      WHERE organization_id=$1 AND resource=$2 AND idempotency_key=$3
+      FOR UPDATE`,
+    [context.organizationId, resource, idempotencyKey],
+  );
+  const row = existing.rows[0];
+  if (!row) {
+    throw new BusinessDataError(409, "The import idempotency replay could not be resolved.", "BUSINESS_DATA_IMPORT_REPLAY_MISSING");
+  }
+  if (String(row.request_fingerprint || "").toLowerCase() !== requestFingerprint) {
+    throw new BusinessDataError(409, "The Idempotency-Key was already used for different import content.", "BUSINESS_DATA_IMPORT_IDEMPOTENCY_CONFLICT");
+  }
+  return { ...camelizeRow(row), replayed: true };
+}
+
+// Compatibility helper for callers that explicitly want a fresh job. New HTTP
+// import surfaces should use beginImportJob so retry semantics are mandatory.
+export async function createImportJob(client, context, resource, input) {
+  const result = await client.query(
+    `INSERT INTO tenant.master_data_import_jobs (
+       organization_id,resource,file_name,status,total_rows,created_by
+     ) VALUES($1,$2,$3,'processing',$4,$5) RETURNING id`,
+    [context.organizationId,resource,input.fileName || null,input.totalRows,context.userId],
   );
   return String(result.rows[0].id);
 }
 
 export async function completeImportJob(client, context, jobId, input) {
+  const resultPayload = input.resultPayload == null ? null : JSON.stringify(input.resultPayload);
   await client.query(
     `
       UPDATE tenant.master_data_import_jobs
@@ -1258,6 +1299,7 @@ export async function completeImportJob(client, context, jobId, input) {
         succeeded_rows = $5,
         failed_rows = $6,
         error_report = $7::jsonb,
+        result_payload = $8::jsonb,
         completed_at = now()
       WHERE id = $1 AND organization_id = $2
     `,
@@ -1269,6 +1311,7 @@ export async function completeImportJob(client, context, jobId, input) {
       input.succeededRows,
       input.failedRows,
       JSON.stringify(input.errors || []),
+      resultPayload,
     ],
   );
 }

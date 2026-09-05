@@ -1,11 +1,13 @@
 import NotificationList from "@/core/components/notification-list";
+import { NotificationPreferences } from "@/core/components/notification-preferences";
 import { requireWorkspace } from "@/core/auth";
 import { query } from "@/core/db";
+import { listNotificationPreferences } from "@/core/shared-platform";
 
 export const metadata = { title: "Notifications" };
 export default async function NotificationsPage() {
   const session = await requireWorkspace();
-  const rows = await query<{
+  const [rows, preferences] = await Promise.all([query<{
     id: string;
     title: string;
     message: string;
@@ -18,7 +20,7 @@ export default async function NotificationsPage() {
     WHERE organization_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT 100
   `,
     [session.organizationId, session.userId],
-  );
+  ), listNotificationPreferences(session)]);
   const notifications = rows.map((row) => ({
     id: row.id,
     title: row.title,
@@ -40,6 +42,15 @@ export default async function NotificationsPage() {
         </div>
       </section>
       <NotificationList notifications={notifications} />
+      <NotificationPreferences
+        preferences={preferences.map(({ channel, category, enabled, quiet_hours_start, quiet_hours_end }) => ({
+          channel,
+          category,
+          enabled,
+          quiet_hours_start,
+          quiet_hours_end,
+        }))}
+      />
     </>
   );
 }

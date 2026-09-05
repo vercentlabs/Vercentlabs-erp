@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import AppIcon from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
+import { IntegrationDeveloperManager } from "@/core/components/integration-developer-manager";
+import { listDeveloperApiKeys, listOAuthConnections } from "@/core/shared-platform";
 import {
   getOutboxQueueStatus,
   isSystemEmailConfigured,
@@ -26,11 +28,14 @@ export default async function IntegrationsPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.integrationsView)) notFound();
 
-  const [webhooks, outboxStatus, email, recentDeliveries] = await Promise.all([
+  const canManagePlatformIntegrations = hasPermission(session, PERMISSIONS.integrationsManage);
+  const [webhooks, outboxStatus, email, recentDeliveries, apiKeys, oauthConnections] = await Promise.all([
     listWebhookSubscriptions(session),
     getOutboxQueueStatus(session),
     Promise.resolve(isSystemEmailConfigured()),
     listRecentWebhookDeliveries(session, { limit: 15 }),
+    canManagePlatformIntegrations ? listDeveloperApiKeys(session.organizationId) : Promise.resolve([]),
+    canManagePlatformIntegrations ? listOAuthConnections(session.organizationId) : Promise.resolve([]),
   ]);
 
   const canManageCrmIntegrations = hasPermission(session, PERMISSIONS.crmIntegrationsManage);
@@ -46,10 +51,10 @@ export default async function IntegrationsPage() {
           <p className="eyebrow">Administration · Integrations</p>
           <h1>Integrations</h1>
           <p>
-            Only integrations with real, working backing are shown here. No
-            marketplace/e-commerce, shipping, SSO, or tenant-issued API-key
-            capability exists yet — see the gaps noted below rather than a
-            blank promise.
+            Only integrations with real backing are shown here. Tenant API keys,
+            encrypted Google/Microsoft OAuth connections, outbound webhooks and
+            system email are governed here; unsupported provider families remain
+            explicitly listed below.
           </p>
         </div>
       </section>
@@ -208,6 +213,30 @@ export default async function IntegrationsPage() {
         </p>
       </section>
 
+
+      {canManagePlatformIntegrations ? (
+        <section className="dashboard-section" aria-labelledby="integrations-developer-title">
+          <div className="section-title-row">
+            <div>
+              <p className="eyebrow">Developer platform</p>
+              <h2 id="integrations-developer-title">API keys &amp; OAuth</h2>
+            </div>
+          </div>
+          <p className="billing-commercial-note">
+            API-key secrets are stored only as SHA-256 hashes and shown once at creation. OAuth credentials are encrypted with AES-256-GCM using the operator-managed integration key.
+          </p>
+          <IntegrationDeveloperManager
+            keys={apiKeys.map((key) => ({
+              id: key.id, name: key.name, prefix: key.key_prefix, scopes: key.scopes, status: key.status,
+              expiresAt: key.expires_at?.toISOString() || null, lastUsedAt: key.last_used_at?.toISOString() || null, createdAt: key.created_at.toISOString(),
+            }))}
+            connections={oauthConnections.map((item) => ({
+              ...item, expires_at: item.expires_at?.toISOString() || null, updated_at: item.updated_at.toISOString(),
+            }))}
+          />
+        </section>
+      ) : null}
+
       <section className="dashboard-section" aria-labelledby="integrations-gaps-title">
         <div className="section-title-row">
           <div>
@@ -217,8 +246,6 @@ export default async function IntegrationsPage() {
         </div>
         <div className="metric-grid">
           {[
-            "Tenant-issued API keys / developer apps",
-            "Self-service OAuth connect (Gmail/Outlook) — token exchange step is missing",
             "WhatsApp/SMS sending (consent tracking exists; no provider is wired)",
             "E-commerce, marketplace, shipping/logistics connectors",
             "Identity provider / SSO",

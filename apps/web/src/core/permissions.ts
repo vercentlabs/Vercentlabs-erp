@@ -29,6 +29,13 @@ import {
 
 export const PERMISSIONS = {
   ...CORE_PERMISSIONS,
+  integrationsManage: CORE_PERMISSIONS.integrationsManage,
+  platformConfigurationManage: CORE_PERMISSIONS.platformConfigurationManage,
+  platformExtensibilityManage: CORE_PERMISSIONS.platformExtensibilityManage,
+  platformPrivacyManage: CORE_PERMISSIONS.platformPrivacyManage,
+  platformReportsManage: CORE_PERMISSIONS.platformReportsManage,
+  platformAiManage: CORE_PERMISSIONS.platformAiManage,
+  platformWorkflowsManage: CORE_PERMISSIONS.platformWorkflowsManage,
   businessDataView: BUSINESS_DATA_PERMISSIONS.view,
   partiesManage: BUSINESS_DATA_PERMISSIONS.partiesManage,
   itemsManage: BUSINESS_DATA_PERMISSIONS.itemsManage,

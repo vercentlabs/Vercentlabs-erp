@@ -278,34 +278,68 @@ function usageLimit(summary: BillingSummary, metric: BillingUsageMetric) {
   return Number(summary.limits[metric] || 0);
 }
 
+export type BillingUsageIncrementResult = {
+  replayed: boolean;
+  quantity: number | null;
+};
+
 export async function incrementBillingUsage(
   organizationId: string,
   metric: BillingUsageMetric,
   quantity = 1,
-) {
+  options: { idempotencyKey?: string; source?: string } = {},
+): Promise<BillingUsageIncrementResult> {
   if (!Number.isSafeInteger(quantity) || quantity <= 0) {
     throw new HttpError(400, "Usage quantity must be a positive integer.");
+  }
+
+  const idempotencyKey = String(options.idempotencyKey || "").trim();
+  if (idempotencyKey.length > 240) {
+    throw new HttpError(400, "Usage idempotency key is too long.");
+  }
+  const source = String(options.source || "runtime").trim() || "runtime";
+  if (source.length > 120) {
+    throw new HttpError(400, "Usage source is too long.");
   }
 
   const summary = await requireBillingWriteAccess(organizationId);
   const maximum = usageLimit(summary, metric);
 
-  if (summary.enforcementMode !== "enforce" || maximum <= 0) {
-    await query(
-      `
-        INSERT INTO billing_usage_monthly (organization_id, month_start, metric, quantity)
-        VALUES ($1, date_trunc('month', current_date)::date, $2, $3)
-        ON CONFLICT (organization_id, month_start, metric)
-        DO UPDATE SET
-          quantity = billing_usage_monthly.quantity + EXCLUDED.quantity,
-          updated_at = now()
-      `,
-      [organizationId, metric, quantity],
-    );
-    return;
-  }
+  return transaction(async (client) => {
+    if (idempotencyKey) {
+      const event = await client.query<{ id: string }>(
+        `
+          INSERT INTO billing_usage_events (
+            organization_id, month_start, metric, quantity, idempotency_key, source
+          ) VALUES ($1, date_trunc('month', current_date)::date, $2, $3, $4, $5)
+          ON CONFLICT (organization_id, metric, idempotency_key) DO NOTHING
+          RETURNING id
+        `,
+        [organizationId, metric, quantity, idempotencyKey, source],
+      );
+      if (!event.rows[0]) {
+        const prior = await client.query<{ quantity: string | number; source: string }>(
+          `SELECT quantity,source FROM billing_usage_events
+            WHERE organization_id=$1 AND metric=$2 AND idempotency_key=$3`,
+          [organizationId, metric, idempotencyKey],
+        );
+        if (!prior.rows[0] || Number(prior.rows[0].quantity) !== quantity || prior.rows[0].source !== source) {
+          throw new HttpError(409, "The usage idempotency key was already used with different input.", "BILLING_IDEMPOTENCY_CONFLICT");
+        }
+        const current = await client.query<{ quantity: string | number }>(
+          `SELECT quantity FROM billing_usage_monthly
+            WHERE organization_id=$1
+              AND month_start=date_trunc('month', current_date)::date
+              AND metric=$2`,
+          [organizationId, metric],
+        );
+        return {
+          replayed: true,
+          quantity: current.rows[0] ? Number(current.rows[0].quantity) : null,
+        };
+      }
+    }
 
-  const updated = await transaction(async (client) => {
     await client.query(
       `
         INSERT INTO billing_usage_monthly (organization_id, month_start, metric, quantity)
@@ -314,27 +348,45 @@ export async function incrementBillingUsage(
       `,
       [organizationId, metric],
     );
-    const result = await client.query<{ quantity: string | number }>(
+
+    if (summary.enforcementMode === "enforce" && maximum > 0) {
+      const updated = await client.query<{ quantity: string | number }>(
+        `
+          UPDATE billing_usage_monthly
+          SET quantity = quantity + $3, updated_at = now()
+          WHERE organization_id = $1
+            AND month_start = date_trunc('month', current_date)::date
+            AND metric = $2
+            AND quantity + $3 <= $4
+          RETURNING quantity
+        `,
+        [organizationId, metric, quantity, maximum],
+      );
+      if (!updated.rows[0]) {
+        throw new HttpError(
+          402,
+          `The ${summary.planName} plan has reached its ${metric.replaceAll("_", " ")} allowance. Upgrade or add capacity before continuing.`,
+        );
+      }
+      return { replayed: false, quantity: Number(updated.rows[0].quantity) };
+    }
+
+    const updated = await client.query<{ quantity: string | number }>(
       `
         UPDATE billing_usage_monthly
         SET quantity = quantity + $3, updated_at = now()
         WHERE organization_id = $1
           AND month_start = date_trunc('month', current_date)::date
           AND metric = $2
-          AND quantity + $3 <= $4
         RETURNING quantity
       `,
-      [organizationId, metric, quantity, maximum],
+      [organizationId, metric, quantity],
     );
-    return result.rows[0] || null;
+    return {
+      replayed: false,
+      quantity: updated.rows[0] ? Number(updated.rows[0].quantity) : null,
+    };
   });
-
-  if (!updated) {
-    throw new HttpError(
-      402,
-      `The ${summary.planName} plan has reached its ${metric.replaceAll("_", " ")} allowance. Upgrade or add capacity before continuing.`,
-    );
-  }
 }
 
 export async function assertModuleEntitlement(

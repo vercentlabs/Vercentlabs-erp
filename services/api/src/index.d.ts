@@ -131,6 +131,16 @@ export function getBusinessDataOverview(
   context: BusinessDataContext,
 ): Promise<Record<string, number>>;
 
+export function beginImportJob(
+  client: QueryClient,
+  context: BusinessDataContext,
+  resource: BusinessDataResourceKey,
+  input: { fileName?: string; totalRows: number; idempotencyKey: string; requestFingerprint: string },
+): Promise<{
+  id: string; status: string; totalRows: number; processedRows: number; succeededRows: number; failedRows: number;
+  errorReport: unknown; resultPayload: unknown; requestFingerprint: string; replayed: boolean;
+}>;
+
 export function createImportJob(
   client: QueryClient,
   context: BusinessDataContext,
@@ -148,6 +158,7 @@ export function completeImportJob(
     succeededRows: number;
     failedRows: number;
     errors?: unknown[];
+    resultPayload?: unknown;
   },
 ): Promise<void>;
 

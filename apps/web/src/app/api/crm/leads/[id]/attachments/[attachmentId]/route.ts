@@ -31,6 +31,7 @@ export async function GET(_request: Request, { params }: Params) {
         `SELECT file_name,mime_type,size_bytes,content
            FROM public.attachments
           WHERE organization_id=$1 AND id=$2 AND entity_type='crm.lead' AND entity_id=$3
+            AND lifecycle_status='clean' AND scan_status IN ('clean','not_applicable')
           LIMIT 1`,
         [context.organizationId, attachmentId, id],
       );

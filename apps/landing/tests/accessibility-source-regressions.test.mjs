@@ -36,3 +36,15 @@ test("landing a11y: arbitrary module accent colors stay decorative, not small te
   assert.doesNotMatch(product, /className="vl-index" style=\{\{ color: moduleInfo\.accentColor\.hex \}\}/);
   assert.doesNotMatch(industryStack, /className="vl-index" style=\{\{ color: landingModule\.accentColor\.hex \}\}/);
 });
+
+test("landing a11y: axe scans wait for transient entrance animations to settle", () => {
+  const source = read("tests/e2e/accessibility.spec.ts");
+  const navigation = source.indexOf('await page.goto(route, { waitUntil: "networkidle" });');
+  const animationWait = source.indexOf("document.getAnimations()");
+  const axeScan = source.indexOf("new AxeBuilder({ page })");
+  assert.ok(navigation >= 0 && animationWait > navigation && axeScan > animationWait);
+  assert.match(source, /Promise\.allSettled\(active\.map\(\(animation\) => animation\.finished\)\)/);
+  assert.match(source, /animation\.playState === "running"/);
+  assert.match(source, /requestAnimationFrame/);
+  assert.doesNotMatch(source, /animation\.playState === "pending"/);
+});

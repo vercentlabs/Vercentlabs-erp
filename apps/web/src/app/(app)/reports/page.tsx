@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
-import { hasPermission } from "@/core/authorization";
+import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { getAccessibleModules } from "@/core/module-access";
 import { MODULES_WITHOUT_REPORTS, REPORT_CATALOGUE } from "@/core/reports/catalogue";
 
@@ -49,9 +49,10 @@ export default async function ReportsPage() {
           <p>
             A catalogue of real reports across the modules you have access
             to. Reports run inside their own module when you open them —
-            nothing here is pre-computed. There is no cross-module report
-            builder, no chart/pivot engine, and no scheduled/emailed reports
-            yet.
+            nothing here becomes an alternate system of record. Platform admins can
+            save permission-gated launch definitions for these real report families.
+            T01 deliberately provides no cross-module report builder, no chart/pivot engine, and no
+            scheduled-email report runner where no governed engine exists.
           </p>
         </div>
       </section>
@@ -83,6 +84,21 @@ export default async function ReportsPage() {
           </div>
         </section>
       ))}
+
+      {hasPermission(session, PERMISSIONS.platformReportsManage) ? (
+        <section className="dashboard-section" aria-labelledby="shared-report-governance-title">
+          <div className="section-title-row">
+            <div>
+              <p className="eyebrow">Shared reporting governance</p>
+              <h2 id="shared-report-governance-title">Saved report launch definitions</h2>
+            </div>
+            <Link href="/settings/platform#reports">Manage definitions <AppIcon name="arrow-right" size={16} /></Link>
+          </div>
+          <p className="billing-commercial-note">
+            Shared definitions re-check the underlying module report permission every time they are opened and record launch evidence without duplicating business truth.
+          </p>
+        </section>
+      ) : null}
 
       {!visible.length ? (
         <div className="empty-state">

@@ -61,6 +61,19 @@ export function directCaptureFingerprint(request: Request) {
   return sha256(`${clientIp(request)}|${request.headers.get("user-agent") || "unknown"}`);
 }
 
+export function canonicalAppOrigin() {
+  const raw = String(process.env.APP_URL || "http://localhost:3001").trim();
+  try {
+    const url = new URL(raw);
+    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+      throw new Error("APP_URL must use HTTPS in production.");
+    }
+    return url.origin;
+  } catch {
+    throw new HttpError(503, "The application origin is not configured correctly.", "APP_ORIGIN_INVALID");
+  }
+}
+
 function configuredOrigins() {
   return new Set(
     (

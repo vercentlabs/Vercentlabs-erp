@@ -85,11 +85,16 @@ test("three new permissions (automation.view, integrations.view, data_management
   assert.match(source, /dataManagementView: "data_management\.view"/);
 });
 
-test("no new 'manage' permission was added for automation/integrations/data-management — every mutation continues to use its existing permission", () => {
+test("T01 adds a dedicated integrations.manage authority while automation/data-management retain their existing mutation permissions", () => {
   const source = read("packages/permissions/src/index.js");
   assert.doesNotMatch(source, /automationManage: "automation\.manage"/);
-  assert.doesNotMatch(source, /integrationsManage: "integrations\.manage"/);
+  assert.match(source, /integrationsManage: "integrations\.manage"/);
   assert.doesNotMatch(source, /dataManagementManage: "data_management\.manage"/);
+
+  const apiKeys = read("apps/web/src/app/api/platform/integrations/api-keys/route.ts");
+  const oauth = read("apps/web/src/app/api/platform/integrations/oauth/route.ts");
+  assert.match(apiKeys, /integrations\.manage/);
+  assert.match(oauth, /integrations\.manage/);
 });
 
 test("migration 031 registers the three permissions and grants them to organization_owner/system_administrator/company_administrator/auditor for every existing organization, plus automation.view to crm_administrator", () => {
@@ -181,10 +186,14 @@ test("integrations.ts: never reads or exposes a webhook secret value — only se
   assert.match(source, /secretReference/);
 });
 
-test("integrations page: explicitly documents API keys, OAuth self-service connect, SSO, e-commerce/shipping and live bank feeds as absent rather than fabricating them", () => {
+test("integrations page: T01 truthfully exposes real API-key/OAuth controls while continuing to disclose unsupported SSO, commerce/shipping and live bank feeds", () => {
   const source = read("apps/web/src/app/(app)/integrations/page.tsx");
-  assert.match(source, /Tenant-issued API keys/);
-  assert.match(source, /Identity provider . SSO/);
+  assert.match(source, /Tenant API keys/);
+  assert.match(source, /Google\/Microsoft OAuth connections/);
+  assert.match(source, /Identity provider \/ SSO/);
+  assert.match(source, /E-commerce, marketplace, shipping\/logistics connectors/);
+  assert.match(source, /Live bank-feed connector/);
+  assert.doesNotMatch(source, /API keys.*absent/i);
 });
 
 // ---------------------------------------------------------------------

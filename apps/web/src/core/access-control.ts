@@ -96,7 +96,18 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       (key) =>
         key !== "organization.manage" &&
         key !== "crm.ai.manage" &&
-        !["billing.manage", "billing.checkout", "billing.audit"].includes(key),
+        ![
+          "billing.manage",
+          "billing.checkout",
+          "billing.audit",
+          "integrations.manage",
+          "platform.configuration.manage",
+          "platform.extensibility.manage",
+          "platform.privacy.manage",
+          "platform.reports.manage",
+          "platform.ai.manage",
+          "platform.workflows.manage",
+        ].includes(key),
     ),
   },
   {

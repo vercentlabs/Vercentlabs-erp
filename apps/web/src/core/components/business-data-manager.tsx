@@ -365,15 +365,20 @@ export default function BusinessDataManager({
         throw new Error("Import up to 100 rows at a time.");
       }
 
+      const importIdempotencyKey = `web-import:${crypto.randomUUID()}`;
       const result = await requestJson<{
         errors?: Array<{ row: number; message: string }>;
         succeededRows?: number;
         failedRows?: number;
+        replayed?: boolean;
       }>(
         `/api/business-data/${definition.key}/import`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": importIdempotencyKey,
+          },
           body: JSON.stringify({ fileName: file.name, rows: importedRows }),
         },
         { timeoutMs: 60_000 },

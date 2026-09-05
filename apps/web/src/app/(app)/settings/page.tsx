@@ -88,6 +88,14 @@ const items: Array<{
     permission: PERMISSIONS.numberingManage,
   },
   {
+    label: "Platform governance",
+    href: "/settings/platform",
+    description: "Effective-dated configuration, privacy, reports, tags and AI policy",
+    icon: "settings",
+    group: "Platform",
+    permission: PERMISSIONS.platformConfigurationManage,
+  },
+  {
     label: "Security",
     href: "/security",
     description: "Password, sessions and organisation security overview",

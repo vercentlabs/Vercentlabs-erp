@@ -1,11 +1,13 @@
+import { createHash } from "node:crypto";
+
 import {
   incrementBillingUsage,
   requireBillingWriteAccess,
 } from "@/core/billing";
 import {
+  beginImportJob,
   completeImportJob,
   createBusinessDataRecord,
-  createImportJob,
 } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
@@ -23,6 +25,90 @@ import {
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, fail, HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
+
+type ImportOutcomeStatus = "completed" | "completed_with_errors" | "failed";
+
+type ImportOutcome = {
+  jobId: string;
+  status: ImportOutcomeStatus;
+  processedRows: number;
+  succeededRows: number;
+  failedRows: number;
+  errors: Array<{ row: number; message: string }>;
+  replayed: boolean;
+};
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return isNonNegativeInteger(value) && value > 0;
+}
+
+function isImportOutcomeStatus(value: unknown): value is ImportOutcomeStatus {
+  return value === "completed" || value === "completed_with_errors" || value === "failed";
+}
+
+function parseStoredImportOutcome(value: unknown): Omit<ImportOutcome, "replayed"> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpError(
+      409,
+      "The prior import result is unavailable for replay.",
+      "BUSINESS_DATA_IMPORT_REPLAY_UNAVAILABLE",
+    );
+  }
+
+  const stored = value as Record<string, unknown>;
+  const status = stored.status;
+  const errors = stored.errors;
+  if (
+    typeof stored.jobId !== "string" ||
+    !isImportOutcomeStatus(status) ||
+    !isNonNegativeInteger(stored.processedRows) ||
+    !isNonNegativeInteger(stored.succeededRows) ||
+    !isNonNegativeInteger(stored.failedRows) ||
+    !Array.isArray(errors) ||
+    !errors.every(
+      (entry): entry is { row: number; message: string } =>
+        Boolean(entry) &&
+        typeof entry === "object" &&
+        !Array.isArray(entry) &&
+        isPositiveInteger((entry as Record<string, unknown>).row) &&
+        typeof (entry as Record<string, unknown>).message === "string",
+    )
+  ) {
+    throw new HttpError(
+      409,
+      "The prior import result is invalid and cannot be replayed safely.",
+      "BUSINESS_DATA_IMPORT_REPLAY_INVALID",
+    );
+  }
+
+  if (
+    stored.processedRows !== stored.succeededRows + stored.failedRows ||
+    errors.length !== stored.failedRows ||
+    (status === "completed" && stored.failedRows !== 0) ||
+    (status === "completed_with_errors" &&
+      (stored.succeededRows === 0 || stored.failedRows === 0)) ||
+    (status === "failed" && stored.succeededRows !== 0)
+  ) {
+    throw new HttpError(
+      409,
+      "The prior import result is internally inconsistent and cannot be replayed safely.",
+      "BUSINESS_DATA_IMPORT_REPLAY_INVALID",
+    );
+  }
+
+  return {
+    jobId: stored.jobId,
+    status,
+    processedRows: stored.processedRows,
+    succeededRows: stored.succeededRows,
+    failedRows: stored.failedRows,
+    errors,
+  };
+}
 
 export async function POST(
   request: Request,
@@ -49,11 +135,26 @@ export async function POST(
     const envelope = businessDataImportEnvelopeSchema.parse(
       await readJson(request),
     );
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
+    const requestedIdempotencyKey = String(request.headers.get("idempotency-key") || "").trim();
+    if (!requestedIdempotencyKey || requestedIdempotencyKey.length > 200 || !/^[A-Za-z0-9._:-]{8,200}$/.test(requestedIdempotencyKey)) {
+      throw new HttpError(400, "A valid Idempotency-Key (8-200 characters) is required for imports.", "BUSINESS_DATA_IMPORT_IDEMPOTENCY_REQUIRED");
+    }
+    const importFingerprint = createHash("sha256")
+      .update(JSON.stringify({ resource, fileName: envelope.fileName || null, rows: envelope.rows }))
+      .digest("hex");
+    const meteringKey = requestedIdempotencyKey;
+    await incrementBillingUsage(session.organizationId, "api_requests_monthly", 1, {
+      idempotencyKey: `business-import:api:${resource}:${meteringKey}`,
+      source: "business-data-import",
+    });
     await incrementBillingUsage(
       session.organizationId,
       "imports_rows_monthly",
       envelope.rows.length,
+      {
+        idempotencyKey: `business-import:rows:${resource}:${meteringKey}`,
+        source: "business-data-import",
+      },
     );
 
     const parsedRows: Array<{
@@ -87,13 +188,23 @@ export async function POST(
 
     const context = businessDataContext(session);
 
-    const outcome = await tenantTransaction(
+    const outcome = await tenantTransaction<ImportOutcome>(
       context.organizationId,
       async (client) => {
-        const jobId = await createImportJob(client, context, resource, {
+        const job = await beginImportJob(client, context, resource, {
           fileName: envelope.fileName,
           totalRows: parsedRows.length,
+          idempotencyKey: requestedIdempotencyKey,
+          requestFingerprint: importFingerprint,
         });
+        if (job.replayed) {
+          if (job.status === "processing" || job.status === "pending") {
+            throw new HttpError(409, "An import with this Idempotency-Key is still in progress. Retry after it completes.", "BUSINESS_DATA_IMPORT_IN_PROGRESS");
+          }
+          const replay = parseStoredImportOutcome(job.resultPayload);
+          return { ...replay, replayed: true };
+        }
+        const jobId = job.id;
 
         const errors: Array<{ row: number; message: string }> = [];
         let succeededRows = 0;
@@ -134,22 +245,25 @@ export async function POST(
               ? "completed_with_errors"
               : "failed";
 
-        await completeImportJob(client, context, jobId, {
-          status,
-          processedRows: parsedRows.length,
-          succeededRows,
-          failedRows: errors.length,
-          errors,
-        });
-
-        return {
+        const completed: ImportOutcome = {
           jobId,
           status,
           processedRows: parsedRows.length,
           succeededRows,
           failedRows: errors.length,
           errors,
+          replayed: false,
         };
+        await completeImportJob(client, context, jobId, {
+          status,
+          processedRows: parsedRows.length,
+          succeededRows,
+          failedRows: errors.length,
+          errors,
+          resultPayload: completed,
+        });
+
+        return completed;
       },
     );
 
@@ -164,6 +278,7 @@ export async function POST(
         processedRows: outcome.processedRows,
         succeededRows: outcome.succeededRows,
         failedRows: outcome.failedRows,
+        replayed: outcome.replayed,
       },
       request,
     });
@@ -171,9 +286,11 @@ export async function POST(
     return ok(
       {
         message:
-          outcome.failedRows === 0
-            ? `${outcome.succeededRows} records imported.`
-            : `${outcome.succeededRows} records imported; ${outcome.failedRows} rows require review.`,
+          outcome.replayed
+            ? "Import retry replayed the original result; no rows were processed twice."
+            : outcome.failedRows === 0
+              ? `${outcome.succeededRows} records imported.`
+              : `${outcome.succeededRows} records imported; ${outcome.failedRows} rows require review.`,
         ...outcome,
       },
       outcome.failedRows === 0 ? 201 : 207,
