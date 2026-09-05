@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmOptions, listCrmRecords } from "@vercentlabs/api";
+import { evaluateOpportunityHealth, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 
 import CrmPipelineBoard from "@/modules/crm/components/pipeline-board";
 import { requireWorkspace } from "@/core/auth";
@@ -50,6 +50,7 @@ export default async function PipelinePage({
           probability: Number(stage.probability || 0),
           isWon: Boolean(stage.isWon),
           isLost: Boolean(stage.isLost),
+          staleAfterDays: stage.staleAfterDays == null ? null : Number(stage.staleAfterDays),
         }));
       const outcomeReasons = (options.lostReasons || []).map((reason) => ({
         id: String(reason.id),
@@ -66,6 +67,20 @@ export default async function PipelinePage({
             limit: 500,
           })
         : { rows: [], total: 0, limit: 500, offset: 0 };
+      opportunities.rows = opportunities.rows.map((row) => {
+        const health = evaluateOpportunityHealth({
+          amount: row.amount,
+          probability: row.probability,
+          expected_close_date: row.expectedCloseDate,
+          expected_revenue: row.expectedRevenue,
+          last_activity_at: row.lastActivityAt,
+          updated_at: row.updatedAt,
+          created_at: row.createdAt,
+          next_step: row.nextStep,
+          status: row.status,
+        });
+        return { ...row, warnings: health.warnings, inactiveDays: health.inactiveDays };
+      });
 
       return {
         pipelines,

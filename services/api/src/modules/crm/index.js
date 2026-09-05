@@ -4399,7 +4399,7 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const stages = await queryOptions(
-    `SELECT stage.id, stage.pipeline_id, stage.name, stage.sequence, stage.probability, stage.is_won, stage.is_lost FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} ORDER BY stage.pipeline_id, stage.sequence`,
+    `SELECT stage.id, stage.pipeline_id, stage.name, stage.sequence, stage.probability, stage.is_won, stage.is_lost, stage.stale_after_days FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id WHERE stage.organization_id = $1 AND stage.status = 'active' AND ${companyVisible("pipeline")} ORDER BY stage.pipeline_id, stage.sequence`,
     parameters,
   );
   const leadStages = await queryOptions(

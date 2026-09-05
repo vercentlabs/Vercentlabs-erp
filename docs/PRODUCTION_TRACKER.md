@@ -31,6 +31,7 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F028 Custom fields: field-level role visibility added (`visible_to_roles`), enforced on both read (redaction) and write (block).
 - F013 Calls: unused 10-table telephony/recording/transcription schema dropped per owner decision; Calls stays manual-logging only.
 - F016 Follow-ups: "My Follow-ups" rewired to the lead nurture queue per owner decision — the "gap" was a naming/wiring problem, not missing engineering (30/37 rows now PASS, biggest single jump in the pass).
+- F010 Pipeline board: stale-deal/aging data (already computed by `evaluateOpportunityHealth`) is now rendered on each card as overdue/stale badges; stage's `stale_after_days` threshold is now selected and compared.
 
 **Correction, not a fix needed:** F008 Duplicate detection's "merge is unreachable" finding was wrong (twice) — the merge workflow (backend + route + UI + confirmation) is fully built and working. Root cause: bash `**` globs silently fail to recurse into `[id]` route directories in this environment without `shopt -s globstar`; several existence checks this session used that pattern. Re-verified with the Grep tool: F009/F013/F003-reactivation/F016-reminders/F029-cancellation all hold up; F008 was the only false negative found. F008's real remaining gaps: no "dismiss" outcome distinct from override, matching rules hardcoded, no cross-object (Lead vs Contact/Account) matching, no field-conflict reconciliation on merge.
 
@@ -46,7 +47,6 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F007 Lead stages: transition graph is adjacency-based not truly directional; no dwell-SLA; no reason-code vocabulary; no live-config migration tooling.
 - F008 Duplicate detection: no dismiss action, no cross-object matching, no field-conflict reconciliation on merge (see correction above).
 - F009 Opportunities: no stakeholders/products/risks/close-plan entities.
-- F010 Pipeline board: stale-deal/aging data computed server-side but never rendered on cards.
 - F014 + F016: no confirmed reminder-notification delivery mechanism anywhere (cross-feature, worth one dedicated investigation) — re-verified with Grep tool, holds up.
 - F019 Activity timeline: fixed per-source row cap (100-200), no cursor pagination — long-lived records lose old history.
 - F021 Import/export: no dry-run, no upsert policy, no async/resumable path over 1,000 rows.

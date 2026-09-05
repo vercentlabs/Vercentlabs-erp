@@ -16,6 +16,7 @@ type Stage = {
   probability: number;
   isWon?: boolean;
   isLost?: boolean;
+  staleAfterDays?: number | null;
 };
 type OutcomeReason = {
   id: string;
@@ -33,6 +34,8 @@ type Opportunity = {
   expectedCloseDate?: string | null;
   updatedAt: string;
   status: string;
+  warnings?: string[];
+  inactiveDays?: number;
 };
 type CloseRequest = {
   opportunity: Opportunity;
@@ -53,6 +56,26 @@ function formatMoney(value: unknown, currencyCode: unknown) {
   } catch {
     return `${currency} ${Number(value || 0).toLocaleString("en-IN")}`;
   }
+}
+
+function agingBadge(row: Opportunity, stage: Stage) {
+  const inactiveDays = row.inactiveDays ?? 0;
+  const warnings = row.warnings ?? [];
+  const overdue = warnings.includes("Expected close date is overdue.");
+  const staleThreshold = stage.staleAfterDays ?? 14;
+  const stale = inactiveDays >= staleThreshold;
+  if (!overdue && !stale) return null;
+  const label = overdue
+    ? `Close date overdue · ${inactiveDays}d inactive`
+    : `Stale · ${inactiveDays}d inactive`;
+  return (
+    <span
+      className={`status-badge ${overdue ? "danger" : "warning"}`}
+      title={warnings.join(" ")}
+    >
+      {label}
+    </span>
+  );
 }
 
 function stageValue(rows: Opportunity[]) {
@@ -388,6 +411,7 @@ export default function CrmPipelineBoard({
                     key={row.id}
                   >
                     <span className="status-badge neutral">{row.code}</span>
+                    {agingBadge(row, stage)}
                     <Link href={`/crm/opportunities/${row.id}`}>
                       <strong>{row.name}</strong>
                     </Link>

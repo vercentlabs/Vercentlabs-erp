@@ -73,6 +73,22 @@ test("F010 web: approval path validates and executes with the same concurrency e
   assert.match(block, /expectedStageId: payload\.expectedStageId/);
 });
 
+test("F010 web: pipeline page computes health per opportunity and board renders stale/overdue badges", () => {
+  const page = read("apps/web/src/app/(app)/crm/pipeline/page.tsx");
+  assert.match(page, /evaluateOpportunityHealth/);
+  assert.match(page, /warnings: health\.warnings, inactiveDays: health\.inactiveDays/);
+  assert.match(page, /staleAfterDays: stage\.staleAfterDays == null \? null : Number\(stage\.staleAfterDays\)/);
+  const board = read("apps/web/src/modules/crm/components/pipeline-board.tsx");
+  assert.match(board, /function agingBadge/);
+  assert.match(board, /Expected close date is overdue\./);
+  assert.match(board, /agingBadge\(row, stage\)/);
+});
+
+test("F010 backend: pipeline stage options select stale_after_days for aging comparisons", () => {
+  const index = read("services/api/src/modules/crm/index.js");
+  assert.match(index, /stage\.stale_after_days FROM tenant\.crm_pipeline_stages stage/);
+});
+
 test("F010 documentation remains canonical and reflects verified production-ready status", () => {
   const spec = read("docs/03-modules/crm/features/F010-opportunity-pipeline.md");
   assert.match(spec, /Canonical ID: `F010`/);
