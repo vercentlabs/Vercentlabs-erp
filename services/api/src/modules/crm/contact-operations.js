@@ -398,7 +398,7 @@ export async function updateCrmContact(client, context, id, input = {}) {
     if (hasOwn(input, "status")) {
       throw new CrmError(
         409,
-        "Use the governed archive action to change contact status.",
+        "Use the governed archive or reactivate action to change contact status.",
         "CRM_CONTACT_STATUS_ACTION_REQUIRED",
       );
     }
@@ -455,6 +455,44 @@ export async function updateCrmContact(client, context, id, input = {}) {
       id,
       { contactId: id, changedFields: Object.keys(normalized) },
     );
+    return getCrmContactForCaller(client, context, id);
+  } catch (error) {
+    throw persistenceError(error);
+  }
+}
+
+export async function reactivateCrmContact(client, context, id) {
+  try {
+    assertWritableScope(context);
+    const existing = await getCrmContact(client, context, id);
+    if (existing.status !== "active") {
+      if (existing.accountId) {
+        const account = await getCrmAccount(client, context, existing.accountId);
+        if (account.status !== "active") {
+          throw new CrmError(
+            409,
+            "Reactivate the linked account before reactivating this contact.",
+            "CRM_CONTACT_ACCOUNT_ARCHIVED",
+            { errors: { accountId: ["The linked account is not active."] } },
+          );
+        }
+      }
+      await client.query(
+        `UPDATE tenant.contacts
+         SET status = 'active', archived_at = NULL,
+             updated_by = $3, updated_at = now()
+         WHERE organization_id = $1 AND id = $2`,
+        [context.organizationId, id, context.userId],
+      );
+      await queueOutboxEvent(
+        client,
+        context,
+        "crm.contacts.reactivated",
+        "contact",
+        id,
+        { contactId: id, accountId: existing.accountId },
+      );
+    }
     return getCrmContactForCaller(client, context, id);
   } catch (error) {
     throw persistenceError(error);

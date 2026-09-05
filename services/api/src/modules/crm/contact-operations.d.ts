@@ -35,3 +35,8 @@ export function archiveCrmContact(
   context: CrmContext,
   id: string,
 ): Promise<any>;
+export function reactivateCrmContact(
+  client: QueryClient,
+  context: CrmContext,
+  id: string,
+): Promise<any>;

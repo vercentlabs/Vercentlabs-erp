@@ -2,6 +2,7 @@ import {
   archiveCrmContact,
   getCrmContact,
   getCrmContactForCaller,
+  reactivateCrmContact,
   updateCrmContact,
 } from "@vercentlabs/api";
 
@@ -82,29 +83,37 @@ export async function PATCH(
     const { context } = await contextForWrite(request);
     const { id } = await route.params;
     const input = contactInput(await readJson(request));
+    const reactivate = input.action === "reactivate";
+    if ("action" in input) delete input.action;
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
         const before = await getCrmContact(client, context, id);
-        const updated = await updateCrmContact(client, context, id, input);
-        await audit({
-          organizationId: context.organizationId,
-          actorUserId: context.userId,
-          eventType: "crm.contacts.updated",
-          entityType: "contact",
-          entityId: id,
-          beforeData: auditSnapshot(before),
-          afterData: {
-            ...auditSnapshot(updated),
-            changedFields: Object.keys(input),
-          },
-          request,
-          client,
-        });
+        const updated = reactivate
+          ? await reactivateCrmContact(client, context, id)
+          : await updateCrmContact(client, context, id, input);
+        if (!reactivate || before.status !== "active") {
+          await audit({
+            organizationId: context.organizationId,
+            actorUserId: context.userId,
+            eventType: reactivate ? "crm.contacts.reactivated" : "crm.contacts.updated",
+            entityType: "contact",
+            entityId: id,
+            beforeData: auditSnapshot(before),
+            afterData: reactivate
+              ? auditSnapshot(updated)
+              : { ...auditSnapshot(updated), changedFields: Object.keys(input) },
+            request,
+            client,
+          });
+        }
         return updated;
       },
     );
-    return ok({ message: "Contact updated.", record });
+    return ok({
+      message: reactivate ? "Contact reactivated." : "Contact updated.",
+      record,
+    });
   } catch (error) {
     return crmErrorResponse(error);
   }

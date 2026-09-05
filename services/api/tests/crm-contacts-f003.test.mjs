@@ -10,6 +10,7 @@ import {
   createCrmContact,
   getCrmContactForCaller,
   listCrmContacts,
+  reactivateCrmContact,
   updateCrmContact,
 } from "../src/modules/crm/contact-operations.js";
 
@@ -137,6 +138,10 @@ function lifecycleClient({ linked = true, accountStatus = "active", accountVisib
         state = { ...state, status: "inactive", is_primary: false, archived_at: "2026-08-25T00:00:00.000Z" };
         return { rows: [] };
       }
+      if (sql.includes("UPDATE tenant.contacts") && sql.includes("status = 'active'")) {
+        state = { ...state, status: "active", archived_at: null };
+        return { rows: [] };
+      }
       if (sql.includes("UPDATE tenant.contacts") && sql.includes("designation =")) {
         state = { ...state, designation: values[2] };
         return { rows: [] };
@@ -236,6 +241,38 @@ test("F003: archive is soft and preserves Account and related-record counts", as
   assert.equal(client.calls.some((call) => /\bDELETE\b/i.test(call.sql)), false);
   const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"));
   assert.equal(outbox.values[1], "crm.contacts.archived");
+});
+
+test("F003: reactivate restores an archived Contact whose Account is still active", async () => {
+  const client = lifecycleClient();
+  await archiveCrmContact(client, context, contactId);
+  const reactivated = await reactivateCrmContact(client, context, contactId);
+  assert.equal(reactivated.status, "active");
+  assert.equal(reactivated.accountId, accountId);
+  const outbox = client.calls
+    .filter((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"))
+    .at(-1);
+  assert.equal(outbox.values[1], "crm.contacts.reactivated");
+});
+
+test("F003: reactivate on an already-active Contact is idempotent and queues no duplicate event", async () => {
+  const client = lifecycleClient();
+  const before = client.calls.length;
+  const reactivated = await reactivateCrmContact(client, context, contactId);
+  assert.equal(reactivated.status, "active");
+  const newOutboxWrites = client.calls
+    .slice(before)
+    .filter((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"));
+  assert.equal(newOutboxWrites.length, 0);
+});
+
+test("F003: reactivate is blocked while the linked Account is still archived", async () => {
+  const client = lifecycleClient({ accountStatus: "inactive" });
+  await archiveCrmContact(client, context, contactId);
+  await assert.rejects(
+    () => reactivateCrmContact(client, context, contactId),
+    (error) => error.code === "CRM_CONTACT_ACCOUNT_ARCHIVED" && error.status === 409,
+  );
 });
 
 test("F003 QA: repeated archive is idempotent at the lifecycle-event boundary", async () => {

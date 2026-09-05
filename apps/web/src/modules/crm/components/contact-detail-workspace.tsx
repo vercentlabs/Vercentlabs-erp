@@ -52,6 +52,22 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
     router.refresh();
   }
 
+  async function reactivateContact() {
+    setPending(true);
+    setMessage("");
+    const result = await requestJson(`/api/crm/contacts/${String(contact.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reactivate" }),
+    });
+    setPending(false);
+    if (!result.ok) {
+      setMessage(result.message || "The contact could not be reactivated.");
+      return;
+    }
+    router.refresh();
+  }
+
   return (
     <Record360Archetype className="crm-contact-detail">
       <Link className="crm-record-back" href="/crm/contacts">← Contacts</Link>
@@ -65,6 +81,9 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
           <span className={`status-badge ${contact.status === "active" ? "success" : "neutral"}`}>{contact.status === "active" ? "Active" : "Archived"}</span>
           {canManage && contact.status === "active" ? (
             <><button className="secondary-button" type="button" onClick={() => setEditing(true)}>Edit</button><button className="danger-button" type="button" onClick={() => setConfirming(true)}>Archive</button></>
+          ) : null}
+          {canManage && contact.status !== "active" ? (
+            <button className="primary-button" type="button" disabled={pending} onClick={() => void reactivateContact()}>{pending ? "Reactivating…" : "Reactivate"}</button>
           ) : null}
         </div>
       </header>

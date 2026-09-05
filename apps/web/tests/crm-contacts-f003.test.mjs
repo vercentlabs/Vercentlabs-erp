@@ -68,6 +68,15 @@ test("F003 web: API lifecycle is authenticated, permission guarded, scoped and a
   assert.match(recordRoute, /client,/);
 });
 
+test("F003 web: reactivate is a governed PATCH action wired end to end, not a status field edit", () => {
+  assert.match(recordRoute, /reactivateCrmContact/);
+  assert.match(recordRoute, /input\.action === "reactivate"/);
+  assert.match(recordRoute, /crm\.contacts\.reactivated/);
+  assert.match(detail, /reactivateContact/);
+  assert.match(detail, /action:\s*"reactivate"/);
+  assert.match(detail, /"Reactivate"/);
+});
+
 test("F003 web: Contact Detail prioritizes identity, channels and clickable Account relationship", () => {
   assert.match(detail, /Reachability/);
   assert.match(detail, /Company context/);

@@ -32,11 +32,11 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F013 Calls: unused 10-table telephony/recording/transcription schema dropped per owner decision; Calls stays manual-logging only.
 - F016 Follow-ups: "My Follow-ups" rewired to the lead nurture queue per owner decision — the "gap" was a naming/wiring problem, not missing engineering (30/37 rows now PASS, biggest single jump in the pass).
 - F010 Pipeline board: stale-deal/aging data (already computed by `evaluateOpportunityHealth`) is now rendered on each card as overdue/stale badges; stage's `stale_after_days` threshold is now selected and compared.
+- F003 Contacts: added `reactivateCrmContact` (mirrors `archiveCrmContact`), wired to `PATCH .../contacts/[id]` with `{action:"reactivate"}` and a "Reactivate" button on the detail page; blocks reactivation while the linked account is still archived.
 
 **Correction, not a fix needed:** F008 Duplicate detection's "merge is unreachable" finding was wrong (twice) — the merge workflow (backend + route + UI + confirmation) is fully built and working. Root cause: bash `**` globs silently fail to recurse into `[id]` route directories in this environment without `shopt -s globstar`; several existence checks this session used that pattern. Re-verified with the Grep tool: F009/F013/F003-reactivation/F016-reminders/F029-cancellation all hold up; F008 was the only false negative found. F008's real remaining gaps: no "dismiss" outcome distinct from override, matching rules hardcoded, no cross-object (Lead vs Contact/Account) matching, no field-conflict reconciliation on merge.
 
 **Missing reverse/reopen paths (same bug class, found repeatedly — fix once, apply everywhere):**
-- F003 Contacts: no reactivation path for an archived contact.
 - F009 Opportunities: no reopen path for a closed deal (code comments imply one should exist).
 - F026 Won/lost reasons: inherits F009's gap.
 
