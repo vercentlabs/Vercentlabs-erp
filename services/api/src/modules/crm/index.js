@@ -2971,6 +2971,41 @@ export async function updateCrmRecord(
     prepared.data ??= before.data;
     await validateCustomRecord(client, context, prepared, id);
   }
+  if (
+    resource === "territories" &&
+    Object.prototype.hasOwnProperty.call(prepared, "parentTerritoryId") &&
+    prepared.parentTerritoryId
+  ) {
+    // F020 CAP-001: mirrors setAccountParent's cycle guard (account-intelligence.js)
+    // — the same self-parent/ancestor-cycle problem, solved the same way, for
+    // territory hierarchy. Previously unguarded: any parent could be assigned,
+    // including one that would make the territory its own ancestor.
+    if (prepared.parentTerritoryId === id)
+      throw new CrmError(
+        409,
+        "A territory cannot be its own parent.",
+        "CRM_TERRITORY_HIERARCHY_SELF_PARENT",
+      );
+    const cycle = await client.query(
+      `WITH RECURSIVE ancestors AS (
+         SELECT territory.id, territory.parent_territory_id
+           FROM tenant.crm_territories territory
+          WHERE territory.organization_id=$1 AND territory.id=$2
+         UNION ALL
+         SELECT parent.id, parent.parent_territory_id
+           FROM tenant.crm_territories parent
+           JOIN ancestors child ON child.parent_territory_id=parent.id
+          WHERE parent.organization_id=$1
+       ) SELECT 1 FROM ancestors WHERE id=$3 LIMIT 1`,
+      [context.organizationId, prepared.parentTerritoryId, id],
+    );
+    if (cycle.rows[0])
+      throw new CrmError(
+        409,
+        "The selected parent would create a territory hierarchy cycle.",
+        "CRM_TERRITORY_HIERARCHY_CYCLE",
+      );
+  }
   await assertGenericLeadLinkedTarget(client, context, resource, {
     ...before,
     ...prepared,
