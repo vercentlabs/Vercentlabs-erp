@@ -1162,6 +1162,7 @@ const resources = Object.freeze({
       options: "options",
       defaultValue: "default_value",
       validation: "validation",
+      visibleToRoles: "visible_to_roles",
       sequence: "sequence",
       status: "status",
     },
@@ -1508,8 +1509,72 @@ function canAssignLeadOwners(context) {
   );
 }
 
-function projectCrmRecord(context, resource, record) {
-  return resource === "leads" ? projectLeadForContext(context, record) : record;
+function canViewCustomField(context, visibleToRoles) {
+  if (!Array.isArray(visibleToRoles) || !visibleToRoles.length) return true;
+  if (context.roleSlugs?.includes("organization_owner")) return true;
+  return Boolean(context.roleSlugs?.some((slug) => visibleToRoles.includes(slug)));
+}
+
+// F028 CAP-002: crm_custom_field_definitions.visible_to_roles restricts a
+// custom field (definition and stored value) to specific role slugs. This
+// redacts restricted keys from a custom-records row's `data` blob for a
+// caller whose role isn't allowlisted, mirroring the sensitive-field
+// redaction pattern already used for Leads/Contacts.
+async function restrictedCustomFieldKeys(client, context, objectDefinitionIds) {
+  const ids = [...new Set(objectDefinitionIds.filter(Boolean))];
+  if (!ids.length) return new Map();
+  const result = await client.query(
+    `SELECT object_definition_id, field_key, visible_to_roles
+       FROM tenant.crm_custom_field_definitions
+      WHERE organization_id=$1 AND object_definition_id=ANY($2::uuid[])
+        AND visible_to_roles IS NOT NULL AND array_length(visible_to_roles,1) > 0`,
+    [context.organizationId, ids],
+  );
+  const byObject = new Map();
+  for (const row of result.rows) {
+    if (canViewCustomField(context, row.visible_to_roles)) continue;
+    const keys = byObject.get(row.object_definition_id) || new Set();
+    keys.add(row.field_key);
+    byObject.set(row.object_definition_id, keys);
+  }
+  return byObject;
+}
+
+function redactCustomRecordData(record, restrictedKeys) {
+  if (!restrictedKeys || !restrictedKeys.size || !record?.data || typeof record.data !== "object")
+    return record;
+  const data = { ...record.data };
+  let removed = false;
+  for (const key of restrictedKeys) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      delete data[key];
+      removed = true;
+    }
+  }
+  return removed ? { ...record, data, restrictedFieldsHidden: true } : record;
+}
+
+async function projectCrmRecord(client, context, resource, record) {
+  if (resource === "leads") return projectLeadForContext(context, record);
+  if (resource === "custom-records" && record?.objectDefinitionId) {
+    const restricted = await restrictedCustomFieldKeys(client, context, [record.objectDefinitionId]);
+    return redactCustomRecordData(record, restricted.get(record.objectDefinitionId));
+  }
+  return record;
+}
+
+async function projectCrmRecords(client, context, resource, records) {
+  if (resource !== "custom-records") {
+    return Promise.all(records.map((record) => projectCrmRecord(client, context, resource, record)));
+  }
+  const restrictedByObject = await restrictedCustomFieldKeys(
+    client,
+    context,
+    records.map((record) => record.objectDefinitionId),
+  );
+  return records.map((record) =>
+    redactCustomRecordData(record, restrictedByObject.get(record.objectDefinitionId)),
+  );
 }
 
 function assertSensitiveLeadMutationAllowed(context, input) {
@@ -1885,8 +1950,11 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
     parameters,
   );
   return {
-    rows: result.rows.map((row) =>
-      projectCrmRecord(context, resource, camelizeRow(row)),
+    rows: await projectCrmRecords(
+      client,
+      context,
+      resource,
+      result.rows.map((row) => camelizeRow(row)),
     ),
     total,
     limit,
@@ -1963,7 +2031,7 @@ export async function getCrmRecord(client, context, resource, id) {
     parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
-  return projectCrmRecord(context, resource, camelizeRow(result.rows[0]));
+  return projectCrmRecord(client, context, resource, camelizeRow(result.rows[0]));
 }
 
 async function getLeadRecordForUpdate(client, context, id) {
@@ -2132,6 +2200,7 @@ async function validateCustomRecord(
   context,
   prepared,
   existingId = null,
+  changedDataKeys = null,
 ) {
   if (!prepared.objectDefinitionId)
     throw new CrmError(400, "Custom object definition is required.");
@@ -2149,7 +2218,7 @@ async function validateCustomRecord(
     throw new CrmError(400, "A company is required for this custom object.");
 
   const fieldsResult = await client.query(
-    `SELECT field_key, data_type, required, unique_value, options, validation FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,
+    `SELECT field_key, data_type, required, unique_value, options, validation, visible_to_roles FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,
     [context.organizationId, prepared.objectDefinitionId],
   );
   const knownFields = new Set(
@@ -2163,6 +2232,28 @@ async function validateCustomRecord(
       400,
       `Unknown custom fields: ${unknownFields.join(", ")}.`,
       "CRM_CUSTOM_FIELD_UNKNOWN",
+    );
+  // F028 CAP-002: a caller who cannot see a role-restricted field must not be
+  // able to set it either — otherwise it could be written blind and then
+  // silently redacted back to them, or worse, used to smuggle a value past a
+  // reviewer who also can't see it. Only fields the caller actually supplied
+  // are checked (changedDataKeys), not every key present in the merged
+  // before+after blob — an update that never mentions `data` at all falls
+  // back to the record's existing data verbatim and must not be blocked
+  // merely because someone else previously set a restricted field.
+  const forbiddenField = fieldsResult.rows.find(
+    (field) =>
+      (changedDataKeys
+        ? changedDataKeys.has(field.field_key)
+        : Object.prototype.hasOwnProperty.call(prepared.data, field.field_key)) &&
+      !canViewCustomField(context, field.visible_to_roles),
+  );
+  if (forbiddenField)
+    throw new CrmError(
+      403,
+      `You do not have permission to set ${forbiddenField.field_key}.`,
+      "CRM_CUSTOM_FIELD_FORBIDDEN",
+      { field: forbiddenField.field_key },
     );
 
   for (const field of fieldsResult.rows) {
@@ -2820,7 +2911,7 @@ export async function createCrmRecord(client, context, resource, input) {
       policyId: initialLeadAssignment?.policyId || null,
       reason: initialLeadAssignment?.reason || "manual:create",
     });
-  return projectCrmRecord(context, resource, created);
+  return projectCrmRecord(client, context, resource, created);
 }
 
 export async function updateCrmRecord(
@@ -2966,10 +3057,17 @@ export async function updateCrmRecord(
       await validateOpportunityRelationships(client, context, prepared, before);
   }
   if (resource === "custom-records") {
+    const callerSuppliedData = Object.prototype.hasOwnProperty.call(prepared, "data");
     prepared.objectDefinitionId ??= before.objectDefinitionId;
     prepared.companyId ??= before.companyId;
     prepared.data ??= before.data;
-    await validateCustomRecord(client, context, prepared, id);
+    await validateCustomRecord(
+      client,
+      context,
+      prepared,
+      id,
+      callerSuppliedData ? new Set(Object.keys(prepared.data)) : new Set(),
+    );
   }
   if (
     resource === "territories" &&
@@ -3087,7 +3185,7 @@ export async function updateCrmRecord(
         ? { before: opportunityOutboxSnapshot(before), after: opportunityOutboxSnapshot(updated), changedFields }
         : { before, after: updated, changedFields },
     );
-  return projectCrmRecord(context, resource, updated);
+  return projectCrmRecord(client, context, resource, updated);
 }
 
 export async function archiveCrmRecord(
