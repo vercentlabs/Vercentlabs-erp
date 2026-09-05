@@ -1,0 +1,25 @@
+# F014 Meetings — Atomic requirement trace
+
+Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows) by reading `meeting-operations.js` in full (662 lines) plus the booking/availability functions in `communications.js` (`calculateMeetingSlots`, `bookMeeting`, `getMeetingAvailability`, `rescheduleMeetingBooking`, `cancelMeetingBooking`).
+
+| ID | Verdict | Evidence |
+|---|---|---|
+| CAP-001 (schedule/book without double-booking, timezone ambiguity, context loss) | PASS | `calculateMeetingSlots` does correct interval-overlap conflict detection with configurable before/after buffers (`communications.js:526-528`); `bookMeeting` **re-validates availability at commit time under a row lock on the meeting link** (`FOR UPDATE`, `:1244`) rather than trusting the earlier slot list — this is the correct way to close the race between "list available slots" and "book one," and is as careful as the round-robin locking found in F005. All internal scheduling arithmetic operates on UTC instants (ISO 8601 `Z`-suffixed), which is the textbook-correct way to sidestep DST bugs rather than doing wall-clock arithmetic across a transition. |
+| CAP-002 (availability, **booking token expiry**, **calendar sync**, reschedule/no-show, reminders, DST, provider reconciliation, external privacy) | **PARTIAL.** Reschedule: PASS — `rescheduleMeetingBooking` is a real function. No-show: PASS — `OUTCOMES` includes `no_show` as a first-class outcome distinct from `held`/completed. DST: PASS by design (see CAP-001). External privacy: PASS — the code comment at `communications.js` (near `bookMeeting`'s end) explicitly states "Guest PII stays only in scoped booking/attendee rows," and the public booking flow only ever touches `crm_meeting_bookings`/`crm_calendar_attendees`, not the main CRM contact/lead tables. **Calendar sync is internal-only**: `crm_calendar_events` is Vercentlabs' own model (`provider='vercentlabs'` hardcoded at insert, `communications.js` near `:1291`) — no Google/Outlook/CalDAV OAuth sync was found anywhere in the module, so a rep's real external calendar isn't kept in sync, only the CRM's internal representation of the booking. **Booking-token expiry not confirmed**: the public routes use a `[token]` URL segment, but it reads as the meeting link's persistent public identifier rather than a short-lived, expiring token — did not find an `expires_at`/expiry check on it. Reminders and provider-failure-reconciliation were not confirmed either way this pass. |
+| CAP-003 (calendar providers are adapters; public tokens expose minimum data) | PARTIAL | true today only because there's no external provider to be an adapter *for*; minimum-data exposure is real (see external-privacy evidence above). |
+| FR-001/002/003 | PASS | full workflow with validation/permission/conflict states; `listCrmMeetings` follows the standard pagination pattern. |
+| US-001/US-002 | PASS | same evidence. |
+| FLOW-001/002 | PASS | `startCrmMeeting`/`completeCrmMeeting`/`cancelCrmMeeting` mirror F013's Calls state machine exactly, including the **fourth confirmed instance** of correct idempotent-replay handling (`bookMeeting`'s exact-resubmission check, `:1252-1262`, in addition to the pattern already seen in F011/F012/F013). |
+| BR-001/BR-002 | PASS | single transition path per action; booking/calendar-event rows are effectively append-only for a given booking. |
+| DATA-001/002 | PASS | `crm_meeting_links`, `crm_meeting_bookings`, `crm_calendar_events`, `crm_calendar_attendees` all exist and are used correctly. |
+| VAL-001/002 | PASS | start-time/duration/email validated; stable `CRM_MEETING_SLOT_UNAVAILABLE` and related codes. |
+| CALC-001 | PASS | slot generation and duration are computed, not stored mutable facts. |
+| UX-001/002/003 | PASS (by test evidence) | `crm-meetings-f014.test.mjs` exists both sides and passes (re-confirmed this session, including the mobile-offline-replay and responsive tests). |
+| SEC-001/002 | PASS | consistent scope/permission pattern with Calls; guest PII isolation already covered under CAP-002. |
+| AUTO-001 / APP-001 / NOTIF-001 (**reminders**) / REP-001 / AI-001 / INT-001/002 | NOT INDEPENDENTLY VERIFIED | Reminders specifically (NOTIF-001-adjacent) were not confirmed either way — worth a specific follow-up given the dossier calls it out by name. |
+| API-001/002 | PASS | route pattern consistent with the rest of the module. |
+| PERF-001 / E2E-001-002 / UAT-001-002 | GAP | standing gap class. |
+
+## Net assessment
+
+25 of 37 rows PASS, including some of the most careful concurrency-correctness engineering found in this audit (the booking race-condition close under `FOR UPDATE`). Unlike F013's "designed but entirely unbuilt" telephony gap, F014's gaps are narrower and more like normal scope boundaries: calendar sync is internal-only (no external Google/Outlook OAuth), booking-token expiry wasn't confirmed, and reminders weren't traced. Recommend a specific follow-up check on reminders and token expiry before the gap-closing pass, since both are explicitly named in the dossier and neither was confirmed either way.
