@@ -58,3 +58,10 @@ bash docs/scripts/validate_blueprint.sh
 ```
 
 No start date, finish date, deadline, duration or delivery forecast is implied.
+
+## T01 automated candidate checkpoint
+
+- T01 automated engineering/release/live-DB certification is complete at implementation commit `3569376eb9bbbed930235dda4b462b833b0d80fe`.
+- Runtime state is `T01 = CANDIDATE_COMPLETE / PENDING`.
+- Human acceptance in `docs/08-implementation-plans/T01_SHARED_PLATFORM_UAT.md` is still required before `COMPLETE / PASS`.
+- W01/W02/W03 remain dependency-blocked until T01 exit-gate status becomes `PASS`.

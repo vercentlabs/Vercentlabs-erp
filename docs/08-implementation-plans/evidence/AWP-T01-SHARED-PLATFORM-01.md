@@ -17,9 +17,16 @@ Canonical wave: `T01`
 - full `release:verify`: `PASS`
 - platform migration: `035_t01_shared_platform_completion.sql`
 - tenant migration: `075_t01_import_idempotency.sql`
-- live PostgreSQL verification: `PENDING integration acceptance`
+- live PostgreSQL verification: `PASS`
 
 ## Product/UAT boundary
 
 Human acceptance remains in `docs/08-implementation-plans/T01_SHARED_PLATFORM_UAT.md`.
 Product readiness remains separate.
+
+## Integrated candidate
+
+- integrated implementation commit: `3569376eb9bbbed930235dda4b462b833b0d80fe`
+- AWP status: `VERIFIED`
+- runtime state: `T01 = CANDIDATE_COMPLETE / PENDING`
+- human UAT: `PENDING`
