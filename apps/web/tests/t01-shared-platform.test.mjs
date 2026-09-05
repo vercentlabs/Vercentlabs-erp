@@ -121,7 +121,7 @@ const evidence = {
   SP033: () => {
     assert.ok(exists("apps/web/src/shared/components"));
     assert.ok(exists("apps/web/src/core/components"));
-    assert.match(read("docs/04-shared-platform/EXPERIENCE_KERNEL.md"), /Experience Kernel/i);
+    assert.match(read("docs/01-standards/EXPERIENCE_KERNEL_STANDARD.md"), /Experience Kernel/i);
   },
   SP034: () => {
     assert.match(read("database/platform/migrations/011_mobile_sessions.sql"), /idempotency/i);

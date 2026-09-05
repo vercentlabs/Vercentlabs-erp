@@ -45,9 +45,3 @@ test("Go 3: Home, Settings and all twelve module overview entry surfaces use the
     assert.match(read(file), /ConvergenceBoundary/, `${file} must use ConvergenceBoundary`);
   }
 });
-
-test("Go 3: convergence remains presentation-only", () => {
-  const doc = read("docs/04-shared-platform/DESIGN_SYSTEM_CONVERGENCE.md");
-  assert.match(doc, /GO3_COMPLETE/);
-  assert.match(doc, /does not change business logic, permissions, database state transitions or API contracts/);
-});

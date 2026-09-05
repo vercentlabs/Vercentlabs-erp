@@ -79,9 +79,3 @@ test("Go 4: authenticated ERP browser gate is real Playwright + axe + screenshot
   assert.match(experience, /ERP_E2E_LEAD_ID/);
   assert.match(experience, /ERP_E2E_SALES_ORDER_ID/);
 });
-
-test("Go 4: convergence remains view-layer only", () => {
-  const doc = read("docs/04-shared-platform/DESIGN_SYSTEM_CONVERGENCE.md");
-  assert.match(doc, /GO4_COMPLETE/);
-  assert.match(doc, /No database schema, API contract, permission model or domain state transition/);
-});

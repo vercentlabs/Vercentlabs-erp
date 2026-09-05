@@ -75,11 +75,13 @@ export async function PATCH(
       const command = approval.command_key ? getApprovalCommand(approval.command_key) : null;
       if (!command) throw new HttpError(409, "This request is not bound to a supported business command.");
       let commandResult: unknown = null;
+      requirePermissionFromSession(session, command.permission);
+      const payload = command.validate(approval.command_payload);
+      await setTenantContext(client, organizationId);
       if (decision.decision === "approved") {
-        requirePermissionFromSession(session, command.permission);
-        const payload = command.validate(approval.command_payload);
-        await setTenantContext(client, organizationId);
         commandResult = await command.execute({ client, session: workspaceSession }, payload);
+      } else if (command.reject) {
+        commandResult = await command.reject({ client, session: workspaceSession }, payload);
       }
       const updated = await client.query<{ status: string; version: number; decided_at: Date }>(
         `UPDATE approval_requests SET status=$1,decision_note=$2,decided_by=$3,
