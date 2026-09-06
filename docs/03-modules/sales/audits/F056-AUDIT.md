@@ -1,0 +1,16 @@
+# F056 Drop shipping — Atomic requirement trace
+
+Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows) by reading `createSalesDropShipRequest` in full (`services/api/src/modules/sales/pass1-operations.js:110-126`), its dedicated test (`services/api/tests/pass1-f015-f114-runtime.test.mjs:46`, "validates supplier through Procurement public contract before Sales insert"), and confirming via grep that `sales_drop_ship_requests` has no consumer in Procurement and no visibility anywhere in the web app outside Sales' own `pass1-operations-workspace.tsx`.
+
+| ID | Verdict | Evidence |
+|---|---|---|
+| CAP-003 (module boundary — the dossier's central concern here) | PASS, the one bright spot | `createSalesDropShipRequest` validates the referenced supplier through Procurement's own public contract *before* inserting its request row (confirmed by the dedicated test name) — this is exactly the "Sales doesn't pretend to own Procurement" boundary the dossier is centrally about, done correctly via a read-only cross-module call rather than reaching into Procurement's private tables. |
+| CAP-001 (validated request creation) | PASS | Requires `confirmed`/`on_hold` order status, validates the line belongs to the current order version, validates drop-ship quantity doesn't exceed the line's ordered quantity, and supports a caller-supplied idempotency key with replay-returns-existing semantics — better request-hygiene than F055's credit-adjustment request (no idempotency key) or F052's advance-payment record (no idempotency key at all). |
+| **CAP-001 (the rest of the lifecycle) — GAP, recorded, not fixed this pass. Same pattern as F054/F055.** | FAIL | No consumer exists anywhere: Procurement never reads `sales_drop_ship_requests`, so nothing ever converts a drop-ship request into an actual Purchase Order. There is also no Procurement-facing UI surface showing pending drop-ship requests — the only UI reference is Sales' own workspace, so even a human-mediated handoff isn't wired up. A drop-ship request, once created, is invisible to the very team that would need to act on it. |
+| FLOW-001 (REQUESTED -> SOURCING/ORDERED -> SHIPPED -> DELIVERED or FAILED/CANCELLED) | FAIL | Only the initial creation is reachable; no status progression exists. |
+| CAP-002 (split normal/drop-ship lines, customer address, PO linkage, supplier failure, cancellation, returns, invoice timing) | N/A — moot given nothing consumes the request | Same reasoning as the other request-without-consumer findings. |
+| AUTO-001 / NOTIF-001 / REP-001 / AI-001 / UX-001-003 / VAL-002 / API-001/002 / OBS-001 / E2E-001-002 / UAT-001-002 | NOT INDEPENDENTLY VERIFIED | Not traced this pass. |
+
+## Net assessment (2026-09-06)
+
+The one feature in this "request without a consumer" cluster (F045-F049, F052, F054-F056) that gets the *validation* of its cross-module boundary genuinely right — checking the supplier through Procurement's own public contract rather than assuming it exists. But the fundamental gap is identical to its siblings: nothing downstream ever acts on the request, and there isn't even a Procurement-facing surface to make a human aware one exists. Recommend folding into the same gap-closing sweep as F054/F055.
