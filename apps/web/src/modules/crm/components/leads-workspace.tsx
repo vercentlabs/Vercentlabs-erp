@@ -39,7 +39,7 @@ type LeadFilters = {
 };
 type BulkJob = {
   id: string;
-  status: "pending" | "processing" | "completed" | "dead";
+  status: "pending" | "processing" | "completed" | "dead" | "cancelled";
   progress?: {
     requested?: number;
     processed?: number;
@@ -627,6 +627,7 @@ export default function CrmLeadsWorkspace({
   const [bulkSourceId, setBulkSourceId] = useState("");
   const [bulkFollowUpAt, setBulkFollowUpAt] = useState("");
   const [bulkJob, setBulkJob] = useState<BulkJob | null>(null);
+  const [bulkJobActionPending, setBulkJobActionPending] = useState(false);
   const [kanbanPages, setKanbanPages] = useState<Record<string, number>>({});
   const [kanbanStageIndex, setKanbanStageIndex] = useState(0);
   const [dropStage, setDropStage] = useState("");
@@ -673,7 +674,7 @@ export default function CrmLeadsWorkspace({
     return () => window.clearTimeout(restoreTimer);
   }, [terminalStatus]);
   useEffect(() => {
-    if (!bulkJob?.id || ["completed", "dead"].includes(bulkJob.status)) return;
+    if (!bulkJob?.id || ["completed", "dead", "cancelled"].includes(bulkJob.status)) return;
     let stopped = false;
     const refresh = async () => {
       try {
@@ -704,6 +705,44 @@ export default function CrmLeadsWorkspace({
       window.clearInterval(timer);
     };
   }, [bulkJob?.id, bulkJob?.status, router]);
+  async function cancelBulkJob() {
+    if (!bulkJob?.id) return;
+    setBulkJobActionPending(true);
+    try {
+      const result = await requestJson<{ job?: BulkJob }>("/api/crm/leads/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel-bulk-job", jobId: bulkJob.id }),
+      });
+      if (result.ok && result.job) {
+        setBulkJob(result.job);
+        setLocalMessage("Bulk job cancelled. Leads already processed keep their changes.");
+      } else {
+        setLocalMessage(result.message || "The bulk job could not be cancelled.");
+      }
+    } finally {
+      setBulkJobActionPending(false);
+    }
+  }
+  async function retryFailedBulkJobItems() {
+    if (!bulkJob?.id) return;
+    setBulkJobActionPending(true);
+    try {
+      const result = await requestJson<{ job?: BulkJob }>("/api/crm/leads/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "retry-bulk-job", jobId: bulkJob.id }),
+      });
+      if (result.ok && result.job) {
+        setBulkJob(result.job);
+        setLocalMessage("Retrying the previously failed rows.");
+      } else {
+        setLocalMessage(result.message || "The failed rows could not be retried.");
+      }
+    } finally {
+      setBulkJobActionPending(false);
+    }
+  }
   async function refreshViews() {
     try {
       const result = await requestJson<{ views?: SavedView[] }>(
@@ -1539,12 +1578,36 @@ export default function CrmLeadsWorkspace({
                 <p className="eyebrow">Background bulk job</p>
                 <strong>{nice(bulkJob.status)} · {Number(bulkJob.progress?.percent || bulkJob.resultManifest?.percent || 0)}%</strong>
               </div>
-              {bulkJob.status === "completed" || bulkJob.status === "dead" ? (
-                <button type="button" className="link-button" onClick={() => setBulkJob(null)}>Dismiss</button>
-              ) : null}
+              <div className="crm-suite-actions">
+                {bulkJob.status === "pending" || bulkJob.status === "processing" ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={bulkJobActionPending}
+                    onClick={() => void cancelBulkJob()}
+                  >
+                    {bulkJobActionPending ? "Cancelling…" : "Cancel job"}
+                  </button>
+                ) : null}
+                {(bulkJob.status === "completed" || bulkJob.status === "dead") &&
+                Number(bulkJob.progress?.failed || bulkJob.resultManifest?.failed || 0) > 0 ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={bulkJobActionPending}
+                    onClick={() => void retryFailedBulkJobItems()}
+                  >
+                    {bulkJobActionPending ? "Retrying…" : "Retry failed rows"}
+                  </button>
+                ) : null}
+                {["completed", "dead", "cancelled"].includes(bulkJob.status) ? (
+                  <button type="button" className="link-button" onClick={() => setBulkJob(null)}>Dismiss</button>
+                ) : null}
+              </div>
             </div>
             <p>
               {Number(bulkJob.progress?.processed || bulkJob.resultManifest?.processed || 0)} of {Number(bulkJob.progress?.requested || bulkJob.resultManifest?.requested || 0)} processed · {Number(bulkJob.progress?.applied || bulkJob.resultManifest?.applied || 0)} applied · {Number(bulkJob.progress?.conflict || bulkJob.resultManifest?.conflict || 0)} conflicts.
+              {bulkJob.status === "cancelled" ? " This job was cancelled; unprocessed Leads were left unchanged." : ""}
             </p>
           </section>
         ) : null}

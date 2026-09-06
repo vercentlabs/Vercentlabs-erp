@@ -95,6 +95,18 @@ test("completeJob: can atomically persist the handler result manifest before rel
   assert.match(client.calls[0].sql, /progress = CASE WHEN \$3::jsonb IS NULL/);
 });
 
+test("completeJob: a job cancelled mid-run stays cancelled — the guard makes eventual completion a no-op", async () => {
+  const client = mockClient([
+    [
+      /UPDATE tenant\.background_jobs\s+SET status = 'completed'/,
+      () => ({ rows: [] }), // the WHERE clause's status <> 'cancelled' guard excludes it
+    ],
+  ]);
+  const result = await completeJob(client, "job-1", "worker-1");
+  assert.equal(result, null);
+  assert.match(client.calls[0].sql, /AND status <> 'cancelled'/);
+});
+
 test("extendJobLease: refreshes only a processing job still owned by this worker", async () => {
   const client = mockClient([
     [
@@ -148,4 +160,13 @@ test("failJob: dead=true forces immediate termination regardless of attempt coun
   ]);
   const result = await failJob(client, "job-1", "worker-1", { error: "invalid payload", backoffMilliseconds: 60_000, dead: true });
   assert.equal(result.status, "dead");
+});
+
+test("failJob: a job cancelled mid-run is not silently resurrected to pending/dead by a subsequent failure", async () => {
+  const client = mockClient([
+    [/UPDATE tenant\.background_jobs\s+SET status = CASE/, () => ({ rows: [] })],
+  ]);
+  const result = await failJob(client, "job-1", "worker-1", { error: "boom", backoffMilliseconds: 60_000 });
+  assert.equal(result, null);
+  assert.match(client.calls[0].sql, /AND status <> 'cancelled'/);
 });

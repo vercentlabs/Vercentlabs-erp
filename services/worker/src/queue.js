@@ -79,6 +79,11 @@ export async function claimJobs(client, organizationId, { workerId, leaseMillise
   return rows;
 }
 
+// A job cancelled mid-run (status flips to 'cancelled' out from under a
+// managed-transaction-mode handler that is still looping through batches)
+// must stay cancelled — the "status <> 'cancelled'" guard makes this a
+// harmless no-op instead of the handler's eventual completion silently
+// overwriting the user's cancellation.
 export async function completeJob(client, jobId, workerId, { resultManifest = null } = {}) {
   const { rows } = await client.query(
     `UPDATE tenant.background_jobs
@@ -86,7 +91,7 @@ export async function completeJob(client, jobId, workerId, { resultManifest = nu
             result_manifest = CASE WHEN $3::jsonb IS NULL THEN result_manifest ELSE $3::jsonb END,
             progress = CASE WHEN $3::jsonb IS NULL THEN progress ELSE $3::jsonb END,
             locked_by = NULL, locked_at = NULL, lease_expires_at = NULL
-      WHERE id = $1 AND locked_by = $2
+      WHERE id = $1 AND locked_by = $2 AND status <> 'cancelled'
       RETURNING *`,
     [jobId, workerId, resultManifest == null ? null : JSON.stringify(resultManifest)],
   );
@@ -122,7 +127,7 @@ export async function failJob(client, jobId, workerId, { error, backoffMilliseco
             last_error = $3,
             updated_at = now(),
             locked_by = NULL, locked_at = NULL, lease_expires_at = NULL
-      WHERE id = $1 AND locked_by = $2
+      WHERE id = $1 AND locked_by = $2 AND status <> 'cancelled'
       RETURNING *`,
     [jobId, workerId, String(error || "").slice(0, 4_000), String(backoffMilliseconds), dead],
   );

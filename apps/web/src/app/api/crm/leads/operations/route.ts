@@ -1,10 +1,12 @@
 import {
   LEAD_BULK_SYNC_LIMIT,
   bulkUpdateLeads,
+  cancelLeadBulkJob,
   enqueueLeadBulkUpdateJob,
   getLeadBulkJob,
   getLeadOperationsDashboard,
   previewLeadAssignment,
+  retryFailedLeadBulkJobItems,
 } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { requireCrmManage } from "@/modules/crm/api";
@@ -58,7 +60,11 @@ export async function POST(request: Request) {
                     ...input,
                     selection: { type: "explicit", ids: Array.isArray(input.ids) ? input.ids : [] },
                   })
-            : Promise.reject(new HttpError(400, "Unsupported lead operation.")),
+            : input.action === "cancel-bulk-job"
+              ? cancelLeadBulkJob(client, context, String(input.jobId || ""))
+              : input.action === "retry-bulk-job"
+                ? retryFailedLeadBulkJobItems(client, context, String(input.jobId || ""))
+                : Promise.reject(new HttpError(400, "Unsupported lead operation.")),
     );
     return ok(result);
   } catch (error) {

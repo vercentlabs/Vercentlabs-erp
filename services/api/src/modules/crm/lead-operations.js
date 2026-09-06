@@ -480,6 +480,66 @@ export async function getLeadBulkJob(client, context, jobId = null) {
   return { job: jobs[0], errors: errors.rows };
 }
 
+function bulkJobOwnershipScope(context, values) {
+  const canViewAll = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("crm.records.view_all");
+  if (canViewAll) return "";
+  values.push(context.userId);
+  return ` AND requested_by=$${values.length}`;
+}
+
+export async function cancelLeadBulkJob(client, context, jobId) {
+  if (!UUID_PATTERN.test(String(jobId)))
+    throw new LeadOperationsError(400, "Invalid Lead bulk job identifier.", "CRM_LEAD_BULK_JOB_INVALID");
+  const values = [context.organizationId, LEAD_BULK_JOB_TYPE, jobId];
+  const where = "organization_id=$1 AND job_type=$2 AND id=$3" + bulkJobOwnershipScope(context, values);
+  const result = await client.query(
+    `UPDATE tenant.background_jobs
+        SET status='cancelled', updated_at=now(), locked_by=NULL, locked_at=NULL, lease_expires_at=NULL
+      WHERE ${where} AND status IN ('pending','processing')
+      RETURNING *`,
+    values,
+  );
+  if (result.rows[0]) return bulkJobProjection(result.rows[0]);
+  // Distinguish "not found/not yours" from "already terminal" for a clearer error.
+  const existing = await client.query(`SELECT status FROM tenant.background_jobs WHERE ${where}`, values);
+  if (!existing.rows[0])
+    throw new LeadOperationsError(404, "Lead bulk job not found.", "CRM_LEAD_BULK_JOB_NOT_FOUND");
+  throw new LeadOperationsError(
+    409,
+    `This job is already ${existing.rows[0].status} and cannot be cancelled.`,
+    "CRM_LEAD_BULK_JOB_NOT_CANCELLABLE",
+  );
+}
+
+export async function retryFailedLeadBulkJobItems(client, context, jobId) {
+  if (!UUID_PATTERN.test(String(jobId)))
+    throw new LeadOperationsError(400, "Invalid Lead bulk job identifier.", "CRM_LEAD_BULK_JOB_INVALID");
+  const values = [context.organizationId, LEAD_BULK_JOB_TYPE, jobId];
+  const where = "organization_id=$1 AND job_type=$2 AND id=$3" + bulkJobOwnershipScope(context, values);
+  const jobResult = await client.query(`SELECT * FROM tenant.background_jobs WHERE ${where} FOR UPDATE`, values);
+  const job = jobResult.rows[0];
+  if (!job) throw new LeadOperationsError(404, "Lead bulk job not found.", "CRM_LEAD_BULK_JOB_NOT_FOUND");
+  if (!["completed", "dead"].includes(job.status))
+    throw new LeadOperationsError(409, "Only a finished Lead bulk job can be retried.", "CRM_LEAD_BULK_JOB_NOT_RETRYABLE");
+  const reset = await client.query(
+    `UPDATE tenant.crm_lead_bulk_job_items
+        SET status='pending', error_code=NULL, error_message=NULL, processed_at=NULL
+      WHERE organization_id=$1 AND job_id=$2 AND status='failed'
+      RETURNING id`,
+    [context.organizationId, jobId],
+  );
+  if (!reset.rows.length)
+    throw new LeadOperationsError(400, "This job has no failed rows to retry.", "CRM_LEAD_BULK_JOB_NO_FAILED_ITEMS");
+  const updated = await client.query(
+    `UPDATE tenant.background_jobs
+        SET status='pending', run_at=now(), attempts=0, last_error=NULL, completed_at=NULL, updated_at=now()
+      WHERE organization_id=$1 AND id=$2
+      RETURNING *`,
+    [context.organizationId, jobId],
+  );
+  return bulkJobProjection(updated.rows[0]);
+}
+
 export async function resolveLeadBulkExecutionContext(client, organizationId, input) {
   const userId = text(input?.requesterUserId);
   if (!UUID_PATTERN.test(userId)) return null;

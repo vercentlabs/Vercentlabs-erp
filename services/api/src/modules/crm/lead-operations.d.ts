@@ -61,6 +61,16 @@ export function getLeadBulkJob(
   context: CrmFoundationContext,
   jobId?: string | null,
 ): Promise<Record<string, unknown>>;
+export function cancelLeadBulkJob(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  jobId: string,
+): Promise<Record<string, unknown>>;
+export function retryFailedLeadBulkJobItems(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  jobId: string,
+): Promise<Record<string, unknown>>;
 export function resolveLeadBulkExecutionContext(
   client: QueryClient,
   organizationId: string,
