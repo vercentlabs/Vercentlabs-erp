@@ -12,6 +12,12 @@ import PaginationControls from "@/shared/components/pagination-controls";
 import StructuredFieldEditor from "@/shared/components/structured-field-editor";
 import type { CrmDefinition, CrmField } from "@/modules/crm";
 import { requestJson } from "@/shared/http/client-request";
+import {
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Option = {
@@ -587,125 +593,129 @@ export default function CrmResourceManager({
             {message}
           </p>
         ) : null}
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                {definition.columns.map((column) => (
-                  <th key={column.key}>{column.label}</th>
-                ))}
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={String(row.id)}>
-                  {definition.columns.map((column) => (
-                    <td
-                      key={column.key}
-                      className={
-                        column.format === "datetime"
-                          ? "crm-datetime-cell"
-                          : undefined
-                      }
-                    >
-                      {column.format === "status" ? (
-                        <span className="status-badge neutral">
-                          {label(column.key, row[column.key])}
-                        </span>
-                      ) : (
-                        label(column.key, row[column.key])
-                      )}
-                    </td>
-                  ))}
-                  <td>
-                    <div className="row-actions">
-                      {[
-                        "leads",
-                        "opportunities",
-                        "accounts",
-                        "contacts",
-                        "privacy-requests",
-                      ].includes(definition.key) ? (
-                        <Link
-                          className="link-button"
-                          href={`/crm/${definition.key}/${String(row.id)}`}
-                        >
-                          Open
-                        </Link>
-                      ) : null}
-                      {canManage &&
-                      definition.key === "activities" &&
-                      row.status !== "completed" ? (
-                        <>
-                          <button
-                            className="link-button"
-                            type="button"
-                            disabled={pending}
-                            onClick={() => void complete(String(row.id))}
-                          >
-                            Complete
-                          </button>
-                          <button
-                            className="link-button"
-                            type="button"
-                            disabled={pending}
-                            onClick={() =>
-                              void requestCompletionApproval(String(row.id))
-                            }
-                          >
-                            Request approval
-                          </button>
-                        </>
-                      ) : null}
-                      {canManage ? (
-                        <>
-                          <button
-                            className="link-button"
-                            type="button"
-                            onClick={() => setEditing(row)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="link-button danger"
-                            type="button"
-                            onClick={() => void archive(String(row.id))}
-                          >
-                            Archive
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!rows.length ? (
-                <tr>
-                  <td colSpan={definition.columns.length + 1}>
-                    <div className="empty-state">
-                      <strong>No matching records</strong>
-                      <p>
-                        {search || status !== "all"
-                          ? "Adjust the filters to find a record."
-                          : `Create the first ${definition.singular} to begin this workflow.`}
-                      </p>
-                      {canManage && !search && status === "all" ? (
-                        <button
-                          className="primary-button"
-                          type="button"
-                          onClick={() => setEditing({})}
-                        >
-                          Add {definition.singular}
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
+        {(() => {
+          const renderCell = (column: (typeof definition.columns)[number], row: Row) =>
+            column.format === "status" ? (
+              <StatusBadge tone="neutral">
+                {label(column.key, row[column.key])}
+              </StatusBadge>
+            ) : (
+              label(column.key, row[column.key])
+            );
+          const renderActions = (row: Row) => (
+            <div className="row-actions">
+              {[
+                "leads",
+                "opportunities",
+                "accounts",
+                "contacts",
+                "privacy-requests",
+              ].includes(definition.key) ? (
+                <Link
+                  className="link-button"
+                  href={`/crm/${definition.key}/${String(row.id)}`}
+                >
+                  Open
+                </Link>
               ) : null}
-            </tbody>
-          </table>
-        </div>
+              {canManage &&
+              definition.key === "activities" &&
+              row.status !== "completed" ? (
+                <>
+                  <button
+                    className="link-button"
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void complete(String(row.id))}
+                  >
+                    Complete
+                  </button>
+                  <button
+                    className="link-button"
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      void requestCompletionApproval(String(row.id))
+                    }
+                  >
+                    Request approval
+                  </button>
+                </>
+              ) : null}
+              {canManage ? (
+                <>
+                  <button
+                    className="link-button"
+                    type="button"
+                    onClick={() => setEditing(row)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="link-button danger"
+                    type="button"
+                    onClick={() => void archive(String(row.id))}
+                  >
+                    Archive
+                  </button>
+                </>
+              ) : null}
+            </div>
+          );
+          const gridColumns: DataGridColumn<Row>[] = [
+            ...definition.columns.map((column) => ({
+              id: column.key,
+              header: column.label,
+              className:
+                column.format === "datetime" ? "crm-datetime-cell" : undefined,
+              cell: (row: Row) => renderCell(column, row),
+            })),
+            {
+              id: "actions",
+              header: "Actions",
+              cell: (row: Row) => renderActions(row),
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption={`${definition.title} list`}
+              rows={rows}
+              rowKey={(row) => String(row.id)}
+              columns={gridColumns}
+              emptyState={
+                <StatePanel
+                  title="No matching records"
+                  description={
+                    search || status !== "all"
+                      ? "Adjust the filters to find a record."
+                      : `Create the first ${definition.singular} to begin this workflow.`
+                  }
+                  action={
+                    canManage && !search && status === "all" ? (
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => setEditing({})}
+                      >
+                        Add {definition.singular}
+                      </button>
+                    ) : undefined
+                  }
+                />
+              }
+              renderMobileCard={(row) => (
+                <>
+                  {definition.columns.map((column) => (
+                    <p key={column.key}>
+                      <strong>{column.label}:</strong> {renderCell(column, row)}
+                    </p>
+                  ))}
+                  {renderActions(row)}
+                </>
+              )}
+            />
+          );
+        })()}
         <PaginationControls
           page={page}
           pageSize={pageSize}

@@ -47,6 +47,14 @@ const ROUTES: RepresentativeRoute[] = [
     resolvePath: () =>
       `/sales/orders/${encodeURIComponent(requiredFixture("ERP_E2E_SALES_ORDER_ID"))}`,
   },
+  {
+    name: "crm-generic-resource-list",
+    resolvePath: () => "/crm/sources",
+  },
+  {
+    name: "crm-contacts",
+    resolvePath: () => "/crm/contacts",
+  },
 ];
 
 const RESPONSIVE_VIEWPORTS = [

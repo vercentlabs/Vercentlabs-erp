@@ -2,6 +2,12 @@ import Link from "next/link";
 
 import ContactAccountLookup from "@/modules/crm/components/contact-account-lookup";
 import ContactFormDrawer from "@/modules/crm/components/contact-form-drawer";
+import {
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Contact = Record<string, unknown>;
 
@@ -104,62 +110,132 @@ export default function ContactsWorkspace({
           <p>Showing {from}–{to}</p>
         </div>
 
-        {rows.length ? (
-          <>
-            <div className="table-scroll crm-contact-table-wrap">
-              <table className="data-table crm-contact-table">
-                <thead>
-                  <tr>
-                    <th>Contact</th>
-                    <th>Account</th>
-                    <th>Role</th>
-                    <th>Contact information</th>
-                    <th>Status</th>
-                    <th>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((contact) => (
-                    <tr key={String(contact.id)}>
-                      <td><Link className="crm-contact-name-link" href={`/crm/contacts/${String(contact.id)}`}>{name(contact)}</Link></td>
-                      <td>
-                        {contact.accountId ? (
-                          <span className="crm-contact-cell-stack">
-                            <Link href={`/crm/accounts/${String(contact.accountId)}`}>{String(contact.accountName)}</Link>
-                            {contact.accountStatus === "inactive" ? <small>Archived account</small> : null}
-                          </span>
-                        ) : <span className="crm-contact-muted">Standalone</span>}
-                      </td>
-                      <td>{String(contact.designation || "—")}</td>
-                      <td><span className="crm-contact-cell-stack"><span>{String(contact.email || "—")}</span><small>{String(contact.mobile || contact.phone || "")}</small></span></td>
-                      <td><span className={`status-badge ${contact.status === "active" ? "success" : "neutral"}`}>{contact.status === "active" ? "Active" : "Archived"}</span></td>
-                      <td>{date(contact.updatedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="crm-contact-cards" aria-label="Contact records">
-              {rows.map((contact) => (
-                <Link className="crm-contact-card" href={`/crm/contacts/${String(contact.id)}`} key={String(contact.id)}>
-                  <div><strong>{name(contact)}</strong><span className={`status-badge ${contact.status === "active" ? "success" : "neutral"}`}>{contact.status === "active" ? "Active" : "Archived"}</span></div>
+        {(() => {
+          const statusTone = (contact: Contact) =>
+            contact.status === "active" ? "success" : "neutral";
+          const statusLabel = (contact: Contact) =>
+            contact.status === "active" ? "Active" : "Archived";
+          const columns: DataGridColumn<Contact>[] = [
+            {
+              id: "contact",
+              header: "Contact",
+              cell: (contact) => (
+                <Link
+                  className="crm-contact-name-link"
+                  href={`/crm/contacts/${String(contact.id)}`}
+                >
+                  {name(contact)}
+                </Link>
+              ),
+            },
+            {
+              id: "account",
+              header: "Account",
+              cell: (contact) =>
+                contact.accountId ? (
+                  <span className="crm-contact-cell-stack">
+                    <Link href={`/crm/accounts/${String(contact.accountId)}`}>
+                      {String(contact.accountName)}
+                    </Link>
+                    {contact.accountStatus === "inactive" ? (
+                      <small>Archived account</small>
+                    ) : null}
+                  </span>
+                ) : (
+                  <span className="crm-contact-muted">Standalone</span>
+                ),
+            },
+            {
+              id: "role",
+              header: "Role",
+              cell: (contact) => String(contact.designation || "—"),
+            },
+            {
+              id: "contactInfo",
+              header: "Contact information",
+              cell: (contact) => (
+                <span className="crm-contact-cell-stack">
+                  <span>{String(contact.email || "—")}</span>
+                  <small>{String(contact.mobile || contact.phone || "")}</small>
+                </span>
+              ),
+            },
+            {
+              id: "status",
+              header: "Status",
+              cell: (contact) => (
+                <StatusBadge tone={statusTone(contact)}>
+                  {statusLabel(contact)}
+                </StatusBadge>
+              ),
+            },
+            {
+              id: "updated",
+              header: "Updated",
+              cell: (contact) => date(contact.updatedAt),
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption="Contact records"
+              rows={rows}
+              rowKey={(contact) => String(contact.id)}
+              columns={columns}
+              emptyState={
+                <StatePanel
+                  title={
+                    search || accountId || status !== "active"
+                      ? "No matching contacts"
+                      : "No contacts yet"
+                  }
+                  description={
+                    search || accountId || status !== "active"
+                      ? "Adjust the search or filters and try again."
+                      : "Contacts represent the people you work with at customer and prospect companies."
+                  }
+                  action={
+                    canManage && !search && !accountId && status === "active" ? (
+                      <Link className="primary-button" href="/crm/contacts?create=1">
+                        Create contact
+                      </Link>
+                    ) : undefined
+                  }
+                />
+              }
+              renderMobileCard={(contact) => (
+                <Link
+                  className="crm-contact-card"
+                  href={`/crm/contacts/${String(contact.id)}`}
+                >
+                  <div>
+                    <strong>{name(contact)}</strong>
+                    <StatusBadge tone={statusTone(contact)}>
+                      {statusLabel(contact)}
+                    </StatusBadge>
+                  </div>
                   <p>{String(contact.designation || "No job title")}</p>
                   <dl>
-                    <div><dt>Account</dt><dd>{String(contact.accountName || "Standalone")}</dd></div>
-                    <div><dt>Contact</dt><dd>{String(contact.email || contact.mobile || contact.phone || "—")}</dd></div>
+                    <div>
+                      <dt>Account</dt>
+                      <dd>{String(contact.accountName || "Standalone")}</dd>
+                    </div>
+                    <div>
+                      <dt>Contact</dt>
+                      <dd>
+                        {String(
+                          contact.email || contact.mobile || contact.phone || "—",
+                        )}
+                      </dd>
+                    </div>
                   </dl>
-                  <span className="crm-contact-card-open" aria-hidden="true">→</span>
+                  <span className="crm-contact-card-open" aria-hidden="true">
+                    →
+                  </span>
                 </Link>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="empty-state crm-contact-empty">
-            <h3>{search || accountId || status !== "active" ? "No matching contacts" : "No contacts yet"}</h3>
-            <p>{search || accountId || status !== "active" ? "Adjust the search or filters and try again." : "Contacts represent the people you work with at customer and prospect companies."}</p>
-            {canManage && !search && !accountId && status === "active" ? <Link className="primary-button" href="/crm/contacts?create=1">Create contact</Link> : null}
-          </div>
-        )}
+              )}
+            />
+          );
+        })()}
 
         {pageCount > 1 ? (
           <nav className="crm-contact-pagination" aria-label="Contact pages">

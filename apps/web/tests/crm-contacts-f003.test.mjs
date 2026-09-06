@@ -26,7 +26,8 @@ test("F003 web: canonical list, search, filters, create, detail, edit and archiv
   assert.match(workspace, /Search contacts/);
   assert.match(workspace, /All statuses/);
   assert.match(workspace, /Account filter/);
-  assert.match(workspace, /crm-contact-cards/);
+  assert.match(workspace, /EnterpriseDataGrid/);
+  assert.match(workspace, /renderMobileCard/);
   assert.match(detailPage, /getCrmContact/);
   assert.match(detail, />Edit</);
   assert.match(detail, /Archive contact/);
