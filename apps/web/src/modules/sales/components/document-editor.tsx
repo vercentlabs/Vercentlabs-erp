@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
+import { Surface } from "@/shared/design";
 
 type OptionRow = Record<string, string | number | boolean | null>;
 type Options = {
@@ -382,7 +383,7 @@ export default function SalesDocumentEditor({
 
       <div className="enterprise-document-editor sales-document-composer">
         <main className="enterprise-editor-main">
-          <section className="enterprise-editor-section">
+          <Surface as="section" className="enterprise-editor-section">
             <header className="enterprise-section-heading">
               <span>01</span>
               <div>
@@ -474,9 +475,9 @@ export default function SalesDocumentEditor({
                 </select>
               </label>
             </div>
-          </section>
+          </Surface>
 
-          <section className="enterprise-editor-section">
+          <Surface as="section" className="enterprise-editor-section">
             <header className="enterprise-section-heading">
               <span>02</span>
               <div>
@@ -585,9 +586,9 @@ export default function SalesDocumentEditor({
                 />
               </label>
             </div>
-          </section>
+          </Surface>
 
-          <section className="enterprise-editor-section">
+          <Surface as="section" className="enterprise-editor-section">
             <header className="enterprise-section-heading with-action">
               <span>03</span>
               <div>
@@ -728,9 +729,9 @@ export default function SalesDocumentEditor({
                 </article>
               ))}
             </div>
-          </section>
+          </Surface>
 
-          <section className="enterprise-editor-section">
+          <Surface as="section" className="enterprise-editor-section">
             <header className="enterprise-section-heading">
               <span>04</span>
               <div>
@@ -867,11 +868,11 @@ export default function SalesDocumentEditor({
                 />
               </label>
             </div>
-          </section>
+          </Surface>
         </main>
 
         <aside className="enterprise-editor-aside">
-          <section className="document-summary-card">
+          <Surface as="section" className="document-summary-card">
             <p className="eyebrow">Commercial summary</p>
             <h2>{mode === "quotation" ? "Quotation" : "Sales order"}</h2>
             <dl className="document-summary-list">
@@ -927,9 +928,9 @@ export default function SalesDocumentEditor({
                     : "Create sales order"}
               </button>
             </div>
-          </section>
+          </Surface>
 
-          <section className="assurance-card">
+          <Surface as="section" className="assurance-card">
             <p className="eyebrow">Governed workflow</p>
             <h3>Before creation</h3>
             <ul className="assurance-list">
@@ -938,7 +939,7 @@ export default function SalesDocumentEditor({
               <li><span>✓</span>Manual overrides retain business evidence</li>
               <li><span>✓</span>Approval policy applies after creation</li>
             </ul>
-          </section>
+          </Surface>
         </aside>
       </div>
     </div>
