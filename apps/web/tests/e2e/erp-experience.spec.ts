@@ -88,6 +88,10 @@ const ROUTES: RepresentativeRoute[] = [
     resolvePath: () => "/crm",
   },
   {
+    name: "sales-home",
+    resolvePath: () => "/sales",
+  },
+  {
     name: "sales-quotations",
     resolvePath: () => "/sales/quotations",
   },

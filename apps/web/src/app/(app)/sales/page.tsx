@@ -1,4 +1,14 @@
-import { ConvergenceBoundary } from "@/shared/design";
+import {
+  ActionLink,
+  ConvergenceBoundary,
+  MetricCard,
+  PageHeader,
+  PermissionState,
+  SectionHeader,
+  StatePanel,
+  StatusBadge,
+  Surface,
+} from "@/shared/design";
 import Link from "next/link";
 import {
   getSalesDashboard,
@@ -29,7 +39,7 @@ export default async function SalesOverviewPage() {
   if (!hasPermission(session, PERMISSIONS.salesView)) {
     return (
       <section className="panel">
-        <h1>Sales access required</h1>
+        <PermissionState title="Sales access required" />
       </section>
     );
   }
@@ -56,29 +66,19 @@ export default async function SalesOverviewPage() {
 
   return (
     <ConvergenceBoundary area="module" className="module-workbench sales-workbench">
-      <section className="module-hero">
-        <div className="module-hero-copy">
-          <span className="module-hero-icon" aria-hidden="true">
-            <AppIcon name="sales" size={22} />
-          </span>
-          <div>
-            <p className="eyebrow">Order-to-cash</p>
-            <h1>Commercial execution workspace</h1>
-            <p>
-              Build governed quotations, convert approved commitments and keep
-              fulfilment, billing and customer promises visible in one flow.
-            </p>
-          </div>
-        </div>
-        <div className="module-hero-actions">
-          <Link className="primary-button" href="/sales/quotations/new">
-            New quotation
-          </Link>
-          <Link className="secondary-button" href="/sales/orders/new">
-            New sales order
-          </Link>
-        </div>
-      </section>
+      <PageHeader
+        eyebrow="Order-to-cash"
+        title="Commercial execution workspace"
+        description="Build governed quotations, convert approved commitments and keep fulfilment, billing and customer promises visible in one flow."
+        actions={
+          <>
+            <ActionLink tone="primary" href="/sales/quotations/new">
+              New quotation
+            </ActionLink>
+            <ActionLink href="/sales/orders/new">New sales order</ActionLink>
+          </>
+        }
+      />
 
       <section className="module-metric-grid" aria-label="Sales performance">
         {[
@@ -87,7 +87,7 @@ export default async function SalesOverviewPage() {
             value: baseMoney(dashboard.confirmed_order_value),
             meta: "Approved customer commitments",
             href: "/sales/orders",
-            tone: "indigo",
+            tone: "info" as const,
             icon: "sales" as const,
           },
           {
@@ -95,7 +95,7 @@ export default async function SalesOverviewPage() {
             value: String(dashboard.active_quotations || 0),
             meta: `${String(dashboard.expiring_quotations || 0)} expire within 7 days`,
             href: "/sales/quotations",
-            tone: "cyan",
+            tone: "info" as const,
             icon: "crm" as const,
           },
           {
@@ -103,7 +103,7 @@ export default async function SalesOverviewPage() {
             value: String(dashboard.ready_to_invoice || 0),
             meta: "Orders cleared for Accounting",
             href: "/sales/orders",
-            tone: "emerald",
+            tone: "success" as const,
             icon: "accounting" as const,
           },
           {
@@ -111,22 +111,18 @@ export default async function SalesOverviewPage() {
             value: String(attentionCount),
             meta: "Expiry, approval and hold queues",
             href: "/sales/reports",
-            tone: "amber",
+            tone: "warning" as const,
             icon: "approvals" as const,
           },
         ].map((metric) => (
-          <Link
-            className={`module-metric-card tone-${metric.tone}`}
-            href={metric.href}
-            key={metric.label}
-          >
-            <span className="module-metric-icon" aria-hidden="true">
-              <AppIcon name={metric.icon} size={18} />
-            </span>
-            <span className="module-metric-label">{metric.label}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.meta}</small>
-            <span className="module-card-arrow" aria-hidden="true">→</span>
+          <Link href={metric.href} key={metric.label}>
+            <MetricCard
+              tone={metric.tone}
+              icon={<AppIcon name={metric.icon} size={18} />}
+              label={metric.label}
+              value={metric.value}
+              hint={metric.meta}
+            />
           </Link>
         ))}
       </section>
@@ -152,39 +148,43 @@ export default async function SalesOverviewPage() {
 
       <section className="attention-strip" aria-label="Sales attention queue">
         <Link href="/sales/quotations?status=all">
-          <span className="attention-dot warning" />
-          <strong>{String(dashboard.expiring_quotations || 0)}</strong>
-          <span>Quotations expiring soon</span>
+          <MetricCard
+            tone="warning"
+            label="Quotations expiring soon"
+            value={String(dashboard.expiring_quotations || 0)}
+          />
         </Link>
         <Link href="/approvals">
-          <span className="attention-dot info" />
-          <strong>{String(dashboard.pending_quote_approvals || 0)}</strong>
-          <span>Commercial approvals pending</span>
+          <MetricCard
+            tone="info"
+            label="Commercial approvals pending"
+            value={String(dashboard.pending_quote_approvals || 0)}
+          />
         </Link>
         <Link href="/sales/orders?status=on_hold">
-          <span className="attention-dot danger" />
-          <strong>{String(dashboard.orders_on_hold || 0)}</strong>
-          <span>Orders currently on hold</span>
+          <MetricCard
+            tone="danger"
+            label="Orders currently on hold"
+            value={String(dashboard.orders_on_hold || 0)}
+          />
         </Link>
         <Link href="/sales/orders">
-          <span className="attention-dot success" />
-          <strong>{String(dashboard.ready_to_invoice || 0)}</strong>
-          <span>Orders ready for invoicing</span>
+          <MetricCard
+            tone="success"
+            label="Orders ready for invoicing"
+            value={String(dashboard.ready_to_invoice || 0)}
+          />
         </Link>
       </section>
 
       <div className="module-dashboard-grid module-dashboard-grid-even">
-        <section className="panel module-panel">
-          <div className="module-section-heading">
-            <div>
-              <p className="eyebrow">Quotations</p>
-              <h2>Recent commercial proposals</h2>
-              <p>Review validity, customer and commercial value at a glance.</p>
-            </div>
-            <Link className="link-button" href="/sales/quotations">
-              View all
-            </Link>
-          </div>
+        <Surface as="section" className="panel module-panel">
+          <SectionHeader
+            eyebrow="Quotations"
+            title="Recent commercial proposals"
+            description="Review validity, customer and commercial value at a glance."
+            actions={<Link href="/sales/quotations">View all</Link>}
+          />
           <div className="document-feed">
             {data.quotations.map((row) => (
               <Link href={`/sales/quotations/${String(row.id)}`} key={String(row.id)}>
@@ -199,33 +199,31 @@ export default async function SalesOverviewPage() {
                 </span>
                 <span className="document-feed-value">
                   <strong>{documentMoney(row as SalesRow)}</strong>
-                  <small className="status-badge neutral">{String(row.lifecycle_status)}</small>
+                  <StatusBadge tone="neutral">{String(row.lifecycle_status)}</StatusBadge>
                 </span>
               </Link>
             ))}
             {!data.quotations.length ? (
-              <div className="module-empty-state compact">
-                <strong>No quotations yet</strong>
-                <p>Create a proposal from a customer opportunity or directly.</p>
-                <Link className="secondary-button" href="/sales/quotations/new">
-                  Create quotation
-                </Link>
-              </div>
+              <StatePanel
+                title="No quotations yet"
+                description="Create a proposal from a customer opportunity or directly."
+                action={
+                  <ActionLink href="/sales/quotations/new">
+                    Create quotation
+                  </ActionLink>
+                }
+              />
             ) : null}
           </div>
-        </section>
+        </Surface>
 
-        <section className="panel module-panel">
-          <div className="module-section-heading">
-            <div>
-              <p className="eyebrow">Sales orders</p>
-              <h2>Recent customer commitments</h2>
-              <p>Keep lifecycle, fulfilment and billing readiness visible.</p>
-            </div>
-            <Link className="link-button" href="/sales/orders">
-              View all
-            </Link>
-          </div>
+        <Surface as="section" className="panel module-panel">
+          <SectionHeader
+            eyebrow="Sales orders"
+            title="Recent customer commitments"
+            description="Keep lifecycle, fulfilment and billing readiness visible."
+            actions={<Link href="/sales/orders">View all</Link>}
+          />
           <div className="document-feed">
             {data.orders.map((row) => (
               <Link href={`/sales/orders/${String(row.id)}`} key={String(row.id)}>
@@ -240,31 +238,31 @@ export default async function SalesOverviewPage() {
                 </span>
                 <span className="document-feed-value">
                   <strong>{documentMoney(row as SalesRow)}</strong>
-                  <small className="status-badge neutral">{String(row.lifecycle_status)}</small>
+                  <StatusBadge tone="neutral">{String(row.lifecycle_status)}</StatusBadge>
                 </span>
               </Link>
             ))}
             {!data.orders.length ? (
-              <div className="module-empty-state compact">
-                <strong>No sales orders yet</strong>
-                <p>Convert an accepted quotation or create a governed order.</p>
-                <Link className="secondary-button" href="/sales/orders/new">
-                  Create sales order
-                </Link>
-              </div>
+              <StatePanel
+                title="No sales orders yet"
+                description="Convert an accepted quotation or create a governed order."
+                action={
+                  <ActionLink href="/sales/orders/new">
+                    Create sales order
+                  </ActionLink>
+                }
+              />
             ) : null}
           </div>
-        </section>
+        </Surface>
       </div>
 
-      <section className="panel module-panel workflow-overview-panel">
-        <div className="module-section-heading">
-          <div>
-            <p className="eyebrow">Commercial controls</p>
-            <h2>Operate with clean handoffs</h2>
-            <p>Each workspace owns one decision in the order-to-cash process.</p>
-          </div>
-        </div>
+      <Surface as="section" className="panel module-panel workflow-overview-panel">
+        <SectionHeader
+          eyebrow="Commercial controls"
+          title="Operate with clean handoffs"
+          description="Each workspace owns one decision in the order-to-cash process."
+        />
         <div className="workflow-overview-grid">
           {[
             ["Pricing & margin", "Preview server-calculated prices, discounts, tax and margin before committing.", "/sales/quotations/new", "sparkles" as const],
@@ -280,7 +278,7 @@ export default async function SalesOverviewPage() {
             </Link>
           ))}
         </div>
-      </section>
+      </Surface>
     </ConvergenceBoundary>
   );
 }
