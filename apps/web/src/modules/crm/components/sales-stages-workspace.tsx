@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
+import {
+  ActionButton,
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Pipeline = {
   id: string;
@@ -177,9 +184,9 @@ export default function SalesStagesWorkspace({
           <h1>Sales stages</h1>
           <p>Define one ordered, governed stage catalogue per pipeline. Stage defaults feed F010 movement and F011 probability without rewriting existing deals retroactively.</p>
         </div>
-        <button className="primary-button" type="button" disabled={!selectedPipeline || selectedPipeline.status !== "active"} onClick={() => openEditor(null)}>
+        <ActionButton tone="primary" type="button" disabled={!selectedPipeline || selectedPipeline.status !== "active"} onClick={() => openEditor(null)}>
           <AppIcon name="modules" size={16} /> Add stage
-        </button>
+        </ActionButton>
       </header>
 
       <section className="crm-sales-stages-toolbar" aria-label="Sales stage pipeline selection">
@@ -207,36 +214,137 @@ export default function SalesStagesWorkspace({
       {message ? <p className="notice" role="status">{message}</p> : null}
 
       {!selectedPipeline ? (
-        <section className="empty-state"><strong>No visible pipeline</strong><p>Create or select a CRM pipeline before configuring Sales Stages.</p></section>
+        <StatePanel
+          title="No visible pipeline"
+          description="Create or select a CRM pipeline before configuring Sales Stages."
+        />
       ) : (
         <>
-          <section className="crm-sales-stages-list" aria-label="Active sales stages">
-            <div className="crm-sales-stages-list__header" aria-hidden="true">
-              <span>Order</span><span>Stage</span><span>Default</span><span>Usage</span><span>Actions</span>
-            </div>
-            {activeStages.map((stage, index) => {
-              const terminal = stage.stageType !== "open";
-              const previous = activeStages[index - 1];
-              const next = activeStages[index + 1];
-              return (
-                <article key={stage.id}>
-                  <span className="crm-sales-stages-order">{String(index + 1).padStart(2, "0")}</span>
+          {(() => {
+            const columns: DataGridColumn<Stage>[] = [
+              {
+                id: "order",
+                header: "Order",
+                width: "70px",
+                cell: (stage, index) => (
+                  <span className="crm-sales-stages-order">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                ),
+              },
+              {
+                id: "stage",
+                header: "Stage",
+                cell: (stage) => (
                   <div className="crm-sales-stages-copy">
-                    <div><strong>{stage.name}</strong><span className={`status-badge ${stage.stageType === "won" ? "success" : stage.stageType === "lost" ? "danger" : "neutral"}`}>{typeLabel(stage.stageType)}</span></div>
-                    <small>{stage.code} · {stage.forecastCategory.replaceAll("_", " ")}{stage.staleAfterDays ? ` · stale after ${stage.staleAfterDays}d` : ""}</small>
+                    <div>
+                      <strong>{stage.name}</strong>
+                      <StatusBadge
+                        tone={
+                          stage.stageType === "won"
+                            ? "success"
+                            : stage.stageType === "lost"
+                              ? "danger"
+                              : "neutral"
+                        }
+                      >
+                        {typeLabel(stage.stageType)}
+                      </StatusBadge>
+                    </div>
+                    <small>
+                      {stage.code} · {stage.forecastCategory.replaceAll("_", " ")}
+                      {stage.staleAfterDays ? ` · stale after ${stage.staleAfterDays}d` : ""}
+                    </small>
                   </div>
-                  <div className="crm-sales-stages-default"><strong>{Number(stage.probability).toFixed(Number(stage.probability) % 1 ? 2 : 0)}%</strong><span>Probability</span></div>
-                  <div className="crm-sales-stages-usage"><strong>{stage.openOpportunityCount}</strong><span>open · {stage.opportunityCount} retained</span></div>
-                  <div className="crm-sales-stages-actions">
-                    <button className="icon-button" aria-label={`Move ${stage.name} earlier`} disabled={!previous || terminal !== (previous.stageType !== "open") || pending.startsWith("order:")} type="button" onClick={() => void move(stage, -1)}>↑</button>
-                    <button className="icon-button" aria-label={`Move ${stage.name} later`} disabled={!next || terminal !== (next.stageType !== "open") || pending.startsWith("order:")} type="button" onClick={() => void move(stage, 1)}>↓</button>
-                    <button className="secondary-button" type="button" onClick={() => openEditor(stage)}>Edit</button>
-                    <button className="link-button" disabled={pending === stage.id || stage.openOpportunityCount > 0} title={stage.openOpportunityCount > 0 ? "Move open Opportunities before deactivating this stage." : undefined} type="button" onClick={() => void setActive(stage, false)}>Deactivate</button>
+                ),
+              },
+              {
+                id: "default",
+                header: "Default",
+                cell: (stage) => (
+                  <div className="crm-sales-stages-default">
+                    <strong>
+                      {Number(stage.probability).toFixed(Number(stage.probability) % 1 ? 2 : 0)}%
+                    </strong>
+                    <span>Probability</span>
                   </div>
-                </article>
-              );
-            })}
-          </section>
+                ),
+              },
+              {
+                id: "usage",
+                header: "Usage",
+                cell: (stage) => (
+                  <div className="crm-sales-stages-usage">
+                    <strong>{stage.openOpportunityCount}</strong>
+                    <span>open · {stage.opportunityCount} retained</span>
+                  </div>
+                ),
+              },
+              {
+                id: "actions",
+                header: "Actions",
+                cell: (stage, index) => {
+                  const terminal = stage.stageType !== "open";
+                  const previous = activeStages[index - 1];
+                  const next = activeStages[index + 1];
+                  return (
+                    <div className="crm-sales-stages-actions">
+                      <button
+                        className="icon-button"
+                        aria-label={`Move ${stage.name} earlier`}
+                        disabled={
+                          !previous ||
+                          terminal !== (previous.stageType !== "open") ||
+                          pending.startsWith("order:")
+                        }
+                        type="button"
+                        onClick={() => void move(stage, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="icon-button"
+                        aria-label={`Move ${stage.name} later`}
+                        disabled={
+                          !next ||
+                          terminal !== (next.stageType !== "open") ||
+                          pending.startsWith("order:")
+                        }
+                        type="button"
+                        onClick={() => void move(stage, 1)}
+                      >
+                        ↓
+                      </button>
+                      <ActionButton type="button" onClick={() => openEditor(stage)}>
+                        Edit
+                      </ActionButton>
+                      <ActionButton
+                        tone="quiet"
+                        disabled={pending === stage.id || stage.openOpportunityCount > 0}
+                        title={
+                          stage.openOpportunityCount > 0
+                            ? "Move open Opportunities before deactivating this stage."
+                            : undefined
+                        }
+                        type="button"
+                        onClick={() => void setActive(stage, false)}
+                      >
+                        Deactivate
+                      </ActionButton>
+                    </div>
+                  );
+                },
+              },
+            ];
+            return (
+              <EnterpriseDataGrid
+                caption="Active sales stages"
+                rows={activeStages}
+                rowKey={(stage) => stage.id}
+                columns={columns}
+              />
+            );
+          })()}
 
           {inactiveStages.length ? (
             <section className="crm-sales-stages-inactive">
@@ -244,7 +352,7 @@ export default function SalesStagesWorkspace({
               {inactiveStages.map((stage) => (
                 <article key={stage.id}>
                   <div><strong>{stage.name}</strong><span>{typeLabel(stage.stageType)} · {stage.code} · {stage.opportunityCount} retained Opportunity(s)</span></div>
-                  <button className="secondary-button" disabled={pending === stage.id || selectedPipeline.status !== "active"} type="button" onClick={() => void setActive(stage, true)}>Reactivate</button>
+                  <ActionButton disabled={pending === stage.id || selectedPipeline.status !== "active"} type="button" onClick={() => void setActive(stage, true)}>Reactivate</ActionButton>
                 </article>
               ))}
             </section>
@@ -263,7 +371,7 @@ export default function SalesStagesWorkspace({
                 <span>{entry.action.replaceAll("_", " ")} · {entry.changedByName || "System"}</span>
                 <time dateTime={entry.changedAt}>{new Date(entry.changedAt).toLocaleString()}</time>
               </article>
-            )) : <p className="empty-state">No F012 stage-configuration history yet.</p>}
+            )) : <StatePanel title="No F012 stage-configuration history yet." />}
           </section>
         </>
       )}
@@ -283,8 +391,8 @@ export default function SalesStagesWorkspace({
           <label><span>Stale after days</span><input min={1} max={365} name="staleAfterDays" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.staleAfterDays ?? ""} /><small>Optional, 1–365 days. Terminal stages never become stale.</small></label>
           {editing && editing.opportunityCount > 0 ? <p className="crm-sales-stages-form-warning">This stage has retained Opportunity history. Its type cannot change between Open, Won and Lost.</p> : null}
           <footer>
-            <button className="secondary-button" type="button" onClick={() => setEditing(undefined)}>Cancel</button>
-            <button className="primary-button" disabled={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</button>
+            <ActionButton type="button" onClick={() => setEditing(undefined)}>Cancel</ActionButton>
+            <ActionButton tone="primary" busy={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</ActionButton>
           </footer>
         </form>
       </dialog>
