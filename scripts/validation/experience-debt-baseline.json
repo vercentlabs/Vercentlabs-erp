@@ -291,7 +291,6 @@
     "apps/web/src/modules/crm/components/leads-workspace.tsx": 1,
     "apps/web/src/modules/procurement/components/pass1-operations-workspace.tsx": 1,
     "apps/web/src/modules/procurement/components/procurement-workspace.tsx": 2,
-    "apps/web/src/modules/sales/components/pass1-operations-workspace.tsx": 1,
     "apps/web/src/modules/stock/components/availability-workspace.tsx": 1,
     "apps/web/src/modules/stock/components/operations-workspace.tsx": 2
   },

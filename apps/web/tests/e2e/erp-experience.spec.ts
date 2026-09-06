@@ -75,6 +75,10 @@ const ROUTES: RepresentativeRoute[] = [
     name: "sales-reports",
     resolvePath: () => "/sales/reports",
   },
+  {
+    name: "sales-operations",
+    resolvePath: () => "/sales/operations",
+  },
 ];
 
 const RESPONSIVE_VIEWPORTS = [

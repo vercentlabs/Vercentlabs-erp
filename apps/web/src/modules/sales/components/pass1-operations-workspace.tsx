@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  EnterpriseDataGrid,
+  StatePanel,
+  type DataGridColumn,
+} from "@/shared/design";
+
 type Row = Record<string, unknown>;
 type Options = {
   orders: Row[];
@@ -351,21 +357,48 @@ export default function SalesPass1OperationsWorkspace() {
             ))}
           </select>
         </div>
-        <div className="table-panel">
-          <table>
-            <thead><tr><th>Reference</th><th>Status</th><th>Amount / quantity</th><th>Created</th></tr></thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={String(row.id)}>
-                  <td><code>{String(row.payment_reference || row.name || row.sales_order_id || row.id)}</code></td>
-                  <td>{String(row.status || row.basis || "")}</td>
-                  <td>{String(row.amount || row.commission_amount || row.quantity || row.rate_percent || "")}</td>
-                  <td>{String(row.created_at || "")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {(() => {
+          const columns: DataGridColumn<Row>[] = [
+            {
+              id: "reference",
+              header: "Reference",
+              cell: (row) => (
+                <code>
+                  {String(
+                    row.payment_reference || row.name || row.sales_order_id || row.id,
+                  )}
+                </code>
+              ),
+            },
+            {
+              id: "status",
+              header: "Status",
+              cell: (row) => String(row.status || row.basis || ""),
+            },
+            {
+              id: "amount",
+              header: "Amount / quantity",
+              cell: (row) =>
+                String(
+                  row.amount || row.commission_amount || row.quantity || row.rate_percent || "",
+                ),
+            },
+            {
+              id: "created",
+              header: "Created",
+              cell: (row) => String(row.created_at || ""),
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption="Operational register"
+              rows={rows}
+              rowKey={(row) => String(row.id)}
+              columns={columns}
+              emptyState={<StatePanel title="No records yet" />}
+            />
+          );
+        })()}
       </section>
     </div>
   );
