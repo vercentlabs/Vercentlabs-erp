@@ -2831,10 +2831,12 @@ export async function completeFulfillmentRequest(
     throw new SalesError(400, "At least one fulfilled line is required.");
   for (const [index, lineInput] of input.lines.entries()) {
     const lineId = uuid(lineInput.salesOrderLineId, `Line ${index + 1}`);
-    const fulfilled = positiveAmount(
-      lineInput.fulfilledQuantity,
-      `Line ${index + 1} fulfilled quantity`,
-    );
+    const fulfilled = decimal(lineInput.fulfilledQuantity);
+    if (fulfilled <= 0n)
+      throw new SalesError(
+        400,
+        `Line ${index + 1} fulfilled quantity must be greater than zero.`,
+      );
     const line = (
       await client.query(
         `SELECT progress.*,line.quantity,line.sales_order_version_id

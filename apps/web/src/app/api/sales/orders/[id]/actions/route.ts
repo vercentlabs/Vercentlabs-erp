@@ -3,7 +3,7 @@ import {
   amendSalesOrder,
   cancelSalesOrderWithCrmSync,
   closeSalesOrder,
-  completeFulfillmentRequest,
+  completeFulfillmentRequestWithStockMovement,
   confirmSalesOrderWithCrmSync,
   createFulfillmentRequest,
   createInvoiceRequest,
@@ -15,6 +15,7 @@ import {
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { rethrowSalesError } from "@/modules/sales";
+import { stockContext } from "@/modules/stock";
 import { salesActionSchema } from "@/modules/sales/validation";
 import { salesSession, tenantTransaction } from "@/modules/sales/server";
 
@@ -58,9 +59,10 @@ export async function POST(
         else if (input.action === "complete_fulfillment") {
           if (!input.requestId)
             throw new HttpError(400, "Fulfilment request is required.");
-          value = await completeFulfillmentRequest(
+          value = await completeFulfillmentRequestWithStockMovement(
             client,
             context,
+            stockContext(session),
             input.requestId,
             {
               lines: input.fulfillmentLines,
