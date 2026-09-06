@@ -52,6 +52,27 @@ const OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
   contracts: "Agreements",
   assets: "Fixed assets",
   new: "New",
+  // CRM setup hub (apps/web/src/app/(app)/crm/settings/page.tsx): these
+  // resource segments are reachable only through that hub's cards, not the
+  // primary nav registry, so they were rendering as raw lowercase-with-
+  // hyphens breadcrumb text. Labels copied verbatim from that page's
+  // `groups` array.
+  sources: "Lead sources",
+  "lead-lifecycle": "Lead lifecycle",
+  "assignment-rules": "Assignment rules",
+  "scoring-rules": "Lead scoring",
+  "qualification-criteria": "Qualification criteria",
+  pipelines: "Pipelines",
+  stages: "Sales stages",
+  "lost-reasons": "Won / lost reasons",
+  "sales-teams": "Sales teams",
+  "sales-team-members": "Team members",
+  territories: "Territories",
+  "territory-assignments": "Territory assignments",
+  tags: "Tags",
+  "custom-object-definitions": "Custom objects",
+  "custom-field-definitions": "Custom fields",
+  "custom-records": "Custom records",
 });
 
 export const BREADCRUMB_LABELS: Readonly<Record<string, string>> = Object.freeze({
