@@ -6,6 +6,9 @@ import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { CRM_REPORT_KEYS } from "@/modules/crm/scope";
+import { EnterpriseDataGrid, StatePanel, type DataGridColumn } from "@/shared/design";
+
+type ReportRow = Record<string, unknown>;
 
 export const metadata = { title: "CRM reports" };
 export const dynamic = "force-dynamic";
@@ -78,27 +81,29 @@ export default async function CrmReportsPage() {
                   </a>
                 ) : null}
               </div>
-              {rows.length ? (
-                <div className="table-scroll">
-                  <table className="data-table">
-                    <thead>
-                      <tr>{columns.map((column) => <th key={column}>{title(column)}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row, index) => (
-                        <tr key={index}>
-                          {columns.map((column) => <td key={column}>{displayValue(row[column])}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty-state crm-report-empty-state">
-                  <strong>No report data yet</strong>
-                  <p>This report populates automatically from scoped CRM activity.</p>
-                </div>
-              )}
+              {(() => {
+                const gridColumns: DataGridColumn<ReportRow>[] = columns.map(
+                  (column) => ({
+                    id: column,
+                    header: title(column),
+                    cell: (row) => displayValue(row[column]),
+                  }),
+                );
+                return (
+                  <EnterpriseDataGrid
+                    caption={reportTitle}
+                    rows={rows}
+                    rowKey={(row, index) => String(row.id ?? index)}
+                    columns={gridColumns}
+                    emptyState={
+                      <StatePanel
+                        title="No report data yet"
+                        description="This report populates automatically from scoped CRM activity."
+                      />
+                    }
+                  />
+                );
+              })()}
             </section>
           );
         })}
