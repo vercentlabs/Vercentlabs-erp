@@ -2171,22 +2171,50 @@ export async function getSalesReport(client, context, key) {
     "margin",
   ]);
   if (!allowed.has(key)) throw new SalesError(404, "Unknown Sales report.");
+  // SECURITY: sales_quotations/sales_orders both carry a NOT NULL company_id,
+  // so leaving these org-only (as they were) let a user restricted to one
+  // company see every other company's quotations/orders/margins in reports -
+  // same cross-company leak class fixed in getSalesOptions above, and the
+  // same fail-closed semantics when there's no active company.
+  const companyScoped = !context.allowAllCompanies;
+  const companyId = companyScoped ? context.activeCompanyId || null : null;
+  const companyClause = (column) =>
+    companyScoped ? (companyId ? ` AND ${column}=$2` : " AND false") : "";
+  const params =
+    companyScoped && companyId
+      ? [context.organizationId, companyId]
+      : [context.organizationId];
   const queries = {
-    "quotation-conversion": `SELECT date_trunc('month',created_at) AS period,count(*) AS quotations,count(*) FILTER (WHERE lifecycle_status IN ('accepted','converted')) AS accepted FROM tenant.sales_quotations WHERE organization_id=$1 GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,
-    "order-intake": `SELECT date_trunc('month',sales_order.order_date) AS period,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,
-    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
-    "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,
-    "active-holds": `SELECT hold.id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1 AND hold.status='active' ORDER BY hold.placed_at`,
-    fulfillment: `SELECT sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,
-    "billing-readiness": `SELECT sales_order_number,billing_status,payment_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status IN ('ready','partially_invoiced','blocked') ORDER BY updated_at DESC`,
-    "customer-performance": `SELECT version.customer_snapshot->>'displayName' AS customer,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY base_total DESC NULLS LAST LIMIT 100`,
-    margin: `SELECT sales_order.sales_order_number,version.customer_snapshot->>'displayName' AS customer,version.base_currency_total,version.cost_total,version.margin_amount,version.margin_percent FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 ORDER BY sales_order.order_date DESC LIMIT 500`,
+    "quotation-conversion": `SELECT date_trunc('month',created_at) AS period,count(*) AS quotations,count(*) FILTER (WHERE lifecycle_status IN ('accepted','converted')) AS accepted FROM tenant.sales_quotations WHERE organization_id=$1${companyClause("company_id")} GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,
+    "order-intake": `SELECT date_trunc('month',sales_order.order_date) AS period,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyClause("sales_order.company_id")} AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,
+    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${companyClause("quotation.company_id")} AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
+    "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1${companyClause("company_id")} AND approval_status='pending' ORDER BY updated_at`,
+    "active-holds": `SELECT hold.id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1${companyClause("sales_order.company_id")} AND hold.status='active' ORDER BY hold.placed_at`,
+    fulfillment: `SELECT sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1${companyClause("company_id")} AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,
+    "billing-readiness": `SELECT sales_order_number,billing_status,payment_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1${companyClause("company_id")} AND billing_status IN ('ready','partially_invoiced','blocked') ORDER BY updated_at DESC`,
+    "customer-performance": `SELECT version.customer_snapshot->>'displayName' AS customer,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyClause("sales_order.company_id")} AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY base_total DESC NULLS LAST LIMIT 100`,
+    margin: `SELECT sales_order.sales_order_number,version.customer_snapshot->>'displayName' AS customer,version.base_currency_total,version.cost_total,version.margin_amount,version.margin_percent FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyClause("sales_order.company_id")} ORDER BY sales_order.order_date DESC LIMIT 500`,
   };
-  return (await client.query(queries[key], [context.organizationId])).rows;
+  return (await client.query(queries[key], params)).rows;
 }
 
 export async function getSalesOptions(client, context, opportunityId = null) {
   requirePermission(context, "sales.view");
+  // SECURITY: every one of these is an org-wide picker/lookup consumed while
+  // creating or editing a quotation/order, so an unscoped query here leaks
+  // every OTHER company's customers, contacts, addresses, items, warehouses
+  // and CRM opportunities to a user restricted to one company - the same
+  // company/branch boundary CRM's own getCrmOptions enforces via its
+  // companyVisible() predicate. allowAllCompanies bypasses the filter
+  // entirely (org owners/admins); otherwise a row is visible only if it has
+  // no company_id (shared) or matches the caller's active company - and if
+  // the caller has no active company at all, nothing company-scoped is
+  // visible (fail closed), matching CRM's own semantics exactly.
+  const companyScoped = !context.allowAllCompanies;
+  const companyId = companyScoped ? context.activeCompanyId || null : null;
+  const companyClause = (column = "company_id") =>
+    companyScoped ? (companyId ? ` AND (${column} IS NULL OR ${column}=$2)` : " AND false") : "";
+  const companyParams = companyScoped && companyId ? [companyId] : [];
   const [
     companies,
     branches,
@@ -2211,28 +2239,34 @@ export async function getSalesOptions(client, context, opportunityId = null) {
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY display_name`,
-      [context.organizationId],
+      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both')${companyClause()} ORDER BY display_name`,
+      [context.organizationId, ...companyParams],
     ),
     client.query(
-      `SELECT id,party_id,first_name,last_name,email,mobile,is_primary FROM tenant.contacts WHERE organization_id=$1 AND status='active' ORDER BY is_primary DESC,first_name`,
-      [context.organizationId],
+      `SELECT contact.id,contact.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,contact.is_primary
+         FROM tenant.contacts contact
+         JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
+        WHERE contact.organization_id=$1 AND contact.status='active'${companyClause("party.company_id")} ORDER BY contact.is_primary DESC,contact.first_name`,
+      [context.organizationId, ...companyParams],
     ),
     client.query(
-      `SELECT id,party_id,address_type,line1,city,state,state_code,postal_code,is_primary FROM tenant.addresses WHERE organization_id=$1 AND status='active' ORDER BY is_primary DESC,city`,
-      [context.organizationId],
+      `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.is_primary
+         FROM tenant.addresses address
+         JOIN tenant.business_parties party ON party.organization_id=address.organization_id AND party.id=address.party_id
+        WHERE address.organization_id=$1 AND address.status='active'${companyClause("party.company_id")} ORDER BY address.is_primary DESC,address.city`,
+      [context.organizationId, ...companyParams],
     ),
     client.query(
-      `SELECT id,company_id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name`,
-      [context.organizationId],
+      `SELECT id,company_id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name`,
+      [context.organizationId, ...companyParams],
     ),
     client.query(
       `SELECT id,code,name,decimal_places FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY category,name`,
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' ORDER BY name`,
-      [context.organizationId],
+      `SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name`,
+      [context.organizationId, ...companyParams],
     ),
     client.query(
       `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' ORDER BY name`,
@@ -2251,10 +2285,10 @@ export async function getSalesOptions(client, context, opportunityId = null) {
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,branch_id,party_id,contact_id,owner_user_id,name,amount,currency_code,expected_close_date FROM tenant.crm_opportunities WHERE organization_id=$1 AND status='open' ${opportunityId ? "AND id=$2" : ""} ORDER BY updated_at DESC LIMIT 200`,
+      `SELECT id,company_id,branch_id,party_id,contact_id,owner_user_id,name,amount,currency_code,expected_close_date FROM tenant.crm_opportunities WHERE organization_id=$1 AND status='open'${companyClause()}${opportunityId ? ` AND id=$${2 + companyParams.length}` : ""} ORDER BY updated_at DESC LIMIT 200`,
       opportunityId
-        ? [context.organizationId, opportunityId]
-        : [context.organizationId],
+        ? [context.organizationId, ...companyParams, opportunityId]
+        : [context.organizationId, ...companyParams],
     ),
   ]);
   let opportunityItems = [];
@@ -2265,22 +2299,29 @@ export async function getSalesOptions(client, context, opportunityId = null) {
         [context.organizationId, opportunityId],
       )
     ).rows;
-  return {
-    companies: companies.rows,
-    branches: branches.rows,
-    parties: parties.rows,
-    contacts: contacts.rows,
-    addresses: addresses.rows,
-    items: items.rows,
-    uoms: uoms.rows,
-    warehouses: warehouses.rows,
-    priceLists: priceLists.rows,
-    paymentTerms: paymentTerms.rows,
-    currencies: currencies.rows,
-    users: users.rows,
-    opportunities: opportunities.rows,
-    opportunityItems,
-  };
+  // SECURITY: item.standard_cost is otherwise gated everywhere (redactMargin
+  // on quotation/order reads, sales.margin.view on the margin report) - the
+  // options picker used while building a NEW document must not be the one
+  // path that leaks it to any sales.view user regardless of that permission.
+  return redactMargin(
+    {
+      companies: companies.rows,
+      branches: branches.rows,
+      parties: parties.rows,
+      contacts: contacts.rows,
+      addresses: addresses.rows,
+      items: items.rows,
+      uoms: uoms.rows,
+      warehouses: warehouses.rows,
+      priceLists: priceLists.rows,
+      paymentTerms: paymentTerms.rows,
+      currencies: currencies.rows,
+      users: users.rows,
+      opportunities: opportunities.rows,
+      opportunityItems,
+    },
+    context,
+  );
 }
 
 export async function amendSalesOrder(client, context, id, input) {
