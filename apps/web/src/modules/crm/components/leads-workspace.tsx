@@ -359,7 +359,7 @@ function LeadEditPanel({
     ],
     [
       "Ownership & attribution",
-      ["companyId", "branchId", "sourceId"],
+      ["companyId", "branchId", "sourceId", "referrerName"],
     ],
     [
       "Qualification",

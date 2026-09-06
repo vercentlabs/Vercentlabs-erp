@@ -311,6 +311,9 @@ export default function CrmLeadDetailWorkspace({
   const leadSource = options.allSources?.find(
     (item) => item.id === String(lead.sourceId),
   );
+  const originalLeadSource = options.allSources?.find(
+    (item) => item.id === String(lead.originalSourceId),
+  );
   const recordStatus = String(lead.recordStatus || "active");
   const lifecycleStages = (options.leadStages || [])
     .filter((stage) => stage.code)
@@ -763,6 +766,18 @@ export default function CrmLeadDetailWorkspace({
             <span className="status-badge neutral">Inactive</span>
           ) : null}
         </div>
+        {lead.originalSourceId && String(lead.originalSourceId) !== String(lead.sourceId) ? (
+          <div>
+            <small>Original source</small>
+            <strong>{originalLeadSource?.name || "Not specified"}</strong>
+          </div>
+        ) : null}
+        {lead.referrerName ? (
+          <div>
+            <small>Referred by</small>
+            <strong>{String(lead.referrerName)}</strong>
+          </div>
+        ) : null}
         <div>
           <small>Priority</small>
           <strong>{nice(lead.priority)}</strong>

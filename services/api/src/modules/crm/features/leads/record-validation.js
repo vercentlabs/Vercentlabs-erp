@@ -16,6 +16,7 @@ const TEXT_LIMITS = Object.freeze({
   city: 160,
   state: 160,
   productInterest: 4_000,
+  referrerName: 240,
 });
 
 const NORMALIZED_TEXT_FIELDS = Object.freeze(Object.keys(TEXT_LIMITS));

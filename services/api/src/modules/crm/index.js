@@ -78,6 +78,8 @@ const resources = Object.freeze({
       website: "website",
       industry: "industry",
       sourceId: "source_id",
+      originalSourceId: "original_source_id",
+      referrerName: "referrer_name",
       campaignId: "campaign_id",
       status: "status",
       priority: "priority",
@@ -2770,6 +2772,12 @@ export async function createCrmRecord(client, context, resource, input) {
     // F007 protects the immutable `new` code as the one active initial stage;
     // administrators may rename its label but cannot deactivate or replace it.
     prepared.status = "new";
+    // F004: original_source_id is fixed at creation and never changes again
+    // (see the update-path guard below), so attribution reporting can always
+    // answer "what acquired this lead" even after source_id is corrected
+    // later. Ignore any caller-supplied value — only what the lead is
+    // actually created with counts.
+    prepared.originalSourceId = prepared.sourceId ?? null;
     const leadErrors = validateLeadRecord(prepared, { mode: "create" });
     if (leadErrors.length) {
       const first = leadErrors[0];
@@ -3036,6 +3044,15 @@ export async function updateCrmRecord(
       409,
       "Use the governed Lead lifecycle transition action.",
       "CRM_LEAD_STAGE_ACTION_REQUIRED",
+    );
+  if (
+    resource === "leads" &&
+    Object.prototype.hasOwnProperty.call(input, "originalSourceId")
+  )
+    throw new CrmError(
+      409,
+      "Original source is fixed at creation and cannot be edited.",
+      "CRM_LEAD_ORIGINAL_SOURCE_IMMUTABLE",
     );
   assertWritableScope(definition, context, input);
   assertOwnerAssignmentAllowed(definition, context, input);

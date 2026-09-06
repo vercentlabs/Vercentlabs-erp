@@ -20,8 +20,8 @@ test("F001 Wave 1 web: Kanban and detail lifecycle transitions send expectedUpda
 test("F001 Wave 1 web: owner assignment sends expectedUpdatedAt and generic editor does not mix owner mutation", () => {
   const board = read("src/modules/crm/components/leads-workspace.tsx");
   const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
-  assert.doesNotMatch(board, /\["companyId", "branchId", "sourceId", "ownerUserId"\]/);
-  assert.match(board, /\["companyId", "branchId", "sourceId"\]/);
+  assert.doesNotMatch(board, /\["companyId", "branchId", "sourceId"(, "[a-zA-Z]+")*, "ownerUserId"\]/);
+  assert.match(board, /\["companyId", "branchId", "sourceId", "referrerName"\]/);
   assert.match(detail, /ownerUserId: selected\.id,[\s\S]*expectedUpdatedAt/);
 });
 

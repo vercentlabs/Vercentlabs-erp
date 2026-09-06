@@ -54,6 +54,7 @@ const LEAD_FIELDS = [
   "mobile",
   "phone",
   "sourceId",
+  "referrerName",
   "ownerUserId",
   "priority",
   "rating",
@@ -619,6 +620,19 @@ export default function CrmLeadCreateWorkspace({
                     </option>
                   ))}
                 </select>
+                <small className="field-hint">
+                  This becomes the lead&apos;s permanent original source —
+                  it stays on record for attribution even if the source is
+                  corrected later.
+                </small>
+              </label>
+
+              <label>
+                <span>Referred by</span>
+                <input
+                  name="referrerName"
+                  placeholder="Person or partner who referred this lead"
+                />
               </label>
 
               {canAssignOwner ? (

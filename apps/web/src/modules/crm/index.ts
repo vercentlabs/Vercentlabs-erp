@@ -122,6 +122,7 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
         type: "select",
         optionsKey: "sources",
       },
+      { name: "referrerName", label: "Referred by", type: "text" },
       owner,
       {
         name: "priority",

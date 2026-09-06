@@ -80,6 +80,20 @@ test("F004 web: new selectors use active sources while historical Lead UI resolv
   assert.match(leadDetail, /Not specified/);
 });
 
+test("F004 web: original-source lineage and referrer details are wired through create, edit and detail", () => {
+  const create = read("../src/modules/crm/components/lead-create-workspace.tsx");
+  assert.match(create, /"referrerName"/);
+  assert.match(create, /name="referrerName"/);
+  assert.match(create, /permanent original source/);
+  assert.match(leadWorkspace, /"referrerName"/);
+  assert.match(leadDetail, /originalLeadSource/);
+  assert.match(leadDetail, /Original source/);
+  assert.match(leadDetail, /Referred by/);
+  assert.match(options, /originalSourceId: "original_source_id"/);
+  assert.match(options, /referrerName: "referrer_name"/);
+  assert.match(options, /CRM_LEAD_ORIGINAL_SOURCE_IMMUTABLE/);
+});
+
 test("F004 web: desktop table, tablet/mobile cards, touch targets and reduced motion are explicit", () => {
   assert.match(css, /crm-source-table/);
   assert.match(css, /@media \(max-width: 900px\)/);
