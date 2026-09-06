@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
+import { StatusBadge, type StatusTone } from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Criterion = { key: string; label: string; met: boolean; help?: string };
@@ -13,6 +14,13 @@ function label(value: unknown) {
   return String(value || "Not reviewed")
     .replaceAll("_", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function qualificationTone(state: unknown): StatusTone {
+  const value = String(state || "not_reviewed");
+  if (value === "qualified") return "success";
+  if (value === "unqualified") return "danger";
+  return "neutral";
 }
 
 function when(value: unknown) {
@@ -210,7 +218,7 @@ export default function LeadQualificationCard({
           <p className="eyebrow">Qualification</p>
           <h2 id="lead-qualification-heading">Commercial readiness</h2>
         </div>
-        <span className={`crm-qualification-state state-${state}`}>{label(state)}</span>
+        <StatusBadge tone={qualificationTone(state)}>{label(state)}</StatusBadge>
       </div>
       <div className="crm-lead-qualification-card__summary">
         <strong>{readiness.ready ? "Ready for a decision" : "Required information is missing"}</strong>

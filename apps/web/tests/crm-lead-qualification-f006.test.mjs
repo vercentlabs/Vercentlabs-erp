@@ -63,7 +63,8 @@ test("F006 list: qualification is a server-backed filter and compact visible bad
   assert.match(list, /query\.set\("qualification"/);
   assert.match(list, /All decisions/);
   assert.match(list, /row\.qualificationState/);
-  assert.match(list, /crm-qualification-state/);
+  assert.match(list, /qualificationTone/);
+  assert.match(list, /<StatusBadge/);
 });
 
 test("F006 accessibility: modal semantics, live errors, focus restoration and reduced motion exist", () => {

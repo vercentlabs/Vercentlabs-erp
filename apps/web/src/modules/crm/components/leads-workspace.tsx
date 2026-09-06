@@ -18,7 +18,12 @@ import PaginationControls from "@/shared/components/pagination-controls";
 import { requestJson } from "@/shared/http/client-request";
 import type { CrmField } from "@/modules/crm";
 import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
-import { EnterpriseDataGrid, type DataGridColumn } from "@/shared/design";
+import {
+  EnterpriseDataGrid,
+  StatusBadge,
+  type DataGridColumn,
+  type StatusTone,
+} from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Option = {
@@ -76,6 +81,19 @@ function nice(value: unknown) {
   return String(value)
     .replaceAll("_", " ")
     .replace(/^./, (c) => c.toUpperCase());
+}
+function statusTone(status: unknown): StatusTone {
+  const value = String(status || "new");
+  if (value === "new") return "info";
+  if (value === "contacted" || value === "working") return "warning";
+  if (value === "converted") return "success";
+  return "neutral";
+}
+function qualificationTone(state: unknown): StatusTone {
+  const value = String(state || "not_reviewed");
+  if (value === "qualified") return "success";
+  if (value === "unqualified") return "danger";
+  return "neutral";
 }
 function leadName(row: Row) {
   return String(
@@ -1703,14 +1721,12 @@ export default function CrmLeadsWorkspace({
                   width: "115px",
                   cell: (row) => (
                     <div className="crm-lead-stack">
-                      <span className={`crm-lead-status status-${String(row.status || "new")}`}>
+                      <StatusBadge tone={statusTone(row.status)}>
                         {nice(row.status || "new")}
-                      </span>
-                      <span
-                        className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
-                      >
+                      </StatusBadge>
+                      <StatusBadge tone={qualificationTone(row.qualificationState)}>
                         {nice(row.qualificationState || "not_reviewed")}
-                      </span>
+                      </StatusBadge>
                     </div>
                   ),
                 },
@@ -1838,14 +1854,12 @@ export default function CrmLeadsWorkspace({
                             </div>
                           </div>
                           <div className="crm-lead-stack">
-                            <span className={`crm-lead-status status-${String(row.status || "new")}`}>
+                            <StatusBadge tone={statusTone(row.status)}>
                               {nice(row.status || "new")}
-                            </span>
-                            <span
-                              className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
-                            >
+                            </StatusBadge>
+                            <StatusBadge tone={qualificationTone(row.qualificationState)}>
                               {nice(row.qualificationState || "not_reviewed")}
-                            </span>
+                            </StatusBadge>
                           </div>
                         </header>
                         <div className="crm-leads-mobile-contact">
@@ -2174,11 +2188,9 @@ export default function CrmLeadsWorkspace({
                                   <strong>Owner</strong>
                                   <span>{leadOwnerName(row)}</span>
                                 </div>
-                                <span
-                                  className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
-                                >
+                                <StatusBadge tone={qualificationTone(row.qualificationState)}>
                                   {nice(row.qualificationState || "not_reviewed")}
-                                </span>
+                                </StatusBadge>
                                 {canManage ? (
                                   <label className="crm-lead-kanban-move">
                                     <span>Move lead</span>
