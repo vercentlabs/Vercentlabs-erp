@@ -4,6 +4,14 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
+import {
+  ActionButton,
+  ActionLink,
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Option = { id: string; name: string; companyId?: string | null; partyId?: string | null; email?: string | null };
 type Options = Record<string, Option[]>;
@@ -257,31 +265,136 @@ export default function MeetingsWorkspace({
           <label><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option>{["planned", "overdue", "in_progress", "completed", "cancelled"].map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
           <button className="secondary-button" type="submit">Apply</button>
         </form>
-        {canManage ? <div className="crm-meetings-create-actions"><button className="primary-button" type="button" onClick={() => openEditor("schedule")}>Schedule Meeting</button><button className="secondary-button" type="button" onClick={() => openEditor("log")}>Log completed Meeting</button></div> : null}
+        {canManage ? <div className="crm-meetings-create-actions"><ActionButton tone="primary" type="button" onClick={() => openEditor("schedule")}>Schedule Meeting</ActionButton><ActionButton type="button" onClick={() => openEditor("log")}>Log completed Meeting</ActionButton></div> : null}
       </div>
 
       {message ? <p className="notice" role="status">{message}</p> : null}
       <div className="crm-meetings-summary"><strong>{total}</strong><span>matching Meeting{total === 1 ? "" : "s"}</span><span>Manual Meetings and public bookings share the same governed CRM work queue.</span></div>
 
-      <div className="crm-meetings-list">
-        {rows.length ? rows.map((record) => (
-          <article key={record.id} className="crm-meeting-row">
-            <div className="crm-meeting-row__main">
-              <div className="crm-meeting-row__title"><strong>{record.subject}</strong><span className={`status-badge ${record.status === "completed" ? "success" : record.status === "cancelled" ? "danger" : "neutral"}`}>{label(record.status)}</span>{record.bookingId ? <span className="status-badge neutral">Booked</span> : null}</div>
-              <p>{label(record.locationType)} · {record.location || (record.meetingUrl ? "Online" : "No location")} · {record.assignedName || "Unassigned"} · {record.attendeeCount || 0} attendee{record.attendeeCount === 1 ? "" : "s"}</p>
-              <small>{record.status === "completed" ? `Completed ${formatDate(record.actualEndedAt || record.endAt)} · ${duration(record.durationSeconds)} · ${label(record.outcomeCode)}` : `${formatDate(record.startAt)} → ${formatDate(record.endAt)} · ${label(record.priority)} priority`}</small>
-            </div>
-            <div className="crm-meeting-row__actions">
-              {record.meetingUrl ? <a className="secondary-button" href={record.meetingUrl} target="_blank" rel="noreferrer">Join</a> : null}
-              <button className="link-button" type="button" disabled={busy === `events:${record.id}`} onClick={() => void showEvents(record)}>History</button>
-              {canManage && !record.bookingId && ["planned", "overdue"].includes(record.status) ? <button className="secondary-button" type="button" onClick={() => openEditor("edit", record)}>Edit</button> : null}
-              {canManage && ["planned", "overdue"].includes(record.status) ? <button className="secondary-button" type="button" disabled={Boolean(busy)} onClick={() => void lifecycle(record, "start")}>Start</button> : null}
-              {canManage && !["completed", "cancelled"].includes(record.status) ? <button className="primary-button" type="button" disabled={Boolean(busy)} onClick={() => setCompletion(record)}>Complete</button> : null}
-              {canManage && !record.bookingId && !["completed", "cancelled"].includes(record.status) ? <button className="link-button" type="button" disabled={Boolean(busy)} onClick={() => void lifecycle(record, "cancel")}>Cancel</button> : null}
-            </div>
-          </article>
-        )) : <div className="empty-state"><strong>No Meetings match this view</strong><p>Schedule a Meeting, use a public booking link, log a completed Meeting, or change the current filters.</p></div>}
-      </div>
+      {(() => {
+        const statusTone = (record: MeetingRow) =>
+          record.status === "completed"
+            ? "success"
+            : record.status === "cancelled"
+              ? "danger"
+              : "neutral";
+        const actions = (record: MeetingRow) => (
+          <>
+            {record.meetingUrl ? (
+              <ActionLink href={record.meetingUrl} target="_blank" rel="noreferrer">
+                Join
+              </ActionLink>
+            ) : null}
+            <ActionButton
+              tone="quiet"
+              type="button"
+              disabled={busy === `events:${record.id}`}
+              onClick={() => void showEvents(record)}
+            >
+              History
+            </ActionButton>
+            {canManage && !record.bookingId && ["planned", "overdue"].includes(record.status) ? (
+              <ActionButton type="button" onClick={() => openEditor("edit", record)}>
+                Edit
+              </ActionButton>
+            ) : null}
+            {canManage && ["planned", "overdue"].includes(record.status) ? (
+              <ActionButton
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void lifecycle(record, "start")}
+              >
+                Start
+              </ActionButton>
+            ) : null}
+            {canManage && !["completed", "cancelled"].includes(record.status) ? (
+              <ActionButton
+                tone="primary"
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => setCompletion(record)}
+              >
+                Complete
+              </ActionButton>
+            ) : null}
+            {canManage && !record.bookingId && !["completed", "cancelled"].includes(record.status) ? (
+              <ActionButton
+                tone="quiet"
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void lifecycle(record, "cancel")}
+              >
+                Cancel
+              </ActionButton>
+            ) : null}
+          </>
+        );
+        const detail = (record: MeetingRow) => (
+          <>
+            <p>
+              {label(record.locationType)} ·{" "}
+              {record.location || (record.meetingUrl ? "Online" : "No location")} ·{" "}
+              {record.assignedName || "Unassigned"} · {record.attendeeCount || 0} attendee
+              {record.attendeeCount === 1 ? "" : "s"}
+            </p>
+            <small>
+              {record.status === "completed"
+                ? `Completed ${formatDate(record.actualEndedAt || record.endAt)} · ${duration(record.durationSeconds)} · ${label(record.outcomeCode)}`
+                : `${formatDate(record.startAt)} → ${formatDate(record.endAt)} · ${label(record.priority)} priority`}
+            </small>
+          </>
+        );
+        const columns: DataGridColumn<MeetingRow>[] = [
+          {
+            id: "meeting",
+            header: "Meeting",
+            cell: (record) => (
+              <>
+                <strong>{record.subject}</strong>
+                <StatusBadge tone={statusTone(record)}>{label(record.status)}</StatusBadge>
+                {record.bookingId ? <StatusBadge tone="neutral">Booked</StatusBadge> : null}
+              </>
+            ),
+          },
+          {
+            id: "detail",
+            header: "Detail",
+            cell: detail,
+          },
+          {
+            id: "actions",
+            header: "Actions",
+            cell: (record) => <div className="crm-meeting-row__actions">{actions(record)}</div>,
+          },
+        ];
+        return (
+          <EnterpriseDataGrid
+            caption="Meetings"
+            rows={rows}
+            rowKey={(record) => record.id}
+            columns={columns}
+            emptyState={
+              <StatePanel
+                title="No Meetings match this view"
+                description="Schedule a Meeting, use a public booking link, log a completed Meeting, or change the current filters."
+              />
+            }
+            renderMobileCard={(record) => (
+              <article className="crm-meeting-row">
+                <div className="crm-meeting-row__main">
+                  <div className="crm-meeting-row__title">
+                    <strong>{record.subject}</strong>
+                    <StatusBadge tone={statusTone(record)}>{label(record.status)}</StatusBadge>
+                    {record.bookingId ? <StatusBadge tone="neutral">Booked</StatusBadge> : null}
+                  </div>
+                  {detail(record)}
+                </div>
+                <div className="crm-meeting-row__actions">{actions(record)}</div>
+              </article>
+            )}
+          />
+        );
+      })()}
 
       {totalPages > 1 ? <nav className="crm-meetings-pagination" aria-label="Meeting pages"><button className="secondary-button" disabled={page <= 1} onClick={() => router.push(queryHref(page - 1))}>Previous</button><span>Page {page} of {totalPages}</span><button className="secondary-button" disabled={page >= totalPages} onClick={() => router.push(queryHref(page + 1))}>Next</button></nav> : null}
 
