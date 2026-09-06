@@ -13,7 +13,10 @@ import {
   opportunityChangedFields,
   validateOpportunityRecord,
 } from "./features/opportunities/record-validation.js";
-import { assertNoQualificationMutation } from "./lead-qualification.js";
+import {
+  READINESS_FIELD_COLUMNS,
+  assertNoQualificationMutation,
+} from "./lead-qualification.js";
 import {
   assertLeadDuplicatePolicy,
   evaluateLeadDuplicateRisk,
@@ -288,6 +291,22 @@ const resources = Object.freeze({
     statusColumn: "status",
     companyScoped: false,
     fields: { name: "name", color: "color", status: "status" },
+  },
+  "qualification-criteria": {
+    table: "tenant.crm_lead_qualification_criteria",
+    search: ["criterion_key", "label"],
+    orderBy: "sequence ASC, criterion_key ASC",
+    statusColumn: "status",
+    companyScoped: false,
+    fields: {
+      criterionKey: "criterion_key",
+      label: "label",
+      tier: "tier",
+      checkType: "check_type",
+      fieldKeys: "field_keys",
+      sequence: "sequence",
+      status: "status",
+    },
   },
   "scoring-rules": {
     table: "tenant.crm_scoring_rules",
@@ -2114,6 +2133,18 @@ function normalizeStorageInput(resource, input) {
   ) {
     prepared.entityType = String(prepared.entityType || "").trim().toLowerCase();
   }
+  // field_keys is a real Postgres text[] column, but the generic admin form
+  // only has scalar inputs — accept a comma-separated string from the UI
+  // (an actual array from a direct API caller passes through untouched).
+  if (
+    resource === "qualification-criteria" &&
+    typeof prepared.fieldKeys === "string"
+  ) {
+    prepared.fieldKeys = prepared.fieldKeys
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
+  }
   return prepared;
 }
 
@@ -2224,6 +2255,30 @@ async function assertCustomFieldRequiredRolloutSafe(
       `${missing} existing record(s) have no value for "${fieldKey}". Confirm to make it required anyway.`,
       "CRM_CUSTOM_FIELD_REQUIRED_ROLLOUT_GAP",
       { missing, fieldKey },
+    );
+}
+
+// F006: field_keys is a caller-editable text[] column, so it's validated
+// against the same fixed allowlist evaluateLeadQualificationReadiness reads
+// from — a typo becomes a clear 400 here instead of a criterion that
+// silently never matches.
+function assertQualificationCriterionFieldsValid(prepared) {
+  if (!Object.prototype.hasOwnProperty.call(prepared, "fieldKeys")) return;
+  const keys = Array.isArray(prepared.fieldKeys) ? prepared.fieldKeys : [];
+  const invalid = keys.filter((key) => !READINESS_FIELD_COLUMNS[key]);
+  if (!keys.length || invalid.length)
+    throw new CrmError(
+      400,
+      invalid.length
+        ? `Unknown Lead field key(s): ${invalid.join(", ")}.`
+        : "At least one field key is required.",
+      "CRM_QUALIFICATION_CRITERION_FIELD_INVALID",
+    );
+  if (prepared.checkType === "positive_number" && keys.length !== 1)
+    throw new CrmError(
+      400,
+      "A positive-number criterion must reference exactly one field.",
+      "CRM_QUALIFICATION_CRITERION_FIELD_COUNT_INVALID",
     );
 }
 
@@ -2820,6 +2875,8 @@ export async function createCrmRecord(client, context, resource, input) {
       Boolean(input.confirmRequiredRollout),
     );
   }
+  if (resource === "qualification-criteria")
+    assertQualificationCriterionFieldsValid(prepared);
   await assertGenericLeadLinkedTarget(client, context, resource, prepared);
   let leadDuplicateEvaluation = null;
   if (resource === "leads") {
@@ -3155,6 +3212,8 @@ export async function updateCrmRecord(
       Boolean(input.confirmRequiredRollout),
     );
   }
+  if (resource === "qualification-criteria")
+    assertQualificationCriterionFieldsValid(prepared);
   if (
     resource === "territories" &&
     Object.prototype.hasOwnProperty.call(prepared, "parentTerritoryId") &&

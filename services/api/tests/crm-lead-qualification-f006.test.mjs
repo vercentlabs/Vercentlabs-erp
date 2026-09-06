@@ -45,6 +45,20 @@ const leadRow = (overrides = {}) => ({
   ...overrides,
 });
 
+// Mirrors migration 083's seeded defaults exactly, so these tests exercise
+// the same real-world rules the old hardcoded checklist enforced.
+function defaultCriteriaRows() {
+  return [
+    { criterion_key: "identity", label: "Lead identity", tier: "required", check_type: "non_empty_any", field_keys: ["firstName"] },
+    { criterion_key: "contact", label: "Contact method", tier: "required", check_type: "non_empty_any", field_keys: ["email", "mobile", "phone"] },
+    { criterion_key: "company", label: "Company", tier: "recommended", check_type: "non_empty_any", field_keys: ["companyName"] },
+    { criterion_key: "job_title", label: "Job title", tier: "recommended", check_type: "non_empty_any", field_keys: ["jobTitle"] },
+    { criterion_key: "product_interest", label: "Product interest", tier: "recommended", check_type: "non_empty_any", field_keys: ["productInterest"] },
+    { criterion_key: "estimated_value", label: "Estimated value", tier: "recommended", check_type: "positive_number", field_keys: ["estimatedValue"] },
+    { criterion_key: "source", label: "Lead source", tier: "recommended", check_type: "non_empty_any", field_keys: ["sourceId"] },
+  ];
+}
+
 function qualificationClient(initial = {}) {
   let current = leadRow(initial);
   const writes = [];
@@ -53,6 +67,8 @@ function qualificationClient(initial = {}) {
     writes,
     history,
     async query(sql, values = []) {
+      if (sql.includes("FROM tenant.crm_lead_qualification_criteria"))
+        return { rows: defaultCriteriaRows() };
       if (sql.includes("FROM tenant.crm_leads lead"))
         return { rows: [{ ...current, qualification_decided_by_name: current.qualification_decided_by_user_id ? "Manager" : null }] };
       if (sql.includes("FROM tenant.crm_lead_qualification_events event"))
@@ -98,8 +114,12 @@ function qualificationClient(initial = {}) {
   };
 }
 
-test("F006: readiness uses identity and reachability as the only blockers", () => {
-  const readiness = evaluateLeadQualificationReadiness({
+function criteriaOnlyClient() {
+  return { query: async (sql) => (sql.includes("crm_lead_qualification_criteria") ? { rows: defaultCriteriaRows() } : { rows: [] }) };
+}
+
+test("F006: readiness uses identity and reachability as the only blockers", async () => {
+  const readiness = await evaluateLeadQualificationReadiness(criteriaOnlyClient(), manager, {
     first_name: "Asha",
     email: "asha@example.com",
     company_name: "",
@@ -111,15 +131,39 @@ test("F006: readiness uses identity and reachability as the only blockers", () =
   assert.equal(readiness.recommended.some((item) => !item.met), true);
 });
 
-test("F006: missing identity or every contact method blocks qualification", () => {
-  const readiness = evaluateLeadQualificationReadiness({ first_name: "" });
+test("F006: missing identity or every contact method blocks qualification", async () => {
+  const readiness = await evaluateLeadQualificationReadiness(criteriaOnlyClient(), manager, { first_name: "" });
   assert.equal(readiness.ready, false);
   assert.deepEqual(readiness.required.map((item) => item.met), [false, false]);
 });
 
-test("F006: score alone neither qualifies nor blocks a Lead", () => {
-  assert.equal(evaluateLeadQualificationReadiness({ first_name: "A", mobile: "1234567", score: -10000 }).ready, true);
-  assert.equal(evaluateLeadQualificationReadiness({ first_name: "", score: 10000 }).ready, false);
+test("F006: score alone neither qualifies nor blocks a Lead", async () => {
+  const client = criteriaOnlyClient();
+  assert.equal((await evaluateLeadQualificationReadiness(client, manager, { first_name: "A", mobile: "1234567", score: -10000 })).ready, true);
+  assert.equal((await evaluateLeadQualificationReadiness(client, manager, { first_name: "", score: 10000 })).ready, false);
+});
+
+test("F006: an admin-configured criterion is honored without a code change", async () => {
+  const client = {
+    query: async (sql) =>
+      sql.includes("crm_lead_qualification_criteria")
+        ? { rows: [{ criterion_key: "website", label: "Website", tier: "required", check_type: "non_empty_any", field_keys: ["website"] }] }
+        : { rows: [] },
+  };
+  const readiness = await evaluateLeadQualificationReadiness(client, manager, { first_name: "Asha", website: null });
+  assert.equal(readiness.ready, false);
+  assert.deepEqual(readiness.required, [{ key: "website", label: "Website", met: false, help: "Add website." }]);
+});
+
+test("F006: a positive-number criterion checks only the first field key", async () => {
+  const client = {
+    query: async (sql) =>
+      sql.includes("crm_lead_qualification_criteria")
+        ? { rows: [{ criterion_key: "estimated_value", label: "Estimated value", tier: "recommended", check_type: "positive_number", field_keys: ["estimatedValue"] }] }
+        : { rows: [] },
+  };
+  assert.equal((await evaluateLeadQualificationReadiness(client, manager, { estimated_value: 0 })).recommended[0].met, false);
+  assert.equal((await evaluateLeadQualificationReadiness(client, manager, { estimated_value: 500 })).recommended[0].met, true);
 });
 
 test("F006: generic mutation fields, including legacy reason, are rejected", () => {

@@ -8,6 +8,7 @@ export const CRM_RESOURCE_KEYS: readonly [
   "stages",
   "sources",
   "lost-reasons",
+  "qualification-criteria",
   "tags",
   "scoring-rules",
   "assignment-rules",

@@ -18,6 +18,7 @@ const groups = [
       ["Lead lifecycle", "lead-lifecycle", "Order the governed working stages used by Leads and Kanban."],
       ["Assignment rules", "assignment-rules", "Route new leads to the right owner or team."],
       ["Lead scoring", "scoring-rules", "Create explainable rules that contribute to the lead score."],
+      ["Qualification criteria", "qualification-criteria", "Configure the readiness checklist required before a lead can be marked qualified."],
     ],
   },
   {
@@ -44,6 +45,9 @@ const groups = [
     description: "Keep the CRM language flexible without introducing custom-object complexity outside F001–F030.",
     items: [
       ["Tags", "tags", "Maintain reusable tags for fast lead classification."],
+      ["Custom objects", "custom-object-definitions", "Define tenant-specific record types beyond the standard F001–F030 set."],
+      ["Custom fields", "custom-field-definitions", "Add typed, validated, optionally role-restricted fields to a custom object."],
+      ["Custom records", "custom-records", "Browse and manage records stored against a custom object definition."],
     ],
   },
 ] as const satisfies ReadonlyArray<{

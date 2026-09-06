@@ -9,10 +9,10 @@ export declare class LeadQualificationError extends Error {
   readonly details?: unknown;
 }
 export declare function assertNoQualificationMutation(input?: Record<string, unknown>): void;
-export declare function evaluateLeadQualificationReadiness(lead?: Record<string, unknown>): {
+export declare function evaluateLeadQualificationReadiness(client: any, context: any, lead?: Record<string, unknown>): Promise<{
   ready: boolean;
   required: LeadQualificationCriterion[];
   recommended: LeadQualificationCriterion[];
-};
+}>;
 export declare function getLeadQualification(client: any, context: any, leadId: string): Promise<any>;
 export declare function decideLeadQualification(client: any, context: any, leadId: string, input?: Record<string, unknown>): Promise<any>;

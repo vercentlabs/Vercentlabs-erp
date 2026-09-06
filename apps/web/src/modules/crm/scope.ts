@@ -52,6 +52,7 @@ export const CRM_UI_RESOURCE_KEYS = Object.freeze([
   "stages",
   "sources",
   "lost-reasons",
+  "qualification-criteria",
   "tags",
   "scoring-rules",
   "assignment-rules",
@@ -59,6 +60,9 @@ export const CRM_UI_RESOURCE_KEYS = Object.freeze([
   "sales-team-members",
   "territories",
   "territory-assignments",
+  "custom-object-definitions",
+  "custom-field-definitions",
+  "custom-records",
 ] as const satisfies readonly CrmResourceKey[]);
 
 /**
@@ -86,6 +90,7 @@ export const CRM_SETUP_RESOURCE_KEYS = Object.freeze([
   "pipelines",
   "stages",
   "lost-reasons",
+  "qualification-criteria",
   "sales-teams",
   "sales-team-members",
   "territories",

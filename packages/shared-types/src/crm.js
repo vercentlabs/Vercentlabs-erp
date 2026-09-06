@@ -8,6 +8,7 @@ export const CRM_RESOURCE_KEYS = Object.freeze([
   "stages",
   "sources",
   "lost-reasons",
+  "qualification-criteria",
   "tags",
   "scoring-rules",
   "assignment-rules",

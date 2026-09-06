@@ -116,34 +116,64 @@ export function assertNoQualificationMutation(input = {}) {
     );
 }
 
-export function evaluateLeadQualificationReadiness(lead = {}) {
-  const firstName = text(lead.firstName ?? lead.first_name);
-  const hasContact = Boolean(
-    text(lead.email) || text(lead.mobile) || text(lead.phone),
+// F006: readiness criteria are admin-configurable per organization
+// (tenant.crm_lead_qualification_criteria, seeded with these exact defaults
+// for every org so behavior is unchanged until someone edits the config).
+// field_keys use the same camelCase names the rest of the Lead API uses;
+// READINESS_FIELD_COLUMNS is a fixed allowlist mapping them to the actual
+// snake_case row columns this function reads, so a criterion can never
+// reference an arbitrary column.
+export const READINESS_FIELD_COLUMNS = Object.freeze({
+  firstName: "first_name",
+  lastName: "last_name",
+  email: "email",
+  mobile: "mobile",
+  phone: "phone",
+  companyName: "company_name",
+  jobTitle: "job_title",
+  productInterest: "product_interest",
+  estimatedValue: "estimated_value",
+  sourceId: "source_id",
+  industry: "industry",
+  website: "website",
+  city: "city",
+  state: "state",
+  countryCode: "country_code",
+});
+
+function readinessFieldValue(lead, fieldKey) {
+  const column = READINESS_FIELD_COLUMNS[fieldKey];
+  return column ? lead[column] : undefined;
+}
+
+function criterionMet(lead, criterion) {
+  if (criterion.check_type === "positive_number")
+    return Number(readinessFieldValue(lead, criterion.field_keys[0]) ?? 0) > 0;
+  return criterion.field_keys.some((key) => text(readinessFieldValue(lead, key)));
+}
+
+export async function evaluateLeadQualificationReadiness(client, context, lead = {}) {
+  const result = await client.query(
+    `SELECT criterion_key, label, tier, check_type, field_keys
+       FROM tenant.crm_lead_qualification_criteria
+      WHERE organization_id=$1 AND status='active'
+      ORDER BY sequence, criterion_key`,
+    [context.organizationId],
   );
-  const required = [
-    {
-      key: "identity",
-      label: "Lead identity",
-      met: Boolean(firstName),
-      help: firstName ? "First name is available." : "Add the Lead's first name.",
-    },
-    {
-      key: "contact",
-      label: "Contact method",
-      met: hasContact,
-      help: hasContact
-        ? "At least one contact method is available."
-        : "Add an email, mobile number or alternate number.",
-    },
-  ];
-  const recommended = [
-    { key: "company", label: "Company", met: Boolean(text(lead.companyName ?? lead.company_name)) },
-    { key: "job_title", label: "Job title", met: Boolean(text(lead.jobTitle ?? lead.job_title)) },
-    { key: "product_interest", label: "Product interest", met: Boolean(text(lead.productInterest ?? lead.product_interest)) },
-    { key: "estimated_value", label: "Estimated value", met: Number(lead.estimatedValue ?? lead.estimated_value ?? 0) > 0 },
-    { key: "source", label: "Lead source", met: Boolean(lead.sourceId ?? lead.source_id) },
-  ];
+  const required = [];
+  const recommended = [];
+  for (const criterion of result.rows) {
+    const met = criterionMet(lead, criterion);
+    const entry = {
+      key: criterion.criterion_key,
+      label: criterion.label,
+      met,
+      help: met
+        ? `${criterion.label} is available.`
+        : `Add ${criterion.label.toLowerCase()}.`,
+    };
+    (criterion.tier === "required" ? required : recommended).push(entry);
+  }
   return {
     ready: required.every((criterion) => criterion.met),
     required,
@@ -195,7 +225,7 @@ export async function getLeadQualification(client, context, leadId) {
     decidedAt: lead.qualification_decided_at,
     decidedByUserId: lead.qualification_decided_by_user_id,
     decidedByName: lead.qualification_decided_by_name,
-    readiness: evaluateLeadQualificationReadiness(lead),
+    readiness: await evaluateLeadQualificationReadiness(client, context, lead),
     history: await qualificationHistory(client, context, leadId),
     reasons: LEAD_UNQUALIFICATION_REASONS,
   };
@@ -240,7 +270,7 @@ export async function decideLeadQualification(client, context, leadId, input = {
   if (lead.qualification_state === decision)
     return { changed: false, qualification: await getLeadQualification(client, context, leadId), event: null };
 
-  const readiness = evaluateLeadQualificationReadiness(lead);
+  const readiness = await evaluateLeadQualificationReadiness(client, context, lead);
   if (decision === "qualified" && !readiness.ready) {
     const errors = Object.fromEntries(
       readiness.required
