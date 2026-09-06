@@ -11,6 +11,16 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { salesContext } from "@/modules/sales";
+import {
+  EnterpriseDataGrid,
+  FilterBar,
+  MetricCard,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
+
+type SalesOrderRow = Record<string, unknown>;
 
 export const dynamic = "force-dynamic";
 
@@ -66,69 +76,91 @@ export default async function OrdersPage({
       </section>
       <section className="sales-status-strip">
         {summaryCards.map(([label, value]) => (
-          <div key={String(label)}>
-            <span>{label}</span>
-            <strong>{String(value ?? 0)}</strong>
-          </div>
+          <MetricCard key={label} label={label} value={String(value ?? 0)} />
         ))}
       </section>
       <section className="panel">
-        <form className="sales-filter">
-          <input
-            name="search"
-            defaultValue={filters.search}
-            placeholder="Search order or customer"
-            aria-label="Search order or customer"
-          />
-          <DownwardSelect
-            name="status"
-            ariaLabel="Filter sales orders by status"
-            defaultValue={filters.status || "all"}
-            options={[
-              { value: "all", label: "All statuses" },
-              ...[
-                "draft",
-                "pending_approval",
-                "confirmed",
-                "on_hold",
-                "cancelled",
-                "closed",
-              ].map((status) => ({
-                value: status,
-                label: status.replaceAll("_", " "),
-              })),
-            ]}
-          />
-          <button className="secondary-button">Apply</button>
+        <form>
+          <FilterBar label="Filter sales orders">
+            <input
+              name="search"
+              defaultValue={filters.search}
+              placeholder="Search order or customer"
+              aria-label="Search order or customer"
+            />
+            <DownwardSelect
+              name="status"
+              ariaLabel="Filter sales orders by status"
+              defaultValue={filters.status || "all"}
+              options={[
+                { value: "all", label: "All statuses" },
+                ...[
+                  "draft",
+                  "pending_approval",
+                  "confirmed",
+                  "on_hold",
+                  "cancelled",
+                  "closed",
+                ].map((status) => ({
+                  value: status,
+                  label: status.replaceAll("_", " "),
+                })),
+              ]}
+            />
+            <button className="secondary-button">Apply</button>
+          </FilterBar>
         </form>
-        <div className="sales-table" role="table" aria-label="Sales orders">
-          <div className="sales-table-row sales-table-head" role="row">
-            <span role="columnheader">Order</span>
-            <span role="columnheader">Customer</span>
-            <span role="columnheader">Lifecycle</span>
-            <span role="columnheader">Fulfilment</span>
-            <span role="columnheader">Total</span>
-          </div>
-          {visibleRows.map((row) => (
-            <Link
-              className="sales-table-row"
-              href={`/sales/orders/${row.id}`}
-              key={row.id}
-              role="row"
-            >
-              <span role="cell">
-                <strong>{row.sales_order_number}</strong>
-                <small>{String(row.order_date).slice(0, 10)}</small>
-              </span>
-              <span role="cell">{row.customer_name}</span>
-              <span role="cell">{row.lifecycle_status}</span>
-              <span role="cell">{row.fulfillment_status}</span>
-              <span role="cell">
-                {row.currency_code} {row.grand_total}
-              </span>
-            </Link>
-          ))}
-        </div>
+        {(() => {
+          const columns: DataGridColumn<SalesOrderRow>[] = [
+            {
+              id: "order",
+              header: "Order",
+              cell: (row) => (
+                <Link href={`/sales/orders/${row.id}`}>
+                  <strong>{String(row.sales_order_number)}</strong>
+                  <small> {String(row.order_date).slice(0, 10)}</small>
+                </Link>
+              ),
+            },
+            {
+              id: "customer",
+              header: "Customer",
+              cell: (row) => String(row.customer_name),
+            },
+            {
+              id: "lifecycle",
+              header: "Lifecycle",
+              cell: (row) => (
+                <StatusBadge tone="neutral">
+                  {String(row.lifecycle_status)}
+                </StatusBadge>
+              ),
+            },
+            {
+              id: "fulfilment",
+              header: "Fulfilment",
+              cell: (row) => (
+                <StatusBadge tone="neutral">
+                  {String(row.fulfillment_status)}
+                </StatusBadge>
+              ),
+            },
+            {
+              id: "total",
+              header: "Total",
+              cell: (row) => `${String(row.currency_code)} ${String(row.grand_total)}`,
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption="Sales orders"
+              rows={visibleRows}
+              rowKey={(row) => String(row.id)}
+              columns={columns}
+              emptyState={<StatePanel title="No sales orders yet" />}
+            />
+          );
+        })()}
         <PaginationLinks
           pathname="/sales/orders"
           query={filters}

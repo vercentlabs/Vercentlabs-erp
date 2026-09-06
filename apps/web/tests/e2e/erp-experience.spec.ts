@@ -83,6 +83,14 @@ const ROUTES: RepresentativeRoute[] = [
     name: "crm-leads-table-view",
     resolvePath: () => "/crm/leads",
   },
+  {
+    name: "sales-quotations",
+    resolvePath: () => "/sales/quotations",
+  },
+  {
+    name: "sales-orders",
+    resolvePath: () => "/sales/orders",
+  },
 ];
 
 const RESPONSIVE_VIEWPORTS = [
