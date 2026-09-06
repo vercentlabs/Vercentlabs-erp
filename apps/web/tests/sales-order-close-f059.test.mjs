@@ -20,5 +20,5 @@ test("F059: the order actions route dispatches close to closeSalesOrder", () => 
 
 test("F059: the document-actions UI exposes a Close order button for confirmed/on_hold orders", () => {
   assert.match(actions, /act\("close"\)/);
-  assert.match(actions, /status==="confirmed"\|\|status==="on_hold"/);
+  assert.match(actions, /status === "confirmed" \|\| status === "on_hold"/);
 });
