@@ -508,7 +508,6 @@ async function calculateLine(client, context, master, line, sequence, input) {
     marginAmount: asDatabaseDecimal(marginAmount),
     marginPercent: asDatabaseDecimal(marginPercent),
     taxCategoryId: item.tax_category_id,
-    taxGroupId: null,
     requestedDeliveryDate: date(
       line.requestedDeliveryDate,
       `Line ${sequence} requested delivery date`,
@@ -735,7 +734,7 @@ async function insertQuotationVersion(
   const versionId = version.rows[0].id;
   for (const line of preview.lines) {
     const inserted = await client.query(
-      `INSERT INTO tenant.sales_quotation_lines (organization_id,quotation_version_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,tax_group_id,requested_delivery_date,manual_price_override,manual_price_reason,pricing_trace,tax_trace,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31::jsonb,$32::jsonb,$33) RETURNING id`,
+      `INSERT INTO tenant.sales_quotation_lines (organization_id,quotation_version_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,manual_price_override,manual_price_reason,pricing_trace,tax_trace,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32) RETURNING id`,
       [
         context.organizationId,
         versionId,
@@ -763,7 +762,6 @@ async function insertQuotationVersion(
         line.marginAmount,
         line.marginPercent,
         line.taxCategoryId,
-        line.taxGroupId,
         line.requestedDeliveryDate,
         line.manualPriceOverride,
         line.manualPriceReason,
@@ -1469,7 +1467,7 @@ async function insertOrderFromPreview(
   const version = versionResult.rows[0];
   for (const line of preview.lines) {
     const inserted = await client.query(
-      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,tax_group_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31::jsonb,$32::jsonb,$33) RETURNING id`,
+      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -1498,7 +1496,6 @@ async function insertOrderFromPreview(
         line.marginAmount,
         line.marginPercent,
         line.taxCategoryId,
-        line.taxGroupId,
         line.requestedDeliveryDate,
         line.requestedDeliveryDate,
         JSON.stringify(line.pricingTrace),
@@ -2539,9 +2536,9 @@ export async function amendSalesOrder(client, context, id, input) {
         organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,
         item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,
         base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,
-        tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,tax_group_id,
+        tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,
         requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31::jsonb,$32::jsonb,$33) RETURNING id`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30::jsonb,$31) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -2570,7 +2567,6 @@ export async function amendSalesOrder(client, context, id, input) {
         line.marginAmount,
         line.marginPercent,
         line.taxCategoryId,
-        line.taxGroupId,
         line.requestedDeliveryDate,
         line.requestedDeliveryDate,
         JSON.stringify(line.pricingTrace),
