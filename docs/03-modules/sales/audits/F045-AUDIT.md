@@ -1,0 +1,14 @@
+# F045 Availability check — Atomic requirement trace
+
+Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows) by grepping the entire Sales module for any stock-balance/availability reference (none found) and reading Stock's own public `getStockAvailability` (`services/api/src/modules/stock/index.js:391-424+`) to confirm the building block this feature would consume already exists elsewhere in the codebase.
+
+| ID | Verdict | Evidence |
+|---|---|---|
+| **CAP-001/FR-001 (entire capability) — GAP, recorded, not fixed this pass. This is a complete absence, not a partial one.** | FAIL | Grepped the whole Sales module (`index.js`, `order-governance.js`, `quotation-governance.js`, `pass1-operations.js`) for `stock_balances`, `availableQuantity`, `on_hand`, or `availability`: zero matches. Neither quotation creation nor order confirmation ever checks stock availability, on-hand quantity, incoming supply, or lead time for any line — a quotation or order can be created and even confirmed for a quantity of an item that has zero stock anywhere, with no warning, promise, or explanation shown to the operator at any point. |
+| CAP-003 (public contract exists to consume) | Building block present, unused | Stock already exposes `getStockAvailability(client, context, {itemId, warehouseId?, warehouseLocationId?, batchId?})`, returning `on_hand_quantity`/`reserved_quantity`/`available_quantity`/`available_to_promise` per item (optionally per warehouse), plus quality-hold awareness (confirmed via the "Wave 0 Quality -> Stock" cross-module test passing in the full suite this session). Sales has a ready, correctly-scoped public API to call and simply never calls it — this is a pure wiring gap, not a missing engineering problem on the Stock side. |
+| CAP-002 (multi-warehouse, UOM, batch/serial, incoming supply, lead time, alternative dates/items) | N/A — moot until the base capability exists | None of these refinements can be evaluated because there is no availability-check call site to refine. |
+| FLOW-001 (UNCHECKED -> AVAILABLE/PARTIAL/UNAVAILABLE/STALE) | FAIL | No such state exists anywhere on a quotation or order line — there's no column, no computed field, nothing that would ever hold one of these four values. |
+
+## Net assessment (2026-09-06)
+
+The most complete gap found in Sales so far: not a partial or degraded implementation, but a total absence of the capability, despite Stock already exposing a ready-made public function (`getStockAvailability`) that's the correct integration point. Scoped as a real feature build for the Sales gap-closing pass (wiring `calculateLine`/`previewSalesDocument` to call it per line, at minimum), not something to build unilaterally mid-trace given the breadth of refinements (multi-warehouse, batch/serial, lead time, alternative-date suggestions) the dossier expects around it.
