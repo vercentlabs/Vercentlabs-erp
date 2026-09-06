@@ -261,7 +261,7 @@ test("F005: restricted generic PATCH cannot bypass ownership authorization", asy
   assert.equal(client.writes.length, 0);
 });
 
-test("F005: unavailable fixed owners are skipped and deterministic fallback wins", async () => {
+test("F005: ineligible (not an org member) fixed owners are skipped and deterministic fallback wins", async () => {
   const policyA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
   const policyB = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
   const calls = [];
@@ -293,6 +293,7 @@ test("F005: unavailable fixed owners are skipped and deterministic fallback wins
               rows: [{ id: ownerB, name: "Rahul", email: "rahul@example.com" }],
             }
           : { rows: [] };
+      if (sql.includes("FROM tenant.crm_lead_assignee_availability")) return { rows: [] }; // available
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

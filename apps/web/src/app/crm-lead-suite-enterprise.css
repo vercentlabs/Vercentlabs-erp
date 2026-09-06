@@ -4963,6 +4963,62 @@
   background: transparent;
 }
 
+.crm-assignment-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.crm-assignment-away-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.2fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.crm-assignment-away-form > label {
+  display: grid;
+  gap: 6px;
+}
+
+.crm-assignment-away-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.crm-assignment-away-list > article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.crm-assignment-away-list > article > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.crm-assignment-away-list small {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .crm-assignment-away-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .crm-assignment-rule-list > article {
     grid-template-columns: 44px minmax(0, 1fr) auto;

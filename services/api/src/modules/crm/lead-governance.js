@@ -150,28 +150,38 @@ export async function findLeadDuplicates(
 
 async function activeTerritoryUserIds(client, context, territoryId) {
   if (!territoryId) return [];
+  // F005: the availability exclusion is applied once, in an outer WHERE
+  // NOT EXISTS over the unioned candidate set, rather than duplicated
+  // into both branches of the UNION below.
   const result = await client.query(
-    `SELECT DISTINCT assignment.assignee_id AS user_id
-       FROM tenant.crm_territory_assignments assignment
-       JOIN public.organization_memberships membership
-         ON membership.organization_id=assignment.organization_id
-        AND membership.user_id=assignment.assignee_id
-        AND membership.status='active'
-      WHERE assignment.organization_id=$1
-        AND assignment.territory_id=$2
-        AND assignment.assignee_type='user'
-        AND assignment.effective_from<=current_date
-        AND (assignment.effective_to IS NULL OR assignment.effective_to>=current_date)
-      UNION
-      SELECT territory.manager_user_id AS user_id
-        FROM tenant.crm_territories territory
-        JOIN public.organization_memberships membership
-          ON membership.organization_id=territory.organization_id
-         AND membership.user_id=territory.manager_user_id
-         AND membership.status='active'
-       WHERE territory.organization_id=$1
-         AND territory.id=$2
-         AND territory.manager_user_id IS NOT NULL`,
+    `SELECT territory_user.user_id FROM (
+       SELECT DISTINCT assignment.assignee_id AS user_id
+         FROM tenant.crm_territory_assignments assignment
+         JOIN public.organization_memberships membership
+           ON membership.organization_id=assignment.organization_id
+          AND membership.user_id=assignment.assignee_id
+          AND membership.status='active'
+        WHERE assignment.organization_id=$1
+          AND assignment.territory_id=$2
+          AND assignment.assignee_type='user'
+          AND assignment.effective_from<=current_date
+          AND (assignment.effective_to IS NULL OR assignment.effective_to>=current_date)
+        UNION
+        SELECT territory.manager_user_id AS user_id
+          FROM tenant.crm_territories territory
+          JOIN public.organization_memberships membership
+            ON membership.organization_id=territory.organization_id
+           AND membership.user_id=territory.manager_user_id
+           AND membership.status='active'
+         WHERE territory.organization_id=$1
+           AND territory.id=$2
+           AND territory.manager_user_id IS NOT NULL
+     ) territory_user
+     WHERE NOT EXISTS (
+       SELECT 1 FROM tenant.crm_lead_assignee_availability away
+        WHERE away.organization_id=$1 AND away.user_id=territory_user.user_id
+          AND away.starts_at<=now() AND away.ends_at>now()
+     )`,
     [context.organizationId, territoryId],
   );
   return result.rows.map((row) => String(row.user_id)).filter(Boolean);
@@ -378,6 +388,18 @@ export async function listEligibleLeadAssignees(client, context, input = {}) {
   };
 }
 
+// F005: excludes a candidate currently marked out-of-office
+// (crm_lead_assignee_availability) from automatic assignment pools —
+// round-robin, workload and territory routing all resolve their member
+// list through this same function, so this one clause covers all three.
+function availabilitySql(alias) {
+  return `AND NOT EXISTS (
+    SELECT 1 FROM tenant.crm_lead_assignee_availability away
+     WHERE away.organization_id=$1 AND away.user_id=${alias}.user_id
+       AND away.starts_at<=now() AND away.ends_at>now()
+  )`;
+}
+
 async function eligiblePolicyMemberIds(client, context, memberUserIds, input) {
   const members = [
     ...new Set((memberUserIds || []).map(String).filter(Boolean)),
@@ -388,7 +410,7 @@ async function eligiblePolicyMemberIds(client, context, memberUserIds, input) {
        JOIN public.organization_memberships membership
          ON membership.organization_id=$1 AND membership.user_id=candidate.user_id AND membership.status='active'
        JOIN public.users user_account ON user_account.id=membership.user_id AND user_account.status='active'
-      WHERE ${crmEligibleSql()} ${assigneeScopeSql(3, 4)} ORDER BY candidate.position`,
+      WHERE ${crmEligibleSql()} ${assigneeScopeSql(3, 4)} ${availabilitySql("candidate")} ORDER BY candidate.position`,
     [
       context.organizationId,
       members,
@@ -397,6 +419,21 @@ async function eligiblePolicyMemberIds(client, context, memberUserIds, input) {
     ],
   );
   return result.rows.map((row) => String(row.user_id));
+}
+
+// F005: only automatic, policy-driven assignment (round-robin, workload,
+// territory, and this fixed-mode check) skips an out-of-office candidate.
+// A manager explicitly picking a specific owner (assignLeadOwner,
+// createCrmRecord's ownerUserId) is a deliberate override and is
+// unaffected — availability is a routing signal, not a hard block on
+// human judgment.
+async function isLeadAssigneeAvailable(client, context, userId) {
+  const result = await client.query(
+    `SELECT 1 FROM tenant.crm_lead_assignee_availability
+      WHERE organization_id=$1 AND user_id=$2 AND starts_at<=now() AND ends_at>now() LIMIT 1`,
+    [context.organizationId, userId],
+  );
+  return !result.rows[0];
 }
 
 async function ownerForLeadPolicy(client, context, policy, input) {
@@ -410,7 +447,9 @@ async function ownerForLeadPolicy(client, context, policy, input) {
         branchId: input.branchId || input.branch_id || null,
       },
     );
-    return assignee?.id || null;
+    if (!assignee) return null;
+    if (!(await isLeadAssigneeAvailable(client, context, assignee.id))) return null;
+    return assignee.id;
   }
   if (policy.mode === "round_robin") {
     const members = await eligiblePolicyMemberIds(
@@ -473,7 +512,93 @@ export async function resolveLeadAssignment(client, context, input) {
         reason: `policy:${policy.mode}`,
       };
   }
+  // F005: every active policy either didn't match or couldn't produce an
+  // available owner. Before giving up, try the one configured fallback
+  // owner — this is deliberately checked last and only once, never a
+  // substitute for a real policy, and it re-validates eligibility (an
+  // org can change roles/scope after configuring a fallback owner).
+  const fallback = await client.query(
+    `SELECT fallback_user_id FROM tenant.crm_lead_assignment_fallback WHERE organization_id=$1`,
+    [context.organizationId],
+  );
+  const fallbackUserId = fallback.rows[0]?.fallback_user_id;
+  if (fallbackUserId) {
+    const assignee = await getEligibleLeadAssignee(client, context, fallbackUserId, {
+      companyId: input.companyId || input.company_id || null,
+      branchId: input.branchId || input.branch_id || null,
+    });
+    if (assignee)
+      return {
+        ownerUserId: String(assignee.id),
+        policyId: null,
+        reason: "fallback_queue",
+      };
+  }
   return { ownerUserId: null, policyId: null, reason: "unassigned" };
+}
+
+export async function getLeadAssignmentFallback(client, context) {
+  const result = await client.query(
+    `SELECT fallback.fallback_user_id,fallback.updated_at,user_account.full_name AS fallback_user_name,user_account.email AS fallback_user_email
+       FROM tenant.crm_lead_assignment_fallback fallback
+       LEFT JOIN public.users user_account ON user_account.id=fallback.fallback_user_id
+      WHERE fallback.organization_id=$1`,
+    [context.organizationId],
+  );
+  return result.rows[0] || { fallback_user_id: null, updated_at: null, fallback_user_name: null, fallback_user_email: null };
+}
+
+export async function setLeadAssignmentFallback(client, context, userId) {
+  const fallbackUserId = text(userId) || null;
+  if (fallbackUserId) await assertEligibleLeadAssignee(client, context, fallbackUserId);
+  const result = await client.query(
+    `INSERT INTO tenant.crm_lead_assignment_fallback(organization_id,fallback_user_id,updated_by)
+     VALUES($1,$2,$3)
+     ON CONFLICT(organization_id) DO UPDATE SET fallback_user_id=$2,updated_by=$3,updated_at=now()
+     RETURNING *`,
+    [context.organizationId, fallbackUserId, context.userId],
+  );
+  return result.rows[0];
+}
+
+export async function listLeadAssigneeAvailability(client, context) {
+  const result = await client.query(
+    `SELECT availability.*,user_account.full_name AS user_name,user_account.email AS user_email
+       FROM tenant.crm_lead_assignee_availability availability
+       JOIN public.users user_account ON user_account.id=availability.user_id
+      WHERE availability.organization_id=$1 AND availability.ends_at>now()
+      ORDER BY availability.starts_at`,
+    [context.organizationId],
+  );
+  return result.rows;
+}
+
+export async function setLeadAssigneeAvailability(client, context, input = {}) {
+  const userId = text(input.userId);
+  const startsAt = new Date(input.startsAt);
+  const endsAt = new Date(input.endsAt);
+  const reason = text(input.reason).slice(0, 500) || null;
+  if (!UUID.test(userId))
+    throw new LeadGovernanceError(400, "Select a valid team member.", "CRM_ASSIGNEE_AVAILABILITY_INVALID");
+  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt)
+    throw new LeadGovernanceError(400, "Provide a valid start and end date, with the end after the start.", "CRM_ASSIGNEE_AVAILABILITY_INVALID");
+  await assertEligibleLeadAssignee(client, context, userId);
+  const result = await client.query(
+    `INSERT INTO tenant.crm_lead_assignee_availability(organization_id,user_id,starts_at,ends_at,reason,created_by)
+     VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [context.organizationId, userId, startsAt.toISOString(), endsAt.toISOString(), reason, context.userId],
+  );
+  return result.rows[0];
+}
+
+export async function clearLeadAssigneeAvailability(client, context, id) {
+  const result = await client.query(
+    `DELETE FROM tenant.crm_lead_assignee_availability WHERE organization_id=$1 AND id=$2 RETURNING id`,
+    [context.organizationId, text(id)],
+  );
+  if (!result.rows[0])
+    throw new LeadGovernanceError(404, "Availability window not found.", "CRM_ASSIGNEE_AVAILABILITY_NOT_FOUND");
+  return { id: result.rows[0].id };
 }
 
 export async function resolveLeadOwner(client, context, input) {

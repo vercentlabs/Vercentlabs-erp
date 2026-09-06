@@ -106,6 +106,40 @@ test("F005 rules UX is guided, priority-ordered and does not expose F020 routing
   assert.match(settings, /"Assignment rules", "assignment-rules"/);
 });
 
+test("F005 fallback owner and out-of-office are wired through the same governed policy route", () => {
+  assert.match(policyRoute, /setLeadAssignmentFallback/);
+  assert.match(policyRoute, /getLeadAssignmentFallback/);
+  assert.match(policyRoute, /setLeadAssigneeAvailability/);
+  assert.match(policyRoute, /listLeadAssigneeAvailability/);
+  assert.match(policyRoute, /clearLeadAssigneeAvailability/);
+  assert.match(policyRoute, /action === "set-fallback"/);
+  assert.match(policyRoute, /action === "set-availability"/);
+  assert.match(policyRoute, /action === "clear-availability"/);
+  assert.match(rules, /Fallback owner/);
+  assert.match(rules, /Out of office/);
+  assert.match(rules, /action: "set-fallback"/);
+  assert.match(rules, /action: "set-availability"/);
+  assert.match(rules, /action: "clear-availability"/);
+  assert.match(rulesPage, /getLeadAssignmentFallback/);
+  assert.match(rulesPage, /listLeadAssigneeAvailability/);
+});
+
+test("F005 backend: automatic assignment skips out-of-office candidates and falls back to a defined owner", () => {
+  const governance = read("../../services/api/src/modules/crm/lead-governance.js");
+  assert.match(governance, /crm_lead_assignee_availability/);
+  assert.match(governance, /reason: "fallback_queue"/);
+  assert.match(governance, /A manager explicitly picking a specific owner/);
+});
+
+test("F005 backend: the Lead SLA reassignment timer now runs on a schedule, not only on manual demand", () => {
+  const handler = read("../../services/worker/src/handlers/crm-lead-sla-scan.js");
+  assert.match(handler, /scanLeadSlaBreaches/);
+  assert.match(handler, /crm\.leads\.manage/);
+  const scheduler = read("../../services/worker/src/scheduler.js");
+  assert.match(scheduler, /LEAD_SLA_SCAN_JOB_TYPE/);
+  assert.match(scheduler, /lead-sla-scan-tick/);
+});
+
 test("F005 responsive CSS keeps dialogs, selectors and rules usable on tablets and phones", () => {
   assert.match(
     css,

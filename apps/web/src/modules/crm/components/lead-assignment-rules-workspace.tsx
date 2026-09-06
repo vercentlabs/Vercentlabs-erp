@@ -31,9 +31,13 @@ function criteriaEntry(policy: Row | null) {
 export default function LeadAssignmentRulesWorkspace({
   policies,
   sources,
+  fallback,
+  availability,
 }: {
   policies: Row[];
   sources: Source[];
+  fallback: Row;
+  availability: Row[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<Row | null>(null);
@@ -51,6 +55,91 @@ export default function LeadAssignmentRulesWorkspace({
   const activePolicy = creating ? null : editing;
   const condition = useMemo(() => criteriaEntry(activePolicy), [activePolicy]);
   const showingForm = creating || Boolean(editing);
+  const [fallbackAssignee, setFallbackAssignee] = useState<LeadAssigneeOption | null>(
+    fallback.fallback_user_id
+      ? {
+          id: String(fallback.fallback_user_id),
+          name: String(fallback.fallback_user_name || "Current fallback owner"),
+          email: String(fallback.fallback_user_email || ""),
+        }
+      : null,
+  );
+  const [awayAssignee, setAwayAssignee] = useState<LeadAssigneeOption | null>(null);
+  const [awayStartsAt, setAwayStartsAt] = useState("");
+  const [awayEndsAt, setAwayEndsAt] = useState("");
+  const [awayReason, setAwayReason] = useState("");
+
+  async function saveFallback() {
+    setPending("fallback");
+    setMessage("");
+    try {
+      const result = await requestJson<Row>("/api/crm/leads/assignment-policies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-fallback", fallbackUserId: fallbackAssignee?.id || null }),
+      });
+      if (!result.ok) throw new Error(String(result.message || "Fallback owner could not be saved."));
+      setMessage("Fallback owner saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Fallback owner could not be saved.");
+    } finally {
+      setPending("");
+    }
+  }
+
+  async function markAway(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!awayAssignee || !awayStartsAt || !awayEndsAt) {
+      setMessage("Select a team member and both dates.");
+      return;
+    }
+    setPending("away");
+    setMessage("");
+    try {
+      const result = await requestJson<Row>("/api/crm/leads/assignment-policies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set-availability",
+          userId: awayAssignee.id,
+          startsAt: new Date(awayStartsAt).toISOString(),
+          endsAt: new Date(awayEndsAt).toISOString(),
+          reason: awayReason.trim() || null,
+        }),
+      });
+      if (!result.ok) throw new Error(String(result.message || "Out-of-office window could not be saved."));
+      setMessage("Out-of-office window saved. Automatic assignment will skip this person until it ends.");
+      setAwayAssignee(null);
+      setAwayStartsAt("");
+      setAwayEndsAt("");
+      setAwayReason("");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Out-of-office window could not be saved.");
+    } finally {
+      setPending("");
+    }
+  }
+
+  async function clearAway(id: string) {
+    setPending(`away-${id}`);
+    setMessage("");
+    try {
+      const result = await requestJson<Row>("/api/crm/leads/assignment-policies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear-availability", availabilityId: id }),
+      });
+      if (!result.ok) throw new Error(String(result.message || "Could not clear this window."));
+      setMessage("Out-of-office window cleared.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not clear this window.");
+    } finally {
+      setPending("");
+    }
+  }
 
   function beginCreate() {
     setCreating(true);
@@ -434,6 +523,114 @@ export default function LeadAssignmentRulesWorkspace({
           </section>
         ) : null}
       </div>
+
+      <section className="crm-suite-surface" aria-labelledby="assignment-fallback-title">
+        <div className="crm-suite-section-heading">
+          <div>
+            <p className="eyebrow">Last resort</p>
+            <h2 id="assignment-fallback-title">Fallback owner</h2>
+            <p>
+              Used only when every active rule above either doesn&apos;t match
+              or has no available owner (e.g. everyone in a round-robin group
+              is currently marked out of office). Never a substitute for a
+              real rule.
+            </p>
+          </div>
+        </div>
+        <div className="crm-assignment-fallback">
+          <LeadAssigneeCombobox
+            value={fallbackAssignee}
+            onChange={setFallbackAssignee}
+            allowUnassigned
+            disabled={pending === "fallback"}
+          />
+          <button
+            className="primary-button"
+            type="button"
+            disabled={pending === "fallback"}
+            onClick={() => void saveFallback()}
+          >
+            {pending === "fallback" ? "Saving…" : "Save fallback owner"}
+          </button>
+        </div>
+      </section>
+
+      <section className="crm-suite-surface" aria-labelledby="assignment-availability-title">
+        <div className="crm-suite-section-heading">
+          <div>
+            <p className="eyebrow">Availability</p>
+            <h2 id="assignment-availability-title">Out of office</h2>
+            <p>
+              Round-robin, workload and territory assignment skip anyone
+              marked away for the current moment. Manual assignment is never
+              blocked by this — it&apos;s a routing signal, not a hard rule.
+            </p>
+          </div>
+        </div>
+        <form className="crm-assignment-away-form" onSubmit={(event) => void markAway(event)}>
+          <LeadAssigneeCombobox
+            value={awayAssignee}
+            onChange={setAwayAssignee}
+            disabled={pending === "away"}
+          />
+          <label>
+            <span>From</span>
+            <input
+              type="datetime-local"
+              value={awayStartsAt}
+              onChange={(event) => setAwayStartsAt(event.target.value)}
+              disabled={pending === "away"}
+              required
+            />
+          </label>
+          <label>
+            <span>Until</span>
+            <input
+              type="datetime-local"
+              value={awayEndsAt}
+              onChange={(event) => setAwayEndsAt(event.target.value)}
+              disabled={pending === "away"}
+              required
+            />
+          </label>
+          <label>
+            <span>Reason (optional)</span>
+            <input
+              type="text"
+              value={awayReason}
+              onChange={(event) => setAwayReason(event.target.value)}
+              placeholder="Vacation, sick leave…"
+              disabled={pending === "away"}
+            />
+          </label>
+          <button className="primary-button" type="submit" disabled={pending === "away"}>
+            {pending === "away" ? "Saving…" : "Mark unavailable"}
+          </button>
+        </form>
+        <div className="crm-assignment-away-list">
+          {availability.map((row) => (
+            <article key={String(row.id)}>
+              <div>
+                <strong>{String(row.user_name || "Team member")}</strong>
+                <small>
+                  {new Date(String(row.starts_at)).toLocaleString()} &ndash;{" "}
+                  {new Date(String(row.ends_at)).toLocaleString()}
+                  {row.reason ? ` · ${String(row.reason)}` : ""}
+                </small>
+              </div>
+              <button
+                className="link-button"
+                type="button"
+                disabled={pending === `away-${String(row.id)}`}
+                onClick={() => void clearAway(String(row.id))}
+              >
+                Clear
+              </button>
+            </article>
+          ))}
+          {!availability.length ? <p>No one is currently marked out of office.</p> : null}
+        </div>
+      </section>
     </div>
   );
 }

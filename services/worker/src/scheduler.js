@@ -3,15 +3,20 @@ import { createLogger } from "@vercentlabs/observability";
 import { enqueueJob } from "./queue.js";
 import { withTenantClient, listActiveOrganizationIds } from "./db.js";
 import { JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE } from "./handlers/crm-automation-overdue.js";
+import { JOB_TYPE as LEAD_SLA_SCAN_JOB_TYPE } from "./handlers/crm-lead-sla-scan.js";
 
 const logger = createLogger("worker-scheduler");
 
-// Only one real scheduled source exists today: the activity.overdue
-// detection tick (Part 24 — "if only event enum names exist with no
-// schedule definition: do not invent a broad scheduler DSL"; the
-// crm_automation_rules table has no schedule/cron/interval column at
-// all, confirmed by direct schema inspection, so no generic per-rule
-// scheduling grammar is implemented — only this one system-level tick).
+// Two scheduled sources exist today: the activity.overdue detection tick,
+// and the Lead SLA breach/reassignment scan added alongside it (F005/F014
+// gap-closing — see crm-lead-sla-scan.js for why this one specifically
+// needed automating: the domain logic already existed and was correct,
+// it just only ever ran when a human clicked "Scan now"). Per Part 24
+// ("if only event enum names exist with no schedule definition: do not
+// invent a broad scheduler DSL"; crm_automation_rules has no
+// schedule/cron/interval column at all, confirmed by direct schema
+// inspection), neither of these is a generic per-rule scheduling grammar
+// — both are one-off, system-level ticks on the same fixed interval.
 //
 // Duplicate-occurrence prevention across multiple scheduler instances
 // (Part 54/58) reuses the SAME mechanism as ordinary job idempotency —
@@ -40,6 +45,19 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("scheduler tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: LEAD_SLA_SCAN_JOB_TYPE,
+          idempotencyKey: `lead-sla-scan-tick:${bucket}`,
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("lead SLA scan tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

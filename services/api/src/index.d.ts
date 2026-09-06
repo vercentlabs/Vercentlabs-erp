@@ -302,6 +302,29 @@ export function setLeadAssignmentPolicyStatus(
   policyId: string,
   status: "active" | "inactive",
 ): Promise<Record<string, unknown>>;
+export function getLeadAssignmentFallback(
+  client: QueryClient,
+  context: CrmFoundationContext,
+): Promise<Record<string, unknown>>;
+export function setLeadAssignmentFallback(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  userId: string | null,
+): Promise<Record<string, unknown>>;
+export function listLeadAssigneeAvailability(
+  client: QueryClient,
+  context: CrmFoundationContext,
+): Promise<Array<Record<string, unknown>>>;
+export function setLeadAssigneeAvailability(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input?: Record<string, unknown>,
+): Promise<Record<string, unknown>>;
+export function clearLeadAssigneeAvailability(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  id: string,
+): Promise<{ id: string }>;
 
 export * from "./modules/crm/lead-operations.js";
 

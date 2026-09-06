@@ -1,7 +1,12 @@
 import {
   archiveLeadAssignmentPolicy,
+  clearLeadAssigneeAvailability,
+  getLeadAssignmentFallback,
+  listLeadAssigneeAvailability,
   listLeadAssignmentPolicies,
   saveLeadAssignmentPolicy,
+  setLeadAssigneeAvailability,
+  setLeadAssignmentFallback,
   setLeadAssignmentPolicyStatus,
 } from "@vercentlabs/api";
 
@@ -25,13 +30,21 @@ export async function GET() {
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
     const context = await crmApiContext(session);
-    const policies = await tenantTransaction(context.organizationId, (client) =>
-      listLeadAssignmentPolicies(client, context),
+    const [policies, fallback, availability] = await tenantTransaction(
+      context.organizationId,
+      (client) =>
+        Promise.all([
+          listLeadAssignmentPolicies(client, context),
+          getLeadAssignmentFallback(client, context),
+          listLeadAssigneeAvailability(client, context),
+        ]),
     );
     return ok({
       policies: policies.filter((policy) =>
         ["fixed", "round_robin"].includes(String(policy.mode)),
       ),
+      fallback,
+      availability,
     });
   } catch (error) {
     try {
@@ -56,6 +69,55 @@ export async function POST(request: Request) {
       context.organizationId,
       async (client) => {
         const action = String(input.action || "save");
+        if (action === "set-fallback") {
+          const changed = await setLeadAssignmentFallback(
+            client,
+            context,
+            input.fallbackUserId ? String(input.fallbackUserId) : null,
+          );
+          await audit({
+            organizationId: context.organizationId,
+            actorUserId: session.userId,
+            eventType: "crm.lead_assignment_fallback.updated",
+            entityType: "crm.lead_assignment_fallback",
+            entityId: context.organizationId,
+            afterData: { fallbackUserId: changed.fallback_user_id },
+            request,
+            client,
+          });
+          return changed;
+        }
+        if (action === "set-availability") {
+          const changed = await setLeadAssigneeAvailability(client, context, input);
+          await audit({
+            organizationId: context.organizationId,
+            actorUserId: session.userId,
+            eventType: "crm.lead_assignee_availability.created",
+            entityType: "crm.lead_assignee_availability",
+            entityId: String(changed.id),
+            afterData: { userId: changed.user_id, startsAt: changed.starts_at, endsAt: changed.ends_at },
+            request,
+            client,
+          });
+          return changed;
+        }
+        if (action === "clear-availability") {
+          const changed = await clearLeadAssigneeAvailability(
+            client,
+            context,
+            String(input.availabilityId || ""),
+          );
+          await audit({
+            organizationId: context.organizationId,
+            actorUserId: session.userId,
+            eventType: "crm.lead_assignee_availability.cleared",
+            entityType: "crm.lead_assignee_availability",
+            entityId: String(changed.id),
+            request,
+            client,
+          });
+          return changed;
+        }
         const changed =
           action === "archive"
             ? await archiveLeadAssignmentPolicy(
