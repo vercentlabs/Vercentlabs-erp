@@ -3,7 +3,15 @@ import { notFound } from "next/navigation";
 import { getCrmDashboard } from "@vercentlabs/api";
 import { formatDateTime, formatMoney } from "@vercentlabs/localization";
 
-import { ConvergenceBoundary } from "@/shared/design";
+import {
+  ActionLink,
+  ConvergenceBoundary,
+  MetricCard,
+  PageHeader,
+  SectionHeader,
+  StatePanel,
+  Surface,
+} from "@/shared/design";
 import AppIcon from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -79,123 +87,110 @@ export default async function CrmDashboardPage() {
 
   return (
     <ConvergenceBoundary area="module" className="crm-overview-shell">
-      <header className="crm-overview-command">
-        <div className="crm-overview-command__identity">
-          <span className="crm-overview-command__mark" aria-hidden="true">
-            <AppIcon name="crm" size={22} />
-          </span>
-          <div>
-            <p className="eyebrow">CRM · Operating overview</p>
-            <h1>Customer growth workspace</h1>
-            <p>
-              See demand, pipeline, follow-ups and conversion pressure in one
-              decision surface, then move directly into the workflow that needs
-              attention.
-            </p>
-          </div>
-        </div>
-
-        <div className="crm-overview-command__right">
+      <PageHeader
+        eyebrow={
+          <>
+            <AppIcon name="crm" size={16} /> CRM · Operating overview
+          </>
+        }
+        title="Customer growth workspace"
+        description="See demand, pipeline, follow-ups and conversion pressure in one decision surface, then move directly into the workflow that needs attention."
+        context={
           <span className="crm-overview-context">
             {session.companyName || "Organisation-wide"}
           </span>
+        }
+        actions={
           <div className="crm-overview-actions" aria-label="CRM quick actions">
             {canCreateLead ? (
-              <Link className="primary-button" href="/crm/leads?create=1">
+              <ActionLink tone="primary" href="/crm/leads?create=1">
                 Create lead
-              </Link>
+              </ActionLink>
             ) : null}
             {canCreateOpportunity ? (
-              <Link className="secondary-button" href="/crm/opportunities?create=1">
+              <ActionLink href="/crm/opportunities?create=1">
                 New opportunity
-              </Link>
+              </ActionLink>
             ) : null}
             {canCreateActivity ? (
-              <Link className="secondary-button" href="/crm/activities?create=1">
+              <ActionLink href="/crm/activities?create=1">
                 Schedule activity
-              </Link>
+              </ActionLink>
             ) : null}
           </div>
-        </div>
-      </header>
+        }
+      />
 
       <section className="crm-overview-ledger" aria-label="CRM headline metrics">
         <Link href="/crm/pipeline" className="crm-overview-ledger__item">
-          <span className="crm-overview-ledger__label">Open pipeline</span>
-          <strong>{money(pipelineValue)}</strong>
-          <small>{openOpportunities} active opportunities</small>
+          <MetricCard
+            label="Open pipeline"
+            value={money(pipelineValue)}
+            hint={`${openOpportunities} active opportunities`}
+          />
         </Link>
         <Link
           href={canViewReports ? "/crm/reports" : "/crm/pipeline"}
           className="crm-overview-ledger__item"
         >
-          <span className="crm-overview-ledger__label">Weighted forecast</span>
-          <strong>{money(weightedPipeline)}</strong>
-          <small>{weightedShare}% of open pipeline</small>
+          <MetricCard
+            label="Weighted forecast"
+            value={money(weightedPipeline)}
+            hint={`${weightedShare}% of open pipeline`}
+          />
         </Link>
         <Link href="/crm/leads" className="crm-overview-ledger__item">
-          <span className="crm-overview-ledger__label">Qualified leads</span>
-          <strong>{qualifiedLeads}</strong>
-          <small>{qualifiedShare}% of {openLeads} open leads</small>
+          <MetricCard
+            label="Qualified leads"
+            value={qualifiedLeads}
+            hint={`${qualifiedShare}% of ${openLeads} open leads`}
+          />
         </Link>
         <Link
           href={canViewReports ? "/crm/reports" : "/crm/leads"}
           className="crm-overview-ledger__item"
         >
-          <span className="crm-overview-ledger__label">Conversions this month</span>
-          <strong>{conversionsThisMonth}</strong>
-          <small>{leadsThisMonth} leads captured this month</small>
+          <MetricCard
+            label="Conversions this month"
+            value={conversionsThisMonth}
+            hint={`${leadsThisMonth} leads captured this month`}
+          />
         </Link>
       </section>
 
       <section className="crm-overview-attention" aria-label="CRM attention signals">
-        <div className={overdueActivities ? "critical" : "clear"}>
-          <span className="crm-overview-attention__signal" aria-hidden="true" />
-          <div>
-            <strong>{overdueActivities}</strong>
-            <span>Overdue follow-ups</span>
-          </div>
-          <Link href="/crm/activities">Review</Link>
-        </div>
-        <div className={dueToday ? "warning" : "clear"}>
-          <span className="crm-overview-attention__signal" aria-hidden="true" />
-          <div>
-            <strong>{dueToday}</strong>
-            <span>Due today</span>
-          </div>
-          <Link href="/crm/activities">Open queue</Link>
-        </div>
-        <div>
-          <span className="crm-overview-attention__signal" aria-hidden="true" />
-          <div>
-            <strong>{leadsThisMonth}</strong>
-            <span>New leads this month</span>
-          </div>
-          <Link href="/crm/leads">View leads</Link>
-        </div>
-        <div>
-          <span className="crm-overview-attention__signal" aria-hidden="true" />
-          <div>
-            <strong>{openOpportunities}</strong>
-            <span>Open opportunities</span>
-          </div>
-          <Link href="/crm/pipeline">View pipeline</Link>
-        </div>
+        <MetricCard
+          tone={overdueActivities ? "danger" : "neutral"}
+          label="Overdue follow-ups"
+          value={overdueActivities}
+          action={<Link href="/crm/activities">Review</Link>}
+        />
+        <MetricCard
+          tone={dueToday ? "warning" : "neutral"}
+          label="Due today"
+          value={dueToday}
+          action={<Link href="/crm/activities">Open queue</Link>}
+        />
+        <MetricCard
+          label="New leads this month"
+          value={leadsThisMonth}
+          action={<Link href="/crm/leads">View leads</Link>}
+        />
+        <MetricCard
+          label="Open opportunities"
+          value={openOpportunities}
+          action={<Link href="/crm/pipeline">View pipeline</Link>}
+        />
       </section>
 
       <div className="crm-overview-primary-grid">
-        <section className="crm-overview-surface crm-overview-revenue">
-          <div className="crm-overview-section-heading">
-            <div>
-              <p className="eyebrow">Revenue trajectory</p>
-              <h2>Where pipeline value is sitting</h2>
-              <p>
-                Read stage concentration before opening the board. Values use the
-                same company, branch and record-visibility scope as the CRM lists.
-              </p>
-            </div>
-            <Link href="/crm/pipeline">Open pipeline →</Link>
-          </div>
+        <Surface as="section" className="crm-overview-surface crm-overview-revenue">
+          <SectionHeader
+            eyebrow="Revenue trajectory"
+            title="Where pipeline value is sitting"
+            description="Read stage concentration before opening the board. Values use the same company, branch and record-visibility scope as the CRM lists."
+            actions={<Link href="/crm/pipeline">Open pipeline →</Link>}
+          />
 
           <div className="crm-overview-revenue-summary">
             <div>
@@ -231,26 +226,25 @@ export default async function CrmDashboardPage() {
               );
             })}
             {!dashboard.stages.length ? (
-              <div className="crm-overview-empty">
-                <AppIcon name="sales" size={20} />
-                <strong>No pipeline stage activity yet</strong>
-                <span>Create an opportunity to begin building the revenue view.</span>
-              </div>
+              <StatePanel
+                title="No pipeline stage activity yet"
+                description="Create an opportunity to begin building the revenue view."
+              />
             ) : null}
           </div>
-        </section>
+        </Surface>
 
-        <section className="crm-overview-surface crm-overview-leads">
-          <div className="crm-overview-section-heading compact">
-            <div>
-              <p className="eyebrow">Lead engine</p>
-              <h2>Acquisition quality</h2>
-              <p>Compare capture volume with qualification and source conversion.</p>
-            </div>
-            <Link href={canViewReports ? "/crm/reports" : "/crm/leads"}>
-              {canViewReports ? "Reports →" : "Leads →"}
-            </Link>
-          </div>
+        <Surface as="section" className="crm-overview-surface crm-overview-leads">
+          <SectionHeader
+            eyebrow="Lead engine"
+            title="Acquisition quality"
+            description="Compare capture volume with qualification and source conversion."
+            actions={
+              <Link href={canViewReports ? "/crm/reports" : "/crm/leads"}>
+                {canViewReports ? "Reports →" : "Leads →"}
+              </Link>
+            }
+          />
 
           <div className="crm-overview-lead-pulse">
             <div>
@@ -292,28 +286,23 @@ export default async function CrmDashboardPage() {
               );
             })}
             {!dashboard.sources.length ? (
-              <div className="crm-overview-empty compact">
-                <strong>No source data yet</strong>
-                <span>Source performance appears after leads are attributed.</span>
-              </div>
+              <StatePanel
+                title="No source data yet"
+                description="Source performance appears after leads are attributed."
+              />
             ) : null}
           </div>
-        </section>
+        </Surface>
       </div>
 
       <div className="crm-overview-secondary-grid">
-        <section className="crm-overview-surface crm-overview-activity">
-          <div className="crm-overview-section-heading">
-            <div>
-              <p className="eyebrow">Seller work queue</p>
-              <h2>Next customer actions</h2>
-              <p>
-                Upcoming work stays visible here; the activity centre remains the
-                system of record for completion and outcome.
-              </p>
-            </div>
-            <Link href="/crm/activities">Activity centre →</Link>
-          </div>
+        <Surface as="section" className="crm-overview-surface crm-overview-activity">
+          <SectionHeader
+            eyebrow="Seller work queue"
+            title="Next customer actions"
+            description="Upcoming work stays visible here; the activity centre remains the system of record for completion and outcome."
+            actions={<Link href="/crm/activities">Activity centre →</Link>}
+          />
 
           <div className="crm-overview-activity-list">
             {dashboard.activities.slice(0, 8).map((activity: DashboardRow) => {
@@ -344,21 +333,22 @@ export default async function CrmDashboardPage() {
               );
             })}
             {!dashboard.activities.length ? (
-              <div className="crm-overview-empty">
-                <AppIcon name="check" size={20} />
-                <strong>No open CRM activities</strong>
-                <span>Create the next customer action when follow-up is required.</span>
-                {canCreateActivity ? (
-                  <Link className="secondary-button" href="/crm/activities?create=1">
-                    Schedule activity
-                  </Link>
-                ) : null}
-              </div>
+              <StatePanel
+                title="No open CRM activities"
+                description="Create the next customer action when follow-up is required."
+                action={
+                  canCreateActivity ? (
+                    <ActionLink href="/crm/activities?create=1">
+                      Schedule activity
+                    </ActionLink>
+                  ) : undefined
+                }
+              />
             ) : null}
           </div>
-        </section>
+        </Surface>
 
-        <section className="crm-overview-surface crm-overview-decision-card">
+        <Surface as="section" className="crm-overview-surface crm-overview-decision-card">
           <p className="eyebrow">Decision guide</p>
           <h2>What needs attention first?</h2>
           <div className="crm-overview-decision-list">
@@ -387,7 +377,7 @@ export default async function CrmDashboardPage() {
               <b>→</b>
             </Link>
           </div>
-        </section>
+        </Surface>
       </div>
 
     </ConvergenceBoundary>
