@@ -29,7 +29,7 @@ export const salesDocumentSchema = z.object({
   amendmentReason: z.string().max(1000).optional().nullable(), lines: z.array(line).min(1).max(500), charges: z.array(charge).max(50).optional(),
 }).strict();
 export const salesActionSchema = z.object({
-  action: z.enum(["submit","send","convert","confirm","hold","release_hold","cancel","request_fulfillment","complete_fulfillment","request_invoice","record_decision","amend"]),
+  action: z.enum(["submit","send","convert","confirm","hold","release_hold","cancel","close","request_fulfillment","complete_fulfillment","request_invoice","record_decision","amend"]),
   assignedTo: nullableUuid, expiresInDays: z.number().int().min(1).max(90).optional(),
   holdType: z.enum(["credit","commercial","inventory","compliance","customer","other"]).optional(),
   holdId: nullableUuid, reason: z.string().max(2000).optional().nullable(), note: z.string().max(4000).optional().nullable(),

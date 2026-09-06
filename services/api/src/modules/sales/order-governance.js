@@ -620,6 +620,50 @@ export async function assessSalesOrderReadiness(client, context, orderId) {
   };
 }
 
+export async function closeSalesOrder(client, context, orderId) {
+  requirePermission(context, "sales.order.confirm");
+  const row = await loadOrderForAssessment(client, context, orderId);
+  const policy = defaultPolicy(row);
+  const health = evaluateSalesOrderHealth(row, policy);
+  if (!health.readyToClose) {
+    throw new SalesOrderGovernanceError(
+      409,
+      "This order is not ready to close: fulfilment, invoicing, holds or returns are still outstanding.",
+      "SALES_ORDER_NOT_READY_TO_CLOSE",
+    );
+  }
+  const result = await client.query(
+    `UPDATE tenant.sales_orders
+        SET lifecycle_status='closed',closed_at=now(),updated_by=$1,updated_at=now()
+      WHERE organization_id=$2 AND id=$3
+        AND lifecycle_status IN ('confirmed','on_hold')
+        AND current_version_id=$4
+      RETURNING id`,
+    [context.userId, context.organizationId, row.id, row.current_version_id],
+  );
+  if (!result.rows[0]) {
+    throw new SalesOrderGovernanceError(
+      409,
+      "The order changed before it could be closed.",
+      "SALES_ORDER_VERSION_CONFLICT",
+    );
+  }
+  await client.query(
+    `INSERT INTO tenant.sales_document_events (organization_id,entity_type,entity_id,event_type,from_status,to_status,metadata,actor_user_id) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
+    [
+      context.organizationId,
+      "sales_order",
+      row.id,
+      "sales_order.closed",
+      row.lifecycle_status,
+      "closed",
+      JSON.stringify({ versionId: row.current_version_id }),
+      context.userId || null,
+    ],
+  );
+  return { orderId: row.id, status: "closed" };
+}
+
 export async function captureSalesOrderGovernanceSnapshot(
   client,
   context,

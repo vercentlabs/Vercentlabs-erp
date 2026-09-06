@@ -2,6 +2,7 @@ import {
   captureSalesOrderGovernanceSnapshot,
   amendSalesOrder,
   cancelSalesOrder,
+  closeSalesOrder,
   completeFulfillmentRequest,
   confirmSalesOrder,
   createFulfillmentRequest,
@@ -45,6 +46,8 @@ export async function POST(
             id,
             input.reason || "",
           );
+        else if (input.action === "close")
+          value = await closeSalesOrder(client, context, id);
         else if (input.action === "request_fulfillment")
           value = await createFulfillmentRequest(
             client,

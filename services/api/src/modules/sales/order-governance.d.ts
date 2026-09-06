@@ -49,6 +49,12 @@ export function assessSalesOrderReadiness(
   orderId: string,
 ): Promise<Record<string, unknown>>;
 
+export function closeSalesOrder(
+  client: SalesQueryClient,
+  context: SalesContext,
+  orderId: string,
+): Promise<Record<string, unknown>>;
+
 export function captureSalesOrderGovernanceSnapshot(
   client: SalesQueryClient,
   context: SalesContext,
