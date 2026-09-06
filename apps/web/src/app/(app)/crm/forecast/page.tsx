@@ -7,6 +7,12 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { crmContext } from "@/modules/crm";
+import {
+  EnterpriseDataGrid,
+  MetricCard,
+  StatePanel,
+  type DataGridColumn,
+} from "@/shared/design";
 
 export const metadata = { title: "Sales forecast" };
 export const dynamic = "force-dynamic";
@@ -59,21 +65,21 @@ export default async function CrmForecastPage() {
       </section>
 
       <section className="crm-forecast-metrics" aria-label="Forecast summary">
-        <article>
-          <span>Open pipeline</span>
-          <strong>{money(pipeline)}</strong>
-          <small>{openDeals} active opportunities</small>
-        </article>
-        <article>
-          <span>Weighted forecast</span>
-          <strong>{money(weighted)}</strong>
-          <small>{coverage}% probability-weighted coverage</small>
-        </article>
-        <article>
-          <span>Won revenue</span>
-          <strong>{money(won)}</strong>
-          <small>Closed-won revenue in the report scope</small>
-        </article>
+        <MetricCard
+          label="Open pipeline"
+          value={money(pipeline)}
+          hint={`${openDeals} active opportunities`}
+        />
+        <MetricCard
+          label="Weighted forecast"
+          value={money(weighted)}
+          hint={`${coverage}% probability-weighted coverage`}
+        />
+        <MetricCard
+          label="Won revenue"
+          value={money(won)}
+          hint="Closed-won revenue in the report scope"
+        />
       </section>
 
       <section className="panel crm-forecast-table">
@@ -89,43 +95,67 @@ export default async function CrmForecastPage() {
           ) : null}
         </div>
 
-        {rows.length ? (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Owner</th>
-                  <th>Pipeline</th>
-                  <th>Weighted</th>
-                  <th>Won</th>
-                  <th>Weighted share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const ownerPipeline = numeric(row.pipeline);
-                  const ownerWeighted = numeric(row.weighted);
-                  const share = ownerPipeline > 0 ? Math.round((ownerWeighted / ownerPipeline) * 100) : 0;
-                  return (
-                    <tr key={String(row.owner || "Unassigned")}>
-                      <td><strong>{String(row.owner || "Unassigned")}</strong></td>
-                      <td>{money(ownerPipeline)}</td>
-                      <td>{money(ownerWeighted)}</td>
-                      <td>{money(row.won)}</td>
-                      <td>{share}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="empty-state">
-            <strong>No forecast data yet</strong>
-            <p>Create and value opportunities to build the forecast.</p>
-            <Link className="primary-button" href="/crm/opportunities?create=1">Create opportunity</Link>
-          </div>
-        )}
+        {(() => {
+          const columns: DataGridColumn<Row>[] = [
+            {
+              id: "owner",
+              header: "Owner",
+              cell: (row) => (
+                <strong>{String(row.owner || "Unassigned")}</strong>
+              ),
+            },
+            {
+              id: "pipeline",
+              header: "Pipeline",
+              cell: (row) => money(numeric(row.pipeline)),
+            },
+            {
+              id: "weighted",
+              header: "Weighted",
+              cell: (row) => money(numeric(row.weighted)),
+            },
+            {
+              id: "won",
+              header: "Won",
+              cell: (row) => money(row.won),
+            },
+            {
+              id: "share",
+              header: "Weighted share",
+              cell: (row) => {
+                const ownerPipeline = numeric(row.pipeline);
+                const ownerWeighted = numeric(row.weighted);
+                const share =
+                  ownerPipeline > 0
+                    ? Math.round((ownerWeighted / ownerPipeline) * 100)
+                    : 0;
+                return `${share}%`;
+              },
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption="Owner forecast"
+              rows={rows}
+              rowKey={(row) => String(row.owner || "Unassigned")}
+              columns={columns}
+              emptyState={
+                <StatePanel
+                  title="No forecast data yet"
+                  description="Create and value opportunities to build the forecast."
+                  action={
+                    <Link
+                      className="primary-button"
+                      href="/crm/opportunities?create=1"
+                    >
+                      Create opportunity
+                    </Link>
+                  }
+                />
+              }
+            />
+          );
+        })()}
       </section>
     </div>
   );

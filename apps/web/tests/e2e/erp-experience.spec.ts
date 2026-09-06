@@ -63,6 +63,10 @@ const ROUTES: RepresentativeRoute[] = [
     name: "crm-lead-sources",
     resolvePath: () => "/crm/sources",
   },
+  {
+    name: "crm-forecast",
+    resolvePath: () => "/crm/forecast",
+  },
 ];
 
 const RESPONSIVE_VIEWPORTS = [

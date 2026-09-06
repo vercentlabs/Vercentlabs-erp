@@ -274,7 +274,6 @@
     "apps/web/src/app/(app)/approvals/page.tsx": 1,
     "apps/web/src/app/(app)/assets/[resource]/page.tsx": 1,
     "apps/web/src/app/(app)/audit-logs/security/page.tsx": 1,
-    "apps/web/src/app/(app)/crm/forecast/page.tsx": 1,
     "apps/web/src/app/(app)/crm/reports/page.tsx": 1,
     "apps/web/src/app/(app)/hr-payroll/[resource]/page.tsx": 1,
     "apps/web/src/app/(app)/integrations/page.tsx": 2,
