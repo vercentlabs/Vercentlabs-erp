@@ -1,4 +1,13 @@
+// Despite the filename, this now covers every side effect that must run
+// after Sales order confirmation/cancellation but can't live inside
+// confirmSalesOrder/cancelSalesOrder itself: the CRM opportunity sync
+// (genuinely cross-module) and commission accrual (same module, but
+// pass1-operations.js and index.js can't import each other directly -
+// pass1-operations.js already imports SalesError from index.js, so this
+// orchestration layer, which imports from both without creating a cycle,
+// is the correct home for that wiring too).
 import { confirmSalesOrder, cancelSalesOrder } from "../modules/sales/index.js";
+import { accrueSalesCommission } from "../modules/sales/pass1-operations.js";
 import { moveOpportunityStage } from "../modules/crm/index.js";
 
 function crmSyncContext(salesContext) {
@@ -9,6 +18,21 @@ function crmSyncContext(salesContext) {
     activeBranchId: null,
     allowAllCompanies: true,
     permissions: ["crm.opportunities.manage", "crm.records.view_all"],
+    roleSlugs: [],
+  };
+}
+
+// accrueSalesCommission requires sales.settings.manage - the confirming rep
+// won't usually hold that. Elevated, tenant-scoped internal step, same
+// shape as crmSyncContext above.
+function commissionAccrualContext(salesContext) {
+  return {
+    organizationId: salesContext.organizationId,
+    userId: salesContext.userId,
+    activeCompanyId: null,
+    activeBranchId: null,
+    allowAllCompanies: true,
+    permissions: ["sales.settings.manage"],
     roleSlugs: [],
   };
 }
@@ -75,6 +99,22 @@ export async function confirmSalesOrderWithCrmSync(
     } catch {
       // Best-effort - order confirmation already succeeded and must stand.
     }
+  }
+  // F057 gap: accrueSalesCommission (a real, correct calculation engine -
+  // rule precedence, net_sales/gross_margin basis, idempotent
+  // upsert-by-natural-key) was only ever reachable via a manual action,
+  // with nothing triggering it automatically. Order confirmation is the
+  // natural trigger point (the same moment the CRM opportunity closes).
+  // Most orders have no applicable commission rule configured at all -
+  // that's an expected, common outcome, not a failure, so this is
+  // unconditionally best-effort just like the CRM sync above.
+  try {
+    await accrueSalesCommission(client, commissionAccrualContext(salesContext), {
+      salesOrderId: orderId,
+    });
+  } catch {
+    // Best-effort - no applicable commission rule is a normal outcome, and
+    // a commission-configuration issue must never block order confirmation.
   }
   return result;
 }
