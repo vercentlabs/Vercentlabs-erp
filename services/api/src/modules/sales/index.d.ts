@@ -12,6 +12,7 @@ export function rejectQuotationApproval(client: SalesQueryClient, context: Sales
 export function sendQuotation(client: SalesQueryClient, context: SalesContext, id: string, expiresInDays?: number): Promise<any>;
 export function resolvePublicQuoteToken(client: SalesQueryClient, context: SalesContext, tokenHash: string, trackView?: boolean): Promise<any>;
 export function recordPublicQuoteDecision(client: SalesQueryClient, context: SalesContext, tokenHash: string, input: Record<string, any>, metadata?: Record<string, any>): Promise<any>;
+export function scanExpiredQuotations(client: SalesQueryClient, context: SalesContext): Promise<{ scanned: number; expired: number }>;
 export function createSalesOrder(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;
 export function convertQuotationToOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
 export function listSalesOrders(client: SalesQueryClient, context: SalesContext, filters?: Record<string, any>): Promise<any[]>;

@@ -4,14 +4,17 @@ import { enqueueJob } from "./queue.js";
 import { withTenantClient, listActiveOrganizationIds } from "./db.js";
 import { JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE } from "./handlers/crm-automation-overdue.js";
 import { JOB_TYPE as LEAD_SLA_SCAN_JOB_TYPE } from "./handlers/crm-lead-sla-scan.js";
+import { JOB_TYPE as QUOTATION_EXPIRY_SCAN_JOB_TYPE } from "./handlers/sales-quotation-expiry-scan.js";
 
 const logger = createLogger("worker-scheduler");
 
-// Two scheduled sources exist today: the activity.overdue detection tick,
-// and the Lead SLA breach/reassignment scan added alongside it (F005/F014
-// gap-closing — see crm-lead-sla-scan.js for why this one specifically
-// needed automating: the domain logic already existed and was correct,
-// it just only ever ran when a human clicked "Scan now"). Per Part 24
+// Three scheduled sources exist today: the activity.overdue detection tick,
+// the Lead SLA breach/reassignment scan (F005/F014 gap-closing — see
+// crm-lead-sla-scan.js for why this one specifically needed automating: the
+// domain logic already existed and was correct, it just only ever ran when
+// a human clicked "Scan now"), and the Sales quotation-expiry scan
+// (F038 gap-closing — see sales-quotation-expiry-scan.js; unlike the Lead
+// SLA case, the domain logic itself didn't exist yet either). Per Part 24
 // ("if only event enum names exist with no schedule definition: do not
 // invent a broad scheduler DSL"; crm_automation_rules has no
 // schedule/cron/interval column at all, confirmed by direct schema
@@ -58,6 +61,19 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("lead SLA scan tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: QUOTATION_EXPIRY_SCAN_JOB_TYPE,
+          idempotencyKey: `quotation-expiry-scan-tick:${bucket}`,
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("quotation expiry scan tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

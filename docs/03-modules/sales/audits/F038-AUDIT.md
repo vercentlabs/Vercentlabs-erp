@@ -14,6 +14,13 @@ Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows) by reading `resolvePubl
 | AUDIT | PASS | `quotation.viewed` is recorded as a real audit event with `userId: null` (a public/anonymous actor, correctly distinguished from an internal user action) the first time a customer opens the link. |
 | AUTO-001 / NOTIF-001 / REP-001 / AI-001 / INT-001/002 / UX-001-003 / VAL-001/002 (beyond above) / API-001/002 / OBS-001 / E2E-001-002 / UAT-001-002 | NOT INDEPENDENTLY VERIFIED | Not traced this pass. |
 
+**Fixed in the Sales gap-closing pass (2026-09-06):**
+- `resolvePublicQuoteToken` now checks the quotation's own `valid_until` (UTC date-string comparison, inclusive of the expiry day itself) immediately after loading it, rejecting with a `410` regardless of whether the separate share-link token is still live — closes the CAP-002 "expired acceptance" gap directly, in real time, independent of the scan's cadence.
+- A new domain function, `scanExpiredQuotations` (gated on `sales.settings.manage`), transitions any `approved`/`sent`/`viewed` quotation whose `valid_until` has passed to `expired`, with a `quotation.expired` audit event per row — naturally idempotent via the same status-transition-excludes-itself pattern as CRM's `scanLeadSlaBreaches`/`detectOverdueActivitiesHandler`.
+- A new scheduled worker tick, `sales.automation.detect_expired_quotations` (`services/worker/src/handlers/sales-quotation-expiry-scan.js`), calls it on the same fixed interval as the other two scheduled ticks — registered in `handlers/index.js` and `scheduler.js` (now three ticks per organization, up from two).
+
+Not fixed (recorded, smaller, non-priority): the reminder-window and lightweight-extension gaps below remain open.
+
 ## Net assessment (2026-09-06)
 
-The most significant gap found in Sales so far outside the two already-fixed security bugs: quotation expiry is entirely unenforced. `valid_until` is stored and reportable, but no code path — scheduled or otherwise — ever transitions a quotation to `expired`, and the customer-facing acceptance gateway checks only the unrelated share-link token expiry, not the quotation's own commercial validity date. Recorded for the Sales gap-closing pass as a priority item (it's a functional/commercial-integrity defect, not just a missing label), alongside the smaller "no lightweight extension" gap.
+The most significant functional gap found in Sales outside the two live security bugs — quotation expiry was entirely unenforced — is now fixed on both halves: the real-time acceptance gate (`resolvePublicQuoteToken`) and the scheduled state transition (`scanExpiredQuotations` + its worker tick). The smaller "no reminder windows" and "no lightweight extension" gaps remain open, deliberately deferred as lower-priority polish rather than commercial-integrity defects.

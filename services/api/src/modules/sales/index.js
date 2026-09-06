@@ -1223,6 +1223,15 @@ export async function resolvePublicQuoteToken(
   const quote = await lockQuotation(client, context, link.quotation_id);
   if (quote.current_version_id !== link.quotation_version_id)
     throw new SalesError(410, "A newer quotation revision is available.");
+  // The share LINK's own expiry (checked above) is a separate, independently
+  // configured access window (1-90 days from send) - it says nothing about
+  // whether the quotation's own commercial offer is still valid. Without this
+  // check a customer could accept pricing/terms past valid_until as long as
+  // their link happened to still be live.
+  const validUntilDate = new Date(quote.valid_until).toISOString().slice(0, 10);
+  const todayDate = new Date().toISOString().slice(0, 10);
+  if (validUntilDate < todayDate)
+    throw new SalesError(410, "This quotation has expired.");
   if (trackView) {
     await client.query(
       `UPDATE tenant.sales_quote_share_links SET first_viewed_at=COALESCE(first_viewed_at,now()),last_viewed_at=now(),view_count=view_count+1 WHERE id=$1`,
@@ -1313,6 +1322,38 @@ export async function recordPublicQuoteDecision(
     { versionId: quote.current_version_id, customerName: name },
   );
   return { quotationId: quote.quotation_id, decision };
+}
+
+// F038 gap: valid_until was stored and reportable but nothing ever
+// transitioned a quotation to 'expired' - only an offer actively presented
+// to a customer (approved/sent/viewed, never a draft that was never sent)
+// can go stale. Naturally idempotent: the same WHERE clause that selects a
+// row is what excludes it from a later run, so a retried/concurrent scan
+// can't double-fire the same transition (same pattern as
+// scanLeadSlaBreaches/detectOverdueActivitiesHandler on the CRM side).
+export async function scanExpiredQuotations(client, context) {
+  requirePermission(context, "sales.settings.manage");
+  const result = await client.query(
+    `UPDATE tenant.sales_quotations
+        SET lifecycle_status='expired',updated_at=now()
+      WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent','viewed')
+        AND valid_until < current_date
+      RETURNING id,current_version_id`,
+    [context.organizationId],
+  );
+  for (const row of result.rows) {
+    await event(
+      client,
+      { ...context, userId: null },
+      "quotation",
+      row.id,
+      "quotation.expired",
+      null,
+      "expired",
+      { versionId: row.current_version_id },
+    );
+  }
+  return { scanned: result.rowCount ?? result.rows.length, expired: result.rows.length };
 }
 
 async function insertOrderFromPreview(
