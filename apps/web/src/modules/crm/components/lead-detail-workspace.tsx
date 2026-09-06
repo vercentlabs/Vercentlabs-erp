@@ -470,6 +470,17 @@ export default function CrmLeadDetailWorkspace({
     );
     if (result?.ok) router.push(`/crm/leads/${target}`);
   }
+  async function dismissDuplicate(matchedLeadId: string) {
+    const reason = window.prompt(
+      "Explain why this is not the same Lead (at least 10 characters):",
+    );
+    if (reason == null) return;
+    await api(
+      "/api/crm/leads/duplicates",
+      { leadId: id, matchedLeadId, reason },
+      "dismiss",
+    );
+  }
   async function scheduleFollowUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1940,6 +1951,15 @@ export default function CrmLeadDetailWorkspace({
                         onClick={() => void merge(id)}
                       >
                         Merge current into this
+                      </button>
+                    ) : null}
+                    {canManageDataQuality && id && row.classification !== "exact" ? (
+                      <button
+                        className="link-button"
+                        disabled={pending === "dismiss"}
+                        onClick={() => void dismissDuplicate(id)}
+                      >
+                        Not a duplicate
                       </button>
                     ) : null}
                   </article>

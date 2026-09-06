@@ -129,6 +129,21 @@ function classify(row, normalized) {
   return exact ? { classification: "exact", signals } : probable ? { classification: "probable", signals } : null;
 }
 
+async function dismissedMatchIds(client, organizationId, leadId) {
+  if (!leadId) return new Set();
+  const result = await client.query(
+    `SELECT lead_id, matched_lead_ids FROM tenant.crm_lead_duplicate_overrides
+      WHERE organization_id=$1 AND operation='dismiss' AND (lead_id=$2 OR $2=ANY(matched_lead_ids))`,
+    [organizationId, leadId],
+  );
+  const ids = new Set();
+  for (const row of result.rows) {
+    if (row.lead_id === leadId) for (const id of row.matched_lead_ids) ids.add(id);
+    else ids.add(row.lead_id);
+  }
+  return ids;
+}
+
 export async function evaluateLeadDuplicateRisk(
   client,
   context,
@@ -180,10 +195,21 @@ export async function evaluateLeadDuplicateRisk(
       normalized.company,
     ],
   );
+  const dismissed = await dismissedMatchIds(
+    client,
+    context.organizationId,
+    options.excludeLeadId || null,
+  );
   const internalMatches = result.rows
     .map((row) => {
       const risk = classify(row, normalized);
-      return risk ? { ...risk, row } : null;
+      if (!risk) return null;
+      // A dismissal never suppresses a match that is currently exact — even
+      // if it was dismissed while only probable (e.g. a later edit made an
+      // email now match exactly). Exact duplicates always require the
+      // separate, per-write override path, never a one-time dismissal.
+      if (risk.classification !== "exact" && dismissed.has(row.id)) return null;
+      return { ...risk, row };
     })
     .filter(Boolean)
     .sort((left, right) =>
@@ -263,6 +289,52 @@ export async function assertLeadDuplicatePolicy(
     );
   }
   return { ...evaluation, overrideReason: reason };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function dismissLeadDuplicateMatch(client, context, leadId, matchedLeadId, reason) {
+  if (!UUID_PATTERN.test(String(leadId)) || !UUID_PATTERN.test(String(matchedLeadId)))
+    throw new LeadDuplicateError(400, "Invalid Lead identifier.", "CRM_LEAD_DUPLICATE_DISMISS_INVALID");
+  if (String(leadId) === String(matchedLeadId))
+    throw new LeadDuplicateError(400, "A Lead cannot be dismissed against itself.", "CRM_LEAD_DUPLICATE_DISMISS_INVALID");
+  if (!canOverrideLeadDuplicate(context))
+    throw new LeadDuplicateError(403, "You do not have permission to dismiss a Lead duplicate signal.", "CRM_LEAD_DUPLICATE_DISMISS_FORBIDDEN");
+  const trimmedReason = String(reason || "").trim();
+  if (trimmedReason.length < 10 || trimmedReason.length > 1000)
+    throw new LeadDuplicateError(400, "Enter a dismissal reason between 10 and 1,000 characters.", "CRM_LEAD_DUPLICATE_DISMISS_REASON_REQUIRED");
+
+  const rows = await client.query(
+    `SELECT id,normalized_email,normalized_mobile,normalized_business_phone,normalized_name,normalized_company_name
+       FROM tenant.crm_leads WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
+    [context.organizationId, [leadId, matchedLeadId]],
+  );
+  const lead = rows.rows.find((row) => row.id === String(leadId));
+  const candidate = rows.rows.find((row) => row.id === String(matchedLeadId));
+  if (!lead || !candidate)
+    throw new LeadDuplicateError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
+
+  const risk = classify(candidate, {
+    email: lead.normalized_email,
+    mobile: lead.normalized_mobile,
+    business_phone: lead.normalized_business_phone,
+    name: lead.normalized_name,
+    company: lead.normalized_company_name,
+  });
+  if (risk?.classification === "exact")
+    throw new LeadDuplicateError(
+      409,
+      "Exact duplicates cannot be dismissed — merge the records or override with a reason instead.",
+      "CRM_LEAD_DUPLICATE_DISMISS_EXACT_FORBIDDEN",
+    );
+
+  const result = await client.query(
+    `INSERT INTO tenant.crm_lead_duplicate_overrides(
+       organization_id,lead_id,matched_lead_ids,reason,actor_user_id,operation
+     ) VALUES($1,$2,ARRAY[$3]::uuid[],$4,$5,'dismiss') RETURNING *`,
+    [context.organizationId, leadId, matchedLeadId, trimmedReason, context.userId],
+  );
+  return result.rows[0];
 }
 
 export async function recordLeadDuplicateOverride(

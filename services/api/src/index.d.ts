@@ -47,6 +47,13 @@ export function recordLeadDuplicateOverride(
 export function hasLeadDuplicateIdentityChange(
   input: Record<string, unknown>,
 ): boolean;
+export function dismissLeadDuplicateMatch(
+  client: QueryClient,
+  context: any,
+  leadId: string,
+  matchedLeadId: string,
+  reason: string,
+): Promise<any>;
 
 export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
 export function getLeadStage(client: QueryClient, context: any, idOrCode: string): Promise<any>;

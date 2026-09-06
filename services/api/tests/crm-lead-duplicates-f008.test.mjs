@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   LeadDuplicateError,
   assertLeadDuplicatePolicy,
+  dismissLeadDuplicateMatch,
   evaluateLeadDuplicateRisk,
   hasLeadDuplicateIdentityChange,
   recordLeadDuplicateOverride,
@@ -189,4 +190,123 @@ test("F008: authorized exact override is immutable-ledger ready and locks the id
 test("F008: unrelated Lead updates do not trigger identity rechecks", () => {
   assert.equal(hasLeadDuplicateIdentityChange({ priority: "high" }), false);
   assert.equal(hasLeadDuplicateIdentityChange({ email: "new@example.com" }), true);
+});
+
+const leadId = "88888888-8888-4888-8888-888888888888";
+const candidateId = "99999999-9999-4999-8999-999999999999";
+const manager = context({ permissions: ["crm.view", "crm.records.view_all", "crm.data-quality.manage"] });
+
+function dismissClient({ leadNorm = {}, candidateNorm = {} } = {}) {
+  const calls = [];
+  return {
+    calls,
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (/FROM tenant\.crm_leads WHERE organization_id=\$1 AND id=ANY/.test(sql)) {
+        const blank = { normalized_email: null, normalized_mobile: null, normalized_business_phone: null, normalized_name: null, normalized_company_name: null };
+        return {
+          rows: [
+            { id: leadId, ...blank, ...leadNorm },
+            { id: candidateId, ...blank, ...candidateNorm },
+          ],
+        };
+      }
+      if (/INSERT INTO tenant\.crm_lead_duplicate_overrides/.test(sql)) {
+        return { rows: [{ id: "dismiss-1", lead_id: params[0], matched_lead_ids: [params[1]], reason: params[2], operation: "dismiss" }] };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+}
+
+test("F008: a probable match can be dismissed by an authorized data-quality manager with a real reason", async () => {
+  const db = dismissClient();
+  const dismissal = await dismissLeadDuplicateMatch(db, manager, leadId, candidateId, "Different companies with the same common name");
+  assert.equal(dismissal.id, "dismiss-1");
+  const insert = db.calls.find((call) => /INSERT INTO tenant\.crm_lead_duplicate_overrides/.test(call.sql));
+  assert.match(insert.sql, /'dismiss'/);
+  assert.equal(insert.params[1], leadId);
+  assert.equal(insert.params[2], candidateId);
+});
+
+test("F008: dismissing an exact match is refused — override with a reason is the only path for a real duplicate", async () => {
+  const db = dismissClient({
+    leadNorm: { normalized_email: "priya@example.com" },
+    candidateNorm: { normalized_email: "priya@example.com" },
+  });
+  await assert.rejects(
+    dismissLeadDuplicateMatch(db, manager, leadId, candidateId, "They just happen to share an email somehow"),
+    (error) => error.code === "CRM_LEAD_DUPLICATE_DISMISS_EXACT_FORBIDDEN" && error.status === 409,
+  );
+  assert.equal(db.calls.some((call) => /INSERT INTO tenant\.crm_lead_duplicate_overrides/.test(call.sql)), false);
+});
+
+test("F008: dismiss requires the same authorization and reason bar as an override", async () => {
+  const rep = context();
+  await assert.rejects(
+    dismissLeadDuplicateMatch(dismissClient(), rep, leadId, candidateId, "Different companies with the same common name"),
+    (error) => error.code === "CRM_LEAD_DUPLICATE_DISMISS_FORBIDDEN" && error.status === 403,
+  );
+  await assert.rejects(
+    dismissLeadDuplicateMatch(dismissClient(), manager, leadId, candidateId, "short"),
+    (error) => error.code === "CRM_LEAD_DUPLICATE_DISMISS_REASON_REQUIRED" && error.status === 400,
+  );
+  await assert.rejects(
+    dismissLeadDuplicateMatch(dismissClient(), manager, "not-a-uuid", candidateId, "Different companies with the same common name"),
+    (error) => error.code === "CRM_LEAD_DUPLICATE_DISMISS_INVALID",
+  );
+  await assert.rejects(
+    dismissLeadDuplicateMatch(dismissClient(), manager, leadId, leadId, "Different companies with the same common name"),
+    (error) => error.code === "CRM_LEAD_DUPLICATE_DISMISS_INVALID",
+  );
+});
+
+function clientWithDismissals(rows, dismissals) {
+  const base = client(rows);
+  return {
+    calls: base.calls,
+    async query(sql, params = []) {
+      if (/SELECT lead_id, matched_lead_ids FROM tenant\.crm_lead_duplicate_overrides/.test(sql)) {
+        base.calls.push({ sql, params });
+        return { rows: dismissals };
+      }
+      return base.query(sql, params);
+    },
+  };
+}
+
+test("F008: a previously-dismissed probable match no longer appears as a candidate", async () => {
+  const db = clientWithDismissals(
+    [row({ normalized_email: null, normalized_mobile: null, id: candidateId })],
+    [{ lead_id: leadId, matched_lead_ids: [candidateId] }],
+  );
+  const result = await evaluateLeadDuplicateRisk(
+    db,
+    context(),
+    { firstName: "Priya", lastName: "Shah", companyName: "ACME Manufacturing" },
+    { excludeLeadId: leadId },
+  );
+  assert.equal(result.classification, "none");
+  assert.equal(result.matches.length, 0);
+});
+
+test("F008: a dismissal never suppresses a match that is currently exact, even if dismissed while only probable", async () => {
+  const db = clientWithDismissals(
+    [row({ id: candidateId })],
+    [{ lead_id: leadId, matched_lead_ids: [candidateId] }],
+  );
+  const result = await evaluateLeadDuplicateRisk(
+    db,
+    context(),
+    { email: "priya@example.com" },
+    { excludeLeadId: leadId },
+  );
+  assert.equal(result.classification, "exact");
+  assert.equal(result.matches.length, 1);
+});
+
+test("F008: dismissal lookup is skipped entirely when there is no current Lead to scope it to (create-time checks)", async () => {
+  const db = client([row()]);
+  await evaluateLeadDuplicateRisk(db, context(), { email: "priya@example.com" });
+  assert.equal(db.calls.some((call) => /crm_lead_duplicate_overrides/.test(call.sql)), false);
 });

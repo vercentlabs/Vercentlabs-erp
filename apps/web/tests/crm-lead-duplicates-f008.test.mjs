@@ -69,6 +69,22 @@ test("F008 Lead Detail does not render links or merge actions for restricted mat
   assert.match(source, /canManage && id/);
 });
 
+test("F008 dismiss route is authenticated, audited and delegates to the governed domain function", () => {
+  const route = read("src/app/api/crm/leads/duplicates/route.ts");
+  assert.match(route, /import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk } from "@vercentlabs\/api"/);
+  assert.match(route, /assertSameOrigin\(request\)/);
+  assert.match(route, /dismissLeadDuplicateMatch\(client, context, leadId, matchedLeadId, reason\)/);
+  assert.match(route, /crm\.lead\.duplicate_dismissed/);
+});
+
+test("F008 Lead Detail offers a Not a duplicate action for probable (never exact) matches, gated on data-quality permission", () => {
+  const source = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  assert.match(source, /async function dismissDuplicate\(matchedLeadId: string\)/);
+  assert.match(source, /\/api\/crm\/leads\/duplicates/);
+  assert.match(source, /canManageDataQuality && id && row\.classification !== "exact"/);
+  assert.match(source, /Not a duplicate/);
+});
+
 test("F008 import delegates duplicate decisions to canonical createCrmRecord", () => {
   const source = read("src/app/api/crm/[resource]/import/route.ts");
   assert.match(source, /CRM_LEAD_DUPLICATE_EXACT/);
