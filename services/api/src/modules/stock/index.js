@@ -553,6 +553,16 @@ export async function releaseStockReservation(client, c, id, { status = "release
   return closed.rows[0];
 }
 
+export async function listActiveStockReservationsByReference(client, c, { referenceType, referenceId }) {
+  need(c, "stock.view");
+  const { rows } = await client.query(
+    `SELECT * FROM tenant.stock_reservations
+      WHERE organization_id=$1 AND company_id=$2 AND reference_type=$3 AND reference_id=$4 AND status='active'`,
+    [c.organizationId, c.companyId, String(referenceType).slice(0,100), referenceId],
+  );
+  return rows;
+}
+
 export async function listStockReorderCandidates(client, c, { limit = 100 } = {}) {
   need(c, "stock.view");
   const { rows } = await client.query(

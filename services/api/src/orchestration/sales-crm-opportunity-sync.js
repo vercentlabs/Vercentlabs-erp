@@ -9,6 +9,7 @@
 import { confirmSalesOrder, cancelSalesOrder } from "../modules/sales/index.js";
 import { accrueSalesCommission } from "../modules/sales/pass1-operations.js";
 import { moveOpportunityStage } from "../modules/crm/index.js";
+import { releaseSalesOrderStockReservationsOnCancel } from "./sales-stock-reservation.js";
 
 function crmSyncContext(salesContext) {
   return {
@@ -33,6 +34,19 @@ function commissionAccrualContext(salesContext) {
     activeBranchId: null,
     allowAllCompanies: true,
     permissions: ["sales.settings.manage"],
+    roleSlugs: [],
+  };
+}
+
+// Stock's context shape is single-company (no allowAllCompanies concept),
+// unlike CRM's - releasing a reservation must run scoped to the order's own
+// company, not the confirming rep's active company.
+function stockSyncContext(salesContext, companyId) {
+  return {
+    organizationId: salesContext.organizationId,
+    companyId,
+    userId: salesContext.userId,
+    permissions: ["stock.view", "stock.reserve"],
     roleSlugs: [],
   };
 }
@@ -143,6 +157,22 @@ export async function cancelSalesOrderWithCrmSync(
           `Reopened: the Sales order that won this opportunity (${orderId}) was cancelled.`,
         );
       }
+    } catch {
+      // Best-effort - order cancellation already succeeded and must stand.
+    }
+  }
+  // F046 gap: nothing released the stock reservation(s) created against this
+  // order's lines when the order was cancelled, leaving reserved_quantity
+  // permanently inflated. A missing/inconsistent reservation is a normal
+  // outcome (not every order reserves stock), so this stays best-effort like
+  // the CRM sync above.
+  if (result.companyId) {
+    try {
+      await releaseSalesOrderStockReservationsOnCancel(
+        client,
+        stockSyncContext(salesContext, result.companyId),
+        orderId,
+      );
     } catch {
       // Best-effort - order cancellation already succeeded and must stand.
     }

@@ -2057,6 +2057,7 @@ export async function cancelSalesOrder(client, context, id, reason) {
     orderId: id,
     status: "cancelled",
     sourceOpportunityId: order.source_opportunity_id || null,
+    companyId: order.company_id,
   };
 }
 
