@@ -1,6 +1,15 @@
 "use client";
 
-import { ActionButton, ActionLink, Record360Archetype, StatePanel, StatusBadge } from "@/shared/design";
+import {
+  ActionButton,
+  ActionLink,
+  FormField,
+  Record360Archetype,
+  SectionHeader,
+  StatePanel,
+  StatusBadge,
+  Surface,
+} from "@/shared/design";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -147,14 +156,14 @@ function LeadOwnerDialog({
             <p className="eyebrow">Lead ownership</p>
             <h2 id="change-owner-title">Change owner</h2>
           </div>
-          <button
+          <ActionButton
             aria-label="Close Change owner"
-            className="icon-button"
+            tone="quiet"
             onClick={() => dialogRef.current?.close()}
             type="button"
           >
             ×
-          </button>
+          </ActionButton>
         </header>
         <div className="crm-owner-dialog__body">
           <div className="crm-owner-dialog__current">
@@ -179,21 +188,22 @@ function LeadOwnerDialog({
           ) : null}
         </div>
         <footer>
-          <button
-            className="secondary-button"
-            disabled={pending}
+          <ActionButton
+            tone="secondary"
+            busy={pending}
             onClick={() => dialogRef.current?.close()}
             type="button"
           >
             Cancel
-          </button>
-          <button
-            className="primary-button"
-            disabled={!selected || pending}
+          </ActionButton>
+          <ActionButton
+            tone="primary"
+            disabled={!selected}
+            busy={pending}
             type="submit"
           >
             {pending ? "Assigning…" : "Assign owner"}
-          </button>
+          </ActionButton>
         </footer>
       </form>
     </dialog>
@@ -743,13 +753,13 @@ export default function CrmLeadDetailWorkspace({
           ) : null}
           {canAssignOwner &&
           recordStatus === "active" ? (
-            <button
-              className="link-button"
+            <ActionButton
+              tone="quiet"
               onClick={() => setChangingOwner(true)}
               type="button"
             >
               Change owner
-            </button>
+            </ActionButton>
           ) : null}
         </div>
         <div>
@@ -821,7 +831,7 @@ export default function CrmLeadDetailWorkspace({
       {conflictMessage ? (
         <div className="notice" role="alert">
           <strong>{conflictMessage}</strong>{" "}
-          <button type="button" className="link-button" onClick={() => { setConflictMessage(""); router.refresh(); }}>Review latest Lead</button>
+          <ActionButton tone="quiet" type="button" onClick={() => { setConflictMessage(""); router.refresh(); }}>Review latest Lead</ActionButton>
         </div>
       ) : null}
       {message ? (
@@ -899,13 +909,8 @@ export default function CrmLeadDetailWorkspace({
               qualification={qualification}
               canManage={canManage}
             />
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">Lead profile</p>
-                  <h2>Qualification context</h2>
-                </div>
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="Lead profile" title="Qualification context" />
               <dl className="crm-lead-profile-grid">
                 {[
                   ["Company", lead.companyName],
@@ -934,7 +939,7 @@ export default function CrmLeadDetailWorkspace({
                   </div>
                 ))}
               </dl>
-            </section>
+            </Surface>
             <aside className="crm-suite-surface">
               <h2>Relationship summary</h2>
               <div className="crm-lead-relationship-counts">
@@ -957,28 +962,28 @@ export default function CrmLeadDetailWorkspace({
               </div>
               <h2 className="crm-suite-subheading">Quick work</h2>
               {canManageActivities ? (
-                <button
-                  className="secondary-button full"
+                <ActionButton
+                  className="full"
                   type="button"
                   onClick={() => setTab("activities")}
                 >
                   Add follow-up
-                </button>
+                </ActionButton>
               ) : null}
               {canManage ? (
-                <button
-                  className="secondary-button full"
+                <ActionButton
+                  className="full"
                   type="button"
                   onClick={() => setTab("notes")}
                 >
                   Add internal note
-                </button>
+                </ActionButton>
               ) : null}
               {canManage ? (
-                <button
-                  className="secondary-button full"
+                <ActionButton
+                  className="full"
                   type="button"
-                  disabled={pending === "score"}
+                  busy={pending === "score"}
                   onClick={() =>
                     void api(
                       `/api/crm/leads/${id}/score`,
@@ -988,7 +993,7 @@ export default function CrmLeadDetailWorkspace({
                   }
                 >
                   Recalculate score
-                </button>
+                </ActionButton>
               ) : null}
               <h2 className="crm-suite-subheading">Ownership history</h2>
               <div className="crm-owner-history">
@@ -1015,13 +1020,8 @@ export default function CrmLeadDetailWorkspace({
 
         {tab === "governance" ? (
           <div className="crm-suite-two-column wide">
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">Trust & acquisition</p>
-                  <h2>Provenance and consent evidence</h2>
-                </div>
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="Trust & acquisition" title="Provenance and consent evidence" />
               <h3>Lead provenance</h3>
               <div className="crm-suite-list">
                 {provenance.map((row) => (
@@ -1060,9 +1060,8 @@ export default function CrmLeadDetailWorkspace({
               {canManagePrivacy ? (
                 <form className="crm-suite-form" onSubmit={recordConsent}>
                   <h3>Record consent event</h3>
-                  <label>
-                    Channel
-                    <select name="channel" defaultValue="email">
+                  <FormField label="Channel" htmlFor="lead-consent-channel">
+                    <select id="lead-consent-channel" name="channel" defaultValue="email">
                       <option value="email">Email</option>
                       <option value="sms">SMS</option>
                       <option value="whatsapp">WhatsApp</option>
@@ -1070,10 +1069,9 @@ export default function CrmLeadDetailWorkspace({
                       <option value="postal">Postal</option>
                       <option value="all">All channels</option>
                     </select>
-                  </label>
-                  <label>
-                    Purpose
-                    <select name="purpose" defaultValue="sales">
+                  </FormField>
+                  <FormField label="Purpose" htmlFor="lead-consent-purpose">
+                    <select id="lead-consent-purpose" name="purpose" defaultValue="sales">
                       <option value="sales">Sales</option>
                       <option value="marketing">Marketing</option>
                       <option value="service">Service</option>
@@ -1081,20 +1079,18 @@ export default function CrmLeadDetailWorkspace({
                       <option value="research">Research</option>
                       <option value="other">Other</option>
                     </select>
-                  </label>
-                  <label>
-                    Action
-                    <select name="action" defaultValue="granted">
+                  </FormField>
+                  <FormField label="Action" htmlFor="lead-consent-action">
+                    <select id="lead-consent-action" name="action" defaultValue="granted">
                       <option value="granted">Granted</option>
                       <option value="withdrawn">Withdrawn</option>
                       <option value="suppressed">Suppressed</option>
                       <option value="resubscribed">Resubscribed</option>
                       <option value="expired">Expired</option>
                     </select>
-                  </label>
-                  <label>
-                    Lawful basis
-                    <select name="lawfulBasis" defaultValue="consent">
+                  </FormField>
+                  <FormField label="Lawful basis" htmlFor="lead-consent-lawful-basis">
+                    <select id="lead-consent-lawful-basis" name="lawfulBasis" defaultValue="consent">
                       <option value="consent">Consent</option>
                       <option value="contract">Contract</option>
                       <option value="legal_obligation">Legal obligation</option>
@@ -1102,29 +1098,22 @@ export default function CrmLeadDetailWorkspace({
                       <option value="vital_interest">Vital interest</option>
                       <option value="public_task">Public task</option>
                     </select>
-                  </label>
-                  <label>
-                    Occurred at
-                    <input name="occurredAt" type="datetime-local" />
-                  </label>
-                  <label>
-                    Evidence note
-                    <textarea name="evidenceNote" rows={2} maxLength={1000} />
-                  </label>
-                  <button className="primary-button" disabled={pending === "consent"}>
+                  </FormField>
+                  <FormField label="Occurred at" htmlFor="lead-consent-occurred-at">
+                    <input id="lead-consent-occurred-at" name="occurredAt" type="datetime-local" />
+                  </FormField>
+                  <FormField label="Evidence note" htmlFor="lead-consent-evidence-note">
+                    <textarea id="lead-consent-evidence-note" name="evidenceNote" rows={2} maxLength={1000} />
+                  </FormField>
+                  <ActionButton type="submit" tone="primary" busy={pending === "consent"}>
                     {pending === "consent" ? "Recording…" : "Record immutable event"}
-                  </button>
+                  </ActionButton>
                 </form>
               ) : null}
-            </section>
+            </Surface>
 
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">Lead operations</p>
-                  <h2>SLA and data quality</h2>
-                </div>
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="Lead operations" title="SLA and data quality" />
               <h3>First-response SLA</h3>
               {currentSla ? (
                 <dl className="crm-lead-profile-grid">
@@ -1139,14 +1128,14 @@ export default function CrmLeadDetailWorkspace({
               {canManage ? (
                 <div className="crm-inline-actions">
                   {!currentSla || !["open", "paused", "breached"].includes(String(currentSla.status || "")) ? (
-                    <button className="secondary-button" disabled={pending === "sla-open"} type="button" onClick={() => void startSlaTracking()}>
+                    <ActionButton busy={pending === "sla-open"} type="button" onClick={() => void startSlaTracking()}>
                       {pending === "sla-open" ? "Starting…" : "Start SLA tracking"}
-                    </button>
+                    </ActionButton>
                   ) : null}
                   {currentSla && !currentSla.first_responded_at && ["open", "paused", "breached"].includes(String(currentSla.status || "")) ? (
-                    <button className="secondary-button" disabled={pending === "sla-respond"} type="button" onClick={() => void recordSlaResponse()}>
+                    <ActionButton busy={pending === "sla-respond"} type="button" onClick={() => void recordSlaResponse()}>
                       {pending === "sla-respond" ? "Recording…" : "Record first response"}
-                    </button>
+                    </ActionButton>
                   ) : null}
                 </div>
               ) : null}
@@ -1177,15 +1166,10 @@ export default function CrmLeadDetailWorkspace({
               ) : (
                 <p>Data-quality evidence is limited to data-quality managers.</p>
               )}
-            </section>
+            </Surface>
 
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">Human-reviewed enrichment</p>
-                  <h2>Enrichment review queue</h2>
-                </div>
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="Human-reviewed enrichment" title="Enrichment review queue" />
               {canManageDataQuality ? (
                 <div className="crm-suite-list">
                   {enrichmentReviews.map((row) => {
@@ -1224,22 +1208,23 @@ export default function CrmLeadDetailWorkspace({
                         </div>
                         {String(row.status) === "pending" ? (
                           <div className="crm-inline-actions">
-                            <button
-                              className="link-button"
-                              disabled={pending === `enrichment-${reviewKey}` || !selectedKeys.length}
+                            <ActionButton
+                              tone="quiet"
+                              disabled={!selectedKeys.length}
+                              busy={pending === `enrichment-${reviewKey}`}
                               type="button"
                               onClick={() => void reviewEnrichment(reviewKey, { acceptedKeys: selectedKeys })}
                             >
                               Apply selected
-                            </button>
-                            <button
-                              className="link-button danger"
-                              disabled={pending === `enrichment-${reviewKey}`}
+                            </ActionButton>
+                            <ActionButton
+                              tone="danger"
+                              busy={pending === `enrichment-${reviewKey}`}
                               type="button"
                               onClick={() => void reviewEnrichment(reviewKey, { decision: "rejected" })}
                             >
                               Reject all
-                            </button>
+                            </ActionButton>
                           </div>
                         ) : null}
                       </article>
@@ -1250,20 +1235,24 @@ export default function CrmLeadDetailWorkspace({
               ) : (
                 <p>Enrichment reviews are limited to data-quality managers.</p>
               )}
-            </section>
+            </Surface>
 
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">Explainable intelligence</p>
-                  <h2>Score explanation and AI predictions</h2>
-                </div>
-                {canManage ? (
-                  <button className="secondary-button" disabled={pending === "score"} type="button" onClick={() => void api(`/api/crm/leads/${id}/score`, { reason: "Lead 360 governance recalculation" }, "score")}>
-                    Recalculate score
-                  </button>
-                ) : null}
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader
+                eyebrow="Explainable intelligence"
+                title="Score explanation and AI predictions"
+                actions={
+                  canManage ? (
+                    <ActionButton
+                      busy={pending === "score"}
+                      type="button"
+                      onClick={() => void api(`/api/crm/leads/${id}/score`, { reason: "Lead 360 governance recalculation" }, "score")}
+                    >
+                      Recalculate score
+                    </ActionButton>
+                  ) : null
+                }
+              />
               <dl className="crm-lead-profile-grid">
                 <div><dt>Current score</dt><dd>{String(lead.score || 0)}</dd></div>
                 <div><dt>Grade</dt><dd>{nice(lead.leadGrade || lead.rating || "ungraded")}</dd></div>
@@ -1302,12 +1291,12 @@ export default function CrmLeadDetailWorkspace({
                   </div>
                 </>
               ) : null}
-            </section>
+            </Surface>
           </div>
         ) : null}
 
         {tab === "timeline" ? (
-          <section className="crm-suite-surface">
+          <Surface as="section" className="crm-suite-surface">
             <h2>Complete lead timeline</h2>
             <div className="crm-lead-timeline">
               {timeline.map((event, index) => (
@@ -1336,10 +1325,9 @@ export default function CrmLeadDetailWorkspace({
                 <StatePanel title="No timeline events yet." />
               ) : null}
               {activitiesHasMore || communicationsHasMore ? (
-                <button
+                <ActionButton
                   type="button"
-                  className="secondary-button"
-                  disabled={loadingActivities || loadingCommunications}
+                  busy={loadingActivities || loadingCommunications}
                   onClick={() => {
                     if (activitiesHasMore) void loadOlderTimelineItems("activities");
                     if (communicationsHasMore) void loadOlderTimelineItems("communications");
@@ -1348,15 +1336,15 @@ export default function CrmLeadDetailWorkspace({
                   {loadingActivities || loadingCommunications
                     ? "Loading…"
                     : "Load older timeline events"}
-                </button>
+                </ActionButton>
               ) : null}
             </div>
-          </section>
+          </Surface>
         ) : null}
 
         {tab === "activities" ? (
           <div className="crm-suite-two-column">
-            <section className="crm-suite-surface">
+            <Surface as="section" className="crm-suite-surface">
               <h2>Activity history</h2>
               <div className="crm-suite-list">
                 {activityRows.map((row) => (
@@ -1377,18 +1365,17 @@ export default function CrmLeadDetailWorkspace({
                 ))}
                 {!activityRows.length ? <p>No activities yet.</p> : null}
                 {activitiesHasMore ? (
-                  <button
+                  <ActionButton
                     type="button"
-                    className="secondary-button"
-                    disabled={loadingActivities}
+                    busy={loadingActivities}
                     onClick={() => void loadOlderTimelineItems("activities")}
                   >
                     {loadingActivities ? "Loading…" : "Load older activities"}
-                  </button>
+                  </ActionButton>
                 ) : null}
               </div>
-            </section>
-            <section className="crm-suite-surface">
+            </Surface>
+            <Surface as="section" className="crm-suite-surface">
               <h2>Plan next action</h2>
               {canManageActivities ? (
                 <form
@@ -1396,9 +1383,8 @@ export default function CrmLeadDetailWorkspace({
                   className="crm-suite-form"
                   onSubmit={scheduleFollowUp}
                 >
-                  <label>
-                    Type
-                    <select name="activityType" defaultValue="call">
+                  <FormField label="Type" htmlFor="lead-followup-type">
+                    <select id="lead-followup-type" name="activityType" defaultValue="call">
                       <option value="task">Task</option>
                       <option value="call">Call</option>
                       <option value="meeting">Meeting</option>
@@ -1406,22 +1392,21 @@ export default function CrmLeadDetailWorkspace({
                       <option value="whatsapp">WhatsApp follow-up log</option>
                       <option value="sms">SMS follow-up log</option>
                     </select>
-                  </label>
-                  <label>
-                    Subject
+                  </FormField>
+                  <FormField label="Subject" htmlFor="lead-followup-subject" required>
                     <input
+                      id="lead-followup-subject"
                       name="subject"
                       required
                       placeholder="Discovery call"
                     />
-                  </label>
-                  <label>
-                    Description
-                    <textarea name="description" rows={3} />
-                  </label>
-                  <label>
-                    Owner
+                  </FormField>
+                  <FormField label="Description" htmlFor="lead-followup-description">
+                    <textarea id="lead-followup-description" name="description" rows={3} />
+                  </FormField>
+                  <FormField label="Owner" htmlFor="lead-followup-assignee">
                     <select
+                      id="lead-followup-assignee"
                       name="assignedTo"
                       defaultValue={String(lead.ownerUserId || "")}
                     >
@@ -1432,43 +1417,37 @@ export default function CrmLeadDetailWorkspace({
                         </option>
                       ))}
                     </select>
-                  </label>
-                  <label>
-                    Priority
-                    <select name="priority" defaultValue="medium">
+                  </FormField>
+                  <FormField label="Priority" htmlFor="lead-followup-priority">
+                    <select id="lead-followup-priority" name="priority" defaultValue="medium">
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
                       <option value="urgent">Urgent</option>
                     </select>
-                  </label>
-                  <label>
-                    Due
-                    <input name="dueAt" type="datetime-local" required />
-                  </label>
-                  <button
-                    className="primary-button"
-                    disabled={pending === "followup"}
+                  </FormField>
+                  <FormField label="Due" htmlFor="lead-followup-due" required>
+                    <input id="lead-followup-due" name="dueAt" type="datetime-local" required />
+                  </FormField>
+                  <ActionButton
+                    type="submit"
+                    tone="primary"
+                    busy={pending === "followup"}
                   >
                     {pending === "followup" ? "Scheduling…" : "Add follow-up"}
-                  </button>
+                  </ActionButton>
                 </form>
               ) : (
                 <p>You do not have permission to create CRM activities.</p>
               )}
-            </section>
+            </Surface>
           </div>
         ) : null}
 
         {tab === "communications" ? (
           <div className="crm-suite-two-column wide">
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">Email & communication history</p>
-                  <h2>Email, call, SMS, chat and WhatsApp log</h2>
-                </div>
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="Email & communication history" title="Email, call, SMS, chat and WhatsApp log" />
               <div className="crm-suite-list">
                 {communicationRows.map((row) => (
                   <article key={String(row.id)}>
@@ -1490,24 +1469,22 @@ export default function CrmLeadDetailWorkspace({
                   <p>No communication history yet.</p>
                 ) : null}
                 {communicationsHasMore ? (
-                  <button
+                  <ActionButton
                     type="button"
-                    className="secondary-button"
-                    disabled={loadingCommunications}
+                    busy={loadingCommunications}
                     onClick={() => void loadOlderTimelineItems("communications")}
                   >
                     {loadingCommunications ? "Loading…" : "Load older communications"}
-                  </button>
+                  </ActionButton>
                 ) : null}
               </div>
-            </section>
+            </Surface>
             <aside className="crm-suite-surface">
               <h2>Log communication</h2>
               {canManageCommunications ? (
                 <form className="crm-suite-form" onSubmit={createCommunication}>
-                  <label>
-                    Channel
-                    <select name="channel" defaultValue="call">
+                  <FormField label="Channel" htmlFor="lead-comm-channel">
+                    <select id="lead-comm-channel" name="channel" defaultValue="call">
                       <option value="email">Email</option>
                       <option value="call">Call</option>
                       <option value="whatsapp">WhatsApp</option>
@@ -1515,45 +1492,40 @@ export default function CrmLeadDetailWorkspace({
                       <option value="chat">Chat</option>
                       <option value="other">Other</option>
                     </select>
-                  </label>
-                  <label>
-                    Direction
-                    <select name="direction" defaultValue="outbound">
+                  </FormField>
+                  <FormField label="Direction" htmlFor="lead-comm-direction">
+                    <select id="lead-comm-direction" name="direction" defaultValue="outbound">
                       <option value="outbound">Outbound</option>
                       <option value="inbound">Inbound</option>
                     </select>
-                  </label>
-                  <label>
-                    Subject
-                    <input name="subject" />
-                  </label>
-                  <label>
-                    Message / notes
-                    <textarea name="body" required rows={5} />
-                  </label>
-                  <label>
-                    From
-                    <input name="fromAddress" />
-                  </label>
-                  <label>
-                    Occurred
-                    <input name="occurredAt" type="datetime-local" />
-                  </label>
-                  <label>
-                    Status
-                    <select name="status" defaultValue="logged">
+                  </FormField>
+                  <FormField label="Subject" htmlFor="lead-comm-subject">
+                    <input id="lead-comm-subject" name="subject" />
+                  </FormField>
+                  <FormField label="Message / notes" htmlFor="lead-comm-body" required>
+                    <textarea id="lead-comm-body" name="body" required rows={5} />
+                  </FormField>
+                  <FormField label="From" htmlFor="lead-comm-from">
+                    <input id="lead-comm-from" name="fromAddress" />
+                  </FormField>
+                  <FormField label="Occurred" htmlFor="lead-comm-occurred-at">
+                    <input id="lead-comm-occurred-at" name="occurredAt" type="datetime-local" />
+                  </FormField>
+                  <FormField label="Status" htmlFor="lead-comm-status">
+                    <select id="lead-comm-status" name="status" defaultValue="logged">
                       <option value="logged">Logged</option>
                       <option value="received">Received</option>
                       <option value="sent">Sent</option>
                       <option value="delivered">Delivered</option>
                     </select>
-                  </label>
-                  <button
-                    className="primary-button"
-                    disabled={pending === "communication"}
+                  </FormField>
+                  <ActionButton
+                    type="submit"
+                    tone="primary"
+                    busy={pending === "communication"}
                   >
                     Log communication
-                  </button>
+                  </ActionButton>
                 </form>
               ) : (
                 <p>You do not have communication-management permission.</p>
@@ -1564,7 +1536,7 @@ export default function CrmLeadDetailWorkspace({
 
         {tab === "notes" ? (
           <div className="crm-suite-two-column">
-            <section className="crm-suite-surface">
+            <Surface as="section" className="crm-suite-surface">
               <h2>Internal notes</h2>
               <div className="crm-suite-list">
                 {notes.map((row) => (
@@ -1581,25 +1553,25 @@ export default function CrmLeadDetailWorkspace({
                 ))}
                 {!notes.length ? <p>No notes yet.</p> : null}
               </div>
-            </section>
-            <section className="crm-suite-surface">
+            </Surface>
+            <Surface as="section" className="crm-suite-surface">
               <h2>Add note</h2>
               {canManage ? (
                 <form className="crm-suite-form" onSubmit={createNote}>
-                  <label>
-                    Note
-                    <textarea name="body" required rows={6} />
-                  </label>
+                  <FormField label="Note" htmlFor="lead-note-body" required>
+                    <textarea id="lead-note-body" name="body" required rows={6} />
+                  </FormField>
                   <label className="crm-suite-check">
                     <input name="isPinned" type="checkbox" />
                     <span>Pin this note</span>
                   </label>
-                  <button
-                    className="primary-button"
-                    disabled={pending === "note"}
+                  <ActionButton
+                    type="submit"
+                    tone="primary"
+                    busy={pending === "note"}
                   >
                     Add note
-                  </button>
+                  </ActionButton>
                 </form>
               ) : null}
               <div className="crm-file-divider" />
@@ -1623,10 +1595,10 @@ export default function CrmLeadDetailWorkspace({
                       </small>
                     </span>
                     {canManage ? (
-                      <button
+                      <ActionButton
+                        tone="danger"
                         type="button"
-                        className="link-button danger"
-                        disabled={
+                        busy={
                           pending === `attachment-${String(attachment.id)}`
                         }
                         onClick={() =>
@@ -1634,7 +1606,7 @@ export default function CrmLeadDetailWorkspace({
                         }
                       >
                         Remove
-                      </button>
+                      </ActionButton>
                     ) : null}
                   </div>
                 ))}
@@ -1645,48 +1617,48 @@ export default function CrmLeadDetailWorkspace({
                   className="crm-suite-form crm-attachment-form"
                   onSubmit={uploadAttachment}
                 >
-                  <label>
-                    Attach file
+                  <FormField
+                    label="Attach file"
+                    htmlFor="lead-attachment-file"
+                    hint="PDF, PNG, JPEG, TXT or CSV · up to 5 MB."
+                    required
+                  >
                     <input
+                      id="lead-attachment-file"
                       name="file"
                       type="file"
                       required
                       accept="application/pdf,image/png,image/jpeg,text/plain,text/csv"
                     />
-                    <small>PDF, PNG, JPEG, TXT or CSV · up to 5 MB.</small>
-                  </label>
-                  <button
-                    className="secondary-button"
-                    disabled={pending === "attachment"}
-                  >
+                  </FormField>
+                  <ActionButton type="submit" busy={pending === "attachment"}>
                     {pending === "attachment" ? "Uploading…" : "Upload file"}
-                  </button>
+                  </ActionButton>
                 </form>
               ) : null}
-            </section>
+            </Surface>
           </div>
         ) : null}
 
         {tab === "opportunities" ? (
-          <section className="crm-suite-surface">
-            <div className="crm-suite-section-heading">
-              <div>
-                <p className="eyebrow">Conversion path</p>
-                <h2>Opportunities created from this lead</h2>
-              </div>
-              {canManage &&
-              recordStatus === "active" ? (
-                <button
-                  className="primary-button"
-                  disabled={pending === "convert"}
-                  onClick={() => void convert()}
-                >
-                  {pending === "convert"
-                    ? "Converting…"
-                    : "Convert to opportunity"}
-                </button>
-              ) : null}
-            </div>
+          <Surface as="section" className="crm-suite-surface">
+            <SectionHeader
+              eyebrow="Conversion path"
+              title="Opportunities created from this lead"
+              actions={
+                canManage && recordStatus === "active" ? (
+                  <ActionButton
+                    tone="primary"
+                    busy={pending === "convert"}
+                    onClick={() => void convert()}
+                  >
+                    {pending === "convert"
+                      ? "Converting…"
+                      : "Convert to opportunity"}
+                  </ActionButton>
+                ) : null
+              }
+            />
             <div className="crm-suite-list">
               {opportunities.map((row) => (
                 <article key={String(row.id)}>
@@ -1708,32 +1680,31 @@ export default function CrmLeadDetailWorkspace({
                 <p>No linked opportunities yet.</p>
               ) : null}
             </div>
-          </section>
+          </Surface>
         ) : null}
 
         {tab === "score" ? (
-          <section className="crm-suite-surface">
-            <div className="crm-suite-section-heading">
-              <div>
-                <p className="eyebrow">Scoring history</p>
-                <h2>Explainable score changes</h2>
-              </div>
-              {canManage ? (
-                <button
-                  className="secondary-button"
-                  disabled={pending === "score"}
-                  onClick={() =>
-                    void api(
-                      `/api/crm/leads/${id}/score`,
-                      { reason: "Lead detail recalculation" },
-                      "score",
-                    )
-                  }
-                >
-                  Recalculate
-                </button>
-              ) : null}
-            </div>
+          <Surface as="section" className="crm-suite-surface">
+            <SectionHeader
+              eyebrow="Scoring history"
+              title="Explainable score changes"
+              actions={
+                canManage ? (
+                  <ActionButton
+                    busy={pending === "score"}
+                    onClick={() =>
+                      void api(
+                        `/api/crm/leads/${id}/score`,
+                        { reason: "Lead detail recalculation" },
+                        "score",
+                      )
+                    }
+                  >
+                    Recalculate
+                  </ActionButton>
+                ) : null
+              }
+            />
             <div className="crm-lead-score-history">
               {scoreHistory.map((row) => (
                 <article key={String(row.id)}>
@@ -1749,18 +1720,13 @@ export default function CrmLeadDetailWorkspace({
               ))}
               {!scoreHistory.length ? <p>No score changes recorded.</p> : null}
             </div>
-          </section>
+          </Surface>
         ) : null}
 
         {tab === "custom" ? (
           <div className="crm-suite-two-column">
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">F028 · Classification</p>
-                  <h2>Tags</h2>
-                </div>
-              </div>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="F028 · Classification" title="Tags" />
               <div className="crm-tag-picker">
                 {(options.tags || []).map((tag) => {
                   const checked = tagIds.has(tag.id);
@@ -1786,23 +1752,17 @@ export default function CrmLeadDetailWorkspace({
                 ) : null}
               </div>
               {canManage ? (
-                <button
-                  className="secondary-button"
+                <ActionButton
                   type="button"
-                  disabled={pending === "tags"}
+                  busy={pending === "tags"}
                   onClick={() => void saveTags()}
                 >
                   Save tags
-                </button>
+                </ActionButton>
               ) : null}
-            </section>
-            <section className="crm-suite-surface">
-              <div className="crm-suite-section-heading">
-                <div>
-                  <p className="eyebrow">F028 · Flexible data</p>
-                  <h2>Custom fields</h2>
-                </div>
-              </div>
+            </Surface>
+            <Surface as="section" className="crm-suite-surface">
+              <SectionHeader eyebrow="F028 · Flexible data" title="Custom fields" />
               <p className="crm-helper-copy">
                 Use short snake_case keys so fields remain stable across exports
                 and APIs.
@@ -1810,9 +1770,9 @@ export default function CrmLeadDetailWorkspace({
               <div className="crm-custom-field-editor">
                 {customRows.map((row, index) => (
                   <div key={row.id}>
-                    <label>
-                      Field key
+                    <FormField label="Field key" htmlFor={`custom-field-key-${row.id}`}>
                       <input
+                        id={`custom-field-key-${row.id}`}
                         value={row.key}
                         disabled={!canManage}
                         placeholder="implementation_timeline"
@@ -1826,10 +1786,10 @@ export default function CrmLeadDetailWorkspace({
                           )
                         }
                       />
-                    </label>
-                    <label>
-                      Value
+                    </FormField>
+                    <FormField label="Value" htmlFor={`custom-field-value-${row.id}`}>
                       <input
+                        id={`custom-field-value-${row.id}`}
                         value={row.value}
                         disabled={!canManage}
                         placeholder="Q4 2026"
@@ -1843,11 +1803,11 @@ export default function CrmLeadDetailWorkspace({
                           )
                         }
                       />
-                    </label>
+                    </FormField>
                     {canManage ? (
-                      <button
+                      <ActionButton
+                        tone="danger"
                         type="button"
-                        className="link-button danger"
                         onClick={() =>
                           setCustomRows((rows) =>
                             rows.filter((_, itemIndex) => itemIndex !== index),
@@ -1855,7 +1815,7 @@ export default function CrmLeadDetailWorkspace({
                         }
                       >
                         Remove
-                      </button>
+                      </ActionButton>
                     ) : null}
                   </div>
                 ))}
@@ -1865,9 +1825,8 @@ export default function CrmLeadDetailWorkspace({
               </div>
               {canManage ? (
                 <div className="crm-inline-actions">
-                  <button
+                  <ActionButton
                     type="button"
-                    className="secondary-button"
                     onClick={() =>
                       setCustomRows((rows) => [
                         ...rows,
@@ -1880,29 +1839,24 @@ export default function CrmLeadDetailWorkspace({
                     }
                   >
                     Add field
-                  </button>
-                  <button
+                  </ActionButton>
+                  <ActionButton
+                    tone="primary"
                     type="button"
-                    className="primary-button"
-                    disabled={pending === "custom"}
+                    busy={pending === "custom"}
                     onClick={() => void saveCustomFields()}
                   >
                     Save custom fields
-                  </button>
+                  </ActionButton>
                 </div>
               ) : null}
-            </section>
+            </Surface>
           </div>
         ) : null}
 
         {tab === "duplicates" ? (
-          <section className="crm-suite-surface">
-            <div className="crm-suite-section-heading">
-              <div>
-                <p className="eyebrow">Duplicate management</p>
-                <h2>Potential matching leads</h2>
-              </div>
-            </div>
+          <Surface as="section" className="crm-suite-surface">
+            <SectionHeader eyebrow="Duplicate management" title="Potential matching leads" />
             <div className="crm-duplicate-compare">
               {duplicates.map((row, index) => {
                 const restricted = Boolean(row.restricted);
@@ -1951,22 +1905,22 @@ export default function CrmLeadDetailWorkspace({
                     </div>
                     {id ? <Link href={`/crm/leads/${id}`}>Open</Link> : null}
                     {canManage && id ? (
-                      <button
-                        className="link-button danger"
-                        disabled={pending === "merge"}
+                      <ActionButton
+                        tone="danger"
+                        busy={pending === "merge"}
                         onClick={() => void merge(id)}
                       >
                         Merge current into this
-                      </button>
+                      </ActionButton>
                     ) : null}
                     {canManageDataQuality && id && row.classification !== "exact" ? (
-                      <button
-                        className="link-button"
-                        disabled={pending === "dismiss"}
+                      <ActionButton
+                        tone="quiet"
+                        busy={pending === "dismiss"}
                         onClick={() => void dismissDuplicate(id)}
                       >
                         Not a duplicate
-                      </button>
+                      </ActionButton>
                     ) : null}
                   </article>
                 );
@@ -1975,7 +1929,7 @@ export default function CrmLeadDetailWorkspace({
                 <StatePanel title="No likely duplicate found." />
               ) : null}
             </div>
-          </section>
+          </Surface>
         ) : null}
       </div>
     </Record360Archetype>

@@ -90,7 +90,7 @@ test("F001 UI actions: conversion navigates to the opportunity that was actually
     source,
     /router\.push\(`\/crm\/opportunities\/\$\{opportunityId\}`\)/,
   );
-  assert.match(source, /disabled=\{pending === "convert"\}/);
+  assert.match(source, /busy=\{pending === "convert"\}/);
 });
 
 test("F001 UI actions: Add follow-up uses one dedicated workflow and requires a due time", () => {

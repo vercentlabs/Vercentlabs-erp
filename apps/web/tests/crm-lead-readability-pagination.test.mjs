@@ -234,7 +234,6 @@ test("Every lead detail tab component is covered by the drawer responsive system
   const componentClasses = [
     "crm-lead-tab-panel",
     "crm-suite-surface",
-    "crm-suite-section-heading",
     "crm-suite-two-column",
     "crm-suite-form",
     "crm-suite-check",
@@ -258,4 +257,7 @@ test("Every lead detail tab component is covered by the drawer responsive system
   assert.match(css, /Exhaustive lead-detail component pass/);
   assert.match(detail, /<StatePanel title="No timeline events yet\."/);
   assert.match(detail, /<StatePanel title="No likely duplicate found\."/);
+  // Section headings were migrated from the bespoke crm-suite-section-heading
+  // markup onto the Experience Kernel's SectionHeader component.
+  assert.match(detail, /SectionHeader/);
 });
