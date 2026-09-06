@@ -5,6 +5,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import LeadSourceFormDrawer from "@/modules/crm/components/lead-source-form-drawer";
 import { requestJson } from "@/shared/http/client-request";
+import {
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Source = Record<string, unknown>;
 const date = (value: unknown) => {
@@ -145,86 +151,124 @@ export default function LeadSourcesWorkspace({
             Showing {from}–{to}
           </p>
         </div>
-        {rows.length ? (
-          <>
-            <div className="table-scroll crm-source-table-wrap">
-              <table className="data-table crm-source-table">
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Description</th>
-                    <th>Channel</th>
-                    <th>Used by</th>
-                    <th>Status</th>
-                    <th>Updated</th>
-                    <th>
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((source) => (
-                    <tr key={String(source.id)}>
-                      <td>
-                        <strong>{String(source.name)}</strong>
-                        {source.isDefault ? (
-                          <small>Default</small>
-                        ) : source.isSystem ? (
-                          <small>Built in</small>
-                        ) : null}
-                      </td>
-                      <td>{String(source.description || "—")}</td>
-                      <td>{channel(source.channel)}</td>
-                      <td>{Number(source.leadCount || 0)} Leads</td>
-                      <td>
-                        <span
-                          className={`status-badge ${source.status === "active" ? "success" : "neutral"}`}
-                        >
-                          {source.status === "active" ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td>{date(source.updatedAt)}</td>
-                      <td>
-                        <div className="crm-source-actions">
-                          <Link
-                            className="secondary-button"
-                            href={href({
-                              ...query,
-                              page,
-                              edit: String(source.id),
-                            })}
-                          >
-                            Edit
-                          </Link>
-                          {source.status === "active" ? (
-                            <button
-                              type="button"
-                              className="link-button danger"
-                              disabled={pending === source.id}
-                              onClick={() => void lifecycle(source, false)}
-                            >
-                              Deactivate
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="link-button"
-                              disabled={pending === source.id}
-                              onClick={() => void lifecycle(source, true)}
-                            >
-                              Reactivate
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="crm-source-cards" aria-label="Lead sources">
-              {rows.map((source) => (
-                <article className="crm-source-card" key={String(source.id)}>
+        {(() => {
+          const statusTone = (source: Source) =>
+            source.status === "active" ? "success" : "neutral";
+          const statusLabel = (source: Source) =>
+            source.status === "active" ? "Active" : "Inactive";
+          const actions = (source: Source) => (
+            <>
+              <Link
+                className="secondary-button"
+                href={href({ ...query, page, edit: String(source.id) })}
+              >
+                Edit
+              </Link>
+              {source.status === "active" ? (
+                <button
+                  type="button"
+                  className="link-button danger"
+                  disabled={pending === source.id}
+                  onClick={() => void lifecycle(source, false)}
+                >
+                  Deactivate
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="link-button"
+                  disabled={pending === source.id}
+                  onClick={() => void lifecycle(source, true)}
+                >
+                  Reactivate
+                </button>
+              )}
+            </>
+          );
+          const columns: DataGridColumn<Source>[] = [
+            {
+              id: "source",
+              header: "Source",
+              cell: (source) => (
+                <>
+                  <strong>{String(source.name)}</strong>
+                  {source.isDefault ? (
+                    <small>Default</small>
+                  ) : source.isSystem ? (
+                    <small>Built in</small>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              id: "description",
+              header: "Description",
+              cell: (source) => String(source.description || "—"),
+            },
+            {
+              id: "channel",
+              header: "Channel",
+              cell: (source) => channel(source.channel),
+            },
+            {
+              id: "usedBy",
+              header: "Used by",
+              cell: (source) => `${Number(source.leadCount || 0)} Leads`,
+            },
+            {
+              id: "status",
+              header: "Status",
+              cell: (source) => (
+                <StatusBadge tone={statusTone(source)}>
+                  {statusLabel(source)}
+                </StatusBadge>
+              ),
+            },
+            {
+              id: "updated",
+              header: "Updated",
+              cell: (source) => date(source.updatedAt),
+            },
+            {
+              id: "actions",
+              header: <span className="sr-only">Actions</span>,
+              cell: (source) => (
+                <div className="crm-source-actions">{actions(source)}</div>
+              ),
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption="Lead sources"
+              rows={rows}
+              rowKey={(source) => String(source.id)}
+              columns={columns}
+              emptyState={
+                <StatePanel
+                  title={
+                    search || status !== "active"
+                      ? "No matching sources"
+                      : "No active sources configured"
+                  }
+                  description={
+                    search || status !== "active"
+                      ? "Adjust the search or status filter."
+                      : "Sources describe where Leads originate."
+                  }
+                  action={
+                    !search && status === "active" ? (
+                      <Link
+                        className="primary-button"
+                        href="/crm/sources?create=1"
+                      >
+                        Create source
+                      </Link>
+                    ) : undefined
+                  }
+                />
+              }
+              renderMobileCard={(source) => (
+                <article className="crm-source-card">
                   <header>
                     <div>
                       <strong>{String(source.name)}</strong>
@@ -237,11 +281,9 @@ export default function LeadSourcesWorkspace({
                             : ""}
                       </small>
                     </div>
-                    <span
-                      className={`status-badge ${source.status === "active" ? "success" : "neutral"}`}
-                    >
-                      {source.status === "active" ? "Active" : "Inactive"}
-                    </span>
+                    <StatusBadge tone={statusTone(source)}>
+                      {statusLabel(source)}
+                    </StatusBadge>
                   </header>
                   <p>{String(source.description || "No description")}</p>
                   <dl>
@@ -254,54 +296,12 @@ export default function LeadSourcesWorkspace({
                       <dd>{date(source.updatedAt)}</dd>
                     </div>
                   </dl>
-                  <footer>
-                    <Link
-                      className="secondary-button"
-                      href={href({ ...query, page, edit: String(source.id) })}
-                    >
-                      Edit
-                    </Link>
-                    {source.status === "active" ? (
-                      <button
-                        className="link-button danger"
-                        type="button"
-                        onClick={() => void lifecycle(source, false)}
-                      >
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button
-                        className="link-button"
-                        type="button"
-                        onClick={() => void lifecycle(source, true)}
-                      >
-                        Reactivate
-                      </button>
-                    )}
-                  </footer>
+                  <footer>{actions(source)}</footer>
                 </article>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="empty-state">
-            <h3>
-              {search || status !== "active"
-                ? "No matching sources"
-                : "No active sources configured"}
-            </h3>
-            <p>
-              {search || status !== "active"
-                ? "Adjust the search or status filter."
-                : "Sources describe where Leads originate."}
-            </p>
-            {!search && status === "active" ? (
-              <Link className="primary-button" href="/crm/sources?create=1">
-                Create source
-              </Link>
-            ) : null}
-          </div>
-        )}
+              )}
+            />
+          );
+        })()}
         {pages > 1 ? (
           <nav className="crm-source-pagination" aria-label="Lead source pages">
             {page > 1 ? (

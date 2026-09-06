@@ -39,7 +39,9 @@ test("F004 web: list, search, lifecycle, usage-safe confirmation and explicit st
   ])
     assert.match(workspace, new RegExp(value));
   assert.match(workspace, /existing Lead/);
-  assert.match(workspace, /empty-state/);
+  assert.match(workspace, /StatePanel/);
+  assert.match(workspace, /EnterpriseDataGrid/);
+  assert.match(workspace, /renderMobileCard/);
 });
 
 test("F004 web: create/edit form hides immutable code and exposes concise governed metadata", () => {

@@ -49,7 +49,7 @@ const ROUTES: RepresentativeRoute[] = [
   },
   {
     name: "crm-generic-resource-list",
-    resolvePath: () => "/crm/sources",
+    resolvePath: () => "/crm/lost-reasons",
   },
   {
     name: "crm-contacts",
@@ -58,6 +58,10 @@ const ROUTES: RepresentativeRoute[] = [
   {
     name: "crm-accounts",
     resolvePath: () => "/crm/accounts",
+  },
+  {
+    name: "crm-lead-sources",
+    resolvePath: () => "/crm/sources",
   },
 ];
 
