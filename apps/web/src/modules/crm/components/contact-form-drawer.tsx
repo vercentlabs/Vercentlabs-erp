@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import ContactAccountLookup from "@/modules/crm/components/contact-account-lookup";
 import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
 import { requestJson } from "@/shared/http/client-request";
+import {
+  ActionButton,
+  ErrorState,
+  FormField,
+  FormSection,
+} from "@/shared/design";
 
 type ContactRecord = Record<string, unknown>;
 
@@ -105,43 +111,48 @@ export default function ContactFormDrawer({
         noValidate
       >
         {message ? (
-          <div className="notice error" role="alert">
-            <strong>Contact not saved</strong>
-            <p>{message}</p>
-          </div>
+          <ErrorState title="Contact not saved" description={message} />
         ) : null}
 
-        <fieldset className="crm-contact-form-section">
-          <legend>Contact identity</legend>
-          <p>Use the name and role colleagues will recognise.</p>
-          <div className="crm-contact-form-grid">
-            <label>
-              <span>First name *</span>
+        <FormSection
+          title="Contact identity"
+          description="Use the name and role colleagues will recognise."
+        >
+          <FormField
+            label="First name"
+            htmlFor="contact-firstName"
+            required
+            error={fieldError("firstName")}
+          >
+            <input
+              id="contact-firstName"
+              name="firstName"
+              defaultValue={value(contact, "firstName")}
+              autoFocus
+              required
+              maxLength={120}
+              aria-invalid={Boolean(fieldError("firstName")) || undefined}
+            />
+          </FormField>
+          <FormField label="Last name" htmlFor="contact-lastName">
+            <input
+              id="contact-lastName"
+              name="lastName"
+              defaultValue={value(contact, "lastName")}
+              maxLength={120}
+            />
+          </FormField>
+          <div className="crm-contact-field-wide">
+            <FormField label="Job title" htmlFor="contact-designation">
               <input
-                name="firstName"
-                defaultValue={value(contact, "firstName")}
-                autoFocus
-                required
-                maxLength={120}
-                aria-invalid={Boolean(fieldError("firstName")) || undefined}
-                aria-describedby={fieldError("firstName") ? "contact-first-error" : undefined}
+                id="contact-designation"
+                name="designation"
+                defaultValue={value(contact, "designation")}
+                maxLength={160}
               />
-              {fieldError("firstName") ? (
-                <small id="contact-first-error" className="field-error">
-                  {fieldError("firstName")}
-                </small>
-              ) : null}
-            </label>
-            <label>
-              <span>Last name</span>
-              <input name="lastName" defaultValue={value(contact, "lastName")} maxLength={120} />
-            </label>
-            <label className="crm-contact-field-wide">
-              <span>Job title</span>
-              <input name="designation" defaultValue={value(contact, "designation")} maxLength={160} />
-            </label>
+            </FormField>
           </div>
-        </fieldset>
+        </FormSection>
 
         <fieldset className="crm-contact-form-section">
           <legend>Company relationship</legend>
@@ -161,61 +172,66 @@ export default function ContactFormDrawer({
           ) : null}
         </fieldset>
 
-        <fieldset className="crm-contact-form-section">
-          <legend>Reachability</legend>
-          <p>Add at least one email or phone number for practical follow-up.</p>
-          <div className="crm-contact-form-grid">
-            <label className="crm-contact-field-wide">
-              <span>Work email</span>
+        <FormSection
+          title="Reachability"
+          description="Add at least one email or phone number for practical follow-up."
+        >
+          <div className="crm-contact-field-wide">
+            <FormField
+              label="Work email"
+              htmlFor="contact-email"
+              error={fieldError("email")}
+            >
               <input
+                id="contact-email"
                 name="email"
                 type="email"
                 inputMode="email"
                 defaultValue={value(contact, "email")}
                 maxLength={254}
                 aria-invalid={Boolean(fieldError("email")) || undefined}
-                aria-describedby={fieldError("email") ? "contact-email-error" : undefined}
               />
-              {fieldError("email") ? (
-                <small id="contact-email-error" className="field-error">
-                  {fieldError("email")}
-                </small>
-              ) : null}
-            </label>
-            <label>
-              <span>Mobile</span>
-              <input
-                name="mobile"
-                type="tel"
-                inputMode="tel"
-                defaultValue={value(contact, "mobile")}
-                maxLength={40}
-                aria-invalid={Boolean(fieldError("mobile")) || undefined}
-              />
-              {fieldError("mobile") ? <small className="field-error">{fieldError("mobile")}</small> : null}
-            </label>
-            <label>
-              <span>Business phone</span>
-              <input
-                name="phone"
-                type="tel"
-                inputMode="tel"
-                defaultValue={value(contact, "phone")}
-                maxLength={40}
-                aria-invalid={Boolean(fieldError("phone")) || undefined}
-              />
-              {fieldError("phone") ? <small className="field-error">{fieldError("phone")}</small> : null}
-            </label>
+            </FormField>
           </div>
-        </fieldset>
+          <FormField
+            label="Mobile"
+            htmlFor="contact-mobile"
+            error={fieldError("mobile")}
+          >
+            <input
+              id="contact-mobile"
+              name="mobile"
+              type="tel"
+              inputMode="tel"
+              defaultValue={value(contact, "mobile")}
+              maxLength={40}
+              aria-invalid={Boolean(fieldError("mobile")) || undefined}
+            />
+          </FormField>
+          <FormField
+            label="Business phone"
+            htmlFor="contact-phone"
+            error={fieldError("phone")}
+          >
+            <input
+              id="contact-phone"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              defaultValue={value(contact, "phone")}
+              maxLength={40}
+              aria-invalid={Boolean(fieldError("phone")) || undefined}
+            />
+          </FormField>
+        </FormSection>
 
         <footer className="crm-contact-form-actions">
-          <button className="secondary-button" type="button" onClick={close} disabled={pending}>
+          <ActionButton onClick={close} disabled={pending}>
             Cancel
-          </button>
-          <button className="primary-button" type="submit" disabled={pending}>
+          </ActionButton>
+          <ActionButton tone="primary" type="submit" busy={pending}>
             {pending ? "Saving…" : editing ? "Save changes" : "Create contact"}
-          </button>
+          </ActionButton>
         </footer>
       </form>
     </LeadWorkspaceDrawer>

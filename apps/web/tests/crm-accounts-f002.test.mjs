@@ -46,11 +46,11 @@ test("F002 web: the form is grouped, labelled and maps field validation", () => 
   ]) {
     assert.match(form, new RegExp(section));
   }
-  assert.match(form, /Company name \*/);
+  assert.match(form, /label="Company name"[\s\S]{0,80}required/);
   assert.match(form, /type="email"/);
   assert.match(form, /type="url"/);
   assert.match(form, /aria-invalid/);
-  assert.match(form, /role="alert"/);
+  assert.match(form, /<ErrorState/);
   assert.match(form, /disabled=\{pending\}/);
 });
 

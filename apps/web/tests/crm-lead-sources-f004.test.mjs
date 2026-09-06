@@ -46,13 +46,13 @@ test("F004 web: list, search, lifecycle, usage-safe confirmation and explicit st
 
 test("F004 web: create/edit form hides immutable code and exposes concise governed metadata", () => {
   for (const value of [
-    "Source name \*",
     "Description",
     "Channel",
     "Display order",
     "Default source",
   ])
     assert.match(form, new RegExp(value));
+  assert.match(form, /label="Source name"[\s\S]{0,80}required/);
   assert.match(form, /Internal code/);
   assert.doesNotMatch(form, /name="code"/);
   assert.match(form, /aria-invalid/);

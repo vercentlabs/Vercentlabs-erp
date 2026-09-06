@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
+import { ActionButton, FormField } from "@/shared/design";
 import LeadAssigneeCombobox from "./lead-assignee-combobox";
 
 type Option = {
@@ -255,10 +256,6 @@ export default function CrmLeadCreateWorkspace({
     return fieldErrors[name]?.[0] || "";
   }
 
-  function errorId(name: FieldName) {
-    return `lead-${name}-error`;
-  }
-
   function duplicateInput(key: keyof typeof duplicateInputs, value: string) {
     setDuplicates([]);
     setDuplicateClassification("none");
@@ -377,23 +374,19 @@ export default function CrmLeadCreateWorkspace({
             <span className="crm-lead-required-note">
               <span aria-hidden="true">*</span> Required fields
             </span>
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={pending}
-              onClick={onCancel}
-            >
+            <ActionButton disabled={pending} onClick={onCancel}>
               Cancel
-            </button>
-            <button
-              className="primary-button"
+            </ActionButton>
+            <ActionButton
+              tone="primary"
               type="submit"
               form="crm-lead-create-form"
               aria-disabled={pending || duplicateSaveBlocked}
-              disabled={pending || duplicateSaveBlocked}
+              disabled={duplicateSaveBlocked}
+              busy={pending}
             >
               {pending ? "Saving…" : "Save lead"}
-            </button>
+            </ActionButton>
           </div>
         </section>
       ) : null}
@@ -436,11 +429,14 @@ export default function CrmLeadCreateWorkspace({
             </div>
 
             <div className="crm-lead-field-grid">
-              <label>
-                <span>
-                  First name <b aria-hidden="true">*</b>
-                </span>
+              <FormField
+                label="First name"
+                htmlFor="lead-firstName"
+                required
+                error={errorFor("firstName")}
+              >
                 <input
+                  id="lead-firstName"
                   autoComplete="given-name"
                   name="firstName"
                   required
@@ -448,51 +444,42 @@ export default function CrmLeadCreateWorkspace({
                     duplicateInput("firstName", event.currentTarget.value)
                   }
                   aria-invalid={Boolean(errorFor("firstName"))}
-                  aria-describedby={
-                    errorFor("firstName") ? errorId("firstName") : undefined
-                  }
                 />
-                {errorFor("firstName") ? (
-                  <small
-                    className="field-error"
-                    id={errorId("firstName")}
-                    role="alert"
-                  >
-                    {errorFor("firstName")}
-                  </small>
-                ) : null}
-              </label>
+              </FormField>
 
-              <label>
-                <span>Last name</span>
+              <FormField label="Last name" htmlFor="lead-lastName">
                 <input
+                  id="lead-lastName"
                   autoComplete="family-name"
                   name="lastName"
                   onChange={(event) =>
                     duplicateInput("lastName", event.currentTarget.value)
                   }
                 />
-              </label>
+              </FormField>
 
-              <label>
-                <span>Company / organisation</span>
+              <FormField
+                label="Company / organisation"
+                htmlFor="lead-companyName"
+              >
                 <input
+                  id="lead-companyName"
                   autoComplete="organization"
                   name="companyName"
                   onChange={(event) =>
                     duplicateInput("companyName", event.currentTarget.value)
                   }
                 />
-              </label>
+              </FormField>
 
-              <label>
-                <span>Job title</span>
+              <FormField label="Job title" htmlFor="lead-jobTitle">
                 <input
+                  id="lead-jobTitle"
                   autoComplete="organization-title"
                   name="jobTitle"
                   placeholder="e.g. Operations Head"
                 />
-              </label>
+              </FormField>
             </div>
           </section>
 
@@ -516,60 +503,44 @@ export default function CrmLeadCreateWorkspace({
             </div>
 
             <div className="crm-lead-field-grid">
-              <label>
-                <span>Work email</span>
+              <FormField
+                label="Work email"
+                htmlFor="lead-email"
+                error={errorFor("email")}
+              >
                 <input
+                  id="lead-email"
                   autoComplete="email"
                   inputMode="email"
                   name="email"
                   type="email"
                   aria-invalid={Boolean(errorFor("email"))}
-                  aria-describedby={
-                    errorFor("email") ? errorId("email") : undefined
-                  }
                   onChange={(event) =>
                     duplicateInput("email", event.currentTarget.value)
                   }
                 />
-                {errorFor("email") ? (
-                  <small
-                    className="field-error"
-                    id={errorId("email")}
-                    role="alert"
-                  >
-                    {errorFor("email")}
-                  </small>
-                ) : null}
-              </label>
+              </FormField>
 
-              <label>
-                <span>Mobile number</span>
+              <FormField
+                label="Mobile number"
+                htmlFor="lead-mobile"
+                error={errorFor("mobile")}
+              >
                 <input
+                  id="lead-mobile"
                   autoComplete="tel"
                   inputMode="tel"
                   name="mobile"
                   aria-invalid={Boolean(errorFor("mobile"))}
-                  aria-describedby={
-                    errorFor("mobile") ? errorId("mobile") : undefined
-                  }
                   onChange={(event) =>
                     duplicateInput("mobile", event.currentTarget.value)
                   }
                 />
-                {errorFor("mobile") ? (
-                  <small
-                    className="field-error"
-                    id={errorId("mobile")}
-                    role="alert"
-                  >
-                    {errorFor("mobile")}
-                  </small>
-                ) : null}
-              </label>
+              </FormField>
 
-              <label>
-                <span>Alternate number</span>
+              <FormField label="Alternate number" htmlFor="lead-phone">
                 <input
+                  id="lead-phone"
                   autoComplete="tel"
                   inputMode="tel"
                   name="phone"
@@ -577,17 +548,17 @@ export default function CrmLeadCreateWorkspace({
                     duplicateInput("phone", event.currentTarget.value)
                   }
                 />
-              </label>
+              </FormField>
 
-              <label>
-                <span>Website</span>
+              <FormField label="Website" htmlFor="lead-website">
                 <input
+                  id="lead-website"
                   autoComplete="url"
                   inputMode="url"
                   name="website"
                   placeholder="https://example.com"
                 />
-              </label>
+              </FormField>
             </div>
           </section>
 
@@ -610,9 +581,12 @@ export default function CrmLeadCreateWorkspace({
             </div>
 
             <div className="crm-lead-field-grid">
-              <label>
-                <span>Lead source</span>
-                <select name="sourceId" defaultValue="">
+              <FormField
+                label="Lead source"
+                htmlFor="lead-sourceId"
+                hint="This becomes the lead's permanent original source — it stays on record for attribution even if the source is corrected later."
+              >
+                <select id="lead-sourceId" name="sourceId" defaultValue="">
                   <option value="">Not specified</option>
                   {optionList("sources").map((option) => (
                     <option key={option.id} value={option.id}>
@@ -620,35 +594,28 @@ export default function CrmLeadCreateWorkspace({
                     </option>
                   ))}
                 </select>
-                <small className="field-hint">
-                  This becomes the lead&apos;s permanent original source —
-                  it stays on record for attribution even if the source is
-                  corrected later.
-                </small>
-              </label>
+              </FormField>
 
-              <label>
-                <span>Referred by</span>
+              <FormField label="Referred by" htmlFor="lead-referrerName">
                 <input
+                  id="lead-referrerName"
                   name="referrerName"
                   placeholder="Person or partner who referred this lead"
                 />
-              </label>
+              </FormField>
 
               {canAssignOwner ? (
-                <label>
-                  <span>Owner</span>
+                <FormField
+                  label="Owner"
+                  htmlFor="lead-ownerUserId"
+                  hint="Leave blank to let the server apply any supported lead assignment policy."
+                >
                   <LeadAssigneeCombobox name="ownerUserId" />
-                  <small className="field-hint">
-                    Leave blank to let the server apply any supported lead
-                    assignment policy.
-                  </small>
-                </label>
+                </FormField>
               ) : null}
 
-              <label>
-                <span>Company context</span>
-                <select name="companyId" defaultValue="">
+              <FormField label="Company context" htmlFor="lead-companyId">
+                <select id="lead-companyId" name="companyId" defaultValue="">
                   <option value="">Use active company</option>
                   {optionList("companies").map((option) => (
                     <option key={option.id} value={option.id}>
@@ -656,11 +623,10 @@ export default function CrmLeadCreateWorkspace({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
 
-              <label>
-                <span>Branch context</span>
-                <select name="branchId" defaultValue="">
+              <FormField label="Branch context" htmlFor="lead-branchId">
+                <select id="lead-branchId" name="branchId" defaultValue="">
                   <option value="">Use active branch</option>
                   {optionList("branches").map((option) => (
                     <option key={option.id} value={option.id}>
@@ -668,7 +634,7 @@ export default function CrmLeadCreateWorkspace({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
             </div>
           </section>
 
@@ -691,44 +657,44 @@ export default function CrmLeadCreateWorkspace({
             </div>
 
             <div className="crm-lead-field-grid">
-              <label>
-                <span>Priority</span>
-                <select name="priority" defaultValue="low">
+              <FormField label="Priority" htmlFor="lead-priority">
+                <select id="lead-priority" name="priority" defaultValue="low">
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                   <option value="urgent">Urgent</option>
                 </select>
-              </label>
+              </FormField>
 
-              <label>
-                <span>Rating</span>
-                <select name="rating" defaultValue="cold">
+              <FormField label="Rating" htmlFor="lead-rating">
+                <select id="lead-rating" name="rating" defaultValue="cold">
                   <option value="cold">Cold</option>
                   <option value="warm">Warm</option>
                   <option value="hot">Hot</option>
                 </select>
-              </label>
+              </FormField>
 
-              <label>
-                <span>Industry</span>
-                <input name="industry" placeholder="e.g. Manufacturing" />
-              </label>
-
-              <label>
-                <span>Estimated value</span>
+              <FormField label="Industry" htmlFor="lead-industry">
                 <input
+                  id="lead-industry"
+                  name="industry"
+                  placeholder="e.g. Manufacturing"
+                />
+              </FormField>
+
+              <FormField label="Estimated value" htmlFor="lead-estimatedValue">
+                <input
+                  id="lead-estimatedValue"
                   inputMode="decimal"
                   min="0"
                   name="estimatedValue"
                   step="any"
                   type="number"
                 />
-              </label>
+              </FormField>
 
-              <label>
-                <span>Currency</span>
-                <select name="currencyCode" defaultValue="">
+              <FormField label="Currency" htmlFor="lead-currencyCode">
+                <select id="lead-currencyCode" name="currencyCode" defaultValue="">
                   <option value="">Use CRM default</option>
                   {optionList("currencies").map((option) => (
                     <option key={option.id} value={option.id}>
@@ -736,16 +702,21 @@ export default function CrmLeadCreateWorkspace({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
 
-              <label className="crm-lead-field-span-2">
-                <span>Product interest</span>
-                <textarea
-                  name="productInterest"
-                  rows={4}
-                  placeholder="What problem, product, service or requirement brought this lead to you?"
-                />
-              </label>
+              <div className="crm-lead-field-span-2">
+                <FormField
+                  label="Product interest"
+                  htmlFor="lead-productInterest"
+                >
+                  <textarea
+                    id="lead-productInterest"
+                    name="productInterest"
+                    rows={4}
+                    placeholder="What problem, product, service or requirement brought this lead to you?"
+                  />
+                </FormField>
+              </div>
             </div>
           </section>
 
@@ -768,34 +739,40 @@ export default function CrmLeadCreateWorkspace({
             </div>
 
             <div className="crm-lead-field-grid">
-              <label>
-                <span>City</span>
-                <input autoComplete="address-level2" name="city" />
-              </label>
+              <FormField label="City" htmlFor="lead-city">
+                <input id="lead-city" autoComplete="address-level2" name="city" />
+              </FormField>
 
-              <label>
-                <span>State / region</span>
-                <input autoComplete="address-level1" name="state" />
-              </label>
-
-              <label>
-                <span>Country code</span>
+              <FormField label="State / region" htmlFor="lead-state">
                 <input
+                  id="lead-state"
+                  autoComplete="address-level1"
+                  name="state"
+                />
+              </FormField>
+
+              <FormField label="Country code" htmlFor="lead-countryCode">
+                <input
+                  id="lead-countryCode"
                   autoCapitalize="characters"
                   autoComplete="country"
                   maxLength={2}
                   name="countryCode"
                   placeholder="IN"
                 />
-              </label>
+              </FormField>
 
-              <label>
-                <span>Next follow-up</span>
-                <input name="nextFollowUpAt" type="datetime-local" />
-                <small className="field-hint">
-                  Use this when the next customer action is already known.
-                </small>
-              </label>
+              <FormField
+                label="Next follow-up"
+                htmlFor="lead-nextFollowUpAt"
+                hint="Use this when the next customer action is already known."
+              >
+                <input
+                  id="lead-nextFollowUpAt"
+                  name="nextFollowUpAt"
+                  type="datetime-local"
+                />
+              </FormField>
             </div>
           </section>
 
@@ -862,21 +839,18 @@ export default function CrmLeadCreateWorkspace({
               </span>
             </div>
             <div>
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={pending}
-                onClick={onCancel}
-              >
+              <ActionButton disabled={pending} onClick={onCancel}>
                 Cancel
-              </button>
-              <button
-                className="primary-button"
+              </ActionButton>
+              <ActionButton
+                tone="primary"
+                type="submit"
                 aria-disabled={pending || duplicateSaveBlocked}
-                disabled={pending || duplicateSaveBlocked}
+                disabled={duplicateSaveBlocked}
+                busy={pending}
               >
                 {pending ? "Saving…" : "Save lead"}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </form>
@@ -1027,23 +1001,26 @@ export default function CrmLeadCreateWorkspace({
                 })}
                 {duplicateClassification === "exact" &&
                 canOverrideDuplicate ? (
-                  <label className="crm-lead-duplicate-override">
-                    <span>Why create another Lead? *</span>
-                    <textarea
-                      value={duplicateOverrideReason}
-                      onChange={(event) =>
-                        setDuplicateOverrideReason(event.currentTarget.value)
-                      }
-                      minLength={10}
-                      maxLength={1000}
-                      rows={3}
-                      placeholder="Explain the legitimate business reason for keeping a separate Lead."
-                    />
-                    <small>
-                      Required for an authorized exact-duplicate override. This
-                      reason is stored in immutable audit evidence.
-                    </small>
-                  </label>
+                  <div className="crm-lead-duplicate-override">
+                    <FormField
+                      label="Why create another Lead?"
+                      htmlFor="lead-duplicateOverrideReason"
+                      required
+                      hint="Required for an authorized exact-duplicate override. This reason is stored in immutable audit evidence."
+                    >
+                      <textarea
+                        id="lead-duplicateOverrideReason"
+                        value={duplicateOverrideReason}
+                        onChange={(event) =>
+                          setDuplicateOverrideReason(event.currentTarget.value)
+                        }
+                        minLength={10}
+                        maxLength={1000}
+                        rows={3}
+                        placeholder="Explain the legitimate business reason for keeping a separate Lead."
+                      />
+                    </FormField>
+                  </div>
                 ) : null}
               </div>
             ) : null}

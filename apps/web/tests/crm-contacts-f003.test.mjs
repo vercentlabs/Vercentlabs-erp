@@ -38,7 +38,7 @@ test("F003 web: canonical list, search, filters, create, detail, edit and archiv
 
 test("F003 web: the form is compact, grouped, labelled and enforces reachability", () => {
   for (const section of ["Contact identity", "Company relationship", "Reachability"]) assert.match(form, new RegExp(section));
-  assert.match(form, /First name \*/);
+  assert.match(form, /label="First name"[\s\S]{0,80}required/);
   assert.match(form, /type="email"/);
   assert.match(form, /type="tel"/);
   assert.match(form, /aria-invalid/);

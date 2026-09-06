@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 
 import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
 import { requestJson } from "@/shared/http/client-request";
+import {
+  ActionButton,
+  ErrorState,
+  FormField,
+  FormSection,
+} from "@/shared/design";
 
 type AccountRecord = Record<string, unknown>;
 
@@ -84,187 +90,175 @@ export default function AccountFormDrawer({
         noValidate
       >
         {message ? (
-          <div className="notice error" role="alert">
-            <strong>Account not saved</strong>
-            <p>{message}</p>
-          </div>
+          <ErrorState title="Account not saved" description={message} />
         ) : null}
 
-        <fieldset className="crm-account-form-section">
-          <legend>Company identity</legend>
-          <p>Use the company name people recognise in everyday CRM work.</p>
-          <div className="crm-account-form-grid">
-            <label className="crm-account-field crm-account-field--wide">
-              <span>Company name *</span>
+        <FormSection
+          title="Company identity"
+          description="Use the company name people recognise in everyday CRM work."
+        >
+          <div className="crm-account-field--wide">
+            <FormField
+              label="Company name"
+              htmlFor="account-displayName"
+              required
+              error={fieldError("displayName")}
+            >
               <input
+                id="account-displayName"
                 name="displayName"
                 defaultValue={value(account, "displayName")}
                 maxLength={180}
                 required
                 aria-invalid={Boolean(fieldError("displayName"))}
-                aria-describedby={
-                  fieldError("displayName")
-                    ? "account-displayName-error"
-                    : undefined
-                }
               />
-              {fieldError("displayName") ? (
-                <small id="account-displayName-error" className="field-error">
-                  {fieldError("displayName")}
-                </small>
-              ) : null}
-            </label>
-            <label className="crm-account-field">
-              <span>Legal name</span>
-              <input
-                name="legalName"
-                defaultValue={value(account, "legalName")}
-                maxLength={180}
-              />
-            </label>
-            <label className="crm-account-field">
-              <span>Account type</span>
-              <select
-                name="partyType"
-                defaultValue={value(account, "partyType") || "prospect"}
-              >
-                <option value="prospect">Prospect</option>
-                <option value="customer">Customer</option>
-                <option value="both">Customer and supplier</option>
-              </select>
-            </label>
+            </FormField>
           </div>
-        </fieldset>
+          <FormField label="Legal name" htmlFor="account-legalName">
+            <input
+              id="account-legalName"
+              name="legalName"
+              defaultValue={value(account, "legalName")}
+              maxLength={180}
+            />
+          </FormField>
+          <FormField label="Account type" htmlFor="account-partyType">
+            <select
+              id="account-partyType"
+              name="partyType"
+              defaultValue={value(account, "partyType") || "prospect"}
+            >
+              <option value="prospect">Prospect</option>
+              <option value="customer">Customer</option>
+              <option value="both">Customer and supplier</option>
+            </select>
+          </FormField>
+        </FormSection>
 
-        <fieldset className="crm-account-form-section">
-          <legend>Business information</legend>
-          <div className="crm-account-form-grid">
-            <label className="crm-account-field">
-              <span>Industry</span>
-              <input
-                name="industry"
-                defaultValue={value(account, "industry")}
-                maxLength={160}
-              />
-            </label>
-            <label className="crm-account-field">
-              <span>Website</span>
-              <input
-                name="website"
-                type="url"
-                inputMode="url"
-                placeholder="https://example.com"
-                defaultValue={value(account, "website")}
-                aria-invalid={Boolean(fieldError("website"))}
-              />
-              {fieldError("website") ? (
-                <small className="field-error">{fieldError("website")}</small>
-              ) : null}
-            </label>
-            <label className="crm-account-field">
-              <span>Phone</span>
-              <input
-                name="phone"
-                type="tel"
-                defaultValue={value(account, "phone")}
-                maxLength={30}
-              />
-            </label>
-            <label className="crm-account-field">
-              <span>General email</span>
-              <input
-                name="email"
-                type="email"
-                inputMode="email"
-                defaultValue={value(account, "email")}
-                aria-invalid={Boolean(fieldError("email"))}
-              />
-              {fieldError("email") ? (
-                <small className="field-error">{fieldError("email")}</small>
-              ) : null}
-            </label>
-            <label className="crm-account-field">
-              <span>Currency</span>
-              <input
-                name="currencyCode"
-                defaultValue={value(account, "currencyCode")}
-                maxLength={3}
-                placeholder="INR"
-              />
-            </label>
-          </div>
-        </fieldset>
+        <FormSection title="Business information">
+          <FormField label="Industry" htmlFor="account-industry">
+            <input
+              id="account-industry"
+              name="industry"
+              defaultValue={value(account, "industry")}
+              maxLength={160}
+            />
+          </FormField>
+          <FormField
+            label="Website"
+            htmlFor="account-website"
+            error={fieldError("website")}
+          >
+            <input
+              id="account-website"
+              name="website"
+              type="url"
+              inputMode="url"
+              placeholder="https://example.com"
+              defaultValue={value(account, "website")}
+              aria-invalid={Boolean(fieldError("website"))}
+            />
+          </FormField>
+          <FormField label="Phone" htmlFor="account-phone">
+            <input
+              id="account-phone"
+              name="phone"
+              type="tel"
+              defaultValue={value(account, "phone")}
+              maxLength={30}
+            />
+          </FormField>
+          <FormField
+            label="General email"
+            htmlFor="account-email"
+            error={fieldError("email")}
+          >
+            <input
+              id="account-email"
+              name="email"
+              type="email"
+              inputMode="email"
+              defaultValue={value(account, "email")}
+              aria-invalid={Boolean(fieldError("email"))}
+            />
+          </FormField>
+          <FormField label="Currency" htmlFor="account-currencyCode">
+            <input
+              id="account-currencyCode"
+              name="currencyCode"
+              defaultValue={value(account, "currencyCode")}
+              maxLength={3}
+              placeholder="INR"
+            />
+          </FormField>
+        </FormSection>
 
-        <fieldset className="crm-account-form-section">
-          <legend>Business location</legend>
-          <p>
-            Leave this section empty when the business address is not yet known.
-          </p>
-          <div className="crm-account-form-grid">
-            <label className="crm-account-field crm-account-field--wide">
-              <span>Address</span>
+        <FormSection
+          title="Business location"
+          description="Leave this section empty when the business address is not yet known."
+        >
+          <div className="crm-account-field--wide">
+            <FormField label="Address" htmlFor="account-addressLine1">
               <input
+                id="account-addressLine1"
                 name="addressLine1"
                 defaultValue={value(account, "addressLine1")}
                 maxLength={200}
               />
-            </label>
-            <label className="crm-account-field crm-account-field--wide">
-              <span>Address line 2</span>
+            </FormField>
+          </div>
+          <div className="crm-account-field--wide">
+            <FormField label="Address line 2" htmlFor="account-addressLine2">
               <input
+                id="account-addressLine2"
                 name="addressLine2"
                 defaultValue={value(account, "addressLine2")}
                 maxLength={160}
               />
-            </label>
-            <label className="crm-account-field">
-              <span>City</span>
-              <input
-                name="city"
-                defaultValue={value(account, "city")}
-                maxLength={120}
-              />
-            </label>
-            <label className="crm-account-field">
-              <span>State</span>
-              <input
-                name="state"
-                defaultValue={value(account, "state")}
-                maxLength={120}
-              />
-            </label>
-            <label className="crm-account-field">
-              <span>Postal code</span>
-              <input
-                name="postalCode"
-                defaultValue={value(account, "postalCode")}
-                maxLength={20}
-              />
-            </label>
-            <label className="crm-account-field">
-              <span>Country code</span>
-              <input
-                name="countryCode"
-                defaultValue={value(account, "countryCode")}
-                maxLength={2}
-                placeholder="IN"
-              />
-            </label>
+            </FormField>
           </div>
-        </fieldset>
+          <FormField label="City" htmlFor="account-city">
+            <input
+              id="account-city"
+              name="city"
+              defaultValue={value(account, "city")}
+              maxLength={120}
+            />
+          </FormField>
+          <FormField label="State" htmlFor="account-state">
+            <input
+              id="account-state"
+              name="state"
+              defaultValue={value(account, "state")}
+              maxLength={120}
+            />
+          </FormField>
+          <FormField label="Postal code" htmlFor="account-postalCode">
+            <input
+              id="account-postalCode"
+              name="postalCode"
+              defaultValue={value(account, "postalCode")}
+              maxLength={20}
+            />
+          </FormField>
+          <FormField label="Country code" htmlFor="account-countryCode">
+            <input
+              id="account-countryCode"
+              name="countryCode"
+              defaultValue={value(account, "countryCode")}
+              maxLength={2}
+              placeholder="IN"
+            />
+          </FormField>
+        </FormSection>
 
         <footer className="crm-account-form-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={pending}
-            onClick={close}
-          >
+          <ActionButton onClick={close} disabled={pending}>
             Cancel
-          </button>
-          <button className="primary-button" type="submit" disabled={pending}>
+          </ActionButton>
+          <ActionButton tone="primary" type="submit" busy={pending}>
             {pending ? "Saving…" : editing ? "Save changes" : "Create account"}
-          </button>
+          </ActionButton>
         </footer>
       </form>
     </LeadWorkspaceDrawer>

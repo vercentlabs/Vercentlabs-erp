@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
 import { requestJson } from "@/shared/http/client-request";
+import { ActionButton, ErrorState, FormField } from "@/shared/design";
 
 type Source = Record<string, unknown>;
 const value = (source: Source | null | undefined, key: string) =>
@@ -77,48 +78,42 @@ export default function LeadSourceFormDrawer({
         noValidate
       >
         {message ? (
-          <div className="notice error" role="alert">
-            <strong>Lead source not saved</strong>
-            <p>{message}</p>
-          </div>
+          <ErrorState title="Lead source not saved" description={message} />
         ) : null}
-        <label>
-          <span>Source name *</span>
+        <FormField
+          label="Source name"
+          htmlFor="source-name"
+          required
+          error={error("name")}
+        >
           <input
+            id="source-name"
             name="name"
             autoFocus
             required
             maxLength={120}
             defaultValue={value(source, "name")}
             aria-invalid={Boolean(error("name")) || undefined}
-            aria-describedby={error("name") ? "source-name-error" : undefined}
           />
-          {error("name") ? (
-            <small id="source-name-error" className="field-error">
-              {error("name")}
-            </small>
-          ) : null}
-        </label>
-        <label>
-          <span>Description</span>
+        </FormField>
+        <FormField
+          label="Description"
+          htmlFor="source-description"
+          error={error("description")}
+          hint="Explain when colleagues should choose this source."
+        >
           <textarea
+            id="source-description"
             name="description"
             rows={4}
             maxLength={500}
             defaultValue={value(source, "description")}
-            aria-describedby="source-description-help"
           />
-          <small id="source-description-help">
-            Explain when colleagues should choose this source.
-          </small>
-          {error("description") ? (
-            <small className="field-error">{error("description")}</small>
-          ) : null}
-        </label>
+        </FormField>
         <div className="crm-source-form-grid">
-          <label>
-            <span>Channel</span>
+          <FormField label="Channel" htmlFor="source-channel">
             <select
+              id="source-channel"
               name="channel"
               defaultValue={value(source, "channel") || "other"}
             >
@@ -134,10 +129,10 @@ export default function LeadSourceFormDrawer({
               <option value="import">Import</option>
               <option value="other">Other</option>
             </select>
-          </label>
-          <label>
-            <span>Display order</span>
+          </FormField>
+          <FormField label="Display order" htmlFor="source-sortOrder">
             <input
+              id="source-sortOrder"
               name="sortOrder"
               type="number"
               min={0}
@@ -145,7 +140,7 @@ export default function LeadSourceFormDrawer({
               step={1}
               defaultValue={value(source, "sortOrder") || "100"}
             />
-          </label>
+          </FormField>
         </div>
         <label className="crm-source-default">
           <input
@@ -165,17 +160,12 @@ export default function LeadSourceFormDrawer({
           </p>
         ) : null}
         <footer>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={close}
-            disabled={pending}
-          >
+          <ActionButton onClick={close} disabled={pending}>
             Cancel
-          </button>
-          <button className="primary-button" type="submit" disabled={pending}>
+          </ActionButton>
+          <ActionButton tone="primary" type="submit" busy={pending}>
             {pending ? "Saving…" : editing ? "Save changes" : "Create source"}
-          </button>
+          </ActionButton>
         </footer>
       </form>
     </LeadWorkspaceDrawer>
