@@ -55,6 +55,10 @@ const ROUTES: RepresentativeRoute[] = [
     name: "crm-contacts",
     resolvePath: () => "/crm/contacts",
   },
+  {
+    name: "crm-accounts",
+    resolvePath: () => "/crm/accounts",
+  },
 ];
 
 const RESPONSIVE_VIEWPORTS = [

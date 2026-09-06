@@ -27,7 +27,8 @@ test("F002 web: canonical list, create, detail, edit and archive affordances exi
   assert.match(workspace, /Search accounts/);
   assert.match(workspace, /All industries/);
   assert.match(workspace, /All countries/);
-  assert.match(workspace, /crm-account-cards/);
+  assert.match(workspace, /EnterpriseDataGrid/);
+  assert.match(workspace, /renderMobileCard/);
   assert.match(detailPage, /getCrmAccount/);
   assert.match(detail, /Edit/);
   assert.match(detail, /Archive account/);

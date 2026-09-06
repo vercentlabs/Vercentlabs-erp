@@ -1,6 +1,12 @@
 import Link from "next/link";
 
 import AccountFormDrawer from "@/modules/crm/components/account-form-drawer";
+import {
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Account = Record<string, unknown>;
 
@@ -148,63 +154,93 @@ export default function AccountsWorkspace({
           ) : null}
         </div>
 
-        {rows.length ? (
-          <>
-            <div className="table-scroll crm-account-table-wrap">
-              <table className="data-table crm-account-table">
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th>Industry</th>
-                    <th>Contact</th>
-                    <th>Location</th>
-                    <th>Status</th>
-                    <th>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((account) => (
-                    <tr key={String(account.id)}>
-                      <td>
-                        <Link
-                          className="crm-account-name-link"
-                          href={`/crm/accounts/${String(account.id)}`}
-                        >
-                          <strong>{String(account.displayName)}</strong>
-                          <span>{String(account.code)}</span>
-                        </Link>
-                      </td>
-                      <td>{String(account.industry || "—")}</td>
-                      <td>
-                        <span className="crm-account-cell-stack">
-                          <span>{String(account.phone || "—")}</span>
-                          <small>{String(account.email || "")}</small>
-                        </span>
-                      </td>
-                      <td>{location(account)}</td>
-                      <td>
-                        <span
-                          className={`status-badge ${account.status === "active" ? "success" : "neutral"}`}
-                        >
-                          {account.status === "active" ? "Active" : "Archived"}
-                        </span>
-                      </td>
-                      <td>
-                        {new Intl.DateTimeFormat("en-IN", {
-                          dateStyle: "medium",
-                        }).format(new Date(String(account.updatedAt)))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="crm-account-cards" aria-label="Account records">
-              {rows.map((account) => (
+        {(() => {
+          const statusTone = (account: Account) =>
+            account.status === "active" ? "success" : "neutral";
+          const statusLabel = (account: Account) =>
+            account.status === "active" ? "Active" : "Archived";
+          const columns: DataGridColumn<Account>[] = [
+            {
+              id: "account",
+              header: "Account",
+              cell: (account) => (
+                <Link
+                  className="crm-account-name-link"
+                  href={`/crm/accounts/${String(account.id)}`}
+                >
+                  <strong>{String(account.displayName)}</strong>
+                  <span>{String(account.code)}</span>
+                </Link>
+              ),
+            },
+            {
+              id: "industry",
+              header: "Industry",
+              cell: (account) => String(account.industry || "—"),
+            },
+            {
+              id: "contact",
+              header: "Contact",
+              cell: (account) => (
+                <span className="crm-account-cell-stack">
+                  <span>{String(account.phone || "—")}</span>
+                  <small>{String(account.email || "")}</small>
+                </span>
+              ),
+            },
+            {
+              id: "location",
+              header: "Location",
+              cell: (account) => location(account),
+            },
+            {
+              id: "status",
+              header: "Status",
+              cell: (account) => (
+                <StatusBadge tone={statusTone(account)}>
+                  {statusLabel(account)}
+                </StatusBadge>
+              ),
+            },
+            {
+              id: "updated",
+              header: "Updated",
+              cell: (account) =>
+                new Intl.DateTimeFormat("en-IN", {
+                  dateStyle: "medium",
+                }).format(new Date(String(account.updatedAt))),
+            },
+          ];
+          return (
+            <EnterpriseDataGrid
+              caption="Account records"
+              rows={rows}
+              rowKey={(account) => String(account.id)}
+              columns={columns}
+              emptyState={
+                <StatePanel
+                  title={filtered ? "No matching accounts" : "No accounts yet"}
+                  description={
+                    filtered
+                      ? "Adjust or clear the filters to broaden the results."
+                      : "Create the first company record for this CRM workspace."
+                  }
+                  action={
+                    canManage && !filtered ? (
+                      <Link
+                        className="primary-button"
+                        href="/crm/accounts?create=1"
+                      >
+                        Create account
+                      </Link>
+                    ) : undefined
+                  }
+                />
+              }
+              renderMobileCard={(account) => (
                 <Link
                   className="crm-account-card"
                   href={`/crm/accounts/${String(account.id)}`}
-                  key={String(account.id)}
                 >
                   <div>
                     <strong>{String(account.displayName)}</strong>
@@ -218,35 +254,17 @@ export default function AccountsWorkspace({
                     </div>
                     <div>
                       <dt>Status</dt>
-                      <dd>
-                        {account.status === "active" ? "Active" : "Archived"}
-                      </dd>
+                      <dd>{statusLabel(account)}</dd>
                     </div>
                   </dl>
                   <span className="crm-account-card-open" aria-hidden="true">
                     View account →
                   </span>
                 </Link>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="empty-state crm-account-empty">
-            <strong>
-              {filtered ? "No matching accounts" : "No accounts yet"}
-            </strong>
-            <p>
-              {filtered
-                ? "Adjust or clear the filters to broaden the results."
-                : "Create the first company record for this CRM workspace."}
-            </p>
-            {canManage && !filtered ? (
-              <Link className="primary-button" href="/crm/accounts?create=1">
-                Create account
-              </Link>
-            ) : null}
-          </div>
-        )}
+              )}
+            />
+          );
+        })()}
 
         {totalPages > 1 ? (
           <nav
