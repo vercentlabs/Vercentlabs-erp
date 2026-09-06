@@ -1,6 +1,6 @@
 "use client";
 
-import { BoardArchetype } from "@/shared/design";
+import { BoardArchetype, StatePanel, StatusBadge } from "@/shared/design";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type DragEvent, type FormEvent } from "react";
@@ -69,12 +69,9 @@ function agingBadge(row: Opportunity, stage: Stage) {
     ? `Close date overdue · ${inactiveDays}d inactive`
     : `Stale · ${inactiveDays}d inactive`;
   return (
-    <span
-      className={`status-badge ${overdue ? "danger" : "warning"}`}
-      title={warnings.join(" ")}
-    >
+    <StatusBadge tone={overdue ? "danger" : "warning"} title={warnings.join(" ")}>
       {label}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -235,13 +232,16 @@ export default function CrmPipelineBoard({
 
   if (!selectedPipeline || !selectedPipelineId) {
     return (
-      <BoardArchetype className="empty-state" aria-label="Opportunity pipeline board">
-        <h2>No active opportunity pipeline</h2>
-        <p>
-          Configure an active CRM pipeline before creating or moving
-          opportunities.
-        </p>
-        {canManage ? <Link href="/crm/pipelines">Open pipeline setup</Link> : null}
+      <BoardArchetype aria-label="Opportunity pipeline board">
+        <StatePanel
+          title="No active opportunity pipeline"
+          description="Configure an active CRM pipeline before creating or moving opportunities."
+          action={
+            canManage ? (
+              <Link href="/crm/pipelines">Open pipeline setup</Link>
+            ) : undefined
+          }
+        />
       </BoardArchetype>
     );
   }
@@ -372,10 +372,10 @@ export default function CrmPipelineBoard({
       ) : null}
 
       {!orderedStages.length ? (
-        <div className="empty-state">
-          <h2>No active stages</h2>
-          <p>This pipeline needs at least one active stage before it can be used.</p>
-        </div>
+        <StatePanel
+          title="No active stages"
+          description="This pipeline needs at least one active stage before it can be used."
+        />
       ) : (
         <div className="crm-kanban" aria-label={`${selectedPipeline.name} opportunity pipeline`}>
           {groups.map(({ stage, rows }) => (
@@ -410,7 +410,7 @@ export default function CrmPipelineBoard({
                     aria-busy={moving === row.id}
                     key={row.id}
                   >
-                    <span className="status-badge neutral">{row.code}</span>
+                    <StatusBadge tone="neutral">{row.code}</StatusBadge>
                     {agingBadge(row, stage)}
                     <Link href={`/crm/opportunities/${row.id}`}>
                       <strong>{row.name}</strong>
