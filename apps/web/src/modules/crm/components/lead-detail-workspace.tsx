@@ -1,6 +1,6 @@
 "use client";
 
-import { Record360Archetype } from "@/shared/design";
+import { ActionButton, ActionLink, Record360Archetype, StatePanel, StatusBadge } from "@/shared/design";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -715,28 +715,21 @@ export default function CrmLeadDetailWorkspace({
           recordStatus === "active" ? (
             <div className="crm-lead-detail-actions">
               {!sensitiveDataRestricted && onEdit ? (
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => onEdit(lead)}
-                >
+                <ActionButton type="button" onClick={() => onEdit(lead)}>
                   Edit lead
-                </button>
+                </ActionButton>
               ) : !sensitiveDataRestricted ? (
-                <Link
-                  className="secondary-button"
-                  href={`/crm/leads?edit=${encodeURIComponent(id)}`}
-                >
+                <ActionLink href={`/crm/leads?edit=${encodeURIComponent(id)}`}>
                   Edit lead
-                </Link>
+                </ActionLink>
               ) : null}
-              <button
-                className="secondary-button danger"
-                disabled={pending === "archive"}
+              <ActionButton
+                tone="danger"
+                busy={pending === "archive"}
                 onClick={() => void archiveLead()}
               >
                 {pending === "archive" ? "Archiving…" : "Archive lead"}
-              </button>
+              </ActionButton>
             </div>
           ) : null}
         </div>
@@ -746,7 +739,7 @@ export default function CrmLeadDetailWorkspace({
           <small>Owner</small>
           <strong>{String(lead.ownerName || "Unassigned")}</strong>
           {lead.ownerStatus === "inactive" ? (
-            <span className="status-badge neutral">Inactive</span>
+            <StatusBadge tone="neutral">Inactive</StatusBadge>
           ) : null}
           {canAssignOwner &&
           recordStatus === "active" ? (
@@ -763,7 +756,7 @@ export default function CrmLeadDetailWorkspace({
           <small>Source</small>
           <strong>{leadSource?.name || "Not specified"}</strong>
           {leadSource?.status === "inactive" ? (
-            <span className="status-badge neutral">Inactive</span>
+            <StatusBadge tone="neutral">Inactive</StatusBadge>
           ) : null}
         </div>
         {lead.originalSourceId && String(lead.originalSourceId) !== String(lead.sourceId) ? (
@@ -1340,9 +1333,7 @@ export default function CrmLeadDetailWorkspace({
                 </article>
               ))}
               {!timeline.length ? (
-                <div className="crm-suite-empty">
-                  <strong>No timeline events yet.</strong>
-                </div>
+                <StatePanel title="No timeline events yet." />
               ) : null}
               {activitiesHasMore || communicationsHasMore ? (
                 <button
@@ -1981,9 +1972,7 @@ export default function CrmLeadDetailWorkspace({
                 );
               })}
               {!duplicates.length ? (
-                <div className="crm-suite-empty">
-                  <strong>No likely duplicate found.</strong>
-                </div>
+                <StatePanel title="No likely duplicate found." />
               ) : null}
             </div>
           </section>

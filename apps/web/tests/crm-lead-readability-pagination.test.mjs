@@ -239,7 +239,6 @@ test("Every lead detail tab component is covered by the drawer responsive system
     "crm-suite-form",
     "crm-suite-check",
     "crm-suite-list",
-    "crm-suite-empty",
     "crm-lead-timeline",
     "crm-lead-score-history",
     "crm-file-divider",
@@ -257,4 +256,6 @@ test("Every lead detail tab component is covered by the drawer responsive system
     assert.match(css, new RegExp(`\\.crm-lead-drawer \\.${className}`));
   }
   assert.match(css, /Exhaustive lead-detail component pass/);
+  assert.match(detail, /<StatePanel title="No timeline events yet\."/);
+  assert.match(detail, /<StatePanel title="No likely duplicate found\."/);
 });
