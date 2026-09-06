@@ -1,0 +1,21 @@
+# F061 Margin and profitability — Atomic requirement trace
+
+Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows) by re-reading `calculateLine`'s cost/margin computation (verified F033/F039), `redactMargin` (verified F031/F033/F050), and confirming via grep that no module anywhere updates `tenant.items.standard_cost` from actual purchase/production costs (a manually-maintained master-data field, consistent with a standard-costing design).
+
+| ID | Verdict | Evidence |
+|---|---|---|
+| CAP-001 (authorized exposure, governed cost basis) | PASS | `redactMargin` strips `standard_cost`/`cost_amount`/`cost_total`/`margin_amount`/`margin_percent` from every read path unless the caller holds `sales.margin.view` — verified applied consistently across quotations, orders, options, and reports (including the F031 fix that closed the one place it was missing). |
+| CAP-002 (cost source/time — "prevent stale cost assumptions") | PASS | `calculateLine` reads `item.standard_cost` **live** at calculation time on every quote/order line/amendment/revision — never a cached or pre-fetched value — so a cost-master update is reflected the next time anything is calculated, not stuck on whatever it was when the item was first created. |
+| DATA-002 (post-calculation immutability) | PASS | Once calculated, `standard_cost`/`cost_amount`/`margin_amount`/`margin_percent` are snapshotted onto the line/version (verified repeatedly) — a later change to the item's cost doesn't retroactively alter a historical document's recorded margin, correctly balancing "fresh at calc time" against "frozen once committed." |
+| CAP-002 (zero/negative margin) | PASS | `submitQuotation`'s approval-threshold engine (verified F036/F039) explicitly triggers mandatory approval when `margin_percent < sales_settings.minimum_margin_percent` — a negative-margin quote can't silently bypass review; there's no special-case crash or silent clamp for a negative value, it's just a number the policy engine can act on. |
+| CAP-002 (discounts/taxes) | PASS | Margin (`net_amount - cost_amount`) is computed after discount is applied and independent of tax (tax is calculated on `taxableAmount`, margin on the pre-tax net) — discount erodes margin correctly, tax doesn't distort it. |
+| CAP-002 (multicurrency) | PASS | `margin_amount`/`margin_percent` are computed and stored per-version alongside both `grand_total` (document currency) and `base_currency_total` (org base currency) — margin is evaluated consistently regardless of the transaction currency. |
+| CAP-002 (hidden cost fields) | PASS | Verified via the F031 fix — before that fix, `getSalesOptions`'s item picker was the one place `standard_cost` leaked unconditionally; now consistent everywhere. |
+| CAP-002 (approval floors) | PASS | Same evidence as "zero/negative margin" above — `minimum_margin_percent` is a real, configurable floor. |
+| **CAP-002 (post-sale variance) — real gap, recorded, not fixed this pass.** | FAIL | No code anywhere compares the margin *assumed* at quote/order time (based on `standard_cost`, a manually-maintained master-data figure) against the *actual* cost realized later (e.g., real purchase price from Procurement, real production cost from Manufacturing). Margin reporting (`getSalesReport`'s `margin` variant, verified F040) always reflects the standard-cost assumption frozen at document time, with no reconciliation step anywhere showing whether that assumption held up. This is a legitimate standard-costing design choice at the item-master level, but the dossier's explicit "post-sale variance" callout has no answering capability at all. |
+| SEC-002 | PASS | Same `redactMargin` evidence as CAP-001. |
+| AUTO-001 / NOTIF-001 / REP-001 (beyond F060) / AI-001 / UX-001-003 / VAL-001/002 / API-001/002 / OBS-001 / E2E-001-002 / UAT-001-002 | NOT INDEPENDENTLY VERIFIED | Not traced this pass. |
+
+## Net assessment (2026-09-06)
+
+The margin computation, redaction, and approval-floor governance are all genuinely solid and consistently applied — this is one of the better-covered dossier areas in the whole trace, largely because it's threaded through code already verified for F031/F033/F036/F039/F040/F050. The one real gap is post-sale cost-variance reconciliation, which doesn't exist anywhere and would require cross-module cost data Sales doesn't currently consume.
