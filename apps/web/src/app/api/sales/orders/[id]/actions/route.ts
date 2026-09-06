@@ -1,10 +1,10 @@
 import {
   captureSalesOrderGovernanceSnapshot,
   amendSalesOrder,
-  cancelSalesOrder,
+  cancelSalesOrderWithCrmSync,
   closeSalesOrder,
   completeFulfillmentRequest,
-  confirmSalesOrder,
+  confirmSalesOrderWithCrmSync,
   createFulfillmentRequest,
   createInvoiceRequest,
   placeOrderHold,
@@ -34,13 +34,13 @@ export async function POST(
         if (input.action === "submit")
           value = await submitSalesOrder(client, context, id, input.assignedTo);
         else if (input.action === "confirm")
-          value = await confirmSalesOrder(client, context, id, input);
+          value = await confirmSalesOrderWithCrmSync(client, context, id, input);
         else if (input.action === "hold")
           value = await placeOrderHold(client, context, id, input);
         else if (input.action === "release_hold")
           value = await releaseOrderHold(client, context, id, input);
         else if (input.action === "cancel")
-          value = await cancelSalesOrder(
+          value = await cancelSalesOrderWithCrmSync(
             client,
             context,
             id,

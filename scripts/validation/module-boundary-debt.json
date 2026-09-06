@@ -29,13 +29,6 @@
       "path": "services/api/src/modules/accounting/receivables.js",
       "operation": "UPDATE",
       "table": "tenant.sales_orders"
-    },
-    {
-      "sourceModule": "sales",
-      "ownerModule": "crm",
-      "path": "services/api/src/modules/sales/index.js",
-      "operation": "UPDATE",
-      "table": "tenant.crm_opportunities"
     }
   ]
 }

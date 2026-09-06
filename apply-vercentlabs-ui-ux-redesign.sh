@@ -1,0 +1,1102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="${1:-.}"
+BRANCH="redesign/web-experience-standard-v4"
+cd "$REPO"
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "ERROR: run this script from the Vercentlabs repository root or pass the repo path as the first argument." >&2
+  exit 2
+fi
+
+for required in   package.json   apps/web/src/core/components/app-shell.tsx   apps/web/src/core/navigation/modules.ts   apps/web/src/shared/design/tokens.css   scripts/validation/verify-experience.mjs; do
+  if [[ ! -e "$required" ]]; then
+    echo "ERROR: expected Vercentlabs file is missing: $required" >&2
+    exit 2
+  fi
+done
+
+run_gates() {
+  echo "[verify] Experience Kernel"
+  node scripts/validation/verify-experience.mjs
+  echo "[verify] Web routes"
+  node apps/web/scripts/verify-routes.mjs
+  echo "[verify] Web architecture boundaries"
+  node scripts/validation/verify-web-boundaries.mjs
+  echo "[verify] Documentation links"
+  node scripts/validation/verify-doc-links.mjs
+  echo "[verify] Web tests"
+  (cd apps/web && node --test)
+  git diff --check
+}
+
+# Idempotent: a second run verifies the already-applied redesign and exits cleanly.
+if [[ -f apps/web/src/shared/design/workspace-shell.module.css ]]   && grep -q 'Vercentlabs Web Frontend Experience Standard' apps/web/docs/FRONTEND_EXPERIENCE_STANDARD.md 2>/dev/null   && grep -q 'Lead lifecycle' apps/web/src/core/navigation/modules.ts   && grep -q 'workspace-shell.module.css' apps/web/src/core/components/app-shell.tsx; then
+  echo "Vercentlabs frontend redesign is already present; running verification only."
+  run_gates
+  echo "Done. Redesign is already applied."
+  exit 0
+fi
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "ERROR: working tree is not clean. Commit or stash your current changes, then run this script again." >&2
+  exit 2
+fi
+
+if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  git switch "$BRANCH"
+else
+  git switch -c "$BRANCH"
+fi
+
+PATCH_FILE="$(mktemp)"
+trap 'rm -f "$PATCH_FILE"' EXIT
+cat >"$PATCH_FILE" <<'__VERCENTLABS_UI_REDESIGN_PATCH__'
+diff --git a/apps/web/docs/FRONTEND_EXPERIENCE_STANDARD.md b/apps/web/docs/FRONTEND_EXPERIENCE_STANDARD.md
+new file mode 100644
+index 0000000..e2a9e9c
+--- /dev/null
++++ b/apps/web/docs/FRONTEND_EXPERIENCE_STANDARD.md
+@@ -0,0 +1,78 @@
++# Vercentlabs Web Frontend Experience Standard
++
++This standard governs the authenticated ERP web workspace. Business logic,
++permissions and module ownership remain unchanged; the experience layer makes
++those capabilities easier to discover and operate consistently.
++
++## Information hierarchy
++
++1. **Primary rail** — stable global destinations and the 12 ERP modules.
++2. **Context sidebar** — the active module's permission-resolved feature areas.
++3. **Page header** — current task, context, status and primary actions.
++4. **Workspace body** — filters, metrics, lists/boards/forms and record content.
++5. **Command palette** — keyboard/search path to destinations, actions and records.
++
++A feature should not become a new top-level destination merely because it exists.
++Micro-features belong as searchable aliases or inside the closest focused
++workspace unless they need an independent workflow and URL.
++
++## Navigation rules
++
++- Navigation is always generated from the server-resolved registry. UI code must
++  never re-create permission or entitlement logic.
++- Module items use task-oriented groups. Group names describe user intent, not
++  database nouns.
++- `NavigationItem.description` provides one short sentence explaining the job.
++- `keywords` include accepted synonyms and micro-feature terms so users can find
++  functionality using natural task language.
++- Configuration pages remain permission-gated even when they are easier to find.
++- The global command palette and contextual navigation search the same resolved
++  navigation vocabulary.
++
++## Responsive model
++
++- **1440px and wider:** wide desktop uses the compact primary module rail, the
++  contextual feature sidebar and the full working canvas.
++- **1024–1439px:** standard desktop keeps both navigation levels visible while
++  preserving the working canvas.
++- **768–1023px:** the fixed rails are replaced by the permission-resolved mobile
++  drawer so tablet content is not squeezed into a narrow third column.
++- **Below 768px:** frequent actions remain reachable with the bottom navigation;
++  content receives safe-area-aware bottom padding and touch targets remain large.
++- **Below 480px:** page gutters and surface radii reduce without reducing touch
++  target size.
++
++## Interaction and accessibility
++
++- Coarse-pointer targets are at least 44px high.
++- Keyboard focus stays visible and uses the shared focus treatment.
++- Search fields have explicit accessible labels; Escape clears contextual search.
++- Current navigation uses `aria-current="page"`.
++- Tables preserve horizontal access when they cannot safely collapse; shared
++  enterprise data grids should provide mobile-card renderers when record reading
++  is more important than column comparison.
++- Dialogs are bounded by the viewport and remain scrollable.
++- Reduced-motion preferences and print output are supported.
++
++## Visual system
++
++- Use the shared experience-kernel primitives before introducing module-local
++  replacements: `PageHeader`, `SectionHeader`, `Surface`, `Tabs`, state panels,
++  enterprise data grids and page archetypes.
++- Canvas, surfaces, borders, type hierarchy, controls and focus treatment are
++  normalised by the shared `workspace-shell.module.css` layer and canonical
++  `tokens.css` variables.
++- Module CSS may express domain-specific layouts, but it must not redefine the
++  global shell, primary navigation, breakpoints or accessibility baseline.
++
++## CRM application
++
++CRM keeps focused workspaces rather than exposing F001–F030 as thirty unrelated
++menu entries. The contextual navigation exposes real, permission-gated workspaces
++for customer records, lead management, revenue, engagement, insights and CRM
++setup. Lead Sources remains owned by CRM Setup per the F004 information-architecture
++contract, but its vocabulary is searchable from global/context navigation.
++Micro-features such as qualification, scoring, duplicate handling,
++merge, conversion, routing, expected revenue, won/lost outcomes, calls, meetings,
++custom fields, data quality, automation and privacy are search aliases that route
++the user to the owning workspace.
+diff --git a/apps/web/src/core/components/app-shell.tsx b/apps/web/src/core/components/app-shell.tsx
+index 965d437..ce96895 100644
+--- a/apps/web/src/core/components/app-shell.tsx
++++ b/apps/web/src/core/components/app-shell.tsx
+@@ -1,4 +1,5 @@
+ import { ShellBoundary } from "@/shared/design";
++import "@/shared/design/workspace-shell.module.css";
+ import BottomNav from "@/core/components/bottom-nav";
+ import Breadcrumbs from "@/core/components/breadcrumbs";
+ import CommandPalette from "@/core/components/command-palette";
+diff --git a/apps/web/src/core/components/context-secondary-sidebar.tsx b/apps/web/src/core/components/context-secondary-sidebar.tsx
+index 34562bd..b1a7673 100644
+--- a/apps/web/src/core/components/context-secondary-sidebar.tsx
++++ b/apps/web/src/core/components/context-secondary-sidebar.tsx
+@@ -194,11 +194,12 @@ export default function ContextSecondarySidebar({
+             key={group.label}
+             aria-label={group.label}
+           >
+-            {group.label === "Overview" ? null : (
++            <div className="context-secondary-sidebar__group-heading">
+               <p className="context-secondary-sidebar__group-label">
+                 {group.label}
+               </p>
+-            )}
++              <span>{group.items.length}</span>
++            </div>
+             {group.items.map((item) => (
+               <NavigationLink
+                 key={item.href}
+@@ -212,6 +213,7 @@ export default function ContextSecondarySidebar({
+                 href={item.href}
+                 icon={item.icon}
+                 label={item.label}
++                description={item.description}
+                 nested
+               />
+             ))}
+diff --git a/apps/web/src/core/components/mobile-workspace-navigation.tsx b/apps/web/src/core/components/mobile-workspace-navigation.tsx
+index 57e80c6..133a70f 100644
+--- a/apps/web/src/core/components/mobile-workspace-navigation.tsx
++++ b/apps/web/src/core/components/mobile-workspace-navigation.tsx
+@@ -293,6 +293,7 @@ export default function MobileWorkspaceNavigation({
+                 href={item.href}
+                 icon={item.icon}
+                 label={item.label}
++                description={item.description}
+                 mobile
+                 nested
+               />
+diff --git a/apps/web/src/core/components/navigation-link.tsx b/apps/web/src/core/components/navigation-link.tsx
+index 706761a..814e375 100644
+--- a/apps/web/src/core/components/navigation-link.tsx
++++ b/apps/web/src/core/components/navigation-link.tsx
+@@ -12,6 +12,7 @@ export default function NavigationLink({
+   label,
+   icon,
+   badge,
++  description,
+   mobile = false,
+   nested = false,
+   exact = false,
+@@ -21,6 +22,7 @@ export default function NavigationLink({
+   label: string;
+   icon: AppIconName;
+   badge?: number;
++  description?: string;
+   mobile?: boolean;
+   nested?: boolean;
+   exact?: boolean;
+@@ -43,7 +45,12 @@ export default function NavigationLink({
+           size={nested ? 17 : 19}
+         />
+       </span>
+-      <span className="nav-link-label">{label}</span>
++      <span className="nav-link-copy">
++        <span className="nav-link-label">{label}</span>
++        {description ? (
++          <span className="nav-link-description">{description}</span>
++        ) : null}
++      </span>
+       {badge ? (
+         <span className="nav-count">{badge > 99 ? "99+" : badge}</span>
+       ) : null}
+diff --git a/apps/web/src/core/navigation/module-navigation-ia.ts b/apps/web/src/core/navigation/module-navigation-ia.ts
+index ff30d2f..30d8d22 100644
+--- a/apps/web/src/core/navigation/module-navigation-ia.ts
++++ b/apps/web/src/core/navigation/module-navigation-ia.ts
+@@ -151,8 +151,8 @@ export function groupModuleNavigation(
+ 
+   for (const item of module.items) {
+     const label =
+-      GROUP_BY_HREF[module.moduleId]?.[item.href] ??
+       item.group ??
++      GROUP_BY_HREF[module.moduleId]?.[item.href] ??
+       (item.exact ? "Overview" : "Workspace");
+ 
+     const current = buckets.get(label) ?? [];
+@@ -170,6 +170,7 @@ export function navigationItemSearchText(
+   return [
+     item.label,
+     item.href,
++    item.description ?? "",
+     groupLabel,
+     ...(item.keywords ?? []),
+   ]
+diff --git a/apps/web/src/core/navigation/modules.ts b/apps/web/src/core/navigation/modules.ts
+index d1f4df9..c0bbe5f 100644
+--- a/apps/web/src/core/navigation/modules.ts
++++ b/apps/web/src/core/navigation/modules.ts
+@@ -14,78 +14,172 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
+     label: "CRM",
+     moduleId: "crm",
+     icon: "crm",
+-    keywords: ["customers", "relationships", "pipeline", "deals", "follow-ups"],
++    keywords: [
++      "customers",
++      "relationships",
++      "pipeline",
++      "deals",
++      "follow-ups",
++      "lead management",
++      "qualification",
++      "conversion",
++      "forecast",
++    ],
+     items: [
+       {
+         href: "/crm",
+         label: "Overview",
++        description: "Customer growth, pipeline health and follow-up pressure.",
+         icon: "dashboard",
+         exact: true,
++        group: "Overview",
+         permission: PERMISSIONS.crmView,
++        keywords: ["dashboard", "metrics", "conversion", "attention", "health"],
+       },
+       {
+         href: "/crm/leads",
+         label: "Leads",
++        description: "Capture, qualify, score, assign and convert prospects.",
+         icon: "crm",
+-        group: "Relationships",
++        group: "Customer records",
+         permission: PERMISSIONS.crmView,
++        keywords: [
++          "lead capture",
++          "qualification",
++          "scoring",
++          "ownership",
++          "assignment",
++          "duplicate",
++          "merge",
++          "conversion",
++          "follow-up",
++          "nurture",
++        ],
+       },
+       {
+         href: "/crm/accounts",
+         label: "Accounts",
++        description: "Manage organisations, hierarchies and customer context.",
+         icon: "companies",
+-        group: "Relationships",
++        group: "Customer records",
+         permission: PERMISSIONS.crmView,
++        keywords: ["companies", "customers", "organisation", "hierarchy", "account 360"],
+       },
+       {
+         href: "/crm/contacts",
+         label: "Contacts",
++        description: "People, communication details, roles and relationships.",
+         icon: "users",
+-        group: "Relationships",
++        group: "Customer records",
+         permission: PERMISSIONS.crmView,
++        keywords: ["people", "email", "phone", "stakeholder", "relationship", "contact 360"],
++      },
++      {
++        href: "/crm/lead-lifecycle",
++        label: "Lead lifecycle",
++        description: "Configure governed lead stages and lifecycle movement.",
++        icon: "approvals",
++        group: "Lead management",
++        permission: PERMISSIONS.crmSettingsManage,
++        keywords: ["lead stages", "status", "transition", "pipeline stage", "lifecycle"],
++      },
++      {
++        href: "/crm/assignment-rules",
++        label: "Assignment rules",
++        description: "Route leads to eligible owners using governed rules.",
++        icon: "users",
++        group: "Lead management",
++        permission: PERMISSIONS.crmSettingsManage,
++        keywords: ["lead routing", "owner", "round robin", "territory", "assignment", "eligibility"],
+       },
+       {
+         href: "/crm/opportunities",
+         label: "Opportunities",
++        description: "Manage deals, value, probability, outcomes and next steps.",
+         icon: "sales",
+-        group: "Pipeline",
++        group: "Revenue",
+         permission: PERMISSIONS.crmView,
++        keywords: ["deals", "amount", "probability", "expected revenue", "won", "lost", "reopen"],
+       },
+       {
+         href: "/crm/pipeline",
+         label: "Pipeline",
++        description: "Move deals through stages and manage pipeline execution.",
+         icon: "sales",
+-        group: "Pipeline",
++        group: "Revenue",
+         permission: PERMISSIONS.crmView,
++        keywords: ["board", "kanban", "sales stage", "stage movement", "deal pipeline"],
+       },
+       {
+         href: "/crm/forecast",
+         label: "Forecast",
++        description: "Review weighted pipeline and forecast categories.",
+         icon: "audit",
+-        group: "Pipeline",
++        group: "Revenue",
+         permission: PERMISSIONS.crmReportsView,
++        keywords: ["forecasting", "weighted pipeline", "commit", "best case", "expected revenue"],
+       },
+       {
+         href: "/crm/activities",
+         label: "Activities",
++        description: "Tasks, calls, meetings, reminders and follow-up queues.",
+         icon: "approvals",
+-        group: "Activities",
++        group: "Engagement",
+         permission: PERMISSIONS.crmView,
+-        keywords: ["calls", "meetings", "tasks", "follow-ups", "reminders"],
++        keywords: [
++          "calls",
++          "meetings",
++          "tasks",
++          "follow-ups",
++          "reminders",
++          "due today",
++          "overdue",
++          "notes",
++          "timeline",
++        ],
+       },
+       {
+         href: "/crm/reports",
+         label: "Reports",
++        description: "Analyse pipeline, conversion, sources, activity and forecast.",
+         icon: "audit",
+-        group: "Analytics",
++        group: "Insights",
+         permission: PERMISSIONS.crmReportsView,
++        keywords: ["analytics", "pipeline report", "conversion report", "source report", "activity report", "forecast report"],
++      },
++      {
++        href: "/crm/stages",
++        label: "Sales stages",
++        description: "Configure opportunity stages, probability and forecast mapping.",
++        icon: "sales",
++        group: "CRM setup",
++        permission: PERMISSIONS.crmSettingsManage,
++        keywords: ["opportunity stages", "probability", "forecast category", "stage configuration"],
+       },
+       {
+         href: "/crm/settings",
+         label: "CRM setup",
++        description: "Data quality, imports, customisation, automation and controls.",
+         icon: "settings",
+-        group: "Configuration",
++        group: "CRM setup",
+         permission: PERMISSIONS.crmSettingsManage,
++        keywords: [
++          "settings",
++          "lead sources",
++          "source attribution",
++          "acquisition source",
++          "import",
++          "export",
++          "bulk",
++          "custom fields",
++          "data quality",
++          "duplicates",
++          "automation",
++          "AI",
++          "privacy",
++          "consent",
++          "territory",
++        ],
+       },
+     ],
+   },
+diff --git a/apps/web/src/core/navigation/types.ts b/apps/web/src/core/navigation/types.ts
+index 620cefd..175f689 100644
+--- a/apps/web/src/core/navigation/types.ts
++++ b/apps/web/src/core/navigation/types.ts
+@@ -15,6 +15,8 @@ export type NavigationItem = {
+   href: string;
+   label: string;
+   icon: AppIconName;
++  /** Short wayfinding copy shown in contextual navigation. Keep it task-oriented and avoid duplicating the label. */
++  description?: string;
+   /** Base permission string (from PERMISSIONS) gating this destination. Absent = visible to any authenticated workspace member. */
+   permission?: string;
+   /** Exact-path match only (no startsWith prefix matching). */
+diff --git a/apps/web/src/core/search/navigation-search.ts b/apps/web/src/core/search/navigation-search.ts
+index 6e71087..63cb4d5 100644
+--- a/apps/web/src/core/search/navigation-search.ts
++++ b/apps/web/src/core/search/navigation-search.ts
+@@ -39,7 +39,7 @@ export function flattenNavigation(navigation: ResolvedNavigationWithSettings): C
+       candidates.push({
+         href: item.href,
+         label: item.label,
+-        description: group.label,
++        description: item.description ?? group.label,
+         icon: item.icon,
+         moduleId: group.moduleId,
+         keywords: item.keywords,
+diff --git a/apps/web/src/shared/design/tokens.css b/apps/web/src/shared/design/tokens.css
+index 587f867..d42dc8a 100644
+--- a/apps/web/src/shared/design/tokens.css
++++ b/apps/web/src/shared/design/tokens.css
+@@ -16,6 +16,13 @@
+   --erp-color-surface-subtle: #f8f9fb;
+   --erp-color-surface-raised: #ffffff;
+ 
++  --erp-color-navigation: #11151d;
++  --erp-color-navigation-hover: #1b2029;
++  --erp-color-navigation-active: #252b38;
++  --erp-color-navigation-text: #f8fafc;
++  --erp-color-navigation-muted: #aeb7c5;
++  --erp-color-navigation-border: rgba(255, 255, 255, 0.08);
++
+   --erp-color-text: #171a1f;
+   --erp-color-text-secondary: #3f4652;
+   --erp-color-text-muted: #667085;
+@@ -61,10 +68,11 @@
+   --erp-space-10: 40px;
+   --erp-space-12: 48px;
+ 
+-  --erp-primary-rail-width: 68px;
+-  --erp-secondary-sidebar-width: 276px;
+-  --erp-content-max: 1680px;
+-  --erp-topbar-height: 68px;
++  --erp-primary-rail-width: 76px;
++  --erp-secondary-sidebar-width: 296px;
++  --erp-content-max: 1760px;
++  --erp-topbar-height: 64px;
++  --erp-bottom-nav-height: 64px;
+ 
+   --erp-z-base: 1;
+   --erp-z-sticky: 20;
+diff --git a/apps/web/src/shared/design/workspace-shell.module.css b/apps/web/src/shared/design/workspace-shell.module.css
+new file mode 100644
+index 0000000..e5fcb3e
+--- /dev/null
++++ b/apps/web/src/shared/design/workspace-shell.module.css
+@@ -0,0 +1,499 @@
++:global(.workspace-shell.navigation-v2-shell) {
++  min-height: 100dvh;
++  display: grid;
++  grid-template-columns: var(--erp-primary-rail-width) minmax(0, 1fr);
++  background: var(--erp-color-canvas);
++  color: var(--erp-color-text);
++}
++
++:global(.workspace-shell.navigation-v2-shell):has(> :global(.context-secondary-sidebar)) {
++  grid-template-columns:
++    var(--erp-primary-rail-width)
++    var(--erp-secondary-sidebar-width)
++    minmax(0, 1fr);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.workspace-main) {
++  min-width: 0;
++  min-height: 100dvh;
++  background: var(--erp-color-canvas);
++}
++
++/* Primary module rail: module labels remain visible so recognition never
++   depends on hover, while the active module's full feature tree lives in the
++   contextual sidebar. */
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail),
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail__surface) {
++  width: var(--erp-primary-rail-width);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail__surface) {
++  background: var(--erp-color-navigation);
++  border-right-color: var(--erp-color-navigation-border);
++  box-shadow: none;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail:hover .primary-navigation-rail__surface),
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail:has(:focus-visible) .primary-navigation-rail__surface) {
++  width: var(--erp-primary-rail-width);
++  box-shadow: none;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-brand) {
++  width: 100%;
++  min-height: var(--erp-topbar-height);
++  display: grid;
++  grid-template-columns: 1fr;
++  place-items: center;
++  padding: var(--erp-space-2);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-brand__mark) {
++  width: 40px;
++  height: 40px;
++  border-radius: var(--erp-radius-card);
++  border-color: color-mix(
++    in srgb,
++    var(--erp-color-navigation-text) 22%,
++    transparent
++  );
++  background: var(--erp-color-accent);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-brand__copy),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-profile__copy),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-group__label) {
++  display: none;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-scroll) {
++  padding: 7px 6px var(--erp-space-3);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-group + .v2-rail-group) {
++  margin-top: 6px;
++  padding-top: 6px;
++  border-top-color: var(--erp-color-navigation-border);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-profile) {
++  width: 100%;
++  min-height: 54px;
++  display: grid;
++  grid-template-columns: 1fr;
++  grid-template-rows: 28px auto;
++  gap: 1px;
++  justify-items: center;
++  padding: 5px 3px;
++  border-radius: var(--erp-radius-control);
++  color: var(--erp-color-navigation-muted);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link__icon) {
++  width: 28px;
++  height: 28px;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link__label) {
++  width: 100%;
++  display: block;
++  overflow: hidden;
++  color: var(--erp-color-navigation-muted);
++  font-size: 9px;
++  font-weight: var(--erp-font-weight-semibold);
++  line-height: 1.15;
++  text-align: center;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++  opacity: 1;
++  transform: none;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail:hover .v2-rail-link__label),
++:global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail:has(:focus-visible) .v2-rail-link__label) {
++  opacity: 1;
++  transform: none;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link:hover),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-profile:hover) {
++  background: var(--erp-color-navigation-hover);
++  color: var(--erp-color-navigation-text);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link:hover .v2-rail-link__label),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link.active .v2-rail-link__label) {
++  color: var(--erp-color-navigation-text);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link.active),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-profile.active) {
++  background: var(--erp-color-navigation-active);
++  color: var(--erp-color-navigation-text);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link.active::before),
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-profile.active::before) {
++  width: 3px;
++  height: 30px;
++  background: var(--erp-color-accent-border);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-link__badge) {
++  position: absolute;
++  top: 4px;
++  right: 4px;
++  min-width: 18px;
++  height: 18px;
++  padding: 0 var(--erp-space-1);
++  background: var(--erp-color-danger);
++  font-size: 8px;
++  opacity: 1;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.v2-rail-profile) {
++  width: calc(100% - 12px);
++  min-height: 48px;
++  margin: 6px;
++  grid-template-rows: 1fr;
++  border-top-color: var(--erp-color-navigation-border);
++}
++
++/* Context sidebar: every resolved feature receives a task description and
++   search remains a first-class way to reach subfeatures and micro-features. */
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar) {
++  width: var(--erp-secondary-sidebar-width);
++  border-right-color: var(--erp-color-border);
++  background: var(--erp-color-surface);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__header) {
++  padding: var(--erp-space-4) var(--erp-space-4) var(--erp-space-3);
++  border-bottom-color: var(--erp-color-border);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__identity > span) {
++  background: var(--erp-color-accent-soft);
++  color: var(--erp-color-accent);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__identity small),
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__count) {
++  color: var(--erp-color-text-subtle);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__identity strong) {
++  color: var(--erp-color-text);
++  font-size: var(--erp-font-size-lg);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__search) {
++  min-height: var(--erp-control-height);
++  margin-top: var(--erp-space-3);
++  border-color: var(--erp-color-border-strong);
++  border-radius: var(--erp-radius-control);
++  background: var(--erp-color-surface-subtle);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__search:focus-within) {
++  border-color: var(--erp-color-accent);
++  background: var(--erp-color-surface);
++  box-shadow: var(--erp-shadow-focus);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__search input) {
++  height: 40px;
++  color: var(--erp-color-text);
++  font-size: var(--erp-font-size-sm);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__scroll) {
++  padding: var(--erp-space-3) 9px var(--erp-space-6);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__group + .context-secondary-sidebar__group) {
++  margin-top: 10px;
++  padding-top: 10px;
++  border-top-color: var(--erp-color-border);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__group-heading) {
++  min-height: 25px;
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: var(--erp-space-2);
++  padding: 0 var(--erp-space-2);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__group-heading > span) {
++  min-width: 20px;
++  height: 20px;
++  display: inline-grid;
++  place-items: center;
++  padding: 0 5px;
++  border-radius: var(--erp-radius-pill);
++  background: var(--erp-color-surface-subtle);
++  color: var(--erp-color-text-subtle);
++  font-size: 9px;
++  font-weight: var(--erp-font-weight-semibold);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar__group-label) {
++  padding: 0;
++  color: var(--erp-color-text-muted);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link),
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link.nested) {
++  min-height: 50px;
++  grid-template-columns: 30px minmax(0, 1fr) auto;
++  gap: var(--erp-space-2);
++  align-items: center;
++  margin-top: 2px;
++  padding: 6px var(--erp-space-2) 6px 6px;
++  border-radius: var(--erp-radius-control);
++  color: var(--erp-color-text-secondary);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.nav-link-copy) {
++  min-width: 0;
++  display: grid;
++  gap: 1px;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link-label) {
++  color: inherit;
++  font-size: var(--erp-font-size-xs);
++  font-weight: var(--erp-font-weight-bold);
++  line-height: var(--erp-line-height-tight);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.nav-link-description) {
++  display: block;
++  overflow: hidden;
++  color: var(--erp-color-text-subtle);
++  font-size: 10px;
++  font-weight: var(--erp-font-weight-medium);
++  line-height: var(--erp-line-height-tight);
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link:hover) {
++  background: var(--erp-color-surface-subtle);
++  color: var(--erp-color-text);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link.active),
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link.nested.active) {
++  border-color: var(--erp-color-accent-border);
++  background: var(--erp-color-accent-soft);
++  color: var(--erp-color-accent-strong);
++  box-shadow: inset 3px 0 0 var(--erp-color-accent);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link.active .nav-link-description) {
++  color: var(--erp-color-accent-strong);
++}
++
++/* Top bar and page frame. */
++:global(.workspace-shell.navigation-v2-shell) :global(.topbar.topbar-v3) {
++  position: sticky;
++  top: 0;
++  z-index: var(--erp-z-sticky);
++  min-height: var(--erp-topbar-height);
++  border-bottom-color: var(--erp-color-border);
++  background: var(--erp-color-surface);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.breadcrumb-row) {
++  width: min(100%, var(--erp-content-max));
++  margin-inline: auto;
++  padding-top: var(--erp-space-3);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.workspace-content) {
++  width: min(100%, var(--erp-content-max));
++  min-width: 0;
++  margin-inline: auto;
++  padding-bottom: var(--erp-space-10);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.page-heading h1),
++:global(.workspace-shell.navigation-v2-shell) :global(.module-hero h1),
++:global(.workspace-shell.navigation-v2-shell) :global(.crm-overview-command h1) {
++  color: var(--erp-color-text);
++  font-size: clamp(24px, 2.2vw, 34px);
++  line-height: 1.15;
++  letter-spacing: -0.03em;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.panel),
++:global(.workspace-shell.navigation-v2-shell) :global(.table-panel),
++:global(.workspace-shell.navigation-v2-shell) :global(.metric-card),
++:global(.workspace-shell.navigation-v2-shell) :global(.module-card) {
++  border-color: var(--erp-color-border);
++  border-radius: var(--erp-radius-panel);
++  box-shadow: none;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.panel:hover),
++:global(.workspace-shell.navigation-v2-shell) :global(.metric-card:hover),
++:global(.workspace-shell.navigation-v2-shell) :global(.module-card:hover) {
++  border-color: var(--erp-color-border-strong);
++  box-shadow: var(--erp-shadow-subtle);
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(.table-panel),
++:global(.workspace-shell.navigation-v2-shell) :global([data-erp-ui="enterprise-data-grid"]) {
++  max-width: 100%;
++  overflow-x: auto;
++  overscroll-behavior-inline: contain;
++}
++
++:global(.workspace-shell.navigation-v2-shell) :global(dialog) {
++  width: min(640px, calc(100vw - 32px));
++  max-height: min(86dvh, 900px);
++  overflow: auto;
++  border-radius: var(--erp-radius-overlay);
++}
++
++@media (min-width: 1440px) {
++  :global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link),
++  :global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar .nav-link.nested) {
++    min-height: 52px;
++  }
++}
++
++@media (min-width: 1024px) {
++  :global(.workspace-shell.navigation-v2-shell) :global(.bottom-nav) {
++    display: none;
++  }
++}
++
++@media (min-width: 768px) and (max-width: 1023px) {
++  :global(.workspace-shell.navigation-v2-shell),
++  :global(.workspace-shell.navigation-v2-shell):has(> :global(.context-secondary-sidebar)) {
++    display: block;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail),
++  :global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar) {
++    display: none;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.topbar-v3__identity) {
++    display: flex;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.mobile-workspace-navigation .nav-link) {
++    min-height: 52px;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.mobile-workspace-navigation .nav-link-description) {
++    white-space: normal;
++  }
++}
++
++@media (max-width: 767px) {
++  :global(.workspace-shell.navigation-v2-shell),
++  :global(.workspace-shell.navigation-v2-shell):has(> :global(.context-secondary-sidebar)) {
++    display: block;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail),
++  :global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar) {
++    display: none;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.workspace-content) {
++    padding-bottom: calc(
++      var(--erp-bottom-nav-height) + var(--erp-space-8) + env(safe-area-inset-bottom, 0px)
++    );
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.topbar-v3__identity) {
++    display: flex;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.mobile-workspace-navigation .nav-link) {
++    min-height: 52px;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.mobile-workspace-navigation .nav-link-description) {
++    white-space: normal;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.page-heading h1),
++  :global(.workspace-shell.navigation-v2-shell) :global(.module-hero h1),
++  :global(.workspace-shell.navigation-v2-shell) :global(.crm-overview-command h1) {
++    font-size: clamp(22px, 7vw, 29px);
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.bottom-nav) {
++    min-height: var(--erp-bottom-nav-height);
++    padding-bottom: max(var(--erp-space-1), env(safe-area-inset-bottom));
++    border-top-color: var(--erp-color-border);
++    background: var(--erp-color-surface);
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.bottom-nav-item) {
++    min-width: 0;
++    min-height: 56px;
++    gap: 2px;
++    font-size: 10px;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(button),
++  :global(.workspace-shell.navigation-v2-shell) :global([role="button"]),
++  :global(.workspace-shell.navigation-v2-shell) :global(.nav-link),
++  :global(.workspace-shell.navigation-v2-shell) :global(.bottom-nav-item),
++  :global(.workspace-shell.navigation-v2-shell) :global(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])),
++  :global(.workspace-shell.navigation-v2-shell) :global(select),
++  :global(.workspace-shell.navigation-v2-shell) :global(summary) {
++    min-height: 44px;
++  }
++}
++
++@media (max-width: 479px) {
++  :global(.workspace-shell.navigation-v2-shell) :global(.workspace-content),
++  :global(.workspace-shell.navigation-v2-shell) :global(.breadcrumb-row) {
++    padding-right: var(--erp-space-3);
++    padding-left: var(--erp-space-3);
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.panel),
++  :global(.workspace-shell.navigation-v2-shell) :global(.metric-card),
++  :global(.workspace-shell.navigation-v2-shell) :global(.module-card) {
++    border-radius: var(--erp-radius-card);
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  :global(.workspace-shell.navigation-v2-shell) :global(*) {
++    scroll-behavior: auto;
++  }
++}
++
++@media print {
++  :global(.workspace-shell.navigation-v2-shell) :global(.primary-navigation-rail),
++  :global(.workspace-shell.navigation-v2-shell) :global(.context-secondary-sidebar),
++  :global(.workspace-shell.navigation-v2-shell) :global(.topbar),
++  :global(.workspace-shell.navigation-v2-shell) :global(.breadcrumb-row),
++  :global(.workspace-shell.navigation-v2-shell) :global(.bottom-nav) {
++    display: none !important;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell),
++  :global(.workspace-shell.navigation-v2-shell):has(> :global(.context-secondary-sidebar)) {
++    display: block;
++  }
++
++  :global(.workspace-shell.navigation-v2-shell) :global(.workspace-content) {
++    width: 100%;
++    max-width: none;
++    padding: 0;
++  }
++}
+diff --git a/apps/web/tests/workspace-standard-v4.test.mjs b/apps/web/tests/workspace-standard-v4.test.mjs
+new file mode 100644
+index 0000000..630c07f
+--- /dev/null
++++ b/apps/web/tests/workspace-standard-v4.test.mjs
+@@ -0,0 +1,85 @@
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import test from "node:test";
++
++const root = path.resolve(import.meta.dirname, "../../..");
++const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
++
++test("workspace standard v4 is implemented through the canonical shared design layer", () => {
++  const shell = read("apps/web/src/core/components/app-shell.tsx");
++  const css = read("apps/web/src/shared/design/workspace-shell.module.css");
++  assert.match(shell, /workspace-shell\.module\.css/);
++  assert.match(shell, /<ShellBoundary className="workspace-shell navigation-v2-shell">/);
++  assert.match(css, /:global\(\.workspace-shell\.navigation-v2-shell\)/);
++  assert.match(css, /var\(--erp-color-canvas\)/);
++  assert.doesNotMatch(css, /#[0-9a-f]{3,8}/i);
++});
++
++test("workspace standard v4 defines desktop, tablet, phone, touch, reduced-motion and print behaviour", () => {
++  const css = read("apps/web/src/shared/design/workspace-shell.module.css");
++  for (const token of [
++    "@media (min-width: 1440px)",
++    "@media (min-width: 1024px)",
++    "@media (min-width: 768px) and (max-width: 1023px)",
++    "@media (max-width: 767px)",
++    "@media (max-width: 479px)",
++    "@media (prefers-reduced-motion: reduce)",
++    "@media print",
++    "min-height: 44px",
++  ]) {
++    assert.match(css, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
++  }
++});
++
++test("CRM contextual navigation exposes focused real workspaces while keeping permission gates", () => {
++  const modules = read("apps/web/src/core/navigation/modules.ts");
++  const crm = modules.split('label: "CRM"')[1].split('label: "Sales"')[0];
++  for (const href of [
++    "/crm/lead-lifecycle",
++    "/crm/assignment-rules",
++    "/crm/stages",
++  ]) {
++    assert.match(crm, new RegExp(`href: "${href.replaceAll("/", "\\/")}"`));
++  }
++  assert.doesNotMatch(crm, /href: "\/crm\/sources"/);
++  assert.match(crm, /"lead sources"/);
++  assert.equal(
++    (crm.match(/permission: PERMISSIONS\.crmSettingsManage/g) || []).length >= 4,
++    true,
++    "configuration destinations must remain settings-permission gated",
++  );
++});
++
++test("CRM micro-feature language is searchable without creating thirty disconnected routes", () => {
++  const modules = read("apps/web/src/core/navigation/modules.ts");
++  const crm = modules.split('label: "CRM"')[1].split('label: "Sales"')[0];
++  for (const keyword of [
++    "qualification",
++    "scoring",
++    "duplicate",
++    "merge",
++    "conversion",
++    "round robin",
++    "expected revenue",
++    "won",
++    "lost",
++    "calls",
++    "meetings",
++    "custom fields",
++    "data quality",
++    "automation",
++    "privacy",
++  ]) {
++    assert.match(crm.toLowerCase(), new RegExp(keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
++  }
++});
++
++test("contextual and mobile navigation render task descriptions from the permission-resolved registry", () => {
++  const desktop = read("apps/web/src/core/components/context-secondary-sidebar.tsx");
++  const mobile = read("apps/web/src/core/components/mobile-workspace-navigation.tsx");
++  const link = read("apps/web/src/core/components/navigation-link.tsx");
++  assert.match(desktop, /description=\{item\.description\}/);
++  assert.match(mobile, /description=\{item\.description\}/);
++  assert.match(link, /nav-link-description/);
++});
+__VERCENTLABS_UI_REDESIGN_PATCH__
+
+echo "[apply] Checking patch against the current repository..."
+git apply --check "$PATCH_FILE"
+echo "[apply] Applying Vercentlabs web frontend redesign..."
+git apply "$PATCH_FILE"
+
+run_gates
+
+echo
+echo "Frontend redesign applied successfully on branch: $BRANCH"
+echo "No Claude, Codex, or external coding agent was used."
+echo "Review with: git diff"
+echo "When satisfied, commit with: git add apps/web && git commit -m 'feat(web): standardize responsive CRM experience'"

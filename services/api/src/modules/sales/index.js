@@ -1876,14 +1876,17 @@ export async function confirmSalesOrder(client, context, id, options = {}) {
       creditOverrideReason: text(options.creditOverrideReason, 1000),
     },
   );
-  if (order.source_opportunity_id) {
-    await client.query(
-      `UPDATE tenant.crm_opportunities opportunity SET status='won',actual_close_date=current_date,updated_by=$1,updated_at=now()
-        WHERE opportunity.organization_id=$2 AND opportunity.id=$3 AND opportunity.status='open'`,
-      [context.userId, context.organizationId, order.source_opportunity_id],
-    );
-  }
-  return { orderId: id, status: "confirmed", creditStatus };
+  // Closing a source CRM opportunity is CRM's own domain concern (governed
+  // stage transitions, outcome reasons, stage-history snapshots) - Sales
+  // only reports whether one exists. See
+  // orchestration/sales-crm-opportunity-sync.js's confirmSalesOrderWithCrmSync
+  // for the actual cross-module call.
+  return {
+    orderId: id,
+    status: "confirmed",
+    creditStatus,
+    sourceOpportunityId: order.source_opportunity_id || null,
+  };
 }
 
 export async function placeOrderHold(client, context, id, input) {
@@ -1988,7 +1991,11 @@ export async function cancelSalesOrder(client, context, id, reason) {
     "cancelled",
     { reason: note },
   );
-  return { orderId: id, status: "cancelled" };
+  return {
+    orderId: id,
+    status: "cancelled",
+    sourceOpportunityId: order.source_opportunity_id || null,
+  };
 }
 
 async function buildHandoffPayload(

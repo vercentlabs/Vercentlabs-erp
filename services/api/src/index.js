@@ -70,3 +70,5 @@ export * from "./orchestration/reorder-purchasing.js";
 export * from "./orchestration/sales-pass1-options.js";
 
 export * from "./orchestration/sales-stock-reservation.js";
+
+export * from "./orchestration/sales-crm-opportunity-sync.js";
