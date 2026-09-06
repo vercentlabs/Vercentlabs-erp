@@ -589,7 +589,29 @@ export async function previewSalesDocument(
       taxable: charge.taxable !== false,
     });
   }
-  const beforeRounding = add(subtotal, chargeTotal, taxTotal);
+  // Header/document-level discount: a single reduction across the whole
+  // document total, distinct from per-line discounts. Applied after tax
+  // (tax was already computed on each line's own pre-header-discount
+  // taxable amount, so this never retroactively adjusts a tax line) -
+  // matches how the "charges" (freight/handling) layer already sits
+  // outside line-level calculation. Folded into discountTotal/
+  // maximumDiscount so it's visible in reporting and still caught by
+  // submitQuotation's discount-threshold approval gate.
+  const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
+  if (headerDiscountPercent < 0n || headerDiscountPercent > decimal(100))
+    throw new SalesError(400, "Header discount must be between 0 and 100.");
+  if (headerDiscountPercent > 0n)
+    requirePermission(context, "sales.price.override");
+  const headerDiscountAmount = roundMoney(
+    percent(subtotal, headerDiscountPercent),
+    master.currency.decimal_places,
+  );
+  discountTotal = add(discountTotal, headerDiscountAmount);
+  maximumDiscount = max(maximumDiscount, headerDiscountPercent);
+  const beforeRounding = sub(
+    add(subtotal, chargeTotal, taxTotal),
+    headerDiscountAmount,
+  );
   const grandTotal = roundMoney(beforeRounding, master.currency.decimal_places);
   const roundingAdjustment = sub(grandTotal, beforeRounding);
   const baseCurrencyTotal = roundMoney(
@@ -631,6 +653,8 @@ export async function previewSalesDocument(
       marginAmount: asDatabaseDecimal(marginAmount),
       marginPercent: asDatabaseDecimal(marginPercent),
       maximumDiscountPercent: asDatabaseDecimal(maximumDiscount),
+      headerDiscountPercent: asDatabaseDecimal(headerDiscountPercent),
+      headerDiscountAmount: asDatabaseDecimal(headerDiscountAmount),
     },
     pricingTrace: lines.map((line) => ({
       sequence: line.sequence,

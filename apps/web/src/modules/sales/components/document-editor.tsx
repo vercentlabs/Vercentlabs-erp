@@ -28,6 +28,7 @@ type SalesPreview = {
     discountTotal: unknown;
     taxTotal: unknown;
     grandTotal: unknown;
+    headerDiscountAmount: unknown;
   };
 };
 type Line = {
@@ -116,6 +117,7 @@ export default function SalesDocumentEditor({
     customerNotes: "",
     internalNotes: "",
     termsAndConditions: "",
+    headerDiscountPercent: "0",
   });
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
 
@@ -566,6 +568,20 @@ export default function SalesDocumentEditor({
                     setForm({ ...form, placeOfSupply: event.target.value.toUpperCase() })
                   }
                   placeholder="State or jurisdiction code"
+                />
+              </label>
+              <label>
+                Header discount %
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={form.headerDiscountPercent}
+                  onChange={(event) =>
+                    setForm({ ...form, headerDiscountPercent: event.target.value })
+                  }
+                  placeholder="0"
                 />
               </label>
             </div>
