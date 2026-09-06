@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCrmOptions, getCrmRecord, listCrmCalls, listCrmMeetings, listCrmRecords } from "@vercentlabs/api";
 
+import { PageHeader, StatusBadge, Tabs } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
@@ -123,42 +123,30 @@ export default async function CrmActivitiesPage({
 
   return (
     <div className="crm-activity-page">
-      <section className="page-heading crm-hci-heading">
-        <div>
-          <p className="eyebrow">CRM · Daily work</p>
-          <h1>Activities</h1>
-          <p>
-            One work queue for calls, meetings, tasks and follow-ups. Focus the queue by what you need to do now instead of navigating between separate activity screens.
-          </p>
-        </div>
-        <span className="status-badge neutral">{result.records.total} matching</span>
-      </section>
+      <PageHeader
+        eyebrow="CRM · Daily work"
+        title="Activities"
+        description="One work queue for calls, meetings, tasks and follow-ups. Focus the queue by what you need to do now instead of navigating between separate activity screens."
+        context={<StatusBadge tone="neutral">{result.records.total} matching</StatusBadge>}
+      />
 
-      <nav className="crm-focus-bar" aria-label="Activity type">
-        {TYPES.map((type) => (
-          <Link
-            key={type}
-            href={activityUrl({ activityType: type, due, search, status, direction: type === "call" ? direction : "all" })}
-            className={activityType === type ? "active" : ""}
-            aria-current={activityType === type ? "page" : undefined}
-          >
-            {type === "all" ? "All activity" : `${title(type)}s`}
-          </Link>
-        ))}
-      </nav>
+      <Tabs
+        label="Activity type"
+        items={TYPES.map((type) => ({
+          href: activityUrl({ activityType: type, due, search, status, direction: type === "call" ? direction : "all" }),
+          label: type === "all" ? "All activity" : `${title(type)}s`,
+          current: activityType === type,
+        }))}
+      />
 
-      <nav className="crm-focus-bar crm-focus-bar--secondary" aria-label="Activity urgency">
-        {DUE.map((value) => (
-          <Link
-            key={value}
-            href={activityUrl({ activityType, due: value, search, status, direction })}
-            className={due === value ? "active" : ""}
-            aria-current={due === value ? "page" : undefined}
-          >
-            {value === "all" ? "Any date" : title(value)}
-          </Link>
-        ))}
-      </nav>
+      <Tabs
+        label="Activity urgency"
+        items={DUE.map((value) => ({
+          href: activityUrl({ activityType, due: value, search, status, direction }),
+          label: value === "all" ? "Any date" : title(value),
+          current: due === value,
+        }))}
+      />
 
       {activityType === "call" ? (
         <CallsWorkspace

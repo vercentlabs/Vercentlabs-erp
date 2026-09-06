@@ -8,6 +8,7 @@ import {
   ActionButton,
   ActionLink,
   EnterpriseDataGrid,
+  FormField,
   StatePanel,
   StatusBadge,
   type DataGridColumn,
@@ -444,16 +445,98 @@ function CallForm({ editor, options, relationType, setRelationType, relationChoi
   const logMode = editor.mode === "log";
   return (
     <form onSubmit={onSubmit} className="crm-call-form">
-      <label className="crm-call-form__wide"><span>Subject</span><input name="subject" maxLength={300} required defaultValue={record?.subject || ""} /></label>
-      <label><span>Direction</span><select name="direction" required defaultValue={record?.direction || "outbound"}><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
-      <label><span>Phone number</span><input name="phoneNumber" inputMode="tel" maxLength={40} defaultValue={record?.phoneNumber || ""} placeholder="Auto-resolves from related record when blank" /></label>
-      <label><span>Related record type</span><select name="entityType" value={relationType} onChange={(event) => setRelationType(event.target.value as CallRow["entityType"])}>{["lead", "opportunity", "party", "contact", "campaign", "general"].map((value) => <option key={value} value={value}>{value === "party" ? "Account" : label(value)}</option>)}</select></label>
-      <label><span>Related record</span><select name="entityId" disabled={relationType === "general"} required={relationType !== "general"} defaultValue={record?.entityType === relationType ? record.entityId || "" : ""}><option value="">{relationType === "general" ? "No related record" : "Select record"}</option>{relationChoices.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-      <label><span>Assigned to</span><select name="assignedTo" defaultValue={record?.assignedTo || ""}><option value="">Me</option>{(options.users || []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-      <label><span>Priority</span><select name="priority" defaultValue={record?.priority || "medium"}>{["low", "medium", "high", "urgent"].map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
-      {logMode ? <><label><span>Occurred at</span><input name="occurredAt" type="datetime-local" defaultValue={localDateTime(new Date().toISOString())} required /></label><label><span>Duration (seconds)</span><input name="durationSeconds" type="number" min={0} max={86400} step={1} defaultValue={0} required /></label><label><span>Outcome</span><select name="outcomeCode" required defaultValue="connected">{OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label></> : <><label><span>Start</span><input name="startAt" type="datetime-local" defaultValue={localDateTime(record?.startAt)} /></label><label><span>Due</span><input name="dueAt" type="datetime-local" required defaultValue={localDateTime(record?.dueAt)} /></label><label><span>Reminder</span><input name="reminderAt" type="datetime-local" defaultValue={localDateTime(record?.reminderAt)} /></label></>}
-      <label className="crm-call-form__wide"><span>{logMode ? "Outcome note" : "Notes"}</span><textarea name={logMode ? "outcome" : "description"} maxLength={4000} rows={4} defaultValue={logMode ? "" : record?.description || ""} /></label>
-      <div className="crm-call-form__actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : editor.mode === "log" ? "Log Call" : editor.mode === "edit" ? "Save changes" : "Schedule Call"}</button></div>
+      <div className="crm-call-form__wide">
+        <FormField label="Subject" htmlFor="call-form-subject" required>
+          <input id="call-form-subject" name="subject" maxLength={300} required defaultValue={record?.subject || ""} />
+        </FormField>
+      </div>
+      <FormField label="Direction" htmlFor="call-form-direction" required>
+        <select id="call-form-direction" name="direction" required defaultValue={record?.direction || "outbound"}>
+          <option value="outbound">Outbound</option>
+          <option value="inbound">Inbound</option>
+        </select>
+      </FormField>
+      <FormField label="Phone number" htmlFor="call-form-phone">
+        <input id="call-form-phone" name="phoneNumber" inputMode="tel" maxLength={40} defaultValue={record?.phoneNumber || ""} placeholder="Auto-resolves from related record when blank" />
+      </FormField>
+      <FormField label="Related record type" htmlFor="call-form-entity-type">
+        <select
+          id="call-form-entity-type"
+          name="entityType"
+          value={relationType}
+          onChange={(event) => setRelationType(event.target.value as CallRow["entityType"])}
+        >
+          {["lead", "opportunity", "party", "contact", "campaign", "general"].map((value) => (
+            <option key={value} value={value}>{value === "party" ? "Account" : label(value)}</option>
+          ))}
+        </select>
+      </FormField>
+      <FormField label="Related record" htmlFor="call-form-entity-id" required={relationType !== "general"}>
+        <select
+          id="call-form-entity-id"
+          name="entityId"
+          disabled={relationType === "general"}
+          required={relationType !== "general"}
+          defaultValue={record?.entityType === relationType ? record.entityId || "" : ""}
+        >
+          <option value="">{relationType === "general" ? "No related record" : "Select record"}</option>
+          {relationChoices.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Assigned to" htmlFor="call-form-assigned-to">
+        <select id="call-form-assigned-to" name="assignedTo" defaultValue={record?.assignedTo || ""}>
+          <option value="">Me</option>
+          {(options.users || []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Priority" htmlFor="call-form-priority">
+        <select id="call-form-priority" name="priority" defaultValue={record?.priority || "medium"}>
+          {["low", "medium", "high", "urgent"].map((value) => <option key={value} value={value}>{label(value)}</option>)}
+        </select>
+      </FormField>
+      {logMode ? (
+        <>
+          <FormField label="Occurred at" htmlFor="call-form-occurred-at" required>
+            <input id="call-form-occurred-at" name="occurredAt" type="datetime-local" defaultValue={localDateTime(new Date().toISOString())} required />
+          </FormField>
+          <FormField label="Duration (seconds)" htmlFor="call-form-duration" required>
+            <input id="call-form-duration" name="durationSeconds" type="number" min={0} max={86400} step={1} defaultValue={0} required />
+          </FormField>
+          <FormField label="Outcome" htmlFor="call-form-outcome-code" required>
+            <select id="call-form-outcome-code" name="outcomeCode" required defaultValue="connected">
+              {OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+            </select>
+          </FormField>
+        </>
+      ) : (
+        <>
+          <FormField label="Start" htmlFor="call-form-start-at">
+            <input id="call-form-start-at" name="startAt" type="datetime-local" defaultValue={localDateTime(record?.startAt)} />
+          </FormField>
+          <FormField label="Due" htmlFor="call-form-due-at" required>
+            <input id="call-form-due-at" name="dueAt" type="datetime-local" required defaultValue={localDateTime(record?.dueAt)} />
+          </FormField>
+          <FormField label="Reminder" htmlFor="call-form-reminder-at">
+            <input id="call-form-reminder-at" name="reminderAt" type="datetime-local" defaultValue={localDateTime(record?.reminderAt)} />
+          </FormField>
+        </>
+      )}
+      <div className="crm-call-form__wide">
+        <FormField label={logMode ? "Outcome note" : "Notes"} htmlFor="call-form-notes">
+          <textarea
+            id="call-form-notes"
+            name={logMode ? "outcome" : "description"}
+            maxLength={4000}
+            rows={4}
+            defaultValue={logMode ? "" : record?.description || ""}
+          />
+        </FormField>
+      </div>
+      <div className="crm-call-form__actions">
+        <ActionButton tone="primary" type="submit" busy={busy}>
+          {busy ? "Saving…" : editor.mode === "log" ? "Log Call" : editor.mode === "edit" ? "Save changes" : "Schedule Call"}
+        </ActionButton>
+      </div>
     </form>
   );
 }

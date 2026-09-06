@@ -10,6 +10,7 @@ import LeadAssigneeCombobox, {
 import {
   ActionButton,
   EnterpriseDataGrid,
+  FormField,
   StatePanel,
   StatusBadge,
   type DataGridColumn,
@@ -396,18 +397,18 @@ export default function LeadAssignmentRulesWorkspace({
               </div>
             </div>
             <form className="crm-suite-form" onSubmit={submit}>
-              <label>
-                Name
+              <FormField label="Name" htmlFor="assignment-rule-name" required>
                 <input
+                  id="assignment-rule-name"
                   name="name"
                   required
                   defaultValue={String(editing?.name || "")}
                   maxLength={160}
                 />
-              </label>
-              <label>
-                Priority
+              </FormField>
+              <FormField label="Priority" htmlFor="assignment-rule-sequence" required>
                 <input
+                  id="assignment-rule-sequence"
                   name="sequence"
                   required
                   type="number"
@@ -415,10 +416,10 @@ export default function LeadAssignmentRulesWorkspace({
                   max={100000}
                   defaultValue={Number(editing?.sequence || 100)}
                 />
-              </label>
-              <label>
-                When
+              </FormField>
+              <FormField label="When" htmlFor="assignment-rule-condition-field">
                 <select
+                  id="assignment-rule-condition-field"
                   value={conditionField || condition.field}
                   onChange={(event) =>
                     setConditionField(event.currentTarget.value)
@@ -430,11 +431,11 @@ export default function LeadAssignmentRulesWorkspace({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
               {(conditionField || condition.field) === "sourceId" ? (
-                <label>
-                  Is
+                <FormField label="Is" htmlFor="assignment-rule-condition-value" required>
                   <select
+                    id="assignment-rule-condition-value"
                     name="conditionValue"
                     defaultValue={condition.value}
                     required
@@ -446,28 +447,28 @@ export default function LeadAssignmentRulesWorkspace({
                       </option>
                     ))}
                   </select>
-                </label>
+                </FormField>
               ) : conditionField || condition.field ? (
-                <label>
-                  Is
+                <FormField label="Is" htmlFor="assignment-rule-condition-value" required>
                   <input
+                    id="assignment-rule-condition-value"
                     name="conditionValue"
                     defaultValue={condition.value}
                     required
                     maxLength={500}
                   />
-                </label>
+                </FormField>
               ) : null}
-              <label>
-                Assignment method
+              <FormField label="Assignment method" htmlFor="assignment-rule-mode">
                 <select
+                  id="assignment-rule-mode"
                   value={mode}
                   onChange={(event) => setMode(event.currentTarget.value)}
                 >
                   <option value="fixed">Fixed owner</option>
                   <option value="round_robin">Round robin</option>
                 </select>
-              </label>
+              </FormField>
               {mode === "fixed" ? (
                 <label>
                   Assign to
@@ -488,8 +489,7 @@ export default function LeadAssignmentRulesWorkspace({
                       onChange={setMemberCandidate}
                     />
                   </label>
-                  <button
-                    className="secondary-button"
+                  <ActionButton
                     disabled={!memberCandidate}
                     onClick={() => {
                       if (!memberCandidate) return;
@@ -505,7 +505,7 @@ export default function LeadAssignmentRulesWorkspace({
                     type="button"
                   >
                     Add member
-                  </button>
+                  </ActionButton>
                   <div className="crm-assignment-member-list">
                     {members.map((member) => (
                       <span key={member.id}>
@@ -527,8 +527,7 @@ export default function LeadAssignmentRulesWorkspace({
                 </div>
               )}
               <footer>
-                <button
-                  className="secondary-button"
+                <ActionButton
                   onClick={() => {
                     setEditing(null);
                     setCreating(false);
@@ -536,14 +535,14 @@ export default function LeadAssignmentRulesWorkspace({
                   type="button"
                 >
                   Cancel
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={pending === "save"}
+                </ActionButton>
+                <ActionButton
+                  tone="primary"
+                  busy={pending === "save"}
                   type="submit"
                 >
                   {pending === "save" ? "Saving…" : "Save rule"}
-                </button>
+                </ActionButton>
               </footer>
             </form>
           </section>
@@ -570,14 +569,14 @@ export default function LeadAssignmentRulesWorkspace({
             allowUnassigned
             disabled={pending === "fallback"}
           />
-          <button
-            className="primary-button"
+          <ActionButton
+            tone="primary"
             type="button"
-            disabled={pending === "fallback"}
+            busy={pending === "fallback"}
             onClick={() => void saveFallback()}
           >
             {pending === "fallback" ? "Saving…" : "Save fallback owner"}
-          </button>
+          </ActionButton>
         </div>
       </section>
 
@@ -599,39 +598,39 @@ export default function LeadAssignmentRulesWorkspace({
             onChange={setAwayAssignee}
             disabled={pending === "away"}
           />
-          <label>
-            <span>From</span>
+          <FormField label="From" htmlFor="assignment-away-starts-at" required>
             <input
+              id="assignment-away-starts-at"
               type="datetime-local"
               value={awayStartsAt}
               onChange={(event) => setAwayStartsAt(event.target.value)}
               disabled={pending === "away"}
               required
             />
-          </label>
-          <label>
-            <span>Until</span>
+          </FormField>
+          <FormField label="Until" htmlFor="assignment-away-ends-at" required>
             <input
+              id="assignment-away-ends-at"
               type="datetime-local"
               value={awayEndsAt}
               onChange={(event) => setAwayEndsAt(event.target.value)}
               disabled={pending === "away"}
               required
             />
-          </label>
-          <label>
-            <span>Reason (optional)</span>
+          </FormField>
+          <FormField label="Reason (optional)" htmlFor="assignment-away-reason">
             <input
+              id="assignment-away-reason"
               type="text"
               value={awayReason}
               onChange={(event) => setAwayReason(event.target.value)}
               placeholder="Vacation, sick leave…"
               disabled={pending === "away"}
             />
-          </label>
-          <button className="primary-button" type="submit" disabled={pending === "away"}>
+          </FormField>
+          <ActionButton tone="primary" type="submit" busy={pending === "away"}>
             {pending === "away" ? "Saving…" : "Mark unavailable"}
-          </button>
+          </ActionButton>
         </form>
         <div className="crm-assignment-away-list">
           {availability.map((row) => (
@@ -644,14 +643,14 @@ export default function LeadAssignmentRulesWorkspace({
                   {row.reason ? ` · ${String(row.reason)}` : ""}
                 </small>
               </div>
-              <button
-                className="link-button"
+              <ActionButton
+                tone="quiet"
                 type="button"
                 disabled={pending === `away-${String(row.id)}`}
                 onClick={() => void clearAway(String(row.id))}
               >
                 Clear
-              </button>
+              </ActionButton>
             </article>
           ))}
           {!availability.length ? <p>No one is currently marked out of office.</p> : null}

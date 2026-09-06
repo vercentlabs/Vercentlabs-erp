@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCrmOptions, getCrmRecord, listCrmRecords } from "@vercentlabs/api";
 import CrmResourceManager from "@/modules/crm/components/resource-manager";
+import { PageHeader, StatusBadge } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext, crmDefinitions, isCrmDefinition } from "@/modules/crm";
@@ -187,16 +188,16 @@ export default async function CrmResourcePage({
   return (
     <>
       {!dedicatedLeadWorkspace ? (
-        <section className="page-heading">
-          <div>
-            <p className="eyebrow">CRM · {definition.group}</p>
-            <h1>{definition.title}</h1>
-            <p>{definition.description}</p>
-          </div>
-          <span className="status-badge neutral">
-            {session.companyName || "Organisation-wide"}
-          </span>
-        </section>
+        <PageHeader
+          eyebrow={`CRM · ${definition.group}`}
+          title={definition.title}
+          description={definition.description}
+          context={
+            <StatusBadge tone="neutral">
+              {session.companyName || "Organisation-wide"}
+            </StatusBadge>
+          }
+        />
       ) : null}
       <CrmResourceManager
         key={[

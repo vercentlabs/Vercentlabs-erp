@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
-import { StatusBadge, type StatusTone } from "@/shared/design";
+import { ActionButton, FormField, StatusBadge, type StatusTone } from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Criterion = { key: string; label: string; met: boolean; help?: string };
@@ -140,9 +140,9 @@ function QualificationDialog({
         </header>
         <div className="crm-qualification-dialog__body">
           {unqualified ? (
-            <label>
-              <span>Reason *</span>
+            <FormField label="Reason" htmlFor="qualification-reason" required>
               <select
+                id="qualification-reason"
                 required
                 value={reasonCode}
                 onChange={(event) => setReasonCode(event.currentTarget.value)}
@@ -155,37 +155,37 @@ function QualificationDialog({
                   </option>
                 ))}
               </select>
-            </label>
+            </FormField>
           ) : null}
           {unqualified && reasonCode === "other" ? (
-            <label>
-              <span>Other reason details *</span>
-              <textarea name="reasonText" required minLength={3} rows={3} />
-            </label>
+            <FormField label="Other reason details" htmlFor="qualification-reason-text" required>
+              <textarea id="qualification-reason-text" name="reasonText" required minLength={3} rows={3} />
+            </FormField>
           ) : null}
-          <label>
-            <span>{unqualified ? "Decision note" : "Qualification note"} (optional)</span>
-            <textarea name="note" rows={3} maxLength={2000} autoFocus={!unqualified} />
-            <small>Keep this specific to the decision; general notes remain separate.</small>
-          </label>
+          <FormField
+            label={`${unqualified ? "Decision note" : "Qualification note"} (optional)`}
+            htmlFor="qualification-note"
+            hint="Keep this specific to the decision; general notes remain separate."
+          >
+            <textarea id="qualification-note" name="note" rows={3} maxLength={2000} autoFocus={!unqualified} />
+          </FormField>
           {error ? <p className="field-error" role="alert">{error}</p> : null}
         </div>
         <footer>
-          <button
+          <ActionButton
             type="button"
-            className="secondary-button"
             disabled={pending}
             onClick={() => dialogRef.current?.close()}
           >
             Cancel
-          </button>
-          <button type="submit" className="primary-button" disabled={pending}>
+          </ActionButton>
+          <ActionButton tone="primary" type="submit" busy={pending}>
             {pending
               ? "Saving…"
               : unqualified
                 ? "Mark unqualified"
                 : "Qualify lead"}
-          </button>
+          </ActionButton>
         </footer>
       </form>
     </dialog>
@@ -260,19 +260,19 @@ export default function LeadQualificationCard({
       {mutable ? (
         <div className="crm-lead-qualification-actions">
           {state !== "qualified" ? (
-            <button
+            <ActionButton
+              tone="primary"
               type="button"
-              className="primary-button"
               disabled={!Boolean(readiness.ready)}
               onClick={() => setDecision("qualified")}
             >
               {state === "unqualified" ? "Requalify lead" : "Qualify lead"}
-            </button>
+            </ActionButton>
           ) : null}
           {state !== "unqualified" ? (
-            <button type="button" className="secondary-button" onClick={() => setDecision("unqualified")}>
+            <ActionButton type="button" onClick={() => setDecision("unqualified")}>
               Mark unqualified
-            </button>
+            </ActionButton>
           ) : null}
         </div>
       ) : null}

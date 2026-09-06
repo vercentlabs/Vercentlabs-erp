@@ -8,6 +8,7 @@ import {
   ActionButton,
   ActionLink,
   EnterpriseDataGrid,
+  FormField,
   StatePanel,
   StatusBadge,
   type DataGridColumn,
@@ -422,19 +423,121 @@ function MeetingForm({ editor, options, relationType, setRelationType, relationC
   const guestEmails = (record?.attendees || []).filter((entry) => !entry.contactId && entry.email).map((entry) => entry.email).join(", ");
   return (
     <form onSubmit={onSubmit} className="crm-meeting-form">
-      <label className="crm-meeting-form__wide"><span>Subject</span><input name="subject" maxLength={300} required defaultValue={record?.subject || ""} /></label>
-      <label><span>Related record type</span><select name="entityType" value={relationType} onChange={(event) => setRelationType(event.target.value as MeetingRow["entityType"])}>{["lead", "opportunity", "party", "contact", "campaign", "general"].map((value) => <option key={value} value={value}>{value === "party" ? "Account" : label(value)}</option>)}</select></label>
-      <label><span>Related record</span><select name="entityId" disabled={relationType === "general"} required={relationType !== "general"} defaultValue={record?.entityType === relationType ? record.entityId || "" : ""}><option value="">{relationType === "general" ? "No related record" : "Select record"}</option>{relationChoices.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-      <label><span>Assigned to</span><select name="assignedTo" defaultValue={record?.assignedTo || ""}><option value="">Me</option>{(options.users || []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-      <label><span>Priority</span><select name="priority" defaultValue={record?.priority || "medium"}>{["low", "medium", "high", "urgent"].map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
-      <label><span>Location type</span><select name="locationType" required defaultValue={record?.locationType || "other"}>{["in_person", "online", "phone", "other"].map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
-      <label><span>Location</span><input name="location" maxLength={500} defaultValue={record?.location || ""} placeholder="Office, customer site, room…" /></label>
-      <label className="crm-meeting-form__wide"><span>Meeting URL</span><input name="meetingUrl" type="url" maxLength={2048} defaultValue={record?.meetingUrl || ""} placeholder="https://…" /></label>
-      {logMode ? <><label><span>Occurred at</span><input name="occurredAt" type="datetime-local" defaultValue={localDateTime(new Date().toISOString())} required /></label><label><span>Duration (minutes)</span><input name="durationMinutes" type="number" min={0} max={1440} step={1} defaultValue={30} required /></label><label><span>Outcome</span><select name="outcomeCode" required defaultValue="held">{OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label></> : <><label><span>Start</span><input name="startAt" type="datetime-local" required defaultValue={localDateTime(record?.startAt)} /></label><label><span>End</span><input name="endAt" type="datetime-local" required defaultValue={localDateTime(record?.endAt)} /></label></>}
-      <label className="crm-meeting-form__wide"><span>CRM Contact attendees</span><select name="attendeeContactId" multiple size={Math.min(6, Math.max(3, (options.contacts || []).length || 3))} defaultValue={[...selectedContacts] as string[]}>{(options.contacts || []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select><small>Ctrl/Cmd-click to select multiple contacts.</small></label>
-      <label className="crm-meeting-form__wide"><span>Additional guest emails</span><textarea name="guestEmails" rows={2} defaultValue={guestEmails} placeholder="guest@example.com, second@example.com" /></label>
-      <label className="crm-meeting-form__wide"><span>{logMode ? "Outcome note" : "Notes"}</span><textarea name={logMode ? "outcome" : "description"} maxLength={4000} rows={4} defaultValue={logMode ? "" : record?.description || ""} /></label>
-      <div className="crm-meeting-form__actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : editor.mode === "log" ? "Log Meeting" : editor.mode === "edit" ? "Save changes" : "Schedule Meeting"}</button></div>
+      <div className="crm-meeting-form__wide">
+        <FormField label="Subject" htmlFor="meeting-form-subject" required>
+          <input id="meeting-form-subject" name="subject" maxLength={300} required defaultValue={record?.subject || ""} />
+        </FormField>
+      </div>
+      <FormField label="Related record type" htmlFor="meeting-form-entity-type">
+        <select
+          id="meeting-form-entity-type"
+          name="entityType"
+          value={relationType}
+          onChange={(event) => setRelationType(event.target.value as MeetingRow["entityType"])}
+        >
+          {["lead", "opportunity", "party", "contact", "campaign", "general"].map((value) => (
+            <option key={value} value={value}>{value === "party" ? "Account" : label(value)}</option>
+          ))}
+        </select>
+      </FormField>
+      <FormField label="Related record" htmlFor="meeting-form-entity-id" required={relationType !== "general"}>
+        <select
+          id="meeting-form-entity-id"
+          name="entityId"
+          disabled={relationType === "general"}
+          required={relationType !== "general"}
+          defaultValue={record?.entityType === relationType ? record.entityId || "" : ""}
+        >
+          <option value="">{relationType === "general" ? "No related record" : "Select record"}</option>
+          {relationChoices.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Assigned to" htmlFor="meeting-form-assigned-to">
+        <select id="meeting-form-assigned-to" name="assignedTo" defaultValue={record?.assignedTo || ""}>
+          <option value="">Me</option>
+          {(options.users || []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Priority" htmlFor="meeting-form-priority">
+        <select id="meeting-form-priority" name="priority" defaultValue={record?.priority || "medium"}>
+          {["low", "medium", "high", "urgent"].map((value) => <option key={value} value={value}>{label(value)}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Location type" htmlFor="meeting-form-location-type" required>
+        <select id="meeting-form-location-type" name="locationType" required defaultValue={record?.locationType || "other"}>
+          {["in_person", "online", "phone", "other"].map((value) => <option key={value} value={value}>{label(value)}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Location" htmlFor="meeting-form-location">
+        <input id="meeting-form-location" name="location" maxLength={500} defaultValue={record?.location || ""} placeholder="Office, customer site, room…" />
+      </FormField>
+      <div className="crm-meeting-form__wide">
+        <FormField label="Meeting URL" htmlFor="meeting-form-url">
+          <input id="meeting-form-url" name="meetingUrl" type="url" maxLength={2048} defaultValue={record?.meetingUrl || ""} placeholder="https://…" />
+        </FormField>
+      </div>
+      {logMode ? (
+        <>
+          <FormField label="Occurred at" htmlFor="meeting-form-occurred-at" required>
+            <input id="meeting-form-occurred-at" name="occurredAt" type="datetime-local" defaultValue={localDateTime(new Date().toISOString())} required />
+          </FormField>
+          <FormField label="Duration (minutes)" htmlFor="meeting-form-duration" required>
+            <input id="meeting-form-duration" name="durationMinutes" type="number" min={0} max={1440} step={1} defaultValue={30} required />
+          </FormField>
+          <FormField label="Outcome" htmlFor="meeting-form-outcome-code" required>
+            <select id="meeting-form-outcome-code" name="outcomeCode" required defaultValue="held">
+              {OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+            </select>
+          </FormField>
+        </>
+      ) : (
+        <>
+          <FormField label="Start" htmlFor="meeting-form-start-at" required>
+            <input id="meeting-form-start-at" name="startAt" type="datetime-local" required defaultValue={localDateTime(record?.startAt)} />
+          </FormField>
+          <FormField label="End" htmlFor="meeting-form-end-at" required>
+            <input id="meeting-form-end-at" name="endAt" type="datetime-local" required defaultValue={localDateTime(record?.endAt)} />
+          </FormField>
+        </>
+      )}
+      <div className="crm-meeting-form__wide">
+        <FormField
+          label="CRM Contact attendees"
+          htmlFor="meeting-form-attendee-contact-id"
+          hint="Ctrl/Cmd-click to select multiple contacts."
+        >
+          <select
+            id="meeting-form-attendee-contact-id"
+            name="attendeeContactId"
+            multiple
+            size={Math.min(6, Math.max(3, (options.contacts || []).length || 3))}
+            defaultValue={[...selectedContacts] as string[]}
+          >
+            {(options.contacts || []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+          </select>
+        </FormField>
+      </div>
+      <div className="crm-meeting-form__wide">
+        <FormField label="Additional guest emails" htmlFor="meeting-form-guest-emails">
+          <textarea id="meeting-form-guest-emails" name="guestEmails" rows={2} defaultValue={guestEmails} placeholder="guest@example.com, second@example.com" />
+        </FormField>
+      </div>
+      <div className="crm-meeting-form__wide">
+        <FormField label={logMode ? "Outcome note" : "Notes"} htmlFor="meeting-form-notes">
+          <textarea
+            id="meeting-form-notes"
+            name={logMode ? "outcome" : "description"}
+            maxLength={4000}
+            rows={4}
+            defaultValue={logMode ? "" : record?.description || ""}
+          />
+        </FormField>
+      </div>
+      <div className="crm-meeting-form__actions">
+        <ActionButton tone="primary" type="submit" busy={busy}>
+          {busy ? "Saving…" : editor.mode === "log" ? "Log Meeting" : editor.mode === "edit" ? "Save changes" : "Schedule Meeting"}
+        </ActionButton>
+      </div>
     </form>
   );
 }

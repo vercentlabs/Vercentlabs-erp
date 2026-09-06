@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { evaluateOpportunityHealth, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
 
 import CrmPipelineBoard from "@/modules/crm/components/pipeline-board";
+import { ActionLink, PageHeader } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
@@ -99,26 +99,23 @@ export default async function PipelinePage({
 
   return (
     <>
-      <section className="page-heading">
-        <div>
-          <p className="eyebrow">Revenue execution</p>
-          <h1>Opportunity pipeline</h1>
-          <p>
-            Work one governed pipeline at a time. Stage changes preserve scope,
-            concurrency, history, audit and outcome controls.
-          </p>
-        </div>
-        <div className="heading-actions">
-          {canManage ? (
-            <Link className="primary-button" href="/crm/opportunities?create=1">
-              Create opportunity
-            </Link>
-          ) : null}
-          <Link className="secondary-button" href="/crm/opportunities">
-            View opportunity table
-          </Link>
-        </div>
-      </section>
+      <PageHeader
+        eyebrow="Revenue execution"
+        title="Opportunity pipeline"
+        description="Work one governed pipeline at a time. Stage changes preserve scope, concurrency, history, audit and outcome controls."
+        actions={
+          <>
+            {canManage ? (
+              <ActionLink tone="primary" href="/crm/opportunities?create=1">
+                Create opportunity
+              </ActionLink>
+            ) : null}
+            <ActionLink href="/crm/opportunities">
+              View opportunity table
+            </ActionLink>
+          </>
+        }
+      />
       <CrmPipelineBoard
         pipelines={data.pipelines}
         selectedPipelineId={data.selectedPipelineId}

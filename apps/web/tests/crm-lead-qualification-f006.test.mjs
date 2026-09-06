@@ -38,7 +38,7 @@ test("F006 UI: unqualification is a governed dialog rather than a prompt", () =>
   assert.match(card, /<dialog/);
   assert.match(card, /Select a reason/);
   assert.match(card, /reasonCode === "other"/);
-  assert.match(card, /Other reason details \*/);
+  assert.match(card, /label="Other reason details" htmlFor="qualification-reason-text" required/);
   assert.doesNotMatch(detail, /prompt\("Disqualification/);
   assert.doesNotMatch(list, /prompt\("Why is this lead being disqualified/);
 });

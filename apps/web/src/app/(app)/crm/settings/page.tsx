@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
+import { PageHeader, SectionHeader, StatusBadge } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { canViewCrmResource } from "@/modules/crm/api";
@@ -80,27 +81,21 @@ export default async function CrmSettingsPage() {
 
   return (
     <div className="crm-setup-page">
-      <section className="page-heading crm-hci-heading">
-        <div>
-          <p className="eyebrow">CRM · Configuration</p>
-          <h1>CRM setup</h1>
-          <p>
-            Configure only the controls used by the canonical thirty-feature CRM: lead management, pipeline, teams, territories and lightweight customization.
-          </p>
-        </div>
-        <span className="status-badge neutral">{canManage ? "Manage setup" : "Read only"}</span>
-      </section>
+      <PageHeader
+        eyebrow="CRM · Configuration"
+        title="CRM setup"
+        description="Configure only the controls used by the canonical thirty-feature CRM: lead management, pipeline, teams, territories and lightweight customization."
+        context={<StatusBadge tone="neutral">{canManage ? "Manage setup" : "Read only"}</StatusBadge>}
+      />
 
       <div className="crm-setup-groups">
         {visibleGroups.map((group) => (
           <section className="crm-setup-group" key={group.title}>
-            <div className="crm-setup-group__heading">
-              <div>
-                <p className="eyebrow">Configuration</p>
-                <h2>{group.title}</h2>
-                <p>{group.description}</p>
-              </div>
-            </div>
+            <SectionHeader
+              eyebrow="Configuration"
+              title={group.title}
+              description={group.description}
+            />
             <div className="crm-setup-grid">
               {group.items.map(([label, key, description]) => (
                 <Link href={`/crm/${key}`} key={key}>

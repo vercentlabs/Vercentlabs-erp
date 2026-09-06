@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
+import { ActionButton, FormField, SectionHeader, StatusBadge } from "@/shared/design";
 
 type Props = {
   id: string;
@@ -69,17 +70,15 @@ export default function CrmOpportunityProbabilityAction({
 
   return (
     <section className="crm-action-panel crm-opportunity-probability-action" aria-label="Opportunity probability action">
-      <div className="crm-action-panel__heading">
-        <div>
-          <p className="eyebrow">Revenue probability</p>
-          <h2>Expected revenue</h2>
-        </div>
-        <span className="status-badge neutral">{money(preview, currencyCode)}</span>
-      </div>
+      <SectionHeader
+        eyebrow="Revenue probability"
+        title="Expected revenue"
+        actions={<StatusBadge tone="neutral">{money(preview, currencyCode)}</StatusBadge>}
+      />
       <div className="crm-opportunity-stage-action__fields">
-        <label>
-          Probability %
+        <FormField label="Probability %" htmlFor="opportunity-probability-value">
           <input
+            id="opportunity-probability-value"
             type="number"
             min="0"
             max="100"
@@ -89,10 +88,14 @@ export default function CrmOpportunityProbabilityAction({
             disabled={pending}
             onChange={(event) => { setValue(event.target.value); setMessage(""); }}
           />
-        </label>
-        <label className="crm-opportunity-stage-action__note">
-          Change note
+        </FormField>
+        <FormField
+          label="Change note"
+          htmlFor="opportunity-probability-note"
+        >
           <textarea
+            id="opportunity-probability-note"
+            className="crm-opportunity-stage-action__note"
             rows={3}
             maxLength={1000}
             value={note}
@@ -100,12 +103,12 @@ export default function CrmOpportunityProbabilityAction({
             placeholder="Optional context for this probability change…"
             onChange={(event) => setNote(event.target.value)}
           />
-        </label>
+        </FormField>
       </div>
       <div className="form-row">
-        <button className="primary-button" type="button" disabled={pending || !valid || unchanged} onClick={() => void save()}>
+        <ActionButton tone="primary" type="button" disabled={!valid || unchanged} busy={pending} onClick={() => void save()}>
           {pending ? "Updating…" : "Update probability"}
-        </button>
+        </ActionButton>
       </div>
       {!valid ? <p className="field-help">Enter a probability from 0 to 100 with at most two decimal places.</p> : (
         <p className="field-help">
