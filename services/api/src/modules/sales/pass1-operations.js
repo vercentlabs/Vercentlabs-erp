@@ -14,8 +14,9 @@ const text = (value, max = 2000) => String(value ?? "").trim().slice(0, max);
 const can = (c, permission) => c.roleSlugs?.includes("organization_owner") || c.permissions?.includes(permission);
 const need = (c, permission) => { if (!can(c, permission)) throw new SalesError(403, "You do not have permission to perform this Sales operation."); };
 function companySql(c, values, alias = "record") {
-  if (c.activeCompanyId) { values.push(c.activeCompanyId); return ` AND ${alias}.company_id=$${values.length}`; }
-  return c.allowAllCompanies ? "" : " AND false";
+  if (c.allowAllCompanies) return "";
+  if (c.activeCompanyId) { values.push(c.activeCompanyId); return ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=$${values.length})`; }
+  return " AND false";
 }
 async function organizationUser(client, c, userId, label = "Salesperson") {
   const id = uuid(userId, label);
@@ -264,6 +265,36 @@ export async function upsertSalesCustomerPrice(client, c, input = {}) {
     [c.organizationId,companyId,partyId,itemId,`Customer price · ${party.rows[0].display_name}`,priceListId,minimumQuantity,fixedRate,validFrom,validTo,c.userId],
   );
   return created.rows[0];
+}
+
+export async function deactivateSalesPriceListItem(client, c, priceListItemId) {
+  need(c, "sales.settings.manage");
+  const id = uuid(priceListItemId, "Price-list item");
+  const result = await client.query(
+    `UPDATE tenant.price_list_items SET status='inactive',updated_by=$3,updated_at=now()
+      WHERE organization_id=$1 AND id=$2
+      RETURNING id,status`,
+    [c.organizationId, id, c.userId],
+  );
+  if (!result.rows[0]) throw new SalesError(404, "Price-list item not found.", "SALES_PRICE_LIST_ITEM_NOT_FOUND");
+  return result.rows[0];
+}
+
+export async function deactivateSalesPricingRule(client, c, pricingRuleId) {
+  need(c, "sales.settings.manage");
+  const id = uuid(pricingRuleId, "Pricing rule");
+  const values = [c.organizationId, id];
+  const scope = companySql(c, values, "record");
+  values.push(c.userId);
+  const userIdParam = values.length;
+  const result = await client.query(
+    `UPDATE tenant.sales_pricing_rules record SET status='inactive',updated_by=$${userIdParam},updated_at=now()
+      WHERE record.organization_id=$1 AND record.id=$2${scope}
+      RETURNING record.id,record.status`,
+    values,
+  );
+  if (!result.rows[0]) throw new SalesError(404, "Pricing rule not found.", "SALES_PRICING_RULE_NOT_FOUND");
+  return result.rows[0];
 }
 
 export async function listSalesPass1Options(client, c) {

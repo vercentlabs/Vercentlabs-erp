@@ -976,6 +976,11 @@ export async function bulkUpdateSalesOrders(client, context, input = {}) {
   };
 }
 
+// Local bookkeeping only - does not touch tenant.stock_balances. Only call
+// this after a real reservation succeeds via Stock's canonical reserveStock
+// (see orchestration/sales-stock-reservation.js's reserveSalesOrderLineFromStock).
+// Never expose this directly on a route - a caller could believe stock was
+// actually reserved when only this local mirror was updated.
 export async function reserveSalesOrderLines(
   client,
   context,

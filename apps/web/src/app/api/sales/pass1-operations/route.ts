@@ -2,6 +2,8 @@ import {
   accrueSalesCommission,
   createSalesCommissionRule,
   createSalesDropShipWithSupplierValidation,
+  deactivateSalesPriceListItem,
+  deactivateSalesPricingRule,
   listSalesPass1Operations,
   recordSalesAdvancePayment,
   requestSalesCreditAdjustment,
@@ -55,6 +57,8 @@ export async function POST(request: Request) {
       else if (action === "accrue-commission") result = await accrueSalesCommission(client, context, input);
       else if (action === "upsert-price-list-item") result = await upsertSalesPriceListItem(client, context, input);
       else if (action === "upsert-customer-price") result = await upsertSalesCustomerPrice(client, context, input);
+      else if (action === "deactivate-price-list-item") result = await deactivateSalesPriceListItem(client, context, String(input.priceListItemId || ""));
+      else if (action === "deactivate-pricing-rule") result = await deactivateSalesPricingRule(client, context, String(input.pricingRuleId || ""));
       else throw new HttpError(400, "Unknown Sales operation action.");
       const recordLike = result && typeof result === "object" ? result as Record<string, unknown> : {};
       const reservation = recordLike.reservation && typeof recordLike.reservation === "object" ? recordLike.reservation as Record<string, unknown> : {};

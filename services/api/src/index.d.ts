@@ -382,6 +382,8 @@ export function createSalesCommissionRule(client: QueryClient, context: any, inp
 export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function upsertSalesPriceListItem(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function upsertSalesCustomerPrice(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function deactivateSalesPriceListItem(client: QueryClient, context: any, priceListItemId: string): Promise<any>;
+export function deactivateSalesPricingRule(client: QueryClient, context: any, pricingRuleId: string): Promise<any>;
 export function listSalesPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
 export function getSalesOrderLineReservationContext(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function listSalesPass1CrossModuleOptions(client: QueryClient, salesContext: any, procurementContext: any): Promise<Record<string, any[]>>;

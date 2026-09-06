@@ -8,7 +8,6 @@ import {
   getSalesOrderGovernanceDashboard,
   getSalesOrderGovernanceTimeline,
   listSalesOrderSavedViews,
-  reserveSalesOrderLines,
   saveSalesOrderView,
 } from "@vercentlabs/api";
 
@@ -96,13 +95,6 @@ export async function POST(request: Request) {
             context,
             String(input.id || ""),
             String(input.capturedFor || "manual"),
-          );
-        else if (action === "reserve_lines")
-          value = await reserveSalesOrderLines(
-            client,
-            context,
-            String(input.id || ""),
-            input,
           );
         else if (action === "request_return")
           value = await createSalesReturnRequest(
