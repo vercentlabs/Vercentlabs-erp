@@ -37,8 +37,6 @@ test("Lead edit keeps lifecycle fields separate from the governed qualification 
 
 test("Small screens get a purpose-built Lead card list instead of a desktop table",()=>{
   const source=read("apps/web/src/modules/crm/components/leads-workspace.tsx");
-  const css=read("apps/web/src/app/crm-lead-suite-enterprise.css");
-  assert.match(source,/crm-leads-mobile-list/);
-  assert.match(css,/\.crm-leads-table-scroll\s*\{\s*display:\s*none/);
-  assert.match(css,/\.crm-leads-mobile-list\s*\{\s*display:\s*grid/);
+  assert.match(source,/EnterpriseDataGrid/);
+  assert.match(source,/renderMobileCard/);
 });

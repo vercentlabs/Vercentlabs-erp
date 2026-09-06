@@ -18,6 +18,7 @@ import PaginationControls from "@/shared/components/pagination-controls";
 import { requestJson } from "@/shared/http/client-request";
 import type { CrmField } from "@/modules/crm";
 import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
+import { EnterpriseDataGrid, type DataGridColumn } from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Option = {
@@ -1623,66 +1624,208 @@ export default function CrmLeadsWorkspace({
                 </small>
               </div>
             </div>
-            <div className="crm-leads-table-scroll">
-              <table>
-                <caption className="sr-only">
-                  Leads matching the current search and filters
-                </caption>
-                <colgroup>
-                  {canManage ? <col className="crm-leads-col-select" /> : null}
-                  <col className="crm-leads-col-lead" />
-                  <col className="crm-leads-col-owner" />
-                  <col className="crm-leads-col-status" />
-                  <col className="crm-leads-col-score" />
-                  <col className="crm-leads-col-potential" />
-                  <col className="crm-leads-col-followup" />
-                  <col className="crm-leads-col-actions" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {canManage ? (
-                      <th className="select">
-                        <input
-                          type="checkbox"
-                          aria-label="Select visible leads"
-                          checked={
-                            rows.length > 0 && (selectionMode === "filter" || selected.size === rows.length)
-                          }
-                          onChange={toggleAll}
-                        />
-                      </th>
-                    ) : null}
-                    <th>Lead</th>
-                    <th>Owner / source</th>
-                    <th>Status</th>
-                    <th>Score</th>
-                    <th>Potential</th>
-                    <th>Follow-up</th>
-                    <th>
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
+            {(() => {
+              const columns: DataGridColumn<Row>[] = [];
+              if (canManage) {
+                columns.push({
+                  id: "select",
+                  width: "48px",
+                  header: (
+                    <input
+                      type="checkbox"
+                      aria-label="Select visible leads"
+                      checked={
+                        rows.length > 0 &&
+                        (selectionMode === "filter" || selected.size === rows.length)
+                      }
+                      onChange={toggleAll}
+                    />
+                  ),
+                  cell: (row) => {
                     const id = String(row.id);
+                    return (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${leadName(row)}`}
+                        checked={selected.has(id)}
+                        onChange={() => toggle(id)}
+                      />
+                    );
+                  },
+                });
+              }
+              columns.push(
+                {
+                  id: "lead",
+                  header: "Lead",
+                  width: "330px",
+                  cell: (row) => (
+                    <div className="crm-lead-id">
+                      <div>
+                        <button
+                          className="crm-lead-open-link"
+                          type="button"
+                          onClick={() => onView(String(row.id))}
+                        >
+                          {leadName(row)}
+                        </button>
+                        <small>
+                          {[row.code, row.companyName].filter(Boolean).join(" · ")}
+                        </small>
+                        <em>
+                          {[row.email, row.mobile].filter(Boolean).join(" · ") ||
+                            "No contact channel"}
+                        </em>
+                        {row.doNotContact ? <b>Do not contact</b> : null}
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "owner",
+                  header: "Owner / source",
+                  width: "170px",
+                  cell: (row) => (
+                    <div className="crm-lead-stack">
+                      <strong>{leadOwnerName(row)}</strong>
+                      <small>
+                        {optionName(options, "allSources", row.sourceId) || "No source"}
+                      </small>
+                      <em>
+                        {[row.priority, row.rating].filter(Boolean).map(nice).join(" · ")}
+                      </em>
+                    </div>
+                  ),
+                },
+                {
+                  id: "status",
+                  header: "Status",
+                  width: "115px",
+                  cell: (row) => (
+                    <div className="crm-lead-stack">
+                      <span className={`crm-lead-status status-${String(row.status || "new")}`}>
+                        {nice(row.status || "new")}
+                      </span>
+                      <span
+                        className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
+                      >
+                        {nice(row.qualificationState || "not_reviewed")}
+                      </span>
+                    </div>
+                  ),
+                },
+                {
+                  id: "score",
+                  header: "Score",
+                  width: "100px",
+                  cell: (row) => (
+                    <div className="crm-lead-score">
+                      <strong>{Math.round(num(row.score))}</strong>
+                      <i>
+                        <b
+                          style={{
+                            width: `${Math.max(0, Math.min(100, num(row.score)))}%`,
+                          }}
+                        />
+                      </i>
+                    </div>
+                  ),
+                },
+                {
+                  id: "potential",
+                  header: "Potential",
+                  width: "175px",
+                  cell: (row) => (
+                    <div className="crm-lead-stack">
+                      <strong>{money(row.estimatedValue, row.currencyCode)}</strong>
+                      <small>{nice(row.industry || "Not classified")}</small>
+                    </div>
+                  ),
+                },
+                {
+                  id: "followup",
+                  header: "Follow-up",
+                  width: "170px",
+                  cell: (row) => {
                     const followup = followState(row.nextFollowUpAt);
                     return (
-                      <tr key={id}>
+                      <div className={`crm-lead-stack state-${followup}`}>
+                        <strong>{dateTime(row.nextFollowUpAt)}</strong>
+                        <small>
+                          {followup === "overdue"
+                            ? "Overdue"
+                            : followup === "today"
+                              ? "Due today"
+                              : followup === "none"
+                                ? "No next action"
+                                : "Scheduled"}
+                        </small>
+                      </div>
+                    );
+                  },
+                },
+                {
+                  id: "actions",
+                  header: <span className="sr-only">Actions</span>,
+                  width: "240px",
+                  cell: (row) => {
+                    const id = String(row.id);
+                    return (
+                      <div className="crm-lead-row-buttons">
+                        <button className="secondary-button" type="button" onClick={() => onView(id)}>
+                          Open
+                        </button>
                         {canManage ? (
-                          <td className="select">
-                            <input
-                              type="checkbox"
-                              aria-label={`Select ${leadName(row)}`}
-                              checked={selected.has(id)}
-                              onChange={() => toggle(id)}
-                            />
-                          </td>
+                          <button className="link-button" type="button" onClick={() => onEdit(row)}>
+                            Edit
+                          </button>
                         ) : null}
-                        <td>
+                        {canManage && String(row.recordStatus || "active") === "active" ? (
+                          <button
+                            className="link-button danger"
+                            type="button"
+                            onClick={() => onArchive(id)}
+                          >
+                            Archive
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  },
+                },
+              );
+              return (
+                <EnterpriseDataGrid
+                  caption="Leads matching the current search and filters"
+                  className="crm-leads-table-scroll"
+                  fixedLayout
+                  rows={rows}
+                  rowKey={(row) => String(row.id)}
+                  columns={columns}
+                  emptyState={
+                    <div className="crm-suite-empty">
+                      <strong>No matching leads</strong>
+                      <p>Change the search or filters, or create a new lead.</p>
+                      {canManage ? (
+                        <button className="primary-button" type="button" onClick={onCreate}>
+                          Create lead
+                        </button>
+                      ) : null}
+                    </div>
+                  }
+                  renderMobileCard={(row) => {
+                    const id = String(row.id);
+                    const followup = followState(row.nextFollowUpAt);
+                    const mobileTitleId = `crm-mobile-lead-${id}`;
+                    const mobilePhone = String(row.mobile || row.phone || "");
+                    const mobileEmail = String(row.email || "");
+                    return (
+                      <article aria-labelledby={mobileTitleId}>
+                        <header>
                           <div className="crm-lead-id">
                             <div>
                               <button
+                                id={mobileTitleId}
                                 className="crm-lead-open-link"
                                 type="button"
                                 onClick={() => onView(id)}
@@ -1690,42 +1833,12 @@ export default function CrmLeadsWorkspace({
                                 {leadName(row)}
                               </button>
                               <small>
-                                {[row.code, row.companyName]
-                                  .filter(Boolean)
-                                  .join(" · ")}
+                                {[row.code, row.companyName].filter(Boolean).join(" · ")}
                               </small>
-                              <em>
-                                {[row.email, row.mobile]
-                                  .filter(Boolean)
-                                  .join(" · ") || "No contact channel"}
-                              </em>
-                              {row.doNotContact ? <b>Do not contact</b> : null}
                             </div>
                           </div>
-                        </td>
-                        <td>
                           <div className="crm-lead-stack">
-                            <strong>{leadOwnerName(row)}</strong>
-                            <small>
-                              {optionName(
-                                options,
-                                "allSources",
-                                row.sourceId,
-                              ) || "No source"}
-                            </small>
-                            <em>
-                              {[row.priority, row.rating]
-                                .filter(Boolean)
-                                .map(nice)
-                                .join(" · ")}
-                            </em>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="crm-lead-stack">
-                            <span
-                              className={`crm-lead-status status-${String(row.status || "new")}`}
-                            >
+                            <span className={`crm-lead-status status-${String(row.status || "new")}`}>
                               {nice(row.status || "new")}
                             </span>
                             <span
@@ -1734,216 +1847,81 @@ export default function CrmLeadsWorkspace({
                               {nice(row.qualificationState || "not_reviewed")}
                             </span>
                           </div>
-                        </td>
-                        <td>
-                          <div className="crm-lead-score">
-                            <strong>{Math.round(num(row.score))}</strong>
-                            <i>
-                              <b
-                                style={{
-                                  width: `${Math.max(0, Math.min(100, num(row.score)))}%`,
-                                }}
-                              />
-                            </i>
+                        </header>
+                        <div className="crm-leads-mobile-contact">
+                          {mobileEmail ? (
+                            <a href={`mailto:${mobileEmail}`}>
+                              <AppIcon name="email" size={15} />
+                              <span>{mobileEmail}</span>
+                            </a>
+                          ) : null}
+                          {mobilePhone ? (
+                            <a href={`tel:${mobilePhone}`}>
+                              <AppIcon name="phone" size={15} />
+                              <span>{mobilePhone}</span>
+                            </a>
+                          ) : null}
+                          {!mobileEmail && !mobilePhone ? <span>No contact details</span> : null}
+                        </div>
+                        <div className="crm-leads-mobile-facts">
+                          <div>
+                            <small>Owner</small>
+                            <strong>{leadOwnerName(row)}</strong>
                           </div>
-                        </td>
-                        <td>
-                          <div className="crm-lead-stack">
-                            <strong>
-                              {money(row.estimatedValue, row.currencyCode)}
-                            </strong>
-                            <small>
-                              {nice(row.industry || "Not classified")}
-                            </small>
+                          <div>
+                            <small>Score</small>
+                            <strong>{Math.round(num(row.score))}/100</strong>
                           </div>
-                        </td>
-                        <td>
-                          <div className={`crm-lead-stack state-${followup}`}>
+                          <div>
+                            <small>Potential</small>
+                            <strong>{money(row.estimatedValue, row.currencyCode)}</strong>
+                          </div>
+                          <div className={`state-${followup}`}>
+                            <small>Follow-up</small>
                             <strong>{dateTime(row.nextFollowUpAt)}</strong>
-                            <small>
-                              {followup === "overdue"
-                                ? "Overdue"
-                                : followup === "today"
-                                  ? "Due today"
-                                  : followup === "none"
-                                    ? "No next action"
-                                    : "Scheduled"}
-                            </small>
                           </div>
-                        </td>
-                        <td>
-                          <div className="crm-lead-row-buttons">
+                        </div>
+                        <div className="crm-leads-mobile-meta">
+                          <span>
+                            {optionName(options, "allSources", row.sourceId) || "No source"}
+                          </span>
+                          <span>
+                            {[row.priority, row.rating].filter(Boolean).map(nice).join(" · ") ||
+                              "No priority signals"}
+                          </span>
+                          {row.doNotContact ? <b>Do not contact</b> : null}
+                        </div>
+                        <footer className={canManage ? "" : "is-read-only"}>
+                          {canManage ? (
+                            <label>
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${leadName(row)}`}
+                                checked={selected.has(id)}
+                                onChange={() => toggle(id)}
+                              />
+                              <span>Select</span>
+                            </label>
+                          ) : null}
+                          <button className="secondary-button" type="button" onClick={() => onView(id)}>
+                            Open
+                          </button>
+                          {canManage ? (
                             <button
                               className="secondary-button"
                               type="button"
-                              onClick={() => onView(id)}
+                              onClick={() => onEdit(row)}
                             >
-                              Open
+                              Edit
                             </button>
-                            {canManage ? (
-                              <button
-                                className="link-button"
-                                type="button"
-                                onClick={() => onEdit(row)}
-                              >
-                                Edit
-                              </button>
-                            ) : null}
-                            {canManage && String(row.recordStatus || "active") === "active" ? (
-                              <button
-                                className="link-button danger"
-                                type="button"
-                                onClick={() => onArchive(id)}
-                              >
-                                Archive
-                              </button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
+                          ) : null}
+                        </footer>
+                      </article>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="crm-leads-mobile-list">
-              {rows.map((row) => {
-                const id = String(row.id);
-                const followup = followState(row.nextFollowUpAt);
-                const mobileTitleId = `crm-mobile-lead-${id}`;
-                const mobilePhone = String(row.mobile || row.phone || "");
-                const mobileEmail = String(row.email || "");
-                return (
-                  <article key={id} aria-labelledby={mobileTitleId}>
-                    <header>
-                      <div className="crm-lead-id">
-                        <div>
-                          <button
-                            id={mobileTitleId}
-                            className="crm-lead-open-link"
-                            type="button"
-                            onClick={() => onView(id)}
-                          >
-                            {leadName(row)}
-                          </button>
-                          <small>
-                            {[row.code, row.companyName]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </small>
-                        </div>
-                      </div>
-                      <div className="crm-lead-stack">
-                        <span
-                          className={`crm-lead-status status-${String(row.status || "new")}`}
-                        >
-                          {nice(row.status || "new")}
-                        </span>
-                        <span
-                          className={`crm-qualification-state state-${String(row.qualificationState || "not_reviewed")}`}
-                        >
-                          {nice(row.qualificationState || "not_reviewed")}
-                        </span>
-                      </div>
-                    </header>
-                    <div className="crm-leads-mobile-contact">
-                      {mobileEmail ? (
-                        <a href={`mailto:${mobileEmail}`}>
-                          <AppIcon name="email" size={15} />
-                          <span>{mobileEmail}</span>
-                        </a>
-                      ) : null}
-                      {mobilePhone ? (
-                        <a href={`tel:${mobilePhone}`}>
-                          <AppIcon name="phone" size={15} />
-                          <span>{mobilePhone}</span>
-                        </a>
-                      ) : null}
-                      {!mobileEmail && !mobilePhone ? (
-                        <span>No contact details</span>
-                      ) : null}
-                    </div>
-                    <div className="crm-leads-mobile-facts">
-                      <div>
-                        <small>Owner</small>
-                        <strong>{leadOwnerName(row)}</strong>
-                      </div>
-                      <div>
-                        <small>Score</small>
-                        <strong>{Math.round(num(row.score))}/100</strong>
-                      </div>
-                      <div>
-                        <small>Potential</small>
-                        <strong>
-                          {money(row.estimatedValue, row.currencyCode)}
-                        </strong>
-                      </div>
-                      <div className={`state-${followup}`}>
-                        <small>Follow-up</small>
-                        <strong>{dateTime(row.nextFollowUpAt)}</strong>
-                      </div>
-                    </div>
-                    <div className="crm-leads-mobile-meta">
-                      <span>
-                        {optionName(options, "allSources", row.sourceId) ||
-                          "No source"}
-                      </span>
-                      <span>
-                        {[row.priority, row.rating]
-                          .filter(Boolean)
-                          .map(nice)
-                          .join(" · ") || "No priority signals"}
-                      </span>
-                      {row.doNotContact ? <b>Do not contact</b> : null}
-                    </div>
-                    <footer className={canManage ? "" : "is-read-only"}>
-                      {canManage ? (
-                        <label>
-                          <input
-                            type="checkbox"
-                            aria-label={`Select ${leadName(row)}`}
-                            checked={selected.has(id)}
-                            onChange={() => toggle(id)}
-                          />
-                          <span>Select</span>
-                        </label>
-                      ) : null}
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={() => onView(id)}
-                      >
-                        Open
-                      </button>
-                      {canManage ? (
-                        <button
-                          className="secondary-button"
-                          type="button"
-                          onClick={() => onEdit(row)}
-                        >
-                          Edit
-                        </button>
-                      ) : null}
-                    </footer>
-                  </article>
-                );
-              })}
-            </div>
-            {!rows.length ? (
-              <div className="crm-suite-empty">
-                <strong>No matching leads</strong>
-                <p>Change the search or filters, or create a new lead.</p>
-                {canManage ? (
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={onCreate}
-                  >
-                    Create lead
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+                  }}
+                />
+              );
+            })()}
           </section>
         ) : (
           <section className="crm-leads-kanban-shell">

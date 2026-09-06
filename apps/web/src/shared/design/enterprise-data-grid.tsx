@@ -11,6 +11,8 @@ export type DataGridColumn<Row> = {
   cell: (row: Row, index: number) => ReactNode;
   align?: DataGridAlign;
   className?: string;
+  /** CSS width (e.g. "12%", "160px") applied to both the header and body cell. */
+  width?: string;
 };
 
 function resolveKey<Row>(
@@ -32,6 +34,7 @@ export function EnterpriseDataGrid<Row>({
   emptyState,
   renderMobileCard,
   className,
+  fixedLayout,
 }: {
   columns: Array<DataGridColumn<Row>>;
   rows: Row[];
@@ -40,6 +43,8 @@ export function EnterpriseDataGrid<Row>({
   emptyState?: ReactNode;
   renderMobileCard?: (row: Row, index: number) => ReactNode;
   className?: string;
+  /** Sets table-layout: fixed so column `width`s are respected instead of content-fit. */
+  fixedLayout?: boolean;
 }) {
   if (!rows.length && emptyState) return <>{emptyState}</>;
 
@@ -53,7 +58,10 @@ export function EnterpriseDataGrid<Row>({
       data-erp-ui="enterprise-data-grid"
     >
       <div className={styles.dataGridViewport} tabIndex={0} role="region" aria-label={caption}>
-        <table className={styles.dataGridTable}>
+        <table
+          className={styles.dataGridTable}
+          style={fixedLayout ? { tableLayout: "fixed" } : undefined}
+        >
           <caption className={styles.visuallyHidden}>{caption}</caption>
           <thead>
             <tr>
@@ -66,6 +74,7 @@ export function EnterpriseDataGrid<Row>({
                     styles[`align_${column.align ?? "start"}`],
                     column.className,
                   )}
+                  style={column.width ? { width: column.width } : undefined}
                 >
                   {column.header}
                 </th>
@@ -83,6 +92,7 @@ export function EnterpriseDataGrid<Row>({
                       styles[`align_${column.align ?? "start"}`],
                       column.className,
                     )}
+                    style={column.width ? { width: column.width } : undefined}
                   >
                     {column.cell(row, rowIndex)}
                   </td>

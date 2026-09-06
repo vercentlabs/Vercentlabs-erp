@@ -288,7 +288,6 @@
     "apps/web/src/core/components/integration-developer-manager.tsx": 2,
     "apps/web/src/core/components/notification-preferences.tsx": 1,
     "apps/web/src/core/components/platform-governance-console.tsx": 6,
-    "apps/web/src/modules/crm/components/leads-workspace.tsx": 1,
     "apps/web/src/modules/procurement/components/pass1-operations-workspace.tsx": 1,
     "apps/web/src/modules/procurement/components/procurement-workspace.tsx": 2,
     "apps/web/src/modules/stock/components/availability-workspace.tsx": 1,

@@ -70,12 +70,9 @@ test("The lead suite has an explicit readability layer with human-sized operatin
     css,
     /\.crm-leads-status-tabs button\s*\{[\s\S]*?min-height: 44px/,
   );
-  assert.match(source, /<colgroup>[\s\S]*crm-leads-col-actions/);
+  assert.match(source, /id: "actions",[\s\S]*width: "240px"/);
   assert.doesNotMatch(source, /className="crm-lead-id">\s*<span>/);
-  assert.match(
-    css,
-    /\.crm-leads-table-scroll table\s*\{[\s\S]*?table-layout: fixed/,
-  );
+  assert.match(source, /fixedLayout/);
   assert.match(
     css,
     /\.crm-lead-row-buttons\s*\{[\s\S]*?justify-content: flex-start/,
@@ -144,7 +141,7 @@ test("Lead list, create and detail have purpose-built tablet and phone layouts",
   );
   assert.match(source, /htmlFor="crm-lead-search"/);
   assert.match(source, /type="search"/);
-  assert.match(source, /<caption className="sr-only">/);
+  assert.match(source, /caption="Leads matching the current search and filters"/);
   assert.match(source, /mailto:\$\{mobileEmail\}/);
   assert.match(source, /tel:\$\{mobilePhone\}/);
 });
