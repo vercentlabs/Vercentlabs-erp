@@ -1,4 +1,11 @@
-import { TransactionDocumentArchetype } from "@/shared/design";
+import {
+  EnterpriseDataGrid,
+  PageHeader,
+  StatusBadge,
+  Surface,
+  TransactionDocumentArchetype,
+  type DataGridColumn,
+} from "@/shared/design";
 import { getQuotation } from "@vercentlabs/api";
 import { notFound } from "next/navigation";
 
@@ -65,17 +72,12 @@ export default async function QuotationDetailPage({
 
   return (
     <TransactionDocumentArchetype aria-label="Transaction document">
-      <section className="page-heading">
-        <div>
-          <p className="eyebrow">Quotation · Revision {quotation.version_number}</p>
-          <h1>{quotation.quotation_number}</h1>
-          <p>
-            {quotation.customer_snapshot?.displayName || "Customer"} · Valid until{" "}
-            {String(quotation.valid_until).slice(0, 10)}
-          </p>
-        </div>
-        <span className="status-badge neutral">{quotation.lifecycle_status}</span>
-      </section>
+      <PageHeader
+        eyebrow={`Quotation · Revision ${quotation.version_number}`}
+        title={quotation.quotation_number}
+        description={`${quotation.customer_snapshot?.displayName || "Customer"} · Valid until ${String(quotation.valid_until).slice(0, 10)}`}
+        context={<StatusBadge tone="neutral">{quotation.lifecycle_status}</StatusBadge>}
+      />
 
       <SalesDocumentActions
         type="quotation"
@@ -84,33 +86,52 @@ export default async function QuotationDetailPage({
       />
 
       <div className="sales-two-column">
-        <section className="panel">
+        <Surface as="section">
           <p className="eyebrow">Commercial lines</p>
           <h2>Products and services</h2>
-          <div className="sales-table">
-            <div className="sales-table-row sales-table-head">
-              <span>Item</span>
-              <span>Quantity</span>
-              <span>Unit price</span>
-              <span>Tax</span>
-              <span>Total</span>
-            </div>
-            {data.lines.map((line: QuotationLineView) => (
-              <div className="sales-table-row" key={line.id}>
-                <span>
-                  <strong>{line.item_code_snapshot}</strong>
-                  <small>{line.item_name_snapshot}</small>
-                </span>
-                <span>
-                  {line.quantity} {line.uom_snapshot}
-                </span>
-                <span>{money(quotation.currency_code, line.unit_price)}</span>
-                <span>{money(quotation.currency_code, line.tax_amount)}</span>
-                <span>{money(quotation.currency_code, line.line_total)}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+          {(() => {
+            const columns: DataGridColumn<QuotationLineView>[] = [
+              {
+                id: "item",
+                header: "Item",
+                cell: (line) => (
+                  <>
+                    <strong>{line.item_code_snapshot}</strong>
+                    <small> {line.item_name_snapshot}</small>
+                  </>
+                ),
+              },
+              {
+                id: "quantity",
+                header: "Quantity",
+                cell: (line) => `${line.quantity} ${line.uom_snapshot}`,
+              },
+              {
+                id: "unitPrice",
+                header: "Unit price",
+                cell: (line) => money(quotation.currency_code, line.unit_price),
+              },
+              {
+                id: "tax",
+                header: "Tax",
+                cell: (line) => money(quotation.currency_code, line.tax_amount),
+              },
+              {
+                id: "total",
+                header: "Total",
+                cell: (line) => money(quotation.currency_code, line.line_total),
+              },
+            ];
+            return (
+              <EnterpriseDataGrid
+                caption="Products and services"
+                rows={data.lines}
+                rowKey={(line) => line.id}
+                columns={columns}
+              />
+            );
+          })()}
+        </Surface>
 
         <aside className="panel sales-summary">
           <p className="eyebrow">Totals</p>
@@ -148,7 +169,7 @@ export default async function QuotationDetailPage({
       </div>
 
       <div className="sales-two-column">
-        <section className="panel">
+        <Surface as="section">
           <p className="eyebrow">Revision history</p>
           <h2>Immutable commercial versions</h2>
           <div className="sales-document-list">
@@ -164,9 +185,9 @@ export default async function QuotationDetailPage({
               </div>
             ))}
           </div>
-        </section>
+        </Surface>
 
-        <section className="panel">
+        <Surface as="section">
           <p className="eyebrow">Document events</p>
           <h2>Audit trail</h2>
           <div className="sales-document-list">
@@ -183,7 +204,7 @@ export default async function QuotationDetailPage({
               </div>
             ))}
           </div>
-        </section>
+        </Surface>
       </div>
     </TransactionDocumentArchetype>
   );

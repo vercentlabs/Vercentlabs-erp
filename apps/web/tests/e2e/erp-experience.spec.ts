@@ -48,6 +48,12 @@ const ROUTES: RepresentativeRoute[] = [
       `/crm/opportunities/${encodeURIComponent(requiredFixture("ERP_E2E_OPPORTUNITY_ID"))}`,
   },
   {
+    name: "quotation-transaction-document",
+    archetype: "transaction-document",
+    resolvePath: () =>
+      `/sales/quotations/${encodeURIComponent(requiredFixture("ERP_E2E_QUOTATION_ID"))}`,
+  },
+  {
     name: "sales-order-document",
     archetype: "transaction-document",
     resolvePath: () =>
