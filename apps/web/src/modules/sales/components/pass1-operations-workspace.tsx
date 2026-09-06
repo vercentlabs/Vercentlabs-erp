@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  ActionButton,
   EnterpriseDataGrid,
+  FormField,
   StatePanel,
   type DataGridColumn,
 } from "@/shared/design";
@@ -137,11 +139,12 @@ export default function SalesPass1OperationsWorkspace() {
     items?: Row[],
     labelKey = "label",
   ) {
+    const id = `pass1-field-${name}`;
     if (items) {
       return (
-        <label className="field">
-          <span>{label}</span>
+        <FormField label={label} htmlFor={id}>
           <select
+            id={id}
             value={form[name] || ""}
             onChange={(event) =>
               setForm((current) => ({ ...current, [name]: event.target.value }))
@@ -159,20 +162,20 @@ export default function SalesPass1OperationsWorkspace() {
               </option>
             ))}
           </select>
-        </label>
+        </FormField>
       );
     }
     return (
-      <label className="field">
-        <span>{label}</span>
+      <FormField label={label} htmlFor={id}>
         <input
+          id={id}
           type={type}
           value={form[name] || ""}
           onChange={(event) =>
             setForm((current) => ({ ...current, [name]: event.target.value }))
           }
         />
-      </label>
+      </FormField>
     );
   }
 
@@ -214,9 +217,9 @@ export default function SalesPass1OperationsWorkspace() {
           Advance payments, credit/refund handoffs, drop shipping and commissions
           use governed server workflows.
         </p>
-        <label className="field">
-          <span>Action</span>
+        <FormField label="Action" htmlFor="pass1-action">
           <select
+            id="pass1-action"
             value={action}
             onChange={(event) => {
               setAction(event.target.value);
@@ -227,7 +230,7 @@ export default function SalesPass1OperationsWorkspace() {
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
-        </label>
+        </FormField>
         <div className="form-grid">
           {![
             "create-commission-rule",
@@ -252,9 +255,9 @@ export default function SalesPass1OperationsWorkspace() {
           )}
           {action === "request-adjustment" && (
             <>
-              <label className="field">
-                <span>Adjustment</span>
+              <FormField label="Adjustment" htmlFor="pass1-adjustment-type">
                 <select
+                  id="pass1-adjustment-type"
                   value={form.adjustmentType || "credit_note"}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, adjustmentType: event.target.value }))
@@ -263,7 +266,7 @@ export default function SalesPass1OperationsWorkspace() {
                   <option value="credit_note">Credit note</option>
                   <option value="refund">Refund</option>
                 </select>
-              </label>
+              </FormField>
               {field("amount", "Amount", "number")}
               {field("reason", "Reason")}
             </>
@@ -281,9 +284,9 @@ export default function SalesPass1OperationsWorkspace() {
               {field("name", "Rule name")}
               {field("ownerUserId", "Salesperson", "text", options.users, "name")}
               {field("ratePercent", "Rate %", "number")}
-              <label className="field">
-                <span>Basis</span>
+              <FormField label="Basis" htmlFor="pass1-basis">
                 <select
+                  id="pass1-basis"
                   value={form.basis || "net_sales"}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, basis: event.target.value }))
@@ -292,7 +295,7 @@ export default function SalesPass1OperationsWorkspace() {
                   <option value="net_sales">Net sales</option>
                   <option value="gross_margin">Gross margin</option>
                 </select>
-              </label>
+              </FormField>
               {field("validFrom", "Valid from", "date")}
               {field("validTo", "Valid to", "date")}
             </>
@@ -327,14 +330,14 @@ export default function SalesPass1OperationsWorkspace() {
             </>
           )}
         </div>
-        <button
-          className="primary-button"
+        <ActionButton
+          tone="primary"
           type="button"
-          disabled={busy}
+          busy={busy}
           onClick={() => void submit()}
         >
           {busy ? "Saving…" : "Run operation"}
-        </button>
+        </ActionButton>
         {message ? <p className="notice" role="status">{message}</p> : null}
       </section>
 
@@ -344,18 +347,21 @@ export default function SalesPass1OperationsWorkspace() {
             <p className="eyebrow">Operational register</p>
             <h2>Recent records</h2>
           </div>
-          <select
-            value={resource}
-            onChange={(event) => {
-              const nextResource = event.target.value;
-              setResource(nextResource);
-              void loadRows(nextResource);
-            }}
-          >
-            {resources.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
+          <FormField label="Resource" htmlFor="pass1-resource">
+            <select
+              id="pass1-resource"
+              value={resource}
+              onChange={(event) => {
+                const nextResource = event.target.value;
+                setResource(nextResource);
+                void loadRows(nextResource);
+              }}
+            >
+              {resources.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </FormField>
         </div>
         {(() => {
           const columns: DataGridColumn<Row>[] = [

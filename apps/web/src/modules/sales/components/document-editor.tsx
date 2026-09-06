@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
-import { Surface } from "@/shared/design";
+import { ActionButton, FormField, Surface } from "@/shared/design";
 
 type OptionRow = Record<string, string | number | boolean | null>;
 type Options = {
@@ -393,9 +393,9 @@ export default function SalesDocumentEditor({
               </div>
             </header>
             <div className="enterprise-form-grid">
-              <label>
-                Company
+              <FormField label="Company" htmlFor="doc-company">
                 <select
+                  id="doc-company"
                   value={form.companyId}
                   onChange={(event) => {
                     setPreview(null);
@@ -408,10 +408,10 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                Branch
+              </FormField>
+              <FormField label="Branch" htmlFor="doc-branch">
                 <select
+                  id="doc-branch"
                   value={form.branchId}
                   onChange={(event) => setForm({ ...form, branchId: event.target.value })}
                 >
@@ -422,33 +422,35 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="field-span-2">
-                Customer
+              </FormField>
+              <div className="field-span-2">
+                <FormField label="Customer" htmlFor="doc-party">
+                  <select
+                    id="doc-party"
+                    value={form.partyId}
+                    onChange={(event) => {
+                      setPreview(null);
+                      setForm({
+                        ...form,
+                        partyId: event.target.value,
+                        contactId: "",
+                        billingAddressId: "",
+                        shippingAddressId: "",
+                      });
+                    }}
+                  >
+                    <option value="">Select customer</option>
+                    {options.parties.map((option) => (
+                      <option key={optionId(option)} value={optionId(option)}>
+                        {String(option.display_name)} · {String(option.party_type)}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              </div>
+              <FormField label="Customer contact" htmlFor="doc-contact">
                 <select
-                  value={form.partyId}
-                  onChange={(event) => {
-                    setPreview(null);
-                    setForm({
-                      ...form,
-                      partyId: event.target.value,
-                      contactId: "",
-                      billingAddressId: "",
-                      shippingAddressId: "",
-                    });
-                  }}
-                >
-                  <option value="">Select customer</option>
-                  {options.parties.map((option) => (
-                    <option key={optionId(option)} value={optionId(option)}>
-                      {String(option.display_name)} · {String(option.party_type)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Customer contact
-                <select
+                  id="doc-contact"
                   value={form.contactId}
                   onChange={(event) => setForm({ ...form, contactId: event.target.value })}
                 >
@@ -459,10 +461,10 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                Sales owner
+              </FormField>
+              <FormField label="Sales owner" htmlFor="doc-owner">
                 <select
+                  id="doc-owner"
                   value={form.ownerUserId}
                   onChange={(event) => setForm({ ...form, ownerUserId: event.target.value })}
                 >
@@ -473,7 +475,7 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
             </div>
           </Surface>
 
@@ -487,9 +489,9 @@ export default function SalesDocumentEditor({
               </div>
             </header>
             <div className="enterprise-form-grid">
-              <label>
-                Currency
+              <FormField label="Currency" htmlFor="doc-currency">
                 <select
+                  id="doc-currency"
                   value={form.currencyCode}
                   onChange={(event) => {
                     setPreview(null);
@@ -502,10 +504,10 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                Exchange rate
+              </FormField>
+              <FormField label="Exchange rate" htmlFor="doc-exchange-rate">
                 <input
+                  id="doc-exchange-rate"
                   inputMode="decimal"
                   value={form.exchangeRate}
                   onChange={(event) => {
@@ -513,10 +515,10 @@ export default function SalesDocumentEditor({
                     setForm({ ...form, exchangeRate: event.target.value });
                   }}
                 />
-              </label>
-              <label>
-                Price list
+              </FormField>
+              <FormField label="Price list" htmlFor="doc-price-list">
                 <select
+                  id="doc-price-list"
                   value={form.priceListId}
                   onChange={(event) => {
                     setPreview(null);
@@ -534,10 +536,10 @@ export default function SalesDocumentEditor({
                       </option>
                     ))}
                 </select>
-              </label>
-              <label>
-                Payment term
+              </FormField>
+              <FormField label="Payment term" htmlFor="doc-payment-term">
                 <select
+                  id="doc-payment-term"
                   value={form.paymentTermId}
                   onChange={(event) => setForm({ ...form, paymentTermId: event.target.value })}
                 >
@@ -548,10 +550,10 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                Supply type
+              </FormField>
+              <FormField label="Supply type" htmlFor="doc-supply-type">
                 <select
+                  id="doc-supply-type"
                   value={form.supplyType}
                   onChange={(event) => setForm({ ...form, supplyType: event.target.value })}
                 >
@@ -560,20 +562,20 @@ export default function SalesDocumentEditor({
                   <option value="sez">SEZ</option>
                   <option value="deemed_export">Deemed export</option>
                 </select>
-              </label>
-              <label>
-                Place of supply
+              </FormField>
+              <FormField label="Place of supply" htmlFor="doc-place-of-supply">
                 <input
+                  id="doc-place-of-supply"
                   value={form.placeOfSupply}
                   onChange={(event) =>
                     setForm({ ...form, placeOfSupply: event.target.value.toUpperCase() })
                   }
                   placeholder="State or jurisdiction code"
                 />
-              </label>
-              <label>
-                Header discount %
+              </FormField>
+              <FormField label="Header discount %" htmlFor="doc-header-discount">
                 <input
+                  id="doc-header-discount"
                   type="number"
                   min="0"
                   max="100"
@@ -584,7 +586,7 @@ export default function SalesDocumentEditor({
                   }
                   placeholder="0"
                 />
-              </label>
+              </FormField>
             </div>
           </Surface>
 
@@ -596,13 +598,12 @@ export default function SalesDocumentEditor({
                 <h2>Document lines</h2>
                 <p>Add items, quantities, fulfilment source and any governed price override.</p>
               </div>
-              <button
-                className="secondary-button"
+              <ActionButton
                 type="button"
                 onClick={() => setLines([...lines, emptyLine()])}
               >
                 Add line
-              </button>
+              </ActionButton>
             </header>
             <div className="sales-line-cards">
               {lines.map((line, index) => (
@@ -612,46 +613,48 @@ export default function SalesDocumentEditor({
                       <span className="line-index">{String(index + 1).padStart(2, "0")}</span>
                       <strong>Document line</strong>
                     </div>
-                    <button
-                      className="line-remove-button"
+                    <ActionButton
+                      tone="danger"
                       type="button"
                       onClick={() => setLines(lines.filter((_, lineIndex) => lineIndex !== index))}
                       disabled={lines.length === 1}
                     >
                       Remove
-                    </button>
+                    </ActionButton>
                   </header>
                   <div className="enterprise-form-grid line-form-grid">
-                    <label className="field-span-2">
-                      Item
-                      <select
-                        value={line.itemId}
-                        onChange={(event) => itemChanged(index, event.target.value)}
-                      >
-                        <option value="">Select product or service</option>
-                        {options.items
-                          .filter(
-                            (item) =>
-                              !item.company_id || String(item.company_id) === form.companyId,
-                          )
-                          .map((option) => (
-                            <option key={optionId(option)} value={optionId(option)}>
-                              {String(option.code)} · {String(option.name)}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Quantity
+                    <div className="field-span-2">
+                      <FormField label="Item" htmlFor={`line-${index}-item`}>
+                        <select
+                          id={`line-${index}-item`}
+                          value={line.itemId}
+                          onChange={(event) => itemChanged(index, event.target.value)}
+                        >
+                          <option value="">Select product or service</option>
+                          {options.items
+                            .filter(
+                              (item) =>
+                                !item.company_id || String(item.company_id) === form.companyId,
+                            )
+                            .map((option) => (
+                              <option key={optionId(option)} value={optionId(option)}>
+                                {String(option.code)} · {String(option.name)}
+                              </option>
+                            ))}
+                        </select>
+                      </FormField>
+                    </div>
+                    <FormField label="Quantity" htmlFor={`line-${index}-quantity`}>
                       <input
+                        id={`line-${index}-quantity`}
                         inputMode="decimal"
                         value={line.quantity}
                         onChange={(event) => updateLine(index, "quantity", event.target.value)}
                       />
-                    </label>
-                    <label>
-                      Unit of measure
+                    </FormField>
+                    <FormField label="Unit of measure" htmlFor={`line-${index}-uom`}>
                       <select
+                        id={`line-${index}-uom`}
                         value={line.uomId}
                         onChange={(event) => updateLine(index, "uomId", event.target.value)}
                       >
@@ -662,29 +665,29 @@ export default function SalesDocumentEditor({
                           </option>
                         ))}
                       </select>
-                    </label>
-                    <label>
-                      Unit price
+                    </FormField>
+                    <FormField label="Unit price" htmlFor={`line-${index}-unit-price`}>
                       <input
+                        id={`line-${index}-unit-price`}
                         inputMode="decimal"
                         value={line.unitPrice}
                         placeholder="Calculated by pricing"
                         onChange={(event) => updateLine(index, "unitPrice", event.target.value)}
                       />
-                    </label>
-                    <label>
-                      Discount percentage
+                    </FormField>
+                    <FormField label="Discount percentage" htmlFor={`line-${index}-discount`}>
                       <input
+                        id={`line-${index}-discount`}
                         inputMode="decimal"
                         value={line.discountPercent}
                         onChange={(event) =>
                           updateLine(index, "discountPercent", event.target.value)
                         }
                       />
-                    </label>
-                    <label>
-                      Fulfilment warehouse
+                    </FormField>
+                    <FormField label="Fulfilment warehouse" htmlFor={`line-${index}-warehouse`}>
                       <select
+                        id={`line-${index}-warehouse`}
                         value={line.warehouseId}
                         onChange={(event) => updateLine(index, "warehouseId", event.target.value)}
                       >
@@ -695,36 +698,46 @@ export default function SalesDocumentEditor({
                           </option>
                         ))}
                       </select>
-                    </label>
-                    <label>
-                      Requested delivery
+                    </FormField>
+                    <FormField label="Requested delivery" htmlFor={`line-${index}-delivery-date`}>
                       <input
+                        id={`line-${index}-delivery-date`}
                         type="date"
                         value={line.requestedDeliveryDate}
                         onChange={(event) =>
                           updateLine(index, "requestedDeliveryDate", event.target.value)
                         }
                       />
-                    </label>
-                    <label className="field-span-2">
-                      Customer-facing description
-                      <textarea
-                        value={line.description}
-                        onChange={(event) =>
-                          updateLine(index, "description", event.target.value)
-                        }
-                      />
-                    </label>
-                    <label className="field-span-2">
-                      Manual price reason
-                      <input
-                        value={line.manualPriceReason}
-                        onChange={(event) =>
-                          updateLine(index, "manualPriceReason", event.target.value)
-                        }
-                        placeholder="Required when overriding the calculated price"
-                      />
-                    </label>
+                    </FormField>
+                    <div className="field-span-2">
+                      <FormField
+                        label="Customer-facing description"
+                        htmlFor={`line-${index}-description`}
+                      >
+                        <textarea
+                          id={`line-${index}-description`}
+                          value={line.description}
+                          onChange={(event) =>
+                            updateLine(index, "description", event.target.value)
+                          }
+                        />
+                      </FormField>
+                    </div>
+                    <div className="field-span-2">
+                      <FormField
+                        label="Manual price reason"
+                        htmlFor={`line-${index}-manual-price-reason`}
+                      >
+                        <input
+                          id={`line-${index}-manual-price-reason`}
+                          value={line.manualPriceReason}
+                          onChange={(event) =>
+                            updateLine(index, "manualPriceReason", event.target.value)
+                          }
+                          placeholder="Required when overriding the calculated price"
+                        />
+                      </FormField>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -741,9 +754,9 @@ export default function SalesDocumentEditor({
               </div>
             </header>
             <div className="enterprise-form-grid">
-              <label>
-                Billing address
+              <FormField label="Billing address" htmlFor="doc-billing-address">
                 <select
+                  id="doc-billing-address"
                   value={form.billingAddressId}
                   onChange={(event) => setForm({ ...form, billingAddressId: event.target.value })}
                 >
@@ -754,10 +767,10 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                Shipping address
+              </FormField>
+              <FormField label="Shipping address" htmlFor="doc-shipping-address">
                 <select
+                  id="doc-shipping-address"
                   value={form.shippingAddressId}
                   onChange={(event) => setForm({ ...form, shippingAddressId: event.target.value })}
                 >
@@ -768,52 +781,52 @@ export default function SalesDocumentEditor({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
               {mode === "quotation" ? (
-                <label>
-                  Valid until
+                <FormField label="Valid until" htmlFor="doc-valid-until">
                   <input
+                    id="doc-valid-until"
                     type="date"
                     value={form.validUntil}
                     onChange={(event) => setForm({ ...form, validUntil: event.target.value })}
                   />
-                </label>
+                </FormField>
               ) : (
                 <>
-                  <label>
-                    Requested delivery
+                  <FormField label="Requested delivery" htmlFor="doc-requested-delivery">
                     <input
+                      id="doc-requested-delivery"
                       type="date"
                       value={form.requestedDeliveryDate}
                       onChange={(event) =>
                         setForm({ ...form, requestedDeliveryDate: event.target.value })
                       }
                     />
-                  </label>
-                  <label>
-                    Customer PO number
+                  </FormField>
+                  <FormField label="Customer PO number" htmlFor="doc-customer-po-number">
                     <input
+                      id="doc-customer-po-number"
                       value={form.customerPoNumber}
                       onChange={(event) =>
                         setForm({ ...form, customerPoNumber: event.target.value })
                       }
                     />
-                  </label>
-                  <label>
-                    Customer PO date
+                  </FormField>
+                  <FormField label="Customer PO date" htmlFor="doc-customer-po-date">
                     <input
+                      id="doc-customer-po-date"
                       type="date"
                       value={form.customerPoDate}
                       onChange={(event) =>
                         setForm({ ...form, customerPoDate: event.target.value })
                       }
                     />
-                  </label>
+                  </FormField>
                 </>
               )}
-              <label>
-                Priority
+              <FormField label="Priority" htmlFor="doc-priority">
                 <select
+                  id="doc-priority"
                   value={form.priority}
                   onChange={(event) => setForm({ ...form, priority: event.target.value })}
                 >
@@ -822,51 +835,57 @@ export default function SalesDocumentEditor({
                   <option value="high">High</option>
                   <option value="urgent">Urgent</option>
                 </select>
-              </label>
-              <label>
-                Delivery terms
+              </FormField>
+              <FormField label="Delivery terms" htmlFor="doc-delivery-terms">
                 <input
+                  id="doc-delivery-terms"
                   value={form.deliveryTerms}
                   onChange={(event) => setForm({ ...form, deliveryTerms: event.target.value })}
                 />
-              </label>
-              <label>
-                Shipping method
+              </FormField>
+              <FormField label="Shipping method" htmlFor="doc-shipping-method">
                 <input
+                  id="doc-shipping-method"
                   value={form.shippingMethod}
                   onChange={(event) => setForm({ ...form, shippingMethod: event.target.value })}
                 />
-              </label>
-              <label>
-                Incoterm
+              </FormField>
+              <FormField label="Incoterm" htmlFor="doc-incoterm">
                 <input
+                  id="doc-incoterm"
                   value={form.incoterm}
                   onChange={(event) => setForm({ ...form, incoterm: event.target.value })}
                 />
-              </label>
-              <label className="field-span-2">
-                Customer notes
-                <textarea
-                  value={form.customerNotes}
-                  onChange={(event) => setForm({ ...form, customerNotes: event.target.value })}
-                />
-              </label>
-              <label className="field-span-2">
-                Terms and conditions
-                <textarea
-                  value={form.termsAndConditions}
-                  onChange={(event) =>
-                    setForm({ ...form, termsAndConditions: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field-span-2">
-                Internal notes
-                <textarea
-                  value={form.internalNotes}
-                  onChange={(event) => setForm({ ...form, internalNotes: event.target.value })}
-                />
-              </label>
+              </FormField>
+              <div className="field-span-2">
+                <FormField label="Customer notes" htmlFor="doc-customer-notes">
+                  <textarea
+                    id="doc-customer-notes"
+                    value={form.customerNotes}
+                    onChange={(event) => setForm({ ...form, customerNotes: event.target.value })}
+                  />
+                </FormField>
+              </div>
+              <div className="field-span-2">
+                <FormField label="Terms and conditions" htmlFor="doc-terms-and-conditions">
+                  <textarea
+                    id="doc-terms-and-conditions"
+                    value={form.termsAndConditions}
+                    onChange={(event) =>
+                      setForm({ ...form, termsAndConditions: event.target.value })
+                    }
+                  />
+                </FormField>
+              </div>
+              <div className="field-span-2">
+                <FormField label="Internal notes" htmlFor="doc-internal-notes">
+                  <textarea
+                    id="doc-internal-notes"
+                    value={form.internalNotes}
+                    onChange={(event) => setForm({ ...form, internalNotes: event.target.value })}
+                  />
+                </FormField>
+              </div>
             </div>
           </Surface>
         </main>
@@ -907,26 +926,27 @@ export default function SalesDocumentEditor({
               </div>
             )}
             <div className="sticky-document-actions">
-              <button
-                className="secondary-button full-width-button"
+              <ActionButton
+                className="full-width-button"
                 type="button"
                 onClick={previewDocument}
-                disabled={pending}
+                busy={pending}
               >
                 {pending ? "Validating…" : "Preview pricing"}
-              </button>
-              <button
-                className="primary-button full-width-button"
+              </ActionButton>
+              <ActionButton
+                tone="primary"
+                className="full-width-button"
                 type="button"
                 onClick={save}
-                disabled={pending}
+                busy={pending}
               >
                 {pending
                   ? "Working…"
                   : mode === "quotation"
                     ? "Create quotation"
                     : "Create sales order"}
-              </button>
+              </ActionButton>
             </div>
           </Surface>
 
