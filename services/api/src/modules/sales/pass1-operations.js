@@ -244,6 +244,11 @@ export async function upsertSalesCustomerPrice(client, c, input = {}) {
   const validTo = input.validTo || null;
   if (validFrom && validTo && String(validFrom) > String(validTo))
     throw new SalesError(400, "Customer-price valid-from date cannot be after valid-to date.", "SALES_CUSTOMER_PRICE_DATE_INVALID");
+  // A standing negotiated price applies to every future order for this
+  // customer/item - higher blast radius than the one-off manual line
+  // override, which already requires a reason. Same discipline here.
+  const reason = text(input.reason, 2000);
+  if (!reason) throw new SalesError(400, "A reason is required to set a customer-specific price.", "SALES_CUSTOMER_PRICE_REASON_REQUIRED");
   const companyId = party.rows[0].company_id || c.activeCompanyId || null;
   const existing = await client.query(
     `SELECT id,code FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND party_id=$2 AND item_id=$3
@@ -253,16 +258,16 @@ export async function upsertSalesCustomerPrice(client, c, input = {}) {
   );
   if (existing.rows[0]) {
     const updated = await client.query(
-      `UPDATE tenant.sales_pricing_rules SET company_id=$3,name=$4,adjustment_value=$5,valid_from=$6,valid_to=$7,updated_by=$8,updated_at=now()
+      `UPDATE tenant.sales_pricing_rules SET company_id=$3,name=$4,adjustment_value=$5,valid_from=$6,valid_to=$7,reason=$8,updated_by=$9,updated_at=now()
         WHERE organization_id=$1 AND id=$2 RETURNING *`,
-      [c.organizationId,existing.rows[0].id,companyId,`Customer price · ${party.rows[0].display_name}`,fixedRate,validFrom,validTo,c.userId],
+      [c.organizationId,existing.rows[0].id,companyId,`Customer price · ${party.rows[0].display_name}`,fixedRate,validFrom,validTo,reason,c.userId],
     );
     return updated.rows[0];
   }
   const created = await client.query(
-    `INSERT INTO tenant.sales_pricing_rules(organization_id,company_id,code,name,priority,party_id,party_type,item_id,price_list_id,minimum_quantity,adjustment_type,adjustment_value,valid_from,valid_to,status,created_by,updated_by)
-     VALUES($1,$2,'CUST-'||upper(substr(replace($3::text,'-',''),1,8))||'-'||upper(substr(replace($4::text,'-',''),1,8))||'-'||to_char(clock_timestamp(),'YYMMDDHH24MISSMS'),$5,10,$3,'customer',$4,$6,$7,'fixed_rate',$8,$9,$10,'active',$11,$11) RETURNING *`,
-    [c.organizationId,companyId,partyId,itemId,`Customer price · ${party.rows[0].display_name}`,priceListId,minimumQuantity,fixedRate,validFrom,validTo,c.userId],
+    `INSERT INTO tenant.sales_pricing_rules(organization_id,company_id,code,name,priority,party_id,party_type,item_id,price_list_id,minimum_quantity,adjustment_type,adjustment_value,valid_from,valid_to,reason,status,created_by,updated_by)
+     VALUES($1,$2,'CUST-'||upper(substr(replace($3::text,'-',''),1,8))||'-'||upper(substr(replace($4::text,'-',''),1,8))||'-'||to_char(clock_timestamp(),'YYMMDDHH24MISSMS'),$5,10,$3,'customer',$4,$6,$7,'fixed_rate',$8,$9,$10,$11,'active',$12,$12) RETURNING *`,
+    [c.organizationId,companyId,partyId,itemId,`Customer price · ${party.rows[0].display_name}`,priceListId,minimumQuantity,fixedRate,validFrom,validTo,reason,c.userId],
   );
   return created.rows[0];
 }

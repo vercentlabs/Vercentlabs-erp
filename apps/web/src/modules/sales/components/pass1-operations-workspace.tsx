@@ -315,6 +315,7 @@ export default function SalesPass1OperationsWorkspace() {
               {field("priceListId", "Sales price list (optional)", "text", options.priceLists, "name")}
               {field("minimumQuantity", "Minimum quantity", "number")}
               {field("fixedRate", "Fixed customer rate", "number")}
+              {field("reason", "Reason (required)", "text")}
               {field("validFrom", "Valid from", "date")}
               {field("validTo", "Valid to", "date")}
             </>
