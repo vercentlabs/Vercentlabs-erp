@@ -4,6 +4,14 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
+import {
+  ActionButton,
+  ActionLink,
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Option = { id: string; name: string; companyId?: string | null; partyId?: string | null };
 type Options = Record<string, Option[]>;
@@ -261,32 +269,138 @@ export default function CallsWorkspace({
           <label><span>Direction</span><select name="direction" defaultValue={direction}><option value="all">Any direction</option><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
           <button className="secondary-button" type="submit">Apply</button>
         </form>
-        {canManage ? <div className="crm-calls-create-actions"><button className="primary-button" type="button" onClick={() => openEditor("schedule")}>Schedule Call</button><button className="secondary-button" type="button" onClick={() => openEditor("log")}>Log completed Call</button></div> : null}
+        {canManage ? <div className="crm-calls-create-actions"><ActionButton tone="primary" type="button" onClick={() => openEditor("schedule")}>Schedule Call</ActionButton><ActionButton type="button" onClick={() => openEditor("log")}>Log completed Call</ActionButton></div> : null}
       </div>
 
       {message ? <p className="notice" role="status">{message}</p> : null}
 
       <div className="crm-calls-summary"><strong>{total}</strong><span>matching Call{total === 1 ? "" : "s"}</span><span>Manual call logging only · no telephony/recording provider is implied.</span></div>
 
-      <div className="crm-calls-list">
-        {rows.length ? rows.map((record) => (
-          <article key={record.id} className="crm-call-row">
-            <div className="crm-call-row__main">
-              <div className="crm-call-row__title"><strong>{record.subject}</strong><span className={`status-badge ${record.status === "completed" ? "success" : record.status === "cancelled" ? "danger" : "neutral"}`}>{label(record.status)}</span></div>
-              <p>{label(record.direction)} · {record.phoneNumber || "No phone snapshot"} · {record.assignedName || "Unassigned"}</p>
-              <small>{record.status === "completed" ? `Completed ${formatDate(record.actualEndedAt || record.dueAt)} · ${duration(record.durationSeconds)} · ${label(record.outcomeCode)}` : `Due ${formatDate(record.dueAt)} · ${label(record.priority)} priority`}</small>
-            </div>
-            <div className="crm-call-row__actions">
-              {record.phoneNumber ? <a className="secondary-button" href={`tel:${record.phoneNumber}`}>Dial</a> : null}
-              <button className="link-button" type="button" disabled={busy === `events:${record.id}`} onClick={() => void showEvents(record)}>History</button>
-              {canManage && ["planned", "overdue"].includes(record.status) ? <button className="secondary-button" type="button" onClick={() => openEditor("edit", record)}>Edit</button> : null}
-              {canManage && ["planned", "overdue"].includes(record.status) ? <button className="secondary-button" type="button" disabled={Boolean(busy)} onClick={() => void lifecycle(record, "start")}>Start</button> : null}
-              {canManage && !["completed", "cancelled"].includes(record.status) ? <button className="primary-button" type="button" disabled={Boolean(busy)} onClick={() => setCompletion(record)}>Complete</button> : null}
-              {canManage && !["completed", "cancelled"].includes(record.status) ? <button className="link-button" type="button" disabled={Boolean(busy)} onClick={() => void lifecycle(record, "cancel")}>Cancel</button> : null}
-            </div>
-          </article>
-        )) : <div className="empty-state"><strong>No Calls match this view</strong><p>Schedule a Call, log a completed Call, or change the current filters.</p></div>}
-      </div>
+      {(() => {
+        const statusTone = (record: CallRow) =>
+          record.status === "completed"
+            ? "success"
+            : record.status === "cancelled"
+              ? "danger"
+              : "neutral";
+        const actions = (record: CallRow) => (
+          <>
+            {record.phoneNumber ? (
+              <ActionLink href={`tel:${record.phoneNumber}`}>Dial</ActionLink>
+            ) : null}
+            <ActionButton
+              tone="quiet"
+              type="button"
+              disabled={busy === `events:${record.id}`}
+              onClick={() => void showEvents(record)}
+            >
+              History
+            </ActionButton>
+            {canManage && ["planned", "overdue"].includes(record.status) ? (
+              <ActionButton type="button" onClick={() => openEditor("edit", record)}>
+                Edit
+              </ActionButton>
+            ) : null}
+            {canManage && ["planned", "overdue"].includes(record.status) ? (
+              <ActionButton
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void lifecycle(record, "start")}
+              >
+                Start
+              </ActionButton>
+            ) : null}
+            {canManage && !["completed", "cancelled"].includes(record.status) ? (
+              <ActionButton
+                tone="primary"
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => setCompletion(record)}
+              >
+                Complete
+              </ActionButton>
+            ) : null}
+            {canManage && !["completed", "cancelled"].includes(record.status) ? (
+              <ActionButton
+                tone="quiet"
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void lifecycle(record, "cancel")}
+              >
+                Cancel
+              </ActionButton>
+            ) : null}
+          </>
+        );
+        const columns: DataGridColumn<CallRow>[] = [
+          {
+            id: "call",
+            header: "Call",
+            cell: (record) => (
+              <>
+                <strong>{record.subject}</strong>
+                <StatusBadge tone={statusTone(record)}>{label(record.status)}</StatusBadge>
+              </>
+            ),
+          },
+          {
+            id: "detail",
+            header: "Detail",
+            cell: (record) => (
+              <>
+                <p>
+                  {label(record.direction)} · {record.phoneNumber || "No phone snapshot"} ·{" "}
+                  {record.assignedName || "Unassigned"}
+                </p>
+                <small>
+                  {record.status === "completed"
+                    ? `Completed ${formatDate(record.actualEndedAt || record.dueAt)} · ${duration(record.durationSeconds)} · ${label(record.outcomeCode)}`
+                    : `Due ${formatDate(record.dueAt)} · ${label(record.priority)} priority`}
+                </small>
+              </>
+            ),
+          },
+          {
+            id: "actions",
+            header: "Actions",
+            cell: (record) => <div className="crm-call-row__actions">{actions(record)}</div>,
+          },
+        ];
+        return (
+          <EnterpriseDataGrid
+            caption="Calls"
+            rows={rows}
+            rowKey={(record) => record.id}
+            columns={columns}
+            emptyState={
+              <StatePanel
+                title="No Calls match this view"
+                description="Schedule a Call, log a completed Call, or change the current filters."
+              />
+            }
+            renderMobileCard={(record) => (
+              <article className="crm-call-row">
+                <div className="crm-call-row__main">
+                  <div className="crm-call-row__title">
+                    <strong>{record.subject}</strong>
+                    <StatusBadge tone={statusTone(record)}>{label(record.status)}</StatusBadge>
+                  </div>
+                  <p>
+                    {label(record.direction)} · {record.phoneNumber || "No phone snapshot"} ·{" "}
+                    {record.assignedName || "Unassigned"}
+                  </p>
+                  <small>
+                    {record.status === "completed"
+                      ? `Completed ${formatDate(record.actualEndedAt || record.dueAt)} · ${duration(record.durationSeconds)} · ${label(record.outcomeCode)}`
+                      : `Due ${formatDate(record.dueAt)} · ${label(record.priority)} priority`}
+                  </small>
+                </div>
+                <div className="crm-call-row__actions">{actions(record)}</div>
+              </article>
+            )}
+          />
+        );
+      })()}
 
       {totalPages > 1 ? <nav className="crm-calls-pagination" aria-label="Call pages"><button className="secondary-button" disabled={page <= 1} onClick={() => router.push(queryHref(page - 1))}>Previous</button><span>Page {page} of {totalPages}</span><button className="secondary-button" disabled={page >= totalPages} onClick={() => router.push(queryHref(page + 1))}>Next</button></nav> : null}
 
