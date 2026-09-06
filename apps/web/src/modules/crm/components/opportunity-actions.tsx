@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
+import { ActionButton, StatusBadge } from "@/shared/design";
 
 type Stage = { id: string; name: string; isWon?: boolean; isLost?: boolean };
 type OutcomeReason = {
@@ -106,14 +107,15 @@ export function CrmOpportunityReopenAction({
         </label>
       </div>
       <div className="form-row">
-        <button
-          className="primary-button"
+        <ActionButton
+          tone="primary"
           type="button"
-          disabled={pending || !targetStageId || !reason.trim()}
+          busy={pending}
+          disabled={!targetStageId || !reason.trim()}
           onClick={() => void reopen()}
         >
           {pending ? "Reopening…" : "Reopen opportunity"}
-        </button>
+        </ActionButton>
       </div>
       {message ? (
         <p className="notice" role="status">
@@ -224,11 +226,9 @@ export default function CrmOpportunityActions({
           <h2>Move opportunity</h2>
         </div>
         {outcomeType ? (
-          <span
-            className={`status-badge ${outcomeType === "won" ? "success" : "warning"}`}
-          >
+          <StatusBadge tone={outcomeType === "won" ? "success" : "warning"}>
             {outcomeType === "won" ? "Closing won" : "Closing lost"}
-          </span>
+          </StatusBadge>
         ) : null}
       </div>
 
@@ -289,22 +289,22 @@ export default function CrmOpportunityActions({
       </div>
 
       <div className="form-row">
-        <button
-          className="primary-button"
+        <ActionButton
+          tone="primary"
           type="button"
-          disabled={pending || unchanged || missingOutcome}
+          busy={pending}
+          disabled={unchanged || missingOutcome}
           onClick={() => void run("move")}
         >
           {pending ? "Updating…" : "Move now"}
-        </button>
-        <button
-          className="secondary-button"
+        </ActionButton>
+        <ActionButton
           type="button"
           disabled={pending || unchanged || missingOutcome}
           onClick={() => void run("approval")}
         >
           Request approval
-        </button>
+        </ActionButton>
       </div>
       {outcomeType && missingOutcome ? (
         <p className="field-help">

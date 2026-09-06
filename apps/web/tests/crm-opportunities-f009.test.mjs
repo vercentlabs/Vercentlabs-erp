@@ -60,7 +60,8 @@ test("F009 web: a closed opportunity offers a governed reopen action instead of 
   const actions = read("apps/web/src/modules/crm/components/opportunity-actions.tsx");
   assert.match(actions, /export function CrmOpportunityReopenAction/);
   assert.match(actions, /stages\.filter\(\(stage\) => !stage\.isWon && !stage\.isLost\)/);
-  assert.match(actions, /disabled=\{pending \|\| !targetStageId \|\| !reason\.trim\(\)\}/);
+  assert.match(actions, /busy=\{pending\}/);
+  assert.match(actions, /disabled=\{!targetStageId \|\| !reason\.trim\(\)\}/);
   assert.match(page, /outcome_reason_label/);
 });
 
