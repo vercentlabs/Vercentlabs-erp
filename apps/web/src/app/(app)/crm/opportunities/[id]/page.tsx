@@ -8,6 +8,16 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
+import {
+  ActionLink,
+  MetricCard,
+  Record360Archetype,
+  RecordHeader,
+  StatePanel,
+  StatusBadge,
+  Surface,
+  type StatusTone,
+} from "@/shared/design";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
@@ -22,6 +32,12 @@ function dateTime(value: unknown) {
 }
 function money(value: unknown, currency: unknown) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: String(currency || "INR"), minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
+}
+function outcomeTone(status: unknown): StatusTone {
+  const value = String(status || "");
+  if (value === "won") return "success";
+  if (value === "lost") return "warning";
+  return "neutral";
 }
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -84,28 +100,46 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   ].sort((a, b) => new Date(String(b.at || 0)).getTime() - new Date(String(a.at || 0)).getTime());
 
   return (
-    <div className="crm-record-page crm-opportunity-page">
-      <header className="crm-record-hero">
-        <div>
-          <Link className="crm-record-back" href="/crm/opportunities">← Opportunities</Link>
-          <p className="eyebrow">Opportunity · {String(record.code || "")}</p>
-          <h1>{String(record.name || "Opportunity")}</h1>
-          <p>{String(record.nextStep || record.description || "Manage the next commercial action and expected close.")}</p>
-        </div>
-        <div className="crm-record-actions">
-          <span className={`status-badge ${record.status === "won" ? "success" : record.status === "lost" ? "warning" : "neutral"}`}>{nice(record.status)}</span>
-          {canManage ? <Link className="secondary-button" href={`/crm/opportunities?edit=${encodeURIComponent(id)}`}>Edit</Link> : null}
-          {hasPermission(session, PERMISSIONS.salesQuotationCreate) && record.partyId ? (
-            <Link className="primary-button" href={`/sales/quotations/new?opportunityId=${id}`}>Create quotation</Link>
-          ) : null}
-        </div>
-      </header>
+    <Record360Archetype className="crm-record-page crm-opportunity-page">
+      <Link className="crm-record-back" href="/crm/opportunities">← Opportunities</Link>
+      <RecordHeader
+        eyebrow={`Opportunity · ${String(record.code || "")}`}
+        title={String(record.name || "Opportunity")}
+        subtitle={String(record.nextStep || record.description || "Manage the next commercial action and expected close.")}
+        status={<StatusBadge tone={outcomeTone(record.status)}>{nice(record.status)}</StatusBadge>}
+        actions={
+          <>
+            {canManage ? (
+              <ActionLink href={`/crm/opportunities?edit=${encodeURIComponent(id)}`}>
+                Edit
+              </ActionLink>
+            ) : null}
+            {hasPermission(session, PERMISSIONS.salesQuotationCreate) && record.partyId ? (
+              <ActionLink tone="primary" href={`/sales/quotations/new?opportunityId=${id}`}>
+                Create quotation
+              </ActionLink>
+            ) : null}
+          </>
+        }
+      />
 
       <section className="crm-record-metrics" aria-label="Opportunity commercial summary">
-        <article><span>Amount</span><strong>{money(amount, record.currencyCode)}</strong></article>
-        <article><span>Probability</span><strong>{probability}%</strong></article>
-        <article><span>Expected revenue</span><strong>{money(expectedRevenue, record.currencyCode)}</strong></article>
-        <article><span>Expected close</span><strong>{record.expectedCloseDate ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(String(record.expectedCloseDate))) : "—"}</strong></article>
+        <MetricCard label="Amount" value={money(amount, record.currencyCode)} />
+        <MetricCard label="Probability" value={`${probability}%`} />
+        <MetricCard
+          label="Expected revenue"
+          value={money(expectedRevenue, record.currencyCode)}
+        />
+        <MetricCard
+          label="Expected close"
+          value={
+            record.expectedCloseDate
+              ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(
+                  new Date(String(record.expectedCloseDate)),
+                )
+              : "—"
+          }
+        />
       </section>
 
       {canManage && !["won", "lost", "archived"].includes(String(record.status)) ? (
@@ -119,16 +153,18 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <CrmOpportunityReopenAction id={id} status={String(record.status)} stageId={String(record.stageId)} updatedAt={String(record.updatedAt)} stages={stages} />
       ) : null}
 
-      <section className="panel">
+      <Surface as="section">
         <p className="eyebrow">Probability history</p>
         <h2>Revenue confidence changes</h2>
         <div className="crm-timeline">
           {data.probabilityHistory.map((row) => (
             <article key={String(row.id)}><span>%</span><div><strong>{String(row.from_probability)}% → {String(row.to_probability)}%</strong><p>{String(row.note || "No note")}</p><small>Expected revenue {money(row.expected_revenue, record.currencyCode)}</small><time>{dateTime(row.changed_at)}</time></div></article>
           ))}
-          {!data.probabilityHistory.length ? <div className="empty-state"><p>No manual probability changes recorded yet.</p></div> : null}
+          {!data.probabilityHistory.length ? (
+            <StatePanel title="No manual probability changes recorded yet." />
+          ) : null}
         </div>
-      </section>
+      </Surface>
 
       {["won", "lost"].includes(String(record.status)) ? (
         <section className="crm-outcome-banner">
@@ -138,38 +174,44 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       ) : null}
 
       <div className="crm-record-columns">
-        <section className="panel">
+        <Surface as="section">
           <p className="eyebrow">Stage history</p>
           <h2>Pipeline movement</h2>
           <div className="crm-timeline">
             {data.history.map((row) => (
               <article key={String(row.id)}><span>→</span><div><strong>{String(row.from_stage || "Created")} → {String(row.to_stage || "Stage")}</strong>{row.outcome_reason_label ? <p><em>{nice(row.status)} reason at the time: {String(row.outcome_reason_label)}</em></p> : null}<p>{String(row.note || "")}</p><time>{dateTime(row.changed_at)}</time></div></article>
             ))}
-            {!data.history.length ? <div className="empty-state"><p>No stage movement recorded yet.</p></div> : null}
+            {!data.history.length ? (
+              <StatePanel title="No stage movement recorded yet." />
+            ) : null}
           </div>
-        </section>
+        </Surface>
 
-        <section className="panel">
+        <Surface as="section">
           <p className="eyebrow">Products & services</p>
           <h2>Opportunity items</h2>
           <div className="crm-stage-summary">
             {data.items.map((item) => (
               <div key={String(item.id)}><span><strong>{String(item.item_name)}</strong><small>{String(item.quantity)} × {money(item.unit_price, record.currencyCode)}</small></span><b>{money(item.line_total, record.currencyCode)}</b></div>
             ))}
-            {!data.items.length ? <div className="empty-state"><p>No products or services added yet.</p></div> : null}
+            {!data.items.length ? (
+              <StatePanel title="No products or services added yet." />
+            ) : null}
           </div>
-        </section>
+        </Surface>
       </div>
 
-      <section className="panel">
+      <Surface as="section">
         <div className="card-title-row"><div><p className="eyebrow">Timeline</p><h2>Recent engagement</h2></div><Link className="link-button" href="/crm/activities">Open activities</Link></div>
         <div className="crm-timeline">
           {timeline.slice(0, 40).map((entry, index) => (
             <article key={`${entry.kind}-${index}-${String(entry.at)}`}><span>{entry.kind.slice(0, 1)}</span><div><strong>{String(entry.title || entry.kind)}</strong><p>{String(entry.detail || "")}</p><time>{dateTime(entry.at)}</time></div></article>
           ))}
-          {!timeline.length ? <div className="empty-state"><p>No opportunity engagement recorded yet.</p></div> : null}
+          {!timeline.length ? (
+            <StatePanel title="No opportunity engagement recorded yet." />
+          ) : null}
         </div>
-      </section>
-    </div>
+      </Surface>
+    </Record360Archetype>
   );
 }
