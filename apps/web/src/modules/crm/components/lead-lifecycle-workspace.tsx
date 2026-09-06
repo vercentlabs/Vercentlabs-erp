@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
+import {
+  ActionButton,
+  EnterpriseDataGrid,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Stage = {
   id: string;
@@ -81,38 +87,94 @@ export default function LeadLifecycleWorkspace({ rows }: { rows: Stage[] }) {
           <h1>Lead lifecycle</h1>
           <p>Keep the working journey short, ordered and independent from qualification and conversion.</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => setEditing(null)}>
+        <ActionButton tone="primary" type="button" onClick={() => setEditing(null)}>
           <AppIcon name="modules" size={16} /> Add stage
-        </button>
+        </ActionButton>
       </header>
 
       {message ? <p className="notice" role="status">{message}</p> : null}
 
-      <section className="crm-lifecycle-list" aria-label="Lead lifecycle stages">
-        <div className="crm-lifecycle-list__header" aria-hidden="true">
-          <span>Order</span><span>Stage</span><span>Leads</span><span>State</span><span>Actions</span>
-        </div>
-        {rows.map((stage, index) => (
-          <article className={stage.status === "inactive" ? "is-inactive" : ""} key={stage.id}>
-            <span className="crm-lifecycle-order">{String(index + 1).padStart(2, "0")}</span>
-            <div className="crm-lifecycle-stage-copy">
-              <strong>{stage.name}</strong>
-              <span>{stage.description || "No description"}</span>
-              <small>{stage.code}{stage.isInitial ? " · Initial stage" : ""}{stage.isSystem ? " · System" : ""}</small>
-            </div>
-            <span className="crm-lifecycle-count">{stage.leadCount}</span>
-            <span className={`status-badge ${stage.status === "active" ? "success" : "neutral"}`}>{stage.status}</span>
-            <div className="crm-lifecycle-actions">
-              <button className="secondary-button" type="button" onClick={() => setEditing(stage)}>Edit</button>
-              {stage.status === "active" ? (
-                <button className="link-button" disabled={stage.isInitial || pending === stage.id} type="button" onClick={() => void setActive(stage, false)}>Deactivate</button>
-              ) : (
-                <button className="link-button" disabled={pending === stage.id} type="button" onClick={() => void setActive(stage, true)}>Reactivate</button>
-              )}
-            </div>
-          </article>
-        ))}
-      </section>
+      {(() => {
+        const columns: DataGridColumn<Stage>[] = [
+          {
+            id: "order",
+            header: "Order",
+            width: "70px",
+            cell: (stage, index) => (
+              <span className="crm-lifecycle-order">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+            ),
+          },
+          {
+            id: "stage",
+            header: "Stage",
+            cell: (stage) => (
+              <div className="crm-lifecycle-stage-copy">
+                <strong>{stage.name}</strong>
+                <span>{stage.description || "No description"}</span>
+                <small>
+                  {stage.code}
+                  {stage.isInitial ? " · Initial stage" : ""}
+                  {stage.isSystem ? " · System" : ""}
+                </small>
+              </div>
+            ),
+          },
+          {
+            id: "leads",
+            header: "Leads",
+            cell: (stage) => stage.leadCount,
+          },
+          {
+            id: "state",
+            header: "State",
+            cell: (stage) => (
+              <StatusBadge tone={stage.status === "active" ? "success" : "neutral"}>
+                {stage.status}
+              </StatusBadge>
+            ),
+          },
+          {
+            id: "actions",
+            header: "Actions",
+            cell: (stage) => (
+              <div className="crm-lifecycle-actions">
+                <ActionButton type="button" onClick={() => setEditing(stage)}>
+                  Edit
+                </ActionButton>
+                {stage.status === "active" ? (
+                  <ActionButton
+                    tone="quiet"
+                    disabled={stage.isInitial || pending === stage.id}
+                    type="button"
+                    onClick={() => void setActive(stage, false)}
+                  >
+                    Deactivate
+                  </ActionButton>
+                ) : (
+                  <ActionButton
+                    tone="quiet"
+                    disabled={pending === stage.id}
+                    type="button"
+                    onClick={() => void setActive(stage, true)}
+                  >
+                    Reactivate
+                  </ActionButton>
+                )}
+              </div>
+            ),
+          },
+        ];
+        return (
+          <EnterpriseDataGrid
+            caption="Lead lifecycle stages"
+            rows={rows}
+            rowKey={(stage) => stage.id}
+            columns={columns}
+          />
+        );
+      })()}
 
       <aside className="crm-lifecycle-note">
         <AppIcon name="audit" size={18} />
@@ -131,8 +193,8 @@ export default function LeadLifecycleWorkspace({ rows }: { rows: Stage[] }) {
           <label><span>Description</span><textarea maxLength={1000} name="description" rows={4} defaultValue={editing?.description || ""} /></label>
           <label><span>Order</span><input min={0} max={100000} name="sortOrder" required type="number" defaultValue={editing?.sortOrder ?? (rows.length + 1) * 10} /></label>
           <footer>
-            <button className="secondary-button" type="button" onClick={() => setEditing(undefined)}>Cancel</button>
-            <button className="primary-button" disabled={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</button>
+            <ActionButton type="button" onClick={() => setEditing(undefined)}>Cancel</ActionButton>
+            <ActionButton tone="primary" busy={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</ActionButton>
           </footer>
         </form>
       </dialog>
