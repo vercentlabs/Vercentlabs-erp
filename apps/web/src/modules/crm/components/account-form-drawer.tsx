@@ -7,6 +7,7 @@ import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer"
 import { requestJson } from "@/shared/http/client-request";
 import {
   ActionButton,
+  describedById,
   ErrorState,
   FormField,
   FormSection,
@@ -111,6 +112,11 @@ export default function AccountFormDrawer({
                 maxLength={180}
                 required
                 aria-invalid={Boolean(fieldError("displayName"))}
+                aria-describedby={
+                  fieldError("displayName")
+                    ? describedById("account-displayName", "error")
+                    : undefined
+                }
               />
             </FormField>
           </div>
@@ -157,6 +163,11 @@ export default function AccountFormDrawer({
               placeholder="https://example.com"
               defaultValue={value(account, "website")}
               aria-invalid={Boolean(fieldError("website"))}
+              aria-describedby={
+                fieldError("website")
+                  ? describedById("account-website", "error")
+                  : undefined
+              }
             />
           </FormField>
           <FormField label="Phone" htmlFor="account-phone">
@@ -180,6 +191,11 @@ export default function AccountFormDrawer({
               inputMode="email"
               defaultValue={value(account, "email")}
               aria-invalid={Boolean(fieldError("email"))}
+              aria-describedby={
+                fieldError("email")
+                  ? describedById("account-email", "error")
+                  : undefined
+              }
             />
           </FormField>
           <FormField label="Currency" htmlFor="account-currencyCode">

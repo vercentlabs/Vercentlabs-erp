@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
-import { ActionButton, FormField } from "@/shared/design";
+import { ActionButton, describedById, FormField } from "@/shared/design";
 import LeadAssigneeCombobox from "./lead-assignee-combobox";
 
 type Option = {
@@ -444,6 +444,11 @@ export default function CrmLeadCreateWorkspace({
                     duplicateInput("firstName", event.currentTarget.value)
                   }
                   aria-invalid={Boolean(errorFor("firstName"))}
+                  aria-describedby={
+                    errorFor("firstName")
+                      ? describedById("lead-firstName", "error")
+                      : undefined
+                  }
                 />
               </FormField>
 
@@ -515,6 +520,11 @@ export default function CrmLeadCreateWorkspace({
                   name="email"
                   type="email"
                   aria-invalid={Boolean(errorFor("email"))}
+                  aria-describedby={
+                    errorFor("email")
+                      ? describedById("lead-email", "error")
+                      : undefined
+                  }
                   onChange={(event) =>
                     duplicateInput("email", event.currentTarget.value)
                   }
@@ -532,6 +542,11 @@ export default function CrmLeadCreateWorkspace({
                   inputMode="tel"
                   name="mobile"
                   aria-invalid={Boolean(errorFor("mobile"))}
+                  aria-describedby={
+                    errorFor("mobile")
+                      ? describedById("lead-mobile", "error")
+                      : undefined
+                  }
                   onChange={(event) =>
                     duplicateInput("mobile", event.currentTarget.value)
                   }

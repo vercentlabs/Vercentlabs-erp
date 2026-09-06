@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer";
 import { requestJson } from "@/shared/http/client-request";
-import { ActionButton, ErrorState, FormField } from "@/shared/design";
+import { ActionButton, describedById, ErrorState, FormField } from "@/shared/design";
 
 type Source = Record<string, unknown>;
 const value = (source: Source | null | undefined, key: string) =>
@@ -94,6 +94,9 @@ export default function LeadSourceFormDrawer({
             maxLength={120}
             defaultValue={value(source, "name")}
             aria-invalid={Boolean(error("name")) || undefined}
+            aria-describedby={
+              error("name") ? describedById("source-name", "error") : undefined
+            }
           />
         </FormField>
         <FormField
@@ -108,6 +111,10 @@ export default function LeadSourceFormDrawer({
             rows={4}
             maxLength={500}
             defaultValue={value(source, "description")}
+            aria-describedby={describedById(
+              "source-description",
+              error("description") ? "error" : "hint",
+            )}
           />
         </FormField>
         <div className="crm-source-form-grid">

@@ -8,6 +8,7 @@ import LeadWorkspaceDrawer from "@/modules/crm/components/lead-workspace-drawer"
 import { requestJson } from "@/shared/http/client-request";
 import {
   ActionButton,
+  describedById,
   ErrorState,
   FormField,
   FormSection,
@@ -132,6 +133,11 @@ export default function ContactFormDrawer({
               required
               maxLength={120}
               aria-invalid={Boolean(fieldError("firstName")) || undefined}
+              aria-describedby={
+                fieldError("firstName")
+                  ? describedById("contact-firstName", "error")
+                  : undefined
+              }
             />
           </FormField>
           <FormField label="Last name" htmlFor="contact-lastName">
@@ -190,6 +196,11 @@ export default function ContactFormDrawer({
                 defaultValue={value(contact, "email")}
                 maxLength={254}
                 aria-invalid={Boolean(fieldError("email")) || undefined}
+                aria-describedby={
+                  fieldError("email")
+                    ? describedById("contact-email", "error")
+                    : undefined
+                }
               />
             </FormField>
           </div>
@@ -206,6 +217,11 @@ export default function ContactFormDrawer({
               defaultValue={value(contact, "mobile")}
               maxLength={40}
               aria-invalid={Boolean(fieldError("mobile")) || undefined}
+              aria-describedby={
+                fieldError("mobile")
+                  ? describedById("contact-mobile", "error")
+                  : undefined
+              }
             />
           </FormField>
           <FormField
@@ -221,6 +237,11 @@ export default function ContactFormDrawer({
               defaultValue={value(contact, "phone")}
               maxLength={40}
               aria-invalid={Boolean(fieldError("phone")) || undefined}
+              aria-describedby={
+                fieldError("phone")
+                  ? describedById("contact-phone", "error")
+                  : undefined
+              }
             />
           </FormField>
         </FormSection>

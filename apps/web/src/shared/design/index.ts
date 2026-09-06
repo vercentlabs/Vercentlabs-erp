@@ -16,7 +16,7 @@ export {
   type DataGridColumn,
 } from "./enterprise-data-grid";
 export { FilterBar } from "./filter-bar";
-export { FormField } from "./form-field";
+export { FormField, describedById } from "./form-field";
 export { FormActions, FormSection } from "./form-section";
 export { MetricCard, type MetricTone } from "./metric-card";
 export { PageHeader } from "./page-header";
