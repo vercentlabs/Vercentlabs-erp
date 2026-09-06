@@ -6,6 +6,7 @@ import AppIcon from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
 import { tenantTransaction } from "@/core/db";
 import { salesContext } from "@/modules/sales";
+import { EnterpriseDataGrid, StatePanel, type DataGridColumn } from "@/shared/design";
 
 export const dynamic = "force-dynamic";
 
@@ -175,41 +176,33 @@ export default async function SalesReportsPage({
             </span>
           </header>
 
-          {rows.length ? (
-            <div className="table-scroll enterprise-table-frame">
-              <table className="data-table enterprise-data-table">
-                <thead>
-                  <tr>
-                    {columns.map((column) => (
-                      <th key={column}>{humanize(column)}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, index) => (
-                    <tr key={String(row.id || row.quotation_number || row.sales_order_number || index)}>
-                      {columns.map((column) => (
-                        <td key={column} data-label={humanize(column)}>
-                          {formatValue(column, row[column])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="module-empty-state report-empty-state">
-              <span className="module-empty-icon" aria-hidden="true">
-                <AppIcon name="sales" size={22} />
-              </span>
-              <strong>No report records yet</strong>
-              <p>
-                This report will populate as governed sales transactions move
-                through the workflow.
-              </p>
-            </div>
-          )}
+          {(() => {
+            const gridColumns: DataGridColumn<ReportRow>[] = columns.map(
+              (column) => ({
+                id: column,
+                header: humanize(column),
+                cell: (row) => formatValue(column, row[column]),
+              }),
+            );
+            return (
+              <EnterpriseDataGrid
+                caption={meta.title}
+                rows={rows}
+                rowKey={(row, index) =>
+                  String(
+                    row.id || row.quotation_number || row.sales_order_number || index,
+                  )
+                }
+                columns={gridColumns}
+                emptyState={
+                  <StatePanel
+                    title="No report records yet"
+                    description="This report will populate as governed sales transactions move through the workflow."
+                  />
+                }
+              />
+            );
+          })()}
         </section>
       </div>
     </div>

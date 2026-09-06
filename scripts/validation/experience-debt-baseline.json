@@ -281,7 +281,6 @@
     "apps/web/src/app/(app)/profile/page.tsx": 1,
     "apps/web/src/app/(app)/projects/[resource]/page.tsx": 1,
     "apps/web/src/app/(app)/quality/[resource]/page.tsx": 1,
-    "apps/web/src/app/(app)/sales/reports/page.tsx": 1,
     "apps/web/src/app/(app)/stock/[resource]/page.tsx": 1,
     "apps/web/src/app/(app)/support/[resource]/page.tsx": 1,
     "apps/web/src/core/components/audit-event-table.tsx": 1,
