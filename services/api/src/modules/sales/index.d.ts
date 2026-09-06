@@ -45,7 +45,7 @@ export function createFulfillmentRequest(client: SalesQueryClient, context: Sale
 export function createInvoiceRequest(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
 export function getSalesDashboard(client: SalesQueryClient, context: SalesContext): Promise<any>;
 export function getSalesReport(client: SalesQueryClient, context: SalesContext, key: string): Promise<any[]>;
-export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null): Promise<any>;
+export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null, partyId?: string | null): Promise<any>;
 
 
 export function listSalesPass1Operations(client: SalesQueryClient, context: SalesContext, options?: { kind?: string; limit?: number }): Promise<any[]>;

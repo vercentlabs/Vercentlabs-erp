@@ -941,8 +941,14 @@ export async function listQuotations(client, context, filters = {}) {
     values.push(context.activeCompanyId);
     where += ` AND quotation.company_id=$${values.length}`;
   }
+  const limit = Math.min(
+    500,
+    Math.max(1, Number.parseInt(filters.limit, 10) || 200),
+  );
+  const offset = Math.max(0, Number.parseInt(filters.offset, 10) || 0);
+  values.push(limit, offset);
   const result = await client.query(
-    `SELECT quotation.id,quotation.quotation_number,quotation.lifecycle_status,quotation.approval_status,quotation.acceptance_status,quotation.valid_until,quotation.updated_at,version.version_number,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name,quotation.owner_user_id FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${where} ORDER BY quotation.updated_at DESC LIMIT 200`,
+    `SELECT quotation.id,quotation.quotation_number,quotation.lifecycle_status,quotation.approval_status,quotation.acceptance_status,quotation.valid_until,quotation.updated_at,version.version_number,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name,quotation.owner_user_id FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${where} ORDER BY quotation.updated_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
   return result.rows.map((row) => redactMargin(row, context));
@@ -1568,8 +1574,14 @@ export async function listSalesOrders(client, context, filters = {}) {
     values.push(context.activeCompanyId);
     where += ` AND sales_order.company_id=$${values.length}`;
   }
+  const limit = Math.min(
+    500,
+    Math.max(1, Number.parseInt(filters.limit, 10) || 200),
+  );
+  const offset = Math.max(0, Number.parseInt(filters.offset, 10) || 0);
+  values.push(limit, offset);
   const result = await client.query(
-    `SELECT sales_order.id,sales_order.sales_order_number,sales_order.lifecycle_status,sales_order.approval_status,sales_order.credit_status,sales_order.fulfillment_status,sales_order.billing_status,sales_order.order_date,sales_order.requested_delivery_date,sales_order.updated_at,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${where} ORDER BY sales_order.updated_at DESC LIMIT 200`,
+    `SELECT sales_order.id,sales_order.sales_order_number,sales_order.lifecycle_status,sales_order.approval_status,sales_order.credit_status,sales_order.fulfillment_status,sales_order.billing_status,sales_order.order_date,sales_order.requested_delivery_date,sales_order.updated_at,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${where} ORDER BY sales_order.updated_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
   return result.rows.map((row) => redactMargin(row, context));
@@ -2198,7 +2210,12 @@ export async function getSalesReport(client, context, key) {
   return (await client.query(queries[key], params)).rows;
 }
 
-export async function getSalesOptions(client, context, opportunityId = null) {
+export async function getSalesOptions(
+  client,
+  context,
+  opportunityId = null,
+  partyId = null,
+) {
   requirePermission(context, "sales.view");
   // SECURITY: every one of these is an org-wide picker/lookup consumed while
   // creating or editing a quotation/order, so an unscoped query here leaks
@@ -2215,6 +2232,10 @@ export async function getSalesOptions(client, context, opportunityId = null) {
   const companyClause = (column = "company_id") =>
     companyScoped ? (companyId ? ` AND (${column} IS NULL OR ${column}=$2)` : " AND false") : "";
   const companyParams = companyScoped && companyId ? [companyId] : [];
+  // Contacts/addresses join across every customer in the org; once a
+  // specific customer is chosen this scopes to just its own records instead
+  // of fetching every customer's contacts/addresses on every load.
+  const partyFilterId = partyId ? uuid(partyId, "Customer") : null;
   const [
     companies,
     branches,
@@ -2239,25 +2260,29 @@ export async function getSalesOptions(client, context, opportunityId = null) {
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both')${companyClause()} ORDER BY display_name`,
+      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both')${companyClause()} ORDER BY display_name LIMIT 500`,
       [context.organizationId, ...companyParams],
     ),
     client.query(
       `SELECT contact.id,contact.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,contact.is_primary
          FROM tenant.contacts contact
          JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
-        WHERE contact.organization_id=$1 AND contact.status='active'${companyClause("party.company_id")} ORDER BY contact.is_primary DESC,contact.first_name`,
-      [context.organizationId, ...companyParams],
+        WHERE contact.organization_id=$1 AND contact.status='active'${companyClause("party.company_id")}${partyFilterId ? ` AND contact.party_id=$${2 + companyParams.length}` : ""} ORDER BY contact.is_primary DESC,contact.first_name LIMIT 500`,
+      partyFilterId
+        ? [context.organizationId, ...companyParams, partyFilterId]
+        : [context.organizationId, ...companyParams],
     ),
     client.query(
       `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.is_primary
          FROM tenant.addresses address
          JOIN tenant.business_parties party ON party.organization_id=address.organization_id AND party.id=address.party_id
-        WHERE address.organization_id=$1 AND address.status='active'${companyClause("party.company_id")} ORDER BY address.is_primary DESC,address.city`,
-      [context.organizationId, ...companyParams],
+        WHERE address.organization_id=$1 AND address.status='active'${companyClause("party.company_id")}${partyFilterId ? ` AND address.party_id=$${2 + companyParams.length}` : ""} ORDER BY address.is_primary DESC,address.city LIMIT 500`,
+      partyFilterId
+        ? [context.organizationId, ...companyParams, partyFilterId]
+        : [context.organizationId, ...companyParams],
     ),
     client.query(
-      `SELECT id,company_id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name`,
+      `SELECT id,company_id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 500`,
       [context.organizationId, ...companyParams],
     ),
     client.query(
@@ -2265,7 +2290,7 @@ export async function getSalesOptions(client, context, opportunityId = null) {
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name`,
+      `SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 500`,
       [context.organizationId, ...companyParams],
     ),
     client.query(
