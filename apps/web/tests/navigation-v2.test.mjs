@@ -99,7 +99,7 @@ test("navigation v2: rail brand keeps its design with deliberate spacing and typ
 
 test("navigation v2: the new CSS is loaded last after the existing ERP style layers", () => {
   const layout = read("apps/web/src/app/layout.tsx");
-  const oldIndex = layout.indexOf('import "./crm-product.css";');
+  const oldIndex = layout.indexOf('import "./crm-lead-suite-enterprise.css";');
   const newIndex = layout.indexOf('import "./navigation-v2.css";');
   assert.ok(oldIndex >= 0 && newIndex > oldIndex);
 });

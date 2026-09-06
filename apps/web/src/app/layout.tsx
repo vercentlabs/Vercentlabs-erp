@@ -7,7 +7,6 @@ import "./crm-extension.css";
 import "./billing-extension.css";
 import "./operator-workbench.css";
 import "./enterprise-modules.css";
-import "./crm-product.css";
 import "./crm-overview-redesign.css";
 import "./crm-lead-create.css";
 import "./crm-lead-suite-enterprise.css";

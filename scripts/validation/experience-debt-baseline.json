@@ -29,7 +29,6 @@
     "apps/web/src/app/crm-lead-suite-enterprise.css",
     "apps/web/src/app/crm-meetings.css",
     "apps/web/src/app/crm-overview-redesign.css",
-    "apps/web/src/app/crm-product.css",
     "apps/web/src/app/crm-sales-stages.css",
     "apps/web/src/app/enterprise-modules.css",
     "apps/web/src/app/globals.css",
@@ -46,7 +45,6 @@
     "./billing-extension.css",
     "./operator-workbench.css",
     "./enterprise-modules.css",
-    "./crm-product.css",
     "./crm-overview-redesign.css",
     "./crm-lead-create.css",
     "./crm-lead-suite-enterprise.css",
@@ -76,7 +74,6 @@
     "apps/web/src/app/crm-lead-suite-enterprise.css": 0,
     "apps/web/src/app/crm-meetings.css": 0,
     "apps/web/src/app/crm-overview-redesign.css": 0,
-    "apps/web/src/app/crm-product.css": 0,
     "apps/web/src/app/crm-sales-stages.css": 0,
     "apps/web/src/app/enterprise-modules.css": 1,
     "apps/web/src/app/globals.css": 1,
@@ -178,12 +175,6 @@
       "(max-width:900px)",
       "(prefers-reduced-motion:reduce)"
     ],
-    "apps/web/src/app/crm-product.css": [
-      "(max-width:1100px)",
-      "(max-width:720px)",
-      "(max-width:960px)",
-      "(min-width:1101px)"
-    ],
     "apps/web/src/app/crm-sales-stages.css": [
       "(max-width:640px)",
       "(max-width:980px)",
@@ -260,7 +251,6 @@
     "apps/web/src/app/crm-lead-suite-enterprise.css": 407,
     "apps/web/src/app/crm-meetings.css": 15,
     "apps/web/src/app/crm-overview-redesign.css": 53,
-    "apps/web/src/app/crm-product.css": 5,
     "apps/web/src/app/crm-sales-stages.css": 1,
     "apps/web/src/app/enterprise-modules.css": 75,
     "apps/web/src/app/globals.css": 241,
