@@ -76,7 +76,7 @@ function syncClient({
       if (sql.includes("FROM tenant.crm_pipeline_stages") && sql.includes("is_won=false"))
         return { rows: hasReopenStage ? [{ id: openStageId }] : [] };
       if (sql.includes("FROM tenant.crm_lost_reasons"))
-        return { rows: hasWonReason ? [{ id: wonReasonId }] : [] };
+        return { rows: hasWonReason ? [{ id: wonReasonId, name: "Other", outcome_type: "won" }] : [] };
       if (sql.includes("FROM tenant.crm_opportunities record") && sql.includes("FOR UPDATE")) {
         return {
           rows: [
