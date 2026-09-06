@@ -1163,6 +1163,7 @@ const resources = Object.freeze({
       defaultValue: "default_value",
       validation: "validation",
       visibleToRoles: "visible_to_roles",
+      dependsOnFieldKey: "depends_on_field_key",
       sequence: "sequence",
       status: "status",
     },
@@ -2195,6 +2196,35 @@ function valueMatchesCustomField(field, value) {
   return typeof value === "string";
 }
 
+// F028: rolling out `required: true` on a field that already has active
+// records without a value for it would make every one of those records fail
+// on its very next unrelated edit, with no warning at the point the field
+// was actually changed. Requires an explicit confirmation once existing gaps
+// are known, rather than silently blocking or silently allowing it.
+async function assertCustomFieldRequiredRolloutSafe(
+  client,
+  context,
+  objectDefinitionId,
+  fieldKey,
+  confirmed,
+) {
+  if (confirmed) return;
+  const gap = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.crm_custom_records
+      WHERE organization_id=$1 AND object_definition_id=$2 AND status='active'
+        AND (data->>$3 IS NULL OR data->>$3 = '')`,
+    [context.organizationId, objectDefinitionId, fieldKey],
+  );
+  const missing = Number(gap.rows[0]?.count || 0);
+  if (missing > 0)
+    throw new CrmError(
+      409,
+      `${missing} existing record(s) have no value for "${fieldKey}". Confirm to make it required anyway.`,
+      "CRM_CUSTOM_FIELD_REQUIRED_ROLLOUT_GAP",
+      { missing, fieldKey },
+    );
+}
+
 async function validateCustomRecord(
   client,
   context,
@@ -2218,7 +2248,7 @@ async function validateCustomRecord(
     throw new CrmError(400, "A company is required for this custom object.");
 
   const fieldsResult = await client.query(
-    `SELECT field_key, data_type, required, unique_value, options, validation, visible_to_roles FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,
+    `SELECT field_key, data_type, required, unique_value, options, validation, visible_to_roles, depends_on_field_key FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,
     [context.organizationId, prepared.objectDefinitionId],
   );
   const knownFields = new Set(
@@ -2272,18 +2302,35 @@ async function validateCustomRecord(
         `${field.field_key} has an invalid ${field.data_type} value.`,
         "CRM_CUSTOM_FIELD_TYPE_INVALID",
       );
-    if (
-      ["select", "multi_select"].includes(field.data_type) &&
-      Array.isArray(field.options) &&
-      field.options.length
-    ) {
-      const selected = Array.isArray(value) ? value : [value];
-      if (selected.some((item) => !field.options.includes(item)))
+    if (["select", "multi_select"].includes(field.data_type)) {
+      // F028: when depends_on_field_key is set, `options` is a
+      // {parentValue: [childValues]} map rather than a flat array — the
+      // valid choices for this field narrow to whatever the parent field's
+      // current value in this same record allows. An unset/unrecognized
+      // parent value has no allowed options, so any non-empty child value
+      // is rejected until the parent is set.
+      const dependentOptions = field.depends_on_field_key
+        ? (isPlainObject(field.options) ? field.options : {})[
+            prepared.data[field.depends_on_field_key]
+          ]
+        : field.options;
+      if (Array.isArray(dependentOptions) && dependentOptions.length) {
+        const selected = Array.isArray(value) ? value : [value];
+        if (selected.some((item) => !dependentOptions.includes(item)))
+          throw new CrmError(
+            400,
+            field.depends_on_field_key
+              ? `${field.field_key} does not have a valid option for the selected ${field.depends_on_field_key}.`
+              : `${field.field_key} contains an unsupported option.`,
+            "CRM_CUSTOM_FIELD_OPTION_INVALID",
+          );
+      } else if (field.depends_on_field_key && !empty) {
         throw new CrmError(
           400,
-          `${field.field_key} contains an unsupported option.`,
+          `${field.field_key} does not have a valid option for the selected ${field.depends_on_field_key}.`,
           "CRM_CUSTOM_FIELD_OPTION_INVALID",
         );
+      }
     }
     const validation = isPlainObject(field.validation) ? field.validation : {};
     if (typeof value === "string" && validation.pattern) {
@@ -2756,6 +2803,15 @@ export async function createCrmRecord(client, context, resource, input) {
     definition.fields.branchId
   )
     prepared.branchId = context.activeBranchId;
+  if (resource === "custom-field-definitions" && prepared.required === true) {
+    await assertCustomFieldRequiredRolloutSafe(
+      client,
+      context,
+      prepared.objectDefinitionId,
+      prepared.fieldKey,
+      Boolean(input.confirmRequiredRollout),
+    );
+  }
   await assertGenericLeadLinkedTarget(client, context, resource, prepared);
   let leadDuplicateEvaluation = null;
   if (resource === "leads") {
@@ -3067,6 +3123,19 @@ export async function updateCrmRecord(
       prepared,
       id,
       callerSuppliedData ? new Set(Object.keys(prepared.data)) : new Set(),
+    );
+  }
+  if (
+    resource === "custom-field-definitions" &&
+    prepared.required === true &&
+    before.required !== true
+  ) {
+    await assertCustomFieldRequiredRolloutSafe(
+      client,
+      context,
+      before.objectDefinitionId,
+      before.fieldKey,
+      Boolean(input.confirmRequiredRollout),
     );
   }
   if (

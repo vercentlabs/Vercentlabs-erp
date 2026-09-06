@@ -3056,7 +3056,16 @@ export const crmDefinitions: Record<CrmResourceKey, CrmDefinition> = {
       { name: "required", label: "Required", type: "checkbox" },
       { name: "uniqueValue", label: "Unique", type: "checkbox" },
       { name: "indexed", label: "Indexed", type: "checkbox" },
-      { name: "options", label: "Options JSON", type: "textarea" },
+      {
+        name: "dependsOnFieldKey",
+        label: "Depends on field key (select/multi_select only)",
+        type: "text",
+      },
+      {
+        name: "options",
+        label: 'Options JSON — flat array, or {"parentValue":["childOption",...]} if "Depends on field key" is set',
+        type: "textarea",
+      },
       { name: "defaultValue", label: "Default JSON", type: "textarea" },
       { name: "validation", label: "Validation JSON", type: "textarea" },
       { name: "sequence", label: "Sequence", type: "number" },

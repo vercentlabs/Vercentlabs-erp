@@ -38,6 +38,7 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F019 Activity timeline: added `getLeadTimelinePage` + `GET /api/crm/leads/[id]/timeline` so activities/communications can page past their initial 200-row cap; correction along the way — the audit's originally-cited `getLeadTimeline` function turned out to be dead code, the real path is `getLeadDetailData`.
 - F029 Bulk actions: added job cancellation (migration `079` adds `'cancelled'` to `background_jobs.status`, exactly the additive migration 052's own comment anticipated) and per-row retry (`retryFailedLeadBulkJobItems` re-queues only the previously-failed rows of a finished job, not the whole selection).
 - F008 Duplicate detection: added a "dismiss" outcome distinct from override — `dismissLeadDuplicateMatch` marks a *probable* candidate as reviewed-and-not-a-duplicate (never an exact match, which still requires the separate per-write override), reusing the existing immutable `crm_lead_duplicate_overrides` ledger with a new `operation='dismiss'` value.
+- F028 Custom fields: added dependent-option picklists (`depends_on_field_key`, migration `081`; `options` becomes a `{parentValue:[childValues]}` map for a dependent field) and a required-field-rollout safety check (`assertCustomFieldRequiredRolloutSafe` blocks marking a field required while active records lack a value for it, unless explicitly confirmed).
 
 **Correction, not a fix needed:** F008 Duplicate detection's "merge is unreachable" finding was wrong (twice) — the merge workflow (backend + route + UI + confirmation) is fully built and working. Root cause: bash `**` globs silently fail to recurse into `[id]` route directories in this environment without `shopt -s globstar`; several existence checks this session used that pattern. Re-verified with the Grep tool: F009/F013/F003-reactivation/F016-reminders/F029-cancellation all hold up; F008 was the only false negative found. F008's remaining gaps (dismiss now fixed, see Fixed list above): matching rules hardcoded, no cross-object (Lead vs Contact/Account) matching, no field-conflict reconciliation on merge.
 
@@ -51,7 +52,6 @@ All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with ci
 - F014 + F016: no confirmed reminder-notification delivery mechanism anywhere (cross-feature, worth one dedicated investigation) — re-verified with Grep tool, holds up.
 - F021 Import/export: no dry-run, no upsert policy, no async/resumable path over 1,000 rows.
 - F025 Sales forecast: no accuracy/backtesting.
-- F028 Custom fields: no dependent-option picklists, no required-field-rollout safety check.
 - Module-wide: AI-adjacent dossier requirements (AI-001) are consistently unbuilt — this is a real, consistent scope gap, not a bug.
 
 **Standing, not feature-specific:** no live E2E was run (blocked earlier on missing auth/seed fixtures — still unresolved), no human UAT (cannot be performed by the AI — needs the owner), no load/perf testing exists anywhere in CRM.
