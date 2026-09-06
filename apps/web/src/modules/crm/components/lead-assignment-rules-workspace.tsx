@@ -7,6 +7,13 @@ import { requestJson } from "@/shared/http/client-request";
 import LeadAssigneeCombobox, {
   type LeadAssigneeOption,
 } from "./lead-assignee-combobox";
+import {
+  ActionButton,
+  EnterpriseDataGrid,
+  StatePanel,
+  StatusBadge,
+  type DataGridColumn,
+} from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Source = { id: string; name: string };
@@ -276,9 +283,9 @@ export default function LeadAssignmentRulesWorkspace({
           <h1>Assignment rules</h1>
           <p>Route new Leads with simple, ordered ownership rules.</p>
         </div>
-        <button className="primary-button" onClick={beginCreate} type="button">
+        <ActionButton tone="primary" onClick={beginCreate} type="button">
           New rule
-        </button>
+        </ActionButton>
       </header>
       {message ? (
         <p className="notice" role="status">
@@ -296,64 +303,83 @@ export default function LeadAssignmentRulesWorkspace({
               <h2 id="assignment-rule-list-title">First eligible match wins</h2>
             </div>
           </div>
-          <div className="crm-assignment-rule-list">
-            {policies.map((policy) => (
-              <article
-                className={policy.status === "active" ? "" : "is-inactive"}
-                key={String(policy.id)}
-              >
-                <div className="crm-assignment-rule-priority">
-                  {String(policy.sequence)}
-                </div>
-                <div>
-                  <strong>{String(policy.name)}</strong>
-                  <span>
-                    {Object.keys((policy.criteria as Row) || {}).length
-                      ? Object.entries((policy.criteria as Row) || {})
-                          .map(([key, value]) => `${key} = ${String(value)}`)
-                          .join(", ")
-                      : "Any lead"}
-                  </span>
-                  <small>
-                    {policy.mode === "fixed"
-                      ? `Assign to ${String(policy.assignee_name || "Unavailable assignee")}`
-                      : `Round robin · ${Array.isArray(policy.member_user_ids) ? policy.member_user_ids.length : 0} members`}
-                  </small>
-                </div>
-                <span
-                  className={`status-badge ${policy.status === "active" ? "success" : "neutral"}`}
-                >
-                  {String(policy.status)}
-                </span>
-                <div className="crm-assignment-rule-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => beginEdit(policy)}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="link-button"
-                    disabled={pending === String(policy.id)}
-                    onClick={() => void changeStatus(policy)}
-                    type="button"
-                  >
-                    {policy.status === "active" ? "Deactivate" : "Activate"}
-                  </button>
-                </div>
-              </article>
-            ))}
-            {!policies.length ? (
-              <div className="crm-suite-empty">
-                <strong>No assignment rules yet.</strong>
-                <p>
-                  New Leads remain unassigned unless an authorized creator
-                  chooses an owner.
-                </p>
-              </div>
-            ) : null}
-          </div>
+          {(() => {
+            const columns: DataGridColumn<Row>[] = [
+              {
+                id: "priority",
+                header: "Priority",
+                width: "70px",
+                cell: (policy) => (
+                  <div className="crm-assignment-rule-priority">
+                    {String(policy.sequence)}
+                  </div>
+                ),
+              },
+              {
+                id: "rule",
+                header: "Rule",
+                cell: (policy) => (
+                  <div>
+                    <strong>{String(policy.name)}</strong>
+                    <span>
+                      {Object.keys((policy.criteria as Row) || {}).length
+                        ? Object.entries((policy.criteria as Row) || {})
+                            .map(([key, value]) => `${key} = ${String(value)}`)
+                            .join(", ")
+                        : "Any lead"}
+                    </span>
+                    <small>
+                      {policy.mode === "fixed"
+                        ? `Assign to ${String(policy.assignee_name || "Unavailable assignee")}`
+                        : `Round robin · ${Array.isArray(policy.member_user_ids) ? policy.member_user_ids.length : 0} members`}
+                    </small>
+                  </div>
+                ),
+              },
+              {
+                id: "status",
+                header: "Status",
+                cell: (policy) => (
+                  <StatusBadge tone={policy.status === "active" ? "success" : "neutral"}>
+                    {String(policy.status)}
+                  </StatusBadge>
+                ),
+              },
+              {
+                id: "actions",
+                header: "Actions",
+                cell: (policy) => (
+                  <div className="crm-assignment-rule-actions">
+                    <ActionButton onClick={() => beginEdit(policy)} type="button">
+                      Edit
+                    </ActionButton>
+                    <ActionButton
+                      tone="quiet"
+                      disabled={pending === String(policy.id)}
+                      onClick={() => void changeStatus(policy)}
+                      type="button"
+                    >
+                      {policy.status === "active" ? "Deactivate" : "Activate"}
+                    </ActionButton>
+                  </div>
+                ),
+              },
+            ];
+            return (
+              <EnterpriseDataGrid
+                caption="Assignment rules"
+                rows={policies}
+                rowKey={(policy) => String(policy.id)}
+                columns={columns}
+                emptyState={
+                  <StatePanel
+                    title="No assignment rules yet."
+                    description="New Leads remain unassigned unless an authorized creator chooses an owner."
+                  />
+                }
+              />
+            );
+          })()}
         </section>
 
         {showingForm ? (
