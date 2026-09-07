@@ -252,6 +252,36 @@
   border-radius: var(--radius-xl);
   background: var(--surface);
 }
+/* The opportunity stage-change/reopen/probability panels reuse
+   .crm-action-panel for its chrome (border, padding, background) but hold a
+   vertically stacked form (heading, field grid, buttons, help text) rather
+   than the simple info+control row .crm-action-panel was built for (see
+   the pipeline-board pipeline selector for that original shape). Without
+   this override, every child of the panel becomes a row-flex item above the
+   760px breakpoint and the heading column gets squeezed down to
+   single-character line wrapping. */
+.crm-action-panel.crm-opportunity-stage-action,
+.crm-action-panel.crm-opportunity-probability-action {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.crm-action-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+.crm-opportunity-stage-action__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+.crm-opportunity-stage-action__note {
+  grid-column: 1 / -1;
+}
 .crm-action-panel details {
   min-width: min(100%, 420px);
 }

@@ -117,9 +117,20 @@ test("Lead list, create and detail have purpose-built tablet and phone layouts",
   const create = read("apps/web/src/app/crm-lead-create.css");
 
   assert.match(suite, /Lead workspace responsive system/);
+  // The desktop-table vs. mobile-card SWITCH is now owned entirely by
+  // EnterpriseDataGrid's own internal 767px breakpoint (see
+  // apps/web/src/shared/design/experience-kernel.module.css's
+  // .dataGridWithMobileCards rules) - this page's own 900px query no longer
+  // (and must never again) force-hide .crm-leads-table-scroll, since that
+  // class now names the *entire* EnterpriseDataGrid wrapper (both the table
+  // viewport and the mobile card list live inside it), not just the old
+  // bespoke table wrapper. Hiding it here previously made the whole lead
+  // list disappear between roughly 767-1080px width - a real bug found and
+  // fixed by actually using the app in a browser, not just reading the code.
+  assert.doesNotMatch(suite, /\.crm-leads-table-scroll\s*\{\s*display: none/);
   assert.match(
     suite,
-    /@media \(max-width: 900px\)[\s\S]*?\.crm-leads-table-scroll\s*\{\s*display: none;[\s\S]*?\.crm-leads-mobile-list\s*\{[\s\S]*?grid-template-columns: repeat\(2/,
+    /@media \(max-width: 900px\)[\s\S]*?\.crm-leads-mobile-list\s*\{[\s\S]*?grid-template-columns: repeat\(2/,
   );
   assert.match(
     suite,

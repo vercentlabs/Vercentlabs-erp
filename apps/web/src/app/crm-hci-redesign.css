@@ -346,9 +346,16 @@
     width: 100%;
   }
 
-  .crm-record-metrics,
-  .crm-forecast-metrics {
+  .crm-record-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Forecast always renders exactly 3 tiles, which never divides evenly
+     into 2 columns — a 2-column layout leaves a stray empty grid cell
+     that exposes the divider background as a phantom empty tile. Stack
+     to 1 column instead until there's room for all 3 side by side. */
+  .crm-forecast-metrics {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .crm-record-columns,
@@ -373,7 +380,6 @@
   }
 
   .crm-record-metrics,
-  .crm-forecast-metrics,
   .crm-lead-detail-facts {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }

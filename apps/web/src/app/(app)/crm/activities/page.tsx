@@ -53,6 +53,16 @@ function activityUrl({
 
 const title = (value: string) => value.replace(/^./, (character) => character.toUpperCase());
 
+const TYPE_LABELS: Partial<Record<ActivityType, string>> = {
+  whatsapp: "WhatsApp",
+  sms: "SMS",
+};
+
+function typeLabel(type: ActivityType) {
+  if (type === "all") return "All activity";
+  return TYPE_LABELS[type] || `${title(type)}s`;
+}
+
 export default async function CrmActivitiesPage({
   searchParams,
 }: {
@@ -134,7 +144,7 @@ export default async function CrmActivitiesPage({
         label="Activity type"
         items={TYPES.map((type) => ({
           href: activityUrl({ activityType: type, due, search, status, direction: type === "call" ? direction : "all" }),
-          label: type === "all" ? "All activity" : `${title(type)}s`,
+          label: typeLabel(type),
           current: activityType === type,
         }))}
       />

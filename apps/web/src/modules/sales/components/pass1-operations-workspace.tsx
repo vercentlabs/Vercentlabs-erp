@@ -231,7 +231,7 @@ export default function SalesPass1OperationsWorkspace() {
             ))}
           </select>
         </FormField>
-        <div className="form-grid">
+        <div className="form-grid two">
           {![
             "create-commission-rule",
             "upsert-price-list-item",
