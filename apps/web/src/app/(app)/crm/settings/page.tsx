@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import AppIcon from "@/shared/components/app-icon";
+import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
 import { PageHeader, SectionHeader, StatusBadge } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -15,46 +15,46 @@ const groups = [
     title: "Lead management",
     description: "Control where leads come from, who receives them and how scoring supports qualification.",
     items: [
-      ["Lead sources", "sources", "Define the source catalogue used on every lead."],
-      ["Lead lifecycle", "lead-lifecycle", "Order the governed working stages used by Leads and Kanban."],
-      ["Assignment rules", "assignment-rules", "Route new leads to the right owner or team."],
-      ["Lead scoring", "scoring-rules", "Create explainable rules that contribute to the lead score."],
-      ["Qualification criteria", "qualification-criteria", "Configure the readiness checklist required before a lead can be marked qualified."],
+      ["Lead sources", "sources", "Define the source catalogue used on every lead.", "import"],
+      ["Lead lifecycle", "lead-lifecycle", "Order the governed working stages used by Leads and Kanban.", "audit"],
+      ["Assignment rules", "assignment-rules", "Route new leads to the right owner or team.", "teams"],
+      ["Lead scoring", "scoring-rules", "Create explainable rules that contribute to the lead score.", "sparkles"],
+      ["Qualification criteria", "qualification-criteria", "Configure the readiness checklist required before a lead can be marked qualified.", "check"],
     ],
   },
   {
     title: "Pipeline",
     description: "Configure the sales process without creating parallel revenue-operations workspaces.",
     items: [
-      ["Pipelines", "pipelines", "Maintain the opportunity pipeline used by the sales team."],
-      ["Sales stages", "stages", "Order stages, probabilities and won/lost terminal states."],
-      ["Won / lost reasons", "lost-reasons", "Maintain governed outcome reasons captured when deals close."],
+      ["Pipelines", "pipelines", "Maintain the opportunity pipeline used by the sales team.", "sales"],
+      ["Sales stages", "stages", "Order stages, probabilities and won/lost terminal states.", "modules"],
+      ["Won / lost reasons", "lost-reasons", "Maintain governed outcome reasons captured when deals close.", "check"],
     ],
   },
   {
     title: "Teams & territories",
     description: "Define ownership structures used by CRM assignment and reporting.",
     items: [
-      ["Sales teams", "sales-teams", "Create sales teams and their operating scope."],
-      ["Team members", "sales-team-members", "Maintain team membership and responsibility."],
-      ["Territories", "territories", "Define geographic or commercial territories."],
-      ["Territory assignments", "territory-assignments", "Connect users and teams to territories."],
+      ["Sales teams", "sales-teams", "Create sales teams and their operating scope.", "teams"],
+      ["Team members", "sales-team-members", "Maintain team membership and responsibility.", "users"],
+      ["Territories", "territories", "Define geographic or commercial territories.", "branches"],
+      ["Territory assignments", "territory-assignments", "Connect users and teams to territories.", "roles"],
     ],
   },
   {
     title: "Customization",
     description: "Keep the CRM language flexible without introducing custom-object complexity outside F001–F030.",
     items: [
-      ["Tags", "tags", "Maintain reusable tags for fast lead classification."],
-      ["Custom objects", "custom-object-definitions", "Define tenant-specific record types beyond the standard F001–F030 set."],
-      ["Custom fields", "custom-field-definitions", "Add typed, validated, optionally role-restricted fields to a custom object."],
-      ["Custom records", "custom-records", "Browse and manage records stored against a custom object definition."],
+      ["Tags", "tags", "Maintain reusable tags for fast lead classification.", "numbering"],
+      ["Custom objects", "custom-object-definitions", "Define tenant-specific record types beyond the standard F001–F030 set.", "modules"],
+      ["Custom fields", "custom-field-definitions", "Add typed, validated, optionally role-restricted fields to a custom object.", "settings"],
+      ["Custom records", "custom-records", "Browse and manage records stored against a custom object definition.", "search"],
     ],
   },
 ] as const satisfies ReadonlyArray<{
   title: string;
   description: string;
-  items: ReadonlyArray<readonly [string, CrmResourceKey | "lead-lifecycle", string]>;
+  items: ReadonlyArray<readonly [string, CrmResourceKey | "lead-lifecycle", string, AppIconName]>;
 }>;
 
 export default async function CrmSettingsPage() {
@@ -97,10 +97,10 @@ export default async function CrmSettingsPage() {
               description={group.description}
             />
             <div className="crm-setup-grid">
-              {group.items.map(([label, key, description]) => (
+              {group.items.map(([label, key, description, icon]) => (
                 <Link href={`/crm/${key}`} key={key}>
                   <span className="crm-setup-card__icon" aria-hidden="true">
-                    <AppIcon name="crm" size={20} />
+                    <AppIcon name={icon} size={20} />
                   </span>
                   <span className="crm-setup-card__copy">
                     <strong>{label}</strong>

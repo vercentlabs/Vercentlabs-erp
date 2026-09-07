@@ -221,6 +221,57 @@ export default function SalesStagesWorkspace({
       ) : (
         <>
           {(() => {
+            const actionsFor = (stage: Stage, index: number) => {
+              const terminal = stage.stageType !== "open";
+              const previous = activeStages[index - 1];
+              const next = activeStages[index + 1];
+              return (
+                <>
+                  <button
+                    className="icon-button"
+                    aria-label={`Move ${stage.name} earlier`}
+                    disabled={
+                      !previous ||
+                      terminal !== (previous.stageType !== "open") ||
+                      pending.startsWith("order:")
+                    }
+                    type="button"
+                    onClick={() => void move(stage, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label={`Move ${stage.name} later`}
+                    disabled={
+                      !next ||
+                      terminal !== (next.stageType !== "open") ||
+                      pending.startsWith("order:")
+                    }
+                    type="button"
+                    onClick={() => void move(stage, 1)}
+                  >
+                    ↓
+                  </button>
+                  <ActionButton type="button" onClick={() => openEditor(stage)}>
+                    Edit
+                  </ActionButton>
+                  <ActionButton
+                    tone="quiet"
+                    disabled={pending === stage.id || stage.openOpportunityCount > 0}
+                    title={
+                      stage.openOpportunityCount > 0
+                        ? "Move open Opportunities before deactivating this stage."
+                        : undefined
+                    }
+                    type="button"
+                    onClick={() => void setActive(stage, false)}
+                  >
+                    Deactivate
+                  </ActionButton>
+                </>
+              );
+            };
             const columns: DataGridColumn<Stage>[] = [
               {
                 id: "order",
@@ -283,57 +334,9 @@ export default function SalesStagesWorkspace({
               {
                 id: "actions",
                 header: "Actions",
-                cell: (stage, index) => {
-                  const terminal = stage.stageType !== "open";
-                  const previous = activeStages[index - 1];
-                  const next = activeStages[index + 1];
-                  return (
-                    <div className="crm-sales-stages-actions">
-                      <button
-                        className="icon-button"
-                        aria-label={`Move ${stage.name} earlier`}
-                        disabled={
-                          !previous ||
-                          terminal !== (previous.stageType !== "open") ||
-                          pending.startsWith("order:")
-                        }
-                        type="button"
-                        onClick={() => void move(stage, -1)}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`Move ${stage.name} later`}
-                        disabled={
-                          !next ||
-                          terminal !== (next.stageType !== "open") ||
-                          pending.startsWith("order:")
-                        }
-                        type="button"
-                        onClick={() => void move(stage, 1)}
-                      >
-                        ↓
-                      </button>
-                      <ActionButton type="button" onClick={() => openEditor(stage)}>
-                        Edit
-                      </ActionButton>
-                      <ActionButton
-                        tone="quiet"
-                        disabled={pending === stage.id || stage.openOpportunityCount > 0}
-                        title={
-                          stage.openOpportunityCount > 0
-                            ? "Move open Opportunities before deactivating this stage."
-                            : undefined
-                        }
-                        type="button"
-                        onClick={() => void setActive(stage, false)}
-                      >
-                        Deactivate
-                      </ActionButton>
-                    </div>
-                  );
-                },
+                cell: (stage, index) => (
+                  <div className="crm-sales-stages-actions">{actionsFor(stage, index)}</div>
+                ),
               },
             ];
             return (
@@ -342,6 +345,42 @@ export default function SalesStagesWorkspace({
                 rows={activeStages}
                 rowKey={(stage) => stage.id}
                 columns={columns}
+                renderMobileCard={(stage, index) => (
+                  <article className="crm-sales-stages-card">
+                    <header>
+                      <span className="crm-sales-stages-order">{String(index + 1).padStart(2, "0")}</span>
+                      <StatusBadge
+                        tone={
+                          stage.stageType === "won"
+                            ? "success"
+                            : stage.stageType === "lost"
+                              ? "danger"
+                              : "neutral"
+                        }
+                      >
+                        {typeLabel(stage.stageType)}
+                      </StatusBadge>
+                    </header>
+                    <div className="crm-sales-stages-copy">
+                      <strong>{stage.name}</strong>
+                      <small>
+                        {stage.code} · {stage.forecastCategory.replaceAll("_", " ")}
+                        {stage.staleAfterDays ? ` · stale after ${stage.staleAfterDays}d` : ""}
+                      </small>
+                    </div>
+                    <dl className="crm-sales-stages-card__metrics">
+                      <div>
+                        <dt>Probability</dt>
+                        <dd>{Number(stage.probability).toFixed(Number(stage.probability) % 1 ? 2 : 0)}%</dd>
+                      </div>
+                      <div>
+                        <dt>Usage</dt>
+                        <dd>{stage.openOpportunityCount} open · {stage.opportunityCount} retained</dd>
+                      </div>
+                    </dl>
+                    <footer className="crm-sales-stages-actions">{actionsFor(stage, index)}</footer>
+                  </article>
+                )}
               />
             );
           })()}

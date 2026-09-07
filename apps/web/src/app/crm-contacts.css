@@ -601,6 +601,11 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .crm-contact-archive-dialog > div {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   .crm-contact-pagination {
     grid-template-columns: 1fr 1fr;
   }

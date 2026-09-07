@@ -95,6 +95,32 @@ export default function LeadLifecycleWorkspace({ rows }: { rows: Stage[] }) {
       {message ? <p className="notice" role="status">{message}</p> : null}
 
       {(() => {
+        const actions = (stage: Stage) => (
+          <>
+            <ActionButton type="button" onClick={() => setEditing(stage)}>
+              Edit
+            </ActionButton>
+            {stage.status === "active" ? (
+              <ActionButton
+                tone="quiet"
+                disabled={stage.isInitial || pending === stage.id}
+                type="button"
+                onClick={() => void setActive(stage, false)}
+              >
+                Deactivate
+              </ActionButton>
+            ) : (
+              <ActionButton
+                tone="quiet"
+                disabled={pending === stage.id}
+                type="button"
+                onClick={() => void setActive(stage, true)}
+              >
+                Reactivate
+              </ActionButton>
+            )}
+          </>
+        );
         const columns: DataGridColumn<Stage>[] = [
           {
             id: "order",
@@ -138,32 +164,7 @@ export default function LeadLifecycleWorkspace({ rows }: { rows: Stage[] }) {
           {
             id: "actions",
             header: "Actions",
-            cell: (stage) => (
-              <div className="crm-lifecycle-actions">
-                <ActionButton type="button" onClick={() => setEditing(stage)}>
-                  Edit
-                </ActionButton>
-                {stage.status === "active" ? (
-                  <ActionButton
-                    tone="quiet"
-                    disabled={stage.isInitial || pending === stage.id}
-                    type="button"
-                    onClick={() => void setActive(stage, false)}
-                  >
-                    Deactivate
-                  </ActionButton>
-                ) : (
-                  <ActionButton
-                    tone="quiet"
-                    disabled={pending === stage.id}
-                    type="button"
-                    onClick={() => void setActive(stage, true)}
-                  >
-                    Reactivate
-                  </ActionButton>
-                )}
-              </div>
-            ),
+            cell: (stage) => <div className="crm-lifecycle-actions">{actions(stage)}</div>,
           },
         ];
         return (
@@ -172,6 +173,27 @@ export default function LeadLifecycleWorkspace({ rows }: { rows: Stage[] }) {
             rows={rows}
             rowKey={(stage) => stage.id}
             columns={columns}
+            renderMobileCard={(stage, index) => (
+              <article className="crm-lifecycle-card">
+                <header>
+                  <span className="crm-lifecycle-order">{String(index + 1).padStart(2, "0")}</span>
+                  <StatusBadge tone={stage.status === "active" ? "success" : "neutral"}>
+                    {stage.status}
+                  </StatusBadge>
+                </header>
+                <div className="crm-lifecycle-stage-copy">
+                  <strong>{stage.name}</strong>
+                  <span>{stage.description || "No description"}</span>
+                  <small>
+                    {stage.code}
+                    {stage.isInitial ? " · Initial stage" : ""}
+                    {stage.isSystem ? " · System" : ""}
+                  </small>
+                </div>
+                <p className="crm-lifecycle-card__leads">{stage.leadCount} Leads</p>
+                <footer className="crm-lifecycle-actions">{actions(stage)}</footer>
+              </article>
+            )}
           />
         );
       })()}
