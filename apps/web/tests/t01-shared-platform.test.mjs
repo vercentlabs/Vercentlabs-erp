@@ -74,7 +74,7 @@ const evidence = {
     const importRoute = read("apps/web/src/app/api/business-data/[resource]/import/route.ts");
     assert.match(importRoute, /Idempotency-Key|idempotency-key/);
     assert.match(importRoute, /imports_rows_monthly/);
-    assert.match(read("apps/web/src/modules/crm/components/leads-workspace.tsx"), /idempotency/i);
+    assert.match(read("apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx"), /idempotency/i);
   },
   SP024: () => {
     assert.match(migration, /CREATE TABLE IF NOT EXISTS api_keys/);

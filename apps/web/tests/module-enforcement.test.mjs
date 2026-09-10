@@ -134,13 +134,12 @@ for (const [dir, moduleId, expectedFileCount] of groupC) {
 }
 
 // ---------------------------------------------------------------------
-// CRM — no single existing funnel (91 route.ts files, only ~18 shared a
-// helper). Fixed via an async crmApiContext() wrapper around the
-// pre-existing sync crmContext(), migrated at every API-layer call site.
+// CRM — entitlement is centralized in the capability-owned request context.
+// The root CRM module is intentionally only a stable re-export boundary.
 // ---------------------------------------------------------------------
 
-test("crm: crmApiContext wraps crmContext with assertModuleAccessible(\"crm\") and is exported alongside the untouched sync crmContext", () => {
-  const source = read("apps/web/src/modules/crm/index.ts");
+test("crm: capability request context wraps crmContext with assertModuleAccessible(\"crm\")", () => {
+  const source = read("apps/web/src/modules/crm/crm-data-operations-and-customization/request-context.ts");
   assert.match(source, /export function crmContext\(session: SessionContext\): CrmContext/);
   assert.match(source, /export async function crmApiContext\(/);
   assert.match(
@@ -175,10 +174,20 @@ test("crm: the approval-command registry's CRM mutations (opportunity stage chan
   assert.equal(crmExecuteCount, 2, "expected both CRM approval commands (opportunity.stage_change, activity.complete) to use crmApiContext");
 });
 
-test("crm: server-rendered pages under app/(app)/crm/** intentionally still use the un-gated sync crmContext (documented remaining gap, not a missed call site)", () => {
+test("crm: server-rendered CRM pages use the entitlement-gated crmApiContext", () => {
   const pagesDir = path.join(root, "apps/web/src/app/(app)/crm");
-  const pageFiles = fs.readdirSync(pagesDir, { recursive: true }).filter((f) => f.endsWith("page.tsx"));
+  const pageFiles = fs.readdirSync(pagesDir, { recursive: true }).filter((f) => String(f).endsWith("page.tsx"));
   assert.ok(pageFiles.length > 0, "expected CRM page.tsx files to exist");
+  let gated = 0;
+  for (const relative of pageFiles) {
+    const source = fs.readFileSync(path.join(pagesDir, String(relative)), "utf8");
+    assert.doesNotMatch(source, /[^.\w]crmContext\(session\)/, String(relative) + " must not use un-gated crmContext(session)");
+    if (/crmApiContext\(session\)/.test(source)) {
+      gated += 1;
+      assert.match(source, /await crmApiContext\(session\)/, String(relative) + " must await the entitlement gate");
+    }
+  }
+  assert.ok(gated >= 8, "expected the CRM server pages with data access to use crmApiContext");
 });
 
 // ---------------------------------------------------------------------

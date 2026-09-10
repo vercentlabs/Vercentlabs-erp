@@ -9,7 +9,7 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { crmApiContext } from "@/modules/crm";
-import SalesStagesWorkspace from "@/modules/crm/components/sales-stages-workspace";
+import SalesStagesWorkspace from "@/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sales stages" };

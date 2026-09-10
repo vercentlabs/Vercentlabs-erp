@@ -7,19 +7,25 @@ const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const primaryRoute = "src/app/api/crm/public/capture/[key]/route.ts";
-const secondaryRoute =
-  "src/app/api/crm/lead-acquisition/public/forms/[key]/route.ts";
+const secondaryRoute = "src/app/api/crm/lead-acquisition/public/forms/[key]/route.ts";
+const primaryHandler = "src/modules/crm/prospect-and-relationship-master-data/route-handlers/public-lead-capture.ts";
+const secondaryHandler = "src/modules/crm/prospect-and-relationship-master-data/route-handlers/public-lead-form.ts";
+const routeSource = (route) => {
+  if (route === primaryRoute) return `${read(route)}\n${read(primaryHandler)}`;
+  if (route === secondaryRoute) return `${read(route)}\n${read(secondaryHandler)}`;
+  return read(route);
+};
 
 test("both public CRM lead-capture routes cap request body size", () => {
   for (const route of [primaryRoute, secondaryRoute]) {
-    const source = read(route);
+    const source = routeSource(route);
     assert.match(source, /readRequestBytes\(request, 50_000\)/, `${route} must bound request body size`);
   }
 });
 
 test("both public CRM lead-capture routes derive their rate-limit fingerprint from the shared, header-spoof-resistant helpers", () => {
   for (const route of [primaryRoute, secondaryRoute]) {
-    const source = read(route);
+    const source = routeSource(route);
     assert.match(source, /verifiedCaptureProxyFingerprint/, `${route} must use the shared trusted-proxy fingerprint helper`);
     assert.match(source, /directCaptureFingerprint/, `${route} must use the shared direct-fallback fingerprint helper`);
     // Regression guard: a raw, client-suppliable X-Forwarded-For header must
@@ -48,7 +54,7 @@ test("the trusted-proxy fingerprint helper verifies an HMAC signature rather tha
 });
 
 test("the lead-acquisition public form route no longer bypasses its origin allowlist on a missing Origin header", () => {
-  const source = read(secondaryRoute);
+  const source = routeSource(secondaryRoute);
   // The historical bug gated the whole allowlist check on `origin &&`, so an
   // omitted Origin header bypassed it entirely. This checks the actual
   // conditional code (not prose — the surrounding comment legitimately
@@ -58,7 +64,7 @@ test("the lead-acquisition public form route no longer bypasses its origin allow
 });
 
 test("the public capture schema rejects unknown fields and bounds custom-data payload size", () => {
-  const source = read("src/modules/crm/validation.ts");
+  const source = read("src/modules/crm/crm-data-operations-and-customization/input-validation.ts");
   const schemaStart = source.indexOf("export const publicCaptureSchema");
   assert.ok(schemaStart !== -1, "publicCaptureSchema must exist");
   const schemaSource = source.slice(schemaStart, schemaStart + 2000);
@@ -75,19 +81,19 @@ test("the public capture schema rejects unknown fields and bounds custom-data pa
 });
 
 test("the primary capture route resolves the tenant only from the form key, never from a client-supplied identifier", () => {
-  const source = read(primaryRoute);
+  const source = routeSource(primaryRoute);
   assert.doesNotMatch(source, /organizationId:\s*input\./);
   assert.match(source, /crm_public_capture_form\(\$1\)/);
 });
 
 test("the primary capture route accepts published hex capture keys, not only UUID-shaped values", () => {
-  const source = read(primaryRoute);
+  const source = routeSource(primaryRoute);
   assert.match(source, /PUBLIC_CAPTURE_KEY_PATTERN\s*=\s*\/\^\[0-9a-f\]\{24,64\}\$\/i/);
   assert.doesNotMatch(source, /\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}/);
 });
 
 test("the lead-acquisition form route resolves the tenant only from the resolved form record, never from the request body", () => {
-  const source = read(secondaryRoute);
+  const source = routeSource(secondaryRoute);
   assert.doesNotMatch(source, /organizationId:\s*(String\()?input\./);
   assert.match(source, /organizationId:\s*String\(form\.organization_id\)/);
 });

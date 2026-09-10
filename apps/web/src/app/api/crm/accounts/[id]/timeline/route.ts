@@ -1,7 +1,7 @@
 import { getCrmRecordTimelinePage } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
-import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/api";
+import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";

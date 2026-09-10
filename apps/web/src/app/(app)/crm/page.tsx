@@ -16,7 +16,7 @@ import {
 import AppIcon from "@/shared/components/app-icon";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { classifyDueAt } from "@/shared/work/types";
 import homeStyles from "./crm-home-additions.module.css";
@@ -52,7 +52,7 @@ export default async function CrmDashboardPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
 
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
   const [dashboard, recentLeads] = await tenantTransaction(
     context.organizationId,
     (client) =>

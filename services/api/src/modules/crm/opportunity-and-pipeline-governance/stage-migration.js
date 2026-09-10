@@ -5,7 +5,9 @@
 // crm_lead_stage_migration_items pattern built for F007 lead stages
 // (CRM vNext Prompt 4) and crm-lead-bulk-update.js's savepoint-per-item
 // batching, adapted for Opportunities.
-import { CrmError, queueOutboxEvent, text } from "./shared.js";
+import { CrmError } from "../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
+import { text } from "./shared.js";
 import { moveOpportunityStage } from "../index.js";
 
 export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE = "crm.opportunities.stage_migration";

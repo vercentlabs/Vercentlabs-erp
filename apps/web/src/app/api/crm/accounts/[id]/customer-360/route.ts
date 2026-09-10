@@ -4,7 +4,7 @@ import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization"
 import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
-import { crmAccountIntelligenceErrorResponse } from "@/modules/crm/server/account-intelligence";
+import { crmAccountIntelligenceErrorResponse } from "@/modules/crm/prospect-and-relationship-master-data/account-intelligence";
 
 export async function GET(
   _request: Request,

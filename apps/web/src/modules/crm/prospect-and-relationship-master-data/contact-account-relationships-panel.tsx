@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import ContactAccountLookup from "@/modules/crm/components/contact-account-lookup";
+import ContactAccountLookup from "@/modules/crm/prospect-and-relationship-master-data/contact-account-lookup";
 import { requestJson } from "@/shared/http/client-request";
 import { ActionButton, StatePanel } from "@/shared/design";
 

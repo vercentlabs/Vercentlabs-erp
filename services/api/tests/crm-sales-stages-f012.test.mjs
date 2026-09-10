@@ -13,7 +13,7 @@ import {
   reorderSalesStages,
   setSalesStageActive,
   updateSalesStage,
-} from "../src/modules/crm/sales-stage-operations.js";
+} from "../src/modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -121,7 +121,7 @@ test("F012: stage type cannot be changed after retained Opportunity use", async 
 });
 
 test("F012: Opportunity creation only resolves active non-terminal stages", () => {
-  const source = read("services/api/src/modules/crm/index.js");
+  const source = read("services/api/src/modules/crm/opportunity-and-pipeline-governance/opportunity-validation.js");
   const start = source.indexOf("async function resolveOpportunityInitialStage");
   const end = source.indexOf("function opportunityScopeCompatible", start);
   const block = source.slice(start, end);
@@ -147,7 +147,7 @@ test("F012 migration hardens terminal semantics and creates immutable RLS histor
 
 
 test("F012: pipeline row is serialized before mutable stage locks", () => {
-  const source = read("services/api/src/modules/crm/sales-stage-operations.js");
+  const source = read("services/api/src/modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js");
   const update = source.slice(source.indexOf("export async function updateSalesStage"), source.indexOf("export async function setSalesStageActive"));
   const active = source.slice(source.indexOf("export async function setSalesStageActive"), source.indexOf("export async function reorderSalesStages"));
   for (const block of [update, active]) {
@@ -228,7 +228,7 @@ test("F012 migration 068 scopes sequence uniqueness to active stages", () => {
 
 
 test("F012: new stage allocation appends instead of taking the first low free sequence", () => {
-  const source = read("services/api/src/modules/crm/sales-stage-operations.js");
+  const source = read("services/api/src/modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js");
   const create = source.slice(source.indexOf("export async function createSalesStage"), source.indexOf("export async function updateSalesStage"));
   const active = source.slice(source.indexOf("export async function setSalesStageActive"), source.indexOf("export async function reorderSalesStages"));
   assert.match(source, /function nextAppendSequence\(rows\)/);

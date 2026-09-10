@@ -6,7 +6,7 @@ import {
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { crmApiContext } from "@/modules/crm";
-import { crmLeadIntelligenceErrorResponse } from "@/modules/crm/server/lead-intelligence";
+import { crmLeadIntelligenceErrorResponse } from "@/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin } from "@/core/security";

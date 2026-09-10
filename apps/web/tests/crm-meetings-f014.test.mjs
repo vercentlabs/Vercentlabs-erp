@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("F014 Web: Meetings stay inside the focused Activities workspace", () => {
-  const page = read("apps/web/src/app/(app)/crm/activities/page.tsx");
+  const page = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/activity-workspace-page.tsx");
   assert.match(page, /activityType === "meeting"/);
   assert.match(page, /listCrmMeetings/);
   assert.match(page, /MeetingsWorkspace/);
@@ -16,7 +16,7 @@ test("F014 Web: Meetings stay inside the focused Activities workspace", () => {
 });
 
 test("F014 Web: dedicated Meeting UX covers schedule, log, edit, join, start, complete, cancel and immutable history", () => {
-  const source = read("apps/web/src/modules/crm/components/meetings-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/meetings-workspace.tsx");
   // "Immutable evidence" was a customer-inappropriate internal-governance
   // label — dropped in Prompt 6 to match Calls' precedent (see
   // dialog-experience-kernel.test.mjs); the history dialog itself is
@@ -30,7 +30,7 @@ test("F014 Web: dedicated Meeting UX covers schedule, log, edit, join, start, co
 });
 
 test("F014 Web: Meeting editor uses real CRM relation and Contact attendee selectors", () => {
-  const source = read("apps/web/src/modules/crm/components/meetings-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/meetings-workspace.tsx");
   for (const key of ["leads", "opportunities", "parties", "contacts", "campaigns"]) assert.match(source, new RegExp(key));
   assert.match(source, /CRM Contact attendees/);
   assert.match(source, /Additional guest emails/);
@@ -114,7 +114,7 @@ test("F014 docs/register preserve the canonical Meetings identity and verified p
 });
 
 test("F014 regression: F013 Calls remain governed and historical evidence does not pin CURRENT_FEATURE", () => {
-  const page = read("apps/web/src/app/(app)/crm/activities/page.tsx");
+  const page = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/activity-workspace-page.tsx");
   const callTest = read("apps/web/tests/crm-calls-f013.test.mjs");
   assert.match(page, /listCrmCalls/);
   assert.match(page, /CallsWorkspace/);

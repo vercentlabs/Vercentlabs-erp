@@ -2,7 +2,10 @@
 // governance capability. Kept in its own file (rather than importing the
 // legacy flat crm/index.js from every new file here) so this capability's
 // own new modules depend on the legacy tree in one direction only.
-import { CrmError, queueOutboxEvent, resources, recordScope } from "../index.js";
+import { CrmError } from "../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
+import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
+import { recordScope } from "../crm-data-operations-and-customization/record-policy.js";
 
 export { CrmError, queueOutboxEvent, resources, recordScope };
 

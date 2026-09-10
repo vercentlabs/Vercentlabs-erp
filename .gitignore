@@ -84,3 +84,6 @@ vercentlabs-all-code-*.manifest.json
 # Python generated cache
 __pycache__/
 *.py[cod]
+
+# CRM rebuild tooling scratch state (backups/patches/logs) — never source of truth
+/.crm-rebuild/

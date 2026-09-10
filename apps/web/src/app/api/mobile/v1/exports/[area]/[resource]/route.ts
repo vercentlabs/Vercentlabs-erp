@@ -7,7 +7,7 @@ import {
   isBusinessDataDefinition,
 } from "@/core/master-data";
 import { crmApiContext, isCrmDefinition } from "@/modules/crm";
-import { requireCrmResourceView } from "@/modules/crm/api";
+import { requireCrmResourceView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { csvCell } from "@/core/csv";
 import { tenantTransaction } from "@/core/db";
 import { HttpError } from "@/core/http";

@@ -10,7 +10,7 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/api";
+import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 
 type Params = { params: Promise<{ id: string }> };
 const MAX_BYTES = 5 * 1024 * 1024;

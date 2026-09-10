@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { updateCrmAccount, archiveCrmAccount } from "../src/modules/crm/account-operations.js";
-import { updateCrmContact, archiveCrmContact, reactivateCrmContact } from "../src/modules/crm/contact-operations.js";
+import { updateCrmAccount, archiveCrmAccount } from "../src/modules/crm/prospect-and-relationship-master-data/account-operations.js";
+import { updateCrmContact, archiveCrmContact, reactivateCrmContact } from "../src/modules/crm/prospect-and-relationship-master-data/contact-operations.js";
 
 // Integrity closeout (Prompts 1-5): ordinary Account/Contact edits
 // (updateCrmAccount/archiveCrmAccount/updateCrmContact/archiveCrmContact/

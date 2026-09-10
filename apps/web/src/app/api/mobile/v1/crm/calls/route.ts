@@ -8,8 +8,8 @@ import { requireMobileSession } from "@/core/mobile-session";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { audit } from "@/core/security";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { crmCallAuditSnapshot } from "@/modules/crm/audit";
-import { createCallSchema } from "@/modules/crm/validation";
+import { crmCallAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { createCallSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 
 export async function POST(request: Request) {
   try {

@@ -1,4 +1,5 @@
-import { resources, recordScope } from "../index.js";
+import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
+import { recordScope } from "../crm-data-operations-and-customization/record-policy.js";
 
 // F010 — authoritative per-stage pipeline totals. Integrity closeout
 // (Prompts 1-5): the pipeline board previously derived its per-stage "open

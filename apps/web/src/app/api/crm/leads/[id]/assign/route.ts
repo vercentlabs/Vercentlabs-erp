@@ -14,7 +14,7 @@ import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 
 export async function POST(
   request: Request,

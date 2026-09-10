@@ -15,11 +15,11 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-const page = read("src/app/(app)/crm/activities/page.tsx");
-const workspace = read("src/modules/crm/components/tasks-workspace.tsx");
+const page = read("src/modules/crm/seller-activity-and-follow-up-workspace/activity-workspace-page.tsx");
+const workspace = read("src/modules/crm/seller-activity-and-follow-up-workspace/tasks-workspace.tsx");
 
 test("F015: the Activities page routes activityType=task to TasksWorkspace before it ever reaches the generic resource-manager fallback", () => {
-  assert.match(page, /import TasksWorkspace from "@\/modules\/crm\/components\/tasks-workspace"/);
+  assert.match(page, /import TasksWorkspace from "@\/modules\/crm\/seller-activity-and-follow-up-workspace\/tasks-workspace"/);
   const taskBranchIndex = page.indexOf('if (activityType === "task")');
   const genericFallbackIndex = page.indexOf("<CrmResourceManager");
   assert.ok(taskBranchIndex > -1, "a dedicated task branch must exist");
@@ -73,7 +73,7 @@ test("F015 §3 closeout: the create/edit form exposes title, parent record, assi
 });
 
 test("F015: the team-member picker route requires an active Team membership (or view-all) before exposing the roster", () => {
-  const domain = read("../../services/api/src/modules/crm/task-operations.js");
+  const domain = read("../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");
   const fn = domain.match(/export async function listTeamMembers[\s\S]*?\n\}/)?.[0] || "";
   assert.match(fn, /canManageAllTasks\(context\)/);
   assert.match(fn, /isActiveTeamMember\(client, context, id, context\.userId\)/);

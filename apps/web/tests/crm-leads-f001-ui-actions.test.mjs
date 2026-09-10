@@ -7,9 +7,9 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const page = "apps/web/src/app/(app)/crm/[resource]/page.tsx";
-const manager = "apps/web/src/modules/crm/components/resource-manager.tsx";
-const workspace = "apps/web/src/modules/crm/components/leads-workspace.tsx";
-const detail = "apps/web/src/modules/crm/components/lead-detail-workspace.tsx";
+const manager = "apps/web/src/modules/crm/crm-data-operations-and-customization/resource-manager.tsx";
+const workspace = "apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx";
+const detail = "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx";
 const followUpRoute = "apps/web/src/app/api/crm/leads/[id]/follow-up/route.ts";
 
 test("F001 UI actions: lead drawer deep links synchronize without remounting the queue", () => {
@@ -45,7 +45,10 @@ test("F001 UI actions: lead drawer deep links synchronize without remounting the
 
 test("F001 UI actions: lead search is submitted explicitly and searches generated full names", () => {
   const workspaceSource = read(workspace);
-  const apiSource = read("services/api/src/modules/crm/index.js");
+  const apiSource = [
+    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-registry.js"),
+    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-query-service.js"),
+  ].join("\n");
 
   assert.match(workspaceSource, /className="crm-suite-search"/);
   assert.match(workspaceSource, /type="submit"[\s\S]*?Search/);

@@ -7,10 +7,11 @@
 // exactly, plus the new first-class crm_activity_reminders table for the
 // dossier's REQUIRED "multiple reminders" scope (a single timestamp column
 // cannot represent that).
-import { CrmError, queueOutboxEvent } from "../../index.js";
-import { assertEligibleLeadAssignee } from "../../lead-governance.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-security.js";
-import { addBusinessMinutes } from "../../lead-intelligence.js";
+import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
+import { assertEligibleLeadAssignee } from "../../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-lifecycle-qualification-and-prioritization/lead-security.js";
+import { addBusinessMinutes } from "../../lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 import { createInAppNotification, getManagerForUser } from "../shared/notify.js";
 
 // Same default business-hours shape crm_lead_sla_policies already uses

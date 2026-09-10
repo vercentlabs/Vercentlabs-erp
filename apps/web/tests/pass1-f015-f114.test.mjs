@@ -38,12 +38,12 @@ test("Legacy Pass-1 implementation block still maps exactly to canonical F015-F1
 });
 
 test("module feature catalogues preserve permanent IDs and exact pass-1 counts",()=>{
-  const crm=read("apps/web/src/modules/crm/scope.ts"),sales=read("apps/web/src/modules/sales/scope.ts"),proc=read("apps/web/src/modules/procurement/scope.ts"),stock=read("apps/web/src/modules/stock/scope.ts");
+  const crm=read("apps/web/src/modules/crm/crm-data-operations-and-customization/capability-registry.ts"),sales=read("apps/web/src/modules/sales/scope.ts"),proc=read("apps/web/src/modules/procurement/scope.ts"),stock=read("apps/web/src/modules/stock/scope.ts");
   for(const f of scope.features){const source=f.module==="CRM"?crm:f.module==="Sales"?sales:f.module==="Procurement"?proc:stock;assert.match(source,new RegExp(`\\[\\"${f.id}\\",\\s*\\"${f.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}\\"\\]`),`${f.id} missing from ${f.module} catalogue`)}
 });
 
 test("F015 Tasks has a dedicated governed lifecycle over crm_activities",()=>{
-  const task=read("services/api/src/modules/crm/task-operations.js");const migration=read(PASS1_MIGRATION);const offline=read("services/api/src/modules/crm/offline-sync.js");
+  const task=read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");const migration=read(PASS1_MIGRATION);const offline=read("services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.js");
   for(const token of ["createCrmTask","updateCrmTask","startCrmTask","completeCrmTask","cancelCrmTask","listCrmTaskHistory","crm.task.created"])assert.match(task,new RegExp(token));
   assert.match(task,/activity_type='task'/);assert.match(migration,/crm_task_events/);assert.match(migration,/crm_task_events_immutable_f015/);assert.match(migration,/FORCE ROW LEVEL SECURITY/);
   assert.match(offline,/createCrmTask/);assert.match(offline,/completeCrmTask/);
@@ -51,7 +51,13 @@ test("F015 Tasks has a dedicated governed lifecycle over crm_activities",()=>{
 });
 
 test("F016-F030 remain backed by the existing mature CRM workspaces and services",()=>{
-  const enterprise=read("apps/web/tests/crm-lead-suite-enterprise.test.mjs");const crm=read("services/api/src/modules/crm/index.js");const comm=read("services/api/src/modules/crm/communications.js");const follow=read("apps/web/src/orchestration/work/follow-ups.ts");const detail=read("apps/web/src/modules/crm/components/lead-detail-workspace.tsx");
+  const enterprise=read("apps/web/tests/crm-lead-experience-contract.test.mjs");const crm=[
+    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-registry.js"),
+    read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js"),
+    read("services/api/src/modules/crm/crm-conversion-and-sales-handoff/lead-conversion.js"),
+    read("services/api/src/modules/crm/prospect-and-relationship-master-data/duplicate-search.js"),
+    read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js"),
+  ].join("\n");const comm=read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js");const follow=read("apps/web/src/orchestration/work/follow-ups.ts");const detail=read("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
   assert.match(follow,/listMyFollowUps/);assert.match(detail,/Complete lead timeline/);assert.match(comm,/crm_communications/);
   for(const token of ["crm_opportunities","crm_activities","getCrmDashboard","getCrmReport","convertCrmLead","findCrmDuplicates"])assert.match(crm,new RegExp(token));
   assert.match(read("apps/web/src/app/api/crm/leads/[id]/notes/route.ts"),/createCrmNote/);

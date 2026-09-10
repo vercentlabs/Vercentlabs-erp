@@ -3,7 +3,7 @@ import { getCrmCoreAcceptanceTimeline } from "@vercentlabs/api";
 import {
   crmCoreAcceptanceSession,
   tenantTransaction,
-} from "@/modules/crm/server/core-acceptance";
+} from "@/modules/crm/crm-data-operations-and-customization/core-acceptance";
 import { errorResponse, fail, ok } from "@/core/http";
 
 function acceptanceError(error: unknown) {

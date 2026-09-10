@@ -13,7 +13,7 @@
 // mapped into a SearchResult (Part 5/6).
 import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/auth";
 import { hasPermission } from "@/core/authorization";
-import { requireCrmResourceView } from "@/modules/crm/api";
+import { requireCrmResourceView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext } from "@/modules/crm";
 import { businessDataContext } from "@/core/master-data";
 import { tenantTransaction } from "@/core/db";

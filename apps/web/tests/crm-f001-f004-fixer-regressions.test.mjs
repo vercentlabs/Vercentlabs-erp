@@ -10,7 +10,7 @@ test("F001 QA: Lead audit routes persist safe lifecycle metadata, not input/full
   const mobileCollection = read("src/app/api/mobile/v1/crm/[resource]/route.ts");
   const mobileDetail = read("src/app/api/mobile/v1/crm/[resource]/[id]/route.ts");
   const stageRoute = read("src/app/api/crm/leads/[id]/stage/route.ts");
-  const contract = read("src/modules/crm/audit.ts");
+  const contract = read("src/modules/crm/crm-data-operations-and-customization/audit-events.ts");
   assert.match(contract, /resource !== "leads"/);
   assert.match(contract, /changedFields/);
   for (const source of [collection, detail, mobileCollection, mobileDetail])
@@ -35,8 +35,8 @@ test("F003 QA: Contact archive audit is emitted only for a real transition", () 
 });
 
 test("F001 QA: Lead detail uses progressive controls and explicit mobile section navigation", () => {
-  const component = read("src/modules/crm/components/lead-detail-workspace.tsx");
-  const css = read("src/app/crm-lead-suite-enterprise.css");
+  const component = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
+  const css = read("src/app/crm-lead-workspaces.css");
   assert.match(component, /lead-lifecycle-select/);
   assert.match(component, /lead-detail-section-picker/);
   assert.doesNotMatch(component, /className=\{String\(lead\.status\) === stage \? "active"/);
@@ -53,7 +53,7 @@ test("F003/F004 QA: scoped interaction targets and mobile filter actions align a
 });
 
 test("F001 QA: opening any Lead drawer focuses its contextual heading", () => {
-  const drawer = read("src/modules/crm/components/lead-workspace-drawer.tsx");
+  const drawer = read("src/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer.tsx");
   assert.match(drawer, /headingRef\.current\?\.focus\(\)/);
   assert.doesNotMatch(drawer, /primaryControl/);
 });
@@ -65,7 +65,7 @@ test("F004 QA: migration enforces one active default source per organization", (
 });
 
 test("F001 QA round two: phone layout suppresses the desktop tab rail", () => {
-  const css = read("src/app/crm-lead-suite-enterprise.css");
+  const css = read("src/app/crm-lead-workspaces.css");
   assert.match(
     css,
     /@media \(max-width: 680px\)[\s\S]*\.crm-lead-drawer \.crm-lead-detail-page nav\.lead-detail-tabs\s*\{[\s\S]*display: none !important/,
@@ -73,15 +73,15 @@ test("F001 QA round two: phone layout suppresses the desktop tab rail", () => {
 });
 
 test("F001 QA round two: drawer dialog uses a role-compatible neutral host", () => {
-  const drawer = read("src/modules/crm/components/lead-workspace-drawer.tsx");
+  const drawer = read("src/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer.tsx");
   assert.match(drawer, /<div[\s\S]*className=\{`crm-lead-drawer/);
   assert.doesNotMatch(drawer, /<aside[\s\S]*role="dialog"/);
 });
 
 test("F003 QA round two: tablet Contacts switch before desktop minimum widths overflow", () => {
   const css = read("src/app/crm-contacts.css");
-  const workspace = read("src/modules/crm/components/contacts-workspace.tsx");
-  const lookup = read("src/modules/crm/components/contact-account-lookup.tsx");
+  const workspace = read("src/modules/crm/prospect-and-relationship-master-data/contacts-workspace.tsx");
+  const lookup = read("src/modules/crm/prospect-and-relationship-master-data/contact-account-lookup.tsx");
   assert.match(css, /@media \(min-width: 901px\) and \(max-width: 1100px\)/);
   assert.match(css, /crm-contact-table-wrap[\s\S]*display: none/);
   assert.match(css, /crm-contact-cards[\s\S]*display: grid/);
@@ -90,7 +90,7 @@ test("F003 QA round two: tablet Contacts switch before desktop minimum widths ov
 });
 
 test("F001/F003/F004 QA round two: muted canonical metadata uses AA contrast color", () => {
-  const leads = read("src/app/crm-lead-suite-enterprise.css");
+  const leads = read("src/app/crm-lead-workspaces.css");
   const contacts = read("src/app/crm-contacts.css");
   const sources = read("src/app/crm-lead-sources.css");
   assert.match(leads, /crm-lead-detail-facts small[\s\S]*color: #667085/);

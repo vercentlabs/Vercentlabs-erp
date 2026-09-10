@@ -6,9 +6,9 @@ import {
   getOpportunityTimeline,
   bulkUpdateOpportunities,
   captureForecastSnapshot,
-} from "../src/modules/crm/opportunity-operations.js";
-import { saveOpportunityRevenueSplits } from "../src/modules/crm/opportunity-revenue-intelligence.js";
-import { applyOfflineMutation } from "../src/modules/crm/offline-sync.js";
+} from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
+import { saveOpportunityRevenueSplits } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
+import { applyOfflineMutation } from "../src/modules/crm/crm-data-operations-and-customization/offline-sync.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";

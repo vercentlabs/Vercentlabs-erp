@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { updateCrmLeadSource, setCrmLeadSourceActive } from "../src/modules/crm/lead-source-operations.js";
+import { updateCrmLeadSource, setCrmLeadSourceActive } from "../src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
 
 // Prompts 1-5 integrity closeout (blocker C): mutable Lead Source
 // operations (edit, activate/deactivate) previously ran a plain

@@ -8,7 +8,7 @@
 //
 // Blocker B (canonical Opportunity projection) subsequently replaced both
 // independent implementations with one shared getOpportunityDetailData()
-// function (apps/web/src/modules/crm/server/opportunity-detail-data.ts) —
+// function (apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts) —
 // these tests now prove (a) that function applies the sensitive-content and
 // Sales-quotation gates and bounds every related query, and (b) both web
 // and mobile actually route through it rather than re-deriving either gate
@@ -22,7 +22,7 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 test("getOpportunityDetailData: communications are gated behind crm.leads.view_sensitive, not just crm.view", () => {
-  const detailData = read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  const detailData = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts");
   assert.match(
     detailData,
     /canSeeSensitiveContent\s*=\s*canSeeOpportunitySensitiveContent\(context\)/,
@@ -50,7 +50,7 @@ test("getOpportunityDetailData: communications are gated behind crm.leads.view_s
 // leak, not a stylistic inconsistency — closed alongside the communications
 // gate above, using the exact same `canSeeSensitiveContent` flag.
 test("getOpportunityDetailData: activities (Calls/Meetings/Tasks/Follow-ups) are gated behind crm.leads.view_sensitive, matching Lead's own equivalent query — CRM-VNEXT-129", () => {
-  const detailData = read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  const detailData = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts");
   assert.match(
     detailData,
     /canSeeSensitiveContent\s*\n?\s*\?\s*db\.query\(\s*\n?\s*`SELECT \* FROM tenant\.crm_activities/,
@@ -59,7 +59,7 @@ test("getOpportunityDetailData: activities (Calls/Meetings/Tasks/Follow-ups) are
 });
 
 test("getOpportunityDetailData: the linked Sales quotation preview is gated behind a dedicated Sales-visibility check (sales.view), the same permission the Sales quotations list itself requires", () => {
-  const detailData = read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  const detailData = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts");
   assert.match(
     detailData,
     /canSeeSalesQuotations\s*=\s*canSeeOpportunitySalesQuotations\(context\)/,
@@ -78,7 +78,7 @@ test("getOpportunityDetailData: the linked Sales quotation preview is gated behi
 });
 
 test("getOpportunityDetailData: every raw related-collection query is bounded, not unlimited", () => {
-  const detailData = read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  const detailData = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts");
   const rawQueries = detailData.match(/db\.query\(\s*\n?\s*`[^`]*`/g) || [];
   assert.ok(rawQueries.length >= 4, "expected the history/probabilityHistory/activities/communications/quotations raw queries");
   for (const query of rawQueries) {

@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
 import { ActionButton, FormField, SectionHeader, StatePanel, StatusBadge, Surface } from "@/shared/design";
-import TimelinePanel from "@/modules/crm/components/timeline-panel";
-import NotesPanel from "@/modules/crm/components/notes-panel";
-import AttachmentsPanel from "@/modules/crm/components/attachments-panel";
+import TimelinePanel from "@/modules/crm/seller-activity-and-follow-up-workspace/timeline-panel";
+import NotesPanel from "@/modules/crm/seller-activity-and-follow-up-workspace/notes-panel";
+import AttachmentsPanel from "@/modules/crm/seller-activity-and-follow-up-workspace/attachments-panel";
 
 type Row = Record<string, unknown>;
 type User = { id: string; fullName: string };
@@ -361,7 +361,7 @@ function StakeholdersPanel({ opportunityId, partyId, committees, committeeMember
                 ) : null}
               </div>
             ))}
-            {!committeeMembers.length ? <StatePanel title="No stakeholders added yet — coverage gap." /> : null}
+            {!committeeMembers.length ? <StatePanel title="No stakeholders have been added yet." /> : null}
           </div>
           {editable ? (
             <div className="crm-inline-form">

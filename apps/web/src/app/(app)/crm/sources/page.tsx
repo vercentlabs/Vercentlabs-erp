@@ -4,7 +4,7 @@ import { getCrmLeadSource, listCrmLeadSources } from "@vercentlabs/api";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import LeadSourcesWorkspace from "@/modules/crm/components/lead-sources-workspace";
+import LeadSourcesWorkspace from "@/modules/crm/prospect-and-relationship-master-data/lead-sources-workspace";
 import { crmApiContext } from "@/modules/crm";
 
 export const dynamic = "force-dynamic";

@@ -7,8 +7,8 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
-import { crmTaskAuditSnapshot } from "@/modules/crm/audit";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { crmTaskAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 type Route = { params: Promise<{ id: string }> };
 

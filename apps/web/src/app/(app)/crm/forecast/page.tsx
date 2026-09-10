@@ -6,7 +6,7 @@ import { formatMoney } from "@vercentlabs/localization";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import {
   EnterpriseDataGrid,
   MetricCard,
@@ -27,7 +27,7 @@ function numeric(value: unknown) {
 export default async function CrmForecastPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmReportsView)) notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
 
   const { dashboard, forecast, revenue: revenueRaw, calibration } = await tenantTransaction(
     context.organizationId,
@@ -44,7 +44,7 @@ export default async function CrmForecastPage() {
       // workspace rather than a new standalone page (a prior consolidation
       // pass explicitly retired several single-purpose CRM pages, including
       // an earlier "opportunity-revenue" screen — see
-      // crm-lead-suite-enterprise.test.mjs's retiredScreenFiles list).
+      // crm-lead-experience-contract.test.mjs's retiredScreenFiles list).
       revenue: hasPermission(session, PERMISSIONS.crmOpportunitiesManage)
         ? await getOpportunityRevenueDashboard(client, context)
         : null,

@@ -6,13 +6,13 @@ import {
   normalizeLeadSourceInput,
   resolveIngestionLeadSource,
   validateLeadSourceAssignment,
-} from "../src/modules/crm/features/lead-sources/validation.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/lead-source-validation.js";
 import {
   createCrmLeadSource,
   listCrmLeadSources,
   setCrmLeadSourceActive,
   updateCrmLeadSource,
-} from "../src/modules/crm/lead-source-operations.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
 
 const context = Object.freeze({
   organizationId: "11111111-1111-4111-8111-111111111111",

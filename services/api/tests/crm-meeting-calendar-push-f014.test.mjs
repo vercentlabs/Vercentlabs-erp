@@ -5,7 +5,7 @@ import {
   pushProviderCalendarEvent,
   prepareMeetingCalendarPush,
   recordMeetingCalendarPushResult,
-} from "../src/modules/crm/communications.js";
+} from "../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
 
 // CRM vNext Prompt 6 (F014 — Meetings). DEC-CRM-P1-F014 lists "calendar
 // sync" as REQUIRED enterprise scope; a research pass confirmed the

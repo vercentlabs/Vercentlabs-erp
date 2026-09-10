@@ -6,7 +6,7 @@ const read = (path) =>
   fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("F001 web: lead model requires first name but accepts any contact method", () => {
-  const definition = read("src/modules/crm/index.ts");
+  const definition = read("src/modules/crm/crm-data-operations-and-customization/resource-definitions/prospect-and-relationship.ts");
   assert.match(definition, /name: "firstName"[\s\S]{0,120}required: true/);
   const mobileBlock =
     definition.match(/\{\s*name: "mobile"[\s\S]*?\},/m)?.[0] || "";
@@ -14,7 +14,7 @@ test("F001 web: lead model requires first name but accepts any contact method", 
 });
 
 test("F001 web: create validation enforces email-or-mobile-or-phone", () => {
-  const validation = read("src/modules/crm/validation.ts");
+  const validation = read("src/modules/crm/crm-data-operations-and-customization/input-validation.ts");
   assert.match(validation, /key === "leads" && requireRequiredFields/);
   assert.match(validation, /\["email", "mobile", "phone"\]/);
   assert.match(validation, /Provide at least one contact method/);
@@ -22,7 +22,7 @@ test("F001 web: create validation enforces email-or-mobile-or-phone", () => {
 
 test("F001 web: create workspace no longer hard-requires mobile", () => {
   const workspace = read(
-    "src/modules/crm/components/lead-create-workspace.tsx",
+    "src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx",
   );
   const mobileMarker = 'name="mobile"';
   const markerIndex = workspace.indexOf(mobileMarker);
@@ -41,18 +41,18 @@ test("F001 web: create workspace no longer hard-requires mobile", () => {
 });
 
 test("F001 web: country and all three contact methods are available end-to-end", () => {
-  const definition = read("src/modules/crm/index.ts");
-  const create = read("src/modules/crm/components/lead-create-workspace.tsx");
-  const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  const definition = read("src/modules/crm/crm-data-operations-and-customization/resource-definitions/prospect-and-relationship.ts");
+  const create = read("src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx");
+  const detail = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
   for (const source of [definition, create, detail])
     assert.match(source, /countryCode/);
   assert.match(detail, /Alternate phone/);
 });
 
 test("F001 web: edit preserves omitted fields and keeps ownership on the governed assignment path", () => {
-  const manager = read("src/modules/crm/components/resource-manager.tsx");
-  const workspace = read("src/modules/crm/components/leads-workspace.tsx");
-  const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  const manager = read("src/modules/crm/crm-data-operations-and-customization/resource-manager.tsx");
+  const workspace = read("src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
+  const detail = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
   const page = read("src/app/(app)/crm/[resource]/page.tsx");
   assert.match(manager, /elements\.namedItem\(field\.name\)/);
   assert.match(manager, /if \(!control\) continue/);
@@ -62,8 +62,8 @@ test("F001 web: edit preserves omitted fields and keeps ownership on the governe
 });
 
 test("F001 web: archive is available on detail with explicit preservation copy", () => {
-  const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
-  const manager = read("src/modules/crm/components/resource-manager.tsx");
+  const detail = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
+  const manager = read("src/modules/crm/crm-data-operations-and-customization/resource-manager.tsx");
   for (const source of [detail, manager]) {
     assert.match(source, /Historical information is preserved/);
     assert.match(source, /method: "DELETE"/);
@@ -73,7 +73,7 @@ test("F001 web: archive is available on detail with explicit preservation copy",
 });
 
 test("F001 API: the default collection omits archived Leads", () => {
-  const service = read("../../services/api/src/modules/crm/index.js");
+  const service = read("../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-query-service.js") + read("../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-registry.js");
   assert.match(service, /\["archived", "converted"\]\.includes\(String\(filters\.status/);
   assert.match(service, /record_status = 'active'/);
 });

@@ -6,9 +6,9 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
-import { crmFollowUpAuditSnapshot } from "@/modules/crm/audit";
-import { snoozeFollowUpSchema } from "@/modules/crm/validation";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { crmFollowUpAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { snoozeFollowUpSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 
 export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
   try {

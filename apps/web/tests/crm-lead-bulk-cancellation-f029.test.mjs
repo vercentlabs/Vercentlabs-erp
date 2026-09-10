@@ -13,7 +13,7 @@ test("F029 web: the operations route wires cancel/retry actions to the governed 
 });
 
 test("F029 web: the bulk job panel offers Cancel while in flight and Retry only when there are failed rows", () => {
-  const workspace = read("src/modules/crm/components/leads-workspace.tsx");
+  const workspace = read("src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
   assert.match(workspace, /async function cancelBulkJob/);
   assert.match(workspace, /async function retryFailedBulkJobItems/);
   assert.match(workspace, /action: "cancel-bulk-job", jobId: bulkJob\.id/);

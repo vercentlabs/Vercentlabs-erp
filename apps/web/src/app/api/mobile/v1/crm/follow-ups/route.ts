@@ -8,8 +8,8 @@ import { requireMobileSession } from "@/core/mobile-session";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { crmFollowUpAuditSnapshot } from "@/modules/crm/audit";
-import { createFollowUpSchema } from "@/modules/crm/validation";
+import { crmFollowUpAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { createFollowUpSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 
 // Mobile/API parity (F016) — same createCrmFollowUp/listCrmFollowUps and
 // the SAME createFollowUpSchema web uses, not a mobile-only re-derived

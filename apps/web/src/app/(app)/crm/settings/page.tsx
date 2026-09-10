@@ -5,7 +5,7 @@ import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
 import { PageHeader, SectionHeader, StatusBadge } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { canViewCrmResource } from "@/modules/crm/api";
+import { canViewCrmResource } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
 
 export const metadata = { title: "CRM setup" };

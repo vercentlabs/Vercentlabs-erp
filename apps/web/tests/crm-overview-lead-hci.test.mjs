@@ -13,12 +13,12 @@ test("CRM overview remains driven by scoped getCrmDashboard data",()=>{
 });
 
 test("Lead create remains a dedicated drawer workflow",()=>{
-  const manager=read("apps/web/src/modules/crm/components/resource-manager.tsx");
+  const manager=read("apps/web/src/modules/crm/crm-data-operations-and-customization/resource-manager.tsx");
   assert.match(manager,/CrmLeadCreateWorkspace/);
   assert.match(manager,/editing && !editing\.id && canManage/);
   assert.match(manager,/title="Create lead"/);
   assert.match(manager,/LeadWorkspaceDrawer/);
-  const create=read("apps/web/src/modules/crm/components/lead-create-workspace.tsx");
+  const create=read("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx");
   assert.match(create,/\/api\/crm\/leads\/duplicates\?/);
   assert.match(create,/requestJson<CreateResponse>\("\/api\/crm\/leads"/);
 });

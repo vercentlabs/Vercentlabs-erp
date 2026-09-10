@@ -7,8 +7,8 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { crmMeetingAuditSnapshot } from "@/modules/crm/audit";
-import { createMeetingSchema } from "@/modules/crm/validation";
+import { crmMeetingAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { createMeetingSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 
 export async function GET(request: Request) {
   try {

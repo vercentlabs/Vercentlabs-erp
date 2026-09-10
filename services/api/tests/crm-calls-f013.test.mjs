@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createCrmCall } from "../src/modules/crm/call-operations.js";
+import { createCrmCall } from "../src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -61,7 +61,7 @@ test("F013: outbound Calls respect Lead do-not-contact before mutation", async (
 });
 
 test("F013: Account and Opportunity phone resolution uses Contacts, never a nonexistent party.phone", () => {
-  const source = read("services/api/src/modules/crm/call-operations.js");
+  const source = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js");
   assert.match(source, /FROM tenant\.business_parties party/);
   assert.match(source, /FROM tenant\.contacts contact/);
   assert.match(source, /account_contact\.party_id=opportunity\.party_id/);
@@ -69,7 +69,10 @@ test("F013: Account and Opportunity phone resolution uses Contacts, never a none
 });
 
 test("F013: generic Activity create/update/archive/complete cannot bypass governed Calls", () => {
-  const source = read("services/api/src/modules/crm/index.js");
+  const source = [
+    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
+    read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js"),
+  ].join("\n");
   assert.match(
     source,
     /if \(activityType === "call"\)\s*throw new CrmError\(410, "Use the governed Calls operations\.", "CRM_CALL_API_MOVED"\);/,
@@ -89,7 +92,7 @@ test("F013: generic Activity create/update/archive/complete cannot bypass govern
 });
 
 test("F013: legacy server offline-sync cannot directly insert or complete Calls", () => {
-  const source = read("services/api/src/modules/crm/offline-sync.js");
+  const source = read("services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.js");
   assert.match(source, /governed Calls mobile endpoint for offline Call creation/);
   assert.match(source, /SELECT activity_type FROM tenant\.crm_activities/);
   assert.match(source, /governed Calls mobile endpoint for offline Call completion/);
@@ -104,8 +107,8 @@ test("F013: Lead follow-up Calls bridge into the governed Call service", () => {
 });
 
 test("F013: audit/outbox/history evidence intentionally excludes phone numbers and free-text notes", () => {
-  const service = read("services/api/src/modules/crm/call-operations.js");
-  const audit = read("apps/web/src/modules/crm/audit.ts");
+  const service = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js");
+  const audit = read("apps/web/src/modules/crm/crm-data-operations-and-customization/audit-events.ts");
   const safePayload = service.match(/function safeEventPayload\(call\) \{([\s\S]*?)\n\}/)?.[1] || "";
   const eventInsert = service.match(/INSERT INTO tenant\.crm_call_events\(([\s\S]*?)\)\n\s*VALUES/)?.[1] || "";
   const auditSnapshot = audit.match(/export function crmCallAuditSnapshot[\s\S]*?\n\}/)?.[0] || "";
@@ -125,7 +128,7 @@ test("F013 migration specializes crm_activities and creates immutable RLS Call h
 });
 
 test("F013 lifecycle is concurrency/replay governed and parent touch is completion-only", () => {
-  const source = read("services/api/src/modules/crm/call-operations.js");
+  const source = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js");
   assert.match(source, /CRM_CALL_STALE_WRITE/);
   assert.match(source, /before\.status === "in_progress"[\s\S]{0,120}replayed: true/);
   assert.match(source, /before\.status === "completed"[\s\S]{0,240}replayed: true/);

@@ -8,7 +8,7 @@ import {
   evaluateLeadDuplicateRisk,
   hasLeadDuplicateIdentityChange,
   recordLeadDuplicateOverride,
-} from "../src/modules/crm/lead-duplicates.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "22222222-2222-4222-8222-222222222222";

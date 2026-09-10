@@ -6,8 +6,8 @@ import {
 } from "@/core/billing";
 import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
-import { requireCrmManage } from "@/modules/crm/api";
-import { crmSchemas } from "@/modules/crm/validation";
+import { requireCrmManage } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { crmSchemas } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 import { parseCsv } from "@/core/csv";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, readJson } from "@/core/http";

@@ -155,11 +155,10 @@ for (const doc of activeDocs) {
 }
 
 // --- CRM vNext: frozen eight-capability source architecture -------------
-// docs/03-modules/crm/CRM_VNEXT_IMPLEMENTATION_REGISTER.md is the source of
-// truth for this list. These directories are the permanent target structure
-// for CRM UI/domain code; new ad-hoc top-level CRM directories are rejected
-// so the module cannot silently drift back to a flat structure while the
-// legacy files migrate in over later prompts.
+// CRM is now fully migrated. The only permitted top-level files are the
+// stable public module boundaries; every implementation file must live in
+// exactly one of the eight capability directories below. This is a hard
+// invariant rather than a debt counter.
 const CRM_CAPABILITY_DIRECTORIES = Object.freeze([
   "prospect-and-relationship-master-data",
   "lead-lifecycle-qualification-and-prioritization",
@@ -170,63 +169,10 @@ const CRM_CAPABILITY_DIRECTORIES = Object.freeze([
   "crm-conversion-and-sales-handoff",
   "pipeline-analytics-and-forecasting",
 ]);
-// Pre-existing legacy top-level entries as of the Prompt 1 baseline. This is
-// explicit, tracked architecture debt (see the CRM vNext issue ledger) — it
-// is allowed to persist and shrink over later prompts, but nothing new may
-// be added beside it or the eight capability directories above.
-const CRM_WEB_LEGACY_ALLOWLIST = Object.freeze([
-  "api.ts",
-  "audit.ts",
-  "components",
-  "features",
-  "index.ts",
-  "scope.ts",
-  "server",
-  "validation.ts",
-]);
-const CRM_API_LEGACY_ALLOWLIST = Object.freeze([
-  "account-intelligence.d.ts",
-  "account-intelligence.js",
-  "account-operations.d.ts",
-  "account-operations.js",
-  "call-operations.js",
-  "communications.d.ts",
-  "communications.js",
-  "contact-operations.d.ts",
-  "contact-operations.js",
-  "contact-security.js",
-  "core-acceptance.d.ts",
-  "core-acceptance.js",
-  "features",
-  "foundation.js",
-  "index.d.ts",
-  "index.js",
-  "lead-acquisition.d.ts",
-  "lead-acquisition.js",
-  "lead-duplicates.js",
-  "lead-governance.js",
-  "lead-intelligence.d.ts",
-  "lead-intelligence.js",
-  "lead-lifecycle.js",
-  "lead-operations.d.ts",
-  "lead-operations.js",
-  "lead-qualification.d.ts",
-  "lead-qualification.js",
-  "lead-security.js",
-  "lead-source-operations.d.ts",
-  "lead-source-operations.js",
-  "meeting-operations.js",
-  "offline-sync.d.ts",
-  "offline-sync.js",
-  "opportunity-operations.d.ts",
-  "opportunity-operations.js",
-  "opportunity-revenue-intelligence.d.ts",
-  "opportunity-revenue-intelligence.js",
-  "sales-stage-operations.js",
-  "task-operations.js",
-]);
+const CRM_WEB_PUBLIC_BOUNDARY = Object.freeze(["index.ts"]);
+const CRM_API_PUBLIC_BOUNDARY = Object.freeze(["index.js", "index.d.ts"]);
 
-function checkCrmCapabilityArchitecture(crmRoot, legacyAllowlist, label) {
+function checkCrmCapabilityArchitecture(crmRoot, publicBoundary, label) {
   if (!fs.existsSync(crmRoot)) {
     fail(`CRM capability architecture: missing module root ${path.relative(root, crmRoot)}`);
     return;
@@ -237,36 +183,37 @@ function checkCrmCapabilityArchitecture(crmRoot, legacyAllowlist, label) {
       fail(`CRM capability architecture: missing frozen capability directory ${path.relative(root, target)}`);
     }
   }
-  const allowed = new Set([...CRM_CAPABILITY_DIRECTORIES, ...legacyAllowlist]);
+  const allowed = new Set([...CRM_CAPABILITY_DIRECTORIES, ...publicBoundary]);
   const entries = fs.readdirSync(crmRoot, { withFileTypes: true });
-  let legacyFileCount = 0;
   let capabilityFileCount = 0;
   for (const entry of entries) {
     if (!allowed.has(entry.name)) {
       fail(
-        `CRM capability architecture: ad-hoc top-level entry ${path.relative(root, path.join(crmRoot, entry.name))} is not part of the frozen eight-capability structure or the tracked legacy allowlist`,
+        `CRM capability architecture: legacy/ad-hoc top-level entry ${path.relative(root, path.join(crmRoot, entry.name))} is forbidden after the CRM v2 migration`,
       );
       continue;
     }
     if (CRM_CAPABILITY_DIRECTORIES.includes(entry.name)) {
       capabilityFileCount += walk(path.join(crmRoot, entry.name)).length;
-    } else {
-      legacyFileCount += entry.isDirectory() ? walk(path.join(crmRoot, entry.name)).length : 1;
     }
   }
-  ok(
-    `${label} CRM capability architecture (${legacyFileCount} legacy file(s) pending migration, ${capabilityFileCount} file(s) already in capability directories)`,
-  );
+  for (const boundaryFile of publicBoundary) {
+    const target = path.join(crmRoot, boundaryFile);
+    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+      fail(`CRM capability architecture: missing public boundary ${path.relative(root, target)}`);
+    }
+  }
+  ok(`${label} CRM capability architecture (0 legacy files; ${capabilityFileCount} capability-owned files)`);
 }
 
 checkCrmCapabilityArchitecture(
   path.join(root, "apps/web/src/modules/crm"),
-  CRM_WEB_LEGACY_ALLOWLIST,
+  CRM_WEB_PUBLIC_BOUNDARY,
   "web",
 );
 checkCrmCapabilityArchitecture(
   path.join(root, "services/api/src/modules/crm"),
-  CRM_API_LEGACY_ALLOWLIST,
+  CRM_API_PUBLIC_BOUNDARY,
   "api",
 );
 

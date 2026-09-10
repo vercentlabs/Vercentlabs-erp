@@ -14,7 +14,7 @@ import {
   claimCrmTask,
   releaseCrmTask,
   listMyTaskTeams,
-} from "../src/modules/crm/task-operations.js";
+} from "../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js";
 
 // CRM vNext Prompt 6 (F015 — Tasks). Re-audit confirmed `recurring_rule`
 // was pure free text, never parsed by anything — no recurrence engine, no
@@ -277,9 +277,12 @@ test("F015: taskOverdueSql produces one canonical predicate, reused by every cal
 });
 
 test("F015: taskOverdueSql is reused (not re-derived) in the generic activities list, the KPI dashboard count and the activities report", () => {
-  const source = fs.readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
+  const source = [
+    fs.readFileSync(new URL("../src/modules/crm/crm-data-operations-and-customization/resource-query-service.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js", import.meta.url), "utf8"),
+  ].join("\n");
   const occurrences = source.match(/taskOverdueSql\(/g) || [];
-  assert.ok(occurrences.length >= 3, `expected taskOverdueSql to be called at least 3 times in index.js, found ${occurrences.length}`);
+  assert.ok(occurrences.length >= 3, `expected taskOverdueSql to be called at least 3 times across the canonical query/analytics services, found ${occurrences.length}`);
 });
 
 // --- F015 closeout: team/queue Tasks (real model, not a fake nullable
@@ -491,7 +494,7 @@ test("F015: listMyTaskTeams scopes an ordinary caller to Teams they actually bel
 // --- scopeSql: queue visibility does not leak to non-members --------------
 
 test("F015: listCrmTasks scopes an unclaimed queue Task to that Team's active members, not the whole organization", async () => {
-  const { listCrmTasks } = await import("../src/modules/crm/task-operations.js");
+  const { listCrmTasks } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");
   const client = {
     async query(sql, values) {
       if (sql.includes("count(*)")) {

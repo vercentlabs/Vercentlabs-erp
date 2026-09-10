@@ -26,7 +26,8 @@
 // current — the superseded row is never deleted or overwritten, so every
 // prior version's filename/MIME/size/uploader/timestamp/storage
 // reference/scan-quarantine state stays exactly as it was.
-import { CrmError, queueOutboxEvent } from "../../index.js";
+import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
 import { resolveCrmEntityAccess } from "../timeline/timeline.js";
 
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);

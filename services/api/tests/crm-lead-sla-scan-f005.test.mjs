@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { scanLeadSlaBreaches } from "../src/modules/crm/lead-intelligence.js";
+import { scanLeadSlaBreaches } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const leadId = "22222222-2222-4222-8222-222222222222";

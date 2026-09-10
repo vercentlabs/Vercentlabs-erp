@@ -5,7 +5,7 @@ import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization"
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 
 type Params = { params: Promise<{ id: string; attachmentId: string }> };
 

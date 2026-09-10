@@ -3,8 +3,9 @@
 // here (from the legacy flat lead-lifecycle.js) as part of CRM vNext
 // Prompt 4's directed-transition-graph rebuild; lead-lifecycle.js now
 // re-exports this capability directory's public surface for compatibility.
-import { CrmError, queueOutboxEvent } from "../../index.js";
-import { canViewSensitiveLeadContent, projectLeadForContext } from "../../lead-security.js";
+import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
+import { canViewSensitiveLeadContent, projectLeadForContext } from "../lead-security.js";
 
 export { CrmError, queueOutboxEvent, canViewSensitiveLeadContent, projectLeadForContext };
 

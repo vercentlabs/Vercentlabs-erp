@@ -12,7 +12,7 @@ test("F011 probability API preserves the protected write boundary",()=>{
 });
 
 test("F011 schema enforces percentage, precision, note and concurrency tokens",()=>{
-  const validation=read("apps/web/src/modules/crm/validation.ts");
+  const validation=read("apps/web/src/modules/crm/crm-data-operations-and-customization/input-validation.ts");
   const start=validation.indexOf("updateOpportunityProbabilitySchema");
   const block=validation.slice(start,validation.indexOf("export const moveStageSchema",start));
   assert.match(block,/min\(0\)/); assert.match(block,/max\(100\)/); assert.match(block,/multipleOf\(0\.01\)/);
@@ -29,14 +29,14 @@ test("F011 detail uses canonical expected revenue and exposes governed probabili
   // Prompts 1-5 integrity closeout (blocker B): the probability-history
   // query moved out of page.tsx into the canonical, web+mobile-shared
   // getOpportunityDetailData() projection.
-  const detailData=read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  const detailData=read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts");
   assert.match(detailData,/crm_opportunity_probability_history/);
   // Probability-history rendering moved into the tabbed Opportunity
   // workspace (Prompt 5) — the "Revenue confidence changes" label lives in
   // the History tab panel.
   const workspaceTabs=read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-workspace-tabs.tsx");
   assert.match(workspaceTabs,/Revenue confidence changes/);
-  const component=read("apps/web/src/modules/crm/components/opportunity-probability-action.tsx");
+  const component=read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-probability-action.tsx");
   assert.match(component,/expectedUpdatedAt: updatedAt/);
   assert.match(component,/expectedProbability: probability/);
   assert.match(component,/amount × probability/);
@@ -44,7 +44,7 @@ test("F011 detail uses canonical expected revenue and exposes governed probabili
 });
 
 test("F011 opportunity list exposes expected revenue but keeps probability out of generic form",()=>{
-  const source=read("apps/web/src/modules/crm/index.ts");
+  const source=read("apps/web/src/modules/crm/crm-data-operations-and-customization/resource-definitions/opportunity-pipeline.ts");
   assert.match(source,/key: "expectedRevenue", label: "Expected revenue"/);
   assert.match(source,/name: "probability"[\s\S]*formHidden: true/);
 });

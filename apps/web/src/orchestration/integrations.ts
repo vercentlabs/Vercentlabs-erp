@@ -15,7 +15,7 @@
 import { listCrmRecords } from "@vercentlabs/api";
 
 import type { WorkspaceSessionContext } from "@/core/auth";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { redactAuditPayload } from "@/core/audit/redact";
 
@@ -32,7 +32,7 @@ export async function listWebhookSubscriptions(
   session: WorkspaceSessionContext,
 ): Promise<WebhookSubscriptionRow[]> {
   try {
-    const context = crmContext(session);
+    const context = await crmApiContext(session);
     const { rows } = await tenantTransaction(session.organizationId, (client) =>
       listCrmRecords(client, context, "webhook-subscriptions", { status: "all", limit: 100 }),
     );

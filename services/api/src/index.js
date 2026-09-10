@@ -10,21 +10,21 @@ export * from "./modules/sales/index.js";
 export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
-export * from "./modules/crm/foundation.js";
-export * from "./modules/crm/lead-governance.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/foundation.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 
-export * from "./modules/crm/lead-operations.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
 
-export * from "./modules/crm/account-operations.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/account-operations.js";
 
-export * from "./modules/crm/contact-operations.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/contact-operations.js";
 
-export * from "./modules/crm/lead-source-operations.js";
-export * from "./modules/crm/lead-qualification.js";
-export * from "./modules/crm/lead-lifecycle.js";
-export * from "./modules/crm/lead-duplicates.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
 
-export * from "./modules/crm/opportunity-operations.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -40,9 +40,9 @@ export * from "./modules/accounting/tax-reporting-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
-export * from "./modules/crm/core-acceptance.js";
+export * from "./modules/crm/crm-data-operations-and-customization/core-acceptance.js";
 
-export * from "./modules/crm/account-intelligence.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
 
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
@@ -56,10 +56,10 @@ export {
 
 export * from "./core/release/governance.js";
 
-export * from "./modules/crm/communications.js";
+export * from "./modules/crm/seller-activity-and-follow-up-workspace/communications.js";
 
-export * from "./modules/crm/lead-acquisition.js";
-export * from "./modules/crm/lead-intelligence.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export {
   listLeadScoringModels,
   createLeadScoringModel,
@@ -73,8 +73,8 @@ export {
   SCORE_RECALC_JOB_TYPE,
   SCORE_RECALC_BATCH_SIZE,
 } from "./modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/index.js";
-export * from "./modules/crm/opportunity-revenue-intelligence.js";
-export * from "./modules/crm/offline-sync.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
+export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-commercial.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/stage-migration.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/stage-aging.js";

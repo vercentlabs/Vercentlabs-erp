@@ -7,10 +7,10 @@ import { mobileError, mobileOk } from "@/core/mobile-http";
 import { requireMobileSession } from "@/core/mobile-session";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { crmFollowUpAuditSnapshot } from "@/modules/crm/audit";
-import { followUpLifecycleSchema } from "@/modules/crm/validation";
+import { crmFollowUpAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { followUpLifecycleSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 
 // Mobile/API parity (F016) — Follow-up completion goes through its OWN
 // dedicated completeCrmFollowUp (not the generic activities/[id]/complete

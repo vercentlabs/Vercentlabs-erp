@@ -13,7 +13,7 @@ import {
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { crmApiContext } from "@/modules/crm";
-import { crmOpportunityRevenueErrorResponse } from "@/modules/crm/server/opportunity-revenue";
+import { crmOpportunityRevenueErrorResponse } from "@/modules/crm/pipeline-analytics-and-forecasting/opportunity-revenue";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin } from "@/core/security";

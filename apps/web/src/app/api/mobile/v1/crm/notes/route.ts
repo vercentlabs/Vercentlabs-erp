@@ -7,7 +7,7 @@ import { mobileError, mobileOk } from "@/core/mobile-http";
 import { requireMobileSession } from "@/core/mobile-session";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
-import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/api";
+import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
 
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);

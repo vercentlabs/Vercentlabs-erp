@@ -1,9 +1,9 @@
 import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk, findLeadContactCrossMatches } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { requireCrmView } from "@/modules/crm/api";
+import { requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { duplicateSchema } from "@/modules/crm/validation";
+import { duplicateSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";

@@ -19,7 +19,7 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { requireCrmView } from "@/modules/crm/api";
+import { requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 
 function contactInput(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

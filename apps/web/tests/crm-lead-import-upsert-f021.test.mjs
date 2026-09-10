@@ -13,14 +13,14 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "
 // handlers exists in this codebase yet.
 
 test("F021: upsert mode reuses the governed F008 exact-match classification, not a bespoke check", () => {
-  const source = read("src/app/api/crm/[resource]/import/route.ts");
+  const source = read("src/modules/crm/crm-data-operations-and-customization/route-handlers/lead-import.ts");
   assert.match(source, /import \{ createCrmRecord, evaluateLeadDuplicateRisk, updateCrmRecord \} from "@vercentlabs\/api";/);
   assert.match(source, /evaluateLeadDuplicateRisk\(client, context, input\)/);
   assert.match(source, /\.internalMatches\.find\(\(match\) => match\.classification === "exact"\)/);
 });
 
 test("F021: an exact match is updated in place; only a non-exact (or no) match still creates a new record", () => {
-  const source = read("src/app/api/crm/[resource]/import/route.ts");
+  const source = read("src/modules/crm/crm-data-operations-and-customization/route-handlers/lead-import.ts");
   const exactMatchIdx = source.indexOf("if (exactMatch) {");
   const updateIdx = source.indexOf("updateCrmRecord(client, context, resource, exactMatch.row.id, input)");
   const createIdx = source.indexOf("createCrmRecord(client, context, resource, input)");
@@ -29,18 +29,18 @@ test("F021: an exact match is updated in place; only a non-exact (or no) match s
 });
 
 test("F021: a matched Lead that is already converted (read-only) is skipped, not a hard failure", () => {
-  const source = read("src/app/api/crm/[resource]/import/route.ts");
+  const source = read("src/modules/crm/crm-data-operations-and-customization/route-handlers/lead-import.ts");
   assert.match(source, /error\.code === "CRM_LEAD_DUPLICATE_EXACT" \|\|\s*\n\s*error\.code === "CRM_LEAD_CONVERTED_READ_ONLY"/);
 });
 
 test("F021: upsert only activates on the explicit ?mode=upsert query param — default behavior (create-only) is unchanged", () => {
-  const source = read("src/app/api/crm/[resource]/import/route.ts");
+  const source = read("src/modules/crm/crm-data-operations-and-customization/route-handlers/lead-import.ts");
   assert.match(source, /const modeParam = new URL\(request\.url\)\.searchParams\.get\("mode"\);/);
   assert.match(source, /const upsert = modeParam === "upsert";/);
 });
 
 test("F021: created vs updated counts are surfaced separately in the live response, folded together only for receipt-replay storage", () => {
-  const source = read("src/app/api/crm/[resource]/import/route.ts");
+  const source = read("src/modules/crm/crm-data-operations-and-customization/route-handlers/lead-import.ts");
   assert.match(source, /let updated = 0;/);
   assert.match(source, /updated,\s*\n\s*skipped,/);
   assert.match(source, /succeeded \+ updated,/);

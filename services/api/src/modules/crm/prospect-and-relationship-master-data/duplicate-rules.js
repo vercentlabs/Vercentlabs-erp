@@ -2,7 +2,8 @@
 // continuation, CRM-VNEXT-044). See migration 090_f008_duplicate_rules.sql
 // for the security design: a rule row is pure structured data selecting one
 // of the fixed comparisons below — never free-text/executable SQL.
-import { CrmError, queueOutboxEvent } from "../index.js";
+import { CrmError } from "../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

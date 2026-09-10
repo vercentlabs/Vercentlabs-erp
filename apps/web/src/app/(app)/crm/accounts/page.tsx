@@ -5,7 +5,7 @@ import { listCrmAccounts } from "@vercentlabs/api";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import AccountsWorkspace from "@/modules/crm/components/accounts-workspace";
+import AccountsWorkspace from "@/modules/crm/prospect-and-relationship-master-data/accounts-workspace";
 import { crmApiContext } from "@/modules/crm";
 
 export const dynamic = "force-dynamic";

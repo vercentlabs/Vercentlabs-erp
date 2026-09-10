@@ -6,7 +6,7 @@ import {
   businessDataDefinitions,
   businessDataGroups,
 } from "@/core/master-data";
-import { canViewCrmResource } from "@/modules/crm/api";
+import { canViewCrmResource } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmDefinitions } from "@/modules/crm";
 import { mobileError, mobileOk } from "@/core/mobile-http";
 import { requireMobileSession } from "@/core/mobile-session";

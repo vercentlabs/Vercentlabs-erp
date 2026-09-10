@@ -2,7 +2,7 @@
 // Lead/Opportunity must not automatically see a private Note. Implement
 // independent Note-content visibility."
 //
-// Before this fix, apps/web/src/modules/crm/server/lead-detail-data.ts
+// Before this fix, apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts
 // returned EVERY Note attached to a Lead to any caller holding
 // crm.leads.view_sensitive — crm_notes had no visibility concept at all
 // (confirmed: migration 002_crm_module.sql never added one). Migration
@@ -21,7 +21,7 @@ import { loadServerTsModule } from "./helpers/load-server-ts-module.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-const { getLeadDetailData } = await loadServerTsModule("apps/web/src/modules/crm/server/lead-detail-data.ts");
+const { getLeadDetailData } = await loadServerTsModule("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts");
 
 const org = "11111111-1111-4111-8111-111111111111";
 const company = "22222222-2222-4222-8222-222222222222";

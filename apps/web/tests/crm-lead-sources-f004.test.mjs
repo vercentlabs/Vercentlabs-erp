@@ -5,18 +5,21 @@ import test from "node:test";
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const page = read("../src/app/(app)/crm/sources/page.tsx");
 const workspace = read(
-  "../src/modules/crm/components/lead-sources-workspace.tsx",
+  "../src/modules/crm/prospect-and-relationship-master-data/lead-sources-workspace.tsx",
 );
-const form = read("../src/modules/crm/components/lead-source-form-drawer.tsx");
+const form = read("../src/modules/crm/prospect-and-relationship-master-data/lead-source-form-drawer.tsx");
 const collection = read("../src/app/api/crm/lead-sources/route.ts");
 const record = read("../src/app/api/crm/lead-sources/[id]/route.ts");
 const setup = read("../src/app/(app)/crm/settings/page.tsx");
 const navigation = read("../src/core/navigation/modules.ts");
 const css = read("../src/app/crm-lead-sources.css");
-const options = read("../../../services/api/src/modules/crm/index.js");
-const leadWorkspace = read("../src/modules/crm/components/leads-workspace.tsx");
+const options = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-options.js");
+const resourceRegistry = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-registry.js");
+const resourceMutation = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js");
+const leadWorkspace = read("../src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
+const leadEditor = read("../src/modules/crm/prospect-and-relationship-master-data/lead-edit-panel.tsx");
 const leadDetail = read(
-  "../src/modules/crm/components/lead-detail-workspace.tsx",
+  "../src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",
 );
 
 test("F004 web: CRM Setup owns the dedicated organization-wide Lead Source workspace", () => {
@@ -76,24 +79,24 @@ test("F004 web: dedicated API separates use access from configuration permission
 test("F004 web: new selectors use active sources while historical Lead UI resolves all sources", () => {
   assert.match(options, /status = 'active'/);
   assert.match(options, /allSources/);
-  assert.match(leadWorkspace, /options\.allSources/);
-  assert.match(leadWorkspace, /Inactive/);
+  assert.match(leadEditor, /options\.allSources/);
+  assert.match(leadEditor, /Inactive/);
   assert.match(leadDetail, /leadSource\?\.status === "inactive"/);
   assert.match(leadDetail, /Not specified/);
 });
 
 test("F004 web: original-source lineage and referrer details are wired through create, edit and detail", () => {
-  const create = read("../src/modules/crm/components/lead-create-workspace.tsx");
+  const create = read("../src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx");
   assert.match(create, /"referrerName"/);
   assert.match(create, /name="referrerName"/);
   assert.match(create, /permanent original source/);
-  assert.match(leadWorkspace, /"referrerName"/);
+  assert.match(leadEditor, /"referrerName"/);
   assert.match(leadDetail, /originalLeadSource/);
   assert.match(leadDetail, /Original source/);
   assert.match(leadDetail, /Referred by/);
-  assert.match(options, /originalSourceId: "original_source_id"/);
-  assert.match(options, /referrerName: "referrer_name"/);
-  assert.match(options, /CRM_LEAD_ORIGINAL_SOURCE_IMMUTABLE/);
+  assert.match(resourceRegistry, /originalSourceId: "original_source_id"/);
+  assert.match(resourceRegistry, /referrerName: "referrer_name"/);
+  assert.match(resourceMutation, /CRM_LEAD_ORIGINAL_SOURCE_IMMUTABLE/);
 });
 
 test("F004 web: desktop table, tablet/mobile cards, touch targets and reduced motion are explicit", () => {

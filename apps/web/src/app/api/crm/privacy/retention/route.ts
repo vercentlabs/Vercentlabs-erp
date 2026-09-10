@@ -9,7 +9,7 @@ import {
   requireBillingWriteAccess,
   incrementBillingUsage,
 } from "@/core/billing";
-import { crmAccountIntelligenceErrorResponse } from "@/modules/crm/server/account-intelligence";
+import { crmAccountIntelligenceErrorResponse } from "@/modules/crm/prospect-and-relationship-master-data/account-intelligence";
 import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";

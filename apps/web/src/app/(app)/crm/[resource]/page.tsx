@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCrmOptions, getCrmRecord, listCrmRecords } from "@vercentlabs/api";
-import CrmResourceManager from "@/modules/crm/components/resource-manager";
+import CrmResourceManager from "@/modules/crm/crm-data-operations-and-customization/resource-manager";
 import { PageHeader, StatusBadge } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext, crmDefinitions, isCrmDefinition } from "@/modules/crm";
-import { canViewCrmResource } from "@/modules/crm/api";
-import { isCrmUiResource } from "@/modules/crm/scope";
-import { getLeadDetailData } from "@/modules/crm/server/lead-detail-data";
-import { enrichLeadOwnerIdentity } from "@/modules/crm/server/lead-owner-data";
+import { crmApiContext, crmDefinitions, isCrmDefinition } from "@/modules/crm";
+import { canViewCrmResource } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { isCrmUiResource } from "@/modules/crm/crm-data-operations-and-customization/capability-registry";
+import { getLeadDetailData } from "@/modules/crm/prospect-and-relationship-master-data/lead-detail-data";
+import { enrichLeadOwnerIdentity } from "@/modules/crm/prospect-and-relationship-master-data/lead-owner-data";
 import { tenantTransaction } from "@/core/db";
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 10;
@@ -87,7 +87,7 @@ export default async function CrmResourcePage({
     !canViewCrmResource(session, resource)
   )
     notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
   const parsedPage = Math.trunc(Number(query.page) || 1);
   const page = Math.min(1_000_000, Math.max(1, parsedPage));
   const search = String(query.search || "")

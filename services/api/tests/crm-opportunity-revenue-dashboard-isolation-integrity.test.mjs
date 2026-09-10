@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getOpportunityRevenueDashboard, getOpportunityRevenueWorkspace } from "../src/modules/crm/opportunity-revenue-intelligence.js";
+import { getOpportunityRevenueDashboard, getOpportunityRevenueWorkspace } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 
 // Integrity closeout (Prompts 1-5): getOpportunityRevenueDashboard's summary
 // query correctly applied recordScope(), but its win/loss review, quota

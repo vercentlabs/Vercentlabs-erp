@@ -10,7 +10,7 @@ test("F012 Web: CRM Setup keeps Sales stages in the canonical Pipeline group", (
   const setup = read("apps/web/src/app/(app)/crm/settings/page.tsx");
   assert.match(setup, /title: "Pipeline"/);
   assert.match(setup, /\["Sales stages", "stages"/);
-  const scope = read("apps/web/src/modules/crm/scope.ts");
+  const scope = read("apps/web/src/modules/crm/crm-data-operations-and-customization/capability-registry.ts");
   assert.match(scope, /\["F012", "Sales stages"\]/);
 });
 
@@ -22,7 +22,7 @@ test("F012 Web: dedicated page is settings-authorized and reads governed stage s
 });
 
 test("F012 Web: workspace supports pipeline selection, create/edit, reorder, deactivate/reactivate and audit history", () => {
-  const component = read("apps/web/src/modules/crm/components/sales-stages-workspace.tsx");
+  const component = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx");
   assert.match(component, /aria-label="Select sales-stage pipeline"/);
   assert.match(component, /Add stage/);
   assert.match(component, /Edit sales stage/);
@@ -35,7 +35,7 @@ test("F012 Web: workspace supports pipeline selection, create/edit, reorder, dea
 });
 
 test("F012 Web: stage editor presents one terminal type instead of independently forgeable Won/Lost flags", () => {
-  const component = read("apps/web/src/modules/crm/components/sales-stages-workspace.tsx");
+  const component = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx");
   assert.match(component, /name="stageType"/);
   assert.match(component, /<option value="open">Open<\/option>/);
   assert.match(component, /<option value="won">Won<\/option>/);
@@ -95,7 +95,7 @@ test("F012 documentation/register remain canonical and reflect verified producti
 
 
 test("F012 Web: drawer state initialization never performs synchronous setState inside the dialog effect", () => {
-  const component = read("apps/web/src/modules/crm/components/sales-stages-workspace.tsx");
+  const component = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx");
   const effectStart = component.indexOf("useEffect(() => {");
   const effectEnd = component.indexOf("}, [editing]);", effectStart);
   const effect = component.slice(effectStart, effectEnd);

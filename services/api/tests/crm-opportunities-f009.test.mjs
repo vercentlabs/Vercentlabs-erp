@@ -11,7 +11,7 @@ import {
 import {
   normalizeOpportunityRecordInput,
   validateOpportunityRecord,
-} from "../src/modules/crm/features/opportunities/record-validation.js";
+} from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-record-validation.js";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 const org = "11111111-1111-4111-8111-111111111111";

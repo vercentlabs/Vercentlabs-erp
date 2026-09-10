@@ -5,11 +5,11 @@ import test from "node:test";
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const listPage = read("../src/app/(app)/crm/accounts/page.tsx");
 const detailPage = read("../src/app/(app)/crm/accounts/[id]/page.tsx");
-const workspace = read("../src/modules/crm/components/accounts-workspace.tsx");
+const workspace = read("../src/modules/crm/prospect-and-relationship-master-data/accounts-workspace.tsx");
 const detail = read(
-  "../src/modules/crm/components/account-detail-workspace.tsx",
+  "../src/modules/crm/prospect-and-relationship-master-data/account-detail-workspace.tsx",
 );
-const form = read("../src/modules/crm/components/account-form-drawer.tsx");
+const form = read("../src/modules/crm/prospect-and-relationship-master-data/account-form-drawer.tsx");
 const collectionRoute = read("../src/app/api/crm/accounts/route.ts");
 const recordRoute = read("../src/app/api/crm/accounts/[id]/route.ts");
 const css = read("../src/app/crm-accounts.css");

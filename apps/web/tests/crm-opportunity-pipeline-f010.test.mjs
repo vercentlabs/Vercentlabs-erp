@@ -17,7 +17,7 @@ test("F010 web: pipeline page chooses one visible pipeline and reads only its op
 });
 
 test("F010 web: board provides pipeline selection, drag and keyboard-select movement without cross-pipeline stage choices", () => {
-  const board = read("apps/web/src/modules/crm/components/pipeline-board.tsx");
+  const board = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx");
   assert.match(board, /aria-label="Select opportunity pipeline"/);
   assert.match(board, /router\.push\(/);
   assert.match(board, /onDragStart/);
@@ -27,16 +27,16 @@ test("F010 web: board provides pipeline selection, drag and keyboard-select move
 });
 
 test("F010 web: every direct board move carries stale-write expectations", () => {
-  const board = read("apps/web/src/modules/crm/components/pipeline-board.tsx");
+  const board = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx");
   assert.match(board, /expectedUpdatedAt: opportunity\.updatedAt/);
   assert.match(board, /expectedStageId: opportunity\.stageId/);
-  const actions = read("apps/web/src/modules/crm/components/opportunity-actions.tsx");
+  const actions = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-actions.tsx");
   assert.match(actions, /expectedUpdatedAt: updatedAt/);
   assert.match(actions, /expectedStageId: stageId/);
 });
 
 test("F010 web: terminal move collects a valid won/lost reason before POST", () => {
-  const board = read("apps/web/src/modules/crm/components/pipeline-board.tsx");
+  const board = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx");
   assert.match(board, /stage\.isWon \|\| stage\.isLost/);
   assert.match(board, /outcomeReasonId: outcome\?\.reasonId \|\| null/);
   assert.match(board, /outcomeNotes: outcome\?\.notes \|\| null/);
@@ -78,14 +78,14 @@ test("F010 web: pipeline page computes health per opportunity and board renders 
   assert.match(page, /evaluateOpportunityHealth/);
   assert.match(page, /warnings: health\.warnings, inactiveDays: health\.inactiveDays/);
   assert.match(page, /staleAfterDays: stage\.staleAfterDays == null \? null : Number\(stage\.staleAfterDays\)/);
-  const board = read("apps/web/src/modules/crm/components/pipeline-board.tsx");
+  const board = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx");
   assert.match(board, /function agingBadge/);
   assert.match(board, /Expected close date is overdue\./);
   assert.match(board, /agingBadge\(row, stage\)/);
 });
 
 test("F010 backend: pipeline stage options select stale_after_days for aging comparisons", () => {
-  const index = read("services/api/src/modules/crm/index.js");
+  const index = read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-options.js") + read("services/api/src/modules/crm/opportunity-and-pipeline-governance/stage-aging.js");
   assert.match(index, /stage\.stale_after_days FROM tenant\.crm_pipeline_stages stage/);
 });
 

@@ -18,7 +18,7 @@ import {
   reorderSalesStages,
   setSalesStageActive,
   updateSalesStage,
-} from "../../services/api/src/modules/crm/sales-stage-operations.js";
+} from "../../services/api/src/modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");

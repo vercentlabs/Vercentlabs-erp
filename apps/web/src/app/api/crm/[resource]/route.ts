@@ -4,19 +4,19 @@ import {
 } from "@/core/billing";
 import { createCrmRecord, createCrmTask, listCrmRecords } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
-import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
+import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import {
   crmApiContext,
   crmDefinitions,
   crmErrorResponse,
   isCrmDefinition,
 } from "@/modules/crm";
-import { isCrmApiResource } from "@/modules/crm/scope";
-import { crmSchemas } from "@/modules/crm/validation";
+import { isCrmApiResource } from "@/modules/crm/crm-data-operations-and-customization/capability-registry";
+import { crmSchemas } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
-import { crmAuditSnapshot } from "@/modules/crm/audit";
+import { crmAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 export async function GET(
   request: Request,

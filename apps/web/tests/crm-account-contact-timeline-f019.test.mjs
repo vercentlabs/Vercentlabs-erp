@@ -31,19 +31,19 @@ test("F019: the Contact timeline route uses the canonical projection scoped to e
 });
 
 test("F019: Account 360 renders the shared TimelinePanel against its own timeline endpoint", () => {
-  const source = read("apps/web/src/modules/crm/components/account-detail-workspace.tsx");
-  assert.match(source, /import TimelinePanel from "@\/modules\/crm\/components\/timeline-panel";/);
+  const source = read("apps/web/src/modules/crm/prospect-and-relationship-master-data/account-detail-workspace.tsx");
+  assert.match(source, /import TimelinePanel from "@\/modules\/crm\/seller-activity-and-follow-up-workspace\/timeline-panel";/);
   assert.match(source, /<TimelinePanel endpoint=\{`\/api\/crm\/accounts\/\$\{String\(account\.id\)\}\/timeline`\}\s*\/>/);
 });
 
 test("F019: Contact 360 renders the shared TimelinePanel against its own timeline endpoint", () => {
-  const source = read("apps/web/src/modules/crm/components/contact-detail-workspace.tsx");
-  assert.match(source, /import TimelinePanel from "@\/modules\/crm\/components\/timeline-panel";/);
+  const source = read("apps/web/src/modules/crm/prospect-and-relationship-master-data/contact-detail-workspace.tsx");
+  assert.match(source, /import TimelinePanel from "@\/modules\/crm\/seller-activity-and-follow-up-workspace\/timeline-panel";/);
   assert.match(source, /<TimelinePanel endpoint=\{`\/api\/crm\/contacts\/\$\{String\(contact\.id\)\}\/timeline`\}\s*\/>/);
 });
 
 test("F019: the shared TimelinePanel supports cursor-based 'load older' pagination, not an unbounded fetch-everything call", () => {
-  const source = read("apps/web/src/modules/crm/components/timeline-panel.tsx");
+  const source = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/timeline-panel.tsx");
   assert.match(source, /nextCursor/);
   assert.match(source, /hasMore/);
   assert.match(source, /Load older/);

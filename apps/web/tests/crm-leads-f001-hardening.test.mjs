@@ -14,13 +14,13 @@ const qualificationRoute = "apps/web/src/app/api/crm/leads/[id]/qualification/ro
 const convertRoute = "apps/web/src/app/api/crm/leads/[id]/convert/route.ts";
 
 test("F001 hardening: datetime-local validation accepts UTC and explicit offsets", () => {
-  const source = read("apps/web/src/modules/crm/validation.ts");
+  const source = read("apps/web/src/modules/crm/crm-data-operations-and-customization/input-validation.ts");
   assert.match(source, /\(\?:Z\|\[\+-\]\\d\{2\}:\\d\{2\}\)\?/);
   assert.match(source, /Date\.parse\(text\)/);
 });
 
 test("F001 hardening: CRM API errors expose stable code and errors shape", () => {
-  const crmModuleSource = read("apps/web/src/modules/crm/index.ts");
+  const crmModuleSource = read("apps/web/src/modules/crm/crm-data-operations-and-customization/http-errors.ts");
   assert.match(crmModuleSource, /export function crmErrorResponse/);
   assert.match(crmModuleSource, /code: error\.code \|\| "CRM_ERROR"/);
   assert.match(crmModuleSource, /errors,/);
@@ -60,7 +60,7 @@ test("F001 hardening: obsolete Leads stylesheet is removed and the current mobil
     fs.existsSync(path.join(root, "apps/web/src/app/crm-leads-workspace.css")),
     false,
   );
-  const currentCss = read("apps/web/src/app/crm-lead-suite-enterprise.css");
+  const currentCss = read("apps/web/src/app/crm-lead-workspaces.css");
   assert.match(currentCss, /@media \(max-width: 680px\)/);
   assert.match(currentCss, /\.crm-leads-mobile-list/);
   assert.match(currentCss, /\.crm-leads-table-scroll/);

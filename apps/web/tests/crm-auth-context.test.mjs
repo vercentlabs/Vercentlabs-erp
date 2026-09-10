@@ -20,10 +20,10 @@ import test from "node:test";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-const crmSource = () => read("apps/web/src/modules/crm/index.ts");
+const crmSource = () => read("apps/web/src/modules/crm/crm-data-operations-and-customization/request-context.ts");
 const crmContextTypeSource = () => read("packages/shared-types/src/crm.d.ts");
 const followUpsSource = () => read("apps/web/src/orchestration/work/follow-ups.ts");
-const leadIntelligenceSource = () => read("services/api/src/modules/crm/lead-intelligence.js");
+const leadIntelligenceSource = () => read("services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js");
 const tasksSource = () => read("apps/web/src/orchestration/work/tasks.ts");
 const systemContextSource = () => read("services/worker/src/system-context.js");
 
@@ -95,7 +95,7 @@ test("services/worker's system actor context remains least-privilege (unaffected
 });
 
 test("public CRM lead capture never touches CrmContext — it uses a wholly separate function", () => {
-  const captureRouteSource = read("apps/web/src/app/api/crm/public/capture/[key]/route.ts");
+  const captureRouteSource = read("apps/web/src/modules/crm/prospect-and-relationship-master-data/route-handlers/public-lead-capture.ts");
   assert.match(captureRouteSource, /captureCrmLead/);
   assert.doesNotMatch(captureRouteSource, /crmContext|crmApiContext|CrmContext/);
 });

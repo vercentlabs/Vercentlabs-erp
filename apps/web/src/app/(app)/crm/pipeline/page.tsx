@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { evaluateOpportunityHealth, getCrmOptions, listCrmRecords, listOpportunityStageAges, listOpportunityPipelineStageTotals, listPipelineSnapshots } from "@vercentlabs/api";
 
-import CrmPipelineBoard from "@/modules/crm/components/pipeline-board";
-import PipelineHistoryPanel from "@/modules/crm/components/pipeline-history-panel";
+import CrmPipelineBoard from "@/modules/crm/opportunity-and-pipeline-governance/pipeline-board";
+import PipelineHistoryPanel from "@/modules/crm/opportunity-and-pipeline-governance/pipeline-history-panel";
 import { ActionLink, PageHeader } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 
 export const metadata = { title: "CRM pipeline" };
@@ -23,7 +23,7 @@ export default async function PipelinePage({
   if (!hasPermission(session, PERMISSIONS.crmView)) return notFound();
   const canManage = hasPermission(session, PERMISSIONS.crmOpportunitiesManage);
 
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
   const requestedPipelineId = String((await searchParams).pipeline || "").trim();
   const data = await tenantTransaction(
     context.organizationId,

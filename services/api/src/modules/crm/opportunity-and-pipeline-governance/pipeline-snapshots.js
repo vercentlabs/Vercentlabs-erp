@@ -1,4 +1,6 @@
-import { CrmError, queueOutboxEvent, canViewAllCrmRecords } from "../index.js";
+import { CrmError } from "../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
+import { canViewAllCrmRecords } from "../crm-data-operations-and-customization/record-policy.js";
 
 // F010 integrity closeout — historical pipeline snapshots (dossier
 // F010-CAP-002 / DEC-CRM-P1-F010, a REQUIRED enterprise-scope item, not a

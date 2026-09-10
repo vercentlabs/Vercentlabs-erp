@@ -4,7 +4,7 @@ import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization"
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 
 export async function GET(_request: Request, route: { params: Promise<{ id: string }> }) {
   try {

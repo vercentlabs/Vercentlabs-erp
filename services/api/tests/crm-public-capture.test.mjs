@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { captureCrmLead } from "../src/modules/crm/index.js";
-import { submitPublishedLeadForm } from "../src/modules/crm/lead-acquisition.js";
+import { submitPublishedLeadForm } from "../src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const formId = "22222222-2222-4222-8222-222222222222";
@@ -103,13 +103,13 @@ test("public capture: tenant resolution comes only from the form key, never from
 });
 
 test("public capture: configured capture owner is resolved through the eligible-assignee helper", () => {
-  const source = readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
-  assert.match(source, /getEligibleLeadAssignee,/);
+  const source = readFileSync(new URL("../src/modules/crm/prospect-and-relationship-master-data/lead-capture.js", import.meta.url), "utf8");
+  assert.match(source, /import \{ getEligibleLeadAssignee \}/);
   assert.match(source, /getEligibleLeadAssignee\(client, context, form\.owner_user_id/);
 });
 
 test("public capture: a campaign-attributed submission fires campaign.member_responded only when the membership insert actually happens", () => {
-  const source = readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/modules/crm/prospect-and-relationship-master-data/lead-capture.js", import.meta.url), "utf8");
   const start = source.indexOf("export async function captureCrmLead(");
   const end = source.indexOf("\nexport ", start + 1);
   const block = source.slice(start, end);

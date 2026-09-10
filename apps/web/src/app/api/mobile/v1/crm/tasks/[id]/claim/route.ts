@@ -6,7 +6,7 @@ import { readJson } from "@/core/http";
 import { mobileError, mobileOk } from "@/core/mobile-http";
 import { requireMobileSession } from "@/core/mobile-session";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
 
 // Mobile/API parity (F015) — the SAME claimCrmTask atomic-claim function

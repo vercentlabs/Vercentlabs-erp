@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-const service = () => read("services/api/src/modules/crm/meeting-operations.js");
-const communications = () => read("services/api/src/modules/crm/communications.js");
+const service = () => read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js");
+const communications = () => read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js");
 
 test("F014: governed Meeting lifecycle stays on canonical crm_activities and reuses crm_activity_attendees", () => {
   const source = service();
@@ -42,7 +42,10 @@ test("F014: all-company creation inherits company\/branch from the related CRM r
 });
 
 test("F014: generic Activity create/update/archive/complete cannot bypass governed Meetings", () => {
-  const source = read("services/api/src/modules/crm/index.js");
+  const source = [
+    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
+    read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js"),
+  ].join("\n");
   assert.match(source, /activityType === "meeting"[\s\S]{0,160}CRM_MEETING_API_MOVED/);
   assert.match(source, /before\.activityType === "meeting" \|\| requestedActivityType === "meeting"/);
   assert.match(source, /Use the governed Meetings operations/);
@@ -50,7 +53,7 @@ test("F014: generic Activity create/update/archive/complete cannot bypass govern
 });
 
 test("F014: legacy server offline-sync cannot directly insert or complete Meetings", () => {
-  const source = read("services/api/src/modules/crm/offline-sync.js");
+  const source = read("services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.js");
   assert.match(source, /governed Meetings mobile endpoint for offline Meeting creation/);
   assert.match(source, /governed Meetings mobile endpoint for offline Meeting completion/);
 });
@@ -95,7 +98,7 @@ test("F014: booking and Meeting evidence excludes attendee email, meeting URL an
   const source = service();
   const safePayload = source.match(/function safeEventPayload\(meeting, attendeeCount = 0\) \{([\s\S]*?)\n\}/)?.[1] || "";
   const eventInsert = source.match(/INSERT INTO tenant\.crm_meeting_events\(([\s\S]*?)\)\n\s*VALUES/)?.[1] || "";
-  const audit = read("apps/web/src/modules/crm/audit.ts");
+  const audit = read("apps/web/src/modules/crm/crm-data-operations-and-customization/audit-events.ts");
   const auditSnapshot = audit.match(/export function crmMeetingAuditSnapshot[\s\S]*?\n\}/)?.[0] || "";
   for (const value of [safePayload, eventInsert, auditSnapshot]) {
     assert.doesNotMatch(value, /meetingUrl|meeting_url|description|attendee.*email|guestEmail|outcome\s*:/i);

@@ -5,7 +5,7 @@ import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization"
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
 
 type Route = { params: Promise<{ id: string }> };

@@ -4,9 +4,9 @@ import {
 } from "@/core/billing";
 import { moveOpportunityStage } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { moveStageSchema } from "@/modules/crm/validation";
+import { moveStageSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";

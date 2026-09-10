@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { bulkUpdateOpportunities } from "../src/modules/crm/opportunity-operations.js";
+import { bulkUpdateOpportunities } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 
 // Integrity closeout (Prompts 1-5): bulkUpdateOpportunities restricted
 // which columns could be touched but never validated the values —

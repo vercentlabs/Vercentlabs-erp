@@ -15,7 +15,7 @@ import {
   listCrmCallEvents,
   startCrmCall,
   updateCrmCall,
-} from "../../services/api/src/modules/crm/call-operations.js";
+} from "../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");

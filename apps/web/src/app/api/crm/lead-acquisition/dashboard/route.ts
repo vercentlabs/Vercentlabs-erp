@@ -2,7 +2,7 @@ import { getLeadAcquisitionDashboard } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { crmApiContext } from "@/modules/crm";
-import { crmLeadAcquisitionErrorResponse } from "@/modules/crm/server/lead-acquisition";
+import { crmLeadAcquisitionErrorResponse } from "@/modules/crm/prospect-and-relationship-master-data/lead-acquisition";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
 

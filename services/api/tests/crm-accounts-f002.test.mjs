@@ -4,14 +4,14 @@ import test from "node:test";
 import {
   normalizeAccountInput,
   validateAccountInput,
-} from "../src/modules/crm/features/accounts/record-validation.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/account-record-validation.js";
 import {
   archiveCrmAccount,
   createCrmAccount,
   getCrmAccountForCaller,
   listCrmAccounts,
   updateCrmAccount,
-} from "../src/modules/crm/account-operations.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/account-operations.js";
 
 const context = Object.freeze({
   organizationId: "11111111-1111-4111-8111-111111111111",

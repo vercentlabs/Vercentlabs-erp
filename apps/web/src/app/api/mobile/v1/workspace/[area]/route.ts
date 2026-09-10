@@ -18,7 +18,7 @@ import { getBillingSummary, listBillingPlans } from "@/core/billing";
 import { hashPassword, verifyPassword } from "@/core/auth";
 import { query, tenantTransaction, transaction } from "@/core/db";
 import { crmApiContext } from "@/modules/crm";
-import { canViewCrmReport } from "@/modules/crm/api";
+import { canViewCrmReport } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { HttpError, readJson } from "@/core/http";
 import { mobileError, mobileOk } from "@/core/mobile-http";
 import { requireMobileSession } from "@/core/mobile-session";

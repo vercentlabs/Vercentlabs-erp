@@ -13,7 +13,8 @@
 // check the canonical Timeline already uses, not a re-derived equivalent
 // (the dossier's explicit "object-specific wrapper functions are
 // acceptable, separate security implementations are not").
-import { CrmError, queueOutboxEvent } from "../../index.js";
+import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
 import { resolveCrmEntityAccess } from "../timeline/timeline.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

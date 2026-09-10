@@ -10,7 +10,7 @@ import {
   addOpportunityCompetitor,
   removeOpportunityCompetitor,
 } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-commercial.js";
-import { saveOpportunityRevenueSplits } from "../src/modules/crm/opportunity-revenue-intelligence.js";
+import { saveOpportunityRevenueSplits } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 import {
   enqueueOpportunityStageMigrationJob,
   processOpportunityStageMigrationBatch,

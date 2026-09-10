@@ -4,12 +4,12 @@ import test from "node:test";
 import {
   findAccountDuplicates,
   findContactDuplicates,
-} from "../src/modules/crm/foundation.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/foundation.js";
 import {
   CrmAccountIntelligenceError,
   mergeAccountsGoverned,
   mergeContactsGoverned,
-} from "../src/modules/crm/account-intelligence.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
 import {
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,

@@ -2,7 +2,7 @@
 
 Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows). No dedicated timeline service/component exists — F019 is realized as a client-side merge of multiple already-verified data sources inside `lead-detail-workspace.tsx`.
 
-**Correction (2026-09-05):** this audit originally attributed the timeline's data to `getLeadTimeline` (`lead-operations.js`). That function is real but is dead code — it has zero callers anywhere in the codebase (confirmed with the Grep tool). The actual data source, used by the real Lead 360 page, is `getLeadDetailData` in `apps/web/src/modules/crm/server/lead-detail-data.ts`, which independently has the exact same fixed-cap pattern (`LIMIT 200` on activities/communications). The gap finding below was correct; the cited function was wrong.
+**Correction (2026-09-05):** this audit originally attributed the timeline's data to `getLeadTimeline` (`lead-operations.js`). That function is real but is dead code — it has zero callers anywhere in the codebase (confirmed with the Grep tool). The actual data source, used by the real Lead 360 page, is `getLeadDetailData` in `apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts`, which independently has the exact same fixed-cap pattern (`LIMIT 200` on activities/communications). The gap finding below was correct; the cited function was wrong.
 
 | ID | Verdict | Evidence |
 |---|---|---|

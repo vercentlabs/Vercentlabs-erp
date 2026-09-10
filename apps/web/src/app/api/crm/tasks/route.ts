@@ -7,7 +7,7 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { crmTaskAuditSnapshot } from "@/modules/crm/audit";
+import { crmTaskAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 // F015 Tasks workspace closeout — a dedicated route (mirroring calls/
 // meetings/follow-ups) rather than riding the generic [resource] route,

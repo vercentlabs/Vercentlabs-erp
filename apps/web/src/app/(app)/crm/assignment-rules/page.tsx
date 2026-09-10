@@ -8,8 +8,8 @@ import { notFound } from "next/navigation";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import { crmContext } from "@/modules/crm";
-import LeadAssignmentRulesWorkspace from "@/modules/crm/components/lead-assignment-rules-workspace";
+import { crmApiContext } from "@/modules/crm";
+import LeadAssignmentRulesWorkspace from "@/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment-rules-workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Lead assignment rules" };
@@ -17,7 +17,7 @@ export const metadata = { title: "Lead assignment rules" };
 export default async function LeadAssignmentRulesPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmSettingsManage)) return notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
   const data = await tenantTransaction(
     context.organizationId,
     async (client) => {

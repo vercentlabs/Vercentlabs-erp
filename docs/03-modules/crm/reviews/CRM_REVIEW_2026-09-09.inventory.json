@@ -18,18 +18,18 @@
         "apps/web/tests/crm-leads-f001.test.mjs",
         "apps/web/tests/crm-leads-f001-wave1.test.mjs",
         "apps/web/tests/crm-leads-f001-ui-actions.test.mjs",
-        "apps/web/tests/crm-leads-f001-pass2c.test.mjs",
-        "apps/web/tests/crm-leads-f001-pass2b.test.mjs",
-        "apps/web/tests/crm-leads-f001-pass2a.test.mjs",
+        "apps/web/tests/crm-leads-bulk-operations-contract.test.mjs",
+        "apps/web/tests/crm-leads-record-detail-contract.test.mjs",
+        "apps/web/tests/crm-leads-record-list-contract.test.mjs",
         "apps/web/tests/crm-leads-f001-hardening.test.mjs",
         "apps/web/tests/crm-lead-mobile-sensitive-parity-f001.test.mjs",
         "apps/web/tests/crm-f001-f004-fixer-regressions.test.mjs",
         "services/api/tests/crm-leads-f001.test.mjs",
         "services/api/tests/crm-leads-f001-wave1.test.mjs",
         "services/api/tests/crm-leads-f001-version-precision.test.mjs",
-        "services/api/tests/crm-leads-f001-pass2c.test.mjs",
-        "services/api/tests/crm-leads-f001-pass2b.test.mjs",
-        "services/api/tests/crm-leads-f001-pass2a.test.mjs",
+        "services/api/tests/crm-leads-bulk-operations-contract.test.mjs",
+        "services/api/tests/crm-leads-record-detail-contract.test.mjs",
+        "services/api/tests/crm-leads-record-list-contract.test.mjs",
         "services/api/tests/crm-leads-f001-hardening.test.mjs"
       ],
       "note": "Filename matches are an index, not a claim of complete test coverage. Shared tests may cover this feature without naming its ID."
@@ -2768,7 +2768,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/tests/crm-leads-f001-pass2c.test.mjs",
+      "path": "apps/web/tests/crm-leads-bulk-operations-contract.test.mjs",
       "lines": 44,
       "bytes": 2263,
       "sha256": "94563dc375d547d5215a137abdbf052af355e07a903380851cf20eda4731a1f9",
@@ -2779,7 +2779,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/tests/crm-leads-f001-pass2b.test.mjs",
+      "path": "apps/web/tests/crm-leads-record-detail-contract.test.mjs",
       "lines": 65,
       "bytes": 2825,
       "sha256": "92def4d341f90ed5bd872c6fae1bbbe50e3ca27c51b20c3d26adaece1b9ee03d",
@@ -2790,7 +2790,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/tests/crm-leads-f001-pass2a.test.mjs",
+      "path": "apps/web/tests/crm-leads-record-list-contract.test.mjs",
       "lines": 77,
       "bytes": 3829,
       "sha256": "ce6236c4d02c412fd5aa3726ec967b6b1593504503bb6a9adc100f22162251f7",
@@ -2838,7 +2838,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/tests/crm-lead-suite-enterprise.test.mjs",
+      "path": "apps/web/tests/crm-lead-experience-contract.test.mjs",
       "lines": 328,
       "bytes": 11552,
       "sha256": "5f57c503c9b3560c8b08b13490db61080b43eb7af9674b9c1eb9b12c3ae9fda4",
@@ -3489,7 +3489,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/tests/crm-leads-f001-pass2c.test.mjs",
+      "path": "services/api/tests/crm-leads-bulk-operations-contract.test.mjs",
       "lines": 290,
       "bytes": 10393,
       "sha256": "e3a0c1b6af48b8d230adb3f80e517a8d46279654d32e044aed3b75889036cbe8",
@@ -3505,7 +3505,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/tests/crm-leads-f001-pass2b.test.mjs",
+      "path": "services/api/tests/crm-leads-record-detail-contract.test.mjs",
       "lines": 94,
       "bytes": 3945,
       "sha256": "88136d49a16c01336ed760d80b8d9a1ff120062c870f40e340232a39bac20008",
@@ -3520,7 +3520,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/tests/crm-leads-f001-pass2a.test.mjs",
+      "path": "services/api/tests/crm-leads-record-list-contract.test.mjs",
       "lines": 230,
       "bytes": 10165,
       "sha256": "3d1799fdf6f4871571864001eacb5b769a9f63fcfa9af13d27199a552f294a66",
@@ -4121,7 +4121,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/task-operations.js",
+      "path": "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js",
       "lines": 269,
       "bytes": 20039,
       "sha256": "2a5f525751826fd1918fe5482cf85545d0368490bf074bc9c53c02c57bab0aca",
@@ -4218,7 +4218,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/sales-stage-operations.js",
+      "path": "services/api/src/modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js",
       "lines": 614,
       "bytes": 29986,
       "sha256": "2dd1ea5910371341b93b7599a5febe708503dae31c6466acffdc09def73c346b",
@@ -4436,7 +4436,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/core-acceptance.js",
+      "path": "services/api/src/modules/crm/crm-data-operations-and-customization/core-acceptance.js",
       "lines": 437,
       "bytes": 12838,
       "sha256": "71fa712232d84cffdb39790235723d9ed1a117a9ab72936637dd8fc80b39d284",
@@ -4463,7 +4463,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/core-acceptance.d.ts",
+      "path": "services/api/src/modules/crm/crm-data-operations-and-customization/core-acceptance.d.ts",
       "lines": 65,
       "bytes": 2068,
       "sha256": "71937c72788cc4071139247e9f7bffeaa578c289f9779ed8e6f7311b98efde55",
@@ -4474,7 +4474,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/contact-security.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/contact-security.js",
       "lines": 44,
       "bytes": 1794,
       "sha256": "8c34020882a16e95b4b0dd0d53f9cc785e24d909da2a147ff703e89dde19fec3",
@@ -4492,7 +4492,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/contact-operations.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/contact-operations.js",
       "lines": 655,
       "bytes": 22298,
       "sha256": "b091bb78aedc4af9a7d5ace5c26b8020d7cdbbe8b458928561bce8eae67283fb",
@@ -4523,7 +4523,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/contact-operations.d.ts",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/contact-operations.d.ts",
       "lines": 46,
       "bytes": 1302,
       "sha256": "2d9573c078509b35337e20d7bf6e1c41b5005bc60a63773c77c6e977919e6a3b",
@@ -4542,7 +4542,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/communications.js",
+      "path": "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js",
       "lines": 1978,
       "bytes": 75539,
       "sha256": "e0c7152b4ad87aeb3fafed200cc8833df729a195445baccc103ea7489ddfba50",
@@ -4610,7 +4610,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/communications.d.ts",
+      "path": "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.d.ts",
       "lines": 147,
       "bytes": 4933,
       "sha256": "334699cd8751fe2b6ce7143810b1dbbf106f7f7297cf720b3edb7933e3984403",
@@ -4652,7 +4652,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/call-operations.js",
+      "path": "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js",
       "lines": 513,
       "bytes": 30152,
       "sha256": "d7df6af11f9d66d0e1a284378980f173c678d295f2986cfad0bb94fffad8dacf",
@@ -4687,7 +4687,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/account-operations.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/account-operations.js",
       "lines": 676,
       "bytes": 22884,
       "sha256": "ec4f7fe4bffb09e39dac20c97a2816946d9d98022d462c071dcc90b7b2b80d0c",
@@ -4715,7 +4715,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/account-operations.d.ts",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/account-operations.d.ts",
       "lines": 61,
       "bytes": 1476,
       "sha256": "887134209a49ffe112f5b72420660ce128a98c8f06de0155d9524ed7802356ef",
@@ -4733,7 +4733,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/account-intelligence.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/account-intelligence.js",
       "lines": 1706,
       "bytes": 63620,
       "sha256": "942c15944ee163b804a89ddfa29fa87ec9690058eb8a411e70af21853ff99705",
@@ -4789,7 +4789,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/account-intelligence.d.ts",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/account-intelligence.d.ts",
       "lines": 118,
       "bytes": 3696,
       "sha256": "d715bf3246ee24bb32c2304625c17d67cd04af19b867d3e936ad23b6577fe46d",
@@ -4831,7 +4831,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/opportunity-revenue-intelligence.js",
+      "path": "services/api/src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js",
       "lines": 1049,
       "bytes": 40125,
       "sha256": "78299ef4c2e560958827e654af3bff11a144b627648fb0a14c6f2d76c99a3012",
@@ -4879,7 +4879,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/opportunity-revenue-intelligence.d.ts",
+      "path": "services/api/src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.d.ts",
       "lines": 108,
       "bytes": 3535,
       "sha256": "d5cc5449f9911e04ed156bef4899b532c1d3ec65354fd068193171477d523f18",
@@ -4912,7 +4912,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/opportunity-operations.js",
+      "path": "services/api/src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js",
       "lines": 228,
       "bytes": 9845,
       "sha256": "6f5c603bfafb699ae5e7eacdb3840f08896bb989ad7decd23036956e43613c17",
@@ -4938,7 +4938,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/opportunity-operations.d.ts",
+      "path": "services/api/src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.d.ts",
       "lines": 34,
       "bytes": 1085,
       "sha256": "6c33fbb1fd4438a2d5e9e89351486cce05072d34e4eeca093575f3da6c8562db",
@@ -5082,7 +5082,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/offline-sync.js",
+      "path": "services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.js",
       "lines": 499,
       "bytes": 19040,
       "sha256": "aefe2def3f36a76c274fae02792e99b1e46153478a19e587aee3f9fe3f9ffcf0",
@@ -5113,7 +5113,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/offline-sync.d.ts",
+      "path": "services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.d.ts",
       "lines": 60,
       "bytes": 1938,
       "sha256": "71973d19857466bee3445e44268f6c09c364037d6112af6463c2726c609ff1a9",
@@ -5137,7 +5137,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/meeting-operations.js",
+      "path": "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js",
       "lines": 663,
       "bytes": 38080,
       "sha256": "9c84e1928237e15fd69ef00579d59901463eb3b287de17c04356104f0145bc10",
@@ -5175,7 +5175,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-source-operations.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.js",
       "lines": 345,
       "bytes": 11309,
       "sha256": "dec1a7828ae5ddd5b81590d272dbfc5126788e491c9e6674a3a6a0c2b0cef5dc",
@@ -5200,7 +5200,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-source-operations.d.ts",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.d.ts",
       "lines": 44,
       "bytes": 1153,
       "sha256": "7ec300d5fce5d7fd8045a2f5b9d1cb6bc8cbfaed42aaa3499aee48bd0ee4662c",
@@ -5217,7 +5217,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/lead-security.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-security.js",
       "lines": 86,
       "bytes": 2577,
       "sha256": "cd95858532f89fe0c776f3f9fc88494d62dde6f0fd89dcf21bee3d6a8c9e3420",
@@ -5238,7 +5238,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/lead-qualification.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js",
       "lines": 404,
       "bytes": 14627,
       "sha256": "3d3a7b8fdd7a751848228df284f765f0c475a764b3bf8833d763c1279a4972f0",
@@ -5263,7 +5263,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-qualification.d.ts",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.d.ts",
       "lines": 19,
       "bytes": 1157,
       "sha256": "8d93df9b2b845b5530e80bf0fce769e82cda00630b9550f03aef54c1947cf69a",
@@ -5274,7 +5274,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/lead-operations.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js",
       "lines": 654,
       "bytes": 27728,
       "sha256": "a4a5a5474deb8771de79c453783b6387f5ec12d67fe4674280c552df48b559cd",
@@ -5313,7 +5313,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-operations.d.ts",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.d.ts",
       "lines": 79,
       "bytes": 2326,
       "sha256": "504f16c7f748786000788629ca33821b63fcc62fb36543fe423d57f228b60d3d",
@@ -5339,7 +5339,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/lead-lifecycle.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle.js",
       "lines": 8,
       "bytes": 457,
       "sha256": "f913728e4fa77f2de176b971bd5764fe868fa6bd23f60a757a6f76e05fc71e74",
@@ -5708,7 +5708,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-intelligence.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js",
       "lines": 744,
       "bytes": 30117,
       "sha256": "73fd44b61a864f4e671ca4c195756057ce524749a1bad591c6c7117e914d23ca",
@@ -5747,7 +5747,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-intelligence.d.ts",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.d.ts",
       "lines": 107,
       "bytes": 3469,
       "sha256": "a41180a204624c49092bb2ed602e61be0b0a3915d4470c21a4f6e3c46f68cd94",
@@ -5780,7 +5780,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/lead-governance.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-governance.js",
       "lines": 134,
       "bytes": 4499,
       "sha256": "8cd9978c3c5526d5ba39238468e56ffea8272ed7516a0ba339995ba76c1ac4fe",
@@ -5800,7 +5800,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-duplicates.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-duplicates.js",
       "lines": 372,
       "bytes": 12582,
       "sha256": "acab3541bcca039ed421b2dbabc31eb713cb18b0631d20dc7dc09e1946587f54",
@@ -5827,7 +5827,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-acquisition.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.js",
       "lines": 1273,
       "bytes": 46660,
       "sha256": "fa4acfa1a675b0ac0e74797fe48a0df5dbb60a5ba368974717638c6ffd831a51",
@@ -5880,7 +5880,7 @@
       ]
     },
     {
-      "path": "services/api/src/modules/crm/lead-acquisition.d.ts",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.d.ts",
       "lines": 108,
       "bytes": 3588,
       "sha256": "a7b4b6be5f6ae587509fb769ec61ae79b152c6d5b3ce0ee5149aae55259d20c6",
@@ -6128,7 +6128,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/foundation.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/foundation.js",
       "lines": 276,
       "bytes": 10991,
       "sha256": "bf15b2cc7313f92dfa9155acdf1078e357428411f44a32915b6e400e20cb1df1",
@@ -6151,7 +6151,7 @@
       ]
     },
     {
-      "path": "apps/web/src/modules/crm/validation.ts",
+      "path": "apps/web/src/modules/crm/crm-data-operations-and-customization/input-validation.ts",
       "lines": 608,
       "bytes": 25236,
       "sha256": "62da1f8357e6626cd4bee9e32b128316da88ec963c4310e265ba7e8ec66e7f47",
@@ -6173,7 +6173,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/opportunity-revenue.ts",
+      "path": "apps/web/src/modules/crm/pipeline-analytics-and-forecasting/opportunity-revenue.ts",
       "lines": 22,
       "bytes": 990,
       "sha256": "fdfb0ee5b5be7b117aaf865ebc5e9e488fe6db56e487b27964bf844285bb6a33",
@@ -6186,7 +6186,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/opportunity-detail-data.ts",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data.ts",
       "lines": 152,
       "bytes": 6728,
       "sha256": "c4dc6d2d0dff23dcd8e151a897c96ea3caf0ae86ee9339acb1978fb0f9561d99",
@@ -6207,7 +6207,7 @@
       ]
     },
     {
-      "path": "apps/web/src/modules/crm/server/offline.ts",
+      "path": "apps/web/src/modules/crm/crm-data-operations-and-customization/offline.ts",
       "lines": 15,
       "bytes": 479,
       "sha256": "649d61411a98f521eedb9bf7f461cebd00d5c61cd5f323219217902376b2f352",
@@ -6220,7 +6220,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/lead-owner-data.ts",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-owner-data.ts",
       "lines": 50,
       "bytes": 1486,
       "sha256": "d9c7a81511bcc8f24a3f3bece5b3b4fe290192472bd8052e460901e2af424206",
@@ -6233,7 +6233,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/lead-intelligence.ts",
+      "path": "apps/web/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.ts",
       "lines": 15,
       "bytes": 498,
       "sha256": "0f275d9eee05f7fd86a42e5db0d3bec584be206324f69dec68901df72e6ae8f9",
@@ -6246,7 +6246,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/lead-detail-data.ts",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts",
       "lines": 293,
       "bytes": 12987,
       "sha256": "0fa77cf7cd913bae81f72b4e8379fbd45bc1ab5c13d9b921fc61171cc61a2d73",
@@ -6286,7 +6286,7 @@
       ]
     },
     {
-      "path": "apps/web/src/modules/crm/server/lead-acquisition.ts",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.ts",
       "lines": 16,
       "bytes": 497,
       "sha256": "9a67ba4cd8f79a756ae7caeda204a4e193b98055df5f08c46aef8b9d1b4b7eb4",
@@ -6299,7 +6299,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/core-acceptance.ts",
+      "path": "apps/web/src/modules/crm/crm-data-operations-and-customization/core-acceptance.ts",
       "lines": 26,
       "bytes": 934,
       "sha256": "7180c604ee8976cb16970ab03a71f8c7359963b77eb34f3dfd1536d30297e9d5",
@@ -6312,7 +6312,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/communications.ts",
+      "path": "apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/communications.ts",
       "lines": 16,
       "bytes": 494,
       "sha256": "7b54282b9073c72bcd62278b662dc1f66fb20934922e56bd458d62f31b52c7a8",
@@ -6325,7 +6325,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/server/account-intelligence.ts",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/account-intelligence.ts",
       "lines": 19,
       "bytes": 819,
       "sha256": "ad33e951d4c44c0ca46b592748e12cc8a7979e5581b670817b3b866016925780",
@@ -6349,7 +6349,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/scope.ts",
+      "path": "apps/web/src/modules/crm/crm-data-operations-and-customization/capability-registry.ts",
       "lines": 131,
       "bytes": 4260,
       "sha256": "29006174dd91bb55bc09a006a4c3aecdc66eafb6ec7f5adc63c0db7689bbd678",
@@ -6365,7 +6365,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/features/opportunities/record-validation.js",
+      "path": "services/api/src/modules/crm/opportunity-and-pipeline-governance/opportunity-record-validation.js",
       "lines": 105,
       "bytes": 4318,
       "sha256": "8806d4434d384fba8b6f37ca0c50abeb552154ba84b12f96f1dd9f59c9762109",
@@ -6391,7 +6391,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/features/leads/record-validation.js",
+      "path": "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-record-validation.js",
       "lines": 233,
       "bytes": 5902,
       "sha256": "915299b05b46287e1e86a586b176bf456d9b0aaf4036dab74ce1282a3435e1e0",
@@ -6405,7 +6405,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/features/lead-sources/validation.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-source-validation.js",
       "lines": 137,
       "bytes": 4190,
       "sha256": "023ed4c37b33ecd58b98f4e48336a582d207d2af86b1c59b60c9763e55595891",
@@ -6500,7 +6500,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/features/contacts/record-validation.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/contact-record-validation.js",
       "lines": 213,
       "bytes": 5360,
       "sha256": "3abc331fe0727ace475f06da8470248fafe94c891a996e6dc6210c26aa414d93",
@@ -6525,7 +6525,7 @@
       "tableReferences": []
     },
     {
-      "path": "services/api/src/modules/crm/features/accounts/record-validation.js",
+      "path": "services/api/src/modules/crm/prospect-and-relationship-master-data/account-record-validation.js",
       "lines": 167,
       "bytes": 4122,
       "sha256": "e2e2238c1fffdb5e091a20482bb9c199273250669a93619ea000a75e7fead870",
@@ -6687,7 +6687,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/sales-stages-workspace.tsx",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx",
       "lines": 528,
       "bytes": 23377,
       "sha256": "3b3c75e95e97cb1a7acdc819d444ff7fd8fdcd8e054c4936f3069fac94f716b9",
@@ -6698,7 +6698,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/sales-stages-workspace.module.css",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.module.css",
       "lines": 61,
       "bytes": 1563,
       "sha256": "ff34f72e069303e8832d2eaf047b4d0b9d8ac01a5e5e0d516c853698a4b67700",
@@ -6709,7 +6709,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/resource-manager.tsx",
+      "path": "apps/web/src/modules/crm/crm-data-operations-and-customization/resource-manager.tsx",
       "lines": 865,
       "bytes": 28067,
       "sha256": "2233a355150d55ae38046aaa437b7a771605f5c814d25fc31b8bbac3cb601547",
@@ -6722,7 +6722,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/pipeline-history-panel.tsx",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-history-panel.tsx",
       "lines": 148,
       "bytes": 5943,
       "sha256": "be98233b9f524cf40bf4f05cfab043933ba32f1d97eecabf6c500350a4f24131",
@@ -6733,7 +6733,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/pipeline-board.tsx",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx",
       "lines": 511,
       "bytes": 17724,
       "sha256": "c706dd68a747de5836510f369234a4aa592d92cd7db08e8a20a010c8d6757b9c",
@@ -6744,7 +6744,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/opportunity-probability-action.tsx",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-probability-action.tsx",
       "lines": 124,
       "bytes": 4315,
       "sha256": "22a247a2d93504bef18c21995f210916af564364ef9cd4b6ee84205b4245110e",
@@ -6755,7 +6755,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/opportunity-actions.tsx",
+      "path": "apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-actions.tsx",
       "lines": 339,
       "bytes": 10407,
       "sha256": "067b59c7df10b284ac83d17a14b50309150287d43cc5decab3d096f597cca8d7",
@@ -6770,7 +6770,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/meetings-workspace.tsx",
+      "path": "apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/meetings-workspace.tsx",
       "lines": 604,
       "bytes": 26371,
       "sha256": "2edac64b2fd31a17c3e03dee198adffa525170e3bb93c5ed6ae587f426683878",
@@ -6781,7 +6781,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/leads-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx",
       "lines": 2310,
       "bytes": 86710,
       "sha256": "7b365787def75c2b2ff2425436f45ccea6400c1ed7ae3ee31f1ef1ca7f25df6a",
@@ -6792,7 +6792,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-workspace-drawer.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer.tsx",
       "lines": 165,
       "bytes": 5386,
       "sha256": "4887190993503b15efd4ec1f035397f2107c998c0a31ff5c3f92b35ffb666a0b",
@@ -6803,7 +6803,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-sources-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-sources-workspace.tsx",
       "lines": 342,
       "bytes": 11078,
       "sha256": "a89d431b42ea05356aed97f17275d951141c86e744fd1a96bb0653ff6ad9c068",
@@ -6814,7 +6814,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-source-form-drawer.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-source-form-drawer.tsx",
       "lines": 194,
       "bytes": 6541,
       "sha256": "00add50957ff09f7eee2f178019c860ff0d82e36daea2b4803e49c3a2bb09b4c",
@@ -6825,7 +6825,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-qualification-card.tsx",
+      "path": "apps/web/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification-card.tsx",
       "lines": 353,
       "bytes": 12866,
       "sha256": "f31e32cea71665ce901ecdc2e04110a7b7a50f3f5f263f75221b102fa9ad4775",
@@ -6836,7 +6836,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-lifecycle-workspace.tsx",
+      "path": "apps/web/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle-workspace.tsx",
       "lines": 620,
       "bytes": 25051,
       "sha256": "ea96f6eebdc03a8c8f98279c6ed0ce49dce9b2def42a616db1b30ffdd8652530",
@@ -6847,7 +6847,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-lifecycle-workspace.module.css",
+      "path": "apps/web/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle-workspace.module.css",
       "lines": 132,
       "bytes": 2758,
       "sha256": "4402ff8fa62782d83d95bc498d7c640f3de05419454680a4ba685714dd1ef182",
@@ -6858,7 +6858,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-detail-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",
       "lines": 2026,
       "bytes": 81822,
       "sha256": "9221b270459b8e09cdcb75ee4a43d1122984df7412be4aac08f0ccd6aa12720b",
@@ -6869,7 +6869,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-create-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx",
       "lines": 1074,
       "bytes": 37127,
       "sha256": "da297da0bc129421f679168c6705a582809f70e44b97cea1412702066f18f4f2",
@@ -6880,7 +6880,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-assignment-rules-workspace.tsx",
+      "path": "apps/web/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment-rules-workspace.tsx",
       "lines": 722,
       "bytes": 26476,
       "sha256": "7b9c922f153ed8f585bac5c34466dd296522d142615634514b2193a849f47dda",
@@ -6891,7 +6891,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/lead-assignee-combobox.tsx",
+      "path": "apps/web/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignee-combobox.tsx",
       "lines": 173,
       "bytes": 5306,
       "sha256": "2d767c8cc799b7ae50efcbbb91d22181baec974ec204880bafc3b741b55ee7e3",
@@ -6902,7 +6902,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/follow-ups-workspace.tsx",
+      "path": "apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/follow-ups-workspace.tsx",
       "lines": 545,
       "bytes": 23997,
       "sha256": "da49b62fffc81e249e2aeb0fb5538f8e44b1c9b2503b18ac36bbf2bf9e83a37d",
@@ -6913,7 +6913,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/follow-ups-workspace.module.css",
+      "path": "apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/follow-ups-workspace.module.css",
       "lines": 210,
       "bytes": 3433,
       "sha256": "887c02d8fbd79f58028421036b69a6d78fc510a1a956af584feca5ae1457f186",
@@ -6924,7 +6924,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/contacts-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/contacts-workspace.tsx",
       "lines": 253,
       "bytes": 8820,
       "sha256": "d3bcf27f339c513c2709a3c8f048ea7df28f1247a52189d44fdb9366c67e2597",
@@ -6935,7 +6935,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/contact-form-drawer.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/contact-form-drawer.tsx",
       "lines": 436,
       "bytes": 14919,
       "sha256": "b918a64c79c1a88b1f476ea3015246322ae47e13e5b29ce671d462ea935007c4",
@@ -6946,7 +6946,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/contact-detail-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/contact-detail-workspace.tsx",
       "lines": 206,
       "bytes": 10088,
       "sha256": "58103e02ad9f2d8285d0ebe1e53fcc818885190690ffbf03710e02d494081483",
@@ -6957,7 +6957,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/contact-account-lookup.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/contact-account-lookup.tsx",
       "lines": 187,
       "bytes": 5791,
       "sha256": "50a7d33fa1e6307675e9e0785274dede4104501456f024395e68a54580fcc0c6",
@@ -6968,7 +6968,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/calls-workspace.tsx",
+      "path": "apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx",
       "lines": 592,
       "bytes": 24915,
       "sha256": "055715b097005f41aa572e31701951607f2675c9dc84cb303f42055482f4d39b",
@@ -6979,7 +6979,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/accounts-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/accounts-workspace.tsx",
       "lines": 307,
       "bytes": 9208,
       "sha256": "369ab7128621505b62f717d97c85292fa2a11b2b3c6921ee736f7b175202bed7",
@@ -6990,7 +6990,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/account-form-drawer.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/account-form-drawer.tsx",
       "lines": 470,
       "bytes": 16033,
       "sha256": "514b3bc11d49a7a54697875fb9eb1b69d1f3ae0cd2ec52871afdff7025022303",
@@ -7001,7 +7001,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/components/account-detail-workspace.tsx",
+      "path": "apps/web/src/modules/crm/prospect-and-relationship-master-data/account-detail-workspace.tsx",
       "lines": 372,
       "bytes": 12225,
       "sha256": "364319fe2072a9bd3ef19433f83ba66f3206ac4957efb86000f9eb796f3b88ee",
@@ -7012,7 +7012,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/modules/crm/audit.ts",
+      "path": "apps/web/src/modules/crm/crm-data-operations-and-customization/audit-events.ts",
       "lines": 86,
       "bytes": 2504,
       "sha256": "045da2444aabe092444f642f2b604b7bc6238256a7f700ff962316ff053d702d",
@@ -7061,7 +7061,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/app/crm-overview-redesign.css",
+      "path": "apps/web/src/app/crm-home.css",
       "lines": 969,
       "bytes": 18608,
       "sha256": "ffb973db3c1343aae5b74b5d578b67cc26996dd054c42480f1eaee727a5fe67a",
@@ -7083,7 +7083,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/app/crm-lead-suite-enterprise.css",
+      "path": "apps/web/src/app/crm-lead-workspaces.css",
       "lines": 5415,
       "bytes": 106958,
       "sha256": "392701103e2a1a0b021bf0d8b34cf922f475f693d2bc5faceb8c8da5ca98d6f0",
@@ -7116,7 +7116,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/app/crm-lead-create.css",
+      "path": "apps/web/src/app/crm-lead-create-workspace.css",
       "lines": 1047,
       "bytes": 19126,
       "sha256": "0712b47e5c105ff6a7939d3421221ff7a098017e1fa0d4c2f91b98bf553ea185",
@@ -7127,7 +7127,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/app/crm-hci-redesign.css",
+      "path": "apps/web/src/app/crm-experience.css",
       "lines": 1140,
       "bytes": 23836,
       "sha256": "96252dadd0c5bddf4d64ebc473af55005015fe45e6d4323c6190a2f674abab4d",
@@ -7138,7 +7138,7 @@
       "tableReferences": []
     },
     {
-      "path": "apps/web/src/app/crm-extension.css",
+      "path": "apps/web/src/app/crm-shell.css",
       "lines": 552,
       "bytes": 11899,
       "sha256": "da79f220f621bccd694b874b61df59bdebba3462b2448c563370e5bb28f2576d",

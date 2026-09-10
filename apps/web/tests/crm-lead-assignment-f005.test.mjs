@@ -5,11 +5,11 @@ import test from "node:test";
 const read = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-const create = read("src/modules/crm/components/lead-create-workspace.tsx");
-const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
-const combobox = read("src/modules/crm/components/lead-assignee-combobox.tsx");
+const create = read("src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx");
+const detail = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx") + read("src/modules/crm/prospect-and-relationship-master-data/lead-owner-dialog.tsx") + read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-model.ts");
+const combobox = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignee-combobox.tsx");
 const rules = read(
-  "src/modules/crm/components/lead-assignment-rules-workspace.tsx",
+  "src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment-rules-workspace.tsx",
 );
 const rulesPage = read("src/app/(app)/crm/assignment-rules/page.tsx");
 const assignRoute = read("src/app/api/crm/leads/[id]/assign/route.ts");
@@ -17,8 +17,8 @@ const assigneesRoute = read("src/app/api/crm/leads/assignees/route.ts");
 const policyRoute = read("src/app/api/crm/leads/assignment-policies/route.ts");
 const genericRoute = read("src/app/api/crm/[resource]/[id]/route.ts");
 const genericCollectionRoute = read("src/app/api/crm/[resource]/route.ts");
-const detailData = read("src/modules/crm/server/lead-detail-data.ts");
-const css = read("src/app/crm-lead-suite-enterprise.css");
+const detailData = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts");
+const css = read("src/app/crm-lead-workspaces.css");
 const settings = read("src/app/(app)/crm/settings/page.tsx");
 
 test("F005 UI: Create Lead uses governed searchable ownership and preserves automatic fallback", () => {

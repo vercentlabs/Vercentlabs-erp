@@ -1,7 +1,7 @@
 import { listCrmNoteVersions } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
-import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/api";
+import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";

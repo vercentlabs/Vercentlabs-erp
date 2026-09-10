@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   normalizeContactInput,
   validateContactInput,
-} from "../src/modules/crm/features/contacts/record-validation.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/contact-record-validation.js";
 import {
   archiveCrmContact,
   createCrmContact,
@@ -12,7 +12,7 @@ import {
   listCrmContacts,
   reactivateCrmContact,
   updateCrmContact,
-} from "../src/modules/crm/contact-operations.js";
+} from "../src/modules/crm/prospect-and-relationship-master-data/contact-operations.js";
 
 const context = Object.freeze({
   organizationId: "11111111-1111-4111-8111-111111111111",

@@ -5,7 +5,7 @@ import {
   assertLeadDuplicatePolicy,
   evaluateLeadDuplicateRisk,
   recordLeadDuplicateOverride,
-} from "../../services/api/src/modules/crm/lead-duplicates.js";
+} from "../../services/api/src/modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
 
 config({ path: "apps/web/.env.local" });
 

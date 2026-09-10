@@ -8,7 +8,7 @@ import {
   resolveLeadAssignment,
   setLeadAssigneeAvailability,
   setLeadAssignmentFallback,
-} from "../src/modules/crm/lead-governance.js";
+} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";

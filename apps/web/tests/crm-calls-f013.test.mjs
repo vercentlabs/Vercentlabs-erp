@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("F013 Web: Calls stay inside the focused Activities workspace", () => {
-  const page = read("apps/web/src/app/(app)/crm/activities/page.tsx");
+  const page = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/activity-workspace-page.tsx");
   assert.match(page, /activityType === "call"/);
   assert.match(page, /listCrmCalls/);
   assert.match(page, /CallsWorkspace/);
@@ -16,7 +16,7 @@ test("F013 Web: Calls stay inside the focused Activities workspace", () => {
 });
 
 test("F013 Web: dedicated Calls UI covers schedule, log, edit, dial, start, complete, cancel and immutable history", () => {
-  const source = read("apps/web/src/modules/crm/components/calls-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx");
   // "Immutable evidence" was customer-facing governance/engineering
   // terminology removed by CRM vNext Prompt 2 (§16) — the underlying
   // immutable call-history feature is unchanged and still covered by the
@@ -31,7 +31,7 @@ test("F013 Web: dedicated Calls UI covers schedule, log, edit, dial, start, comp
 });
 
 test("F013 Web: Call creation uses real CRM relation selectors rather than raw UUID-only UX", () => {
-  const source = read("apps/web/src/modules/crm/components/calls-workspace.tsx");
+  const source = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx");
   for (const key of ["leads", "opportunities", "parties", "contacts", "campaigns"]) assert.match(source, new RegExp(key));
   assert.match(source, /Related record type/);
   assert.match(source, /Select record/);

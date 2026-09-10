@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { createCrmRecord, updateCrmRecord } from "../src/modules/crm/index.js";
-import { normalizeLeadRecordInput } from "../src/modules/crm/features/leads/record-validation.js";
-import * as leadSourceOperations from "../src/modules/crm/lead-source-operations.js";
-import { setCrmLeadSourceActive } from "../src/modules/crm/lead-source-operations.js";
+import { normalizeLeadRecordInput } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
+import * as leadSourceOperations from "../src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
+import { setCrmLeadSourceActive } from "../src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -159,7 +159,7 @@ test("F004: lead-source-operations.js has no hard-delete code path — module-sh
 
 test("F004: lead-source-operations.js issues no DELETE FROM tenant.crm_lead_sources SQL anywhere in source — static guard", () => {
   const source = fs.readFileSync(
-    path.join(moduleDir, "../src/modules/crm/lead-source-operations.js"),
+    path.join(moduleDir, "../src/modules/crm/prospect-and-relationship-master-data/lead-source-operations.js"),
     "utf8",
   );
   assert.doesNotMatch(source, /DELETE\s+FROM\s+tenant\.crm_lead_sources/i);

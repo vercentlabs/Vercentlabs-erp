@@ -5,7 +5,7 @@
 // lead-intelligence.js) so neither module needs to import the other —
 // avoiding a circular dependency between them.
 import { createHash } from "node:crypto";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-security.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-security.js";
 
 export class CrmLeadIntelligenceError extends Error {
   constructor(status, message, code = "CRM_LEAD_INTELLIGENCE_ERROR", details = []) {

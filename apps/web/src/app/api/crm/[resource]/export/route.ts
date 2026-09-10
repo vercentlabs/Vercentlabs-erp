@@ -3,7 +3,7 @@ import { listCrmRecords } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
-import { requireCrmResourceView } from "@/modules/crm/api";
+import { requireCrmResourceView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { csvCell } from "@/core/csv";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError } from "@/core/http";

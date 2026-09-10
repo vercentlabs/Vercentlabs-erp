@@ -3,7 +3,7 @@ import { transitionLeadStage } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";

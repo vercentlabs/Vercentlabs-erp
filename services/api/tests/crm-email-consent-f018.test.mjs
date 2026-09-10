@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { assertEmailConsent, queueOutboundEmail, getCommunicationTimeline, listThreadMessages, updateSharedInboxThreadStatus } from "../src/modules/crm/communications.js";
+import { assertEmailConsent, queueOutboundEmail, getCommunicationTimeline, listThreadMessages, updateSharedInboxThreadStatus } from "../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
 import { resources, recordScope } from "../src/modules/crm/index.js";
 
 // CRM vNext Prompt 6 (F018 — Email): a research pass confirmed
@@ -107,7 +107,7 @@ test("F018: recordScope's audience predicate evaluates unconditionally true (via
 });
 
 test("F018: queueOutboundEmail persists the caller's visibility choice (team/private/participant), defaulting to 'team' (today's real-world behavior) when not specified", () => {
-  const source = fs.readFileSync(new URL("../src/modules/crm/communications.js", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js", import.meta.url), "utf8");
   assert.match(source, /\["private", "participant"\]\.includes\(input\.visibility\) \? input\.visibility : "team"/);
 });
 

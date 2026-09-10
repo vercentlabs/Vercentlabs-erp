@@ -7,7 +7,7 @@ import {
   decideLeadQualification,
   evaluateLeadQualificationReadiness,
   getLeadQualification,
-} from "../src/modules/crm/lead-qualification.js";
+} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const companyId = "22222222-2222-4222-8222-222222222222";
@@ -176,8 +176,8 @@ test("F006: generic mutation fields, including legacy reason, are rejected", () 
       (error) => error.code === "CRM_LEAD_QUALIFICATION_ACTION_REQUIRED",
     );
   const resourceModel = readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
-  const validation = readFileSync(new URL("../src/modules/crm/features/leads/record-validation.js", import.meta.url), "utf8");
-  const operations = readFileSync(new URL("../src/modules/crm/lead-operations.js", import.meta.url), "utf8");
+  const validation = readFileSync(new URL("../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-record-validation.js", import.meta.url), "utf8");
+  const operations = readFileSync(new URL("../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js", import.meta.url), "utf8");
   assert.doesNotMatch(resourceModel, /unqualifiedReason:\s*"unqualified_reason"/);
   assert.doesNotMatch(validation, /unqualifiedReason:\s*2_000/);
   assert.doesNotMatch(operations, /RETURNING[^`]*unqualified_reason/);
@@ -366,7 +366,7 @@ test("F006: qualifying a Lead fires the lead.qualified automation trigger, unqua
 });
 
 test("F006: domain serializes decisions with a row lock before update", () => {
-  const source = readFileSync(new URL("../src/modules/crm/lead-qualification.js", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js", import.meta.url), "utf8");
   assert.match(source, /FOR UPDATE OF lead/);
   assert.match(source, /previousState === "unqualified"/);
   assert.match(source, /INSERT INTO tenant\.crm_lead_qualification_events/);

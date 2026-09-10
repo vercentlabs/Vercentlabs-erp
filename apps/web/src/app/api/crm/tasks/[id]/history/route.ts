@@ -3,7 +3,7 @@ import { getSessionContext } from "@/core/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

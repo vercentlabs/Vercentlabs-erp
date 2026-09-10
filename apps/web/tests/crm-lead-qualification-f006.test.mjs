@@ -3,15 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const card = read("src/modules/crm/components/lead-qualification-card.tsx");
-const detail = read("src/modules/crm/components/lead-detail-workspace.tsx");
-const list = read("src/modules/crm/components/leads-workspace.tsx");
-const detailData = read("src/modules/crm/server/lead-detail-data.ts");
+const card = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification-card.tsx");
+const detail = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
+const list = read("src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
+const detailData = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts");
 const route = read("src/app/api/crm/leads/[id]/qualification/route.ts");
 const statusRoute = read("src/app/api/crm/leads/[id]/status/route.ts");
 const stageRoute = read("src/app/api/crm/leads/[id]/stage/route.ts");
 const genericRoute = read("src/app/api/crm/[resource]/[id]/route.ts");
-const css = read("src/app/crm-lead-suite-enterprise.css");
+const css = read("src/app/crm-lead-workspaces.css");
 
 test("F006 UI: Lead Detail presents a compact readiness and decision section", () => {
   assert.match(detail, /<LeadQualificationCard/);

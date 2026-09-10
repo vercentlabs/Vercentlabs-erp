@@ -7,7 +7,7 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 
 export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
   try {

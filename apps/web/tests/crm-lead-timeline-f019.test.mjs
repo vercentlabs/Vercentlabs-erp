@@ -5,9 +5,9 @@ import test from "node:test";
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("F019 §16 web: the dead, superseded getLeadTimelinePage/getLeadTimeline implementations are gone — Lead's timeline no longer has its own hand-rolled pagination/security engine", () => {
-  const leadDetailData = read("src/modules/crm/server/lead-detail-data.ts");
+  const leadDetailData = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts");
   assert.doesNotMatch(leadDetailData, /export async function getLeadTimelinePage/);
-  const leadOperations = read("../../services/api/src/modules/crm/lead-operations.js");
+  const leadOperations = read("../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js");
   assert.doesNotMatch(leadOperations, /export async function getLeadTimeline\(/, "the broken duplicate implementation (querying the nonexistent tenant.crm_lead_conversions table) must not remain");
 });
 
@@ -43,7 +43,7 @@ test("F019 §16 api: getCrmTimelinePageBySource preserves full row detail (not t
 });
 
 test("F019 web: activities and communications are appendable client state with a Load older control on every tab that shows them", () => {
-  const workspace = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  const workspace = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
   assert.match(workspace, /const \[activityRows, setActivityRows\] = useState\(activities\)/);
   assert.match(workspace, /const \[communicationRows, setCommunicationRows\] = useState\(communications\)/);
   assert.match(workspace, /async function loadOlderTimelineItems\(source: "activities" \| "communications"\)/);
@@ -64,13 +64,13 @@ test("F019 web: activities and communications are appendable client state with a
 });
 
 test("F019 §16 web: getLeadDetailData's INITIAL communications query applies the private-visibility predicate — a real gap found during the F019 migration where page-load leaked private communications that 'load older' already correctly hid", () => {
-  const source = read("src/modules/crm/server/lead-detail-data.ts");
+  const source = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts");
   const initialQuery = source.match(/SELECT \* FROM tenant\.crm_communications WHERE organization_id=\$1 AND lead_id=\$2[\s\S]*?LIMIT 200`/)?.[0] || "";
   assert.match(initialQuery, /visibility<>'private' OR created_by=\$3 OR \$4/);
 });
 
 test("F019 web: the merged Timeline includes governed file uploads (attachments), closing the one event type it was still missing", () => {
-  const workspace = read("src/modules/crm/components/lead-detail-workspace.tsx");
+  const workspace = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
   assert.match(workspace, /\.\.\.attachments\.map\(\(row\) => \(\{/);
   assert.match(workspace, /__kind: "File"/);
 });

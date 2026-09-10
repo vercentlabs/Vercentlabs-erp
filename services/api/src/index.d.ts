@@ -231,10 +231,10 @@ export function seedBusinessDataFoundation(
   context: Pick<BusinessDataContext, "organizationId" | "userId">,
 ): Promise<void>;
 export * from "./modules/crm/index.js";
-export * from "./modules/crm/account-operations.js";
-export * from "./modules/crm/contact-operations.js";
-export * from "./modules/crm/lead-source-operations.js";
-export * from "./modules/crm/lead-qualification.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/account-operations.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/contact-operations.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
 export * from "./core/billing.js";
 export * from "./modules/sales/index.js";
 
@@ -383,9 +383,9 @@ export function clearLeadAssigneeAvailability(
   id: string,
 ): Promise<{ id: string }>;
 
-export * from "./modules/crm/lead-operations.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
 
-export * from "./modules/crm/opportunity-operations.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -401,9 +401,9 @@ export * from "./modules/accounting/tax-reporting-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
-export * from "./modules/crm/core-acceptance.js";
+export * from "./modules/crm/crm-data-operations-and-customization/core-acceptance.js";
 
-export * from "./modules/crm/account-intelligence.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
 
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
@@ -417,7 +417,7 @@ export {
 
 export * from "./core/release/governance.js";
 
-export * from "./modules/crm/communications.js";
+export * from "./modules/crm/seller-activity-and-follow-up-workspace/communications.js";
 // F018 closeout (§33 shared-inbox reachability) — explicit overrides
 // alongside the wildcard above, matching this file's own established
 // pattern for communications.js/lead-intelligence.js functions that need
@@ -433,8 +433,8 @@ export function getCommunicationsDashboard(client: QueryClient, context: any): P
 export function listThreadMessages(client: QueryClient, context: any, threadId: string): Promise<{ thread: any; messages: any[] }>;
 export function updateSharedInboxThreadStatus(client: QueryClient, context: any, threadId: string, status: unknown): Promise<any>;
 
-export * from "./modules/crm/lead-acquisition.js";
-export * from "./modules/crm/lead-intelligence.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
 export function createLeadScoringModel(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function updateLeadScoringModel(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
@@ -447,8 +447,8 @@ export function processLeadScoreRecalcBatch(client: QueryClient, systemContext: 
 export const SCORE_RECALC_JOB_TYPE: string;
 export const SCORE_RECALC_BATCH_SIZE: number;
 export function scanLeadStageDwellBreaches(client: QueryClient, context: any): Promise<{ scanned: number; notified: number }>;
-export * from "./modules/crm/opportunity-revenue-intelligence.js";
-export * from "./modules/crm/offline-sync.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
+export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/manufacturing/index.js";
 export * from "./modules/projects/index.js";

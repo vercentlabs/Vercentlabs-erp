@@ -16,19 +16,19 @@ import {
   assertCrmIdentifier,
   requireCrmManage,
   requireCrmResourceView,
-} from "@/modules/crm/api";
+} from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import {
   crmApiContext,
   crmDefinitions,
   crmErrorResponse,
   isCrmDefinition,
 } from "@/modules/crm";
-import { isCrmApiResource } from "@/modules/crm/scope";
-import { crmPatchSchemas } from "@/modules/crm/validation";
+import { isCrmApiResource } from "@/modules/crm/crm-data-operations-and-customization/capability-registry";
+import { crmPatchSchemas } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
-import { crmAuditSnapshot } from "@/modules/crm/audit";
+import { crmAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 // Concurrency (Prompts 1-5 integrity closeout): mutable generic-CRUD
 // configuration resources with no existing append-only/versioned model

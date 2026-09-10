@@ -189,7 +189,7 @@ Reference: `docs/11-visual-assets/wireframes/CRM_PASS1_WORKSPACES.md`. It define
 Cover empty/min/max values, Unicode/long text, stale references, duplicates, concurrent actors, deactivated configuration, timezone/DST where temporal, permission changes mid-session, partial provider/outbox failure, retry storms, deleted/merged related records and attempts to use import/bulk/AI as an authorization bypass.
 
 ## [SPEC-CODE-AUDIT] Current-code evidence audit
-Verified code evidence: `CRM-P1-CODE-012` at `apps/web/src/modules/crm/components/sales-stages-workspace.tsx`.
+Verified code evidence: `CRM-P1-CODE-012` at `apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx`.
 
 Finding: Dedicated stage configuration workspace and stage APIs exist; live-pipeline change semantics need formal governance.
 
@@ -199,7 +199,7 @@ Interpretation: presence of code is implementation evidence only. Target require
 Pass 1 gap class: existing implementation must be mapped/tested requirement-by-requirement against this target, especially required fields, guidance, forecast mapping, versioning, deactivation/migration of live stages and terminal semantics. Any absent/partial behavior becomes an implementation backlog item later; this dossier does not claim the code is already complete.
 
 ## [SPEC-IMPLEMENTATION] Implementation map and dependency order
-Likely implementation areas include the audited path `apps/web/src/modules/crm/components/sales-stages-workspace.tsx`, CRM module/domain services, tenant migrations/data contracts, shared CRM workspace primitives, mobile where high-frequency, and tests. Sequence: preserve public contracts -> close data/state/security gaps -> UI/automation/integration -> tests/E2E/performance/UAT. No product source code is modified by this specification pass.
+Likely implementation areas include the audited path `apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx`, CRM module/domain services, tenant migrations/data contracts, shared CRM workspace primitives, mobile where high-frequency, and tests. Sequence: preserve public contracts -> close data/state/security gaps -> UI/automation/integration -> tests/E2E/performance/UAT. No product source code is modified by this specification pass.
 
 ## [SPEC-TESTS] Automated test plan
 Unit/domain tests cover invariants and calculations; database tests cover constraints/RLS where applicable; API tests cover schemas/authorization/concurrency/idempotency; integration tests cover retries/outbox/providers; performance tests cover representative volume; migration tests prove historical compatibility and reconciliation.

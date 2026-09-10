@@ -13,10 +13,10 @@ import test from "node:test";
 // idempotency/conflict-detection path already requires) pinning that the
 // fix routes follow_up through the SAME canonical domain functions task
 // already used as its own precedent.
-const source = fs.readFileSync(new URL("../src/modules/crm/offline-sync.js", import.meta.url), "utf8");
+const source = fs.readFileSync(new URL("../src/modules/crm/crm-data-operations-and-customization/offline-sync.js", import.meta.url), "utf8");
 
 test("offline-sync: activities:create routes activity_type='follow_up' through the real createCrmFollowUp, not the generic raw INSERT", () => {
-  assert.match(source, /import \{ createCrmFollowUp, completeCrmFollowUp \} from "\.\/seller-activity-and-follow-up-workspace\/follow-ups\/follow-up-operations\.js";/);
+  assert.match(source, /import \{ createCrmFollowUp, completeCrmFollowUp \} from "\.\.\/seller-activity-and-follow-up-workspace\/follow-ups\/follow-up-operations\.js";/);
   const createBranch = source.match(/if \(activityType === "task"\)[\s\S]*?\n {4}\} else \{/)?.[0] || "";
   assert.match(createBranch, /else if \(activityType === "follow_up"\)/);
   assert.match(createBranch, /await createCrmFollowUp\(client, context, \{/);

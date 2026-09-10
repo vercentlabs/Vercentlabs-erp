@@ -4,7 +4,7 @@ import Link from "next/link";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { businessDataContext } from "@/core/master-data";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { query, tenantTransaction } from "@/core/db";
 
 export const metadata = { title: "Search" };
@@ -86,7 +86,7 @@ export default async function SearchPage({
     for (const rows of await Promise.all(coreSearches)) results.push(...rows);
 
     if (hasPermission(session, PERMISSIONS.crmView)) {
-      const context = crmContext(session);
+      const context = await crmApiContext(session);
       const crm = await tenantTransaction(
         context.organizationId,
         async (client) => {

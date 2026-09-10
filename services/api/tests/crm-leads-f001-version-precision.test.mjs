@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const source = fs.readFileSync(
-  new URL("../src/modules/crm/index.js", import.meta.url),
+  new URL("../src/modules/crm/crm-data-operations-and-customization/resource-validation.js", import.meta.url),
   "utf8",
 );
 

@@ -5,7 +5,7 @@ import {
   LEAD_BULK_JOB_TYPE,
   cancelLeadBulkJob,
   retryFailedLeadBulkJobItems,
-} from "../src/modules/crm/lead-operations.js";
+} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "22222222-2222-4222-8222-222222222222";

@@ -46,10 +46,10 @@
 //    concurrent inserts (an OFFSET page shifts when a new row is inserted
 //    ahead of it) cannot happen here: a cursor value that already has a
 //    stable position never moves.
-import { CrmError } from "../../index.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-security.js";
+import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 import { canViewSensitiveAccountContent } from "../../prospect-and-relationship-master-data/account-security.js";
-import { canViewSensitiveContactContent } from "../../contact-security.js";
+import { canViewSensitiveContactContent } from "../../prospect-and-relationship-master-data/contact-security.js";
 import { communicationVisibilitySql, projectCrmCommunications } from "../communications/communication-projection.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

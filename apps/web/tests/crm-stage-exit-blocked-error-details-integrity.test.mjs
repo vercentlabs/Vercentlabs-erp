@@ -27,7 +27,7 @@ test("failWithCode merges HttpError.details into the response body alongside cod
 });
 
 test("rethrowCrmError forwards error.details onto the new HttpError, not just status/message/code", () => {
-  const source = read("apps/web/src/modules/crm/index.ts");
+  const source = read("apps/web/src/modules/crm/crm-data-operations-and-customization/http-errors.ts");
   assert.match(
     source,
     /throw new HttpError\(\s*error\.status,\s*error\.message,\s*error\.code,\s*[\s\S]*?error as \{ details\?: Record<string, unknown> \}\)\.details/,
@@ -35,13 +35,13 @@ test("rethrowCrmError forwards error.details onto the new HttpError, not just st
 });
 
 test("the Opportunity 360 stage-transition dialog surfaces missingRequirements in its error message, not just the generic message", () => {
-  const source = read("apps/web/src/modules/crm/components/opportunity-actions.tsx");
+  const source = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-actions.tsx");
   assert.match(source, /missingRequirements/);
   assert.match(source, /Missing: \$\{missingRequirements\.join/);
 });
 
 test("the pipeline board's stage-move handler also surfaces missingRequirements", () => {
-  const source = read("apps/web/src/modules/crm/components/pipeline-board.tsx");
+  const source = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx");
   assert.match(source, /missingRequirements/);
   assert.match(source, /Missing: \$\{missingRequirements\.join/);
 });

@@ -15,13 +15,13 @@ const expected=Array.from({length:100},(_,i)=>`F${String(i+15).padStart(3,"0")}`
 if(scope.features.some((f,i)=>f.id!==expected[i]))throw new Error("Pass 1 feature IDs are not contiguous F015-F114.");
 
 const evidenceByModule={
-  CRM:["services/api/src/modules/crm/index.js","services/api/src/modules/crm/task-operations.js","apps/web/src/app/(app)/crm/activities/page.tsx","apps/web/tests/crm-lead-suite-enterprise.test.mjs"],
+  CRM:["services/api/src/modules/crm/index.js","services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js","apps/web/src/app/(app)/crm/activities/page.tsx","apps/web/tests/crm-lead-experience-contract.test.mjs"],
   Sales:["services/api/src/modules/sales/index.js","services/api/src/modules/sales/order-governance.js","services/api/src/modules/sales/pass1-operations.js","apps/web/src/app/(app)/sales/operations/page.tsx"],
   Procurement:["services/api/src/modules/procurement/index.js","services/api/src/modules/procurement/governance.js","services/api/src/modules/procurement/pass1-operations.js","apps/web/src/app/(app)/procurement/operations/page.tsx"],
   Stock:["services/api/src/modules/stock/index.js","apps/web/src/app/(app)/stock/operations/page.tsx","apps/web/src/app/(app)/stock/availability/page.tsx","services/api/src/core/master-data.js",PASS1_MIGRATION],
 };
 const special={
-  F015:[PASS1_MIGRATION,"services/api/src/modules/crm/task-operations.js","apps/web/src/app/api/crm/tasks/[id]/history/route.ts","services/api/src/modules/crm/offline-sync.js"],
+  F015:[PASS1_MIGRATION,"services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js","apps/web/src/app/api/crm/tasks/[id]/history/route.ts","services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.js"],
   F016:["apps/web/src/orchestration/work/follow-ups.ts"],
   F034:["services/api/src/modules/sales/pass1-operations.js","apps/web/src/modules/sales/components/pass1-operations-workspace.tsx","tenant.price_list_items"],
   F035:["services/api/src/modules/sales/pass1-operations.js","apps/web/src/modules/sales/components/pass1-operations-workspace.tsx","tenant.sales_pricing_rules"],

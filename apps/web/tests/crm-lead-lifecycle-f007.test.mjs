@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("F007 exposes governed lifecycle APIs and Setup surface", async () => {
   const [setup, catalogue, stageRoute, transitionRoute] = await Promise.all([
     read("src/app/(app)/crm/settings/page.tsx"),
-    read("src/modules/crm/components/lead-lifecycle-workspace.tsx"),
+    read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle-workspace.tsx"),
     read("src/app/api/crm/lead-stages/[id]/route.ts"),
     read("src/app/api/crm/leads/[id]/stage/route.ts"),
   ]);
@@ -24,9 +24,9 @@ test("F007 exposes governed lifecycle APIs and Setup surface", async () => {
 
 test("F007 Kanban and Lead detail use dynamic stages and canonical transition endpoint", async () => {
   const [board, detail, create] = await Promise.all([
-    read("src/modules/crm/components/leads-workspace.tsx"),
-    read("src/modules/crm/components/lead-detail-workspace.tsx"),
-    read("src/modules/crm/components/lead-create-workspace.tsx"),
+    read("src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx"),
+    read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx"),
+    read("src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx"),
   ]);
   assert.match(board, /options\.leadStages/);
   assert.match(board, /\/stage`/);
@@ -54,7 +54,7 @@ test("F007 native capture and shared follow-ups use governed lifecycle boundarie
   // instead of filtering raw lead rows client-side; the same
   // active/qualified-only guarantee now lives in evaluateNurtureEligibility
   // (checked when a lead is added to the queue, not when it's read back).
-  const leadIntelligence = await read("../../services/api/src/modules/crm/lead-intelligence.js");
+  const leadIntelligence = await read("../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js");
   assert.doesNotMatch(capture, /status:\s*"new"/);
   assert.match(detail, /record\.recordStatus !== "converted"/);
   assert.match(detail, /record\.recordStatus !== "archived"/);

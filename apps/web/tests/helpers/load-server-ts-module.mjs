@@ -70,7 +70,7 @@ function install() {
 
 const root = path.resolve(import.meta.dirname, "../../../..");
 
-/** @param {string} relativePathFromRepoRoot e.g. "apps/web/src/modules/crm/server/lead-detail-data.ts" */
+/** @param {string} relativePathFromRepoRoot e.g. "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts" */
 export async function loadServerTsModule(relativePathFromRepoRoot) {
   install();
   const absolute = path.join(root, relativePathFromRepoRoot);

@@ -4,7 +4,7 @@ import { listCrmRecords } from "@vercentlabs/api";
 import LostReasonsWorkspace from "@/modules/crm/opportunity-and-pipeline-governance/lost-reasons-workspace";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function LostReasonsPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
   const canManage = hasPermission(session, PERMISSIONS.crmSettingsManage);
 
   const { rows } = await tenantTransaction(context.organizationId, (client) =>

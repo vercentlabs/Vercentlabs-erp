@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { getLeadOperationsDashboard } from "../src/modules/crm/lead-operations.js";
+import { getLeadOperationsDashboard } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -41,7 +41,11 @@ test("F001 Wave 1: operations dashboard composes company, branch and owner recor
 });
 
 test("F001 Wave 1: authoritative Lead mutations use row locks and stale-write conflicts", () => {
-  const source = read("src/modules/crm/index.js");
+  const source = [
+    read("src/modules/crm/crm-data-operations-and-customization/resource-validation.js"),
+    read("src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
+    read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment.js"),
+  ].join("\n");
   assert.match(source, /async function getLeadRecordForUpdate[\s\S]*FOR UPDATE/);
   // Integrity closeout (Prompts 1-5): assertLeadExpectedVersion's literal
   // CRM_LEAD_VERSION_REQUIRED/CRM_LEAD_VERSION_INVALID codes were
@@ -62,10 +66,9 @@ test("F001 Wave 1: authoritative Lead mutations use row locks and stale-write co
 });
 
 test("F001 Wave 1: Lead merge locks deterministically before replay check and uses record_status terminal state", () => {
-  const source = read("src/modules/crm/index.js");
+  const source = read("src/modules/crm/crm-conversion-and-sales-handoff/lead-conversion.js");
   const start = source.indexOf("export async function mergeCrmLead");
-  const end = source.indexOf("export async function updateOpportunityProbability", start);
-  const merge = source.slice(start, end);
+  const merge = source.slice(start);
   const lock = merge.indexOf("ORDER BY record.id FOR UPDATE");
   const replay = merge.indexOf("SELECT * FROM tenant.crm_merge_records");
   assert.ok(lock >= 0 && replay > lock, "durable replay lookup must happen after row locks");

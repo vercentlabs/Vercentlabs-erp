@@ -8,7 +8,7 @@ import { requireMobileSession } from "@/core/mobile-session";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { crmTaskAuditSnapshot } from "@/modules/crm/audit";
+import { crmTaskAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 // Mobile/API parity closeout (F015) — mobile reuses the SAME
 // listCrmTasks/createCrmTask domain functions the dedicated web Tasks

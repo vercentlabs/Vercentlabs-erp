@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
-import { CRM_REPORT_KEYS } from "@/modules/crm/scope";
+import { CRM_REPORT_KEYS } from "@/modules/crm/crm-data-operations-and-customization/capability-registry";
 import { EnterpriseDataGrid, StatePanel, type DataGridColumn } from "@/shared/design";
 
 type ReportRow = Record<string, unknown>;
@@ -19,6 +19,15 @@ const REPORT_META = {
   sources: ["Lead source performance", "Lead and conversion volume by source, including won revenue attribution."],
   activities: ["Activity execution", "Calls, meetings, tasks and follow-ups with completion and overdue counts."],
   forecast: ["Sales forecast", "Pipeline, weighted value and won revenue by owner."],
+  "revenue-operations": ["Revenue operations", "Quota, pipeline coverage, attainment, win rate and sales-cycle performance by owner."],
+  "pipeline-intelligence": ["Pipeline health", "Opportunity health, stage age, activity recency and slipped close-date signals."],
+  "engagement-intelligence": ["Engagement intelligence", "Conversation volume, risk signals, next actions and review workload by channel."],
+  "relationship-coverage": ["Relationship coverage", "Buying-committee coverage, economic buyers, champions and detractor signals."],
+  campaigns: ["Campaign performance", "Campaign members, responses, conversions, budget and actual cost."],
+  "account-health": ["Account health", "Account tier, lifecycle, health score, revenue potential and review timing."],
+  "partner-pipeline": ["Partner pipeline", "Registered partner deals, expected value and won/active deal counts."],
+  privacy: ["Privacy operations", "Privacy-request workload, status and overdue obligations."],
+  "ai-governance": ["AI governance", "Prediction volume, providers/models and reviewed feedback outcomes."],
 } as const;
 
 const title = (value: string) =>
@@ -39,7 +48,7 @@ function displayValue(value: unknown) {
 export default async function CrmReportsPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmReportsView)) notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
 
   const reports = await tenantTransaction(context.organizationId, async (client) => {
     const entries = [];
@@ -56,7 +65,7 @@ export default async function CrmReportsPage() {
           <p className="eyebrow">CRM · Analytics</p>
           <h1>CRM reports</h1>
           <p>
-            Five decision-oriented reports for the thirty-feature CRM. Advanced partner, AI, privacy and revenue-operations reports are intentionally outside this product scope.
+            Governed CRM insight library covering pipeline, conversion, activity, revenue operations, engagement, relationships, privacy and AI oversight. Each report uses the same tenant and record-scope controls as operational CRM.
           </p>
         </div>
         <span className="status-badge neutral">Live tenant data</span>

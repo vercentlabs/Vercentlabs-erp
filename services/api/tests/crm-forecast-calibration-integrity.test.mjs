@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getForecastCalibration } from "../src/modules/crm/opportunity-revenue-intelligence.js";
+import { getForecastCalibration } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 
 // Integrity closeout (Prompts 1-5): the predictive-forecast model exposed
 // model version/confidence/predicted amount (real provenance), but no

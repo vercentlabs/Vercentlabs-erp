@@ -217,7 +217,7 @@ test("seedOrganizationFoundation iterates every ROLE_TEMPLATES permission uncond
 });
 
 test("Prompt 3's CRM record-ownership scope (recordScope/assertOwnerAssignmentAllowed) is unchanged by this prompt's permission-catalogue fix", () => {
-  const crm = read("services/api/src/modules/crm/index.js");
+  const crm = read("services/api/src/modules/crm/crm-data-operations-and-customization/record-policy.js");
   assert.match(crm, /function recordScope/);
   assert.match(crm, /assertOwnerAssignmentAllowed/);
   assert.match(crm, /ownerField/);

@@ -8,8 +8,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 test("Lead Kanban paginates every lifecycle column instead of rendering the full 500-row board", () => {
   const source = read(
-    "apps/web/src/modules/crm/components/leads-workspace.tsx",
-  );
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx",
+  ) + read("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-list-model.ts");
   assert.match(source, /const KANBAN_PAGE_SIZE = 6/);
   assert.match(source, /kanbanPages/);
   assert.match(source, /visibleRows = stageRows\.slice/);
@@ -31,8 +31,8 @@ test("Lead Kanban paginates every lifecycle column instead of rendering the full
 
 test("The server-backed table pagination is not misleadingly shown in Kanban", () => {
   const source = read(
-    "apps/web/src/modules/crm/components/leads-workspace.tsx",
-  );
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx",
+  ) + read("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-list-model.ts");
   assert.match(source, /view === "table" \? \([\s\S]*crm-leads-pagination/);
   assert.doesNotMatch(source, /Move active leads through qualification/);
   assert.doesNotMatch(source, /Kanban paging summary/);
@@ -40,9 +40,9 @@ test("The server-backed table pagination is not misleadingly shown in Kanban", (
 
 test("The lead suite has an explicit readability layer with human-sized operating text", () => {
   const source = read(
-    "apps/web/src/modules/crm/components/leads-workspace.tsx",
-  );
-  const css = read("apps/web/src/app/crm-lead-suite-enterprise.css");
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx",
+  ) + read("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-list-model.ts");
+  const css = read("apps/web/src/app/crm-lead-workspaces.css");
   assert.match(css, /VERCENTLABS CRM READABILITY PASS START/);
   assert.match(css, /\.crm-suite-page,[\s\S]*font-size: 14px/);
   assert.match(css, /\.crm-suite-command p:last-child,[\s\S]*font-size: 15px/);
@@ -89,8 +89,8 @@ test("The lead suite has an explicit readability layer with human-sized operatin
 });
 
 test("Lead Create and CRM Overview receive the same readability treatment", () => {
-  const create = read("apps/web/src/app/crm-lead-create.css");
-  const overview = read("apps/web/src/app/crm-overview-redesign.css");
+  const create = read("apps/web/src/app/crm-lead-create-workspace.css");
+  const overview = read("apps/web/src/app/crm-home.css");
   assert.match(create, /VERCENTLABS CRM READABILITY PASS START/);
   assert.match(create, /\.crm-lead-field-grid input,[\s\S]*min-height: 46px/);
   assert.match(create, /font-size: 14px/);
@@ -111,10 +111,10 @@ test("Lead Create and CRM Overview receive the same readability treatment", () =
 
 test("Lead list, create and detail have purpose-built tablet and phone layouts", () => {
   const source = read(
-    "apps/web/src/modules/crm/components/leads-workspace.tsx",
-  );
-  const suite = read("apps/web/src/app/crm-lead-suite-enterprise.css");
-  const create = read("apps/web/src/app/crm-lead-create.css");
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx",
+  ) + read("apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-list-model.ts");
+  const suite = read("apps/web/src/app/crm-lead-workspaces.css");
+  const create = read("apps/web/src/app/crm-lead-create-workspace.css");
 
   assert.match(suite, /Lead workspace responsive system/);
   // The desktop-table vs. mobile-card SWITCH is now owned entirely by
@@ -158,18 +158,18 @@ test("Lead list, create and detail have purpose-built tablet and phone layouts",
 });
 
 test("Lead layouts respond to the usable workspace and preserve mobile task priority", () => {
-  const list = read("apps/web/src/modules/crm/components/leads-workspace.tsx");
+  const list = read("apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
   const detail = read(
-    "apps/web/src/modules/crm/components/lead-detail-workspace.tsx",
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",
   );
   const createSource = read(
-    "apps/web/src/modules/crm/components/lead-create-workspace.tsx",
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-create-workspace.tsx",
   );
   const drawer = read(
-    "apps/web/src/modules/crm/components/lead-workspace-drawer.tsx",
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer.tsx",
   );
-  const suite = read("apps/web/src/app/crm-lead-suite-enterprise.css");
-  const create = read("apps/web/src/app/crm-lead-create.css");
+  const suite = read("apps/web/src/app/crm-lead-workspaces.css");
+  const create = read("apps/web/src/app/crm-lead-create-workspace.css");
 
   assert.match(suite, /container-name: lead-workspace/);
   assert.match(suite, /@container lead-workspace \(max-width: 1080px\)/);
@@ -199,11 +199,11 @@ test("Lead layouts respond to the usable workspace and preserve mobile task prio
 
 test("Lead create, edit and view stay in one blurred drawer workspace", () => {
   const manager = read(
-    "apps/web/src/modules/crm/components/resource-manager.tsx",
+    "apps/web/src/modules/crm/crm-data-operations-and-customization/resource-manager.tsx",
   );
-  const list = read("apps/web/src/modules/crm/components/leads-workspace.tsx");
+  const list = read("apps/web/src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
   const page = read("apps/web/src/app/(app)/crm/[resource]/page.tsx");
-  const suite = read("apps/web/src/app/crm-lead-suite-enterprise.css");
+  const suite = read("apps/web/src/app/crm-lead-workspaces.css");
 
   assert.match(manager, /leadModeUrl\(mode\?: "create" \| "edit" \| "view"/);
   assert.match(manager, /<LeadWorkspaceDrawer[\s\S]*title="Create lead"/);
@@ -221,9 +221,9 @@ test("Lead create, edit and view stay in one blurred drawer workspace", () => {
 
 test("Lead detail drawer keeps one identity hierarchy and aligned responsive controls", () => {
   const detail = read(
-    "apps/web/src/modules/crm/components/lead-detail-workspace.tsx",
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",
   );
-  const css = read("apps/web/src/app/crm-hci-redesign.css");
+  const css = read("apps/web/src/app/crm-experience.css");
 
   assert.match(detail, /crm-lead-detail-summary/);
   assert.doesNotMatch(detail, /crm-lead-detail-identity/);
@@ -239,9 +239,9 @@ test("Lead detail drawer keeps one identity hierarchy and aligned responsive con
 
 test("Every lead detail tab component is covered by the drawer responsive system", () => {
   const detail = read(
-    "apps/web/src/modules/crm/components/lead-detail-workspace.tsx",
+    "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",
   );
-  const css = read("apps/web/src/app/crm-hci-redesign.css");
+  const css = read("apps/web/src/app/crm-experience.css");
   const componentClasses = [
     "crm-lead-tab-panel",
     "crm-suite-surface",

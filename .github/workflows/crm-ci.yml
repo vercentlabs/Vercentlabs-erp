@@ -1,0 +1,58 @@
+name: CRM CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/(app)/crm/**"
+      - "apps/web/src/app/api/crm/**"
+      - "apps/web/src/app/api/mobile/v1/crm/**"
+      - "apps/web/src/modules/crm/**"
+      - "apps/web/tests/crm*"
+      - "apps/mobile/src/**/crm/**"
+      - "services/api/src/modules/crm/**"
+      - "services/api/tests/crm*"
+      - "services/worker/src/**crm**"
+      - "database/**/migrations/**crm**"
+      - "packages/permissions/**"
+      - "packages/shared-types/**"
+      - "scripts/validation/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/crm-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/(app)/crm/**"
+      - "apps/web/src/app/api/crm/**"
+      - "apps/web/src/modules/crm/**"
+      - "services/api/src/modules/crm/**"
+      - "database/**/migrations/**crm**"
+      - ".github/workflows/crm-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  crm-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Activate repository pnpm
+        run: corepack prepare pnpm@11.21.0 --activate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify CRM
+        run: pnpm verify:crm
+      - name: Dependency audit
+        run: pnpm audit:dependencies

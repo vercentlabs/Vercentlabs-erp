@@ -24,7 +24,7 @@ import test from "node:test";
 import { loadServerTsModule } from "./helpers/load-server-ts-module.mjs";
 
 const { getLeadDetailData, canViewSensitiveLeadContent } = await loadServerTsModule(
-  "apps/web/src/modules/crm/server/lead-detail-data.ts",
+  "apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts",
 );
 
 const org = "11111111-1111-4111-8111-111111111111";
@@ -196,7 +196,7 @@ test("F001 mobile parity: the mobile CRM detail route delegates to the canonical
     new URL("../src/app/api/mobile/v1/crm/[resource]/[id]/route.ts", import.meta.url),
     "utf8",
   );
-  assert.match(route, /import \{ getLeadDetailData \} from "@\/modules\/crm\/server\/lead-detail-data"/);
+  assert.match(route, /import \{ getLeadDetailData \} from "@\/modules\/crm\/prospect-and-relationship-master-data\/lead-detail-data"/);
   assert.match(route, /const detail = await getLeadDetailData\(client, context, id\);/);
   // The old bypass this test guards against: raw, unguarded queries against
   // the sensitive tables inside this route's own GET handler.

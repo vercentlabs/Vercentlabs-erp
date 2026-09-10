@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   normalizeLeadRecordInput,
   validateLeadRecord,
-} from "../src/modules/crm/features/leads/record-validation.js";
+} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
 import { listCrmRecords } from "../src/modules/crm/index.js";
 
 test("F001: a lead requires first name and at least one contact method", () => {

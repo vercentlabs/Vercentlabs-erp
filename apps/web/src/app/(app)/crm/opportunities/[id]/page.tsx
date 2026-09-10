@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import CrmOpportunityActions, { CrmOpportunityReopenAction } from "@/modules/crm/components/opportunity-actions";
-import { getOpportunityDetailData } from "@/modules/crm/server/opportunity-detail-data";
-import CrmOpportunityProbabilityAction from "@/modules/crm/components/opportunity-probability-action";
+import CrmOpportunityActions, { CrmOpportunityReopenAction } from "@/modules/crm/opportunity-and-pipeline-governance/opportunity-actions";
+import { getOpportunityDetailData } from "@/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data";
+import CrmOpportunityProbabilityAction from "@/modules/crm/opportunity-and-pipeline-governance/opportunity-probability-action";
 import OpportunityWorkspaceTabs from "@/modules/crm/opportunity-and-pipeline-governance/opportunity-workspace-tabs";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext } from "@/modules/crm";
+import { crmApiContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import {
   ActionLink,
@@ -38,7 +38,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const { id } = await params;
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
 
   let data: Awaited<ReturnType<typeof getOpportunityDetailData>>;
   // Prompts 1-5 integrity closeout (blocker B): both the sensitive-content

@@ -34,12 +34,12 @@ test("Go 4: representative production screens adopt the archetype contracts", ()
     ["apps/web/src/app/(app)/follow-ups/page.tsx", "ListWorkQueueArchetype"],
     ["apps/web/src/app/(app)/exceptions/page.tsx", "ListWorkQueueArchetype"],
     ["apps/web/src/app/(app)/approvals/page.tsx", "ListWorkQueueArchetype"],
-    ["apps/web/src/modules/crm/components/account-detail-workspace.tsx", "Record360Archetype"],
-    ["apps/web/src/modules/crm/components/contact-detail-workspace.tsx", "Record360Archetype"],
-    ["apps/web/src/modules/crm/components/lead-detail-workspace.tsx", "Record360Archetype"],
+    ["apps/web/src/modules/crm/prospect-and-relationship-master-data/account-detail-workspace.tsx", "Record360Archetype"],
+    ["apps/web/src/modules/crm/prospect-and-relationship-master-data/contact-detail-workspace.tsx", "Record360Archetype"],
+    ["apps/web/src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx", "Record360Archetype"],
     ["apps/web/src/app/(app)/sales/orders/[id]/page.tsx", "TransactionDocumentArchetype"],
     ["apps/web/src/app/(app)/sales/quotations/[id]/page.tsx", "TransactionDocumentArchetype"],
-    ["apps/web/src/modules/crm/components/pipeline-board.tsx", "BoardArchetype"],
+    ["apps/web/src/modules/crm/opportunity-and-pipeline-governance/pipeline-board.tsx", "BoardArchetype"],
     ["apps/web/src/modules/stock/components/operations-workspace.tsx", "OperationsWorkspaceArchetype"],
   ]);
 

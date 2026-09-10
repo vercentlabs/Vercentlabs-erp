@@ -3,7 +3,8 @@
 // 088_f003_contact_account_relationships.sql for the schema design
 // rationale (relationship_type vs stakeholder_role, is_primary semantics
 // distinct from contacts.is_primary, no effective-dating).
-import { CrmError, queueOutboxEvent } from "./../index.js";
+import { CrmError } from "../crm-data-operations-and-customization/errors.js";
+import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

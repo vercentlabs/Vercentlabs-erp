@@ -83,20 +83,20 @@ test("F011 migration makes expected revenue generated and history tenant-safe", 
 });
 
 test("F011 reporting consumes canonical expected revenue and excludes closed deals from open forecast", () => {
-  const service=read("services/api/src/modules/crm/index.js");
+  const service=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js");
   assert.match(service,/sum\(opportunity\.expected_revenue\).*status = 'open'/s);
   assert.match(service,/sum\(opportunity\.amount\) FILTER \(WHERE opportunity\.status='open'\)/);
   assert.match(service,/sum\(opportunity\.expected_revenue\) FILTER \(WHERE opportunity\.status='open'\)/);
 });
 
 test("F011 expected revenue is derived and cannot be forged through generic create/update", async () => {
-  const service=read("services/api/src/modules/crm/index.js");
+  const service=read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js");
   assert.match(service,/CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED/);
   assert.match(service,/Expected revenue is calculated automatically/);
 });
 
 test("F011 does not reopen generic probability mutation", () => {
-  const service=read("services/api/src/modules/crm/index.js");
+  const service=read("services/api/src/modules/crm/crm-data-operations-and-customization/record-policy.js");
   assert.match(service,/controlledFields[\s\S]*"probability"/);
   assert.match(service,/Use governed Opportunity actions/);
 });

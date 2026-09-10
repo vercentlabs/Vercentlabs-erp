@@ -89,14 +89,14 @@ test("Dialog CSS module uses canonical --erp-* tokens for its backdrop and shado
 });
 
 test("Calls workspace: the completion and history dialogs now use the shared Dialog primitive instead of a hand-rolled backdrop+section pair", () => {
-  const source = read("src/modules/crm/components/calls-workspace.tsx");
+  const source = read("src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx");
   assert.match(source, /import \{[\s\S]{0,200}Dialog,[\s\S]{0,200}\} from "@\/shared\/design";/);
   assert.match(source, /\{completion \? \(\s*<Dialog/);
   assert.match(source, /\{eventsFor \? \(\s*<Dialog/);
 });
 
 test("Calls workspace: the customer-inappropriate 'Immutable evidence' governance label was removed from the Call history dialog", () => {
-  const source = read("src/modules/crm/components/calls-workspace.tsx");
+  const source = read("src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx");
   assert.doesNotMatch(source, /Immutable evidence/);
 });
 
@@ -107,7 +107,7 @@ test("Calls workspace: the customer-inappropriate 'Immutable evidence' governanc
 // files with the canonical ConfirmDialog. Both are closed as of Prompt 6 —
 // see CRM_VNEXT_IMPLEMENTATION_REGISTER.md.
 test("Calls workspace: the main Call editor dialog and the Cancel confirmation now use the shared Dialog/ConfirmDialog primitives (CRM-VNEXT-072/071 closed)", () => {
-  const source = read("src/modules/crm/components/calls-workspace.tsx");
+  const source = read("src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx");
   assert.doesNotMatch(source, /crm-call-dialog-backdrop/);
   assert.match(source, /import \{[\s\S]{0,200}ConfirmDialog,[\s\S]{0,200}\} from "@\/shared\/design";/);
   assert.match(source, /\{editor \? \(\s*<Dialog/);
@@ -116,7 +116,7 @@ test("Calls workspace: the main Call editor dialog and the Cancel confirmation n
 });
 
 test("Meetings workspace: every dialog (editor, completion, cancel, history) now uses the shared Dialog/ConfirmDialog primitives (CRM-VNEXT-072/071 closed)", () => {
-  const source = read("src/modules/crm/components/meetings-workspace.tsx");
+  const source = read("src/modules/crm/seller-activity-and-follow-up-workspace/meetings-workspace.tsx");
   assert.doesNotMatch(source, /crm-meeting-dialog-backdrop/);
   assert.match(source, /import \{[\s\S]{0,200}ConfirmDialog,[\s\S]{0,200}Dialog,[\s\S]{0,200}\} from "@\/shared\/design";/);
   assert.match(source, /\{editor \? \(\s*<Dialog/);
@@ -128,10 +128,10 @@ test("Meetings workspace: every dialog (editor, completion, cancel, history) now
 
 test("CRM customer-facing surfaces touched this prompt no longer contain literal feature-ID labels", () => {
   for (const path of [
-    "src/modules/crm/components/calls-workspace.tsx",
-    "src/modules/crm/components/meetings-workspace.tsx",
-    "src/modules/crm/components/sales-stages-workspace.tsx",
-    "src/modules/crm/components/lead-detail-workspace.tsx",
+    "src/modules/crm/seller-activity-and-follow-up-workspace/calls-workspace.tsx",
+    "src/modules/crm/seller-activity-and-follow-up-workspace/meetings-workspace.tsx",
+    "src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.tsx",
+    "src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",
     "src/app/(app)/crm/settings/page.tsx",
   ]) {
     const source = read(path);

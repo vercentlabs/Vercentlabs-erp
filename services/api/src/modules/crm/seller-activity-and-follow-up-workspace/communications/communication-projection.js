@@ -20,7 +20,7 @@
 // projection at all — without crm.leads.view_sensitive the whole
 // communication was invisible, never merely content-redacted. All three
 // (plus the shared inbox and mobile) now call into this module.
-import { canViewSensitiveLeadContent } from "../../lead-security.js";
+import { canViewSensitiveLeadContent } from "../../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 
 // Local copy of the "organization_owner or crm.records.view_all" check —
 // communications.js, timeline.js and index.js each already carry their own

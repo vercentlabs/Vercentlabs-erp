@@ -14,7 +14,7 @@ import {
   resolveLeadAssignment,
   saveLeadAssignmentPolicy,
   setLeadAssignmentPolicyStatus,
-} from "../src/modules/crm/lead-governance.js";
+} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const companyId = "22222222-2222-4222-8222-222222222222";
@@ -527,8 +527,8 @@ test("F005: explicit create owner is persisted instead of being discarded", asyn
 });
 
 test("F005: offline and SLA entry points delegate to the canonical assignment domain", () => {
-  const offline = read("../src/modules/crm/offline-sync.js");
-  const intelligence = read("../src/modules/crm/lead-intelligence.js");
+  const offline = read("../src/modules/crm/crm-data-operations-and-customization/offline-sync.js");
+  const intelligence = read("../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js");
   const slaRoute = read(
     "../../../apps/web/src/app/api/crm/lead-intelligence/sla/route.ts",
   );

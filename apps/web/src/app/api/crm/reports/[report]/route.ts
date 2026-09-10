@@ -2,7 +2,7 @@ import { getCrmReport } from "@vercentlabs/api";
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
 import { getSessionContext } from "@/core/auth";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { requireCrmReportView } from "@/modules/crm/api";
+import { requireCrmReportView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
 function reportLabel(value: string) {

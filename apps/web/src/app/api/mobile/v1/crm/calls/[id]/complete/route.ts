@@ -8,9 +8,9 @@ import { requireMobileSession } from "@/core/mobile-session";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { audit } from "@/core/security";
 import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
-import { crmCallAuditSnapshot } from "@/modules/crm/audit";
-import { completeCallSchema } from "@/modules/crm/validation";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { crmCallAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { completeCallSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
 
 export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
   try {

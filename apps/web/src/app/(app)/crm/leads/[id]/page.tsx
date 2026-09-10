@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import CrmLeadDetailWorkspace from "@/modules/crm/components/lead-detail-workspace";
+import CrmLeadDetailWorkspace from "@/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { crmContext } from "@/modules/crm";
-import { getLeadDetailData } from "@/modules/crm/server/lead-detail-data";
+import { crmApiContext } from "@/modules/crm";
+import { getLeadDetailData } from "@/modules/crm/prospect-and-relationship-master-data/lead-detail-data";
 import { tenantTransaction } from "@/core/db";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) return notFound();
-  const context = crmContext(session);
+  const context = await crmApiContext(session);
   let data;
   try {
     data = await tenantTransaction(context.organizationId, (client) =>

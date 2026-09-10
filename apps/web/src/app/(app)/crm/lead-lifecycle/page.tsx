@@ -5,7 +5,7 @@ import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
 import { crmApiContext } from "@/modules/crm";
-import LeadLifecycleWorkspace from "@/modules/crm/components/lead-lifecycle-workspace";
+import LeadLifecycleWorkspace from "@/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle-workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Lead lifecycle" };

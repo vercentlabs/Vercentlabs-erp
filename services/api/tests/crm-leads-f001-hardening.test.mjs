@@ -7,8 +7,8 @@ import {
   leadOutboxChangedFields,
   queueOutboxEvent,
 } from "../src/modules/crm/index.js";
-import { evaluateLeadReadiness } from "../src/modules/crm/lead-operations.js";
-import { validateLeadRecord } from "../src/modules/crm/features/leads/record-validation.js";
+import { evaluateLeadReadiness } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
+import { validateLeadRecord } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
 
 const context = {
   organizationId: "11111111-1111-4111-8111-111111111111",

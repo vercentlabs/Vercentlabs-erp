@@ -7,7 +7,7 @@ import {
 import {
   crmCoreAcceptanceSession,
   tenantTransaction,
-} from "@/modules/crm/server/core-acceptance";
+} from "@/modules/crm/crm-data-operations-and-customization/core-acceptance";
 import { errorResponse, fail, ok, readJson } from "@/core/http";
 import { assertSameOriginOrMobile } from "@/core/security";
 

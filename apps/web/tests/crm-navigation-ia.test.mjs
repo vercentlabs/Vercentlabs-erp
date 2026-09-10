@@ -21,7 +21,7 @@ function crmModule() {
   return found;
 }
 
-test("CRM navigation: the registry declares exactly the Prompt 2 target destinations, each exactly once", () => {
+test("CRM navigation: the registry declares the CRM v2 destinations exactly once", () => {
   const crm = crmModule();
   const hrefs = crm.items.map((item) => item.href);
   assert.deepEqual(
@@ -34,8 +34,17 @@ test("CRM navigation: the registry declares exactly the Prompt 2 target destinat
       "/crm/opportunities",
       "/crm/pipeline",
       "/crm/forecast",
+      "/crm/work",
       "/crm/activities",
+      "/crm/tasks",
+      "/crm/calls",
+      "/crm/meetings",
+      "/crm/follow-ups",
+      "/crm/inbox",
       "/crm/reports",
+      "/crm/sales-teams",
+      "/crm/territories",
+      "/crm/quota-plans",
       "/crm/settings",
     ],
   );
@@ -49,16 +58,18 @@ test("CRM navigation: every destination is permission-gated (no ungated CRM dest
   }
 });
 
-test("CRM navigation: grouping produces the exact Prompt 2 target information architecture (Home / Customers / Sales / Work / Insights / Administration)", () => {
+test("CRM navigation: grouping produces the CRM v2 information architecture", () => {
   const crm = crmModule();
   const grouped = iaMod.groupModuleNavigation(crm);
   const shape = grouped.map((group) => [group.label, group.items.map((item) => item.label)]);
   assert.deepEqual(shape, [
     ["Home", ["Home"]],
     ["Customers", ["Leads", "Accounts", "Contacts"]],
-    ["Sales", ["Opportunities", "Pipeline", "Forecast"]],
-    ["Work", ["Activities"]],
+    ["Pipeline", ["Opportunities", "Pipeline board", "Forecast"]],
+    ["Work", ["My work", "Activity timeline", "Tasks", "Calls", "Meetings", "Follow-ups"]],
+    ["Engagement", ["Team inbox"]],
     ["Insights", ["Reports"]],
+    ["Revenue operations", ["Sales teams", "Territories", "Quotas"]],
     ["Administration", ["CRM setup"]],
   ]);
 });

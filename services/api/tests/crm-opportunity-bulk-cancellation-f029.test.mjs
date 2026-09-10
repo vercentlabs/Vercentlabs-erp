@@ -5,7 +5,7 @@ import {
   OPPORTUNITY_BULK_JOB_TYPE,
   cancelOpportunityBulkJob,
   retryFailedOpportunityBulkJobItems,
-} from "../src/modules/crm/opportunity-operations.js";
+} from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 
 // F029 (Bulk actions) — LAST PROMPT 1/3 closeout. Mirrors
 // crm-lead-bulk-cancellation-f029.test.mjs exactly for the Opportunity

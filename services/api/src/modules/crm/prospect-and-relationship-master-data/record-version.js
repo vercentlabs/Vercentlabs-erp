@@ -1,4 +1,4 @@
-import { CrmError } from "../index.js";
+import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 
 // Shared optimistic-concurrency helper for Account/Contact ordinary edits.
 // Integrity closeout (Prompts 1-5): updateCrmAccount/updateCrmContact (and

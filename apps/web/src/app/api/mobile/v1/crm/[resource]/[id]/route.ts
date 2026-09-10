@@ -1,18 +1,18 @@
 import { archiveCrmRecord, getCrmRecord, updateCrmRecord } from "@vercentlabs/api";
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
 import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { assertCrmIdentifier, requireCrmManage, requireCrmResourceView } from "@/modules/crm/api";
+import { assertCrmIdentifier, requireCrmManage, requireCrmResourceView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, isCrmDefinition, rethrowCrmError } from "@/modules/crm";
-import { crmPatchSchemas } from "@/modules/crm/validation";
-import { getLeadDetailData } from "@/modules/crm/server/lead-detail-data";
-import { getOpportunityDetailData } from "@/modules/crm/server/opportunity-detail-data";
+import { crmPatchSchemas } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { getLeadDetailData } from "@/modules/crm/prospect-and-relationship-master-data/lead-detail-data";
+import { getOpportunityDetailData } from "@/modules/crm/opportunity-and-pipeline-governance/opportunity-detail-data";
 import { tenantTransaction } from "@/core/db";
 import { HttpError, readJson } from "@/core/http";
 import { mobileError, mobileOk } from "@/core/mobile-http";
 import { withMobileIdempotency } from "@/core/mobile-idempotency";
 import { requireMobileSession } from "@/core/mobile-session";
 import { audit } from "@/core/security";
-import { crmAuditSnapshot } from "@/modules/crm/audit";
+import { crmAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 function valid(resource: string): asserts resource is CrmResourceKey {
   if (!isCrmDefinition(resource)) throw new HttpError(404, "Unknown CRM resource.");

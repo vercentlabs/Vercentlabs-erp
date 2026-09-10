@@ -19,7 +19,7 @@ import { loadTsModule } from "./helpers/load-ts-module.mjs";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-const scopeMod = await loadTsModule("apps/web/src/modules/crm/scope.ts");
+const scopeMod = await loadTsModule("apps/web/src/modules/crm/crm-data-operations-and-customization/capability-registry.ts");
 
 test("accounts/contacts are not reachable through the generic CRM resource route allowlist", () => {
   assert.equal(scopeMod.isCrmApiResource("accounts"), false, "accounts must not be a generic API resource");

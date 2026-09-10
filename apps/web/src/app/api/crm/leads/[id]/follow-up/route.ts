@@ -15,10 +15,10 @@ import {
 import { tenantTransaction } from "@/core/db";
 import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { scheduleLeadFollowUpSchema } from "@/modules/crm/validation";
-import { crmCallAuditSnapshot, crmMeetingAuditSnapshot } from "@/modules/crm/audit";
+import { scheduleLeadFollowUpSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { crmCallAuditSnapshot, crmMeetingAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
 
 type Params = { params: Promise<{ id: string }> };
 
