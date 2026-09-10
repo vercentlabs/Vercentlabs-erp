@@ -2,6 +2,8 @@ import {
   getSalesStage,
   setSalesStageActive,
   updateSalesStage,
+  enqueueOpportunityStageMigrationJob,
+  CrmError,
 } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
@@ -42,12 +44,32 @@ export async function PATCH(request: Request, route: Route) {
     const input = (await readJson(request)) as Record<string, unknown>;
     const action = String(input.action || "update");
     const context = await crmApiContext(session);
+    let migrationJob = null;
     const record = await tenantTransaction(context.organizationId, async (client) => {
       const before = await getSalesStage(client, context, id);
       let updated;
-      if (action === "deactivate" || action === "reactivate")
-        updated = await setSalesStageActive(client, context, id, action === "reactivate", String(input.expectedUpdatedAt || ""));
-      else if (action === "update") {
+      if (action === "deactivate" || action === "reactivate") {
+        const migrateToStageId = String(input.migrateToStageId || "").trim();
+        try {
+          updated = await setSalesStageActive(client, context, id, action === "reactivate", String(input.expectedUpdatedAt || ""));
+        } catch (error) {
+          // A deactivation blocked by open Opportunities, with a replacement
+          // stage nominated, becomes a governed background migration instead
+          // of a hard failure — mirrors F007's safe stage deactivation. The
+          // stage itself is deactivated once the job clears every open
+          // Opportunity off it (the caller retries this same action then).
+          if (
+            action === "deactivate" &&
+            migrateToStageId &&
+            error instanceof CrmError &&
+            error.code === "CRM_SALES_STAGE_OPEN_OPPORTUNITIES"
+          ) {
+            migrationJob = await enqueueOpportunityStageMigrationJob(client, context, id, migrateToStageId);
+            return before;
+          }
+          throw error;
+        }
+      } else if (action === "update") {
         const payload = { ...input };
         delete payload.action;
         updated = await updateSalesStage(client, context, id, payload);
@@ -67,14 +89,17 @@ export async function PATCH(request: Request, route: Route) {
       return updated;
     });
     return ok({
-      message: record.replayed
-        ? "Sales stage is already in the requested state."
-        : action === "deactivate"
-          ? "Sales stage deactivated."
-          : action === "reactivate"
-            ? "Sales stage reactivated."
-            : "Sales stage updated.",
+      message: migrationJob
+        ? "Migration started. The stage will deactivate once every open Opportunity has moved."
+        : record.replayed
+          ? "Sales stage is already in the requested state."
+          : action === "deactivate"
+            ? "Sales stage deactivated."
+            : action === "reactivate"
+              ? "Sales stage reactivated."
+              : "Sales stage updated.",
       record,
+      migrationJob,
     });
   } catch (error) {
     return crmErrorResponse(error);

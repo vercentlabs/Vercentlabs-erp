@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { evaluateOpportunityHealth, getCrmOptions, listCrmRecords } from "@vercentlabs/api";
+import { evaluateOpportunityHealth, getCrmOptions, listCrmRecords, listOpportunityStageAges, listOpportunityPipelineStageTotals, listPipelineSnapshots } from "@vercentlabs/api";
 
 import CrmPipelineBoard from "@/modules/crm/components/pipeline-board";
+import PipelineHistoryPanel from "@/modules/crm/components/pipeline-history-panel";
 import { ActionLink, PageHeader } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -20,6 +21,7 @@ export default async function PipelinePage({
 }) {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) return notFound();
+  const canManage = hasPermission(session, PERMISSIONS.crmOpportunitiesManage);
 
   const context = crmContext(session);
   const requestedPipelineId = String((await searchParams).pipeline || "").trim();
@@ -67,6 +69,26 @@ export default async function PipelinePage({
             limit: 500,
           })
         : { rows: [], total: 0, limit: 500, offset: 0 };
+      const stageAges = selectedPipelineId
+        ? await listOpportunityStageAges(client, context, selectedPipelineId)
+        : {};
+      // Integrity closeout (Prompts 1-5): an authoritative, unbounded
+      // server aggregate — independent of the `limit: 500` capped card
+      // list above — so per-stage totals stay correct even when a
+      // pipeline holds more than 500 open Opportunities. See
+      // stage-aging.js's listOpportunityPipelineStageTotals.
+      const stageTotals = selectedPipelineId
+        ? await listOpportunityPipelineStageTotals(client, context, selectedPipelineId)
+        : {};
+      // F010 integrity closeout: recent historical snapshots for the
+      // selected pipeline, for authorized managers only — listPipelineSnapshots
+      // itself also enforces this same gate; canManage is checked here first
+      // purely to avoid the call (and its own permission check) when it
+      // cannot possibly succeed.
+      const snapshots =
+        canManage && selectedPipelineId
+          ? await listPipelineSnapshots(client, context, { pipelineId: selectedPipelineId, limit: 60 })
+          : [];
       opportunities.rows = opportunities.rows.map((row) => {
         const health = evaluateOpportunityHealth({
           amount: row.amount,
@@ -79,7 +101,8 @@ export default async function PipelinePage({
           next_step: row.nextStep,
           status: row.status,
         });
-        return { ...row, warnings: health.warnings, inactiveDays: health.inactiveDays };
+        const stageAge = stageAges[String(row.id)] || null;
+        return { ...row, warnings: health.warnings, inactiveDays: health.inactiveDays, stageAgeDays: stageAge?.ageDays ?? null, stageAgeStatus: stageAge?.status ?? "unknown" };
       });
 
       return {
@@ -88,13 +111,10 @@ export default async function PipelinePage({
         stages,
         outcomeReasons,
         opportunities,
+        stageTotals,
+        snapshots,
       };
     },
-  );
-
-  const canManage = hasPermission(
-    session,
-    PERMISSIONS.crmOpportunitiesManage,
   );
 
   return (
@@ -123,8 +143,17 @@ export default async function PipelinePage({
         outcomeReasons={data.outcomeReasons}
         opportunities={JSON.parse(JSON.stringify(data.opportunities.rows))}
         total={data.opportunities.total}
+        stageTotals={data.stageTotals}
         canManage={canManage}
       />
+      {canManage && data.selectedPipelineId ? (
+        <PipelineHistoryPanel
+          pipelineId={data.selectedPipelineId}
+          stages={data.stages.map((stage) => ({ id: stage.id, name: stage.name }))}
+          snapshots={JSON.parse(JSON.stringify(data.snapshots))}
+          currentTotals={data.stageTotals}
+        />
+      ) : null}
     </>
   );
 }

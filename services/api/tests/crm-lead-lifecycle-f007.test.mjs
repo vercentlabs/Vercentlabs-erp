@@ -86,7 +86,7 @@ test("canonical transition locks, validates, records history and emits one outbo
           status: "active",
           lead_count: 0,
         }] };
-      if (sql.includes("FROM tenant.crm_lead_stage_transitions")) return { rows: [{ exists: 1 }] };
+      if (sql.includes("FROM tenant.crm_lead_stage_transitions")) return { rows: [{ reason_required: false }] };
       if (sql.includes("UPDATE tenant.crm_leads SET status="))
         return { rows: [{ id: "44444444-4444-4444-8444-444444444444", status: "contacted", record_status: "active" }] };
       if (sql.includes("INSERT INTO tenant.crm_lead_stage_events"))

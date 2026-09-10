@@ -20,88 +20,17 @@ function assertId(value, label) {
   }
 }
 
-function normalizeText(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-function normalizePhone(value) {
-  return String(value || "")
-    .replace(/\D+/g, "")
-    .slice(-15);
-}
-
-function normalizeEmail(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase();
-}
-
-export async function findAccountDuplicates(client, context, input = {}) {
-  const name = normalizeText(
-    input.name || input.displayName || input.legalName,
-  );
-  const gstin = String(input.gstin || "")
-    .trim()
-    .toUpperCase();
-  const pan = String(input.pan || "")
-    .trim()
-    .toUpperCase();
-  const excludeId = input.excludeId || null;
-  if (!name && !gstin && !pan) return [];
-  const result = await client.query(
-    `SELECT party.id, party.code, party.display_name, party.legal_name, party.gstin,
-            party.pan, party.party_type, party.status,
-            ((CASE WHEN $3 <> '' AND upper(coalesce(party.gstin,'')) = $3 THEN 70 ELSE 0 END) +
-             (CASE WHEN $4 <> '' AND upper(coalesce(party.pan,'')) = $4 THEN 45 ELSE 0 END) +
-             (CASE WHEN $2 <> '' AND regexp_replace(lower(coalesce(party.legal_name,party.display_name)), '[^a-z0-9]+', '', 'g') = $2 THEN 35 ELSE 0 END))::int AS match_score
-       FROM tenant.business_parties party
-      WHERE party.organization_id = $1
-        AND party.status = 'active'
-        AND ($5::uuid IS NULL OR party.id <> $5)
-        AND (($3 <> '' AND upper(coalesce(party.gstin,'')) = $3)
-          OR ($4 <> '' AND upper(coalesce(party.pan,'')) = $4)
-          OR ($2 <> '' AND regexp_replace(lower(coalesce(party.legal_name,party.display_name)), '[^a-z0-9]+', '', 'g') = $2))
-      ORDER BY match_score DESC, party.updated_at DESC
-      LIMIT 25`,
-    [context.organizationId, name, gstin, pan, excludeId],
-  );
-  return result.rows;
-}
-
-export async function findContactDuplicates(client, context, input = {}) {
-  const email = normalizeEmail(input.email);
-  const mobile = normalizePhone(input.mobile || input.phone);
-  const firstName = normalizeText(input.firstName);
-  const lastName = normalizeText(input.lastName);
-  const excludeId = input.excludeId || null;
-  if (!email && !mobile && !firstName) return [];
-  const result = await client.query(
-    `SELECT contact.id, contact.party_id, contact.first_name, contact.last_name,
-            contact.email, contact.mobile, contact.phone, contact.designation,
-            party.display_name AS account_name,
-            ((CASE WHEN $2 <> '' AND lower(coalesce(contact.email,'')) = $2 THEN 70 ELSE 0 END) +
-             (CASE WHEN $3 <> '' AND right(regexp_replace(coalesce(contact.mobile,contact.phone,''), '\\D', '', 'g'), 15) = $3 THEN 55 ELSE 0 END) +
-             (CASE WHEN $4 <> '' AND regexp_replace(lower(contact.first_name), '[^a-z0-9]+', '', 'g') = $4
-                        AND regexp_replace(lower(coalesce(contact.last_name,'')), '[^a-z0-9]+', '', 'g') = $5 THEN 30 ELSE 0 END))::int AS match_score
-       FROM tenant.contacts contact
-       JOIN tenant.business_parties party
-         ON party.organization_id = contact.organization_id AND party.id = contact.party_id
-      WHERE contact.organization_id = $1
-        AND contact.status = 'active'
-        AND ($6::uuid IS NULL OR contact.id <> $6)
-        AND (($2 <> '' AND lower(coalesce(contact.email,'')) = $2)
-          OR ($3 <> '' AND right(regexp_replace(coalesce(contact.mobile,contact.phone,''), '\\D', '', 'g'), 15) = $3)
-          OR ($4 <> '' AND regexp_replace(lower(contact.first_name), '[^a-z0-9]+', '', 'g') = $4
-                       AND regexp_replace(lower(coalesce(contact.last_name,'')), '[^a-z0-9]+', '', 'g') = $5))
-      ORDER BY match_score DESC, contact.updated_at DESC
-      LIMIT 25`,
-    [context.organizationId, email, mobile, firstName, lastName, excludeId],
-  );
-  return result.rows;
-}
+// Moved to prospect-and-relationship-master-data/duplicate-matching.js this
+// prompt (CRM vNext Prompt 3 continuation): rewritten to be rule-driven
+// (tenant.crm_duplicate_rules) instead of hardcoded weights, to use the
+// indexed normalized_* columns instead of an unindexed regexp_replace scan,
+// and (Contact) to include standalone (party_id IS NULL) contacts via a
+// LEFT JOIN instead of silently excluding them via an INNER JOIN. Re-exported
+// here so every existing `@vercentlabs/api` caller keeps working unchanged.
+export {
+  findAccountDuplicates,
+  findContactDuplicates,
+} from "./prospect-and-relationship-master-data/duplicate-matching.js";
 
 async function lockParty(client, context, id) {
   assertId(id, "Account");

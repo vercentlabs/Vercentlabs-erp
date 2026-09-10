@@ -184,7 +184,7 @@
 }
 
 .command-palette-input::placeholder {
-  color: #8a94a3;
+  color: var(--erp-color-text-muted);
 }
 
 .command-palette-close {

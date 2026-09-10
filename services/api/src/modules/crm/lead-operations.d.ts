@@ -19,11 +19,6 @@ export function buildLeadAgingBuckets(
   rows: Array<Record<string, unknown>>,
   now?: Date,
 ): Record<string, unknown>;
-export function getLeadTimeline(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  leadId: string,
-): Promise<Array<Record<string, unknown>>>;
 export function previewLeadAssignment(
   client: QueryClient,
   context: CrmFoundationContext,

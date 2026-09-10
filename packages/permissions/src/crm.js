@@ -3,6 +3,7 @@ export const CRM_PERMISSIONS = Object.freeze({
   recordsViewAll: "crm.records.view_all",
   leadsViewSensitive: "crm.leads.view_sensitive",
   contactsViewSensitive: "crm.contacts.view_sensitive",
+  accountsViewSensitive: "crm.accounts.view_sensitive",
   savedViewsShare: "crm.saved_views.share",
   leadsManage: "crm.leads.manage",
   opportunitiesManage: "crm.opportunities.manage",

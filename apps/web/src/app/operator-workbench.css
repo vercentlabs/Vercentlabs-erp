@@ -17,7 +17,7 @@
 
   --color-ink: #181b20;
   --color-ink-secondary: #3f444d;
-  --color-muted: #6f7682;
+  --color-muted: #525a66;
   --color-muted-light: #9aa1ac;
   --color-line: #e3e5e9;
   --color-line-strong: #cfd3da;
@@ -451,7 +451,7 @@ summary:focus-visible,
   border-bottom-color: #c8ccd3;
   border-radius: 5px;
   background: #ffffff;
-  color: #7a818c;
+  color: var(--erp-color-text-muted);
   font-family: inherit;
   font-size: 8px;
   font-weight: 700;

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createCrmRecord } from "./index.js";
+import { createCrmRecord, moveOpportunityStage } from "./index.js";
 import { createCrmTask, completeCrmTask } from "./task-operations.js";
+import { createCrmFollowUp, completeCrmFollowUp } from "./seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);
 export class CrmOfflineSyncError extends Error {
   constructor(status, message, code = "CRM_OFFLINE_SYNC_ERROR", details = []) {
@@ -254,18 +255,26 @@ export async function applyOfflineMutation(client, context, input = {}) {
         "Offline stage movement requires opportunity and stage.",
         "CRM_OFFLINE_STAGE_INVALID",
       );
-    row = (
-      await client.query(
-        `UPDATE tenant.crm_opportunities SET stage_id=$3,next_step=COALESCE($4,next_step),updated_by=$5,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
-        [
-          context.organizationId,
-          m.recordId,
-          m.payload.stageId || m.payload.stage_id,
-          text(m.payload.note) || null,
-          context.userId,
-        ],
-      )
-    ).rows[0];
+    // Routed through the same governed command every other stage-move path
+    // uses (web, pipeline board) — an offline-queued mutation must not be
+    // able to bypass permission/scope, legal-stage validation, the won/lost
+    // outcome-reason requirement, stage_entered_at, history or the outbox
+    // event just because it was queued while offline. This used to be a
+    // raw, ungoverned UPDATE that only ever wrote stage_id (never even
+    // updating status/probability/forecast_category to match), a real
+    // governance-bypass and data-integrity bug fixed this prompt.
+    const moved = await moveOpportunityStage(
+      client,
+      context,
+      m.recordId,
+      text(m.payload.stageId || m.payload.stage_id),
+      text(m.payload.note) || null,
+      {
+        outcomeReasonId: text(m.payload.outcomeReasonId || m.payload.outcome_reason_id) || null,
+        outcomeNotes: text(m.payload.outcomeNotes || m.payload.outcome_notes) || null,
+      },
+    );
+    row = moved.record ?? moved;
   } else if (m.resource === "activities" && m.operation === "create") {
     const p = m.payload;
     const activityType = text(p.activityType || p.activity_type || "task").toLowerCase();
@@ -287,6 +296,21 @@ export async function applyOfflineMutation(client, context, input = {}) {
         dueAt: p.dueAt || p.due_at || null,
         reminderAt: p.reminderAt || p.reminder_at || null,
         recurringRule: p.recurringRule || p.recurring_rule || null,
+      });
+    } else if (activityType === "follow_up") {
+      // §21 closeout — this used to fall through to the generic raw INSERT
+      // below, bypassing createCrmFollowUp's own validation (parent scope,
+      // reminder-offset/channel handling) entirely for an offline-queued
+      // Follow-up. createCrmFollowUp itself rejects activityType/status in
+      // its input (server-governed), so those keys are stripped here.
+      const { activityType: _activityType, status: _status, ...rest } = p;
+      row = await createCrmFollowUp(client, context, {
+        ...rest,
+        companyId: p.companyId || p.company_id || context.activeCompanyId || null,
+        branchId: p.branchId || p.branch_id || context.activeBranchId || null,
+        entityType: text(p.entityType || p.entity_type || "general"),
+        entityId: p.entityId || p.entity_id || null,
+        assignedTo: p.assignedTo || p.assigned_to || context.userId,
       });
     } else {
       row = (
@@ -317,6 +341,11 @@ export async function applyOfflineMutation(client, context, input = {}) {
       throw new CrmOfflineSyncError(410, "Use the governed Meetings mobile endpoint for offline Meeting completion.", "CRM_MEETING_API_MOVED");
     if (target?.activity_type === "task") {
       row = await completeCrmTask(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
+    } else if (target?.activity_type === "follow_up") {
+      // §21 closeout — previously fell through to the generic raw UPDATE
+      // below, bypassing completeCrmFollowUp's own reminder-cancellation
+      // side effect entirely for an offline-queued completion.
+      row = await completeCrmFollowUp(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
     } else {
       row = (
         await client.query(

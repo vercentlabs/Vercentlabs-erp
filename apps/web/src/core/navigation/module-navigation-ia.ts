@@ -19,16 +19,16 @@ export type GroupedNavigationItems = {
  */
 const GROUP_BY_HREF: Partial<Record<ModuleId, Record<string, string>>> = {
   crm: {
-    "/crm": "Overview",
-    "/crm/leads": "Relationships",
-    "/crm/accounts": "Relationships",
-    "/crm/contacts": "Relationships",
-    "/crm/opportunities": "Pipeline",
-    "/crm/pipeline": "Pipeline",
-    "/crm/forecast": "Pipeline",
-    "/crm/activities": "Activities",
-    "/crm/reports": "Analytics",
-    "/crm/settings": "Configuration",
+    "/crm": "Home",
+    "/crm/leads": "Customers",
+    "/crm/accounts": "Customers",
+    "/crm/contacts": "Customers",
+    "/crm/opportunities": "Sales",
+    "/crm/pipeline": "Sales",
+    "/crm/forecast": "Sales",
+    "/crm/activities": "Work",
+    "/crm/reports": "Insights",
+    "/crm/settings": "Administration",
   },
   sales: {
     "/sales": "Overview",

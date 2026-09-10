@@ -1,5 +1,6 @@
 export { ActionButton, ActionLink, type ActionSize, type ActionTone } from "./action";
 export { ConvergenceBoundary, ShellBoundary, type ConvergenceArea } from "./convergence-boundary";
+export { Dialog, ConfirmDialog, type DialogVariant } from "./dialog";
 export {
   BoardArchetype,
   ListWorkQueueArchetype,

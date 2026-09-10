@@ -9,6 +9,42 @@ import {
   firstSensitiveContactInputField,
   projectContactForContext,
 } from "./contact-security.js";
+import {
+  ensurePrimaryRelationshipFromLegacyFields,
+  clearPrimaryRelationshipFromLegacyFields,
+} from "./prospect-and-relationship-master-data/contact-relationships.js";
+import {
+  findContactDuplicates,
+  recordContactDuplicateOverride,
+} from "./prospect-and-relationship-master-data/duplicate-matching.js";
+import { assertExpectedRecordVersion } from "./prospect-and-relationship-master-data/record-version.js";
+
+// F008 create-time governed duplicate check (CRM-VNEXT-081), mirroring
+// account-operations.js's assertAccountDuplicatePolicy and Lead's
+// established exact-classification-blocks-unless-overridden contract.
+async function assertContactDuplicatePolicy(client, context, candidate, overrideReason) {
+  const matches = await findContactDuplicates(client, context, {
+    email: candidate.email,
+    mobile: candidate.mobile || candidate.phone,
+    firstName: candidate.firstName,
+    lastName: candidate.lastName,
+  });
+  const exact = matches.filter((row) => row.classification === "exact");
+  if (!exact.length) return null;
+  const canOverride = Boolean(context.permissions?.includes("crm.accounts.manage"));
+  const reason = String(overrideReason || "").trim();
+  if (!canOverride || reason.length < 10) {
+    throw new CrmError(
+      409,
+      canOverride
+        ? "Explain in at least 10 characters why this exact duplicate must be created."
+        : "This looks like an exact duplicate of an existing contact. You do not have permission to create it anyway.",
+      "CRM_CONTACT_DUPLICATE_EXACT",
+      { matches: exact },
+    );
+  }
+  return { matchedContactIds: exact.map((row) => row.id), reason };
+}
 
 const ACCOUNT_TYPES = ["customer", "both", "prospect"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,6 +57,8 @@ const CONTACT_FIELDS = Object.freeze({
   phone: "phone",
   mobile: "mobile",
   isPrimary: "is_primary",
+  preferredLanguage: "preferred_language",
+  timezone: "timezone",
 });
 
 function hasOwn(value, key) {
@@ -334,6 +372,12 @@ export async function createCrmContact(client, context, input = {}) {
     const normalized = normalizeContactInput({ status: "active", ...input });
     throwValidation(normalized);
     await validateAccountRelationship(client, context, normalized.accountId);
+    const duplicateOverride = await assertContactDuplicatePolicy(
+      client,
+      context,
+      normalized,
+      input.duplicateOverrideReason,
+    );
 
     let primary = false;
     if (normalized.accountId) {
@@ -353,8 +397,9 @@ export async function createCrmContact(client, context, input = {}) {
     const result = await client.query(
       `INSERT INTO tenant.contacts (
          organization_id, party_id, first_name, last_name, designation,
-         email, phone, mobile, is_primary, status, created_by, updated_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$10)
+         email, phone, mobile, is_primary, preferred_language, timezone,
+         status, created_by, updated_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active',$12,$12)
        RETURNING id`,
       [
         context.organizationId,
@@ -366,10 +411,29 @@ export async function createCrmContact(client, context, input = {}) {
         normalized.phone,
         normalized.mobile,
         primary,
+        normalized.preferredLanguage ?? null,
+        normalized.timezone ?? null,
         context.userId,
       ],
     );
     await setPrimaryState(
+      client,
+      context,
+      result.rows[0].id,
+      normalized.accountId,
+      primary,
+    );
+    if (duplicateOverride) {
+      await recordContactDuplicateOverride(
+        client,
+        context,
+        result.rows[0].id,
+        duplicateOverride.matchedContactIds,
+        "create",
+        duplicateOverride.reason,
+      );
+    }
+    await ensurePrimaryRelationshipFromLegacyFields(
       client,
       context,
       result.rows[0].id,
@@ -390,7 +454,13 @@ export async function createCrmContact(client, context, input = {}) {
   }
 }
 
-export async function updateCrmContact(client, context, id, input = {}) {
+export async function updateCrmContact(
+  client,
+  context,
+  id,
+  input = {},
+  expectations = {},
+) {
   try {
     assertGovernedFields(input);
     assertSensitiveContactMutationAllowed(context, input);
@@ -403,6 +473,13 @@ export async function updateCrmContact(client, context, id, input = {}) {
       );
     }
     const existing = await getCrmContact(client, context, id);
+    // Integrity closeout (Prompts 1-5): same gap as Accounts — this ran a
+    // plain UPDATE ... WHERE id=$2 with no expected-version check at all.
+    assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
+      entityLabel: "Contact",
+      codePrefix: "CRM_CONTACT",
+      required: expectations.requireVersion === true,
+    });
     const normalized = normalizeContactInput(input);
     throwValidation(normalized, { existing, mode: "update" });
 
@@ -440,13 +517,29 @@ export async function updateCrmContact(client, context, id, input = {}) {
       assignments.push(`is_primary = ${addParameter(parameters, isPrimary)}`);
     }
     const updatedBy = addParameter(parameters, context.userId);
-    await client.query(
+    const versionGuard = expectations.expectedUpdatedAt
+      ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+      : "";
+    const updateResult = await client.query(
       `UPDATE tenant.contacts
        SET ${assignments.join(", ")}, updated_by = ${updatedBy}, updated_at = now()
-       WHERE organization_id = $1 AND id = $2`,
+       WHERE organization_id = $1 AND id = $2${versionGuard}
+       RETURNING id`,
       parameters,
     );
+    if (versionGuard && updateResult.rowCount === 0) {
+      throw new CrmError(
+        409,
+        "This Contact changed after you loaded it. Refresh and try again.",
+        "CRM_STALE_WRITE",
+      );
+    }
     await setPrimaryState(client, context, id, accountId, isPrimary);
+    if (accountChanged && !accountId) {
+      await clearPrimaryRelationshipFromLegacyFields(client, context, id);
+    } else if (accountChanged || hasOwn(normalized, "isPrimary")) {
+      await ensurePrimaryRelationshipFromLegacyFields(client, context, id, accountId, isPrimary);
+    }
     await queueOutboxEvent(
       client,
       context,
@@ -461,10 +554,15 @@ export async function updateCrmContact(client, context, id, input = {}) {
   }
 }
 
-export async function reactivateCrmContact(client, context, id) {
+export async function reactivateCrmContact(client, context, id, expectations = {}) {
   try {
     assertWritableScope(context);
     const existing = await getCrmContact(client, context, id);
+    assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
+      entityLabel: "Contact",
+      codePrefix: "CRM_CONTACT",
+      required: expectations.requireVersion === true,
+    });
     if (existing.status !== "active") {
       if (existing.accountId) {
         const account = await getCrmAccount(client, context, existing.accountId);
@@ -477,13 +575,25 @@ export async function reactivateCrmContact(client, context, id) {
           );
         }
       }
-      await client.query(
+      const parameters = [context.organizationId, id, context.userId];
+      const versionGuard = expectations.expectedUpdatedAt
+        ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        : "";
+      const reactivateResult = await client.query(
         `UPDATE tenant.contacts
          SET status = 'active', archived_at = NULL,
              updated_by = $3, updated_at = now()
-         WHERE organization_id = $1 AND id = $2`,
-        [context.organizationId, id, context.userId],
+         WHERE organization_id = $1 AND id = $2${versionGuard}
+         RETURNING id`,
+        parameters,
       );
+      if (versionGuard && reactivateResult.rowCount === 0) {
+        throw new CrmError(
+          409,
+          "This Contact changed after you loaded it. Refresh and try again.",
+          "CRM_STALE_WRITE",
+        );
+      }
       await queueOutboxEvent(
         client,
         context,
@@ -499,18 +609,35 @@ export async function reactivateCrmContact(client, context, id) {
   }
 }
 
-export async function archiveCrmContact(client, context, id) {
+export async function archiveCrmContact(client, context, id, expectations = {}) {
   try {
     assertWritableScope(context);
     const existing = await getCrmContact(client, context, id);
+    assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
+      entityLabel: "Contact",
+      codePrefix: "CRM_CONTACT",
+      required: expectations.requireVersion === true,
+    });
     if (existing.status !== "inactive") {
-      await client.query(
+      const parameters = [context.organizationId, id, context.userId];
+      const versionGuard = expectations.expectedUpdatedAt
+        ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        : "";
+      const archiveResult = await client.query(
         `UPDATE tenant.contacts
          SET status = 'inactive', archived_at = now(), is_primary = false,
              updated_by = $3, updated_at = now()
-         WHERE organization_id = $1 AND id = $2`,
-        [context.organizationId, id, context.userId],
+         WHERE organization_id = $1 AND id = $2${versionGuard}
+         RETURNING id`,
+        parameters,
       );
+      if (versionGuard && archiveResult.rowCount === 0) {
+        throw new CrmError(
+          409,
+          "This Contact changed after you loaded it. Refresh and try again.",
+          "CRM_STALE_WRITE",
+        );
+      }
       await queueOutboxEvent(
         client,
         context,

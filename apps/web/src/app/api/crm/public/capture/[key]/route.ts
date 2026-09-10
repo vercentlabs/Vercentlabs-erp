@@ -14,13 +14,15 @@ import {
   verifiedCaptureProxyFingerprint,
 } from "@/core/security";
 
+const PUBLIC_CAPTURE_KEY_PATTERN = /^[0-9a-f]{24,64}$/i;
+
 export async function POST(
   request: Request,
   route: { params: Promise<{ key: string }> },
 ) {
   try {
     const { key } = await route.params;
-    if (!/^[0-9a-f]{36}$/i.test(key)) {
+    if (!PUBLIC_CAPTURE_KEY_PATTERN.test(key)) {
       throw new HttpError(404, "Lead-capture form not found.");
     }
 

@@ -1,4 +1,119 @@
 import { createHash } from "node:crypto";
+import {
+  reconcileRelationshipsOnAccountMerge,
+  reconcileRelationshipsOnContactMerge,
+} from "./prospect-and-relationship-master-data/contact-relationships.js";
+import {
+  canViewSensitiveAccountContent,
+  projectAccountForContext,
+} from "./prospect-and-relationship-master-data/account-security.js";
+import {
+  canViewSensitiveContactContent,
+  projectContactForContext,
+} from "./contact-security.js";
+
+// F008/CRM-VNEXT-086 merge survivorship: the fixed, code-reviewed set of
+// fields a merge UI may offer a choice on. Deliberately narrow — system
+// fields (id, organization_id, company_id, status, code, party_id,
+// parent_party_id, timestamps, created_by) are never selectable; they
+// follow the merge engine's own deterministic rules (parent_party_id via
+// reparenting, party_id via the relationship-reconciliation module, status
+// via the deactivation step below) rather than an arbitrary UI choice.
+// "Owner" is not listed for either entity: unlike Lead, current Account/
+// Contact schema has no owner_user_id column to select between.
+const ACCOUNT_SURVIVOR_FIELDS = Object.freeze([
+  "display_name",
+  "legal_name",
+  "industry",
+  "website",
+  "phone",
+  "email",
+  "currency_code",
+]);
+const ACCOUNT_SENSITIVE_SURVIVOR_FIELDS = Object.freeze(["gstin", "pan", "msme_number"]);
+const CONTACT_SURVIVOR_FIELDS = Object.freeze([
+  "first_name",
+  "last_name",
+  "designation",
+  "preferred_language",
+  "timezone",
+]);
+const CONTACT_SENSITIVE_SURVIVOR_FIELDS = Object.freeze(["email", "phone", "mobile"]);
+
+function buildFieldComparison(sourceRow, survivorRow, plainFields, sensitiveFields, canViewSensitive) {
+  const comparison = [];
+  for (const field of plainFields) {
+    const sourceValue = sourceRow[field] ?? null;
+    const survivorValue = survivorRow[field] ?? null;
+    comparison.push({
+      field,
+      sourceValue,
+      survivorValue,
+      conflict: sourceValue !== survivorValue,
+      sensitive: false,
+      selectable: true,
+    });
+  }
+  for (const field of sensitiveFields) {
+    if (!canViewSensitive) continue; // never expose a sensitive field's values to an unauthorized comparer
+    const sourceValue = sourceRow[field] ?? null;
+    const survivorValue = survivorRow[field] ?? null;
+    comparison.push({
+      field,
+      sourceValue,
+      survivorValue,
+      conflict: sourceValue !== survivorValue,
+      sensitive: true,
+      selectable: true,
+    });
+  }
+  return comparison;
+}
+
+// Never trusts a client-supplied raw value — a selection is only ever
+// "source" or "survivor", and this function re-derives the actual value
+// server-side from the two freshly-fetched records, so a selected value can
+// never be anything other than one of the two real candidate values.
+function resolveFieldSelections(sourceRow, survivorRow, plainFields, sensitiveFields, canViewSensitive, selections) {
+  const applied = {};
+  const resolvedValues = {};
+  if (!selections || typeof selections !== "object") return { applied, resolvedValues };
+  const allowed = new Set(plainFields);
+  const sensitiveAllowed = new Set(sensitiveFields);
+  for (const [field, choice] of Object.entries(selections)) {
+    if (choice !== "source" && choice !== "survivor") {
+      throw new CrmAccountIntelligenceError(
+        400,
+        `Invalid selection for field "${field}" — choose "source" or "survivor".`,
+        "CRM_MERGE_SELECTION_INVALID",
+      );
+    }
+    const isSensitive = sensitiveAllowed.has(field);
+    if (!allowed.has(field) && !isSensitive) {
+      throw new CrmAccountIntelligenceError(
+        400,
+        `Field "${field}" is not eligible for merge survivorship selection.`,
+        "CRM_MERGE_FIELD_NOT_SELECTABLE",
+      );
+    }
+    if (isSensitive && !canViewSensitive) {
+      throw new CrmAccountIntelligenceError(
+        403,
+        `You do not have permission to select a value for the sensitive field "${field}".`,
+        "CRM_MERGE_SENSITIVE_FIELD_FORBIDDEN",
+      );
+    }
+    if (choice === "source") {
+      applied[field] = sourceRow[field] ?? null;
+      resolvedValues[field] = "source";
+    }
+    // "survivor" selections need no write — the survivor's own value is
+    // already what's on the row; recording it keeps the audit trail
+    // complete (the user *did* make a choice) without an unnecessary UPDATE.
+    resolvedValues[field] = choice;
+  }
+  return { applied, resolvedValues };
+}
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -72,10 +187,16 @@ async function account(client, context, partyId, lock = false) {
 
 async function contact(client, context, contactId, lock = false) {
   const id = assertId(contactId, "Contact");
+  // LEFT JOIN, not JOIN: a standalone Contact (party_id IS NULL) is a
+  // valid, supported record (see F003's "standalone Contact creation
+  // persists without fabricating an Account"). An INNER JOIN here silently
+  // excluded every standalone Contact from merge preview/merge entirely —
+  // found by a real browser E2E journey (erp-crm-merge-hierarchy.spec.ts)
+  // that created a Contact with no Account and hit a 404.
   const result = await client.query(
     `SELECT contact.*,party.display_name AS account_name
      FROM tenant.contacts contact
-     JOIN tenant.business_parties party
+     LEFT JOIN tenant.business_parties party
        ON party.organization_id=contact.organization_id AND party.id=contact.party_id
      WHERE contact.organization_id=$1 AND contact.id=$2${lock ? " FOR UPDATE OF contact" : ""}`,
     [context.organizationId, id],
@@ -332,7 +453,34 @@ export async function previewAccountMerge(
       });
     }
   }
-  return { source, survivor, impact };
+  const canViewSensitive = canViewSensitiveAccountContent(context);
+  const fieldComparison = buildFieldComparison(
+    source,
+    survivor,
+    ACCOUNT_SURVIVOR_FIELDS,
+    ACCOUNT_SENSITIVE_SURVIVOR_FIELDS,
+    canViewSensitive,
+  );
+  // source/survivor here stay RAW (unprojected) — mergeAccountsGoverned
+  // uses this internally to write the permanent merge_history snapshot,
+  // which must stay complete regardless of the acting user's own view
+  // permissions (audit completeness, not user-facing display). API routes
+  // that expose this preview to a browser MUST call
+  // previewAccountMergeForCaller instead — see below.
+  return { source, survivor, impact, fieldComparison };
+}
+
+// The safe, API-facing variant — same CRM-VNEXT-085 concern as
+// getCrmAccountForCaller: never return the raw source/survivor records to a
+// caller without sensitive access. fieldComparison is already filtered by
+// previewAccountMerge itself.
+export async function previewAccountMergeForCaller(client, context, sourceId, survivorId) {
+  const preview = await previewAccountMerge(client, context, sourceId, survivorId);
+  return {
+    ...preview,
+    source: projectAccountForContext(context, preview.source),
+    survivor: projectAccountForContext(context, preview.survivor),
+  };
 }
 
 export async function previewContactMerge(
@@ -373,7 +521,26 @@ export async function previewContactMerge(
       });
     }
   }
-  return { source, survivor, impact };
+  const canViewSensitive = canViewSensitiveContactContent(context);
+  const fieldComparison = buildFieldComparison(
+    source,
+    survivor,
+    CONTACT_SURVIVOR_FIELDS,
+    CONTACT_SENSITIVE_SURVIVOR_FIELDS,
+    canViewSensitive,
+  );
+  // Same reasoning as previewAccountMerge: stays RAW for the internal
+  // merge_history snapshot; API routes must use previewContactMergeForCaller.
+  return { source, survivor, impact, fieldComparison };
+}
+
+export async function previewContactMergeForCaller(client, context, sourceId, survivorId) {
+  const preview = await previewContactMerge(client, context, sourceId, survivorId);
+  return {
+    ...preview,
+    source: projectContactForContext(context, preview.source),
+    survivor: projectContactForContext(context, preview.survivor),
+  };
 }
 
 async function assertAccountMergeHierarchySafe(
@@ -411,6 +578,7 @@ export async function mergeAccountsGoverned(
   sourceId,
   survivorId,
   reason = null,
+  options = {},
 ) {
   const sourceKey = assertId(sourceId, "Source account");
   const survivorKey = assertId(survivorId, "Surviving account");
@@ -441,12 +609,50 @@ export async function mergeAccountsGoverned(
       "Both accounts must be active before merging.",
     );
   }
+  // Optimistic concurrency: the client fetched a comparison, a human
+  // reviewed it, then confirmed — if either record changed in between (the
+  // row was locked FOR UPDATE above, so this compares against the
+  // now-guaranteed-current state), the review is stale and must not be
+  // silently applied against outdated data.
+  if (
+    (options.expectedSourceUpdatedAt &&
+      new Date(preview.source.updated_at).getTime() !== new Date(options.expectedSourceUpdatedAt).getTime()) ||
+    (options.expectedSurvivorUpdatedAt &&
+      new Date(preview.survivor.updated_at).getTime() !== new Date(options.expectedSurvivorUpdatedAt).getTime())
+  ) {
+    throw new CrmAccountIntelligenceError(
+      409,
+      "This record changed while you were reviewing the merge. Refresh the comparison before continuing.",
+      "CRM_MERGE_COMPARISON_STALE",
+    );
+  }
+  const canViewSensitive = canViewSensitiveAccountContent(context);
+  const { applied: survivorshipUpdates, resolvedValues: fieldSelections } = resolveFieldSelections(
+    preview.source,
+    preview.survivor,
+    ACCOUNT_SURVIVOR_FIELDS,
+    ACCOUNT_SENSITIVE_SURVIVOR_FIELDS,
+    canViewSensitive,
+    options.fieldSelections,
+  );
   await assertAccountMergeHierarchySafe(
     client,
     context,
     sourceKey,
     survivorKey,
   );
+  if (Object.keys(survivorshipUpdates).length) {
+    const setParameters = [context.organizationId, survivorKey, context.userId];
+    const assignments = Object.entries(survivorshipUpdates).map(([field, value]) => {
+      setParameters.push(value);
+      return `${quoteIdentifier(field)}=$${setParameters.length}`;
+    });
+    await client.query(
+      `UPDATE tenant.business_parties SET ${assignments.join(",")},updated_by=$3,updated_at=now()
+       WHERE organization_id=$1 AND id=$2`,
+      setParameters,
+    );
+  }
   await client.query(
     `UPDATE tenant.contacts SET is_primary=false,updated_by=$1,updated_at=now()
      WHERE organization_id=$2 AND party_id=$3 AND is_primary=true
@@ -475,6 +681,11 @@ export async function mergeAccountsGoverned(
       ],
     );
   }
+  // Reconciled explicitly (dedup + repoint), not by the generic pass below:
+  // a blind repoint here could try to UPDATE a source relationship row onto
+  // an Account+Contact pair the survivor already has, violating the
+  // (organization_id, contact_id, party_id) unique constraint.
+  await reconcileRelationshipsOnAccountMerge(client, context, sourceKey, survivorKey);
   const moved = await repointReferences(
     client,
     context,
@@ -486,6 +697,7 @@ export async function mergeAccountsGoverned(
       "crm_account_merge_history",
       "crm_entity_merge_aliases",
       "crm_account_hierarchy_events",
+      "crm_contact_account_relationships",
     ]),
   );
   await client.query(
@@ -524,8 +736,8 @@ export async function mergeAccountsGoverned(
   );
   const history = await client.query(
     `INSERT INTO tenant.crm_account_merge_history(
-       organization_id,source_party_id,survivor_party_id,source_snapshot,survivor_snapshot,reason,merged_by
-     ) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7) RETURNING *`,
+       organization_id,source_party_id,survivor_party_id,source_snapshot,survivor_snapshot,reason,merged_by,field_selections
+     ) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8::jsonb) RETURNING *`,
     [
       context.organizationId,
       sourceKey,
@@ -534,6 +746,7 @@ export async function mergeAccountsGoverned(
       JSON.stringify(preview.survivor),
       text(reason) || null,
       context.userId,
+      JSON.stringify(fieldSelections),
     ],
   );
   await client.query(
@@ -559,6 +772,7 @@ export async function mergeContactsGoverned(
   sourceId,
   survivorId,
   reason = null,
+  options = {},
 ) {
   const sourceKey = assertId(sourceId, "Source contact");
   const survivorKey = assertId(survivorId, "Surviving contact");
@@ -589,13 +803,53 @@ export async function mergeContactsGoverned(
       "Both contacts must be active before merging.",
     );
   }
+  if (
+    (options.expectedSourceUpdatedAt &&
+      new Date(preview.source.updated_at).getTime() !== new Date(options.expectedSourceUpdatedAt).getTime()) ||
+    (options.expectedSurvivorUpdatedAt &&
+      new Date(preview.survivor.updated_at).getTime() !== new Date(options.expectedSurvivorUpdatedAt).getTime())
+  ) {
+    throw new CrmAccountIntelligenceError(
+      409,
+      "This record changed while you were reviewing the merge. Refresh the comparison before continuing.",
+      "CRM_MERGE_COMPARISON_STALE",
+    );
+  }
+  const canViewSensitive = canViewSensitiveContactContent(context);
+  const { applied: survivorshipUpdates, resolvedValues: fieldSelections } = resolveFieldSelections(
+    preview.source,
+    preview.survivor,
+    CONTACT_SURVIVOR_FIELDS,
+    CONTACT_SENSITIVE_SURVIVOR_FIELDS,
+    canViewSensitive,
+    options.fieldSelections,
+  );
+  if (Object.keys(survivorshipUpdates).length) {
+    const setParameters = [context.organizationId, survivorKey, context.userId];
+    const assignments = Object.entries(survivorshipUpdates).map(([field, value]) => {
+      setParameters.push(value);
+      return `${quoteIdentifier(field)}=$${setParameters.length}`;
+    });
+    await client.query(
+      `UPDATE tenant.contacts SET ${assignments.join(",")},updated_by=$3,updated_at=now()
+       WHERE organization_id=$1 AND id=$2`,
+      setParameters,
+    );
+  }
+  // Same reasoning as the Account merge above: reconciled explicitly to
+  // avoid a unique-constraint collision on (contact_id, party_id).
+  await reconcileRelationshipsOnContactMerge(client, context, sourceKey, survivorKey);
   const moved = await repointReferences(
     client,
     context,
     "contacts",
     sourceKey,
     survivorKey,
-    new Set(["crm_contact_merge_history", "crm_entity_merge_aliases"]),
+    new Set([
+      "crm_contact_merge_history",
+      "crm_entity_merge_aliases",
+      "crm_contact_account_relationships",
+    ]),
   );
   await client.query(
     `UPDATE tenant.crm_activities SET entity_id=$1,updated_at=now()
@@ -628,8 +882,8 @@ export async function mergeContactsGoverned(
   );
   const history = await client.query(
     `INSERT INTO tenant.crm_contact_merge_history(
-       organization_id,source_contact_id,survivor_contact_id,source_snapshot,survivor_snapshot,reason,merged_by
-     ) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7) RETURNING *`,
+       organization_id,source_contact_id,survivor_contact_id,source_snapshot,survivor_snapshot,reason,merged_by,field_selections
+     ) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8::jsonb) RETURNING *`,
     [
       context.organizationId,
       sourceKey,
@@ -638,6 +892,7 @@ export async function mergeContactsGoverned(
       JSON.stringify(preview.survivor),
       text(reason) || null,
       context.userId,
+      JSON.stringify(fieldSelections),
     ],
   );
   await client.query(

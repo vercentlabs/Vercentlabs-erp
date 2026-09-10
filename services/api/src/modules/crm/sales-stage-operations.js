@@ -516,7 +516,12 @@ export async function setSalesStageActive(client, context, id, active, expectedU
       await assertTerminalAvailable(client, context.organizationId, before.pipelineId, before.stageType, id);
     } else {
       if (Number(before.openOpportunityCount || 0) > 0)
-        throw new CrmError(409, "Move open Opportunities out of this stage before deactivating it.", "CRM_SALES_STAGE_OPEN_OPPORTUNITIES");
+        throw new CrmError(
+          409,
+          `${before.openOpportunityCount} open Opportunity(ies) are on this stage. Choose a replacement stage to migrate them, or move them out first.`,
+          "CRM_SALES_STAGE_OPEN_OPPORTUNITIES",
+          { affectedCount: Number(before.openOpportunityCount) },
+        );
       if (before.stageType === "open") {
         const remaining = await client.query(
           `SELECT count(*)::int AS count FROM tenant.crm_pipeline_stages

@@ -94,44 +94,14 @@ export function buildLeadAgingBuckets(rows, now = new Date()) {
   }
   return buckets;
 }
-export async function getLeadTimeline(client, context, leadId) {
-  const leadValues = [context.organizationId, leadId];
-  const lead = await client.query(
-    `SELECT lead.id,lead.code,lead.full_name,lead.status,lead.score,lead.owner_user_id,lead.next_follow_up_at,lead.created_at,lead.updated_at
-       FROM tenant.crm_leads lead
-      WHERE lead.organization_id=$1 AND lead.id=$2${scopedLeadWhere(context, leadValues)}`,
-    leadValues,
-  );
-  if (!lead.rows[0])
-    throw new LeadOperationsError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
-  const [activities, conversions, assignments] = await Promise.all([
-    client.query(
-      `SELECT id,activity_type,subject,status,due_at,completed_at,created_at FROM tenant.crm_activities WHERE organization_id=$1 AND lead_id=$2 ORDER BY created_at DESC LIMIT 100`,
-      [context.organizationId, leadId],
-    ),
-    client.query(
-      `SELECT id,account_id,contact_id,opportunity_id,created_at FROM tenant.crm_lead_conversions WHERE organization_id=$1 AND lead_id=$2 ORDER BY created_at DESC`,
-      [context.organizationId, leadId],
-    ),
-    client.query(
-      `SELECT id,previous_owner_user_id,new_owner_user_id,reason,created_at FROM tenant.crm_lead_assignment_events WHERE organization_id=$1 AND lead_id=$2 ORDER BY created_at DESC LIMIT 100`,
-      [context.organizationId, leadId],
-    ),
-  ]);
-  const scoringConfigured = await isLeadScoringConfigured(
-    client,
-    context.organizationId,
-  );
-  return {
-    lead: lead.rows[0],
-    readiness: evaluateLeadReadiness(lead.rows[0], new Date(), {
-      scoringConfigured,
-    }),
-    activities: activities.rows,
-    conversions: conversions.rows,
-    assignments: assignments.rows,
-  };
-}
+// F019 §31 closeout — the getLeadTimeline function that used to live here
+// was removed: it was never exported from index.js (so no route could ever
+// call it) and its "conversions" query selected from
+// tenant.crm_lead_conversions, a table that does not exist in any
+// migration — dead, broken, superseded code, not an active implementation.
+// Lead's real timeline is served by getCrmTimelinePageBySource (the
+// canonical Timeline domain module) and getLeadDetailData's own eager
+// activities/communications/assignment/qualification/scoring queries.
 export async function previewLeadAssignment(client, context, input) {
   const policies = await client.query(
     `SELECT id,name,sequence,criteria,mode,assignee_user_id,member_user_ids,territory_id

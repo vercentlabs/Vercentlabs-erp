@@ -1,0 +1,60 @@
+/*
+ * Mobile card view for the Sales stages list (<767px, where the desktop
+ * grid list becomes a stacked card list instead). Migrated out of the
+ * legacy apps/web/src/app/crm-sales-stages.css global stylesheet so new
+ * responsive rules land in a canonical CSS Module using the shared
+ * breakpoint (see apps/web/src/shared/design/breakpoints.ts) instead of
+ * growing that file's grandfathered legacy-CSS debt further — see
+ * scripts/validation/verify-experience.mjs's per-file legacy media-query
+ * allowlist policy.
+ */
+@media (max-width: 767px) {
+  .card {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+  }
+
+  .card header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-line);
+  }
+
+  .metrics dt {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+  }
+
+  .metrics dd {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  /* .crm-sales-stages-actions is the shared global action-row class also
+     used by the desktop list row; only its mobile-card layout is local
+     here. */
+  .card :global(.crm-sales-stages-actions) {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .card :global(.crm-sales-stages-actions) > * {
+    min-height: 44px;
+  }
+}

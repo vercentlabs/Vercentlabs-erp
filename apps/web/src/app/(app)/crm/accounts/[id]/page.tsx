@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCrmAccount } from "@vercentlabs/api";
+import { getCrmAccountForCaller } from "@vercentlabs/api";
 
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -23,7 +23,7 @@ export default async function CrmAccountPage({
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
   const context = await crmApiContext(session);
   const account = await tenantTransaction(context.organizationId, (client) =>
-    getCrmAccount(client, context, id),
+    getCrmAccountForCaller(client, context, id),
   ).catch(() => null);
   if (!account) notFound();
 
@@ -31,7 +31,9 @@ export default async function CrmAccountPage({
     <AccountDetailWorkspace
       account={JSON.parse(JSON.stringify(account))}
       canManage={hasPermission(session, PERMISSIONS.partiesManage)}
+      canManageDuplicates={hasPermission(session, PERMISSIONS.crmAccountsManage)}
       editing={query.edit === "1"}
+      currentUserId={session.userId}
     />
   );
 }

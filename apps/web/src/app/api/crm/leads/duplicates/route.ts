@@ -1,4 +1,4 @@
-import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk } from "@vercentlabs/api";
+import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk, findLeadContactCrossMatches } from "@vercentlabs/api";
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
 import { requireCrmView } from "@/modules/crm/api";
@@ -36,17 +36,27 @@ export async function GET(request: Request) {
       Object.fromEntries(url.searchParams.entries()),
     );
     const context = await crmApiContext(session);
-    const evaluation = await tenantTransaction(
+    const [evaluation, contactMatches] = await tenantTransaction(
       context.organizationId,
-      (client) =>
-        evaluateLeadDuplicateRisk(client, context, input, {
+      async (client) => [
+        await evaluateLeadDuplicateRisk(client, context, input, {
           excludeLeadId: input.excludeId || null,
           lock: false,
         }),
+        // F008 cross-object matching (CRM-VNEXT-045): a Lead and an
+        // existing Contact can represent the same real person. Surfaced
+        // separately from the Lead-vs-Lead `matches` array so the existing,
+        // well-tested Lead classification/override contract is unaffected —
+        // this is purely additive evidence, gated by the same
+        // crmLeadsViewSensitive permission already required above (Contact
+        // email/mobile is itself sensitive content).
+        await findLeadContactCrossMatches(client, context, input),
+      ],
     );
     const publicResult = publicDuplicateResult(evaluation);
     return ok({
       ...publicResult,
+      contactMatches,
       // Compatibility alias for existing clients while F008 becomes canonical.
       duplicates: publicResult.matches,
     });

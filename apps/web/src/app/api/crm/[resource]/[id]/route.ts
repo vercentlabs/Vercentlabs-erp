@@ -30,6 +30,39 @@ import { HttpError, ok, readJson } from "@/core/http";
 import { assertSameOrigin, audit } from "@/core/security";
 import { crmAuditSnapshot } from "@/modules/crm/audit";
 
+// Concurrency (Prompts 1-5 integrity closeout): mutable generic-CRUD
+// configuration resources with no existing append-only/versioned model
+// (qualification-criteria — no archive/DELETE transition is defined for it
+// server-side, so it is PATCH-only here — and lost-reasons, which supports
+// both) now share the exact Lead/Opportunity checked-write contract rather
+// than getting a fourth near-identical implementation.
+const VERSIONED_PATCH_LABELS: Record<string, string> = {
+  leads: "Lead",
+  opportunities: "Opportunity",
+  "qualification-criteria": "Qualification criterion",
+  "lost-reasons": "Won/Lost reason",
+};
+const VERSIONED_DELETE_LABELS: Record<string, string> = {
+  leads: "Lead",
+  opportunities: "Opportunity",
+  "lost-reasons": "Won/Lost reason",
+};
+// Explicit, not derived from the resource key: "leads"/"opportunities" must
+// keep producing the exact CRM_LEAD_VERSION_REQUIRED/CRM_OPPORTUNITY_
+// VERSION_REQUIRED codes the API layer's own assertRecordExpectedVersion
+// already throws for the same condition (singular entity, not the plural
+// resource key uppercased) — this is this route's own pre-check for the
+// same error, so its code must match, not merely resemble it.
+const VERSION_CODE_PREFIXES: Record<string, string> = {
+  leads: "CRM_LEAD",
+  opportunities: "CRM_OPPORTUNITY",
+  "qualification-criteria": "CRM_QUALIFICATION_CRITERIA",
+  "lost-reasons": "CRM_LOST_REASON",
+};
+function versionCode(resource: string) {
+  return `${VERSION_CODE_PREFIXES[resource]}_VERSION_REQUIRED`;
+}
+
 export async function GET(
   _request: Request,
   route: { params: Promise<{ resource: string; id: string }> },
@@ -98,14 +131,21 @@ export async function PATCH(
     requireCrmManage(session, resource);
     await requireBillingWriteAccess(session.organizationId);
     const rawInput = (await readJson(request)) as Record<string, unknown>;
-    const expectedUpdatedAt =
-      resource === "leads" ? String(rawInput.expectedUpdatedAt || "").trim() : "";
-    if (resource === "leads") {
+    // Integrity closeout (Prompts 1-5): ordinary Opportunity edits through
+    // this generic route never required expectedUpdatedAt at all — only
+    // Leads did — so two concurrent editors of the same Opportunity's
+    // amount/close date/etc. could silently overwrite each other, unlike
+    // the dedicated stage/probability commands.
+    const versionedResource = Object.prototype.hasOwnProperty.call(VERSIONED_PATCH_LABELS, resource);
+    const expectedUpdatedAt = versionedResource
+      ? String(rawInput.expectedUpdatedAt || "").trim()
+      : "";
+    if (versionedResource) {
       if (!expectedUpdatedAt)
         throw new HttpError(
           400,
-          "Refresh this Lead before changing it.",
-          "CRM_LEAD_VERSION_REQUIRED",
+          `Refresh this ${VERSIONED_PATCH_LABELS[resource]} before changing it.`,
+          versionCode(resource),
         );
       delete rawInput.expectedUpdatedAt;
     }
@@ -177,9 +217,10 @@ export async function PATCH(
             });
           return { record: assigned.lead, assignment: assigned.assignment };
         }
+        const before = await getCrmRecord(client, context, resource, id);
         let updated;
         if (resource === "activities") {
-          const current = await getCrmRecord(client, context, resource, id);
+          const current = before;
           if (String(current.activityType || "").toLowerCase() === "task") {
             const taskInput = { ...input };
             const requestedType = String(taskInput.activityType || "task").toLowerCase();
@@ -209,7 +250,7 @@ export async function PATCH(
             resource,
             id,
             input,
-            resource === "leads"
+            versionedResource
               ? { expectedUpdatedAt, requireVersion: true }
               : undefined,
           );
@@ -220,6 +261,7 @@ export async function PATCH(
           eventType: `crm.${resource}.updated`,
           entityType: resource,
           entityId: id,
+          beforeData: crmAuditSnapshot(resource, before),
           afterData: crmAuditSnapshot(resource, updated, Object.keys(input).filter((field) => field !== "duplicateOverrideReason")),
           request,
           client,
@@ -271,15 +313,15 @@ export async function DELETE(
       );
     assertCrmIdentifier(id);
     requireCrmManage(session, resource);
-    const expectedUpdatedAt =
-      resource === "leads"
-        ? String(new URL(request.url).searchParams.get("expectedUpdatedAt") || "").trim()
-        : "";
-    if (resource === "leads" && !expectedUpdatedAt)
+    const versionedResource = Object.prototype.hasOwnProperty.call(VERSIONED_DELETE_LABELS, resource);
+    const expectedUpdatedAt = versionedResource
+      ? String(new URL(request.url).searchParams.get("expectedUpdatedAt") || "").trim()
+      : "";
+    if (versionedResource && !expectedUpdatedAt)
       throw new HttpError(
         400,
-        "Refresh this Lead before archiving it.",
-        "CRM_LEAD_VERSION_REQUIRED",
+        `Refresh this ${VERSIONED_DELETE_LABELS[resource]} before archiving it.`,
+        versionCode(resource),
       );
     await requireBillingWriteAccess(session.organizationId);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
@@ -295,7 +337,7 @@ export async function DELETE(
               context,
               resource,
               id,
-              resource === "leads"
+              versionedResource
                 ? { expectedUpdatedAt, requireVersion: true }
                 : undefined,
             );

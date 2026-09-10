@@ -74,13 +74,24 @@ export async function PATCH(
     const input = sourceInput(await readJson(request));
     const reactivate = input.action === "reactivate";
     if ("action" in input) delete input.action;
+    // Concurrency (Prompts 1-5 integrity closeout): matches the Account/
+    // Contact checked-write contract exactly — a stale administrator must
+    // receive a typed 409 conflict, never silently overwrite a newer edit.
+    const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead source before changing it.",
+        "CRM_LEAD_SOURCE_VERSION_REQUIRED",
+      );
+    delete input.expectedUpdatedAt;
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
         const before = await getCrmLeadSource(client, context, id);
         const updated = reactivate
-          ? await setCrmLeadSourceActive(client, context, id, true)
-          : await updateCrmLeadSource(client, context, id, input);
+          ? await setCrmLeadSourceActive(client, context, id, true, { expectedUpdatedAt, requireVersion: true })
+          : await updateCrmLeadSource(client, context, id, input, { expectedUpdatedAt, requireVersion: true });
         await audit({
           organizationId: context.organizationId,
           actorUserId: context.userId,
@@ -114,6 +125,15 @@ export async function DELETE(
     const { context } = await writeContext(request);
     const { id } = await route.params;
     assertCrmIdentifier(id);
+    const expectedUpdatedAt = String(
+      new URL(request.url).searchParams.get("expectedUpdatedAt") || "",
+    ).trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Lead source before deactivating it.",
+        "CRM_LEAD_SOURCE_VERSION_REQUIRED",
+      );
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
@@ -123,6 +143,7 @@ export async function DELETE(
           context,
           id,
           false,
+          { expectedUpdatedAt, requireVersion: true },
         );
         await audit({
           organizationId: context.organizationId,

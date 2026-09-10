@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ContactAccountLookup from "@/modules/crm/components/contact-account-lookup";
@@ -15,6 +15,43 @@ import {
 } from "@/shared/design";
 
 type ContactRecord = Record<string, unknown>;
+type DuplicateCandidate = { id: string; first_name?: string; last_name?: string; email?: string; classification?: string };
+
+// Curated, deliberately bounded lists — the server validates the full
+// canonical BCP-47/IANA space regardless (see record-validation.js), so a
+// value outside this list is never accepted even if somehow submitted;
+// this just keeps the picker usable rather than a 400-entry dropdown.
+const PREFERRED_LANGUAGE_OPTIONS: ReadonlyArray<readonly [string, string]> = [
+  ["en", "English"],
+  ["en-IN", "English (India)"],
+  ["en-GB", "English (UK)"],
+  ["en-US", "English (US)"],
+  ["hi", "Hindi"],
+  ["fr", "French"],
+  ["de", "German"],
+  ["es", "Spanish"],
+  ["pt", "Portuguese"],
+  ["ar", "Arabic"],
+  ["zh", "Chinese"],
+  ["ja", "Japanese"],
+];
+
+const TIMEZONE_OPTIONS: readonly string[] = [
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Chicago",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Australia/Sydney",
+  "UTC",
+];
 
 function value(record: ContactRecord | undefined, key: string) {
   return String(record?.[key] ?? "");
@@ -34,7 +71,42 @@ export default function ContactFormDrawer({
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [staleWrite, setStaleWrite] = useState(false);
   const editing = Boolean(contact?.id);
+
+  const [firstName, setFirstName] = useState(value(contact, "firstName"));
+  const [lastName, setLastName] = useState(value(contact, "lastName"));
+  const [email, setEmail] = useState(value(contact, "email"));
+  const [mobile, setMobile] = useState(value(contact, "mobile"));
+  const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([]);
+  const [duplicateOverrideReason, setDuplicateOverrideReason] = useState("");
+  const hasExactDuplicate = duplicates.some((d) => d.classification === "exact");
+  const duplicateSaveBlocked = !editing && hasExactDuplicate && duplicateOverrideReason.trim().length < 10;
+
+  useEffect(() => {
+    if (editing) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      if (!email.trim() && !mobile.trim() && !firstName.trim()) {
+        setDuplicates([]);
+        return;
+      }
+      const query = new URLSearchParams();
+      if (email.trim()) query.set("email", email.trim());
+      if (mobile.trim()) query.set("mobile", mobile.trim());
+      if (firstName.trim()) query.set("firstName", firstName.trim());
+      if (lastName.trim()) query.set("lastName", lastName.trim());
+      const result = await requestJson<{ duplicates?: DuplicateCandidate[] }>(
+        `/api/crm/contacts/duplicates?${query.toString()}`,
+        { signal: controller.signal },
+      );
+      if (result.ok) setDuplicates(Array.isArray(result.duplicates) ? result.duplicates : []);
+    }, 350);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [editing, email, mobile, firstName, lastName]);
 
   function close() {
     if (dirty && !window.confirm("Discard the unsaved contact changes?")) return;
@@ -44,11 +116,19 @@ export default function ContactFormDrawer({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (duplicateSaveBlocked) {
+      setMessage("Enter at least 10 characters explaining why this exact duplicate must be created.");
+      return;
+    }
     setPending(true);
     setMessage("");
     setErrors({});
+    setStaleWrite(false);
     const values = Object.fromEntries(new FormData(event.currentTarget).entries());
     const body: Record<string, unknown> = { ...values };
+    if (!editing && hasExactDuplicate) {
+      body.duplicateOverrideReason = duplicateOverrideReason.trim();
+    }
     if (editing) {
       for (const field of [
         "firstName",
@@ -58,6 +138,8 @@ export default function ContactFormDrawer({
         "mobile",
         "phone",
         "accountId",
+        "preferredLanguage",
+        "timezone",
       ]) {
         if (String(body[field] ?? "") === value(contact, field)) delete body[field];
       }
@@ -66,6 +148,7 @@ export default function ContactFormDrawer({
         setPending(false);
         return;
       }
+      body.expectedUpdatedAt = value(contact, "updatedAt");
     }
     const endpoint = editing
       ? `/api/crm/contacts/${String(contact?.id)}`
@@ -81,6 +164,7 @@ export default function ContactFormDrawer({
     if (!result.ok) {
       setErrors(result.errors || {});
       setMessage(result.message || "The contact could not be saved.");
+      setStaleWrite(result.status === 409);
       setPending(false);
       return;
     }
@@ -112,7 +196,21 @@ export default function ContactFormDrawer({
         noValidate
       >
         {message ? (
-          <ErrorState title="Contact not saved" description={message} />
+          <ErrorState
+            title="Contact not saved"
+            description={message}
+            action={
+              staleWrite ? (
+                <ActionButton
+                  type="button"
+                  tone="secondary"
+                  onClick={() => router.refresh()}
+                >
+                  Reload latest version
+                </ActionButton>
+              ) : null
+            }
+          />
         ) : null}
 
         <FormSection
@@ -128,7 +226,8 @@ export default function ContactFormDrawer({
             <input
               id="contact-firstName"
               name="firstName"
-              defaultValue={value(contact, "firstName")}
+              value={firstName}
+              onChange={(event) => setFirstName(event.currentTarget.value)}
               autoFocus
               required
               maxLength={120}
@@ -144,7 +243,8 @@ export default function ContactFormDrawer({
             <input
               id="contact-lastName"
               name="lastName"
-              defaultValue={value(contact, "lastName")}
+              value={lastName}
+              onChange={(event) => setLastName(event.currentTarget.value)}
               maxLength={120}
             />
           </FormField>
@@ -193,7 +293,8 @@ export default function ContactFormDrawer({
                 name="email"
                 type="email"
                 inputMode="email"
-                defaultValue={value(contact, "email")}
+                value={email}
+                onChange={(event) => setEmail(event.currentTarget.value)}
                 maxLength={254}
                 aria-invalid={Boolean(fieldError("email")) || undefined}
                 aria-describedby={
@@ -214,7 +315,8 @@ export default function ContactFormDrawer({
               name="mobile"
               type="tel"
               inputMode="tel"
-              defaultValue={value(contact, "mobile")}
+              value={mobile}
+              onChange={(event) => setMobile(event.currentTarget.value)}
               maxLength={40}
               aria-invalid={Boolean(fieldError("mobile")) || undefined}
               aria-describedby={
@@ -246,11 +348,84 @@ export default function ContactFormDrawer({
           </FormField>
         </FormSection>
 
+        <FormSection
+          title="Communication preferences"
+          description="Used to schedule and localize future outreach correctly."
+        >
+          <FormField
+            label="Preferred language"
+            htmlFor="contact-preferredLanguage"
+            error={fieldError("preferredLanguage")}
+          >
+            <select
+              id="contact-preferredLanguage"
+              name="preferredLanguage"
+              defaultValue={value(contact, "preferredLanguage")}
+              aria-invalid={Boolean(fieldError("preferredLanguage")) || undefined}
+            >
+              <option value="">Not set</option>
+              {PREFERRED_LANGUAGE_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField
+            label="Time zone"
+            htmlFor="contact-timezone"
+            error={fieldError("timezone")}
+          >
+            <select
+              id="contact-timezone"
+              name="timezone"
+              defaultValue={value(contact, "timezone")}
+              aria-invalid={Boolean(fieldError("timezone")) || undefined}
+            >
+              <option value="">Not set</option>
+              {TIMEZONE_OPTIONS.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        </FormSection>
+
+        {!editing && duplicates.length ? (
+          <div className="crm-contact-duplicate-warning" role="status">
+            <strong>{hasExactDuplicate ? "Likely duplicate found" : "Possible duplicate found"}</strong>
+            <ul>
+              {duplicates.slice(0, 4).map((duplicate) => (
+                <li key={duplicate.id}>
+                  {[duplicate.first_name, duplicate.last_name].filter(Boolean).join(" ") || duplicate.email || "Existing contact"}
+                </li>
+              ))}
+            </ul>
+            {hasExactDuplicate ? (
+              <FormField
+                label="Why is this not the same person?"
+                htmlFor="contact-duplicateOverrideReason"
+                required
+                hint="Required for an authorized exact-duplicate override. This reason is stored in immutable audit evidence."
+              >
+                <textarea
+                  id="contact-duplicateOverrideReason"
+                  value={duplicateOverrideReason}
+                  onChange={(event) => setDuplicateOverrideReason(event.currentTarget.value)}
+                  rows={2}
+                  minLength={10}
+                />
+              </FormField>
+            ) : null}
+          </div>
+        ) : null}
+
         <footer className="crm-contact-form-actions">
           <ActionButton onClick={close} disabled={pending}>
             Cancel
           </ActionButton>
-          <ActionButton tone="primary" type="submit" busy={pending}>
+          <ActionButton tone="primary" type="submit" busy={pending} disabled={duplicateSaveBlocked}>
             {pending ? "Saving…" : editing ? "Save changes" : "Create contact"}
           </ActionButton>
         </footer>

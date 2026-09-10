@@ -18,7 +18,7 @@ export const moduleNavigation: ModuleNavigationGroup[] = [
     items: [
       {
         href: "/crm",
-        label: "Overview",
+        label: "Home",
         icon: "dashboard",
         exact: true,
         permission: PERMISSIONS.crmView,

@@ -21,20 +21,25 @@ export default async function LeadAssignmentRulesPage() {
   const data = await tenantTransaction(
     context.organizationId,
     async (client) => {
-      const [policies, sources, fallback, availability] = await Promise.all([
+      const [policies, sources, territories, fallback, availability] = await Promise.all([
         listLeadAssignmentPolicies(client, context),
         client.query(
           `SELECT id,name FROM tenant.crm_lead_sources WHERE organization_id=$1 AND status='active' ORDER BY is_default DESC,sort_order,name`,
           [context.organizationId],
         ),
+        client.query(
+          `SELECT id,name FROM tenant.crm_territories WHERE organization_id=$1 AND status='active' ORDER BY name`,
+          [context.organizationId],
+        ),
         getLeadAssignmentFallback(client, context),
         listLeadAssigneeAvailability(client, context),
       ]);
+      // F005 Prompt 4: territory/workload modes are governed CRM-CAP-002
+      // configuration — every active mode is shown, not just fixed/round_robin.
       return {
-        policies: policies.filter((policy) =>
-          ["fixed", "round_robin"].includes(String(policy.mode)),
-        ),
+        policies,
         sources: sources.rows,
+        territories: territories.rows,
         fallback,
         availability,
       };
@@ -44,6 +49,7 @@ export default async function LeadAssignmentRulesPage() {
     <LeadAssignmentRulesWorkspace
       policies={JSON.parse(JSON.stringify(data.policies))}
       sources={JSON.parse(JSON.stringify(data.sources))}
+      territories={JSON.parse(JSON.stringify(data.territories))}
       fallback={JSON.parse(JSON.stringify(data.fallback))}
       availability={JSON.parse(JSON.stringify(data.availability))}
     />

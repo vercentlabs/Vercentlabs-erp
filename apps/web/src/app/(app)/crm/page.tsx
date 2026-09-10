@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmDashboard } from "@vercentlabs/api";
+import { getCrmDashboard, listCrmRecords } from "@vercentlabs/api";
 import { formatDateTime, formatMoney } from "@vercentlabs/localization";
 
 import {
@@ -10,6 +10,7 @@ import {
   PageHeader,
   SectionHeader,
   StatePanel,
+  StatusBadge,
   Surface,
 } from "@/shared/design";
 import AppIcon from "@/shared/components/app-icon";
@@ -18,6 +19,15 @@ import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
 import { classifyDueAt } from "@/shared/work/types";
+import homeStyles from "./crm-home-additions.module.css";
+
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  task: "Tasks",
+  call: "Calls",
+  meeting: "Meetings",
+  follow_up: "Follow-ups",
+  email: "Emails",
+};
 
 export const metadata = { title: "CRM" };
 export const dynamic = "force-dynamic";
@@ -43,10 +53,39 @@ export default async function CrmDashboardPage() {
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
 
   const context = crmContext(session);
-  const dashboard = await tenantTransaction(context.organizationId, (client) =>
-    getCrmDashboard(client, context),
+  const [dashboard, recentLeads] = await tenantTransaction(
+    context.organizationId,
+    (client) =>
+      Promise.all([
+        getCrmDashboard(client, context),
+        listCrmRecords(client, context, "leads", { limit: 5 }),
+      ]),
   );
   const metrics = dashboard.metrics as DashboardRow;
+
+  // getCrmDashboard() and listCrmRecords() already apply the same
+  // organization/company/branch/owner record scope as every other CRM
+  // surface (see services/api/src/modules/crm/index.js's recordScope() and
+  // ownerVisible()) — a seller without crm.records.view_all transparently
+  // sees only their own numbers here, a manager with it sees the team's.
+  // This flag is presentation-only labeling of that already-authorized
+  // scope, not a second authorization decision.
+  const isTeamScope =
+    hasPermission(session, PERMISSIONS.crmRecordsViewAll) ||
+    session.roleSlugs.includes("organization_owner");
+  const scopeWord = isTeamScope ? "Team" : "My";
+
+  const activityTypeCounts = new Map<string, number>();
+  for (const activity of dashboard.activities as DashboardRow[]) {
+    const key = String(activity.activityType || "task");
+    activityTypeCounts.set(key, (activityTypeCounts.get(key) || 0) + 1);
+  }
+  const activityTypeBreakdown = [...activityTypeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => ({
+      label: ACTIVITY_TYPE_LABELS[type] || type.replaceAll("_", " "),
+      count,
+    }));
   const money = (value: unknown) =>
     formatMoney(value, {
       currency: String(metrics.currencyCode || "INR"),
@@ -70,6 +109,12 @@ export default async function CrmDashboardPage() {
   const conversionsThisMonth = number(metrics.conversionsThisMonth);
   const overdueActivities = number(metrics.overdueActivities);
   const dueToday = number(metrics.dueToday);
+  const unassignedLeads = number(metrics.unassignedLeads);
+  const dwellBreachedLeads = number(metrics.dwellBreachedLeads);
+  const stalledOpportunities = number(metrics.stalledOpportunities);
+  const uncoveredTerritories = number(metrics.uncoveredTerritories);
+  const needsQualificationLeads = number(metrics.needsQualificationLeads);
+  const highPriorityLeads = number(metrics.highPriorityLeads);
   const weightedShare = percent(weightedPipeline, pipelineValue);
   const qualifiedShare = percent(qualifiedLeads, openLeads);
 
@@ -180,6 +225,40 @@ export default async function CrmDashboardPage() {
           label="Open opportunities"
           value={openOpportunities}
           action={<Link href="/crm/pipeline">View pipeline</Link>}
+        />
+        <MetricCard
+          tone={unassignedLeads ? "warning" : "neutral"}
+          label="Unassigned leads"
+          value={unassignedLeads}
+          action={<Link href="/crm/leads">Assign now</Link>}
+        />
+        <MetricCard
+          tone={dwellBreachedLeads ? "danger" : "neutral"}
+          label="Leads stalled beyond stage SLA"
+          value={dwellBreachedLeads}
+          action={<Link href="/crm/leads">Review</Link>}
+        />
+        <MetricCard
+          tone={stalledOpportunities ? "danger" : "neutral"}
+          label="Opportunities stalled beyond stage SLA"
+          value={stalledOpportunities}
+          action={<Link href="/crm/pipeline">Review</Link>}
+        />
+        <MetricCard
+          tone={uncoveredTerritories ? "warning" : "neutral"}
+          label="Territories with no primary owner"
+          value={uncoveredTerritories}
+          action={<Link href="/crm/territory-assignments">Assign</Link>}
+        />
+        <MetricCard
+          label="Needs qualification"
+          value={needsQualificationLeads}
+          action={<Link href="/crm/leads">Review</Link>}
+        />
+        <MetricCard
+          label="High priority (hot/qualified)"
+          value={highPriorityLeads}
+          action={<Link href="/crm/leads">View leads</Link>}
         />
       </section>
 
@@ -298,11 +377,22 @@ export default async function CrmDashboardPage() {
       <div className="crm-overview-secondary-grid">
         <Surface as="section" className="crm-overview-surface crm-overview-activity">
           <SectionHeader
-            eyebrow="Seller work queue"
+            eyebrow={`${scopeWord} day`}
             title="Next customer actions"
             description="Upcoming work stays visible here; the activity centre remains the system of record for completion and outcome."
             actions={<Link href="/crm/activities">Activity centre →</Link>}
           />
+
+          {activityTypeBreakdown.length ? (
+            <ul className={homeStyles.activityTypeBreakdown} aria-label={`${scopeWord} open work by type`}>
+              {activityTypeBreakdown.map((entry) => (
+                <li key={entry.label}>
+                  <strong>{entry.count}</strong>
+                  <span>{entry.label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
           <div className="crm-overview-activity-list">
             {dashboard.activities.slice(0, 8).map((activity: DashboardRow) => {
@@ -379,6 +469,50 @@ export default async function CrmDashboardPage() {
           </div>
         </Surface>
       </div>
+
+      <Surface as="section" className={homeStyles.recentLeads}>
+        <SectionHeader
+          eyebrow={`${scopeWord} recent leads`}
+          title="Recently captured leads"
+          description="The five most recent leads visible to you, using the same record scope as the Leads list."
+          actions={<Link href="/crm/leads">Open Leads →</Link>}
+        />
+        {recentLeads.rows.length ? (
+          <ul className={homeStyles.recentLeadsList}>
+            {recentLeads.rows.map((lead: DashboardRow) => (
+              <li key={String(lead.id)}>
+                <Link href={`/crm/leads/${lead.id}`}>
+                  <span className={homeStyles.recentLeadsName}>
+                    <strong>{String(lead.fullName || "Unnamed lead")}</strong>
+                    <small>{String(lead.companyName || "No company on file")}</small>
+                  </span>
+                  <StatusBadge tone={lead.recordStatus === "converted" ? "success" : "neutral"}>
+                    {String(lead.status || lead.recordStatus || "new")}
+                  </StatusBadge>
+                  <time>
+                    {lead.createdAt
+                      ? formatDateTime(String(lead.createdAt), {
+                          timeZone: session.timezone,
+                          locale: session.locale,
+                        })
+                      : ""}
+                  </time>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <StatePanel
+            title="No leads captured yet"
+            description="New leads you can see will appear here as soon as they are created."
+            action={
+              canCreateLead ? (
+                <ActionLink href="/crm/leads?create=1">Create lead</ActionLink>
+              ) : undefined
+            }
+          />
+        )}
+      </Surface>
 
     </ConvergenceBoundary>
   );

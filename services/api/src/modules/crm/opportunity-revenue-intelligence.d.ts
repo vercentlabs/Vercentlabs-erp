@@ -78,6 +78,23 @@ export function getOpportunityRevenueDashboard(
   client: QueryClient,
   context: CrmFoundationContext,
 ): Promise<Record<string, unknown>>;
+export function getForecastCalibration(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  limit?: number,
+): Promise<Array<{
+  periodId: string;
+  periodName: string;
+  periodStart: string;
+  periodEnd: string;
+  modelVersion: string | null;
+  confidencePercent: number;
+  predictedAmount: number;
+  actualWonAmount: number;
+  errorAmount: number;
+  errorPercent: number | null;
+  capturedAt: string;
+}>>;
 export function recordCrmOpportunityRevenueAcceptance(
   client: QueryClient,
   context: CrmFoundationContext,

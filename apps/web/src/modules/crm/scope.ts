@@ -68,11 +68,21 @@ export const CRM_UI_RESOURCE_KEYS = Object.freeze([
 /**
  * Generic API resources needed by the canonical CRM experience. Communications
  * stays API-only because F018/F019 use it inside record timelines; it is not a
- * standalone workspace.
+ * standalone workspace. deal-risks/buying-committees/buying-committee-members
+ * (F009) are the same shape — real record-scoped generic CRM resources
+ * consumed exclusively from inside the Opportunity 360 workspace, never as a
+ * standalone settings screen. Prompt 5 found these three unreachable: the
+ * backend resource definitions and the Opportunity 360 UI that calls them
+ * already existed, but this allowlist (which every /api/crm/[resource]
+ * request is gated on) never included them, so every create/read/update
+ * request 404'd before reaching the resource logic at all.
  */
 export const CRM_API_RESOURCE_KEYS = Object.freeze([
   ...CRM_UI_RESOURCE_KEYS,
   "communications",
+  "deal-risks",
+  "buying-committees",
+  "buying-committee-members",
 ] as const satisfies readonly CrmResourceKey[]);
 
 export const CRM_REPORT_KEYS = Object.freeze([

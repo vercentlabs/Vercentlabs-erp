@@ -32,6 +32,12 @@ export function getCrmAccount(
   id: string,
 ): Promise<Record<string, any>>;
 
+export function getCrmAccountForCaller(
+  client: QueryClient,
+  context: CrmContext,
+  id: string,
+): Promise<Record<string, any>>;
+
 export function createCrmAccount(
   client: QueryClient,
   context: CrmContext,
@@ -43,10 +49,12 @@ export function updateCrmAccount(
   context: CrmContext,
   id: string,
   input: Record<string, unknown>,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<Record<string, any>>;
 
 export function archiveCrmAccount(
   client: QueryClient,
   context: CrmContext,
   id: string,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<Record<string, any>>;

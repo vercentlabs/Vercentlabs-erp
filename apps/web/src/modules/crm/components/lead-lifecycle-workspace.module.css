@@ -1,0 +1,131 @@
+/*
+ * Mobile card view for the Lead lifecycle stage list (<767px, where the
+ * desktop grid list becomes a stacked card list instead). Migrated out of
+ * the legacy apps/web/src/app/crm-lead-lifecycle.css global stylesheet so
+ * new responsive rules land in a canonical CSS Module using the shared
+ * breakpoint (see apps/web/src/shared/design/breakpoints.ts) instead of
+ * growing that file's grandfathered legacy-CSS debt further — see
+ * scripts/validation/verify-experience.mjs's per-file legacy media-query
+ * allowlist policy.
+ */
+@media (max-width: 767px) {
+  .card {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+
+  .card header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .leads {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  /* .crm-lifecycle-actions is the shared global action-row class also used
+     by the desktop list row; only its mobile-card layout is local here. */
+  .card :global(.crm-lifecycle-actions) {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .card :global(.crm-lifecycle-actions) > * {
+    min-height: 44px;
+  }
+}
+
+/*
+ * F007 Prompt 4: directed transition graph, transition-reason vocabulary
+ * and the per-stage transition checklist. Canonical tokens only, per
+ * verify-experience.mjs's new-CSS-module policy.
+ */
+.graphList,
+.reasonList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.graphRow {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.graphRowHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.graphChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.graphChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.85em;
+}
+
+.reasonList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.graphChecklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.graphChecklist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.graphChecklist label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.graphReasonToggle {
+  font-size: 0.85em;
+  color: var(--erp-color-text-muted);
+}

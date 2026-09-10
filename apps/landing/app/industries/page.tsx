@@ -59,7 +59,7 @@ export default function IndustriesIndexPage() {
                   prefetch={false}
                   data-reveal-item
                   style={{ transitionDelay: `${Math.min(index, 4) * 60}ms` }}
-                  className="group relative min-h-[360px] border-b border-r border-(--color-border-strong) bg-(--color-bg-elevated) p-6 transition-colors hover:bg-(--color-bg-subtle) sm:p-8 lg:min-h-[420px] lg:p-10"
+                  className="group relative flex min-h-[360px] flex-col border-b border-r border-(--color-border-strong) bg-(--color-bg-elevated) p-6 transition-colors hover:bg-(--color-bg-subtle) sm:p-8 lg:min-h-[420px] lg:p-10"
                 >
                   <div className="flex items-start justify-between gap-6">
                     <span className="font-mono text-6xl font-semibold leading-none tracking-[-0.08em] text-(--color-border-strong)">{String(index + 1).padStart(2, "0")}</span>
@@ -69,12 +69,12 @@ export default function IndustriesIndexPage() {
                     <Heading level="h2" as="h2" className="max-w-[12ch]">{industry.name}</Heading>
                     <Text variant="body" className="mt-5 max-w-[58ch] text-(--color-text-secondary)">{industry.directDefinition}</Text>
                   </div>
-                  <div className="absolute inset-x-6 bottom-6 flex items-end justify-between gap-6 border-t border-(--color-border-default) pt-4 sm:inset-x-8 sm:bottom-8 lg:inset-x-10 lg:bottom-10">
-                    <div>
+                  <div className="mt-12 flex items-end justify-between gap-6 border-t border-(--color-border-default) pt-4 sm:mt-14 lg:mt-auto">
+                    <div className="min-w-0">
                       <span className="vl-index">Primary stack</span>
                       <p className="mt-2 text-xs font-semibold text-(--color-text-primary)">{industry.moduleStack.slice(0, 3).map((entry) => entry.moduleKey).join(" · ")}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <span className="font-mono text-2xl font-semibold leading-none text-(--color-text-primary)">{String(industry.moduleStack.length).padStart(2, "0")}</span>
                       <p className="mt-1 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">modules</p>
                     </div>

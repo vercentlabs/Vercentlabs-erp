@@ -37,8 +37,13 @@ test("F005: round-robin excludes a member currently marked out of office, embedd
         return { rows: [{ id: policyId, criteria: {}, mode: "round_robin", member_user_ids: [ownerA, ownerB] }] };
       if (sql.includes("unnest($2::uuid[]) WITH ORDINALITY")) {
         assert.match(sql, /crm_lead_assignee_availability/, "the eligibility query itself must exclude unavailable candidates");
-        // ownerA is filtered out by the (simulated) NOT EXISTS clause — only ownerB is eligible.
-        return { rows: [{ user_id: ownerB }] };
+        // ownerA is out of office (simulated in the CASE/EXISTS logic); only ownerB is eligible.
+        return {
+          rows: [
+            { user_id: ownerA, is_member: true, user_active: true, name: "A", crm_eligible: true, in_scope: true, out_of_office: true },
+            { user_id: ownerB, is_member: true, user_active: true, name: "B", crm_eligible: true, in_scope: true, out_of_office: false },
+          ],
+        };
       }
       if (sql.includes("DO NOTHING")) return { rows: [] };
       if (sql.includes("SELECT next_index")) return { rows: [{ next_index: 0 }] };
@@ -81,7 +86,10 @@ test("F005: no policy matches or produces an owner — the configured, still-eli
     },
   };
   const result = await resolveLeadAssignment(client, manager, {});
-  assert.deepEqual(result, { ownerUserId: ownerA, policyId: null, reason: "fallback_queue" });
+  assert.equal(result.ownerUserId, ownerA);
+  assert.equal(result.policyId, null);
+  assert.equal(result.reason, "fallback_queue");
+  assert.equal(result.trace.fallbackUsed, true);
 });
 
 test("F005: a configured fallback owner who is no longer eligible falls through to unassigned, not an error", async () => {
@@ -94,7 +102,9 @@ test("F005: a configured fallback owner who is no longer eligible falls through 
     },
   };
   const result = await resolveLeadAssignment(client, manager, {});
-  assert.deepEqual(result, { ownerUserId: null, policyId: null, reason: "unassigned" });
+  assert.equal(result.ownerUserId, null);
+  assert.equal(result.policyId, null);
+  assert.equal(result.reason, "unassigned");
 });
 
 test("F005: no policies and no fallback configured is unassigned, exactly as before this fix", async () => {
@@ -106,7 +116,10 @@ test("F005: no policies and no fallback configured is unassigned, exactly as bef
     },
   };
   const result = await resolveLeadAssignment(client, manager, {});
-  assert.deepEqual(result, { ownerUserId: null, policyId: null, reason: "unassigned" });
+  assert.equal(result.ownerUserId, null);
+  assert.equal(result.policyId, null);
+  assert.equal(result.reason, "unassigned");
+  assert.equal(result.trace.fallbackUsed, false);
 });
 
 test("F005: setLeadAssignmentFallback validates the user is eligible before saving, and clearing needs no eligibility check", async () => {

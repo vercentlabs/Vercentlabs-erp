@@ -47,7 +47,11 @@ test("F009 web: Opportunity audit snapshots exclude free-text/commercial payload
 
 test("F009 web: Opportunity detail is owner-scoped, actionable and responsive through the existing record workspace", () => {
   const page = read("apps/web/src/app/(app)/crm/opportunities/[id]/page.tsx");
-  assert.match(page, /getCrmRecord\(client, context, "opportunities", id\)/);
+  // Prompts 1-5 integrity closeout (blocker B): the record fetch (via
+  // getCrmRecord, which enforces owner/company/branch scope) now lives in
+  // the canonical, web+mobile-shared getOpportunityDetailData() projection.
+  const detailData = read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  assert.match(detailData, /getCrmRecord\(db, context, "opportunities", id\)/);
   assert.match(page, /href={`\/crm\/opportunities\?edit=/);
   assert.match(page, /crm-record-page crm-opportunity-page/);
   assert.match(page, /CrmOpportunityActions/);
@@ -62,7 +66,10 @@ test("F009 web: a closed opportunity offers a governed reopen action instead of 
   assert.match(actions, /stages\.filter\(\(stage\) => !stage\.isWon && !stage\.isLost\)/);
   assert.match(actions, /busy=\{pending\}/);
   assert.match(actions, /disabled=\{!targetStageId \|\| !reason\.trim\(\)\}/);
-  assert.match(page, /outcome_reason_label/);
+  // Stage-history rendering (including the outcome-reason label snapshot)
+  // moved into the tabbed Opportunity workspace's History panel (Prompt 5).
+  const workspaceTabs = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-workspace-tabs.tsx");
+  assert.match(workspaceTabs, /outcome_reason_label/);
 });
 
 test("F009 backend: reopen is a controlled transition on the same governed stage endpoint, not a new bypass", () => {

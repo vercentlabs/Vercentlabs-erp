@@ -75,7 +75,13 @@ test("F014: public booking serializes on its meeting link and exact lost-respons
 
 test("F014: public bookings bridge to a Meeting activity and booking reschedule\/cancel keep that activity synchronized", () => {
   const source = communications();
-  assert.match(source, /meeting_booking_id,meeting_calendar_event_id/);
+  const bookBlock = source.match(/export async function bookMeeting[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(bookBlock, /meeting_booking_id,created_by,updated_by\)/);
+  // The public-booking flow shares the SAME canonical calendar-sync-intent
+  // helper ordinary Meeting create\/update\/cancel use (meeting-operations.js)
+  // — no separate raw crm_calendar_events INSERT for this path.
+  assert.match(bookBlock, /upsertMeetingCalendarEvent\(client, context, \{/);
+  assert.match(bookBlock, /UPDATE tenant\.crm_activities SET meeting_calendar_event_id=\$3/);
   assert.match(source, /INSERT INTO tenant\.crm_meeting_events[\s\S]*'booked'/);
   const cancelBlock = source.match(/export async function cancelMeetingBooking[\s\S]*?export async function rescheduleMeetingBooking/)?.[0] || "";
   assert.match(cancelBlock, /UPDATE tenant\.crm_activities/);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmDashboard, getCrmReport } from "@vercentlabs/api";
+import { getCrmDashboard, getCrmReport, getOpportunityRevenueDashboard, getForecastCalibration } from "@vercentlabs/api";
 import { formatMoney } from "@vercentlabs/localization";
 
 import { requireWorkspace } from "@/core/auth";
@@ -29,13 +29,38 @@ export default async function CrmForecastPage() {
   if (!hasPermission(session, PERMISSIONS.crmReportsView)) notFound();
   const context = crmContext(session);
 
-  const { dashboard, forecast } = await tenantTransaction(
+  const { dashboard, forecast, revenue: revenueRaw, calibration } = await tenantTransaction(
     context.organizationId,
-    async (client) => ({
+    async (client): Promise<{
+      dashboard: Record<string, unknown>;
+      forecast: Record<string, unknown>;
+      revenue: Record<string, unknown> | null;
+      calibration: Array<Record<string, unknown>>;
+    }> => ({
       dashboard: await getCrmDashboard(client, context),
       forecast: await getCrmReport(client, context, "forecast"),
+      // F011 explainable predictive model + F026 deterministic win/loss
+      // aggregation — folded into this existing, already-approved Forecast
+      // workspace rather than a new standalone page (a prior consolidation
+      // pass explicitly retired several single-purpose CRM pages, including
+      // an earlier "opportunity-revenue" screen — see
+      // crm-lead-suite-enterprise.test.mjs's retiredScreenFiles list).
+      revenue: hasPermission(session, PERMISSIONS.crmOpportunitiesManage)
+        ? await getOpportunityRevenueDashboard(client, context)
+        : null,
+      // Integrity closeout (Prompts 1-5): F011's drift/calibration
+      // requirement — a deterministic comparison of each closed period's
+      // stored prediction against what actually closed, never a fabricated
+      // AI explanation.
+      calibration: hasPermission(session, PERMISSIONS.crmOpportunitiesManage)
+        ? await getForecastCalibration(client, context, 6)
+        : [],
     }),
   );
+  const revenue = revenueRaw as {
+    latestForecast: Row | null;
+    winLoss: { byReason: Record<string, number>; byCompetitor: Record<string, number>; averageCycleDays: number };
+  } | null;
 
   const metrics = dashboard.metrics as Row;
   const rows = forecast.rows as Row[];
@@ -157,6 +182,97 @@ export default async function CrmForecastPage() {
           );
         })()}
       </section>
+
+      {revenue ? (
+        <>
+          <section className="panel" aria-label="Explainable predictive forecast">
+            <div className="card-title-row">
+              <div>
+                <p className="eyebrow">F011 · Explainable, deterministic model</p>
+                <h2>Predictive forecast</h2>
+              </div>
+            </div>
+            {revenue.latestForecast ? (
+              <dl className="crm-lead-profile-grid">
+                <div><dt>Predicted amount</dt><dd>{money(Number(revenue.latestForecast.predictedAmount || 0))}</dd></div>
+                <div><dt>Confidence</dt><dd>{String(revenue.latestForecast.confidencePercent)}%</dd></div>
+                <div><dt>Model version</dt><dd>{String(revenue.latestForecast.modelVersion)}</dd></div>
+              </dl>
+            ) : (
+              <StatePanel title="No predictive forecast captured yet." />
+            )}
+            <p className="field-help">
+              A deterministic calculation from stored win-rate, health and activity signals — not an opaque AI score. Each snapshot pins its own model version, so a later model change never reinterprets a historical forecast.
+            </p>
+          </section>
+
+          <section className="panel" aria-label="Forecast calibration">
+            <div className="card-title-row">
+              <div>
+                <p className="eyebrow">F011 · Drift monitoring</p>
+                <h2>Prediction calibration</h2>
+              </div>
+            </div>
+            {calibration.length ? (
+              <dl className="crm-lead-profile-grid">
+                {calibration.map((period) => {
+                  const errorPercent = period.errorPercent as number | null;
+                  return (
+                    <div key={String(period.periodId)}>
+                      <dt>{String(period.periodName)}</dt>
+                      <dd>
+                        Predicted {money(Number(period.predictedAmount || 0))} · Actual {money(Number(period.actualWonAmount || 0))}
+                        {errorPercent == null ? "" : ` · ${errorPercent > 0 ? "+" : ""}${errorPercent}% error`}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            ) : (
+              <StatePanel title="No closed forecast period has a captured prediction yet." />
+            )}
+            <p className="field-help">
+              Each row compares a closed period&apos;s own stored prediction (pinned at capture time) against the revenue that actually closed for that same period — a real accuracy check, not a re-estimated or reinterpreted figure.
+            </p>
+          </section>
+
+          <section className="panel" aria-label="Deterministic win/loss aggregation">
+            <div className="card-title-row">
+              <div>
+                <p className="eyebrow">F026 · Deterministic aggregation</p>
+                <h2>Loss analysis</h2>
+              </div>
+            </div>
+            <dl className="crm-lead-profile-grid">
+              <div>
+                <dt>By reason</dt>
+                <dd>
+                  {Object.entries(revenue.winLoss.byReason as Record<string, number>).length
+                    ? Object.entries(revenue.winLoss.byReason as Record<string, number>)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5)
+                        .map(([reason, count]) => `${reason} (${count})`)
+                        .join(", ")
+                    : "No closed-deal reviews recorded yet."}
+                </dd>
+              </div>
+              <div>
+                <dt>By competitor</dt>
+                <dd>
+                  {Object.entries(revenue.winLoss.byCompetitor as Record<string, number>).length
+                    ? Object.entries(revenue.winLoss.byCompetitor as Record<string, number>)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5)
+                        .map(([name, count]) => `${name} (${count})`)
+                        .join(", ")
+                    : "No competitor recorded on closed reviews yet."}
+                </dd>
+              </div>
+              <div><dt>Average sales cycle</dt><dd>{String(revenue.winLoss.averageCycleDays)} days</dd></div>
+            </dl>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

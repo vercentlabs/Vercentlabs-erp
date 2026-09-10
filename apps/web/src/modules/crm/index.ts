@@ -1,9 +1,12 @@
 import {
   CrmError,
+  CrmLeadIntelligenceError,
+  CrmOpportunityRevenueError,
   LeadDuplicateError,
   LeadGovernanceError,
   LeadOperationsError,
   LeadQualificationError,
+  OpportunityOperationsError,
 } from "@vercentlabs/api";
 import { ZodError } from "zod";
 import { getStructuredFieldConfig } from "@vercentlabs/shared-types";
@@ -3575,10 +3578,13 @@ export async function crmApiContext(
 export function crmErrorResponse(error: unknown) {
   if (
     error instanceof CrmError ||
+    error instanceof CrmLeadIntelligenceError ||
     error instanceof LeadDuplicateError ||
     error instanceof LeadGovernanceError ||
     error instanceof LeadOperationsError ||
-    error instanceof LeadQualificationError
+    error instanceof LeadQualificationError ||
+    error instanceof OpportunityOperationsError ||
+    error instanceof CrmOpportunityRevenueError
   ) {
     const details =
       error.details && typeof error.details === "object"
@@ -3618,11 +3624,23 @@ export function crmErrorResponse(error: unknown) {
 export function rethrowCrmError(error: unknown): never {
   if (
     error instanceof CrmError ||
+    error instanceof CrmLeadIntelligenceError ||
     error instanceof LeadDuplicateError ||
     error instanceof LeadGovernanceError ||
     error instanceof LeadOperationsError ||
-    error instanceof LeadQualificationError
+    error instanceof LeadQualificationError ||
+    error instanceof OpportunityOperationsError ||
+    error instanceof CrmOpportunityRevenueError
   )
-    throw new HttpError(error.status, error.message, error.code);
+    throw new HttpError(
+      error.status,
+      error.message,
+      error.code,
+      // Integrity closeout (Prompts 1-5): details (e.g. the structured
+      // missingRequirements list on CRM_OPPORTUNITY_STAGE_EXIT_BLOCKED)
+      // were previously dropped here — the client only ever saw the
+      // generic message, never which specific requirement was missing.
+      (error as { details?: Record<string, unknown> }).details,
+    );
   throw error;
 }

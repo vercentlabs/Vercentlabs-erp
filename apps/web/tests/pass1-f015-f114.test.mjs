@@ -54,7 +54,7 @@ test("F016-F030 remain backed by the existing mature CRM workspaces and services
   const enterprise=read("apps/web/tests/crm-lead-suite-enterprise.test.mjs");const crm=read("services/api/src/modules/crm/index.js");const comm=read("services/api/src/modules/crm/communications.js");const follow=read("apps/web/src/orchestration/work/follow-ups.ts");const detail=read("apps/web/src/modules/crm/components/lead-detail-workspace.tsx");
   assert.match(follow,/listMyFollowUps/);assert.match(detail,/Complete lead timeline/);assert.match(comm,/crm_communications/);
   for(const token of ["crm_opportunities","crm_activities","getCrmDashboard","getCrmReport","convertCrmLead","findCrmDuplicates"])assert.match(crm,new RegExp(token));
-  assert.match(read("apps/web/src/app/api/crm/leads/[id]/notes/route.ts"),/crm_notes/);
+  assert.match(read("apps/web/src/app/api/crm/leads/[id]/notes/route.ts"),/createCrmNote/);
   for(const id of ["F016","F017","F019","F020","F021","F022","F023","F025","F026","F027","F028","F029","F030"])assert.match(enterprise,new RegExp(id));
   assert.ok(exists("apps/web/src/app/api/crm/leads/[id]/attachments/route.ts"));assert.ok(exists("apps/web/src/app/api/crm/leads/[id]/notes/route.ts"));
 });

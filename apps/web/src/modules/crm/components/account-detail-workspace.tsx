@@ -6,12 +6,19 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AccountFormDrawer from "@/modules/crm/components/account-form-drawer";
+import DuplicateReviewPanel from "@/modules/crm/prospect-and-relationship-master-data/duplicate-review-panel";
+import AccountContactRelationshipsPanel from "@/modules/crm/prospect-and-relationship-master-data/account-contact-relationships-panel";
+import AccountHierarchyPanel from "@/modules/crm/prospect-and-relationship-master-data/account-hierarchy-panel";
+import TimelinePanel from "@/modules/crm/components/timeline-panel";
+import NotesPanel from "@/modules/crm/components/notes-panel";
+import AttachmentsPanel from "@/modules/crm/components/attachments-panel";
 import { requestJson } from "@/shared/http/client-request";
 
 type Account = Record<string, unknown> & {
   id: string;
   displayName: string;
   status: string;
+  sensitiveDataRestricted?: boolean;
   relationships?: { contacts?: number; opportunities?: number };
 };
 
@@ -30,11 +37,15 @@ function date(value: unknown) {
 export default function AccountDetailWorkspace({
   account,
   canManage,
+  canManageDuplicates,
   editing,
+  currentUserId,
 }: {
   account: Account;
   canManage: boolean;
+  canManageDuplicates: boolean;
   editing: boolean;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const archiveDialog = useRef<HTMLDialogElement>(null);
@@ -48,7 +59,7 @@ export default function AccountDetailWorkspace({
     setPending(true);
     setMessage("");
     const result = await requestJson(
-      `/api/crm/accounts/${String(account.id)}`,
+      `/api/crm/accounts/${String(account.id)}?expectedUpdatedAt=${encodeURIComponent(String(account.updatedAt || ""))}`,
       {
         method: "DELETE",
       },
@@ -107,6 +118,12 @@ export default function AccountDetailWorkspace({
       {message ? (
         <div className="notice error" role="alert">
           {message}
+        </div>
+      ) : null}
+
+      {account.sensitiveDataRestricted ? (
+        <div className="notice" role="status">
+          <strong>Restricted account content.</strong> Statutory identifiers (GSTIN, PAN, MSME registration) are hidden by your role.
         </div>
       ) : null}
 
@@ -205,6 +222,29 @@ export default function AccountDetailWorkspace({
           )}
         </section>
 
+        {!account.sensitiveDataRestricted ? (
+          <section className="panel crm-account-detail-section">
+            <div className="crm-account-section-heading">
+              <p className="eyebrow">Compliance</p>
+              <h2>Statutory identifiers</h2>
+            </div>
+            <dl className="crm-account-facts">
+              <div>
+                <dt>GSTIN</dt>
+                <dd>{display(account.gstin)}</dd>
+              </div>
+              <div>
+                <dt>PAN</dt>
+                <dd>{display(account.pan)}</dd>
+              </div>
+              <div>
+                <dt>MSME registration</dt>
+                <dd>{display(account.msmeNumber)}</dd>
+              </div>
+            </dl>
+          </section>
+        ) : null}
+
         <section className="panel crm-account-detail-section">
           <div className="crm-account-section-heading">
             <p className="eyebrow">Governance</p>
@@ -232,6 +272,46 @@ export default function AccountDetailWorkspace({
 
         <section className="panel crm-account-detail-section">
           <div className="crm-account-section-heading">
+            <p className="eyebrow">Corporate structure</p>
+            <h2>Account hierarchy</h2>
+          </div>
+          <AccountHierarchyPanel accountId={String(account.id)} canManage={canManageDuplicates} />
+        </section>
+
+        <section className="panel crm-account-detail-section">
+          <div className="crm-account-section-heading">
+            <p className="eyebrow">Related CRM information</p>
+            <h2>Related contacts</h2>
+          </div>
+          <AccountContactRelationshipsPanel accountId={String(account.id)} />
+        </section>
+
+        <section className="panel crm-account-detail-section">
+          <div className="crm-account-section-heading">
+            <p className="eyebrow">Engagement</p>
+            <h2>Timeline</h2>
+          </div>
+          <TimelinePanel endpoint={`/api/crm/accounts/${String(account.id)}/timeline`} />
+        </section>
+
+        <section className="panel crm-account-detail-section">
+          <div className="crm-account-section-heading">
+            <p className="eyebrow">Engagement</p>
+            <h2>Notes</h2>
+          </div>
+          <NotesPanel listEndpoint={`/api/crm/accounts/${String(account.id)}/notes`} currentUserId={currentUserId} canManage={canManage} />
+        </section>
+
+        <section className="panel crm-account-detail-section">
+          <div className="crm-account-section-heading">
+            <p className="eyebrow">Engagement</p>
+            <h2>Files</h2>
+          </div>
+          <AttachmentsPanel listEndpoint={`/api/crm/accounts/${String(account.id)}/attachments`} canManage={canManage} />
+        </section>
+
+        <section className="panel crm-account-detail-section">
+          <div className="crm-account-section-heading">
             <p className="eyebrow">Related CRM information</p>
             <h2>Relationships</h2>
           </div>
@@ -250,6 +330,26 @@ export default function AccountDetailWorkspace({
             </Link>
           </div>
         </section>
+
+        {canManageDuplicates ? (
+          <section className="panel crm-account-detail-section">
+            <div className="crm-account-section-heading">
+              <p className="eyebrow">Duplicate management</p>
+              <h2>Potential matching accounts</h2>
+            </div>
+            <DuplicateReviewPanel
+              kind="account"
+              currentId={String(account.id)}
+              searchParams={{
+                name: String(account.legalName || account.displayName || ""),
+                gstin: String(account.gstin || ""),
+                pan: String(account.pan || ""),
+              }}
+              canMerge={canManageDuplicates}
+              onMerged={() => router.push("/crm/accounts")}
+            />
+          </section>
+        ) : null}
       </main>
 
       <dialog

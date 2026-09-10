@@ -29,14 +29,17 @@ export function updateCrmContact(
   context: CrmContext,
   id: string,
   input?: Record<string, unknown>,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;
 export function archiveCrmContact(
   client: QueryClient,
   context: CrmContext,
   id: string,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;
 export function reactivateCrmContact(
   client: QueryClient,
   context: CrmContext,
   id: string,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;

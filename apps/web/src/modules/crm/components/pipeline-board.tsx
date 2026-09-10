@@ -36,6 +36,8 @@ type Opportunity = {
   status: string;
   warnings?: string[];
   inactiveDays?: number;
+  stageAgeDays?: number | null;
+  stageAgeStatus?: "unknown" | "ok" | "warning" | "breached";
 };
 type CloseRequest = {
   opportunity: Opportunity;
@@ -75,7 +77,40 @@ function agingBadge(row: Opportunity, stage: Stage) {
   );
 }
 
-function stageValue(rows: Opportunity[]) {
+// Distinct from agingBadge's "inactivity" signal (no recent activity): this
+// is real stage-dwell time, sourced server-side from the governed
+// stage_entered_at column, not the mutable updated_at — see
+// listOpportunityStageAges/computeStageAge.
+function stageAgeBadge(row: Opportunity) {
+  if (!row.stageAgeStatus || row.stageAgeStatus === "unknown" || row.stageAgeStatus === "ok") return null;
+  return (
+    <StatusBadge tone={row.stageAgeStatus === "breached" ? "danger" : "warning"} title="Time in current stage">
+      {row.stageAgeDays}d in stage
+    </StatusBadge>
+  );
+}
+
+type StageTotal = {
+  opportunityCount: number;
+  byCurrency: Record<string, { opportunityCount: number; amount: number; weightedAmount: number }>;
+};
+
+// Integrity closeout (Prompts 1-5): prefer the authoritative, unbounded
+// server aggregate (stageTotals — see listOpportunityPipelineStageTotals)
+// over summing whatever card rows this page happened to load. The card
+// list is capped (limit: 500 across the whole pipeline); a pipeline with
+// more open Opportunities than that would previously show a silently
+// undercounted total. Falls back to the client-computed sum only if the
+// server aggregate has no entry for this stage at all (e.g. an older
+// server response shape in a rolling deploy).
+function stageValue(rows: Opportunity[], serverTotal: StageTotal | undefined) {
+  if (serverTotal) {
+    const entries = Object.entries(serverTotal.byCurrency);
+    if (!entries.length) return "No open value";
+    return entries
+      .map(([currency, total]) => formatMoney(total.amount, currency))
+      .join(" · ");
+  }
   if (!rows.length) return "No open value";
   const totals = new Map<string, number>();
   for (const row of rows) {
@@ -94,6 +129,7 @@ export default function CrmPipelineBoard({
   outcomeReasons,
   opportunities,
   total,
+  stageTotals,
   canManage,
 }: {
   pipelines: Pipeline[];
@@ -102,6 +138,7 @@ export default function CrmPipelineBoard({
   outcomeReasons: OutcomeReason[];
   opportunities: Opportunity[];
   total: number;
+  stageTotals?: Record<string, StageTotal>;
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -168,8 +205,19 @@ export default function CrmPipelineBoard({
           }),
         },
       );
-      if (!result.ok)
-        throw new Error(result.message || "Stage update failed.");
+      if (!result.ok) {
+        // Integrity closeout (Prompts 1-5): surface which specific stage-
+        // exit requirement is unanswered, matching opportunity-actions.tsx's
+        // dialog treatment of CRM_OPPORTUNITY_STAGE_EXIT_BLOCKED.
+        const missingRequirements = Array.isArray(result.missingRequirements)
+          ? (result.missingRequirements as unknown[]).map(String)
+          : [];
+        throw new Error(
+          missingRequirements.length
+            ? `${result.message || "Answer the required questions for this stage first."} Missing: ${missingRequirements.join(", ")}.`
+            : result.message || "Stage update failed.",
+        );
+      }
       setMessage(
         result.message ||
           (stage.isWon || stage.isLost
@@ -398,9 +446,9 @@ export default function CrmPipelineBoard({
                         : `${stage.probability}% configured probability`}
                   </small>
                 </div>
-                <span>{rows.length}</span>
+                <span>{stageTotals?.[stage.id]?.opportunityCount ?? rows.length}</span>
               </header>
-              <div className="crm-kanban-total">{stageValue(rows)}</div>
+              <div className="crm-kanban-total">{stageValue(rows, stageTotals?.[stage.id])}</div>
               <div className="crm-kanban-cards">
                 {rows.map((row) => (
                   <article
@@ -412,6 +460,7 @@ export default function CrmPipelineBoard({
                   >
                     <StatusBadge tone="neutral">{row.code}</StatusBadge>
                     {agingBadge(row, stage)}
+                    {stageAgeBadge(row)}
                     <Link href={`/crm/opportunities/${row.id}`}>
                       <strong>{row.name}</strong>
                     </Link>

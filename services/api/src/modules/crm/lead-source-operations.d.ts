@@ -32,10 +32,12 @@ export function updateCrmLeadSource(
   context: CrmContext,
   id: string,
   input?: Record<string, unknown>,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<CrmLeadSource>;
 export function setCrmLeadSourceActive(
   client: QueryClient,
   context: CrmContext,
   id: string,
   active: boolean,
+  expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<CrmLeadSource>;

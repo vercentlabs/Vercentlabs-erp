@@ -1,6 +1,7 @@
 import {
   archiveCrmAccount,
   getCrmAccount,
+  getCrmAccountForCaller,
   updateCrmAccount,
 } from "@vercentlabs/api";
 
@@ -54,7 +55,7 @@ export async function GET(_request: Request, routeContext: RouteContext) {
     assertCrmIdentifier(id);
     const context = await crmApiContext(session);
     const record = await tenantTransaction(context.organizationId, (client) =>
-      getCrmAccount(client, context, id),
+      getCrmAccountForCaller(client, context, id),
     );
     return ok({ record });
   } catch (error) {
@@ -76,13 +77,24 @@ export async function PATCH(request: Request, routeContext: RouteContext) {
     assertCrmIdentifier(id);
     const context = await crmApiContext(session);
     const input = accountInput(await readJson(request));
+    const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Account before changing it.",
+        "CRM_ACCOUNT_VERSION_REQUIRED",
+      );
+    delete input.expectedUpdatedAt;
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
 
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
         const before = await getCrmAccount(client, context, id);
-        const updated = await updateCrmAccount(client, context, id, input);
+        const updated = await updateCrmAccount(client, context, id, input, {
+          expectedUpdatedAt,
+          requireVersion: true,
+        });
         await audit({
           organizationId: context.organizationId,
           actorUserId: context.userId,
@@ -118,6 +130,15 @@ export async function DELETE(request: Request, routeContext: RouteContext) {
     await requireBillingWriteAccess(session.organizationId);
     const { id } = await routeContext.params;
     assertCrmIdentifier(id);
+    const expectedUpdatedAt = String(
+      new URL(request.url).searchParams.get("expectedUpdatedAt") || "",
+    ).trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Account before archiving it.",
+        "CRM_ACCOUNT_VERSION_REQUIRED",
+      );
     const context = await crmApiContext(session);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
 
@@ -125,7 +146,10 @@ export async function DELETE(request: Request, routeContext: RouteContext) {
       context.organizationId,
       async (client) => {
         const before = await getCrmAccount(client, context, id);
-        const archived = await archiveCrmAccount(client, context, id);
+        const archived = await archiveCrmAccount(client, context, id, {
+          expectedUpdatedAt,
+          requireVersion: true,
+        });
         await audit({
           organizationId: context.organizationId,
           actorUserId: context.userId,

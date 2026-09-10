@@ -3,6 +3,7 @@ import {
   assertLeadSourceId,
   normalizeLeadSourceInput,
 } from "./features/lead-sources/validation.js";
+import { assertExpectedRecordVersion } from "./prospect-and-relationship-master-data/record-version.js";
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const FIELDS = Object.freeze({
@@ -209,7 +210,7 @@ export async function createCrmLeadSource(client, context, input = {}) {
   }
 }
 
-export async function updateCrmLeadSource(client, context, id, input = {}) {
+export async function updateCrmLeadSource(client, context, id, input = {}, expectations = {}) {
   try {
     const before = await getCrmLeadSource(client, context, id);
     if (
@@ -222,6 +223,18 @@ export async function updateCrmLeadSource(client, context, id, input = {}) {
         "Use the governed lifecycle action; internal source codes cannot be changed.",
         "CRM_LEAD_SOURCE_GOVERNED_FIELD",
       );
+    // Concurrency (Prompts 1-5 integrity closeout): mutable Lead Source
+    // fields (name/description/channel/sort order/default flag) previously
+    // had no stale-write protection at all — two administrators editing the
+    // same source concurrently would silently overwrite each other, unlike
+    // every other governed CRM mutation. Reuses the shared checked-write
+    // contract (assertExpectedRecordVersion + a WHERE ... AND updated_at=$N
+    // guard) rather than a bespoke implementation.
+    assertExpectedRecordVersion(before, expectations.expectedUpdatedAt, {
+      entityLabel: "Lead source",
+      codePrefix: "CRM_LEAD_SOURCE",
+      required: expectations.requireVersion === true,
+    });
     const value = normalizeLeadSourceInput(input);
     const fields = Object.keys(FIELDS).filter((field) => hasOwn(value, field));
     if (!fields.length)
@@ -239,11 +252,21 @@ export async function updateCrmLeadSource(client, context, id, input = {}) {
       `updated_by=${add(parameters, context.userId)}`,
       "updated_at=now()",
     );
-    await client.query(
+    const versionChecked = expectations.expectedUpdatedAt
+      ? ` AND updated_at=${add(parameters, new Date(expectations.expectedUpdatedAt))}`
+      : "";
+    const write = await client.query(
       `UPDATE tenant.crm_lead_sources SET ${assignments.join(",")}
-       WHERE organization_id=$1 AND id=$2`,
+       WHERE organization_id=$1 AND id=$2${versionChecked} RETURNING id`,
       parameters,
     );
+    if (versionChecked && !write.rows[0]) {
+      throw new CrmError(
+        409,
+        "This Lead source changed after you loaded it. Refresh and try again.",
+        "CRM_STALE_WRITE",
+      );
+    }
     const updated = await getCrmLeadSource(client, context, id);
     await queueOutboxEvent(
       client,
@@ -264,24 +287,40 @@ export async function updateCrmLeadSource(client, context, id, input = {}) {
   }
 }
 
-export async function setCrmLeadSourceActive(client, context, id, active) {
+export async function setCrmLeadSourceActive(client, context, id, active, expectations = {}) {
   try {
     const before = await getCrmLeadSource(client, context, id);
+    assertExpectedRecordVersion(before, expectations.expectedUpdatedAt, {
+      entityLabel: "Lead source",
+      codePrefix: "CRM_LEAD_SOURCE",
+      required: expectations.requireVersion === true,
+    });
     const status = active ? "active" : "inactive";
     if (before.status !== status) {
-      await client.query(
+      const parameters = [
+        context.organizationId,
+        id,
+        status,
+        active ? null : new Date(),
+        context.userId,
+      ];
+      const versionChecked = expectations.expectedUpdatedAt
+        ? ` AND updated_at=${add(parameters, new Date(expectations.expectedUpdatedAt))}`
+        : "";
+      const write = await client.query(
         `UPDATE tenant.crm_lead_sources
          SET status=$3,archived_at=$4,is_default=CASE WHEN $3='inactive' THEN false ELSE is_default END,
              updated_by=$5,updated_at=now()
-         WHERE organization_id=$1 AND id=$2`,
-        [
-          context.organizationId,
-          id,
-          status,
-          active ? null : new Date(),
-          context.userId,
-        ],
+         WHERE organization_id=$1 AND id=$2${versionChecked} RETURNING id`,
+        parameters,
       );
+      if (versionChecked && !write.rows[0]) {
+        throw new CrmError(
+          409,
+          "This Lead source changed after you loaded it. Refresh and try again.",
+          "CRM_STALE_WRITE",
+        );
+      }
       await queueOutboxEvent(
         client,
         context,

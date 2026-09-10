@@ -80,6 +80,12 @@ test("the primary capture route resolves the tenant only from the form key, neve
   assert.match(source, /crm_public_capture_form\(\$1\)/);
 });
 
+test("the primary capture route accepts published hex capture keys, not only UUID-shaped values", () => {
+  const source = read(primaryRoute);
+  assert.match(source, /PUBLIC_CAPTURE_KEY_PATTERN\s*=\s*\/\^\[0-9a-f\]\{24,64\}\$\/i/);
+  assert.doesNotMatch(source, /\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}/);
+});
+
 test("the lead-acquisition form route resolves the tenant only from the resolved form record, never from the request body", () => {
   const source = read(secondaryRoute);
   assert.doesNotMatch(source, /organizationId:\s*(String\()?input\./);

@@ -11,6 +11,7 @@ import {
   asDatabaseDecimal,
   formatDecimal,
 } from "./money.js";
+import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -821,9 +822,30 @@ async function insertQuotationVersion(
   return version.rows[0];
 }
 
+// F023 (Opportunity-to-quotation conversion) — LAST PROMPT 1/3 closeout:
+// F023-INT-001 explicitly requires an idempotency key on the CRM->Sales
+// handoff ("...using sourceOpportunityId and idempotency key"); no such key
+// existed anywhere on quotation creation, so a double-click on the
+// Opportunity page's "Create quotation" link (or a retried request after a
+// dropped response) could create two quotations from the same Opportunity.
+// Reuses the same shared idempotency utility (services/api/src/core/
+// idempotency.js) Stock/Quality/POS/Manufacturing already use, keyed off
+// input.idempotencyKey — optional (required: false), so every existing
+// caller/test that creates a quotation without one keeps working exactly as
+// before; only a caller that supplies a key gets replay-safety.
 export async function createQuotation(client, context, input) {
   requirePermission(context, "sales.quotation.create");
   const preview = await previewSalesDocument(client, context, input);
+  const idempotency = await beginIdempotentOperation(
+    client,
+    { ...context, companyId: preview.master.companyId },
+    {
+      operation: "sales.quotation.create",
+      key: input.idempotencyKey,
+      payload: { ...input, idempotencyKey: undefined },
+    },
+  );
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   const number = await allocateNumber(
     client,
     context.organizationId,
@@ -862,7 +884,13 @@ export async function createQuotation(client, context, input) {
     "draft",
     { versionId: version.id, versionNumber: version.version_number },
   );
-  return { ...quotation, currentVersionId: version.id };
+  const response = { ...quotation, currentVersionId: version.id, replayed: false };
+  await completeIdempotentOperation(client, { ...context, companyId: preview.master.companyId }, idempotency, {
+    response,
+    aggregateType: "sales_quotation",
+    aggregateId: quotation.id,
+  });
+  return response;
 }
 export async function reviseQuotation(client, context, id, input) {
   requirePermission(context, "sales.quotation.create");

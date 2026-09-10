@@ -53,14 +53,17 @@ test("registry: modules.ts declares exactly the 12 canonical moduleIds, matching
   assert.deepEqual([...declared].sort(), catalogKeys);
 });
 
-test("registry: every module group's items array starts with an exact-match Overview item", () => {
+test("registry: every module group's items array starts with an exact-match landing item (Overview, or CRM's Home — CRM vNext Prompt 2 renamed CRM's landing destination from 'Overview' to 'Home' to match its redesigned daily-workspace role; every other module keeps 'Overview')", () => {
   const source = read("apps/web/src/core/navigation/modules.ts");
   const groupBodies = source.split(/\{\s*\n\s*label: "/).slice(1);
   assert.equal(groupBodies.length, 12);
   for (const body of groupBodies) {
+    const moduleIdMatch = body.match(/moduleId:\s*"([a-z-]+)"/);
+    assert.ok(moduleIdMatch, "could not locate moduleId for a module group");
     const firstItemMatch = body.match(/items:\s*\[\s*\{([\s\S]*?)\},/);
     assert.ok(firstItemMatch, "could not locate first item in a module group");
-    assert.match(firstItemMatch[1], /label:\s*"Overview"/);
+    const expectedLabel = moduleIdMatch[1] === "crm" ? "Home" : "Overview";
+    assert.match(firstItemMatch[1], new RegExp(`label:\\s*"${expectedLabel}"`));
     assert.match(firstItemMatch[1], /exact:\s*true/);
   }
 });

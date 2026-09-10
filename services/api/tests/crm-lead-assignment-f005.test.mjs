@@ -190,7 +190,9 @@ function assignmentClient({ currentOwner = ownerA } = {}) {
               new_owner_user_id: values[3],
               policy_id: values[4],
               reason: values[5],
-              created_by: values[6],
+              evaluation_trace: values[6],
+              is_override: values[7],
+              created_by: values[8],
               created_at: new Date("2026-08-25T10:00:00Z"),
             },
           ],
@@ -198,6 +200,10 @@ function assignmentClient({ currentOwner = ownerA } = {}) {
       }
       if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
         writes.push({ kind: "outbox", sql, values });
+        return { rows: [] };
+      }
+      if (sql.includes("INSERT INTO notifications")) {
+        writes.push({ kind: "notification", sql, values });
         return { rows: [] };
       }
       throw new Error(`Unexpected query: ${sql}`);
@@ -216,7 +222,7 @@ test("F005: authorized reassignment changes the canonical owner and emits exactl
   assert.equal(result.assignment.owner.name, "Rahul Patil");
   assert.deepEqual(
     client.writes.map((write) => write.kind),
-    ["lead", "assignment", "outbox"],
+    ["lead", "assignment", "outbox", "notification"],
   );
   const outbox = client.writes.find((write) => write.kind === "outbox");
   assert.equal(outbox.values[1], "crm.leads.assigned");
@@ -226,6 +232,7 @@ test("F005: authorized reassignment changes the canonical owner and emits exactl
     ownerUserId: ownerB,
     policyId: null,
     reason: "manual:test",
+    isOverride: false,
   });
   assert.equal(
     JSON.stringify(outbox.values[4]).includes("@example.com"),
@@ -248,7 +255,7 @@ test("F005: generic owner-only update invokes the assignment domain path", async
   assert.equal(updated.ownerUserId, ownerB);
   assert.deepEqual(
     client.writes.map((write) => write.kind),
-    ["lead", "assignment", "outbox"],
+    ["lead", "assignment", "outbox", "notification"],
   );
 });
 
@@ -302,11 +309,9 @@ test("F005: ineligible (not an org member) fixed owners are skipped and determin
     companyId,
     branchId,
   });
-  assert.deepEqual(result, {
-    ownerUserId: ownerB,
-    policyId: policyB,
-    reason: "policy:fixed",
-  });
+  assert.equal(result.ownerUserId, ownerB);
+  assert.equal(result.policyId, policyB);
+  assert.equal(result.reason, "policy:fixed");
   assert.match(calls[0].sql, /ORDER BY sequence,id FOR UPDATE/);
 });
 
@@ -327,7 +332,12 @@ test("F005: round robin initializes and row-locks canonical state before advanci
           ],
         };
       if (sql.includes("unnest($2::uuid[]) WITH ORDINALITY"))
-        return { rows: [{ user_id: ownerA }, { user_id: ownerB }] };
+        return {
+          rows: [
+            { user_id: ownerA, is_member: true, user_active: true, name: "A", crm_eligible: true, in_scope: true, out_of_office: false },
+            { user_id: ownerB, is_member: true, user_active: true, name: "B", crm_eligible: true, in_scope: true, out_of_office: false },
+          ],
+        };
       if (sql.includes("DO NOTHING")) return { rows: [] };
       if (sql.includes("SELECT next_index"))
         return { rows: [{ next_index: 1 }] };
@@ -498,6 +508,8 @@ test("F005: explicit create owner is persisted instead of being discarded", asyn
             },
           ],
         };
+      if (sql.includes("INSERT INTO notifications")) return { rows: [] };
+      if (sql.includes("FROM tenant.crm_lead_scoring_models")) return { rows: [] }; // no active model — recalculateLeadScoreInternal no-ops
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

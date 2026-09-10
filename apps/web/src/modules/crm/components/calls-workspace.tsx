@@ -7,6 +7,8 @@ import { requestJson } from "@/shared/http/client-request";
 import {
   ActionButton,
   ActionLink,
+  ConfirmDialog,
+  Dialog,
   EnterpriseDataGrid,
   FormField,
   StatePanel,
@@ -126,6 +128,7 @@ export default function CallsWorkspace({
     startCreating && canManage ? { mode: "schedule" } : null,
   );
   const [completion, setCompletion] = useState<CallRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<CallRow | null>(null);
   const [eventsFor, setEventsFor] = useState<CallRow | null>(null);
   const [events, setEvents] = useState<CallEvent[]>([]);
   const [relationType, setRelationType] = useState<CallRow["entityType"]>("lead");
@@ -209,7 +212,10 @@ export default function CallsWorkspace({
   }
 
   async function lifecycle(record: CallRow, action: "start" | "cancel") {
-    if (action === "cancel" && !confirm(`Cancel ${record.subject}?`)) return;
+    if (action === "cancel") {
+      setCancelTarget(record);
+      return;
+    }
     setBusy(`${action}:${record.id}`);
     setMessage("");
     const result = await requestJson(`/api/crm/calls/${record.id}/${action}`, {
@@ -220,6 +226,24 @@ export default function CallsWorkspace({
     setBusy("");
     setMessage(result.message || (result.ok ? `Call ${action}ed.` : `Call could not be ${action}ed.`));
     if (result.ok) router.refresh();
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    const record = cancelTarget;
+    setBusy(`cancel:${record.id}`);
+    setMessage("");
+    const result = await requestJson(`/api/crm/calls/${record.id}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedUpdatedAt: record.updatedAt, expectedStatus: record.status }),
+    });
+    setBusy("");
+    setMessage(result.message || (result.ok ? "Call cancelled." : "Call could not be cancelled."));
+    if (result.ok) {
+      setCancelTarget(null);
+      router.refresh();
+    }
   }
 
   async function complete(event: FormEvent<HTMLFormElement>) {
@@ -292,7 +316,15 @@ export default function CallsWorkspace({
             <ActionButton
               tone="quiet"
               type="button"
-              disabled={busy === `events:${record.id}`}
+              // Deliberately not disabled while its own fetch is in
+              // flight: disabling the very button that was just clicked
+              // forces the browser to blur it immediately (a disabled
+              // element cannot hold focus), which happens *before* the
+              // History dialog mounts and captures "the previously
+              // focused element" to restore focus to on close — silently
+              // breaking focus restoration for this trigger specifically.
+              // A duplicate click here only re-fetches read-only history,
+              // which is harmless.
               onClick={() => void showEvents(record)}
             >
               History
@@ -406,27 +438,44 @@ export default function CallsWorkspace({
       {totalPages > 1 ? <nav className="crm-calls-pagination" aria-label="Call pages"><button className="secondary-button" disabled={page <= 1} onClick={() => router.push(queryHref(page - 1))}>Previous</button><span>Page {page} of {totalPages}</span><button className="secondary-button" disabled={page >= totalPages} onClick={() => router.push(queryHref(page + 1))}>Next</button></nav> : null}
 
       {editor ? (
-        <div className="crm-call-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditor(null); }}>
-          <section className="crm-call-dialog" role="dialog" aria-modal="true" aria-labelledby="crm-call-editor-title">
-            <div className="crm-call-dialog__heading"><div><p className="eyebrow">F013 · Calls</p><h2 id="crm-call-editor-title">{editor.mode === "edit" ? "Edit scheduled Call" : editor.mode === "log" ? "Log completed Call" : "Schedule Call"}</h2></div><button className="icon-button" aria-label="Close Call editor" disabled={Boolean(busy)} onClick={() => setEditor(null)}>×</button></div>
-            <CallForm editor={editor} options={options} relationType={relationType} setRelationType={setRelationType} relationChoices={relationChoices} onSubmit={save} busy={busy === "save"} />
-          </section>
-        </div>
+        <Dialog
+          title={editor.mode === "edit" ? "Edit scheduled Call" : editor.mode === "log" ? "Log completed Call" : "Schedule Call"}
+          description="Calls"
+          onClose={() => setEditor(null)}
+          canDismiss={busy !== "save"}
+          busy={busy === "save"}
+        >
+          <CallForm editor={editor} options={options} relationType={relationType} setRelationType={setRelationType} relationChoices={relationChoices} onSubmit={save} busy={busy === "save"} />
+        </Dialog>
+      ) : null}
+
+      {cancelTarget ? (
+        <ConfirmDialog
+          title="Cancel Call?"
+          description={cancelTarget.subject}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={() => void confirmCancel()}
+          confirmLabel="Cancel Call"
+          cancelLabel="Keep Call"
+          busy={busy === `cancel:${cancelTarget.id}`}
+        />
       ) : null}
 
       {completion ? (
-        <div className="crm-call-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setCompletion(null); }}>
-          <section className="crm-call-dialog crm-call-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="crm-call-complete-title">
-            <div className="crm-call-dialog__heading"><div><p className="eyebrow">Complete Call</p><h2 id="crm-call-complete-title">{completion.subject}</h2></div><button className="icon-button" aria-label="Close completion dialog" onClick={() => setCompletion(null)}>×</button></div>
-            <form onSubmit={complete} className="crm-call-form"><label><span>Outcome</span><select name="outcomeCode" required defaultValue="connected">{OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label><label className="crm-call-form__wide"><span>Outcome note</span><textarea name="outcome" maxLength={4000} rows={4} placeholder="Optional call notes" /></label><div className="crm-call-form__actions"><button className="secondary-button" type="button" onClick={() => setCompletion(null)}>Cancel</button><button className="primary-button" type="submit" disabled={busy === `complete:${completion.id}`}>{busy === `complete:${completion.id}` ? "Completing…" : "Complete Call"}</button></div></form>
-          </section>
-        </div>
+        <Dialog
+          title={completion.subject}
+          onClose={() => setCompletion(null)}
+          canDismiss={busy !== `complete:${completion.id}`}
+          busy={busy === `complete:${completion.id}`}
+        >
+          <form onSubmit={complete} className="crm-call-form"><label><span>Outcome</span><select name="outcomeCode" required defaultValue="connected">{OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label><label className="crm-call-form__wide"><span>Outcome note</span><textarea name="outcome" maxLength={4000} rows={4} placeholder="Optional call notes" /></label><div className="crm-call-form__actions"><button className="secondary-button" type="button" onClick={() => setCompletion(null)}>Cancel</button><button className="primary-button" type="submit" disabled={busy === `complete:${completion.id}`}>{busy === `complete:${completion.id}` ? "Completing…" : "Complete Call"}</button></div></form>
+        </Dialog>
       ) : null}
 
       {eventsFor ? (
-        <div className="crm-call-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEventsFor(null); }}>
-          <section className="crm-call-dialog crm-call-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="crm-call-history-title"><div className="crm-call-dialog__heading"><div><p className="eyebrow">Immutable evidence</p><h2 id="crm-call-history-title">Call history</h2></div><button className="icon-button" aria-label="Close Call history" onClick={() => setEventsFor(null)}>×</button></div><div className="crm-call-history">{events.length ? events.map((entry) => <article key={entry.id}><strong>{label(entry.eventType)}</strong><span>{entry.previousStatus ? `${label(entry.previousStatus)} → ${label(entry.nextStatus)}` : label(entry.nextStatus)}</span><small>{entry.changedByName || "System"} · {formatDate(entry.changedAt)}{entry.outcomeCode ? ` · ${label(entry.outcomeCode)}` : ""}</small></article>) : <p>No Call events were recorded.</p>}</div></section>
-        </div>
+        <Dialog title="Call history" onClose={() => setEventsFor(null)}>
+          <div className="crm-call-history">{events.length ? events.map((entry) => <article key={entry.id}><strong>{label(entry.eventType)}</strong><span>{entry.previousStatus ? `${label(entry.previousStatus)} → ${label(entry.nextStatus)}` : label(entry.nextStatus)}</span><small>{entry.changedByName || "System"} · {formatDate(entry.changedAt)}{entry.outcomeCode ? ` · ${label(entry.outcomeCode)}` : ""}</small></article>) : <p>No Call events were recorded.</p>}</div>
+        </Dialog>
       ) : null}
     </section>
   );

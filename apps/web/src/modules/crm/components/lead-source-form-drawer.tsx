@@ -23,6 +23,7 @@ export default function LeadSourceFormDrawer({
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [staleWrite, setStaleWrite] = useState(false);
   function close() {
     if (dirty && !window.confirm("Discard unsaved Lead source changes?"))
       return;
@@ -41,6 +42,7 @@ export default function LeadSourceFormDrawer({
       sortOrder: Number(form.get("sortOrder") || 100),
       isDefault: form.get("isDefault") === "on",
     };
+    if (editing) body.expectedUpdatedAt = value(source, "updatedAt");
     const endpoint = editing
       ? `/api/crm/lead-sources/${String(source?.id)}`
       : "/api/crm/lead-sources";
@@ -55,6 +57,7 @@ export default function LeadSourceFormDrawer({
     if (!result.ok) {
       setErrors(result.errors || {});
       setMessage(result.message || "The Lead source could not be saved.");
+      setStaleWrite(result.status === 409);
       setPending(false);
       return;
     }
@@ -78,7 +81,17 @@ export default function LeadSourceFormDrawer({
         noValidate
       >
         {message ? (
-          <ErrorState title="Lead source not saved" description={message} />
+          <ErrorState
+            title="Lead source not saved"
+            description={message}
+            action={
+              staleWrite ? (
+                <ActionButton type="button" tone="secondary" onClick={() => router.refresh()}>
+                  Reload latest version
+                </ActionButton>
+              ) : null
+            }
+          />
         ) : null}
         <FormField
           label="Source name"

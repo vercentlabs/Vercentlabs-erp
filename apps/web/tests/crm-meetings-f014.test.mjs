@@ -17,7 +17,11 @@ test("F014 Web: Meetings stay inside the focused Activities workspace", () => {
 
 test("F014 Web: dedicated Meeting UX covers schedule, log, edit, join, start, complete, cancel and immutable history", () => {
   const source = read("apps/web/src/modules/crm/components/meetings-workspace.tsx");
-  for (const phrase of ["Schedule Meeting", "Log completed Meeting", "Edit scheduled Meeting", "Join", "Start", "Complete", "Cancel", "Immutable evidence", "Meeting history"])
+  // "Immutable evidence" was a customer-inappropriate internal-governance
+  // label — dropped in Prompt 6 to match Calls' precedent (see
+  // dialog-experience-kernel.test.mjs); the history dialog itself is
+  // unchanged, just its subtitle text.
+  for (const phrase of ["Schedule Meeting", "Log completed Meeting", "Edit scheduled Meeting", "Join", "Start", "Complete", "Cancel", "Meeting history"])
     assert.match(source, new RegExp(phrase));
   assert.match(source, /\/api\/crm\/meetings/);
   assert.match(source, /expectedUpdatedAt/);
@@ -90,7 +94,12 @@ test("F014 responsive Meeting workspace is imported and preserves mobile-safe co
   assert.match(layout, /crm-meetings\.css/);
   assert.match(css, /min-height:\s*44px/);
   assert.match(css, /@media\s*\(max-width:/);
-  assert.match(css, /prefers-reduced-motion/);
+  // The hand-rolled dialog backdrop's own prefers-reduced-motion rule was
+  // removed with the backdrop itself (Prompt 6 CRM-VNEXT-072 migration onto
+  // the shared Dialog primitive) — reduced-motion is now handled once, by
+  // dialog.module.css, for every dialog including Meetings'.
+  const dialogCss = read("apps/web/src/shared/design/dialog.module.css");
+  assert.match(dialogCss, /prefers-reduced-motion/);
 });
 
 test("F014 docs/register preserve the canonical Meetings identity and verified production-ready status", () => {

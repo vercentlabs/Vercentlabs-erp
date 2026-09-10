@@ -1,226 +1,34 @@
-import { createHash } from "node:crypto";
 import { assignLeadOwner } from "./index.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
+// F027 Lead scoring: the error class, sensitive-scope guard, scoped-Lead
+// fetch and content hash used to be defined here; they moved to
+// lead-lifecycle-qualification-and-prioritization/scoring/shared.js as
+// part of CRM vNext Prompt 4 so the scoring engine and this file's own
+// (non-F027) SLA/nurture functions can both depend on them without a
+// circular import. Re-exported below for compatibility.
+import {
+  CrmLeadIntelligenceError,
+  assertSensitiveLeadIntelligenceAccess,
+  getScopedLead,
+  scopedLeadWhere,
+  crmLeadIntelligenceHash,
+  text,
+  number,
+  object,
+  array,
+} from "./lead-lifecycle-qualification-and-prioritization/scoring/shared.js";
+export { CrmLeadIntelligenceError, assertSensitiveLeadIntelligenceAccess, getScopedLead, crmLeadIntelligenceHash };
+// F027 Lead scoring: evaluateLeadScoreRule/calculateLeadScoreBreakdown/
+// recalculateLeadScore/getLeadScoreExplanation moved to
+// lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js
+// as part of CRM vNext Prompt 4 — re-exported below for compatibility.
+export { evaluateLeadScoreRule, calculateLeadScoreBreakdown, recalculateLeadScore, getLeadScoreExplanation } from "./lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js";
+import { recalculateLeadScore } from "./lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js";
 
 export const CRM_LEAD_INTELLIGENCE_CAPABILITY_IDS = Object.freeze([
   "CRM-060",
   "CRM-061",
   "CRM-062",
 ]);
-
-export class CrmLeadIntelligenceError extends Error {
-  constructor(
-    status,
-    message,
-    code = "CRM_LEAD_INTELLIGENCE_ERROR",
-    details = [],
-  ) {
-    super(message);
-    this.name = "CrmLeadIntelligenceError";
-    this.status = status;
-    this.code = code;
-    this.details = details;
-  }
-}
-
-const text = (value) => String(value ?? "").trim();
-const number = (value, fallback = 0) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-const object = (value) =>
-  value && typeof value === "object" && !Array.isArray(value) ? value : {};
-const array = (value) => (Array.isArray(value) ? value : []);
-const clamp = (value, minimum, maximum) =>
-  Math.min(maximum, Math.max(minimum, value));
-
-function assertSensitiveLeadIntelligenceAccess(context) {
-  if (canViewSensitiveLeadContent(context)) return;
-  throw new CrmLeadIntelligenceError(
-    403,
-    "You do not have permission to view sensitive Lead intelligence.",
-    "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
-  );
-}
-
-async function getScopedLead(client, context, leadId, { lock = false } = {}) {
-  const values = [context.organizationId, leadId];
-  const scope = leadScopeSql(context, values, "lead");
-  const result = await client.query(
-    `SELECT lead.* FROM tenant.crm_leads lead
-      WHERE lead.organization_id=$1 AND lead.id=$2${scope}${lock ? " FOR UPDATE" : ""}`,
-    values,
-  );
-  if (!result.rows[0])
-    throw new CrmLeadIntelligenceError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
-  return result.rows[0];
-}
-
-function scopedLeadWhere(context, values, alias = "lead") {
-  return leadScopeSql(context, values, alias);
-}
-
-export function crmLeadIntelligenceHash(value) {
-  const stable = (input) => {
-    if (Array.isArray(input)) return input.map(stable);
-    if (input && typeof input === "object") {
-      return Object.fromEntries(
-        Object.keys(input)
-          .sort()
-          .map((key) => [key, stable(input[key])]),
-      );
-    }
-    return input;
-  };
-  return createHash("sha256")
-    .update(JSON.stringify(stable(value)))
-    .digest("hex");
-}
-
-function comparable(value) {
-  return typeof value === "string" ? value.trim().toLowerCase() : value;
-}
-
-function attributeMatches(lead, predicate) {
-  const field = text(predicate.field);
-  const operator = text(predicate.operator || "equals");
-  const expected = predicate.value;
-  const value =
-    lead[field] ??
-    lead[field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)];
-  switch (operator) {
-    case "equals":
-      return comparable(value) === comparable(expected);
-    case "not_equals":
-      return comparable(value) !== comparable(expected);
-    case "not_empty":
-      return value !== null && value !== undefined && text(value) !== "";
-    case "empty":
-      return value === null || value === undefined || text(value) === "";
-    case "contains":
-      return text(value).toLowerCase().includes(text(expected).toLowerCase());
-    case "greater_than":
-      return number(value, Number.NEGATIVE_INFINITY) > number(expected);
-    case "less_than":
-      return number(value, Number.POSITIVE_INFINITY) < number(expected);
-    case "in":
-      return array(expected).map(comparable).includes(comparable(value));
-    default:
-      return false;
-  }
-}
-
-export function evaluateLeadScoreRule(
-  rule,
-  lead,
-  events = [],
-  now = new Date(),
-  halfLifeDays = 30,
-) {
-  const predicate = object(rule.predicate);
-  if (
-    rule.signal_type === "demographic" ||
-    rule.signal_type === "firmographic"
-  ) {
-    const matched = attributeMatches(lead, predicate);
-    return {
-      matched,
-      occurrences: matched ? 1 : 0,
-      points: matched ? number(rule.points) : 0,
-    };
-  }
-  const eventType = text(predicate.eventType);
-  const withinDays = Math.max(1, number(predicate.withinDays, 3650));
-  const cutoff = now.getTime() - withinDays * 86400000;
-  const matching = events
-    .filter((event) => text(event.event_type || event.eventType) === eventType)
-    .filter(
-      (event) =>
-        new Date(event.occurred_at || event.occurredAt || now).getTime() >=
-        cutoff,
-    )
-    .sort(
-      (left, right) =>
-        new Date(right.occurred_at || right.occurredAt) -
-        new Date(left.occurred_at || left.occurredAt),
-    );
-  const limit =
-    rule.maximum_occurrences == null
-      ? matching.length
-      : Math.min(matching.length, number(rule.maximum_occurrences));
-  const selected = matching.slice(0, limit);
-  let points = 0;
-  for (const event of selected) {
-    let contribution = number(rule.points);
-    if (rule.decay_enabled) {
-      const ageDays = Math.max(
-        0,
-        (now - new Date(event.occurred_at || event.occurredAt)) / 86400000,
-      );
-      contribution *= Math.pow(0.5, ageDays / Math.max(1, halfLifeDays));
-    }
-    points += contribution;
-  }
-  return {
-    matched: selected.length > 0,
-    occurrences: selected.length,
-    points: Math.round(points),
-  };
-}
-
-export function calculateLeadScoreBreakdown(input = {}) {
-  const lead = object(input.lead);
-  const model = object(input.model);
-  const rules = array(input.rules);
-  const events = array(input.events);
-  const now =
-    input.now instanceof Date ? input.now : new Date(input.now || Date.now());
-  const floor = number(model.score_floor ?? model.scoreFloor, -100);
-  const ceiling = number(model.score_ceiling ?? model.scoreCeiling, 100);
-  let score = number(model.base_score ?? model.baseScore);
-  const contributions = [];
-  for (const rule of rules) {
-    if (text(rule.status || "active") !== "active") continue;
-    const result = evaluateLeadScoreRule(
-      rule,
-      lead,
-      events,
-      now,
-      number(model.decay_half_life_days ?? model.decayHalfLifeDays, 30),
-    );
-    if (!result.matched) continue;
-    score += result.points;
-    contributions.push({
-      ruleId: rule.id ?? null,
-      name: rule.name,
-      signalType: rule.signal_type,
-      points: result.points,
-      occurrences: result.occurrences,
-    });
-  }
-  score = Math.round(clamp(score, floor, ceiling));
-  const thresholds = object(
-    model.qualification_thresholds ?? model.qualificationThresholds,
-  );
-  const warm = number(thresholds.warm, 30);
-  const hot = number(thresholds.hot, 60);
-  const qualified = number(thresholds.qualified, 75);
-  const grade =
-    score >= qualified
-      ? "qualified"
-      : score >= hot
-        ? "hot"
-        : score >= warm
-          ? "warm"
-          : "cold";
-  return {
-    score,
-    grade,
-    contributions,
-    thresholds: { warm, hot, qualified },
-    calculatedAt: now.toISOString(),
-  };
-}
 
 function parseClock(value, fallbackHour) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(text(value));
@@ -380,6 +188,10 @@ export function rankNurtureCandidate(input = {}, nowValue = new Date()) {
   );
 }
 
+function comparable(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : value;
+}
+
 function criteriaMatches(record, criteriaInput) {
   const criteria = object(criteriaInput);
   return Object.entries(criteria).every(([key, expected]) => {
@@ -390,20 +202,6 @@ function criteriaMatches(record, criteriaInput) {
       ? expected.map(comparable).includes(comparable(value))
       : comparable(value) === comparable(expected);
   });
-}
-
-async function activeModel(client, organizationId) {
-  const result = await client.query(
-    `SELECT * FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND status='active' ORDER BY version DESC LIMIT 1`,
-    [organizationId],
-  );
-  if (!result.rows[0])
-    throw new CrmLeadIntelligenceError(
-      409,
-      "No active lead scoring model is configured.",
-      "CRM_LEAD_SCORING_MODEL_MISSING",
-    );
-  return result.rows[0];
 }
 
 export async function recordLeadBehaviorEvent(client, context, input = {}) {
@@ -456,106 +254,6 @@ export async function recordLeadBehaviorEvent(client, context, input = {}) {
     `Behaviour event: ${eventType}`,
   );
   return { event: result.rows[0], score };
-}
-
-export async function recalculateLeadScore(
-  client,
-  context,
-  leadId,
-  reason = "Lead intelligence recalculation",
-) {
-  assertSensitiveLeadIntelligenceAccess(context);
-  const lead = await getScopedLead(client, context, leadId, { lock: true });
-  const model = await activeModel(client, context.organizationId);
-  const [rulesResult, eventsResult] = await Promise.all([
-    client.query(
-      `SELECT * FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND model_id=$2 AND status='active' ORDER BY sequence,id`,
-      [context.organizationId, model.id],
-    ),
-    client.query(
-      `SELECT * FROM tenant.crm_lead_behavior_events WHERE organization_id=$1 AND lead_id=$2 AND occurred_at>=now()-interval '5 years' ORDER BY occurred_at DESC`,
-      [context.organizationId, leadId],
-    ),
-  ]);
-  const breakdown = calculateLeadScoreBreakdown({
-    lead,
-    model,
-    rules: rulesResult.rows,
-    events: eventsResult.rows,
-  });
-  const explanation = {
-    model: { id: model.id, name: model.name, version: model.version },
-    thresholds: breakdown.thresholds,
-    contributions: JSON.stringify(breakdown.contributions),
-    reason,
-  };
-  const contentHash = crmLeadIntelligenceHash({
-    leadId,
-    score: breakdown.score,
-    grade: breakdown.grade,
-    explanation,
-    calculatedAt: breakdown.calculatedAt,
-  });
-  await client.query(
-    `UPDATE tenant.crm_leads SET score=$1,lead_grade=$2,score_model_id=$3,score_calculated_at=$4,score_explanation=$5,updated_by=$6,updated_at=now() WHERE organization_id=$7 AND id=$8`,
-    [
-      breakdown.score,
-      breakdown.grade,
-      model.id,
-      breakdown.calculatedAt,
-      explanation,
-      context.userId,
-      context.organizationId,
-      leadId,
-    ],
-  );
-  await client.query(
-    `INSERT INTO tenant.crm_lead_score_snapshots(organization_id,company_id,lead_id,model_id,score,grade,contributions,explanation,content_hash,calculated_at,calculated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-    [
-      context.organizationId,
-      lead.company_id,
-      leadId,
-      model.id,
-      breakdown.score,
-      breakdown.grade,
-      breakdown.contributions,
-      explanation,
-      contentHash,
-      breakdown.calculatedAt,
-      context.userId,
-    ],
-  );
-  if (number(lead.score) !== breakdown.score) {
-    await client.query(
-      `INSERT INTO tenant.crm_lead_score_history(organization_id,lead_id,previous_score,new_score,reason,created_by) VALUES($1,$2,$3,$4,$5,$6)`,
-      [
-        context.organizationId,
-        leadId,
-        number(lead.score),
-        breakdown.score,
-        reason,
-        context.userId,
-      ],
-    );
-  }
-  return { leadId, ...breakdown, explanation, contentHash };
-}
-
-export async function getLeadScoreExplanation(client, context, leadId) {
-  assertSensitiveLeadIntelligenceAccess(context);
-  const values = [context.organizationId, leadId];
-  const scope = scopedLeadWhere(context, values);
-  const result = await client.query(
-    `SELECT lead.id,lead.code,lead.full_name,lead.score,lead.lead_grade,lead.score_calculated_at,lead.score_explanation,snapshot.content_hash,snapshot.calculated_at AS snapshot_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT * FROM tenant.crm_lead_score_snapshots s WHERE s.organization_id=lead.organization_id AND s.lead_id=lead.id ORDER BY s.calculated_at DESC LIMIT 1) snapshot ON true WHERE lead.organization_id=$1 AND lead.id=$2${scope}`,
-    values,
-  );
-  if (!result.rows[0])
-    throw new CrmLeadIntelligenceError(
-      404,
-      "Lead not found.",
-      "CRM_LEAD_NOT_FOUND",
-    );
-  return result.rows[0];
 }
 
 export async function openLeadSlaCase(client, context, leadId, input = {}) {
@@ -910,6 +608,46 @@ export async function listMyNurtureQueueItems(client, context, limit = 50) {
     values,
   );
   return result.rows;
+}
+
+// CRM-VNEXT-052 closeout (nurture-queue half): the real delivery mechanism
+// this queue never had. Claims due, not-yet-notified items via
+// `FOR UPDATE SKIP LOCKED` and marks notified_at atomically in the same
+// UPDATE — deliberately a single-attempt notification (not a retryable
+// pending/dispatching/sent state machine like F016's Scheduled Follow-up
+// reminders): a missed nurture ping is a recommendation the seller will see
+// again next time refreshLeadNurtureQueue() re-ranks the queue, not a
+// committed reminder a caller is relying on, so the added complexity of a
+// stuck-row recovery path is not proportionate here. System-context callers
+// (the worker) intentionally bypass per-user Lead scoping — this claims
+// across the WHOLE organization's queue, then the worker notifies each
+// item's actual owner_user_id, never the caller.
+export async function claimDueNurtureQueueItems(client, context, { limit = 200 } = {}) {
+  const boundedLimit = Math.max(1, Math.min(500, Math.trunc(Number(limit) || 200)));
+  const result = await client.query(
+    `UPDATE tenant.crm_lead_nurture_queue queue
+        SET notified_at=now()
+      WHERE queue.id IN (
+        SELECT id FROM tenant.crm_lead_nurture_queue
+         WHERE organization_id=$1 AND status='active' AND notified_at IS NULL
+           AND due_at<=now() AND (snoozed_until IS NULL OR snoozed_until<=now())
+         ORDER BY priority_score DESC, due_at
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED
+      )
+      RETURNING queue.*`,
+    [context.organizationId, boundedLimit],
+  );
+  if (!result.rows.length) return [];
+  const leadIds = [...new Set(result.rows.map((row) => row.lead_id))];
+  const leads = await client.query(
+    `SELECT lead.id,lead.code,lead.full_name,lead.company_name,lead.owner_user_id,u.full_name AS owner_name,u.email AS owner_email
+       FROM tenant.crm_leads lead LEFT JOIN public.users u ON u.id=lead.owner_user_id
+      WHERE lead.organization_id=$1 AND lead.id = ANY($2::uuid[])`,
+    [context.organizationId, leadIds],
+  );
+  const byLeadId = new Map(leads.rows.map((row) => [row.id, row]));
+  return result.rows.map((row) => ({ ...row, lead: byLeadId.get(row.lead_id) || null }));
 }
 
 export async function getLeadIntelligenceDashboard(client, context) {

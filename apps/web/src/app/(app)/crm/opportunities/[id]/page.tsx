@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCrmOptions, getCrmRecord } from "@vercentlabs/api";
 
 import CrmOpportunityActions, { CrmOpportunityReopenAction } from "@/modules/crm/components/opportunity-actions";
+import { getOpportunityDetailData } from "@/modules/crm/server/opportunity-detail-data";
 import CrmOpportunityProbabilityAction from "@/modules/crm/components/opportunity-probability-action";
+import OpportunityWorkspaceTabs from "@/modules/crm/opportunity-and-pipeline-governance/opportunity-workspace-tabs";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
 import { crmContext } from "@/modules/crm";
@@ -13,9 +14,7 @@ import {
   MetricCard,
   Record360Archetype,
   RecordHeader,
-  StatePanel,
   StatusBadge,
-  Surface,
   type StatusTone,
 } from "@/shared/design";
 
@@ -24,11 +23,6 @@ type Row = Record<string, unknown>;
 
 function nice(value: unknown) {
   return String(value ?? "—").replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
-}
-function dateTime(value: unknown) {
-  if (!value) return "—";
-  const date = new Date(String(value));
-  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 function money(value: unknown, currency: unknown) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: String(currency || "INR"), minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -46,33 +40,34 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
   const context = crmContext(session);
 
-  let data: {
-    opportunity: Row;
-    options: Record<string, Array<Record<string, unknown>>>;
-    history: Row[];
-    probabilityHistory: Row[];
-    activities: Row[];
-    communications: Row[];
-    items: Row[];
-  };
+  let data: Awaited<ReturnType<typeof getOpportunityDetailData>>;
+  // Prompts 1-5 integrity closeout (blocker B): both the sensitive-content
+  // gate (communications) and the cross-module Sales quotation-read gate
+  // now live centrally in getOpportunityDetailData — this page no longer
+  // derives either independently, so web and mobile can never drift again.
   try {
-    data = await tenantTransaction(context.organizationId, async (client) => {
-      const opportunity = await getCrmRecord(client, context, "opportunities", id);
-      const [options, history, probabilityHistory, activities, communications, items] = await Promise.all([
-        getCrmOptions(client, context),
-        client.query(`SELECT h.*,fs.name AS from_stage,ts.name AS to_stage,u.full_name AS changed_by_name FROM tenant.crm_opportunity_stage_history h LEFT JOIN tenant.crm_pipeline_stages fs ON fs.id=h.from_stage_id LEFT JOIN tenant.crm_pipeline_stages ts ON ts.id=h.to_stage_id LEFT JOIN public.users u ON u.id=h.changed_by WHERE h.organization_id=$1 AND h.opportunity_id=$2 ORDER BY h.changed_at DESC LIMIT 100`, [context.organizationId, id]),
-        client.query(`SELECT h.*,u.full_name AS changed_by_name FROM tenant.crm_opportunity_probability_history h LEFT JOIN public.users u ON u.id=h.changed_by WHERE h.organization_id=$1 AND h.opportunity_id=$2 ORDER BY h.changed_at DESC LIMIT 100`, [context.organizationId, id]),
-        client.query(`SELECT * FROM tenant.crm_activities WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2 ORDER BY COALESCE(completed_at,due_at,created_at) DESC LIMIT 100`, [context.organizationId, id]),
-        client.query(`SELECT * FROM tenant.crm_communications WHERE organization_id=$1 AND opportunity_id=$2 ORDER BY occurred_at DESC LIMIT 100`, [context.organizationId, id]),
-        client.query(`SELECT oi.*,i.name AS item_name FROM tenant.crm_opportunity_items oi JOIN tenant.items i ON i.id=oi.item_id WHERE oi.organization_id=$1 AND oi.opportunity_id=$2 ORDER BY oi.created_at`, [context.organizationId, id]),
-      ]);
-      return { opportunity, options, history: history.rows, probabilityHistory: probabilityHistory.rows, activities: activities.rows, communications: communications.rows, items: items.rows };
-    });
-  } catch {
+    data = await tenantTransaction(context.organizationId, (client) =>
+      getOpportunityDetailData(client, context, id),
+    );
+  } catch (error) {
+    // §E2E closeout: this used to swallow the real error into a bare 404
+    // with zero trace anywhere — a genuine data-loading bug (unrelated
+    // concurrency hazard, fixed in getOpportunityDetailData) was
+    // indistinguishable from "record does not exist / out of scope" for
+    // weeks. Logging first costs nothing and would have caught it sooner.
+    console.error("Opportunity detail page failed to load", id, error);
     notFound();
   }
 
-  const record = data.opportunity;
+  // Round-trip through JSON, matching every other prop below — the raw
+  // record.updatedAt from getCrmRecord is a native pg Date object, and
+  // String(dateObject) produces a non-ISO string ("Wed Sep 09 2026 ...")
+  // that fails the API's z.string().datetime({offset:true}) expectedUpdatedAt
+  // check. Real bug found this prompt: every UI-driven probability override
+  // and stage move from this 360 page (CrmOpportunityProbabilityAction,
+  // CrmOpportunityActions, CrmOpportunityReopenAction all read
+  // String(record.updatedAt)) silently 400'd on submit.
+  const record = JSON.parse(JSON.stringify(data.opportunity)) as Row;
   const probability = Number(record.probability || 0);
   const amount = Number(record.amount || 0);
   const expectedRevenue = Number(record.expectedRevenue ?? (amount * Math.max(0, Math.min(100, probability)) / 100));
@@ -92,12 +87,13 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   }));
   const outcomeReason = outcomeReasons.find((reason) => reason.id === String(record.outcomeReasonId || record.lostReasonId || ""));
   const canManage = hasPermission(session, PERMISSIONS.crmOpportunitiesManage);
+  // Deal risks and the buying committee are separately-permissioned generic
+  // CRM resources (crm.revenue.manage / crm.accounts.manage respectively,
+  // not crm.opportunities.manage) — gate those two sections on their own
+  // real requirement so the UI never offers an action that would 403.
+  const canManageRisks = hasPermission(session, PERMISSIONS.crmRevenueManage);
+  const canManageStakeholders = hasPermission(session, PERMISSIONS.crmAccountsManage);
   const currentStage = stages.find((stage) => stage.id === String(record.stageId));
-
-  const timeline = [
-    ...data.activities.map((row) => ({ kind: "Activity", title: row.subject, detail: row.status, at: row.completed_at || row.due_at || row.created_at })),
-    ...data.communications.map((row) => ({ kind: "Communication", title: row.subject || row.channel, detail: `${row.direction || ""} ${row.channel || ""}`.trim(), at: row.occurred_at })),
-  ].sort((a, b) => new Date(String(b.at || 0)).getTime() - new Date(String(a.at || 0)).getTime());
 
   return (
     <Record360Archetype className="crm-record-page crm-opportunity-page">
@@ -106,7 +102,16 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         eyebrow={`Opportunity · ${String(record.code || "")}`}
         title={String(record.name || "Opportunity")}
         subtitle={String(record.nextStep || record.description || "Manage the next commercial action and expected close.")}
-        status={<StatusBadge tone={outcomeTone(record.status)}>{nice(record.status)}</StatusBadge>}
+        status={
+          <>
+            <StatusBadge tone={outcomeTone(record.status)}>{nice(record.status)}</StatusBadge>
+            {data.stageAge && data.stageAge.status !== "unknown" ? (
+              <StatusBadge tone={data.stageAge.status === "breached" ? "danger" : data.stageAge.status === "warning" ? "warning" : "neutral"}>
+                {String(data.stageAge.ageDays)}d in stage
+              </StatusBadge>
+            ) : null}
+          </>
+        }
         actions={
           <>
             {canManage ? (
@@ -153,19 +158,6 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <CrmOpportunityReopenAction id={id} status={String(record.status)} stageId={String(record.stageId)} updatedAt={String(record.updatedAt)} stages={stages} />
       ) : null}
 
-      <Surface as="section">
-        <p className="eyebrow">Probability history</p>
-        <h2>Revenue confidence changes</h2>
-        <div className="crm-timeline">
-          {data.probabilityHistory.map((row) => (
-            <article key={String(row.id)}><span>%</span><div><strong>{String(row.from_probability)}% → {String(row.to_probability)}%</strong><p>{String(row.note || "No note")}</p><small>Expected revenue {money(row.expected_revenue, record.currencyCode)}</small><time>{dateTime(row.changed_at)}</time></div></article>
-          ))}
-          {!data.probabilityHistory.length ? (
-            <StatePanel title="No manual probability changes recorded yet." />
-          ) : null}
-        </div>
-      </Surface>
-
       {["won", "lost"].includes(String(record.status)) ? (
         <section className="crm-outcome-banner">
           <div><small>{record.status === "won" ? "Won reason" : "Lost reason"}</small><strong>{outcomeReason?.name || "Reason not recorded"}</strong></div>
@@ -173,45 +165,30 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         </section>
       ) : null}
 
-      <div className="crm-record-columns">
-        <Surface as="section">
-          <p className="eyebrow">Stage history</p>
-          <h2>Pipeline movement</h2>
-          <div className="crm-timeline">
-            {data.history.map((row) => (
-              <article key={String(row.id)}><span>→</span><div><strong>{String(row.from_stage || "Created")} → {String(row.to_stage || "Stage")}</strong>{row.outcome_reason_label ? <p><em>{nice(row.status)} reason at the time: {String(row.outcome_reason_label)}</em></p> : null}<p>{String(row.note || "")}</p><time>{dateTime(row.changed_at)}</time></div></article>
-            ))}
-            {!data.history.length ? (
-              <StatePanel title="No stage movement recorded yet." />
-            ) : null}
-          </div>
-        </Surface>
-
-        <Surface as="section">
-          <p className="eyebrow">Products & services</p>
-          <h2>Opportunity items</h2>
-          <div className="crm-stage-summary">
-            {data.items.map((item) => (
-              <div key={String(item.id)}><span><strong>{String(item.item_name)}</strong><small>{String(item.quantity)} × {money(item.unit_price, record.currencyCode)}</small></span><b>{money(item.line_total, record.currencyCode)}</b></div>
-            ))}
-            {!data.items.length ? (
-              <StatePanel title="No products or services added yet." />
-            ) : null}
-          </div>
-        </Surface>
-      </div>
-
-      <Surface as="section">
-        <div className="card-title-row"><div><p className="eyebrow">Timeline</p><h2>Recent engagement</h2></div><Link className="link-button" href="/crm/activities">Open activities</Link></div>
-        <div className="crm-timeline">
-          {timeline.slice(0, 40).map((entry, index) => (
-            <article key={`${entry.kind}-${index}-${String(entry.at)}`}><span>{entry.kind.slice(0, 1)}</span><div><strong>{String(entry.title || entry.kind)}</strong><p>{String(entry.detail || "")}</p><time>{dateTime(entry.at)}</time></div></article>
-          ))}
-          {!timeline.length ? (
-            <StatePanel title="No opportunity engagement recorded yet." />
-          ) : null}
-        </div>
-      </Surface>
+      <OpportunityWorkspaceTabs
+        opportunityId={id}
+        partyId={record.partyId ? String(record.partyId) : null}
+        currentUserId={session.userId}
+        canManage={canManage}
+        canManageRisks={canManageRisks}
+        canManageStakeholders={canManageStakeholders}
+        opportunityStatus={String(record.status)}
+        currencyCode={String(record.currencyCode || "INR")}
+        items={JSON.parse(JSON.stringify(data.items))}
+        team={JSON.parse(JSON.stringify(data.team))}
+        competitors={JSON.parse(JSON.stringify(data.competitors))}
+        risks={JSON.parse(JSON.stringify(data.risks))}
+        committees={JSON.parse(JSON.stringify(data.committees))}
+        committeeMembers={JSON.parse(JSON.stringify(data.committeeMembers))}
+        actionPlan={data.actionPlan ? JSON.parse(JSON.stringify(data.actionPlan)) : null}
+        actionPlanEvaluation={data.actionPlanEvaluation ? JSON.parse(JSON.stringify(data.actionPlanEvaluation)) : null}
+        winLossReview={data.winLossReview ? JSON.parse(JSON.stringify(data.winLossReview)) : null}
+        quotations={JSON.parse(JSON.stringify(data.quotations))}
+        users={(data.options.users || []).map((u) => ({ id: String(u.id), fullName: String(u.fullName || u.email || "User") }))}
+        allCompetitors={data.allCompetitors.map((c) => ({ id: String(c.id), name: String(c.name) }))}
+        history={JSON.parse(JSON.stringify(data.history))}
+        probabilityHistory={JSON.parse(JSON.stringify(data.probabilityHistory))}
+      />
     </Record360Archetype>
   );
 }

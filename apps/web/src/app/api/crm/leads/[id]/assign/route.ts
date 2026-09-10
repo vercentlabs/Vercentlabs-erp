@@ -36,6 +36,8 @@ export async function POST(
     if (!Object.prototype.hasOwnProperty.call(input, "ownerUserId"))
       throw new HttpError(400, "Select a Lead owner.");
     const ownerUserId = input.ownerUserId ? String(input.ownerUserId) : null;
+    const override = input.override === true;
+    const overrideReason = typeof input.overrideReason === "string" ? input.overrideReason : "";
     const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
     if (!expectedUpdatedAt)
       throw new HttpError(
@@ -58,6 +60,8 @@ export async function POST(
             reason: "manual:lead-detail",
             expectedUpdatedAt,
             requireVersion: true,
+            override,
+            overrideReason,
           },
         );
         if (assigned.assignment.changed)

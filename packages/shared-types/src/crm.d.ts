@@ -83,6 +83,8 @@ export type CrmListRequest = {
   followup?: "overdue" | "today" | "upcoming" | "none" | "all";
   qualification?: "not_reviewed" | "qualified" | "unqualified" | "all";
   due?: "today" | "overdue" | "upcoming" | "all";
+  opportunityId?: string;
+  committeeId?: string;
   limit?: number;
   offset?: number;
 };

@@ -25,6 +25,11 @@ export function outboundSendDecision(input: Record<string, unknown>): {
   allowed: boolean;
   reason: string | null;
 };
+export function assertEmailConsent(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  input: { leadId?: string | null; contactId?: string | null; partyId?: string | null },
+): Promise<{ allowed: boolean; reason: string | null }>;
 export function createProviderOAuthState(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -108,6 +113,24 @@ export function fetchProviderCalendarDelta(
   account: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
+export function pushProviderCalendarEvent(
+  account: Record<string, unknown>,
+  event: Record<string, unknown>,
+  action: "create" | "update" | "cancel",
+  options?: Record<string, unknown>,
+): Promise<{ externalEventId: string | null; etag: string | null; providerStatus: string }>;
+export function prepareMeetingCalendarPush(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  activityId: string,
+): Promise<{ account: Record<string, unknown>; event: Record<string, unknown>; calendarEventId: string | null } | null>;
+export function recordMeetingCalendarPushResult(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  calendarEventId: string | null,
+  provider: string,
+  result: { externalEventId: string | null; etag: string | null; providerStatus: string },
+): Promise<void>;
 export function synchronizeProviderAccount(
   client: QueryClient,
   context: CrmFoundationContext,

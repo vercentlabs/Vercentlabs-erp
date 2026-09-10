@@ -78,7 +78,9 @@ test("F005 API: eligible-user discovery and rule configuration have independent 
   assert.match(policyRoute, /saveLeadAssignmentPolicy/);
   assert.match(policyRoute, /archiveLeadAssignmentPolicy/);
   assert.match(policyRoute, /setLeadAssignmentPolicyStatus/);
-  assert.match(policyRoute, /\["fixed", "round_robin"\]/);
+  // F005 Prompt 4: territory/workload modes are governed CRM-CAP-002
+  // configuration and are no longer filtered out of the response.
+  assert.doesNotMatch(policyRoute, /policies\.filter/);
 });
 
 test("F005 API: generic owner PATCH cannot bypass or mix assignment with unrelated fields", () => {
@@ -90,18 +92,19 @@ test("F005 API: generic owner PATCH cannot bypass or mix assignment with unrelat
   assert.match(genericCollectionRoute, /CRM_ASSIGNMENT_RULE_API_MOVED/);
 });
 
-test("F005 rules UX is guided, priority-ordered and does not expose F020 routing", () => {
+test("F005 rules UX is guided, priority-ordered and exposes territory/workload routing (Prompt 4)", () => {
   assert.match(rulesPage, /PERMISSIONS\.crmSettingsManage/);
-  assert.match(rulesPage, /\["fixed", "round_robin"\]/);
+  assert.doesNotMatch(rulesPage, /\.filter\(\(policy\)/);
   assert.match(rules, /First eligible match wins/);
   assert.match(rules, /Lead source/);
   assert.match(rules, /Country/);
   assert.match(rules, /Industry/);
   assert.match(rules, /Product interest/);
+  assert.match(rules, /Score segment/);
   assert.match(rules, /<option value="fixed">Fixed owner<\/option>/);
   assert.match(rules, /<option value="round_robin">Round robin<\/option>/);
-  assert.doesNotMatch(rules, /<option value="territory"/);
-  assert.doesNotMatch(rules, /<option value="workload"/);
+  assert.match(rules, /<option value="workload">Least workload<\/option>/);
+  assert.match(rules, /<option value="territory">Territory<\/option>/);
   assert.doesNotMatch(rules, /JSON\.stringify\(.*criteria/);
   assert.match(settings, /"Assignment rules", "assignment-rules"/);
 });
@@ -125,10 +128,18 @@ test("F005 fallback owner and out-of-office are wired through the same governed 
 });
 
 test("F005 backend: automatic assignment skips out-of-office candidates and falls back to a defined owner", () => {
-  const governance = read("../../services/api/src/modules/crm/lead-governance.js");
-  assert.match(governance, /crm_lead_assignee_availability/);
-  assert.match(governance, /reason: "fallback_queue"/);
-  assert.match(governance, /A manager explicitly picking a specific owner/);
+  // F005 Prompt 4: this logic moved from lead-governance.js to the
+  // lead-lifecycle-qualification-and-prioritization/assignment/ capability
+  // directory; lead-governance.js now only re-exports it.
+  const eligibility = read(
+    "../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/assignment/eligibility.js",
+  );
+  const engine = read(
+    "../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/assignment/assignment-engine.js",
+  );
+  assert.match(eligibility, /crm_lead_assignee_availability/);
+  assert.match(engine, /reason: "fallback_queue"/);
+  assert.match(eligibility, /A manager explicitly picking a specific owner/);
 });
 
 test("F005 backend: the Lead SLA reassignment timer now runs on a schedule, not only on manual demand", () => {

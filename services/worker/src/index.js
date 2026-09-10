@@ -8,6 +8,7 @@ export { deliverWebhook, WebhookDeliveryError } from "./webhook-delivery.js";
 export { findMatchingSubscriptions, deliverOutboxEvent } from "./handlers/crm-webhook-deliver.js";
 export { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./handlers/crm-automation-overdue.js";
 export { leadBulkUpdateHandler, JOB_TYPE as LEAD_BULK_JOB_TYPE, payloadSchema as leadBulkPayloadSchema } from "./handlers/crm-lead-bulk-update.js";
+export { opportunityBulkUpdateHandler, JOB_TYPE as OPPORTUNITY_BULK_JOB_TYPE, payloadSchema as opportunityBulkPayloadSchema } from "./handlers/crm-opportunity-bulk-update.js";
 export { buildSystemContext, SYSTEM_ACTOR_ROLE_SLUG } from "./system-context.js";
 export { runSchedulerTick } from "./scheduler.js";
 export { createWorker, generateWorkerId } from "./worker.js";

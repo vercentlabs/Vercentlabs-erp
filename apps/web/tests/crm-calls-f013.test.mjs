@@ -17,7 +17,13 @@ test("F013 Web: Calls stay inside the focused Activities workspace", () => {
 
 test("F013 Web: dedicated Calls UI covers schedule, log, edit, dial, start, complete, cancel and immutable history", () => {
   const source = read("apps/web/src/modules/crm/components/calls-workspace.tsx");
-  for (const phrase of ["Schedule Call", "Log completed Call", "Edit scheduled Call", "Dial", "Start", "Complete", "Cancel", "Immutable evidence", "Call history"]) assert.match(source, new RegExp(phrase));
+  // "Immutable evidence" was customer-facing governance/engineering
+  // terminology removed by CRM vNext Prompt 2 (§16) — the underlying
+  // immutable call-history feature is unchanged and still covered by the
+  // "Call history" assertion plus the append-only event log this
+  // component renders (crm-calls-f013.test.mjs's API-level sibling tests
+  // in services/api/tests/ cover the actual immutability guarantee).
+  for (const phrase of ["Schedule Call", "Log completed Call", "Edit scheduled Call", "Dial", "Start", "Complete", "Cancel", "Call history"]) assert.match(source, new RegExp(phrase));
   assert.match(source, /\/api\/crm\/calls/);
   assert.match(source, /outcomeCode/);
   assert.match(source, /expectedUpdatedAt/);
@@ -83,7 +89,12 @@ test("F013 Web: responsive Call workspace is globally imported with mobile-safe 
   assert.match(layout, /crm-calls\.css/);
   assert.match(css, /@media\(max-width:780px\)/);
   assert.match(css, /min-height:44px/);
-  assert.match(css, /prefers-reduced-motion/);
+  // The hand-rolled dialog backdrop's own prefers-reduced-motion rule was
+  // removed with the backdrop itself (Prompt 6 CRM-VNEXT-072 migration onto
+  // the shared Dialog primitive) — reduced-motion is now handled once, by
+  // dialog.module.css, for every dialog including Calls'.
+  const dialogCss = read("apps/web/src/shared/design/dialog.module.css");
+  assert.match(dialogCss, /prefers-reduced-motion/);
 });
 
 test("F013 docs/register preserve the canonical Calls identity and verified production-ready status", () => {

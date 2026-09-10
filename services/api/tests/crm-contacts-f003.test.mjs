@@ -159,6 +159,78 @@ function lifecycleClient({ linked = true, accountStatus = "active", accountVisib
   };
 }
 
+function duplicateBlockingContactClient() {
+  const calls = [];
+  const inserted = [];
+  return {
+    calls,
+    inserted,
+    async query(sql, values = []) {
+      calls.push({ sql, values });
+      if (sql.includes("SELECT * FROM tenant.crm_duplicate_rules")) {
+        return { rows: [{ signal: "email", method: "exact", weight: 70, fuzzy_threshold: null, enabled: true, blocking: true }] };
+      }
+      if (sql.includes("SELECT max(updated_at) AS at FROM tenant.crm_duplicate_rules")) {
+        return { rows: [{ at: new Date("2026-01-01") }] };
+      }
+      if (sql.includes("SELECT DISTINCT unnest(matched_contact_ids)")) {
+        return { rows: [] };
+      }
+      if (/FROM tenant\.contacts contact\s/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: "88888888-8888-4888-8888-888888888888",
+              first_name: "Priya",
+              last_name: "Shah",
+              email: "priya@example.com",
+              match_score: 70,
+              matched_signals: ["email"],
+              classification: "exact",
+            },
+          ],
+        };
+      }
+      if (sql.includes("INSERT INTO tenant.contacts")) {
+        return { rows: [{ id: "77777777-7777-4777-8777-777777777777" }] };
+      }
+      if (sql.includes("INSERT INTO tenant.crm_contact_duplicate_overrides")) {
+        inserted.push(values);
+        return { rows: [{ id: "override-1" }] };
+      }
+      if (/^SELECT.*FROM tenant\.contacts contact.*WHERE contact\.organization_id = \$1\s+AND contact\.id = \$2/s.test(sql)) {
+        return { rows: [{ id: "77777777-7777-4777-8777-777777777777", first_name: "Priya", last_name: "Shah", email: "priya@example.com", status: "active", party_id: null }] };
+      }
+      if (sql.includes("AS opportunities") && sql.includes("AS activities")) {
+        return { rows: [{ opportunities: 0, activities: 0 }] };
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+test("F003/F008: creating a Contact that exactly matches an existing email is blocked without an override reason", async () => {
+  const client = duplicateBlockingContactClient();
+  await assert.rejects(
+    () => createCrmContact(client, context, { firstName: "Priya", lastName: "Shah", email: "priya@example.com" }),
+    (error) => error.code === "CRM_CONTACT_DUPLICATE_EXACT" && error.status === 409,
+  );
+  assert.equal(client.calls.some((c) => c.sql.includes("INSERT INTO tenant.contacts")), false);
+});
+
+test("F003/F008: an authorized caller with a valid reason may create the exact duplicate Contact, recorded as immutable evidence", async () => {
+  const client = duplicateBlockingContactClient();
+  const overrideContext = { ...context, permissions: [...context.permissions, "crm.accounts.manage"] };
+  await createCrmContact(client, overrideContext, {
+    firstName: "Priya",
+    lastName: "Shah",
+    email: "priya@example.com",
+    duplicateOverrideReason: "Confirmed two different people who happen to share an email alias",
+  });
+  assert.equal(client.inserted.length, 1);
+  assert.equal(client.inserted[0][3], "create");
+});
+
 test("F003: standalone Contact creation persists without fabricating an Account", async () => {
   const client = lifecycleClient({ linked: false });
   const created = await createCrmContact(client, context, { firstName: " Priya ", email: " PRIYA@EXAMPLE.COM " });
@@ -306,6 +378,32 @@ test("F003 SEC: a restricted viewer never sees email/phone/mobile on list or det
   assert.equal(detail.sensitiveDataRestricted, true);
 });
 
+test("F003 SEC: normalizedEmail/normalizedMobile (GENERATED columns, migration 091) are redacted for a restricted viewer too — regression found by erp-crm-sensitive-projection.spec.ts", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes("FROM tenant.contacts contact")) {
+        return {
+          rows: [
+            {
+              ...contactRow,
+              normalized_email: "rahul@acme.example",
+              normalized_mobile: "919999999999",
+            },
+          ],
+        };
+      }
+      if (sql.includes("AS opportunities") && sql.includes("AS activities")) {
+        return { rows: [{ opportunities: 0, activities: 0 }] };
+      }
+      return { rows: [] };
+    },
+  };
+  const detail = await getCrmContactForCaller(client, restrictedContext, contactId);
+  assert.equal(detail.normalizedEmail, undefined);
+  assert.equal(detail.normalizedMobile, undefined);
+  assert.equal(detail.sensitiveDataRestricted, true);
+});
+
 test("F003 SEC: an authorized viewer still sees email/phone/mobile", async () => {
   const client = {
     async query(sql) {
@@ -354,4 +452,92 @@ test("F003: fabricated owner and scope assignments are rejected server-side", as
       (error) => error.status === 403 && /FORBIDDEN/.test(error.code),
     );
   }
+});
+
+// --- CRM-VNEXT-036: preferred language / IANA timezone -------------------
+
+test("F003 language/timezone: a valid BCP-47 language tag and IANA zone are accepted", () => {
+  const errors = validateContactInput({
+    firstName: "Priya",
+    email: "priya@example.com",
+    preferredLanguage: "en-IN",
+    timezone: "Asia/Kolkata",
+  });
+  assert.equal(errors.length, 0);
+});
+
+test("F003 language/timezone: a bogus language tag and a non-IANA timezone are both rejected with actionable codes", () => {
+  const errors = validateContactInput({
+    firstName: "Priya",
+    email: "priya@example.com",
+    // Underscore instead of hyphen (a common ambiguous-locale-string
+    // mistake the dossier explicitly calls out) is not valid BCP-47 syntax.
+    preferredLanguage: "en_US",
+    timezone: "Mars/Olympus_Mons",
+  });
+  assert.ok(errors.some((e) => e.code === "CRM_CONTACT_LANGUAGE_INVALID"));
+  assert.ok(errors.some((e) => e.code === "CRM_CONTACT_TIMEZONE_INVALID"));
+});
+
+test("F003 language/timezone: an offset-style string ('GMT+5:30') is rejected — only canonical IANA identifiers are accepted", () => {
+  const errors = validateContactInput({
+    firstName: "Priya",
+    email: "priya@example.com",
+    timezone: "GMT+5:30",
+  });
+  assert.ok(errors.some((e) => e.code === "CRM_CONTACT_TIMEZONE_INVALID"));
+});
+
+test("F003 language/timezone: empty values are valid (both fields are optional)", () => {
+  const errors = validateContactInput({
+    firstName: "Priya",
+    email: "priya@example.com",
+    preferredLanguage: "",
+    timezone: "",
+  });
+  assert.equal(errors.length, 0);
+});
+
+test("F003 language/timezone: create persists preferred language and timezone", async () => {
+  const calls = [];
+  const client = {
+    async query(sql, values) {
+      calls.push({ sql, values });
+      if (sql.includes("INSERT INTO tenant.contacts")) return { rows: [{ id: contactId }] };
+      if (sql.includes("FROM tenant.contacts contact")) {
+        return {
+          rows: [
+            {
+              ...contactRow,
+              preferred_language: "en-IN",
+              timezone: "Asia/Kolkata",
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    },
+  };
+  const created = await createCrmContact(client, context, {
+    firstName: "Priya",
+    email: "priya@example.com",
+    preferredLanguage: "en-IN",
+    timezone: "Asia/Kolkata",
+  });
+  assert.equal(created.preferredLanguage, "en-IN");
+  assert.equal(created.timezone, "Asia/Kolkata");
+  const insert = calls.find((call) => call.sql.includes("INSERT INTO tenant.contacts"));
+  assert.ok(insert.values.includes("en-IN"));
+  assert.ok(insert.values.includes("Asia/Kolkata"));
+});
+
+test("F003 language/timezone: update can change only the timezone without touching other fields", async () => {
+  const client = lifecycleClient();
+  const updated = await updateCrmContact(client, context, contactId, {
+    timezone: "America/New_York",
+  });
+  const update = client.calls.find((call) => call.sql.includes("UPDATE tenant.contacts"));
+  assert.match(update.sql, /timezone = /);
+  assert.doesNotMatch(update.sql, /preferred_language = /);
+  assert.equal(updated.email, contactRow.email, "unrelated fields are untouched");
 });

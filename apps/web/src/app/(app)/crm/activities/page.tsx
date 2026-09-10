@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { getCrmOptions, getCrmRecord, listCrmCalls, listCrmMeetings, listCrmRecords } from "@vercentlabs/api";
+import { getCommunicationsDashboard, getCrmOptions, getCrmRecord, listCrmCalls, listCrmFollowUps, listCrmMeetings, listCrmRecords, listCrmTasks, listMyTaskTeams } from "@vercentlabs/api";
 
 import { PageHeader, StatusBadge, Tabs } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
@@ -9,12 +9,15 @@ import { crmContext, crmDefinitions } from "@/modules/crm";
 import CrmResourceManager from "@/modules/crm/components/resource-manager";
 import CallsWorkspace from "@/modules/crm/components/calls-workspace";
 import MeetingsWorkspace from "@/modules/crm/components/meetings-workspace";
+import FollowUpsWorkspace from "@/modules/crm/components/follow-ups-workspace";
+import InboxWorkspace from "@/modules/crm/components/inbox-workspace";
+import TasksWorkspace from "@/modules/crm/components/tasks-workspace";
 
 export const metadata = { title: "CRM activities" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
-const TYPES = ["all", "call", "meeting", "task", "email", "whatsapp", "sms"] as const;
+const TYPES = ["all", "call", "meeting", "task", "follow_up", "email", "whatsapp", "sms"] as const;
 const DUE = ["all", "today", "overdue", "upcoming"] as const;
 
 type ActivityType = (typeof TYPES)[number];
@@ -56,6 +59,13 @@ const title = (value: string) => value.replace(/^./, (character) => character.to
 const TYPE_LABELS: Partial<Record<ActivityType, string>> = {
   whatsapp: "WhatsApp",
   sms: "SMS",
+  email: "Team inbox",
+  // Deliberately not "Follow-ups" — /follow-ups already owns that name for
+  // the pre-existing AI-recommended lead-nurture queue (a distinct
+  // capability: system-ranked next actions, not user-scheduled ones). This
+  // tab is a record-scoped, user-created scheduling primitive with its own
+  // reason/channel/reminders/escalation — see CRM-VNEXT-128.
+  follow_up: "Scheduled Follow-ups",
 };
 
 function typeLabel(type: ActivityType) {
@@ -75,6 +85,8 @@ export default async function CrmActivitiesPage({
     create?: string;
     edit?: string;
     direction?: string;
+    view?: string;
+    teamId?: string;
   }>;
 }) {
   const [session, query] = await Promise.all([requireWorkspace(), searchParams]);
@@ -92,6 +104,121 @@ export default async function CrmActivitiesPage({
   const editId = String(query.edit || "").trim().slice(0, 80);
   const canManage = hasPermission(session, PERMISSIONS.crmActivitiesManage);
   const context = crmContext(session);
+
+  // F018 closeout (§33) — the shared Team inbox lives here as the
+  // canonical Email tab (the dossier's own wording), not a separate nav
+  // destination or generic-resource fallback. crm_email_threads is a
+  // fundamentally different shape (threads, not crm_activities rows), so
+  // it bypasses the shared records/pagination fetch below entirely.
+  if (activityType === "email") {
+    const canManageInbox = hasPermission(session, PERMISSIONS.crmCommunicationsManage);
+    const dashboard = canManageInbox
+      ? await tenantTransaction(context.organizationId, (client) => getCommunicationsDashboard(client, context))
+      : null;
+    return (
+      <div className="crm-activity-page">
+        <PageHeader
+          eyebrow="CRM · Daily work"
+          title="Activities"
+          description="One work queue for calls, meetings, tasks, follow-ups and the shared team inbox."
+          context={dashboard ? <StatusBadge tone="neutral">{Number(dashboard.summary.open_threads || 0)} open</StatusBadge> : null}
+        />
+        <Tabs
+          label="Activity type"
+          items={TYPES.map((type) => ({
+            href: activityUrl({ activityType: type, due, search, status, direction: type === "call" ? direction : "all" }),
+            label: typeLabel(type),
+            current: activityType === type,
+          }))}
+        />
+        {dashboard ? (
+          <InboxWorkspace
+            currentUserId={session.userId}
+            inboxes={JSON.parse(JSON.stringify(dashboard.inboxes))}
+            initialThreads={JSON.parse(JSON.stringify(dashboard.threads))}
+          />
+        ) : (
+          <p>You do not have permission to view the team inbox.</p>
+        )}
+      </div>
+    );
+  }
+
+  // F015 closeout — the Tasks workspace is the canonical Experience-Kernel
+  // surface for My Tasks/Team-Queue/claim/release/recurrence/dependencies,
+  // not the generic resource manager the fallback branch below still uses
+  // for every OTHER activity type. Needs its own data shape (myTeams,
+  // view/teamId-scoped listing) so it bypasses the shared `result` fetch.
+  if (activityType === "task") {
+    const view = ["mine", "team", "all"].includes(String(query.view || "")) ? (query.view as "mine" | "team" | "all") : "mine";
+    const teamId = String(query.teamId || "").trim();
+    const taskData = await tenantTransaction(context.organizationId, async (client) => ({
+      records: await listCrmTasks(client, context, {
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        search,
+        status,
+        due,
+        mine: view === "mine",
+        teamId: view === "team" ? teamId : undefined,
+      }),
+      options: await getCrmOptions(client, context),
+      myTeams: await listMyTaskTeams(client, context),
+    }));
+    const totalTaskPages = Math.max(1, Math.ceil(taskData.records.total / PAGE_SIZE));
+    if (page > totalTaskPages) {
+      const redirectQuery = new URLSearchParams({ activityType: "task" });
+      if (view !== "mine") redirectQuery.set("view", view);
+      if (view === "team" && teamId) redirectQuery.set("teamId", teamId);
+      if (status !== "all") redirectQuery.set("status", status);
+      if (due !== "all") redirectQuery.set("due", due);
+      if (search) redirectQuery.set("search", search);
+      if (totalTaskPages > 1) redirectQuery.set("page", String(totalTaskPages));
+      redirect(`/crm/activities?${redirectQuery.toString()}`);
+    }
+    return (
+      <div className="crm-activity-page">
+        <PageHeader
+          eyebrow="CRM · Daily work"
+          title="Activities"
+          description="One work queue for calls, meetings, tasks, follow-ups and the shared team inbox."
+          context={<StatusBadge tone="neutral">{taskData.records.total} matching</StatusBadge>}
+        />
+        <Tabs
+          label="Activity type"
+          items={TYPES.map((type) => ({
+            href: activityUrl({ activityType: type, due, search, status, direction: type === "call" ? direction : "all" }),
+            label: typeLabel(type),
+            current: activityType === type,
+          }))}
+        />
+        <Tabs
+          label="Activity urgency"
+          items={DUE.map((value) => ({
+            href: activityUrl({ activityType, due: value, search, status, direction }),
+            label: value === "all" ? "Any date" : title(value),
+            current: due === value,
+          }))}
+        />
+        <TasksWorkspace
+          rows={JSON.parse(JSON.stringify(taskData.records.rows))}
+          total={taskData.records.total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          search={search}
+          status={status}
+          due={due}
+          view={view}
+          teamId={teamId}
+          options={JSON.parse(JSON.stringify(taskData.options))}
+          myTeams={JSON.parse(JSON.stringify(taskData.myTeams))}
+          currentUserId={session.userId}
+          canManage={canManage}
+          startCreating={query.create === "1" && canManage}
+        />
+      </div>
+    );
+  }
 
   const result = await tenantTransaction(context.organizationId, async (client) => ({
     records: activityType === "call"
@@ -111,17 +238,25 @@ export default async function CrmActivitiesPage({
             status,
             due,
           })
-        : await listCrmRecords(client, context, "activities", {
-            limit: PAGE_SIZE,
-            offset: (page - 1) * PAGE_SIZE,
-            search,
-            status,
-            activityType,
-            due,
-          }),
+        : activityType === "follow_up"
+          ? await listCrmFollowUps(client, context, {
+              limit: PAGE_SIZE,
+              offset: (page - 1) * PAGE_SIZE,
+              search,
+              status,
+              due,
+            })
+          : await listCrmRecords(client, context, "activities", {
+              limit: PAGE_SIZE,
+              offset: (page - 1) * PAGE_SIZE,
+              search,
+              status,
+              activityType,
+              due,
+            }),
     options: await getCrmOptions(client, context),
     editingRecord:
-      !["call", "meeting"].includes(activityType) && editId && canManage
+      !["call", "meeting", "follow_up"].includes(activityType) && editId && canManage
         ? await getCrmRecord(client, context, "activities", editId).catch(() => null)
         : null,
   }));
@@ -174,6 +309,19 @@ export default async function CrmActivitiesPage({
         />
       ) : activityType === "meeting" ? (
         <MeetingsWorkspace
+          rows={JSON.parse(JSON.stringify(result.records.rows))}
+          total={result.records.total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          search={search}
+          status={status}
+          due={due}
+          options={JSON.parse(JSON.stringify(result.options))}
+          canManage={canManage}
+          startCreating={query.create === "1" && canManage}
+        />
+      ) : activityType === "follow_up" ? (
+        <FollowUpsWorkspace
           rows={JSON.parse(JSON.stringify(result.records.rows))}
           total={result.records.total}
           page={page}

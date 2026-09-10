@@ -85,13 +85,21 @@ export async function PATCH(
     const input = contactInput(await readJson(request));
     const reactivate = input.action === "reactivate";
     if ("action" in input) delete input.action;
+    const expectedUpdatedAt = String(input.expectedUpdatedAt || "").trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Contact before changing it.",
+        "CRM_CONTACT_VERSION_REQUIRED",
+      );
+    delete input.expectedUpdatedAt;
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
         const before = await getCrmContact(client, context, id);
         const updated = reactivate
-          ? await reactivateCrmContact(client, context, id)
-          : await updateCrmContact(client, context, id, input);
+          ? await reactivateCrmContact(client, context, id, { expectedUpdatedAt, requireVersion: true })
+          : await updateCrmContact(client, context, id, input, { expectedUpdatedAt, requireVersion: true });
         if (!reactivate || before.status !== "active") {
           await audit({
             organizationId: context.organizationId,
@@ -126,11 +134,23 @@ export async function DELETE(
   try {
     const { context } = await contextForWrite(request);
     const { id } = await route.params;
+    const expectedUpdatedAt = String(
+      new URL(request.url).searchParams.get("expectedUpdatedAt") || "",
+    ).trim();
+    if (!expectedUpdatedAt)
+      throw new HttpError(
+        400,
+        "Refresh this Contact before archiving it.",
+        "CRM_CONTACT_VERSION_REQUIRED",
+      );
     const record = await tenantTransaction(
       context.organizationId,
       async (client) => {
         const before = await getCrmContact(client, context, id);
-        const archived = await archiveCrmContact(client, context, id);
+        const archived = await archiveCrmContact(client, context, id, {
+          expectedUpdatedAt,
+          requireVersion: true,
+        });
         if (before.status !== "inactive") {
           await audit({
             organizationId: context.organizationId,

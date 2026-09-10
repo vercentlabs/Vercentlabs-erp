@@ -56,9 +56,14 @@ test("http: HttpError carries an optional machine-readable code, and errorRespon
   const httpSource = read("apps/web/src/core/http.ts");
   assert.match(httpSource, /public readonly code\?:\s*string/);
   assert.match(httpSource, /export function errorResponse[\s\S]*?failWithCode\(error\)/);
+  // Integrity closeout (Prompts 1-5): failWithCode was widened to also merge
+  // an optional HttpError.details payload (e.g. CRM_OPPORTUNITY_STAGE_EXIT_
+  // BLOCKED's structured missingRequirements list) into the response body
+  // alongside code — the code-forwarding contract itself is unchanged.
+  assert.match(httpSource, /public readonly details\?: Record<string, unknown>/);
   assert.match(
     httpSource,
-    /export function failWithCode[\s\S]*?error\.code \? \{ code: error\.code \} : undefined/,
+    /export function failWithCode[\s\S]*?error\.code \|\| error\.details/,
   );
 });
 

@@ -39,13 +39,10 @@ export async function GET() {
           listLeadAssigneeAvailability(client, context),
         ]),
     );
-    return ok({
-      policies: policies.filter((policy) =>
-        ["fixed", "round_robin"].includes(String(policy.mode)),
-      ),
-      fallback,
-      availability,
-    });
+    // F005 Prompt 4: territory/workload modes are now governed CRM-CAP-002
+    // configuration (previously write-blocked and hidden here) — every
+    // active mode is returned.
+    return ok({ policies, fallback, availability });
   } catch (error) {
     try {
       rethrowCrmError(error);

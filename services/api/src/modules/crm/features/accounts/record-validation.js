@@ -11,6 +11,7 @@ const TEXT_LIMITS = Object.freeze({
   email: 254,
   gstin: 15,
   pan: 10,
+  msmeNumber: 30,
   addressLine1: 200,
   addressLine2: 160,
   city: 120,

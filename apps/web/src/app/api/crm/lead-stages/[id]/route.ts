@@ -1,4 +1,4 @@
-import { getLeadStage, setLeadStageActive, updateLeadStage } from "@vercentlabs/api";
+import { deactivateLeadStageWithMigration, getLeadStage, reactivateLeadStage, updateLeadStage } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
@@ -35,17 +35,33 @@ export async function PATCH(request: Request, route: Route) {
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const { id } = await route.params;
     assertCrmIdentifier(id);
-    const input = (await readJson(request)) as Record<string, unknown>;
+    const input = (await readJson(request)) as Record<string, unknown> & { migrateToStageId?: string };
     const action = String(input.action || "update");
     delete input.action;
+    const migrateToStageId = typeof input.migrateToStageId === "string" ? input.migrateToStageId : undefined;
+    delete input.migrateToStageId;
     const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
+    const outcome = await tenantTransaction(context.organizationId, async (client) => {
       const before = await getLeadStage(client, context, id);
-      const updated = action === "deactivate"
-        ? await setLeadStageActive(client, context, id, false)
-        : action === "reactivate"
-          ? await setLeadStageActive(client, context, id, true)
-          : await updateLeadStage(client, context, id, input);
+      if (action === "deactivate") {
+        const result = await deactivateLeadStageWithMigration(client, context, id, { migrateToStageId });
+        if (!result.deactivated) return { record: result.stage, migrationJob: result.migrationJob };
+        await audit({
+          organizationId: context.organizationId,
+          actorUserId: context.userId,
+          eventType: "crm.lead_stage.deactivated",
+          entityType: "lead_stage",
+          entityId: id,
+          beforeData: { code: before.code, name: before.name, status: before.status, sortOrder: before.sortOrder },
+          afterData: { code: result.stage.code, name: result.stage.name, status: result.stage.status, sortOrder: result.stage.sortOrder },
+          request,
+          client,
+        });
+        return { record: result.stage };
+      }
+      const updated = action === "reactivate"
+        ? await reactivateLeadStage(client, context, id)
+        : await updateLeadStage(client, context, id, input);
       await audit({
         organizationId: context.organizationId,
         actorUserId: context.userId,
@@ -57,9 +73,19 @@ export async function PATCH(request: Request, route: Route) {
         request,
         client,
       });
-      return updated;
+      return { record: updated };
     });
-    return ok({ message: action === "deactivate" ? "Stage deactivated; existing Leads keep it." : action === "reactivate" ? "Stage reactivated." : "Stage updated.", record });
+    if (outcome.migrationJob) {
+      return ok({
+        message: `${outcome.migrationJob.resultManifest?.requested ?? 0} active Lead(s) are migrating to the replacement stage before this stage can be deactivated.`,
+        record: outcome.record,
+        migrationJob: outcome.migrationJob,
+      });
+    }
+    return ok({
+      message: action === "deactivate" ? "Stage deactivated." : action === "reactivate" ? "Stage reactivated." : "Stage updated.",
+      record: outcome.record,
+    });
   } catch (error) {
     return crmErrorResponse(error);
   }

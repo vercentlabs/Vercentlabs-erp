@@ -7,11 +7,15 @@ import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
 import {
   ActionButton,
+  cx,
+  Dialog,
   EnterpriseDataGrid,
+  FormField,
   StatePanel,
   StatusBadge,
   type DataGridColumn,
 } from "@/shared/design";
+import styles from "./sales-stages-workspace.module.css";
 
 type Pipeline = {
   id: string;
@@ -72,6 +76,8 @@ export default function SalesStagesWorkspace({
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
   const [stageTypeValue, setStageTypeValue] = useState<Stage["stageType"]>("open");
+  const [migrating, setMigrating] = useState<{ stage: Stage; affectedCount: number } | null>(null);
+  const [migrationJob, setMigrationJob] = useState<{ id: string; status: string } | null>(null);
 
   const selectedPipeline = pipelines.find((pipeline) => pipeline.id === selectedPipelineId) || null;
   const activeStages = useMemo(
@@ -128,17 +134,41 @@ export default function SalesStagesWorkspace({
   }
 
   async function setActive(stage: Stage, active: boolean) {
-    if (!active && !confirm(`Deactivate ${stage.name}? Open Opportunities must be moved first.`)) return;
+    if (!active && !confirm(`Deactivate ${stage.name}?`)) return;
     setPending(stage.id);
     setMessage("");
-    const result = await requestJson(`/api/crm/sales-stages/${stage.id}`, {
+    const result = await requestJson<{ code?: string; affectedCount?: number }>(`/api/crm/sales-stages/${stage.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: active ? "reactivate" : "deactivate", expectedUpdatedAt: stage.updatedAt }),
     });
     setPending("");
+    if (!result.ok && result.code === "CRM_SALES_STAGE_OPEN_OPPORTUNITIES") {
+      setMigrating({ stage, affectedCount: Number(result.affectedCount || stage.openOpportunityCount) });
+      return;
+    }
     setMessage(result.message || (result.ok ? "Sales stage updated." : "Sales stage could not be updated."));
     if (result.ok) router.refresh();
+  }
+
+  async function migrateAndDeactivate(targetStageId: string) {
+    if (!migrating) return;
+    setPending(migrating.stage.id);
+    setMessage("");
+    const result = await requestJson<{ migrationJob?: { id: string; status: string } }>(`/api/crm/sales-stages/${migrating.stage.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "deactivate", expectedUpdatedAt: migrating.stage.updatedAt, migrateToStageId: targetStageId }),
+    });
+    setPending("");
+    if (!result.ok) {
+      setMessage(result.message || "Migration could not be started.");
+      return;
+    }
+    setMessage(result.message || "Migration started.");
+    if (result.migrationJob) setMigrationJob(result.migrationJob);
+    setMigrating(null);
+    router.refresh();
   }
 
   async function move(stage: Stage, direction: -1 | 1) {
@@ -182,7 +212,7 @@ export default function SalesStagesWorkspace({
         <div>
           <p className="eyebrow">CRM · Pipeline setup</p>
           <h1>Sales stages</h1>
-          <p>Define one ordered, governed stage catalogue per pipeline. Stage defaults feed F010 movement and F011 probability without rewriting existing deals retroactively.</p>
+          <p>Define one ordered, governed stage catalogue per pipeline. Stage defaults feed pipeline movement and probability without rewriting existing deals retroactively.</p>
         </div>
         <ActionButton tone="primary" type="button" disabled={!selectedPipeline || selectedPipeline.status !== "active"} onClick={() => openEditor(null)}>
           <AppIcon name="modules" size={16} /> Add stage
@@ -346,7 +376,7 @@ export default function SalesStagesWorkspace({
                 rowKey={(stage) => stage.id}
                 columns={columns}
                 renderMobileCard={(stage, index) => (
-                  <article className="crm-sales-stages-card">
+                  <article className={cx("crm-sales-stages-card", styles.card)}>
                     <header>
                       <span className="crm-sales-stages-order">{String(index + 1).padStart(2, "0")}</span>
                       <StatusBadge
@@ -368,7 +398,7 @@ export default function SalesStagesWorkspace({
                         {stage.staleAfterDays ? ` · stale after ${stage.staleAfterDays}d` : ""}
                       </small>
                     </div>
-                    <dl className="crm-sales-stages-card__metrics">
+                    <dl className={cx("crm-sales-stages-card__metrics", styles.metrics)}>
                       <div>
                         <dt>Probability</dt>
                         <dd>{Number(stage.probability).toFixed(Number(stage.probability) % 1 ? 2 : 0)}%</dd>
@@ -399,7 +429,7 @@ export default function SalesStagesWorkspace({
 
           <aside className="crm-sales-stages-note">
             <AppIcon name="audit" size={18} />
-            <p><strong>Stage configuration is prospective.</strong> Editing a stage default does not rewrite an existing Opportunity&apos;s stored probability. F010 adopts the destination stage default on the next real move; F011 remains the governed manual probability override.</p>
+            <p><strong>Stage configuration is prospective.</strong> Editing a stage default does not rewrite an existing Opportunity&apos;s stored probability. The pipeline adopts the destination stage default on the next real move; probability remains the governed manual override.</p>
           </aside>
 
           <section className="crm-sales-stages-history" aria-label="Sales stage configuration history">
@@ -410,7 +440,7 @@ export default function SalesStagesWorkspace({
                 <span>{entry.action.replaceAll("_", " ")} · {entry.changedByName || "System"}</span>
                 <time dateTime={entry.changedAt}>{new Date(entry.changedAt).toLocaleString()}</time>
               </article>
-            )) : <StatePanel title="No F012 stage-configuration history yet." />}
+            )) : <StatePanel title="No stage-configuration history yet." />}
           </section>
         </>
       )}
@@ -425,7 +455,7 @@ export default function SalesStagesWorkspace({
           </header>
           <label><span>Stage name</span><input autoFocus maxLength={120} name="name" required defaultValue={editing?.name || ""} /></label>
           <label><span>Stage type</span><select name="stageType" disabled={Boolean(editing && editing.opportunityCount > 0)} value={stageTypeValue} onChange={(event) => setStageTypeValue(event.target.value as Stage["stageType"])}><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option></select>{editing && editing.opportunityCount > 0 ? <small>Type is locked because this stage already has retained Opportunity history.</small> : null}</label>
-          <label><span>Probability %</span><input min={0} max={100} step="0.01" name="probability" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.probability ?? 0} /><small>{stageTypeValue === "won" ? "Won is fixed at 100%." : stageTypeValue === "lost" ? "Lost is fixed at 0%." : "Default applied when F010 moves an Opportunity into this stage."}</small></label>
+          <label><span>Probability %</span><input min={0} max={100} step="0.01" name="probability" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.probability ?? 0} /><small>{stageTypeValue === "won" ? "Won is fixed at 100%." : stageTypeValue === "lost" ? "Lost is fixed at 0%." : "Default applied when the pipeline moves an Opportunity into this stage."}</small></label>
           <label><span>Forecast category</span><select name="forecastCategory" disabled={stageTypeValue !== "open"} defaultValue={editing?.forecastCategory || "pipeline"}><option value="pipeline">Pipeline</option><option value="best_case">Best case</option><option value="committed">Committed</option><option value="omitted">Omitted</option>{stageTypeValue !== "open" ? <option value="closed">Closed</option> : null}</select></label>
           <label><span>Stale after days</span><input min={1} max={365} name="staleAfterDays" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.staleAfterDays ?? ""} /><small>Optional, 1–365 days. Terminal stages never become stale.</small></label>
           {editing && editing.opportunityCount > 0 ? <p className="crm-sales-stages-form-warning">This stage has retained Opportunity history. Its type cannot change between Open, Won and Lost.</p> : null}
@@ -435,6 +465,63 @@ export default function SalesStagesWorkspace({
           </footer>
         </form>
       </dialog>
+
+      {migrating ? (
+        <StageMigrationDialog
+          stage={migrating.stage}
+          affectedCount={migrating.affectedCount}
+          replacementOptions={activeStages.filter((row) => row.id !== migrating.stage.id && row.pipelineId === migrating.stage.pipelineId)}
+          pending={pending === migrating.stage.id}
+          onCancel={() => setMigrating(null)}
+          onConfirm={(targetStageId) => void migrateAndDeactivate(targetStageId)}
+        />
+      ) : null}
+      {migrationJob ? (
+        <p className="notice" role="status">
+          Migration job {migrationJob.id.slice(0, 8)}… {migrationJob.status}. Leads move in the background — reload this page shortly to confirm the stage deactivated.
+        </p>
+      ) : null}
     </main>
+  );
+}
+
+function StageMigrationDialog({
+  stage,
+  affectedCount,
+  replacementOptions,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  stage: Stage;
+  affectedCount: number;
+  replacementOptions: Stage[];
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (targetStageId: string) => void;
+}) {
+  const [targetStageId, setTargetStageId] = useState("");
+  return (
+    <Dialog
+      title={`Migrate Opportunities off ${stage.name}`}
+      description={`${affectedCount} open Opportunity(ies) are on this stage. Choose a replacement stage — they'll move through the governed stage-change command in the background, and ${stage.name} deactivates once every one has moved.`}
+      onClose={onCancel}
+      busy={pending}
+    >
+      <FormField label="Replacement stage" htmlFor="stage-migration-target">
+        <select id="stage-migration-target" value={targetStageId} onChange={(event) => setTargetStageId(event.target.value)} disabled={pending}>
+          <option value="">Choose a stage…</option>
+          {replacementOptions.map((option) => (
+            <option key={option.id} value={option.id}>{option.name}</option>
+          ))}
+        </select>
+      </FormField>
+      <div className="form-row">
+        <ActionButton type="button" onClick={onCancel} disabled={pending}>Cancel</ActionButton>
+        <ActionButton tone="primary" type="button" disabled={pending || !targetStageId} busy={pending} onClick={() => onConfirm(targetStageId)}>
+          Start migration
+        </ActionButton>
+      </div>
+    </Dialog>
   );
 }

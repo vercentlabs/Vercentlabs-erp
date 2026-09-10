@@ -63,6 +63,42 @@ const ROUTES: RepresentativeRoute[] = [
     name: "crm-generic-resource-list",
     resolvePath: () => "/crm/lost-reasons",
   },
+  // Prompt 6 §23-24 closeout — the new Tasks workspace, Scheduled Follow-
+  // ups workspace, shared Team inbox and Calls/Meetings dialog surfaces
+  // had no responsive/axe coverage of their own; they render through the
+  // same /crm/activities route family the "Go 4" gate above already
+  // exercises for other archetypes, so adding them here reuses the ONE
+  // canonical responsive/axe harness rather than building a second one.
+  {
+    name: "crm-activities-tasks",
+    resolvePath: () => "/crm/activities?type=task",
+  },
+  {
+    name: "crm-activities-followups",
+    resolvePath: () => "/crm/activities?activityType=follow_up",
+  },
+  {
+    name: "crm-activities-team-inbox",
+    resolvePath: () => "/crm/activities?activityType=email",
+  },
+  {
+    name: "crm-activities-calls",
+    resolvePath: () => "/crm/activities?activityType=call",
+  },
+  {
+    name: "crm-activities-meetings",
+    resolvePath: () => "/crm/activities?activityType=meeting",
+  },
+  {
+    name: "crm-account-record-360",
+    resolvePath: () =>
+      `/crm/accounts/${encodeURIComponent(requiredFixture("ERP_E2E_ACCOUNT_ID"))}`,
+  },
+  {
+    name: "crm-contact-record-360",
+    resolvePath: () =>
+      `/crm/contacts/${encodeURIComponent(requiredFixture("ERP_E2E_CONTACT_ID"))}`,
+  },
   {
     name: "crm-contacts",
     resolvePath: () => "/crm/contacts",

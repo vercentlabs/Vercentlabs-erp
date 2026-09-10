@@ -102,6 +102,12 @@ test("public capture: tenant resolution comes only from the form key, never from
   assert.equal(tenantCall.params[0], org);
 });
 
+test("public capture: configured capture owner is resolved through the eligible-assignee helper", () => {
+  const source = readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
+  assert.match(source, /getEligibleLeadAssignee,/);
+  assert.match(source, /getEligibleLeadAssignee\(client, context, form\.owner_user_id/);
+});
+
 test("public capture: a campaign-attributed submission fires campaign.member_responded only when the membership insert actually happens", () => {
   const source = readFileSync(new URL("../src/modules/crm/index.js", import.meta.url), "utf8");
   const start = source.indexOf("export async function captureCrmLead(");

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCrmContact } from "@vercentlabs/api";
+import { getCrmContactForCaller } from "@vercentlabs/api";
 
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -20,10 +20,17 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   let contact: Record<string, unknown>;
   try {
     contact = await tenantTransaction(context.organizationId, (client) =>
-      getCrmContact(client, context, id),
+      getCrmContactForCaller(client, context, id),
     );
   } catch {
     notFound();
   }
-  return <ContactDetailWorkspace contact={JSON.parse(JSON.stringify(contact))} canManage={hasPermission(session, PERMISSIONS.partiesManage)} />;
+  return (
+    <ContactDetailWorkspace
+      contact={JSON.parse(JSON.stringify(contact))}
+      canManage={hasPermission(session, PERMISSIONS.partiesManage)}
+      canManageDuplicates={hasPermission(session, PERMISSIONS.crmAccountsManage)}
+      currentUserId={session.userId}
+    />
+  );
 }

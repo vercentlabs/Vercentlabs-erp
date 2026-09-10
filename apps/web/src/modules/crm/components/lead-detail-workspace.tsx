@@ -3,6 +3,7 @@
 import {
   ActionButton,
   ActionLink,
+  Dialog,
   FormField,
   Record360Archetype,
   SectionHeader,
@@ -15,6 +16,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
+import kernelStyles from "@/shared/design/experience-kernel.module.css";
 import LeadAssigneeCombobox, {
   type LeadAssigneeOption,
 } from "./lead-assignee-combobox";
@@ -224,6 +226,7 @@ export default function CrmLeadDetailWorkspace({
   assignmentHistory,
   qualification,
   lifecycleHistory,
+  dwell,
   provenance,
   consentEvents,
   enrichmentReviews,
@@ -253,6 +256,7 @@ export default function CrmLeadDetailWorkspace({
   assignmentHistory: Row[];
   qualification: Row;
   lifecycleHistory: Row[];
+  dwell?: Row;
   provenance: Row[];
   consentEvents: Row[];
   enrichmentReviews: Row[];
@@ -273,7 +277,11 @@ export default function CrmLeadDetailWorkspace({
   const [tab, setTab] = useState("overview");
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
+  // F017 §CRM-VNEXT-053: version history is fetched on demand per logical
+  // file id, not eagerly for every attachment row.
+  const [attachmentVersions, setAttachmentVersions] = useState<Record<string, Row[] | undefined>>({});
   const [conflictMessage, setConflictMessage] = useState("");
+  const [reasonPrompt, setReasonPrompt] = useState<{ targetCode: string; targetName: string; reasons: Row[] } | null>(null);
   const [changingOwner, setChangingOwner] = useState(false);
   const [enrichmentSelections, setEnrichmentSelections] = useState<Record<string, string[]>>({});
   const customData =
@@ -374,12 +382,22 @@ export default function CrmLeadDetailWorkspace({
           __date: row.createdAt || row.created_at,
           __title: `${String(row.fromStageName || row.from_stage_name || row.fromStageCode || row.from_stage_code)} → ${String(row.toStageName || row.to_stage_name || row.toStageCode || row.to_stage_code)}`,
         })),
+        // F019 closeout: "files" was the one required Lead Timeline event
+        // type this merged feed was still missing — attachments were
+        // already fetched server-side (getLeadDetailData) and rendered on
+        // their own tab, just never folded into this unified view.
+        ...attachments.map((row) => ({
+          ...row,
+          __kind: "File",
+          __date: row.created_at,
+          __title: row.file_name,
+        })),
       ].sort(
         (a, b) =>
           new Date(String(b.__date || 0)).getTime() -
           new Date(String(a.__date || 0)).getTime(),
       ),
-    [activityRows, communicationRows, notes, opportunities, lifecycleHistory],
+    [activityRows, communicationRows, notes, opportunities, lifecycleHistory, attachments],
   );
   async function api(path: string, body: Row, key = "action") {
     setPending(key);
@@ -409,16 +427,52 @@ export default function CrmLeadDetailWorkspace({
       setPending("");
     }
   }
-  async function moveStatus(nextStatus: string) {
-    await api(
-      `/api/crm/leads/${id}/stage`,
-      {
-        stageCode: nextStatus,
-        source: "manual",
-        expectedUpdatedAt: String(lead.updatedAt || ""),
-      },
-      "status",
-    );
+  async function moveStatus(nextStatus: string, reasonCode?: string) {
+    setPending("status");
+    setMessage("");
+    try {
+      const result = await requestJson<Row>(`/api/crm/leads/${id}/stage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stageCode: nextStatus,
+          source: "manual",
+          expectedUpdatedAt: String(lead.updatedAt || ""),
+          reasonCode,
+        }),
+      });
+      if (!result.ok) {
+        const code = String((result as Record<string, unknown>).code || "");
+        if (code === "CRM_LEAD_STAGE_REASON_REQUIRED") {
+          setPending("");
+          const targetStage = lifecycleStages.find((stage) => stage.code === nextStatus);
+          if (targetStage) {
+            const reasonsResult = await requestJson<{ records?: Row[] }>("/api/crm/lead-stages/transition-reasons");
+            const allReasons = Array.isArray(reasonsResult.records) ? reasonsResult.records : [];
+            const applicable = allReasons.filter((row) => {
+              if (row.status !== "active") return false;
+              if (row.scopeType === "any") return true;
+              if (row.scopeType === "destination") return row.toStageId === targetStage.id;
+              return row.fromStageId === currentStage?.id && row.toStageId === targetStage.id;
+            });
+            setReasonPrompt({ targetCode: nextStatus, targetName: String(targetStage.name), reasons: applicable });
+          }
+          return;
+        }
+        if (result.status === 409 && (code === "CRM_STALE_WRITE" || code.includes("VERSION") || code.includes("CONFLICT"))) {
+          setConflictMessage("This Lead changed after you opened it. Review the latest Lead before retrying your action.");
+          return;
+        }
+        throw new Error(result.message || "Request failed.");
+      }
+      setConflictMessage("");
+      setMessage(result.message || "Completed.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Request failed.");
+    } finally {
+      setPending("");
+    }
   }
   async function archiveLead() {
     if (
@@ -539,6 +593,7 @@ export default function CrmLeadDetailWorkspace({
       {
         body: String(form.get("body") || ""),
         isPinned: form.get("isPinned") === "on",
+        visibility: form.get("visibility") === "private" ? "private" : "shared",
       },
       "note",
     );
@@ -630,6 +685,35 @@ export default function CrmLeadDetailWorkspace({
       setPending("");
     }
   }
+  // F017 §CRM-VNEXT-053: replacing a file reuses the SAME logical identity
+  // (replacesLogicalId) rather than creating an unrelated attachment — the
+  // prior version is preserved, never overwritten.
+  async function replaceAttachment(logicalId: string, file: File) {
+    setPending(`attachment-replace-${logicalId}`);
+    setMessage("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("replacesLogicalId", logicalId);
+      const result = await requestJson<Row>(`/api/crm/leads/${id}/attachments`, { method: "POST", body: form });
+      if (!result.ok) throw new Error(result.message || "Replacement file could not be uploaded.");
+      setMessage(result.message || "Attachment replaced.");
+      setAttachmentVersions((prev) => ({ ...prev, [logicalId]: undefined }));
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Replacement file could not be uploaded.");
+    } finally {
+      setPending("");
+    }
+  }
+  async function toggleAttachmentVersions(logicalId: string) {
+    if (attachmentVersions[logicalId] !== undefined) {
+      setAttachmentVersions((prev) => ({ ...prev, [logicalId]: undefined }));
+      return;
+    }
+    const result = await requestJson<{ versions?: Row[] }>(`/api/crm/leads/${id}/attachments/${logicalId}/versions`);
+    setAttachmentVersions((prev) => ({ ...prev, [logicalId]: result.ok ? result.versions || [] : [] }));
+  }
   async function saveTags() {
     await api(`/api/crm/leads/${id}/tags`, { tagIds: [...tagIds] }, "tags");
   }
@@ -715,6 +799,7 @@ export default function CrmLeadDetailWorkspace({
             <span>
               {currentStage?.name || nice(lead.status)}
               {currentStage?.status === "inactive" ? " · Inactive" : ""}
+              {dwell?.status === "breached" ? " · Dwell SLA breached" : dwell?.status === "warning" ? " · Dwell SLA warning" : ""}
             </span>
             <span>
               Score {String(lead.score || 0)} ·{" "}
@@ -822,6 +907,45 @@ export default function CrmLeadDetailWorkspace({
           </select>
           <small>Lifecycle and qualification are governed separately.</small>
         </section>
+      ) : null}
+      {reasonPrompt ? (
+        <Dialog
+          title={`Move to ${reasonPrompt.targetName}`}
+          description="This transition requires a reason."
+          onClose={() => setReasonPrompt(null)}
+          canDismiss={pending !== "status"}
+          busy={pending === "status"}
+        >
+          <form
+            className="crm-suite-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              const reasonCode = String(form.get("reasonCode") || "");
+              setReasonPrompt(null);
+              void moveStatus(reasonPrompt.targetCode, reasonCode);
+            }}
+          >
+            <FormField label="Reason" htmlFor="lead-stage-reason-code" required>
+              <select id="lead-stage-reason-code" name="reasonCode" required autoFocus>
+                <option value="">Select a reason</option>
+                {reasonPrompt.reasons.map((reason) => (
+                  <option key={String(reason.id)} value={String(reason.code)}>
+                    {String(reason.label)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <footer>
+              <ActionButton type="button" onClick={() => setReasonPrompt(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton tone="primary" type="submit" disabled={!reasonPrompt.reasons.length}>
+                Move Lead
+              </ActionButton>
+            </footer>
+          </form>
+        </Dialog>
       ) : null}
       {sensitiveDataRestricted ? (
         <div className="notice" role="status">
@@ -1542,7 +1666,10 @@ export default function CrmLeadDetailWorkspace({
                 {notes.map((row) => (
                   <article key={String(row.id)}>
                     <div>
-                      <strong>{row.is_pinned ? "Pinned note" : "Note"}</strong>
+                      <strong>
+                        {row.is_pinned ? "Pinned note" : "Note"}
+                        {row.visibility === "private" ? " · Private" : ""}
+                      </strong>
                       <p>{String(row.body)}</p>
                       <small>
                         {String(row.author_name || "Team member")} ·{" "}
@@ -1565,6 +1692,10 @@ export default function CrmLeadDetailWorkspace({
                     <input name="isPinned" type="checkbox" />
                     <span>Pin this note</span>
                   </label>
+                  <label className="crm-suite-check">
+                    <input name="visibility" type="checkbox" value="private" />
+                    <span>Private — visible only to me and managers</span>
+                  </label>
                   <ActionButton
                     type="submit"
                     tone="primary"
@@ -1577,39 +1708,91 @@ export default function CrmLeadDetailWorkspace({
               <div className="crm-file-divider" />
               <h2>Attachments</h2>
               <div className="crm-attachment-list">
-                {attachments.map((attachment) => (
-                  <div key={String(attachment.id)}>
-                    <span>
-                      <a
-                        href={`/api/crm/leads/${id}/attachments/${String(attachment.id)}`}
-                      >
-                        {String(attachment.file_name || "Attachment")}
-                      </a>
-                      <small>
-                        {String(attachment.mime_type || "file")} ·{" "}
-                        {Math.max(
-                          1,
-                          Math.round(num(attachment.size_bytes) / 1024),
-                        )}{" "}
-                        KB
-                      </small>
-                    </span>
-                    {canManage ? (
+                {attachments.map((attachment) => {
+                  const logicalId = String(
+                    attachment.logical_id || attachment.logicalId || attachment.id,
+                  );
+                  const version = Number(attachment.version || 1);
+                  const versions = attachmentVersions[logicalId];
+                  return (
+                    <div key={String(attachment.id)}>
+                      <span>
+                        <a
+                          href={`/api/crm/leads/${id}/attachments/${String(attachment.id)}`}
+                        >
+                          {String(attachment.file_name || "Attachment")}
+                        </a>
+                        <small>
+                          {String(attachment.mime_type || "file")} ·{" "}
+                          {Math.max(
+                            1,
+                            Math.round(num(attachment.size_bytes) / 1024),
+                          )}{" "}
+                          KB{version > 1 ? ` · v${version}` : ""}
+                        </small>
+                      </span>
+                      {canManage ? (
+                        <ActionButton
+                          tone="danger"
+                          type="button"
+                          busy={
+                            pending === `attachment-${String(attachment.id)}`
+                          }
+                          onClick={() =>
+                            void removeAttachment(String(attachment.id))
+                          }
+                        >
+                          Remove
+                        </ActionButton>
+                      ) : null}
                       <ActionButton
-                        tone="danger"
+                        tone="quiet"
                         type="button"
-                        busy={
-                          pending === `attachment-${String(attachment.id)}`
-                        }
-                        onClick={() =>
-                          void removeAttachment(String(attachment.id))
-                        }
+                        onClick={() => void toggleAttachmentVersions(logicalId)}
                       >
-                        Remove
+                        {versions !== undefined ? "Hide versions" : "Version history"}
                       </ActionButton>
-                    ) : null}
-                  </div>
-                ))}
+                      {canManage ? (
+                        <label>
+                          {pending === `attachment-replace-${logicalId}`
+                            ? "Uploading replacement…"
+                            : "Replace file"}
+                          <input
+                            type="file"
+                            className={kernelStyles.visuallyHidden}
+                            disabled={pending === `attachment-replace-${logicalId}`}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void replaceAttachment(logicalId, file);
+                            }}
+                          />
+                        </label>
+                      ) : null}
+                      {versions ? (
+                        <div className="crm-attachment-list">
+                          {versions.map((entry) => (
+                            <div key={String(entry.id)}>
+                              <span>
+                                {String(entry.lifecycle_status || entry.lifecycleStatus) === "clean" ? (
+                                  <a href={`/api/crm/leads/${id}/attachments/${String(entry.id)}`}>
+                                    v{String(entry.version)}
+                                    {(entry.is_current || entry.isCurrent) ? " (current)" : ""} — {String(entry.file_name || entry.fileName)}
+                                  </a>
+                                ) : (
+                                  <span>
+                                    v{String(entry.version)} — {String(entry.file_name || entry.fileName)}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                          {!versions.length ? <p>No version history available.</p> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
                 {!attachments.length ? <p>No files attached yet.</p> : null}
               </div>
               {canManage ? (
@@ -1726,7 +1909,7 @@ export default function CrmLeadDetailWorkspace({
         {tab === "custom" ? (
           <div className="crm-suite-two-column">
             <Surface as="section" className="crm-suite-surface">
-              <SectionHeader eyebrow="F028 · Classification" title="Tags" />
+              <SectionHeader eyebrow="Classification" title="Tags" />
               <div className="crm-tag-picker">
                 {(options.tags || []).map((tag) => {
                   const checked = tagIds.has(tag.id);
@@ -1762,7 +1945,7 @@ export default function CrmLeadDetailWorkspace({
               ) : null}
             </Surface>
             <Surface as="section" className="crm-suite-surface">
-              <SectionHeader eyebrow="F028 · Flexible data" title="Custom fields" />
+              <SectionHeader eyebrow="Flexible data" title="Custom fields" />
               <p className="crm-helper-copy">
                 Use short snake_case keys so fields remain stable across exports
                 and APIs.

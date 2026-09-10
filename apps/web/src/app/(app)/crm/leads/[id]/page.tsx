@@ -41,6 +41,7 @@ export default async function LeadDetailPage({
       assignmentHistory={JSON.parse(JSON.stringify(data.assignmentHistory))}
       qualification={JSON.parse(JSON.stringify(data.qualification))}
       lifecycleHistory={JSON.parse(JSON.stringify(data.lifecycleHistory))}
+      dwell={JSON.parse(JSON.stringify(data.dwell))}
       provenance={JSON.parse(JSON.stringify(data.provenance))}
       consentEvents={JSON.parse(JSON.stringify(data.consentEvents))}
       enrichmentReviews={JSON.parse(JSON.stringify(data.enrichmentReviews))}

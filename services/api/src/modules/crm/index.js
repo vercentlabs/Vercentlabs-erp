@@ -1,9 +1,11 @@
 import { CRM_RESOURCE_KEYS } from "@vercentlabs/shared-types";
 import {
   assertEligibleLeadAssignee,
+  getEligibleLeadAssignee,
   listEligibleLeadAssignees,
   resolveLeadAssignment,
 } from "./lead-governance.js";
+import { taskOverdueSql } from "./task-operations.js";
 import {
   normalizeLeadRecordInput,
   validateLeadRecord,
@@ -28,12 +30,29 @@ import {
   resolveIngestionLeadSource,
   validateLeadSourceAssignment,
 } from "./features/lead-sources/validation.js";
+import { communicationVisibilitySql, projectCrmCommunication } from "./seller-activity-and-follow-up-workspace/communications/communication-projection.js";
+import { findAccountDuplicates, findContactDuplicates } from "./prospect-and-relationship-master-data/duplicate-matching.js";
 import {
   canViewSensitiveLeadContent,
   firstSensitiveLeadInputField,
   leadSearchColumnsForContext,
   projectLeadForContext,
 } from "./lead-security.js";
+import { recalculateLeadScoreInternal } from "./lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js";
+
+// F027: fields whose change can plausibly affect the deterministic score
+// (they appear in the seeded demographic/firmographic rule predicates, or
+// are the qualifying "source change" trigger the dossier calls out).
+// Recalculation on update is scoped to these — not every field save —
+// per Prompt 4 §44's "avoid recalculating synchronously on unrelated
+// updates".
+const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
+  "email",
+  "mobile",
+  "companyName",
+  "productInterest",
+  "sourceId",
+]);
 
 const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
@@ -47,7 +66,7 @@ export class CrmError extends Error {
   }
 }
 
-const resources = Object.freeze({
+export const resources = Object.freeze({
   leads: {
     table: "tenant.crm_leads",
     codeEntity: "crm_lead",
@@ -273,7 +292,7 @@ const resources = Object.freeze({
   "lost-reasons": {
     table: "tenant.crm_lost_reasons",
     search: ["name", "code", "category"],
-    orderBy: "category ASC, name ASC",
+    orderBy: "status='active' DESC, sequence ASC, name ASC",
     statusColumn: "status",
     companyScoped: false,
     fields: {
@@ -281,6 +300,7 @@ const resources = Object.freeze({
       code: "code",
       category: "category",
       outcomeType: "outcome_type",
+      sequence: "sequence",
       status: "status",
     },
   },
@@ -587,6 +607,21 @@ const resources = Object.freeze({
     orderBy: "updated_at DESC",
     statusColumn: "status",
     companyScoped: true,
+    // F025 (Sales forecast) — LAST PROMPT 1/3 closeout: this resource had
+    // no ownerField, so recordScope() never applied per-owner restriction —
+    // any caller holding the base view/manage permission saw every
+    // submission company-wide regardless of whose forecast it was, not the
+    // dossier's required "rep sees own -> manager sees team -> exec sees
+    // org" rollup. This closes the most severe version of that gap (an
+    // ordinary rep could see every other rep's forecast submission) the
+    // same way every other owned CRM resource is scoped; a caller with
+    // crm.records.view_all still sees everything (canViewAllCrmRecords
+    // bypasses ownerField, matching every other resource's convention).
+    // Full team-hierarchy-aware rollup (a manager sees exactly their F020
+    // team's submissions, not just their own, without needing org-wide
+    // view-all) requires joining crm_sales_team_members and was judged a
+    // separate, larger enhancement — not attempted this pass.
+    ownerField: "ownerUserId",
     fields: {
       companyId: "company_id",
       periodId: "period_id",
@@ -1372,7 +1407,7 @@ async function assertLeadSourceAssignment(client, context, sourceId, options) {
 // lead awaiting assignment) remain visible to anyone who can otherwise see
 // the resource, mirroring the existing company_id/branch_id IS NULL
 // convention immediately below.
-function canViewAllCrmRecords(context) {
+export function canViewAllCrmRecords(context) {
   return (
     Boolean(context.roleSlugs?.includes("organization_owner")) ||
     Boolean(context.permissions?.includes("crm.records.view_all"))
@@ -1414,14 +1449,69 @@ function aiFeedbackLeadScope(definition, context, parameters, alias) {
   return ` AND (NOT EXISTS (SELECT 1 FROM tenant.crm_ai_predictions prediction WHERE prediction.organization_id=${alias}.organization_id AND prediction.id=${alias}.${predictionColumn} AND lower(prediction.entity_type)='lead') OR EXISTS (SELECT 1 FROM tenant.crm_ai_predictions prediction JOIN tenant.crm_leads lead ON lead.organization_id=prediction.organization_id AND lead.id=prediction.entity_id WHERE prediction.organization_id=${alias}.organization_id AND prediction.id=${alias}.${predictionColumn} AND lower(prediction.entity_type)='lead'${leadScope}))`;
 }
 
-function recordScope(definition, context, parameters, alias = "record") {
+// crm_communications carries no company_id/branch_id/owner column of its
+// own — it is organization-scoped only, with company/branch/owner meaning
+// derived entirely from whichever parent record it is linked to. A
+// communication is visible (once the caller already holds the separate
+// content permission — see recordScope) only if its actual parent is
+// itself visible under that parent resource's own real scope rules, so
+// this can never grant broader access than the parent record already
+// grants.
+function communicationParentScopeSql(context, parameters, alias) {
+  const leadScope = recordScope(resources.leads, context, parameters, "lead");
+  const opportunityScope = recordScope(
+    resources.opportunities,
+    context,
+    parameters,
+    "opportunity",
+  );
+  const partyCompanyParam = context.activeCompanyId
+    ? addParameter(parameters, context.activeCompanyId)
+    : null;
+  const partyVisible = context.allowAllCompanies
+    ? "true"
+    : partyCompanyParam
+      ? `(party.company_id IS NULL OR party.company_id = ${partyCompanyParam})`
+      : "false";
+  const standaloneVisible = context.allowAllCompanies ? "true" : "false";
+  return ` AND (
+    (${alias}.lead_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.crm_leads lead WHERE lead.organization_id=${alias}.organization_id AND lead.id=${alias}.lead_id${leadScope}))
+    OR (${alias}.lead_id IS NULL AND ${alias}.opportunity_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=${alias}.organization_id AND opportunity.id=${alias}.opportunity_id${opportunityScope}))
+    OR (${alias}.lead_id IS NULL AND ${alias}.opportunity_id IS NULL AND ${alias}.party_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.business_parties party WHERE party.organization_id=${alias}.organization_id AND party.id=${alias}.party_id AND ${partyVisible}))
+    OR (${alias}.lead_id IS NULL AND ${alias}.opportunity_id IS NULL AND ${alias}.party_id IS NULL AND ${alias}.contact_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.contacts contact JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=${alias}.organization_id AND contact.id=${alias}.contact_id AND ${partyVisible}))
+    OR (${alias}.lead_id IS NULL AND ${alias}.opportunity_id IS NULL AND ${alias}.party_id IS NULL AND ${alias}.contact_id IS NULL AND ${standaloneVisible})
+  )`;
+}
+
+export function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
   if (definition.table === "tenant.crm_saved_views") {
     sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
   }
+  if (definition.table === "tenant.crm_communications") {
+    // F018 final closeout — AUDIENCE ("may this caller know this
+    // communication exists") and CONTENT ("may this caller read subject/
+    // body/recipients") are now two separate authorization decisions, not
+    // one combined gate. This SQL fragment only ever decides audience:
+    // company/branch/owner boundary comes from the communication's actual
+    // parent record's own scope (communicationParentScopeSql — unchanged,
+    // still closes the "anyone with the sensitive permission could read
+    // every company's mail org-wide" gap this comment used to describe),
+    // and the visibility tier (team/private/participant) is the ONE
+    // canonical fragment every other audience call site (getCommunication-
+    // Timeline, the canonical Timeline's communication branch, the shared
+    // inbox) also uses — see communication-projection.js. Content
+    // (whether the caller sees full subject/body or only a metadata stub)
+    // is no longer a row-visibility decision here at all: it is applied by
+    // the route layer via projectCrmCommunication(s) AFTER this query
+    // returns, for every one of those same call sites, so a caller without
+    // crm.leads.view_sensitive can still know a team-visible communication
+    // exists (audience) without being able to read its content — never an
+    // implicit "no permission = doesn't exist" leak-through-absence.
+    sql += communicationParentScopeSql(context, parameters, alias);
+    sql += ` AND ${communicationVisibilitySql(context, parameters, alias)}`;
+  }
   if (!canViewSensitiveLeadContent(context)) {
-    if (definition.table === "tenant.crm_communications")
-      sql += ` AND ${alias}.lead_id IS NULL`;
     if (definition.table === "tenant.crm_activities")
       sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   }
@@ -1582,6 +1672,20 @@ async function projectCrmRecord(client, context, resource, record) {
     const restricted = await restrictedCustomFieldKeys(client, context, [record.objectDefinitionId]);
     return redactCustomRecordData(record, restricted.get(record.objectDefinitionId));
   }
+  // F018 final closeout — the generic CRM resource route (and mobile's
+  // generic [resource]/[id] route, which falls through to this SAME
+  // getCrmRecord/listCrmRecords pair for "communications") is one of the
+  // five surfaces the canonical communication projector must cover.
+  // recordScope's audience predicate (team/private/participant) already
+  // let this row through by the time projectCrmRecord runs — this is
+  // purely the CONTENT decision (full vs metadata-only). Sender-only
+  // (not full participant lookup) here deliberately, to keep the generic
+  // list route to one query per page rather than N+1 — a caller who
+  // merely received (not sent) a team-visible email sees full content via
+  // the dedicated Communications-tab/Timeline/shared-inbox surfaces
+  // (which do resolve full participant membership) but metadata-only via
+  // this generic route; documented, not a silent gap.
+  if (resource === "communications") return projectCrmCommunication(record, context, { isParticipant: false });
   return record;
 }
 
@@ -1881,11 +1985,26 @@ function buildFilters(
       sql +=
         " AND record.due_at >= current_date AND record.due_at < current_date + interval '1 day'";
     if (due === "overdue")
-      sql +=
-        " AND record.due_at < now() AND record.status NOT IN ('completed', 'cancelled')";
+      sql += ` AND ${taskOverdueSql("record")}`;
     if (due === "upcoming")
       sql +=
         " AND record.due_at >= now() AND record.status NOT IN ('completed', 'cancelled')";
+  }
+  // Generic Opportunity-scoped listing (deal-risks, buying-committees, ...):
+  // any resource whose fields map declares an opportunityId column can be
+  // filtered down to one Opportunity's child rows, rather than every caller
+  // having to know the underlying column name.
+  if (definition.fields.opportunityId && filters.opportunityId) {
+    const opportunityId = String(filters.opportunityId);
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(opportunityId))
+      sql += ` AND ${alias}.${definition.fields.opportunityId} = ${addParameter(parameters, opportunityId)}`;
+    else sql += " AND false";
+  }
+  if (definition.fields.committeeId && filters.committeeId) {
+    const committeeId = String(filters.committeeId);
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(committeeId))
+      sql += ` AND ${alias}.${definition.fields.committeeId} = ${addParameter(parameters, committeeId)}`;
+    else sql += " AND false";
   }
   return sql;
 }
@@ -2044,6 +2163,70 @@ export async function snapshotLeadBulkJobSelection(
   return { requested: total, snapshotted: inserted.rowCount };
 }
 
+// F029 (Bulk actions) — LAST PROMPT 1/3 closeout: Opportunities had no async
+// bulk path (see enqueueOpportunityBulkUpdateJob in opportunity-operations.js
+// for the rest of the job lifecycle). Mirrors snapshotLeadBulkJobSelection
+// exactly; the one Opportunity-specific addition is the hard `status='open'`
+// constraint, matching the invariant bulkUpdateOpportunities' synchronous
+// path already enforces (closed/archived Opportunities are not bulk-editable
+// through either path).
+export async function snapshotOpportunityBulkJobSelection(
+  client,
+  context,
+  jobId,
+  selection = {},
+  { maximum = 50_000 } = {},
+) {
+  const definition = resources.opportunities;
+  const parameters = [context.organizationId, jobId];
+  let where = "record.organization_id = $1 AND record.status = 'open'";
+  where += recordScope(definition, context, parameters);
+
+  const type = String(selection.type || "explicit");
+  if (type === "explicit") {
+    const ids = Array.isArray(selection.ids)
+      ? [...new Set(selection.ids.map((value) => String(value)))]
+      : [];
+    if (!ids.length) return { requested: 0, snapshotted: 0 };
+    where += ` AND record.id = ANY(${addParameter(parameters, ids)}::uuid[])`;
+  } else if (type === "filter") {
+    const filters = selection.filters && typeof selection.filters === "object"
+      ? selection.filters
+      : {};
+    where += buildSearch(definition, filters.search, parameters, "record", context);
+    where += buildFilters(definition, filters, parameters, "record", context);
+  } else {
+    throw new CrmError(400, "Unsupported Opportunity bulk selection.", "CRM_OPPORTUNITY_BULK_SELECTION_INVALID");
+  }
+
+  const countResult = await client.query(
+    `SELECT count(*)::int AS total FROM tenant.crm_opportunities record WHERE ${where}`,
+    parameters,
+  );
+  const total = Number(countResult.rows[0]?.total || 0);
+  if (total > maximum) {
+    throw new CrmError(
+      413,
+      `This bulk operation matches ${total} Opportunities. Narrow the selection to ${maximum} or fewer records.`,
+      "CRM_OPPORTUNITY_BULK_SELECTION_TOO_LARGE",
+      { total, maximum },
+    );
+  }
+  if (!total) return { requested: 0, snapshotted: 0 };
+
+  const inserted = await client.query(
+    `INSERT INTO tenant.crm_opportunity_bulk_job_items
+       (organization_id,job_id,opportunity_id,expected_updated_at)
+     SELECT $1,$2,record.id,record.updated_at
+       FROM tenant.crm_opportunities record
+      WHERE ${where}
+      ORDER BY record.id
+     ON CONFLICT (organization_id,job_id,opportunity_id) DO NOTHING`,
+    parameters,
+  );
+  return { requested: total, snapshotted: inserted.rowCount };
+}
+
 export async function getCrmRecord(client, context, resource, id) {
   if (resource === "stages") return getSalesStageResourceRecord(client, context, id);
   const definition = definitionFor(resource);
@@ -2069,14 +2252,29 @@ async function getLeadRecordForUpdate(client, context, id) {
   return camelizeRow(result.rows[0]);
 }
 
-function assertLeadExpectedVersion(record, expectedUpdatedAt, required = false) {
+// Generic optimistic-concurrency check, originally Lead-only (hence the
+// CRM_LEAD_* codes preserved for that entity's backward-compatible
+// contract). Integrity closeout (Prompts 1-5): generalized with an
+// entityLabel/codePrefix so the exact same check now also protects ordinary
+// Opportunity edits through the generic updateCrmRecord/archiveCrmRecord
+// path — previously Opportunity PATCH/DELETE never passed `expectations`
+// at all, so two concurrent editors could silently overwrite each other
+// (unlike the dedicated stage/probability commands, which already had this
+// protection).
+function assertRecordExpectedVersion(
+  record,
+  expectedUpdatedAt,
+  required = false,
+  entityLabel = "Lead",
+  codePrefix = "CRM_LEAD",
+) {
   const supplied = String(expectedUpdatedAt || "").trim();
   if (!supplied) {
     if (required)
       throw new CrmError(
         400,
-        "Refresh this Lead before changing it.",
-        "CRM_LEAD_VERSION_REQUIRED",
+        `Refresh this ${entityLabel} before changing it.`,
+        `${codePrefix}_VERSION_REQUIRED`,
       );
     return;
   }
@@ -2084,17 +2282,35 @@ function assertLeadExpectedVersion(record, expectedUpdatedAt, required = false) 
   if (!Number.isFinite(expected.getTime()))
     throw new CrmError(
       400,
-      "The Lead version is invalid. Refresh and try again.",
-      "CRM_LEAD_VERSION_INVALID",
+      `The ${entityLabel} version is invalid. Refresh and try again.`,
+      `${codePrefix}_VERSION_INVALID`,
     );
   const actual = new Date(record.updatedAt ?? "");
   if (!Number.isFinite(actual.getTime()) || expected.getTime() !== actual.getTime())
     throw new CrmError(
       409,
-      "This Lead changed after you loaded it. Refresh and try again.",
+      `This ${entityLabel} changed after you loaded it. Refresh and try again.`,
       "CRM_STALE_WRITE",
     );
 }
+function assertLeadExpectedVersion(record, expectedUpdatedAt, required = false) {
+  return assertRecordExpectedVersion(record, expectedUpdatedAt, required, "Lead", "CRM_LEAD");
+}
+
+// Prompts 1-5 integrity closeout (blocker C): mutable generic-CRUD
+// configuration resources with no existing append-only/versioned model —
+// Qualification criteria (F006) and Won/Lost reasons (F026) — get the same
+// checked-write contract as leads/opportunities through the generic
+// updateCrmRecord/archiveCrmRecord path below, rather than three more
+// bespoke timestamp-comparison implementations. Sales Stages (F012),
+// Lead Sources and Account/Contact already have their own dedicated
+// version-checked operation files and are NOT routed through here.
+// Qualification criteria has no archive/DELETE transition defined
+// (archiveStatuses below), so it is PATCH-only.
+const GENERIC_VERSIONED_RESOURCES = {
+  "qualification-criteria": { entityLabel: "Qualification criterion", codePrefix: "CRM_QUALIFICATION_CRITERIA" },
+  "lost-reasons": { entityLabel: "Won/Lost reason", codePrefix: "CRM_LOST_REASON" },
+};
 
 function mutableEntries(definition, input) {
   return Object.entries(input).filter(
@@ -2445,6 +2661,27 @@ async function validateCustomRecord(
   }
 }
 
+// F005: gated on the same in-app notification infra + preference table
+// every other notification-emitting path uses (see workflow-run "notify"
+// action in shared-platform.ts) — no separate CRM notification channel.
+async function notifyLeadAssignmentOwner(client, context, { ownerUserId, leadId, leadName, reason }) {
+  if (!ownerUserId || ownerUserId === context.userId) return;
+  await client.query(
+    `INSERT INTO notifications(organization_id,user_id,type,title,message,href)
+     SELECT $1,$2,'crm_assignment',$3,$4,$5
+     WHERE EXISTS(SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active')
+       AND COALESCE((SELECT enabled FROM notification_preferences
+         WHERE organization_id=$1 AND user_id=$2 AND channel='in_app' AND category='crm_assignment'),true)`,
+    [
+      context.organizationId,
+      ownerUserId,
+      "New Lead assigned to you",
+      `${leadName || "A Lead"} was assigned to you (${reason || "manual"}).`,
+      `/crm/leads/${leadId}`,
+    ],
+  );
+}
+
 async function recordLeadAssignment(
   client,
   context,
@@ -2454,14 +2691,17 @@ async function recordLeadAssignment(
     ownerUserId = null,
     policyId = null,
     reason = "manual",
+    evaluationTrace = null,
+    isOverride = false,
+    leadName = null,
   },
 ) {
   if ((previousOwnerUserId || null) === (ownerUserId || null)) return null;
   const event = await client.query(
     `INSERT INTO tenant.crm_lead_assignment_events
-       (organization_id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,created_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7)
-     RETURNING id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,created_by,created_at`,
+       (organization_id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,evaluation_trace,is_override,created_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
+     RETURNING id,lead_id,previous_owner_user_id,new_owner_user_id,policy_id,reason,evaluation_trace,is_override,created_by,created_at`,
     [
       context.organizationId,
       leadId,
@@ -2469,6 +2709,8 @@ async function recordLeadAssignment(
       ownerUserId || null,
       policyId || null,
       String(reason || "manual").slice(0, 120),
+      JSON.stringify(evaluationTrace || {}),
+      Boolean(isOverride),
       context.userId || null,
     ],
   );
@@ -2483,8 +2725,10 @@ async function recordLeadAssignment(
       ownerUserId: ownerUserId || null,
       policyId: policyId || null,
       reason: String(reason || "manual").slice(0, 120),
+      isOverride: Boolean(isOverride),
     },
   );
+  await notifyLeadAssignmentOwner(client, context, { ownerUserId, leadId, leadName, reason });
   return camelizeRow(event.rows[0]);
 }
 
@@ -2540,6 +2784,7 @@ export async function assignLeadOwner(
       },
     };
   let assignee = null;
+  let isOverride = false;
   if (normalizedOwner) {
     try {
       assignee = await assertEligibleLeadAssignee(
@@ -2549,9 +2794,19 @@ export async function assignLeadOwner(
         { companyId: before.companyId, branchId: before.branchId },
       );
     } catch (error) {
-      if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID")
+      if (error?.code !== "CRM_LEAD_ASSIGNEE_SCOPE_INVALID") throw error;
+      // F005 manual override: the caller already holds canAssignLeadOwners'
+      // elevated permission (organization_owner, or view_all+leads.manage)
+      // to reach this function at all — an eligibility-check failure alone
+      // does not block them, but they must say explicitly that they intend
+      // an override and why, so a genuinely mistaken owner ID still fails
+      // closed by default.
+      const overrideReason = String(options.overrideReason ?? "").trim();
+      if (!options.override || !overrideReason)
         throw new CrmError(409, error.message, error.code);
-      throw error;
+      if (overrideReason.length < 3)
+        throw new CrmError(400, "Explain the override in at least 3 characters.", "CRM_LEAD_ASSIGNMENT_OVERRIDE_REASON_REQUIRED");
+      isOverride = true;
     }
   }
   const updated = await client.query(
@@ -2564,7 +2819,9 @@ export async function assignLeadOwner(
     leadId,
     previousOwnerUserId: before.ownerUserId || null,
     ownerUserId: normalizedOwner,
-    reason: options.reason || "manual",
+    reason: isOverride ? `override:${String(options.overrideReason).trim().slice(0, 100)}` : options.reason || "manual",
+    isOverride,
+    leadName: before.fullName || before.firstName || null,
   });
   return {
     lead: projectLeadForContext(context, lead),
@@ -2573,6 +2830,7 @@ export async function assignLeadOwner(
       eventId: event?.id || null,
       previousOwnerUserId: before.ownerUserId || null,
       ownerUserId: normalizedOwner,
+      isOverride,
       owner: assignee
         ? { id: assignee.id, name: assignee.name, email: assignee.email }
         : null,
@@ -2751,6 +3009,8 @@ export async function createCrmRecord(client, context, resource, input) {
       throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
     if (activityType === "meeting")
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
+    if (activityType === "follow_up")
+      throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
   }
   if (resource === "stages")
     throw new CrmError(
@@ -2937,12 +3197,11 @@ export async function createCrmRecord(client, context, resource, input) {
     await resolveOpportunityInitialStage(client, context, prepared);
     await validateOpportunityRelationships(client, context, prepared);
   }
-  if (resource === "leads")
-    prepared.score = await calculateLeadScore(
-      client,
-      context.organizationId,
-      prepared,
-    );
+  // F027 Prompt 4: score is no longer set pre-insert by the legacy
+  // uncapped/undecayed/unversioned rule engine (System B) — it defaults to
+  // 0 via the column default and is computed by the real deterministic
+  // scoring engine (System A, recalculateLeadScoreInternal) once the row
+  // exists, right below.
   if (resource === "custom-records")
     await validateCustomRecord(client, context, prepared);
   await validateOrganizationUserReferences(
@@ -2970,7 +3229,7 @@ export async function createCrmRecord(client, context, resource, input) {
     `INSERT INTO ${definition.table} (${columns.join(", ")}) VALUES (${values.map((_value, index) => `$${index + 1}`).join(", ")}) RETURNING *`,
     values,
   );
-  const created = camelizeRow(result.rows[0]);
+  let created = camelizeRow(result.rows[0]);
   if (resource === "leads") {
     await recordLeadDuplicateOverride(
       client,
@@ -2979,14 +3238,15 @@ export async function createCrmRecord(client, context, resource, input) {
       leadDuplicateEvaluation,
       "create",
     );
-    await recordLeadScore(
-      client,
-      context,
-      created.id,
-      0,
-      Number(created.score || 0),
-      "Initial lead scoring",
-    );
+    const scored = await recalculateLeadScoreInternal(client, context, created.id, "Initial lead scoring");
+    if (scored)
+      created = {
+        ...created,
+        score: scored.score,
+        leadGrade: scored.grade,
+        scoreCalculatedAt: scored.calculatedAt,
+        scoreExplanation: scored.explanation,
+      };
     await runCrmAutomation(
       client,
       context,
@@ -3031,6 +3291,8 @@ export async function createCrmRecord(client, context, resource, input) {
       ownerUserId: created.ownerUserId,
       policyId: initialLeadAssignment?.policyId || null,
       reason: initialLeadAssignment?.reason || "manual:create",
+      evaluationTrace: initialLeadAssignment?.trace || null,
+      leadName: created.fullName || created.firstName || null,
     });
   return projectCrmRecord(client, context, resource, created);
 }
@@ -3080,12 +3342,30 @@ export async function updateCrmRecord(
       expectations.expectedUpdatedAt,
       expectations.requireVersion === true,
     );
+  if (resource === "opportunities")
+    assertRecordExpectedVersion(
+      before,
+      expectations.expectedUpdatedAt,
+      expectations.requireVersion === true,
+      "Opportunity",
+      "CRM_OPPORTUNITY",
+    );
+  if (GENERIC_VERSIONED_RESOURCES[resource])
+    assertRecordExpectedVersion(
+      before,
+      expectations.expectedUpdatedAt,
+      expectations.requireVersion === true,
+      GENERIC_VERSIONED_RESOURCES[resource].entityLabel,
+      GENERIC_VERSIONED_RESOURCES[resource].codePrefix,
+    );
   if (resource === "activities") {
     const requestedActivityType = String(input?.activityType || "").toLowerCase();
     if (before.activityType === "call" || requestedActivityType === "call")
       throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
     if (before.activityType === "meeting" || requestedActivityType === "meeting")
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
+    if (before.activityType === "follow_up" || requestedActivityType === "follow_up")
+      throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
   }
   if (resource === "opportunities" && before.status === "archived")
     throw new CrmError(409, "Archived Opportunities are read-only.", "CRM_OPPORTUNITY_ARCHIVED");
@@ -3138,6 +3418,7 @@ export async function updateCrmRecord(
         : normalizeStorageInput(resource, input);
   if (ownerChangeRequested) delete prepared.ownerUserId;
   let leadDuplicateEvaluation = null;
+  let leadScoreRecalcNeeded = false;
   if (resource === "leads") {
     const leadErrors = validateLeadRecord(prepared, {
       mode: "update",
@@ -3169,15 +3450,14 @@ export async function updateCrmRecord(
         },
       );
     }
-    if (Object.keys(prepared).length)
-      prepared.score = await calculateLeadScore(
-        client,
-        context.organizationId,
-        {
-          ...before,
-          ...prepared,
-        },
-      );
+    // F027 Prompt 4: score is no longer overwritten unconditionally by the
+    // legacy uncapped/undecayed/unversioned rule engine on every field
+    // save. The real deterministic scoring engine (System A) recalculates
+    // — after this UPDATE commits, so it reads the merged final values —
+    // only when a scoring-relevant field actually changed (create,
+    // qualifying-field change, source change), not on every unrelated
+    // edit (§44: "avoid recalculating synchronously on unrelated updates").
+    leadScoreRecalcNeeded = Object.keys(prepared).some((field) => LEAD_SCORE_RECALC_TRIGGER_FIELDS.has(field));
   }
   if (resource === "opportunities") {
     const candidate = { ...before, ...prepared };
@@ -3271,13 +3551,40 @@ export async function updateCrmRecord(
   const organizationParameter = entries.length + 2;
   const idParameter = entries.length + 3;
   const scope = recordScope(definition, context, parameters);
+  // Checked-write: when a version was actually asserted above (leads or
+  // opportunities), the UPDATE's own WHERE clause re-confirms updated_at
+  // still matches — closing the read-then-write race window atomically. A
+  // zero-row result then unambiguously means a concurrent writer won that
+  // race (existence was already confirmed by the `before` read), not a
+  // genuine 404.
+  const versionChecked =
+    expectations.expectedUpdatedAt &&
+    (resource === "leads" || resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource]));
+  const versionGuard = versionChecked
+    ? ` AND record.updated_at = ${addParameter(parameters, before.updatedAt)}`
+    : "";
   let updated = before;
   if (entries.length) {
     const result = await client.query(
-      `UPDATE ${definition.table} record SET ${assignments.join(", ")}, updated_by = $${userParameter}, updated_at = now() WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope} RETURNING record.*`,
+      `UPDATE ${definition.table} record SET ${assignments.join(", ")}, updated_by = $${userParameter}, updated_at = now() WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope}${versionGuard} RETURNING record.*`,
       parameters,
     );
-    if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
+    if (!result.rows[0]) {
+      if (versionChecked) {
+        const entityLabel =
+          resource === "leads"
+            ? "Lead"
+            : resource === "opportunities"
+              ? "Opportunity"
+              : GENERIC_VERSIONED_RESOURCES[resource].entityLabel;
+        throw new CrmError(
+          409,
+          `This ${entityLabel} changed after you loaded it. Refresh and try again.`,
+          "CRM_STALE_WRITE",
+        );
+      }
+      throw new CrmError(404, "CRM record not found.");
+    }
     updated = camelizeRow(result.rows[0]);
   }
   if (ownerChangeRequested) {
@@ -3299,18 +3606,17 @@ export async function updateCrmRecord(
       "update",
     );
   }
-  if (
-    resource === "leads" &&
-    Number(before.score || 0) !== Number(updated.score || 0)
-  )
-    await recordLeadScore(
-      client,
-      context,
-      id,
-      Number(before.score || 0),
-      Number(updated.score || 0),
-      "Lead fields updated",
-    );
+  if (resource === "leads" && leadScoreRecalcNeeded) {
+    const scored = await recalculateLeadScoreInternal(client, context, id, "Lead fields updated");
+    if (scored)
+      updated = {
+        ...updated,
+        score: scored.score,
+        leadGrade: scored.grade,
+        scoreCalculatedAt: scored.calculatedAt,
+        scoreExplanation: scored.explanation,
+      };
+  }
   const changedFields =
     resource === "leads"
       ? leadOutboxChangedFields(before, updated, Object.keys(input)).filter(
@@ -3365,10 +3671,31 @@ export async function archiveCrmRecord(
       expectations.expectedUpdatedAt,
       expectations.requireVersion === true,
     );
+  if (resource === "opportunities")
+    assertRecordExpectedVersion(
+      before,
+      expectations.expectedUpdatedAt,
+      expectations.requireVersion === true,
+      "Opportunity",
+      "CRM_OPPORTUNITY",
+    );
+  // Qualification criteria is deliberately excluded here (GENERIC_VERSIONED_
+  // RESOURCES covers updateCrmRecord above) — it has no archive/DELETE
+  // transition (see archiveStatuses below), so only lost-reasons applies.
+  if (resource === "lost-reasons")
+    assertRecordExpectedVersion(
+      before,
+      expectations.expectedUpdatedAt,
+      expectations.requireVersion === true,
+      GENERIC_VERSIONED_RESOURCES["lost-reasons"].entityLabel,
+      GENERIC_VERSIONED_RESOURCES["lost-reasons"].codePrefix,
+    );
   if (resource === "activities" && before.activityType === "call")
     throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
   if (resource === "activities" && before.activityType === "meeting")
     throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
+  if (resource === "activities" && before.activityType === "follow_up")
+    throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 
@@ -3485,11 +3812,25 @@ export async function archiveCrmRecord(
 
   const statusParameter = addParameter(parameters, status);
   const userParameter = addParameter(parameters, context.userId);
+  const archiveVersionChecked =
+    (resource === "opportunities" || resource === "lost-reasons") &&
+    Boolean(expectations.expectedUpdatedAt);
+  const archiveVersionGuard = archiveVersionChecked
+    ? ` AND record.updated_at = ${addParameter(parameters, before.updatedAt)}`
+    : "";
   const result = await client.query(
-    `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope} RETURNING record.*`,
+    `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
     parameters,
   );
-  if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
+  if (!result.rows[0]) {
+    if (archiveVersionChecked)
+      throw new CrmError(
+        409,
+        `This ${resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES["lost-reasons"].entityLabel} changed after you loaded it. Refresh and try again.`,
+        "CRM_STALE_WRITE",
+      );
+    throw new CrmError(404, "CRM record not found.");
+  }
   const record = camelizeRow(result.rows[0]);
   await queueOutboxEvent(
     client,
@@ -3506,73 +3847,13 @@ function comparable(value) {
   if (value === null || value === undefined) return "";
   return typeof value === "string" ? value.trim().toLowerCase() : value;
 }
-function ruleMatches(record, rule) {
-  const value = record[camelize(rule.field_name)];
-  const expected = rule.comparison_value?.value ?? rule.comparison_value;
-  switch (rule.operator) {
-    case "equals":
-      return comparable(value) === comparable(expected);
-    case "not_equals":
-      return comparable(value) !== comparable(expected);
-    case "contains":
-      return String(value || "")
-        .toLowerCase()
-        .includes(String(expected || "").toLowerCase());
-    case "not_empty":
-      return (
-        value !== null && value !== undefined && String(value).trim() !== ""
-      );
-    case "empty":
-      return (
-        value === null || value === undefined || String(value).trim() === ""
-      );
-    case "greater_than":
-      return Number(value) > Number(expected);
-    case "less_than":
-      return Number(value) < Number(expected);
-    case "in":
-      return (
-        Array.isArray(expected) &&
-        expected.map(comparable).includes(comparable(value))
-      );
-    default:
-      return false;
-  }
-}
-
-export async function calculateLeadScore(client, organizationId, lead) {
-  const rules = await client.query(
-    `SELECT field_name, operator, comparison_value, points FROM tenant.crm_scoring_rules WHERE organization_id = $1 AND status = 'active' ORDER BY sequence, name`,
-    [organizationId],
-  );
-  return rules.rows.reduce(
-    (score, rule) =>
-      score + (ruleMatches(lead, rule) ? Number(rule.points || 0) : 0),
-    0,
-  );
-}
-async function recordLeadScore(
-  client,
-  context,
-  leadId,
-  previousScore,
-  newScore,
-  reason,
-  ruleId = null,
-) {
-  await client.query(
-    `INSERT INTO tenant.crm_lead_score_history (organization_id, lead_id, previous_score, new_score, reason, rule_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [
-      context.organizationId,
-      leadId,
-      previousScore,
-      newScore,
-      reason,
-      ruleId,
-      context.userId,
-    ],
-  );
-}
+// F027 Prompt 4: the legacy static-predicate scoring engine
+// (tenant.crm_scoring_rules, ruleMatches/calculateLeadScore/recordLeadScore)
+// was retired here — it had no model version, cap or decay, and was
+// silently governing crm_leads.score on every Lead create/update in
+// parallel with the real deterministic engine (System A,
+// recalculateLeadScoreInternal, now the sole writer). See migration
+// 096_f027_scoring_consolidation.sql.
 function criteriaMatches(input, criteria) {
   if (!criteria || typeof criteria !== "object") return true;
   return Object.entries(criteria).every(([key, expected]) =>
@@ -3600,17 +3881,21 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
     throw new CrmError(409, "Archived leads cannot be converted.");
   if (lead.record_status === "converted")
     throw new CrmError(409, "This Lead has already been converted.");
+  // F022 CAP-002/F008 reuse: conversion must resolve to an existing Account
+  // through the SAME rule-driven duplicate engine every other Account
+  // create/update path uses (findAccountDuplicates), not a hand-rolled
+  // exact-match query — so a tenant's configured GSTIN/PAN/fuzzy-name rules
+  // apply identically here. Only an 'exact' (blocking-rule) candidate is
+  // auto-resolved; a merely 'probable' match is not enough to silently
+  // attach a Lead to someone else's Account, so conversion falls through to
+  // creating a new Account in that case (the caller can still pass an
+  // explicit input.partyId to force reuse of a probable match).
   let partyId = input.partyId || null;
   if (!partyId) {
-    const duplicate = await client.query(
-      `SELECT p.id FROM tenant.business_parties p LEFT JOIN tenant.contacts c ON c.party_id = p.id AND c.organization_id = p.organization_id WHERE p.organization_id = $1 AND (lower(p.display_name) = lower($2) OR ($3::text IS NOT NULL AND tenant.crm_normalize_email(c.email) = tenant.crm_normalize_email($3))) ORDER BY p.created_at LIMIT 1`,
-      [
-        context.organizationId,
-        lead.company_name || lead.full_name,
-        lead.email || null,
-      ],
-    );
-    partyId = duplicate.rows[0]?.id || null;
+    const candidates = await findAccountDuplicates(client, context, {
+      name: lead.company_name || lead.full_name,
+    });
+    partyId = candidates.find((row) => row.classification === "exact")?.id || null;
   }
   if (!partyId) {
     const partyCode = await nextCode(
@@ -3632,18 +3917,26 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
     );
     partyId = party.rows[0].id;
   }
+  // Same F008 reuse as the Account resolution above: find the candidate
+  // Contact through the governed matcher, then narrow to the one Account
+  // conversion just resolved to (findContactDuplicates matches org-wide by
+  // design, since email/mobile can legitimately identify the same person
+  // across accounts; conversion only wants a duplicate *within this
+  // Account*, so an org-wide 'exact' match under a different Account is not
+  // reused here and a new Contact is created under the resolved Account
+  // instead).
   let contactId = input.contactId || null;
   if (!contactId && (lead.email || lead.mobile || lead.phone)) {
-    const contact = await client.query(
-      `SELECT id FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2 AND (($3::text IS NOT NULL AND tenant.crm_normalize_email(email) = tenant.crm_normalize_email($3)) OR ($4::text IS NOT NULL AND tenant.crm_normalize_phone(COALESCE(mobile, phone)) = tenant.crm_normalize_phone($4))) ORDER BY is_primary DESC, created_at LIMIT 1`,
-      [
-        context.organizationId,
-        partyId,
-        lead.email || null,
-        lead.mobile || lead.phone || null,
-      ],
-    );
-    contactId = contact.rows[0]?.id || null;
+    const candidates = await findContactDuplicates(client, context, {
+      email: lead.email,
+      mobile: lead.mobile || lead.phone,
+      firstName: lead.first_name,
+      lastName: lead.last_name,
+    });
+    contactId =
+      candidates.find(
+        (row) => row.classification === "exact" && row.party_id === partyId,
+      )?.id || null;
   }
   if (!contactId) {
     const contact = await client.query(
@@ -3885,18 +4178,24 @@ export async function updateOpportunityProbability(
       "CRM_PROBABILITY_CONFLICT",
     );
   }
-  const result = await client.query(
-    `UPDATE tenant.crm_opportunities
-        SET probability=$1,updated_by=$2,updated_at=now()
-      WHERE organization_id=$3 AND id=$4
-      RETURNING *`,
-    [normalizedProbability, context.userId, context.organizationId, opportunityId],
-  );
+  await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','allowed',true)");
+  let result;
+  try {
+    result = await client.query(
+      `UPDATE tenant.crm_opportunities
+          SET probability=$1,updated_by=$2,updated_at=now()
+        WHERE organization_id=$3 AND id=$4
+        RETURNING *`,
+      [normalizedProbability, context.userId, context.organizationId, opportunityId],
+    );
+  } finally {
+    await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','',true)");
+  }
   const updated = camelizeRow(result.rows[0]);
   await client.query(
     `INSERT INTO tenant.crm_opportunity_probability_history
-      (organization_id,opportunity_id,from_probability,to_probability,expected_revenue,note,changed_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      (organization_id,opportunity_id,from_probability,to_probability,expected_revenue,note,changed_by,source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'manual_override')`,
     [
       context.organizationId,
       opportunityId,
@@ -4029,28 +4328,70 @@ export async function moveOpportunityStage(
     }
     outcomeReasonLabel = reason.name;
   }
-  const result = await client.query(
-    `UPDATE tenant.crm_opportunities
-       SET stage_id = $1, probability = $2, forecast_category = $3, status = $4,
-           actual_close_date = CASE WHEN $4 IN ('won','lost') THEN current_date ELSE NULL END,
-           outcome_reason_id = CASE WHEN $4 IN ('won','lost') THEN $5::uuid ELSE NULL::uuid END,
-           outcome_notes = CASE WHEN $4 IN ('won','lost') THEN $6 ELSE NULL END,
-           lost_reason_id = CASE WHEN $4='lost' THEN $5::uuid ELSE NULL::uuid END,
-           loss_notes = CASE WHEN $4='lost' THEN $6 ELSE NULL END,
-           updated_by = $7, updated_at = now()
-     WHERE organization_id = $8 AND id = $9 RETURNING *`,
-    [
-      stageId,
-      stage.probability,
-      stage.forecast_category,
-      status,
-      outcomeReasonId,
-      outcomeNotes,
-      context.userId,
-      context.organizationId,
-      opportunityId,
-    ],
+  // F012 integrity closeout (Prompts 1-5): crm_playbook_questions already
+  // had a real blocks_stage_exit flag (Prompt 1 schema) — the dossier's
+  // stage-level "required fields/guidance" requirement — but no code
+  // anywhere ever checked it. A question marked blocks_stage_exit=true did
+  // nothing at all; Opportunities could leave the stage with zero required
+  // questions answered. This is the same governed playbook infrastructure
+  // used elsewhere (crm_playbook_responses), not a parallel system.
+  const blockingQuestions = await client.query(
+    `SELECT question.id, question.prompt
+       FROM tenant.crm_playbook_questions question
+      WHERE question.organization_id = $1
+        AND question.stage_id = $2
+        AND question.status = 'active'
+        AND question.blocks_stage_exit = true
+        AND NOT EXISTS (
+          SELECT 1 FROM tenant.crm_playbook_responses response
+           WHERE response.organization_id = question.organization_id
+             AND response.question_id = question.id
+             AND response.opportunity_id = $3
+             AND response.response IS NOT NULL
+             AND response.response <> 'null'::jsonb
+        )
+      ORDER BY question.sequence`,
+    [context.organizationId, opportunity.stage_id, opportunityId],
   );
+  if (blockingQuestions.rows[0]) {
+    throw new CrmError(
+      409,
+      "Answer the required questions for this stage before moving the opportunity.",
+      "CRM_OPPORTUNITY_STAGE_EXIT_BLOCKED",
+      {
+        missingRequirements: blockingQuestions.rows.map((row) => row.prompt),
+      },
+    );
+  }
+  await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','allowed',true)");
+  let result;
+  try {
+    result = await client.query(
+      `UPDATE tenant.crm_opportunities
+         SET stage_id = $1, probability = $2, forecast_category = $3, status = $4,
+             stage_entered_at = now(),
+             actual_close_date = CASE WHEN $4 IN ('won','lost') THEN current_date ELSE NULL END,
+             outcome_reason_id = CASE WHEN $4 IN ('won','lost') THEN $5::uuid ELSE NULL::uuid END,
+             outcome_notes = CASE WHEN $4 IN ('won','lost') THEN $6 ELSE NULL END,
+             lost_reason_id = CASE WHEN $4='lost' THEN $5::uuid ELSE NULL::uuid END,
+             loss_notes = CASE WHEN $4='lost' THEN $6 ELSE NULL END,
+             updated_by = $7, updated_at = now()
+       WHERE organization_id = $8 AND id = $9 RETURNING *`,
+      [
+        stageId,
+        stage.probability,
+        stage.forecast_category,
+        status,
+        outcomeReasonId,
+        outcomeNotes,
+        context.userId,
+        context.organizationId,
+        opportunityId,
+      ],
+    );
+  } finally {
+    await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','',true)");
+  }
   await client.query(
     `INSERT INTO tenant.crm_opportunity_stage_history
        (organization_id, opportunity_id, from_stage_id, to_stage_id, probability, changed_by, note,
@@ -4071,6 +4412,39 @@ export async function moveOpportunityStage(
     ],
   );
   const updated = camelizeRow(result.rows[0]);
+  // Integrity closeout (Prompts 1-5): this UPDATE above adopts the
+  // destination stage's configured probability (or forces 0/100 on
+  // Won/Lost) but previously never wrote a crm_opportunity_probability_
+  // history row — an Opportunity moved through several stages showed zero
+  // probability history unless a manual override also happened separately.
+  // Every stage-driven probability change is now recorded with an explicit
+  // source, distinguishing it from a manual override.
+  const fromProbability = Number(opportunity.probability || 0);
+  const toProbability = Number(updated.probability || 0);
+  if (fromProbability !== toProbability) {
+    const probabilitySource = reopening
+      ? "reopen"
+      : status === "won"
+        ? "terminal_won"
+        : status === "lost"
+          ? "terminal_lost"
+          : "stage_default";
+    await client.query(
+      `INSERT INTO tenant.crm_opportunity_probability_history
+        (organization_id,opportunity_id,from_probability,to_probability,expected_revenue,note,changed_by,source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        context.organizationId,
+        opportunityId,
+        fromProbability,
+        toProbability,
+        Number(updated.expectedRevenue || 0),
+        note,
+        context.userId,
+        probabilitySource,
+      ],
+    );
+  }
   await runCrmAutomation(
     client,
     context,
@@ -4126,6 +4500,8 @@ export async function completeCrmActivity(
     throw new CrmError(410, "Use the governed Call completion action.", "CRM_CALL_API_MOVED");
   if (current.activity_type === "meeting")
     throw new CrmError(410, "Use the governed Meeting completion action.", "CRM_MEETING_API_MOVED");
+  if (current.activity_type === "follow_up")
+    throw new CrmError(410, "Use the governed Follow-up completion action.", "CRM_FOLLOW_UP_API_MOVED");
   if (
     expectations.expectedUpdatedAt &&
     new Date(current.updated_at).toISOString() !==
@@ -4528,6 +4904,7 @@ function safeLeadOutboxPayload(eventType, leadId, payload) {
       ownerUserId: payload?.ownerUserId || null,
       policyId: payload?.policyId || null,
       reason: String(payload?.reason || "manual").slice(0, 120),
+      isOverride: Boolean(payload?.isOverride),
     };
   if (eventType.endsWith(".updated")) {
     const before = payload?.before || {};
@@ -4555,10 +4932,35 @@ export async function getCrmOptions(client, context) {
     context.activeBranchId,
     Boolean(context.allowAllCompanies),
   ];
+  // Owner/record scope for the two option lists backed by owner-scoped
+  // resources (leads, opportunities). Found this prompt: this function's
+  // company/branch-only scoping let a restricted seller enumerate every
+  // other seller's Lead/Opportunity id+name through options/combobox
+  // endpoints, even though the real list/detail queries for both
+  // resources also apply owner scope via recordScope() — dropdowns must
+  // never reveal more than the record's own list/detail view would.
+  //
+  // A SEPARATE, longer parameter array — not appended to the shared
+  // `parameters` above — because every other queryOptions() call below
+  // reuses that same array as its bound values, and Postgres's extended
+  // query protocol rejects a Bind message that supplies more values than
+  // the specific statement's own placeholder count declares. Appending
+  // $5/$6 here for every query (even ones whose text never references
+  // them) previously broke every option list except leads/opportunities
+  // with "bind message supplies N parameters, but prepared statement
+  // requires 4" — found only against a real Postgres connection (E2E),
+  // never by mocked unit tests.
+  const ownerScopedParameters = [
+    ...parameters,
+    context.userId,
+    Boolean(canViewAllCrmRecords(context)),
+  ];
   const companyVisible = (alias, includeUnassigned = true) =>
     `($4::boolean OR ($2::uuid IS NOT NULL AND ${includeUnassigned ? `(${alias}.company_id IS NULL OR ${alias}.company_id = $2)` : `${alias}.company_id = $2`}))`;
   const branchVisible = (alias) =>
     `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
+  const ownerVisible = (alias, column = "owner_user_id") =>
+    `($6::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $5)`;
 
   const queryOptions = (sql, values) =>
     client.query(
@@ -4643,12 +5045,12 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const leads = await queryOptions(
-    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} ORDER BY lead.updated_at DESC LIMIT 500`,
-    parameters,
+    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead")} ORDER BY lead.updated_at DESC LIMIT 500`,
+    ownerScopedParameters,
   );
   const opportunities = await queryOptions(
-    `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
-    parameters,
+    `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
+    ownerScopedParameters,
   );
   const sequences = await queryOptions(
     `SELECT id, name FROM tenant.crm_sequences WHERE organization_id = $1 AND status <> 'archived' ORDER BY name`,
@@ -4784,10 +5186,45 @@ export async function getCrmDashboard(client, context) {
       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS open_opportunities,
       (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS pipeline_value,
       (SELECT COALESCE(sum(opportunity.expected_revenue),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS weighted_pipeline,
-      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at < now() AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS overdue_activities,
+      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND ${taskOverdueSql("activity")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS overdue_activities,
       (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day' AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS due_today,
       (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.created_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS leads_this_month,
-      (SELECT count(*)::int FROM tenant.crm_conversion_records conversion JOIN tenant.crm_leads lead ON lead.id = conversion.lead_id AND lead.organization_id = conversion.organization_id WHERE conversion.organization_id = $1 AND conversion.converted_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS conversions_this_month`,
+      (SELECT count(*)::int FROM tenant.crm_conversion_records conversion JOIN tenant.crm_leads lead ON lead.id = conversion.lead_id AND lead.organization_id = conversion.organization_id WHERE conversion.organization_id = $1 AND conversion.converted_at >= date_trunc('month', now()) AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS conversions_this_month,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND lead.owner_user_id IS NULL AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS unassigned_leads,
+      (SELECT count(*)::int FROM tenant.crm_leads lead JOIN tenant.crm_lead_stages stage ON stage.organization_id=lead.organization_id AND stage.code=lead.status WHERE lead.organization_id = $1 AND lead.record_status='active' AND stage.dwell_breach_hours IS NOT NULL AND lead.stage_entered_at <= now() - (stage.dwell_breach_hours || ' hours')::interval AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS dwell_breached_leads,
+      -- F024 (Pipeline dashboard) — LAST PROMPT 1/3 closeout: the dossier's
+      -- required "stalled/risk signals" item had no Opportunity-side
+      -- equivalent on the dashboard despite the real per-stage threshold
+      -- (crm_opportunity_stage_sla_policies, falling back to
+      -- crm_pipeline_stages.stale_after_days — see opportunity-and-pipeline-
+      -- governance/stage-aging.js's computeStageAge, already used by the
+      -- pipeline board) already existing; this reuses the identical
+      -- threshold precedence at the SQL level rather than inventing a
+      -- second one.
+      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity
+         LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id=opportunity.organization_id AND stage.id=opportunity.stage_id
+         LEFT JOIN tenant.crm_opportunity_stage_sla_policies policy ON policy.organization_id=opportunity.organization_id AND policy.pipeline_id=opportunity.pipeline_id AND policy.stage_id=opportunity.stage_id AND policy.status='active'
+        WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND COALESCE(policy.maximum_days, stage.stale_after_days) IS NOT NULL
+          AND opportunity.stage_entered_at <= now() - (COALESCE(policy.maximum_days, stage.stale_after_days) || ' days')::interval
+          AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS stalled_opportunities,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND lead.qualification_state='not_reviewed' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS needs_qualification_leads,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND lead.lead_grade IN ('hot','qualified') AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS high_priority_leads,
+      -- F020 (Territories/sales teams) — LAST PROMPT 1/3 closeout: the
+      -- dossier's required "coverage gap" signal (a territory with nobody
+      -- currently, effectively assigned as its primary owner) had no
+      -- detection/reporting anywhere. A territory with only an 'overlay'/
+      -- 'shared'/'manager' assignment role and no 'primary' one still
+      -- counts as a coverage gap — those roles supplement primary
+      -- ownership, they do not substitute for it.
+      (SELECT count(*)::int FROM tenant.crm_territories territory
+        WHERE territory.organization_id = $1 AND territory.status = 'active' AND ${companyVisible("territory")}
+          AND NOT EXISTS (
+            SELECT 1 FROM tenant.crm_territory_assignments assignment
+             WHERE assignment.organization_id = territory.organization_id AND assignment.territory_id = territory.id
+               AND assignment.assignment_role = 'primary'
+               AND assignment.effective_from <= current_date
+               AND (assignment.effective_to IS NULL OR assignment.effective_to >= current_date)
+          )) AS uncovered_territories`,
     parameters,
   );
   const stages = await client.query(
@@ -4850,7 +5287,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
   else if (report === "sources")
     sql = `SELECT COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY leads DESC`;
   else if (report === "activities")
-    sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE activity.due_at<now() AND activity.status NOT IN ('completed','cancelled'))::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
+    sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
     sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open'),0)::numeric AS pipeline, COALESCE(sum(opportunity.expected_revenue) FILTER (WHERE opportunity.status='open'),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
   else if (report === "campaigns")
@@ -5083,3 +5520,75 @@ export {
   startCrmMeeting,
   updateCrmMeeting,
 } from "./meeting-operations.js";
+// Prompt 6 integrity note: task-operations.js was previously exported only
+// from the top-level package index (services/api/src/index.js), not from
+// this module's own index.js — an architectural inconsistency versus
+// call-operations.js/meeting-operations.js above, fixed here rather than
+// left standing while other CRM-CAP-004 work lands in this same pass.
+export {
+  cancelCrmTask,
+  claimCrmTask,
+  completeCrmTask,
+  createCrmTask,
+  getCrmTask,
+  listCrmTaskHistory,
+  listCrmTasks,
+  listMyTaskTeams,
+  listTeamMembers,
+  releaseCrmTask,
+  startCrmTask,
+  updateCrmTask,
+  taskOverdueSql,
+  computeNextTaskOccurrence,
+  generateNextTaskOccurrence,
+  addTaskDependency,
+  removeTaskDependency,
+  listTaskDependencies,
+} from "./task-operations.js";
+export {
+  archiveCrmNote,
+  createCrmNote,
+  getCrmNote,
+  listCrmNoteVersions,
+  listCrmNotes,
+  updateCrmNote,
+} from "./seller-activity-and-follow-up-workspace/notes/notes-operations.js";
+export { resolveCrmEntityAccess } from "./seller-activity-and-follow-up-workspace/timeline/timeline.js";
+export {
+  communicationVisibilitySql,
+  projectCrmCommunication,
+  projectCrmCommunications,
+  resolveCallerParticipantCommunicationIds,
+  resolveCommunicationParticipants,
+} from "./seller-activity-and-follow-up-workspace/communications/communication-projection.js";
+export {
+  createCrmAttachment,
+  crmAttachmentStorageEntityType,
+  deleteCrmAttachment,
+  getCrmAttachmentContent,
+  listCrmAttachments,
+  listCrmAttachmentVersions,
+} from "./seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
+export {
+  acknowledgeReminder,
+  cancelCrmFollowUp,
+  claimDueReminders,
+  completeCrmFollowUp,
+  createCrmFollowUp,
+  createRemindersForActivity,
+  cancelPendingRemindersForActivity,
+  escalateOverdueFollowUps,
+  getCrmFollowUp,
+  listCrmFollowUpHistory,
+  listCrmFollowUps,
+  listRemindersForActivity,
+  markReminderOutcome,
+  resetStuckDispatchingReminders,
+  snoozeCrmFollowUp,
+  updateCrmFollowUp,
+} from "./seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js";
+export { createInAppNotification, getManagerForUser } from "./seller-activity-and-follow-up-workspace/shared/notify.js";
+export {
+  getCrmTimelinePage as getCrmRecordTimelinePage,
+  getCrmTimelinePageBySource,
+} from "./seller-activity-and-follow-up-workspace/timeline/timeline.js";

@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { createCrmRecord, updateCrmRecord } from "../src/modules/crm/index.js";
 import { normalizeLeadRecordInput } from "../src/modules/crm/features/leads/record-validation.js";
+import * as leadSourceOperations from "../src/modules/crm/lead-source-operations.js";
+import { setCrmLeadSourceActive } from "../src/modules/crm/lead-source-operations.js";
+
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 const org = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -134,4 +141,46 @@ test("F004: original source cannot be edited through the generic update path", a
 test("F004: normalizeLeadRecordInput trims referrerName and maps blank to null", () => {
   assert.deepEqual(normalizeLeadRecordInput({ referrerName: "  Rahul Sharma  " }), { referrerName: "Rahul Sharma" });
   assert.deepEqual(normalizeLeadRecordInput({ referrerName: "   " }), { referrerName: null });
+});
+
+// F004 FK reassessment (CRM-VNEXT-084): crm_leads.original_source_id has an
+// ON DELETE SET NULL foreign key, which would be inconsistent with the
+// "immutable lineage" guarantee IF a hard-delete path for Lead Sources ever
+// existed. It does not — proven two ways below, so the FK is currently
+// harmless dead code, not a live risk. If a delete path is ever added, this
+// invariant test breaks loudly and the FK must be revisited then.
+
+test("F004: lead-source-operations.js has no hard-delete code path — module-shape guard", () => {
+  const exportNames = Object.keys(leadSourceOperations);
+  for (const name of exportNames) {
+    assert.doesNotMatch(name.toLowerCase(), /delete|remove/, `unexpected delete-shaped export: ${name}`);
+  }
+});
+
+test("F004: lead-source-operations.js issues no DELETE FROM tenant.crm_lead_sources SQL anywhere in source — static guard", () => {
+  const source = fs.readFileSync(
+    path.join(moduleDir, "../src/modules/crm/lead-source-operations.js"),
+    "utf8",
+  );
+  assert.doesNotMatch(source, /DELETE\s+FROM\s+tenant\.crm_lead_sources/i);
+});
+
+test("F004: deactivating a Lead Source issues only an UPDATE (status toggle), never a DELETE — behavioral proof", async () => {
+  const org = "11111111-1111-4111-8111-111111111111";
+  const user = "22222222-2222-4222-8222-222222222222";
+  const id = "33333333-3333-4333-8333-333333333333";
+  const calls = [];
+  const client = {
+    async query(sql, values = []) {
+      calls.push({ sql, values });
+      if (sql.includes("SELECT") && sql.includes("FROM tenant.crm_lead_sources") && sql.includes("WHERE"))
+        return { rows: [{ id, code: "WEB", name: "Website", status: "active", lead_count: 0 }] };
+      if (sql.startsWith("UPDATE tenant.crm_lead_sources")) return { rows: [], rowCount: 1 };
+      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      return { rows: [] };
+    },
+  };
+  await setCrmLeadSourceActive(client, { organizationId: org, userId: user }, id, false);
+  assert.ok(calls.some((c) => c.sql.startsWith("UPDATE tenant.crm_lead_sources")));
+  assert.equal(calls.some((c) => /^DELETE/i.test(c.sql.trim())), false);
 });

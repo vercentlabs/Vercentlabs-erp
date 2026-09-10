@@ -5,10 +5,42 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
+import {
+  communicationVisibilitySql,
+  projectCrmCommunication,
+  projectCrmCommunications,
+  resolveCallerParticipantCommunicationIds,
+  resolveCommunicationParticipants,
+} from "./seller-activity-and-follow-up-workspace/communications/communication-projection.js";
+
+// Same one-line check every other CRM domain module in this codebase
+// already carries locally (index.js's recordScope, timeline.js, task-
+// operations.js) — trivial enough that a shared import would be more
+// indirection than the duplication it avoids.
+function canViewAllCrmRecords(context) {
+  return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
+}
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// F018 §9 closeout — claim/messages/status previously had NO inbox-
+// membership check at all: any caller holding the ordinary
+// crm.communications.manage permission could claim, read or change the
+// status of ANY shared inbox's thread by id, regardless of
+// crm_shared_inbox_members — "a user must not access another team's
+// inbox merely by guessing a thread ID" was not actually enforced. This
+// is the ONE membership gate all three call.
+async function assertSharedInboxMember(client, context, inboxId) {
+  if (!inboxId || canViewAllCrmRecords(context)) return;
+  const result = await client.query(
+    `SELECT 1 FROM tenant.crm_shared_inbox_members WHERE organization_id=$1 AND inbox_id=$2 AND user_id=$3 LIMIT 1`,
+    [context.organizationId, inboxId, context.userId],
+  );
+  if (!result.rows[0])
+    throw new CrmCommunicationsError(403, "You are not a member of this shared inbox.", "CRM_INBOX_SCOPE_FORBIDDEN");
+}
 
 export const CRM_COMMUNICATION_CAPABILITY_IDS = Object.freeze([
   "CRM-001",
@@ -825,6 +857,17 @@ export async function ingestMailboxDelta(
         context.userId,
       ],
     );
+    // F018 §1 closeout — resolves this message's actual participants
+    // (sender/recipients/cc/bcc) against public.users (internal) and
+    // tenant.contacts (external, metadata only — never application
+    // access), so the 'participant' visibility tier and content
+    // projection below have something real to check against.
+    await resolveCommunicationParticipants(client, context, communication.rows[0].id, [
+      { role: "sender", email: message.fromAddress },
+      ...message.toAddresses.map((email) => ({ role: "recipient", email })),
+      ...message.ccAddresses.map((email) => ({ role: "cc", email })),
+      ...message.bccAddresses.map((email) => ({ role: "bcc", email })),
+    ]);
     const insertedMessage = await client.query(
       `INSERT INTO tenant.crm_email_messages(organization_id,thread_id,communication_id,sync_account_id,provider,provider_message_id,internet_message_id,direction,from_address,to_addresses,cc_addresses,bcc_addresses,reply_to_addresses,subject,body_text,body_html,sent_at,received_at,status,provider_payload_hash,headers,metadata,created_by)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CASE WHEN $8='outbound' THEN $17::timestamptz END,CASE WHEN $8='inbound' THEN $17::timestamptz END,$18,$19,$20,$21,$22)
@@ -966,6 +1009,13 @@ export async function claimSharedInboxThread(
   input = {},
 ) {
   const id = assertId(threadId, "Thread");
+  const existing = await client.query(
+    `SELECT inbox_id FROM tenant.crm_email_threads WHERE organization_id=$1 AND id=$2 LIMIT 1`,
+    [context.organizationId, id],
+  );
+  if (!existing.rows[0])
+    throw new CrmCommunicationsError(404, "Thread not found.", "CRM_INBOX_THREAD_NOT_FOUND");
+  await assertSharedInboxMember(client, context, existing.rows[0].inbox_id);
   const result = await client.query(
     `UPDATE tenant.crm_email_threads thread SET assigned_user_id=$3,claimed_at=now(),claim_expires_at=now()+COALESCE((SELECT collision_timeout_minutes FROM tenant.crm_shared_inboxes inbox WHERE inbox.organization_id=thread.organization_id AND inbox.id=thread.inbox_id),15)*interval '1 minute',updated_by=$3,updated_at=now()
      WHERE thread.organization_id=$1 AND thread.id=$2 AND (thread.assigned_user_id IS NULL OR thread.assigned_user_id=$3 OR thread.claim_expires_at<now()) RETURNING *`,
@@ -977,6 +1027,88 @@ export async function claimSharedInboxThread(
       "Another agent currently owns this conversation.",
       "CRM_INBOX_COLLISION",
     );
+  return result.rows[0];
+}
+
+// F018 closeout (§33 shared-inbox reachability, §8-9 thread/inbox
+// authorization): the messages within one thread — the piece a real reply
+// UI needs that getCommunicationsDashboard (list-of-threads only) never
+// provided. A thread must not become an authorization bypass: (1) the
+// caller must be a member of the thread's own shared inbox (§9,
+// assertSharedInboxMember — previously unchecked entirely), (2) each
+// message's audience is resolved from its OWN linked communication's
+// visibility tier (team/private/participant, the SAME canonical fragment
+// every other surface uses — mixed threads with some team-visible and
+// some private/participant-only messages are supported per-row, not
+// all-or-nothing at the thread level), and (3) content is then projected
+// per message (full vs metadata-only) via the same canonical projector —
+// a caller with thread access but not content permission sees which
+// messages exist, not their bodies.
+export async function listThreadMessages(client, context, threadId) {
+  const id = assertId(threadId, "Thread");
+  const thread = await client.query(
+    `SELECT * FROM tenant.crm_email_threads WHERE organization_id=$1 AND id=$2 LIMIT 1`,
+    [context.organizationId, id],
+  );
+  if (!thread.rows[0])
+    throw new CrmCommunicationsError(404, "Thread not found.", "CRM_INBOX_THREAD_NOT_FOUND");
+  await assertSharedInboxMember(client, context, thread.rows[0].inbox_id);
+  const parameters = [context.organizationId, id];
+  const audienceSql = communicationVisibilitySql(context, parameters, "communication");
+  const messages = await client.query(
+    `SELECT message.*, communication.id AS communication_id_resolved, communication.visibility AS communication_visibility, communication.created_by AS communication_created_by
+       FROM tenant.crm_email_messages message
+       LEFT JOIN tenant.crm_communications communication ON communication.organization_id=message.organization_id AND communication.id=message.communication_id
+      WHERE message.organization_id=$1 AND message.thread_id=$2
+        AND (communication.id IS NULL OR ${audienceSql})
+      ORDER BY message.sent_at ASC NULLS LAST, message.received_at ASC NULLS LAST, message.created_at ASC`,
+    parameters,
+  );
+  const communicationIds = messages.rows.map((row) => row.communication_id_resolved).filter(Boolean);
+  const participantIds = await resolveCallerParticipantCommunicationIds(client, context, communicationIds);
+  const canSeeContent = canViewSensitiveLeadContent(context);
+  const projectedMessages = messages.rows.map((row) => {
+    if (!row.communication_id_resolved) return row; // no linked communication (e.g. draft) — nothing to project
+    const hasContentAccess = canSeeContent || row.communication_created_by === context.userId || participantIds.has(row.communication_id_resolved);
+    if (hasContentAccess) return row;
+    return {
+      id: row.id,
+      thread_id: row.thread_id,
+      communication_id: row.communication_id,
+      direction: row.direction,
+      status: row.status,
+      sent_at: row.sent_at,
+      received_at: row.received_at,
+      created_at: row.created_at,
+      redacted: true,
+    };
+  });
+  return { thread: thread.rows[0], messages: projectedMessages };
+}
+
+// F018 closeout (§33 status): open -> pending/closed, mirroring the enum
+// migration 031 already declares. A closed/spam/archived thread can be
+// reopened by setting it back to 'open' — no separate "reopen" verb, this
+// is a plain governed status field, not a ticketing state machine.
+const THREAD_STATUSES = new Set(["open", "pending", "closed", "spam", "archived"]);
+export async function updateSharedInboxThreadStatus(client, context, threadId, status) {
+  const id = assertId(threadId, "Thread");
+  const value = text(status);
+  if (!THREAD_STATUSES.has(value))
+    throw new CrmCommunicationsError(400, "Unsupported thread status.", "CRM_INBOX_THREAD_STATUS_INVALID");
+  const existing = await client.query(
+    `SELECT inbox_id FROM tenant.crm_email_threads WHERE organization_id=$1 AND id=$2 LIMIT 1`,
+    [context.organizationId, id],
+  );
+  if (!existing.rows[0])
+    throw new CrmCommunicationsError(404, "Thread not found.", "CRM_INBOX_THREAD_NOT_FOUND");
+  await assertSharedInboxMember(client, context, existing.rows[0].inbox_id);
+  const result = await client.query(
+    `UPDATE tenant.crm_email_threads SET status=$3,updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [context.organizationId, id, value, context.userId],
+  );
+  if (!result.rows[0])
+    throw new CrmCommunicationsError(404, "Thread not found.", "CRM_INBOX_THREAD_NOT_FOUND");
   return result.rows[0];
 }
 
@@ -1070,6 +1202,45 @@ export async function recordEmailEngagementEvent(client, context, input = {}) {
   return { duplicate: false, event: event.rows[0] };
 }
 
+// Prompt 6 (F018) closeout: Prompt-3 built a real consent ledger
+// (crm_consent_events) and a Lead-level do_not_contact flag (already
+// enforced for outbound Calls — see call-operations.js's
+// CRM_CALL_DO_NOT_CONTACT), but the email send path never consulted
+// either — only crm_email_suppressions (a narrower, provider-bounce/
+// complaint/manual-unsubscribe concept) gated a send. This closes that
+// specific gap: an explicit Lead do-not-contact flag, or the most recent
+// crm_consent_events row recording an explicit withdrawal/suppression for
+// this subject+channel, now blocks the send the same way suppression
+// already does. This deliberately does NOT introduce an opt-in-required
+// gate — crm_leads.consent_email defaults to false for essentially every
+// existing Lead (capture-time flag, not a ledger), so treating "no
+// consent recorded" as blocking would break ordinary business email that
+// was never subject to a strict opt-in requirement. It only respects an
+// EXPLICIT negative signal, matching the dossier's own language ("opt-
+// out... do-not-contact... suppression"), not a broader redesign.
+export async function assertEmailConsent(client, context, { leadId, contactId, partyId }) {
+  if (leadId) {
+    const lead = await client.query(
+      `SELECT do_not_contact FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, leadId],
+    );
+    if (lead.rows[0]?.do_not_contact)
+      return { allowed: false, reason: "do_not_contact" };
+  }
+  if (!leadId && !contactId && !partyId) return { allowed: true, reason: null };
+  const consent = await client.query(
+    `SELECT action FROM tenant.crm_consent_events
+      WHERE organization_id=$1 AND channel IN ('email','all')
+        AND ((lead_id=$2 AND $2::uuid IS NOT NULL) OR (contact_id=$3 AND $3::uuid IS NOT NULL) OR (party_id=$4 AND $4::uuid IS NOT NULL))
+      ORDER BY occurred_at DESC LIMIT 1`,
+    [context.organizationId, leadId || null, contactId || null, partyId || null],
+  );
+  const latestAction = consent.rows[0]?.action;
+  if (latestAction === "withdrawn" || latestAction === "suppressed")
+    return { allowed: false, reason: "consent_withdrawn" };
+  return { allowed: true, reason: null };
+}
+
 export async function queueOutboundEmail(client, context, input = {}) {
   const composition = await resolveOutboundEmailComposition(
     client,
@@ -1081,6 +1252,17 @@ export async function queueOutboundEmail(client, context, input = {}) {
     throw new CrmCommunicationsError(
       400,
       "At least one recipient is required.",
+    );
+  const consentDecision = await assertEmailConsent(client, context, {
+    leadId: input.leadId || null,
+    contactId: input.contactId || null,
+    partyId: input.partyId || null,
+  });
+  if (!consentDecision.allowed)
+    throw new CrmCommunicationsError(
+      409,
+      `Email cannot be queued: ${consentDecision.reason}.`,
+      `CRM_EMAIL_${String(consentDecision.reason).toUpperCase()}`,
     );
   const suppression = await client.query(
     `SELECT email_address FROM tenant.crm_email_suppressions WHERE organization_id=$1 AND email_address=ANY($2::text[]) AND status='active' AND (expires_at IS NULL OR expires_at>now())`,
@@ -1129,8 +1311,8 @@ export async function queueOutboundEmail(client, context, input = {}) {
     ],
   );
   const communication = await client.query(
-    `INSERT INTO tenant.crm_communications(organization_id,channel,direction,lead_id,opportunity_id,party_id,contact_id,provider,provider_message_id,subject,body,from_address,to_addresses,status,occurred_at,metadata,created_by,updated_by)
-     VALUES($1,'email','outbound',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'queued',now(),$12,$13,$13) RETURNING *`,
+    `INSERT INTO tenant.crm_communications(organization_id,channel,direction,lead_id,opportunity_id,party_id,contact_id,provider,provider_message_id,subject,body,from_address,to_addresses,status,occurred_at,metadata,visibility,created_by,updated_by)
+     VALUES($1,'email','outbound',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'queued',now(),$12,$13,$14,$14) RETURNING *`,
     [
       context.organizationId,
       input.leadId || null,
@@ -1147,9 +1329,22 @@ export async function queueOutboundEmail(client, context, input = {}) {
         templateId: input.templateId || null,
         signatureId: input.signatureId || null,
       }),
+      ["private", "participant"].includes(input.visibility) ? input.visibility : "team",
       context.userId,
     ],
   );
+  // F018 §1 closeout — resolves this message's real participants
+  // (sender/recipients/cc/bcc) the same way ingestMailboxDelta does for
+  // inbound mail, so an outbound 'participant'-visibility send has
+  // something real to check against too.
+  const ccRecipients = array(input.ccAddresses).map(optionalEmail).filter(Boolean);
+  const bccRecipients = array(input.bccAddresses).map(optionalEmail).filter(Boolean);
+  await resolveCommunicationParticipants(client, context, communication.rows[0].id, [
+    { role: "sender", email: normalizeEmailAddress(input.fromAddress) },
+    ...recipients.map((email) => ({ role: "recipient", email })),
+    ...ccRecipients.map((email) => ({ role: "cc", email })),
+    ...bccRecipients.map((email) => ({ role: "bcc", email })),
+  ]);
   const message = await client.query(
     `INSERT INTO tenant.crm_email_messages(organization_id,thread_id,communication_id,sync_account_id,provider,provider_message_id,direction,from_address,to_addresses,subject,body_text,body_html,status,provider_payload_hash,metadata,created_by)
      VALUES($1,$2,$3,$4,$5,$6,'outbound',$7,$8,$9,$10,$11,'queued',$12,$13,$14) RETURNING *`,
@@ -1296,39 +1491,6 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       text(input.notes) || null,
     ],
   );
-  const event = await client.query(
-    `INSERT INTO tenant.crm_calendar_events(organization_id,company_id,provider,external_event_id,title,starts_at,ends_at,timezone,location,organizer_email,online_meeting_url,visibility,provider_status,meeting_booking_id,metadata,created_by,updated_by)
-     VALUES($1,$2,'vercentlabs',$3,$4,$5,$6,$7,$8,$9,$10,'default','confirmed',$11,$12,$13,$13) RETURNING *`,
-    [
-      context.organizationId,
-      link.rows[0].company_id || context.activeCompanyId || null,
-      `booking-${booking.rows[0].id}`,
-      link.rows[0].name,
-      desiredStart,
-      endsAt.toISOString(),
-      link.rows[0].timezone,
-      link.rows[0].location_template || null,
-      null,
-      null,
-      booking.rows[0].id,
-      JSON.stringify({ guestEmail }),
-      context.userId,
-    ],
-  );
-  await client.query(
-    `UPDATE tenant.crm_meeting_bookings SET calendar_event_id=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, booking.rows[0].id, event.rows[0].id],
-  );
-  await client.query(
-    `INSERT INTO tenant.crm_calendar_attendees(organization_id,calendar_event_id,email_address,display_name,response_status) VALUES($1,$2,$3,$4,'accepted')`,
-    [
-      context.organizationId,
-      event.rows[0].id,
-      guestEmail,
-      text(input.guestName),
-    ],
-  );
-
   // F014 bridge: every public booking also becomes the canonical CRM Meeting
   // activity so the host sees it in Daily Work and lifecycle/history use one
   // governed ledger. Guest PII stays only in scoped booking/attendee rows.
@@ -1339,8 +1501,8 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
   const meetingActivity = await client.query(
     `INSERT INTO tenant.crm_activities(
        organization_id,company_id,entity_type,activity_type,subject,status,priority,assigned_to,start_at,due_at,end_at,location,
-       meeting_location_type,meeting_url,meeting_booking_id,meeting_calendar_event_id,created_by,updated_by)
-     VALUES($1,$2,'general','meeting',$3,'planned','medium',$4,$5,$5,$6,$7,$8,$9,$10,$11,$4,$4)
+       meeting_location_type,meeting_url,meeting_booking_id,created_by,updated_by)
+     VALUES($1,$2,'general','meeting',$3,'planned','medium',$4,$5,$5,$6,$7,$8,$9,$10,$4,$4)
      RETURNING *`,
     [
       context.organizationId,
@@ -1353,7 +1515,39 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       onlineLocation ? "online" : locationTemplate ? "in_person" : "other",
       meetingUrl,
       booking.rows[0].id,
-      event.rows[0].id,
+    ],
+  );
+  // Same canonical calendar-sync-intent path ordinary Meeting create/update/
+  // cancel now uses (meeting-operations.js) — a public booking is not a
+  // second calendar representation, just another caller of the one
+  // crm_calendar_events upsert.
+  const calendarEventId = await upsertMeetingCalendarEvent(client, context, {
+    id: meetingActivity.rows[0].id,
+    companyId: link.rows[0].company_id || context.activeCompanyId || null,
+    subject: link.rows[0].name,
+    description: null,
+    startAt: desiredStart,
+    endAt: endsAt.toISOString(),
+    location: locationTemplate,
+    meetingUrl,
+    entityType: null,
+    entityId: null,
+  });
+  await client.query(
+    `UPDATE tenant.crm_activities SET meeting_calendar_event_id=$3 WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, meetingActivity.rows[0].id, calendarEventId],
+  );
+  await client.query(
+    `UPDATE tenant.crm_meeting_bookings SET calendar_event_id=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, booking.rows[0].id, calendarEventId],
+  );
+  await client.query(
+    `INSERT INTO tenant.crm_calendar_attendees(organization_id,calendar_event_id,email_address,display_name,response_status) VALUES($1,$2,$3,$4,'accepted')`,
+    [
+      context.organizationId,
+      calendarEventId,
+      guestEmail,
+      text(input.guestName),
     ],
   );
   await client.query(
@@ -1385,9 +1579,15 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       }),
     ],
   );
+  // F014 closeout: push this newly-booked Meeting to the host's real
+  // connected calendar (if any) instead of leaving provider='internal'
+  // as the only record of it — see pushProviderCalendarEvent's own
+  // comment. A no-op (not an error) when the host has no connected
+  // outbound-capable account.
+  await enqueueCalendarPushJob(client, context, meetingActivity.rows[0].id, "create", meetingActivity.rows[0].updated_at);
   return {
     ...booking.rows[0],
-    calendar_event_id: event.rows[0].id,
+    calendar_event_id: calendarEventId,
     meeting_activity_id: meetingActivity.rows[0].id,
   };
 }
@@ -1436,20 +1636,39 @@ export function resolveProviderCredential(
 }
 
 async function providerJson(fetchImpl, url, accessToken) {
+  return providerRequest(fetchImpl, url, accessToken, {});
+}
+
+// General provider HTTP helper (GET/POST/PATCH/DELETE) shared by the
+// inbound-pull functions above (fetchProviderMailboxDelta/CalendarDelta,
+// via providerJson) and the outbound calendar push below —
+// pushProviderCalendarEvent — rather than a second, near-duplicate fetch
+// wrapper.
+async function providerRequest(fetchImpl, url, accessToken, { method = "GET", body, allowNotFound = false } = {}) {
   const response = await fetchImpl(url, {
+    method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
     },
+    body: body ? JSON.stringify(body) : undefined,
   });
+  // Cancelling an event the provider has already deleted (a prior attempt
+  // succeeded but the response was lost, or the guest/host deleted it
+  // directly in Gmail/Outlook) must be idempotent success, not a retry
+  // loop — 404/410 on a DELETE means "already gone," which is exactly the
+  // end state a cancel is trying to reach.
+  if (allowNotFound && (response.status === 404 || response.status === 410)) return {};
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
+    const responseBody = await response.text().catch(() => "");
     throw new CrmCommunicationsError(
       response.status >= 500 ? 503 : 502,
-      `Provider request failed (${response.status}). ${body.slice(0, 240)}`,
+      `Provider request failed (${response.status}). ${responseBody.slice(0, 240)}`,
       "CRM_PROVIDER_REQUEST_FAILED",
     );
   }
+  if (response.status === 204) return {};
   return response.json();
 }
 
@@ -1608,6 +1827,244 @@ export async function fetchProviderCalendarDelta(account, options = {}) {
   );
 }
 
+// Prompt 6 (F014) closeout — DEC-CRM-P1-F014 lists "calendar sync" as
+// REQUIRED enterprise scope, and the pre-existing implementation only ever
+// PULLED external calendar events in (fetchProviderCalendarDelta above);
+// a CRM-created Meeting was never pushed OUT to the host's real calendar —
+// bookMeeting hardcoded provider='vercentlabs' on its own internal
+// crm_calendar_events row, which is exactly the "faked synchronization by
+// storing only an external URL" pattern the dossier warns against. This is
+// the symmetric outbound counterpart: create/update/cancel one event on
+// the host's connected Gmail/Microsoft365 calendar. Deliberately a plain,
+// injectable-fetchImpl function (same shape as fetchProviderCalendarDelta)
+// so it is testable with a deterministic mock adapter, never a paid
+// external account — and deliberately NOT called from inside a DB
+// transaction (see the worker handler that calls this): real network I/O
+// must never happen while holding a tenant-transaction lock open.
+export async function pushProviderCalendarEvent(account, event, action, options = {}) {
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new CrmCommunicationsError(503, "Fetch is unavailable.");
+  }
+  const credential =
+    options.credential ||
+    resolveProviderCredential(account.credential_reference, options.environment);
+  const provider = text(account.provider).toLowerCase();
+  const attendees = array(event.attendees).map((attendee) => ({
+    email: text(attendee.email),
+    displayName: text(attendee.name) || undefined,
+  }));
+
+  if (provider === "gmail") {
+    const base = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+    if (action === "cancel") {
+      if (!event.externalEventId) return { externalEventId: null, etag: null, providerStatus: "cancelled" };
+      await providerRequest(fetchImpl, `${base}/${encodeURIComponent(event.externalEventId)}`, credential.accessToken, { method: "DELETE", allowNotFound: true });
+      return { externalEventId: null, etag: null, providerStatus: "cancelled" };
+    }
+    const body = {
+      summary: event.title,
+      description: event.description || undefined,
+      location: event.location || undefined,
+      start: { dateTime: event.startsAt, timeZone: event.timezone || "UTC" },
+      end: { dateTime: event.endsAt, timeZone: event.timezone || "UTC" },
+      attendees: attendees.length ? attendees : undefined,
+      conferenceData: event.onlineMeetingUrl ? { entryPoints: [{ entryPointType: "video", uri: event.onlineMeetingUrl }] } : undefined,
+    };
+    const result = event.externalEventId
+      ? await providerRequest(fetchImpl, `${base}/${encodeURIComponent(event.externalEventId)}`, credential.accessToken, { method: "PATCH", body })
+      : await providerRequest(fetchImpl, base, credential.accessToken, { method: "POST", body });
+    return { externalEventId: text(result.id), etag: text(result.etag) || null, providerStatus: text(result.status) || "confirmed" };
+  }
+
+  if (provider === "microsoft365") {
+    const base = "https://graph.microsoft.com/v1.0/me/events";
+    if (action === "cancel") {
+      if (!event.externalEventId) return { externalEventId: null, etag: null, providerStatus: "cancelled" };
+      await providerRequest(fetchImpl, `${base}/${encodeURIComponent(event.externalEventId)}`, credential.accessToken, { method: "DELETE", allowNotFound: true });
+      return { externalEventId: null, etag: null, providerStatus: "cancelled" };
+    }
+    const body = {
+      subject: event.title,
+      body: event.description ? { contentType: "text", content: event.description } : undefined,
+      location: event.location ? { displayName: event.location } : undefined,
+      start: { dateTime: event.startsAt, timeZone: "UTC" },
+      end: { dateTime: event.endsAt, timeZone: "UTC" },
+      attendees: attendees.length
+        ? attendees.map((attendee) => ({ emailAddress: { address: attendee.email, name: attendee.displayName }, type: "required" }))
+        : undefined,
+      isOnlineMeeting: Boolean(event.onlineMeetingUrl) || undefined,
+    };
+    const result = event.externalEventId
+      ? await providerRequest(fetchImpl, `${base}/${encodeURIComponent(event.externalEventId)}`, credential.accessToken, { method: "PATCH", body })
+      : await providerRequest(fetchImpl, base, credential.accessToken, { method: "POST", body });
+    return { externalEventId: text(result.id), etag: text(result["@odata.etag"]) || null, providerStatus: "confirmed" };
+  }
+
+  throw new CrmCommunicationsError(
+    400,
+    "Calendar push supports Gmail and Microsoft 365.",
+    "CRM_PROVIDER_UNSUPPORTED",
+  );
+}
+
+// Resolves everything a calendar-push worker tick needs for one Meeting
+// activity in a single short read: the host's connected sync account (if
+// any — most Meetings will have none, and that is a legitimate, silent
+// no-op, not an error) and the internal crm_calendar_events row shaped
+// into pushProviderCalendarEvent's plain event input. Returns null when
+// there is nothing to push (no host, no meeting activity, no connected
+// outbound-capable account) so the worker can skip cleanly.
+export async function prepareMeetingCalendarPush(client, context, activityId) {
+  const activity = await client.query(
+    `SELECT activity.*,calendar.id AS calendar_event_id,calendar.provider AS calendar_provider,calendar.external_event_id
+       FROM tenant.crm_activities activity
+       LEFT JOIN tenant.crm_calendar_events calendar ON calendar.organization_id=activity.organization_id AND calendar.id=activity.meeting_calendar_event_id
+      WHERE activity.organization_id=$1 AND activity.id=$2 AND activity.activity_type='meeting'`,
+    [context.organizationId, activityId],
+  );
+  const meeting = activity.rows[0];
+  if (!meeting || !meeting.assigned_to) return null;
+  const account = await client.query(
+    `SELECT * FROM tenant.crm_sync_accounts
+      WHERE organization_id=$1 AND user_id=$2 AND provider IN ('gmail','microsoft365')
+        AND status='connected' AND sync_direction IN ('outbound','two_way')
+      ORDER BY updated_at DESC LIMIT 1`,
+    [context.organizationId, meeting.assigned_to],
+  );
+  if (!account.rows[0]) return null;
+  const attendeesResult = await client.query(
+    `SELECT name,email FROM tenant.crm_activity_attendees WHERE organization_id=$1 AND activity_id=$2`,
+    [context.organizationId, activityId],
+  );
+  return {
+    account: account.rows[0],
+    event: {
+      externalEventId: meeting.calendar_provider && !["vercentlabs", "internal"].includes(meeting.calendar_provider) ? meeting.external_event_id : null,
+      title: meeting.subject,
+      description: meeting.description || null,
+      startsAt: (meeting.start_at || meeting.due_at) ? new Date(meeting.start_at || meeting.due_at).toISOString() : null,
+      endsAt: meeting.end_at ? new Date(meeting.end_at).toISOString() : null,
+      timezone: "UTC",
+      location: meeting.location || null,
+      onlineMeetingUrl: meeting.meeting_url || null,
+      attendees: attendeesResult.rows,
+    },
+    calendarEventId: meeting.calendar_event_id || null,
+  };
+}
+
+// Persists a push result back onto the SAME internal crm_calendar_events
+// row bookMeeting/meeting-operations.js already create (never a second,
+// parallel calendar-event table) — replacing the previously-hardcoded
+// provider='vercentlabs' with the real provider once a push actually
+// succeeds, so "this Meeting is genuinely synced" becomes a true fact
+// instead of a label. A cancel result clears provider linkage rather than
+// deleting the row, preserving the Meeting's own audit history.
+export async function recordMeetingCalendarPushResult(client, context, calendarEventId, provider, result) {
+  if (!calendarEventId) return;
+  await client.query(
+    `UPDATE tenant.crm_calendar_events
+        SET provider=$3,external_event_id=$4,etag=$5,provider_status=$6,updated_at=now()
+      WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, calendarEventId, provider, result.externalEventId, result.etag, result.providerStatus],
+  );
+}
+
+// Canonical Meeting -> calendar-sync-intent step (final self-closing
+// pass): create/update/cancel Meeting -> commit CRM Meeting state ->
+// [this function] create/update the ONE canonical calendar-sync-intent
+// row (crm_calendar_events, the same table bookMeeting already used, not
+// a second representation) -> enqueue provider job -> provider adapter ->
+// record provider result -> reconcile. This is the single function every
+// Meeting-mutating path (bookMeeting's public-booking flow AND ordinary
+// createCrmMeeting/updateCrmMeeting/cancelCrmMeeting) now goes through, so
+// there is one place — not three bolted-on call sites — that decides how
+// a Meeting's calendar-sync-intent row is shaped.
+//
+// provider='internal' (not the old 'vercentlabs' placeholder) means
+// "exists only in our own DB, no real external provider has been
+// contacted yet" — prepareMeetingCalendarPush treats both values
+// identically as "not yet synced," but 'internal' is the honest label a
+// UI should show as "Pending sync" / "Not connected", never claiming a
+// sync that hasn't happened.
+export function meetingCalendarParentColumns(entityType, entityId) {
+  const columns = { leadId: null, opportunityId: null, partyId: null, contactId: null };
+  if (!entityId) return columns;
+  if (entityType === "lead") columns.leadId = entityId;
+  else if (entityType === "opportunity") columns.opportunityId = entityId;
+  else if (entityType === "party") columns.partyId = entityId;
+  else if (entityType === "contact") columns.contactId = entityId;
+  return columns;
+}
+
+export async function upsertMeetingCalendarEvent(client, context, meeting) {
+  if (!meeting.startAt || !meeting.endAt) return null; // a "log" (already-happened) Meeting has nothing forward to sync
+  const parents = meetingCalendarParentColumns(meeting.entityType, meeting.entityId);
+  if (meeting.calendarEventId) {
+    const updated = await client.query(
+      `UPDATE tenant.crm_calendar_events
+          SET title=$3,description=$4,starts_at=$5,ends_at=$6,location=$7,online_meeting_url=$8,
+              lead_id=$9,opportunity_id=$10,party_id=$11,contact_id=$12,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING id`,
+      [
+        context.organizationId, meeting.calendarEventId, meeting.subject, meeting.description || null,
+        meeting.startAt, meeting.endAt, meeting.location || null, meeting.meetingUrl || null,
+        parents.leadId, parents.opportunityId, parents.partyId, parents.contactId,
+      ],
+    );
+    if (updated.rows[0]) return updated.rows[0].id;
+  }
+  const inserted = await client.query(
+    `INSERT INTO tenant.crm_calendar_events(
+       organization_id,company_id,provider,external_event_id,title,description,starts_at,ends_at,location,online_meeting_url,
+       provider_status,lead_id,opportunity_id,party_id,contact_id,created_by,updated_by)
+     VALUES($1,$2,'internal',$3,$4,$5,$6,$7,$8,$9,'pending_sync',$10,$11,$12,$13,$14,$14) RETURNING id`,
+    [
+      context.organizationId, meeting.companyId || null, `meeting-${meeting.id}`, meeting.subject, meeting.description || null,
+      meeting.startAt, meeting.endAt, meeting.location || null, meeting.meetingUrl || null,
+      parents.leadId, parents.opportunityId, parents.partyId, parents.contactId, context.userId,
+    ],
+  );
+  return inserted.rows[0].id;
+}
+
+// Marks the calendar-sync-intent row as pending cancellation — the actual
+// provider DELETE happens in the worker via pushProviderCalendarEvent
+// (action='cancel'), which is idempotent against an event the provider
+// already deleted (see providerRequest's allowNotFound). This function
+// only records CRM-side intent so a UI can show "Cancelling…" honestly
+// before the async job completes.
+export async function markMeetingCalendarEventCancelling(client, context, calendarEventId) {
+  if (!calendarEventId) return;
+  await client.query(
+    `UPDATE tenant.crm_calendar_events SET provider_status='cancelling',updated_at=now() WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, calendarEventId],
+  );
+}
+
+// Enqueues one crm.meetings.calendar_push background job for this Meeting.
+// A plain INSERT into tenant.background_jobs (the same table/shape
+// services/worker's queue.js#enqueueJob writes) rather than importing the
+// worker package from services/api — the two are separate deployable
+// services with no existing cross-service import path (see
+// services/worker/src/mailer.js's own precedent for this exact
+// constraint). ON CONFLICT DO NOTHING against the idempotency key means a
+// retried request that already enqueued a push for this exact
+// meeting+action+moment can never double-enqueue.
+export async function enqueueCalendarPushJob(client, context, activityId, action, momentKey) {
+  await client.query(
+    `INSERT INTO tenant.background_jobs(organization_id,job_type,payload,idempotency_key)
+     VALUES($1,'crm.meetings.calendar_push',$2::jsonb,$3)
+     ON CONFLICT (organization_id,idempotency_key) DO NOTHING`,
+    [
+      context.organizationId,
+      JSON.stringify({ activityId, action }),
+      `crm.meetings.calendar_push:${activityId}:${action}:${momentKey}`,
+    ],
+  );
+}
+
 export async function synchronizeProviderAccount(
   client,
   context,
@@ -1736,6 +2193,7 @@ export async function cancelMeetingBooking(
       [context.organizationId, activity.rows[0].id, current.rows[0].status === "confirmed" ? "planned" : current.rows[0].status,
         activity.rows[0].meeting_location_type, Number(attendeeCount.rows[0]?.total || 0), context.userId],
     );
+    await enqueueCalendarPushJob(client, context, activity.rows[0].id, "cancel", activity.rows[0].updated_at);
   }
   return result.rows[0];
 }
@@ -1830,14 +2288,26 @@ export async function rescheduleMeetingBooking(
       [context.organizationId, activity.rows[0].id, activity.rows[0].status,
         activity.rows[0].meeting_location_type, Number(attendeeCount.rows[0]?.total || 0), context.userId],
     );
+    await enqueueCalendarPushJob(client, context, activity.rows[0].id, "update", activity.rows[0].updated_at);
   }
   return result.rows[0];
 }
 
+// F018 final closeout — the ONE canonical Communications projection this
+// codebase's five read surfaces (record 360, canonical Timeline's
+// communication branch, shared inbox thread messages, the generic
+// communication API, mobile) all call — see communication-projection.js
+// for the audience-vs-content split this implements. AUDIENCE (parent-
+// record scope + team/private/participant tier) is enforced here in SQL;
+// CONTENT (full vs metadata-only) is applied per-row afterward via
+// projectCrmCommunications, so a caller who can see the Lead but lacks
+// crm.leads.view_sensitive now gets metadata stubs ("Email sent, 10 Sep,
+// 10:30") for team-visible mail instead of either full content (the old
+// leak) or a blanket 403 (the old, coarser "you can't see anything" gate)
+// — this is what the dossier's F018-SEC-002 ("stricter field/content
+// visibility than record visibility") actually asks for.
 export async function getCommunicationTimeline(client, context, input = {}) {
   if (input.leadId) {
-    if (!canViewSensitiveLeadContent(context))
-      throw new CrmCommunicationsError(403, "You do not have permission to view Lead communication content.", "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN");
     const leadValues = [context.organizationId, assertId(input.leadId, "leadId")];
     const leadScope = leadScopeSql(context, leadValues, "lead");
     const visibleLead = await client.query(
@@ -1860,6 +2330,7 @@ export async function getCommunicationTimeline(client, context, input = {}) {
       clauses.push(`communication.${column}=$${parameters.length}`);
     }
   }
+  clauses.push(communicationVisibilitySql(context, parameters, "communication"));
   const result = await client.query(
     `SELECT communication.*,message.id AS email_message_id,message.status AS email_status,thread.id AS thread_id,thread.assigned_user_id,thread.first_response_due_at,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('type',event.event_type,'occurredAt',event.occurred_at,'url',event.url) ORDER BY event.occurred_at) FROM tenant.crm_email_events event WHERE event.organization_id=communication.organization_id AND event.message_id=message.id),'[]'::jsonb) AS engagement_events
@@ -1869,7 +2340,7 @@ export async function getCommunicationTimeline(client, context, input = {}) {
      WHERE ${clauses.join(" AND ")} ORDER BY communication.occurred_at DESC LIMIT 500`,
     parameters,
   );
-  return result.rows;
+  return projectCrmCommunications(client, context, result.rows);
 }
 
 export async function getCommunicationsDashboard(client, context) {

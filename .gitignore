@@ -74,6 +74,13 @@ apps/landing/scripts/.captured-screenshots.local.json
 apps/landing/scripts/.demo-org-record-ids.local.json
 vercentlabs-full-code.txt
 *-full-code.txt
+
+# Generated source-export snapshots (scripts/export/export-source.mjs) —
+# reproducible artifacts, never the source of truth, never committed.
+/exports/
+vercentlabs-all-code-*.txt
+vercentlabs-all-code-*.txt.gz
+vercentlabs-all-code-*.manifest.json
 # Python generated cache
 __pycache__/
 *.py[cod]

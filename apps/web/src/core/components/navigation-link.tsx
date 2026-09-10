@@ -35,6 +35,17 @@ export default function NavigationLink({
       className={`nav-link${active ? " active" : ""}${mobile ? " mobile" : ""}${nested ? " nested" : ""}`}
       href={href}
       title={label}
+      // The primary/secondary navigation renders every destination in the
+      // active module (often 10-20+ links) simultaneously in the viewport.
+      // Next's default Link prefetching fires an RSC prefetch request for
+      // every one of them via IntersectionObserver, then aborts and
+      // reissues them as navigation state changes — confirmed (CRM vNext
+      // Prompt 3) to be the root cause of `networkidle` never settling on
+      // CRM list pages, which was silently failing the authenticated
+      // browser gate's Leads-table checks. Explicit navigation still
+      // fetches the destination on click; this only disables the
+      // speculative, viewport-triggered background prefetch.
+      prefetch={false}
     >
       <span className="nav-link-icon" aria-hidden="true">
         <SemanticNavigationIcon

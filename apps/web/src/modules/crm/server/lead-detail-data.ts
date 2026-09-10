@@ -5,6 +5,7 @@ import {
   getCrmOptions,
   getCrmRecord,
   getLeadQualification,
+  getLeadStageDwell,
   listLeadStageHistory,
 } from "@vercentlabs/api";
 import { enrichLeadOwnerIdentity } from "./lead-owner-data";
@@ -63,7 +64,12 @@ function redactedQualification(value: unknown) {
   return row;
 }
 
-function serializedClient(client: CrmClient): CrmClient {
+// Exported so other CRM record-360 detail loaders that fan out many
+// concurrent client.query() calls over a single tenantTransaction
+// PoolClient (Promise.all, one connection) reuse this SAME serialization —
+// see opportunity-detail-data.ts's own import of this function, which
+// closes the exact same concurrency hazard this one was written for.
+export function serializedClient(client: CrmClient): CrmClient {
   let queue: Promise<unknown> = Promise.resolve();
   return {
     query(...args: Parameters<CrmClient["query"]>) {
@@ -114,6 +120,7 @@ export async function getLeadDetailData(
     slaEvents,
     dataQuality,
     aiPredictions,
+    dwell,
   ] = await Promise.all([
     canSeeSensitive
       ? db.query(
@@ -121,16 +128,27 @@ export async function getLeadDetailData(
           [context.organizationId, id],
         )
       : emptyRows,
+    // F019 §16 audit finding: this initial-load query was missing the
+    // private-visibility predicate the "load older" route already applied
+    // (and the canonical Timeline's own communication branch applies) — a
+    // private communication was leaking into the first 200 rows shown on
+    // page load even though it was correctly hidden once "load older" was
+    // clicked. Fixed to match the SAME predicate everywhere else.
     canSeeSensitive
       ? db.query(
-          `SELECT * FROM tenant.crm_communications WHERE organization_id=$1 AND lead_id=$2 ORDER BY occurred_at DESC LIMIT 200`,
-          [context.organizationId, id],
+          `SELECT * FROM tenant.crm_communications WHERE organization_id=$1 AND lead_id=$2 AND (visibility<>'private' OR created_by=$3 OR $4) ORDER BY occurred_at DESC LIMIT 200`,
+          [context.organizationId, id, context.userId, canViewAllCrmRecords(context)],
         )
       : emptyRows,
+    // §43 (F017): a private Note is visible only to its own author or to a
+    // caller with the organization-wide "view all" override — Lead access
+    // (canSeeSensitive) alone is not enough. This is enforced in the WHERE
+    // clause itself, not filtered client-side, so a private Note's content
+    // never crosses the wire to an unauthorized viewer.
     canSeeSensitive
       ? db.query(
-          `SELECT n.*,u.full_name AS author_name FROM tenant.crm_notes n LEFT JOIN public.users u ON u.id=n.created_by WHERE n.organization_id=$1 AND n.entity_type='lead' AND n.entity_id=$2 ORDER BY is_pinned DESC,created_at DESC LIMIT 200`,
-          [context.organizationId, id],
+          `SELECT n.*,u.full_name AS author_name FROM tenant.crm_notes n LEFT JOIN public.users u ON u.id=n.created_by WHERE n.organization_id=$1 AND n.entity_type='lead' AND n.entity_id=$2 AND (n.visibility<>'private' OR n.created_by=$3 OR $4) ORDER BY is_pinned DESC,created_at DESC LIMIT 200`,
+          [context.organizationId, id, context.userId, canViewAllCrmRecords(context)],
         )
       : emptyRows,
     canSeeSensitive
@@ -156,7 +174,7 @@ export async function getLeadDetailData(
       [context.organizationId, id],
     ),
     db.query(
-      `SELECT event.id,event.previous_owner_user_id,event.new_owner_user_id,event.reason,event.created_at,
+      `SELECT event.id,event.previous_owner_user_id,event.new_owner_user_id,event.reason,event.created_at,event.evaluation_trace,event.is_override,
               previous_owner.full_name AS previous_owner_name,new_owner.full_name AS new_owner_name,
               policy.name AS policy_name,
               actor.full_name AS actor_name
@@ -216,6 +234,7 @@ export async function getLeadDetailData(
           [context.organizationId, id],
         )
       : emptyRows,
+    getLeadStageDwell(db, context, id),
   ]);
 
   return {
@@ -243,41 +262,17 @@ export async function getLeadDetailData(
     slaEvents: slaEvents.rows,
     dataQuality: dataQuality.rows[0] || null,
     aiPredictions: aiPredictions.rows,
+    dwell,
   };
 }
 
-const TIMELINE_SOURCES = new Set(["activities", "communications"]);
-
-export async function getLeadTimelinePage(
-  client: CrmClient,
-  context: CrmContext,
-  id: string,
-  source: string,
-  offset: number,
-  limit: number,
-) {
-  if (!TIMELINE_SOURCES.has(source))
-    throw new Error(`Unsupported lead timeline source: ${source}`);
-  // Mirrors getLeadDetailData's own guard: confirm the caller can see this
-  // Lead at all (organization/company/branch/owner scope) before paging
-  // through its activities/communications — those tables are filtered only
-  // by entity id below, not independently re-scoped per row.
-  await getCrmRecord(client, context, "leads", id);
-  if (!canViewSensitiveLeadContent(context)) return { rows: [], hasMore: false };
-  const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 50));
-  const boundedOffset = Math.max(0, Math.trunc(offset) || 0);
-  const result =
-    source === "activities"
-      ? await client.query(
-          `SELECT a.*,u.full_name AS assigned_name FROM tenant.crm_activities a LEFT JOIN public.users u ON u.id=a.assigned_to WHERE a.organization_id=$1 AND a.entity_type='lead' AND a.entity_id=$2 ORDER BY COALESCE(a.completed_at,a.due_at,a.created_at) DESC LIMIT $3 OFFSET $4`,
-          [context.organizationId, id, boundedLimit + 1, boundedOffset],
-        )
-      : await client.query(
-          `SELECT * FROM tenant.crm_communications WHERE organization_id=$1 AND lead_id=$2 ORDER BY occurred_at DESC LIMIT $3 OFFSET $4`,
-          [context.organizationId, id, boundedLimit + 1, boundedOffset],
-        );
-  const hasMore = result.rows.length > boundedLimit;
-  return { rows: hasMore ? result.rows.slice(0, boundedLimit) : result.rows, hasMore };
-}
+// F019 §16 closeout — the dedicated OFFSET-paginated Lead timeline query
+// that used to live here (getLeadTimelinePage) has been removed. It was a
+// separate, hand-rolled pagination/security implementation; Lead's
+// Activities-only/Communications-only "load older" tabs are now served by
+// getCrmTimelinePageBySource (services/api's canonical Timeline domain
+// module), the SAME authorization gate and visibility predicate Account/
+// Contact/Opportunity's Timeline already uses — see
+// apps/web/src/app/api/crm/leads/[id]/timeline/route.ts.
 
 export type LeadDetailData = Awaited<ReturnType<typeof getLeadDetailData>>;

@@ -71,7 +71,7 @@ test("F008 Lead Detail does not render links or merge actions for restricted mat
 
 test("F008 dismiss route is authenticated, audited and delegates to the governed domain function", () => {
   const route = read("src/app/api/crm/leads/duplicates/route.ts");
-  assert.match(route, /import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk } from "@vercentlabs\/api"/);
+  assert.match(route, /import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk, findLeadContactCrossMatches } from "@vercentlabs\/api"/);
   assert.match(route, /assertSameOrigin\(request\)/);
   assert.match(route, /dismissLeadDuplicateMatch\(client, context, leadId, matchedLeadId, reason\)/);
   assert.match(route, /crm\.lead\.duplicate_dismissed/);

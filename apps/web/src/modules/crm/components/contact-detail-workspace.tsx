@@ -6,14 +6,26 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import ContactFormDrawer from "@/modules/crm/components/contact-form-drawer";
+import DuplicateReviewPanel from "@/modules/crm/prospect-and-relationship-master-data/duplicate-review-panel";
+import ContactAccountRelationshipsPanel from "@/modules/crm/prospect-and-relationship-master-data/contact-account-relationships-panel";
+import TimelinePanel from "@/modules/crm/components/timeline-panel";
+import NotesPanel from "@/modules/crm/components/notes-panel";
+import AttachmentsPanel from "@/modules/crm/components/attachments-panel";
 import { requestJson } from "@/shared/http/client-request";
 
 type Contact = Record<string, unknown> & {
+  sensitiveDataRestricted?: boolean;
   relationships?: { opportunities?: number; activities?: number };
 };
 
 function display(value: unknown, fallback = "Not added") {
   return value == null || value === "" ? fallback : String(value);
+}
+
+function reachField(contact: Contact, key: string, href: (v: string) => string) {
+  const raw = contact[key];
+  if (raw) return <a href={href(String(raw))}>{String(raw)}</a>;
+  return contact.sensitiveDataRestricted ? "Restricted" : "Not added";
 }
 
 function date(value: unknown) {
@@ -23,7 +35,17 @@ function date(value: unknown) {
     : new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
 }
 
-export default function ContactDetailWorkspace({ contact, canManage }: { contact: Contact; canManage: boolean }) {
+export default function ContactDetailWorkspace({
+  contact,
+  canManage,
+  canManageDuplicates,
+  currentUserId,
+}: {
+  contact: Contact;
+  canManage: boolean;
+  canManageDuplicates: boolean;
+  currentUserId: string;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -42,7 +64,10 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
   async function archiveContact() {
     setPending(true);
     setMessage("");
-    const result = await requestJson(`/api/crm/contacts/${String(contact.id)}`, { method: "DELETE" });
+    const result = await requestJson(
+      `/api/crm/contacts/${String(contact.id)}?expectedUpdatedAt=${encodeURIComponent(String(contact.updatedAt || ""))}`,
+      { method: "DELETE" },
+    );
     if (!result.ok) {
       setMessage(result.message || "The contact could not be archived.");
       setPending(false);
@@ -58,7 +83,7 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
     const result = await requestJson(`/api/crm/contacts/${String(contact.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reactivate" }),
+      body: JSON.stringify({ action: "reactivate", expectedUpdatedAt: String(contact.updatedAt || "") }),
     });
     setPending(false);
     if (!result.ok) {
@@ -90,13 +115,21 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
 
       {message ? <div className="notice error" role="alert">{message}</div> : null}
 
+      {contact.sensitiveDataRestricted ? (
+        <div className="notice" role="status">
+          <strong>Restricted contact content.</strong> Work email, mobile and business phone are hidden by your role.
+        </div>
+      ) : null}
+
       <main className="crm-contact-detail-grid">
         <section className="panel crm-contact-detail-section">
           <div className="crm-contact-section-heading"><p className="eyebrow">Contact</p><h2>Reachability</h2></div>
           <dl className="crm-contact-facts">
-            <div><dt>Work email</dt><dd>{contact.email ? <a href={`mailto:${String(contact.email)}`}>{String(contact.email)}</a> : "Not added"}</dd></div>
-            <div><dt>Mobile</dt><dd>{contact.mobile ? <a href={`tel:${String(contact.mobile)}`}>{String(contact.mobile)}</a> : "Not added"}</dd></div>
-            <div><dt>Business phone</dt><dd>{contact.phone ? <a href={`tel:${String(contact.phone)}`}>{String(contact.phone)}</a> : "Not added"}</dd></div>
+            <div><dt>Work email</dt><dd>{reachField(contact, "email", (v) => `mailto:${v}`)}</dd></div>
+            <div><dt>Mobile</dt><dd>{reachField(contact, "mobile", (v) => `tel:${v}`)}</dd></div>
+            <div><dt>Business phone</dt><dd>{reachField(contact, "phone", (v) => `tel:${v}`)}</dd></div>
+            <div><dt>Preferred language</dt><dd>{display(contact.preferredLanguage)}</dd></div>
+            <div><dt>Time zone</dt><dd>{contact.timezone ? String(contact.timezone).replaceAll("_", " ") : "Not set"}</dd></div>
           </dl>
         </section>
 
@@ -121,6 +154,11 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
         </section>
 
         <section className="panel crm-contact-detail-section">
+          <div className="crm-contact-section-heading"><p className="eyebrow">Company relationships</p><h2>Account relationships</h2></div>
+          <ContactAccountRelationshipsPanel contactId={String(contact.id)} canManage={canManage} />
+        </section>
+
+        <section className="panel crm-contact-detail-section">
           <div className="crm-contact-section-heading"><p className="eyebrow">Related CRM information</p><h2>Relationships</h2></div>
           <div className="crm-contact-related">
             {contact.accountId ? <Link href={`/crm/accounts/${String(contact.accountId)}`}><span>Account</span><strong>{String(contact.accountName)}</strong><span aria-hidden="true">→</span></Link> : null}
@@ -128,6 +166,39 @@ export default function ContactDetailWorkspace({ contact, canManage }: { contact
             <Link href="/crm/activities"><span>Activities</span><strong>{Number(contact.relationships?.activities || 0)}</strong><span aria-hidden="true">→</span></Link>
           </div>
         </section>
+
+        <section className="panel crm-contact-detail-section">
+          <div className="crm-contact-section-heading"><p className="eyebrow">Engagement</p><h2>Timeline</h2></div>
+          <TimelinePanel endpoint={`/api/crm/contacts/${String(contact.id)}/timeline`} />
+        </section>
+
+        <section className="panel crm-contact-detail-section">
+          <div className="crm-contact-section-heading"><p className="eyebrow">Engagement</p><h2>Notes</h2></div>
+          <NotesPanel listEndpoint={`/api/crm/contacts/${String(contact.id)}/notes`} currentUserId={currentUserId} canManage={canManage} />
+        </section>
+
+        <section className="panel crm-contact-detail-section">
+          <div className="crm-contact-section-heading"><p className="eyebrow">Engagement</p><h2>Files</h2></div>
+          <AttachmentsPanel listEndpoint={`/api/crm/contacts/${String(contact.id)}/attachments`} canManage={canManage} />
+        </section>
+
+        {canManageDuplicates ? (
+          <section className="panel crm-contact-detail-section">
+            <div className="crm-contact-section-heading"><p className="eyebrow">Duplicate management</p><h2>Potential matching contacts</h2></div>
+            <DuplicateReviewPanel
+              kind="contact"
+              currentId={String(contact.id)}
+              searchParams={{
+                email: String(contact.email || ""),
+                mobile: String(contact.mobile || ""),
+                firstName: String(contact.firstName || ""),
+                lastName: String(contact.lastName || ""),
+              }}
+              canMerge={canManageDuplicates}
+              onMerged={() => router.push("/crm/contacts")}
+            />
+          </section>
+        ) : null}
       </main>
 
       {editing ? (

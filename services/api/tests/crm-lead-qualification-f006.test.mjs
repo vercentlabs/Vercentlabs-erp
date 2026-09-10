@@ -98,6 +98,8 @@ function qualificationClient(initial = {}) {
           note: values[6],
           decided_by_user_id: values[7],
           decided_by_name: "Manager",
+          override_used: values[8],
+          override_reason: values[9],
           created_at: new Date(`2026-08-25T10:0${history.length}:00Z`),
         };
         history.push(row);
@@ -109,6 +111,7 @@ function qualificationClient(initial = {}) {
         return { rows: [] };
       }
       if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
+      if (sql.includes("FROM tenant.crm_lead_scoring_models")) return { rows: [] }; // no active model — the F027 recalc hook no-ops
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -220,6 +223,52 @@ test("F006: required readiness failures make no writes and return field errors",
       Boolean(error.details.errors.contact),
   );
   assert.equal(client.writes.length, 0);
+});
+
+test("F006 exception override: overriding without the elevated permission is rejected, even with a reason", async () => {
+  const client = qualificationClient({ first_name: "", email: null });
+  const rep = { ...manager, permissions: ["crm.view", "crm.leads.manage"] };
+  await assert.rejects(
+    decideLeadQualification(client, rep, leadId, {
+      decision: "qualified",
+      overrideUsed: true,
+      overrideReason: "Verbal confirmation from the buyer.",
+    }),
+    (error) => error.code === "CRM_LEAD_QUALIFICATION_OVERRIDE_FORBIDDEN",
+  );
+  assert.equal(client.writes.length, 0);
+});
+
+test("F006 exception override: overriding with permission but no reason is rejected", async () => {
+  const client = qualificationClient({ first_name: "", email: null });
+  await assert.rejects(
+    decideLeadQualification(client, manager, leadId, { decision: "qualified", overrideUsed: true }),
+    (error) => error.code === "CRM_LEAD_QUALIFICATION_OVERRIDE_REASON_REQUIRED",
+  );
+  assert.equal(client.writes.length, 0);
+});
+
+test("F006 exception override: an authorized override with a reason qualifies despite missing evidence and is recorded distinctly from an ordinary decision", async () => {
+  const client = qualificationClient({ first_name: "", email: null });
+  const result = await decideLeadQualification(client, manager, leadId, {
+    decision: "qualified",
+    overrideUsed: true,
+    overrideReason: "Verbal confirmation from the buyer; paperwork to follow.",
+  });
+  assert.equal(result.changed, true);
+  assert.equal(result.lead.qualificationState, "qualified");
+  assert.equal(result.event.overrideUsed, true);
+  assert.equal(result.event.overrideReason, "Verbal confirmation from the buyer; paperwork to follow.");
+});
+
+test("F006: readiness includes an evaluatedAt timestamp and a canOverride flag reflecting the caller's permission", async () => {
+  const client = qualificationClient();
+  const qualification = await getLeadQualification(client, manager, leadId);
+  assert.equal(typeof qualification.evaluatedAt, "string");
+  assert.equal(qualification.canOverride, true);
+  const rep = { ...manager, permissions: ["crm.view", "crm.leads.manage"] };
+  const repQualification = await getLeadQualification(client, rep, leadId);
+  assert.equal(repQualification.canOverride, false);
 });
 
 test("F006: unqualification requires an enumerated reason and Other details", async () => {

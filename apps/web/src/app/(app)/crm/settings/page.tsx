@@ -18,7 +18,7 @@ const groups = [
       ["Lead sources", "sources", "Define the source catalogue used on every lead.", "import"],
       ["Lead lifecycle", "lead-lifecycle", "Order the governed working stages used by Leads and Kanban.", "audit"],
       ["Assignment rules", "assignment-rules", "Route new leads to the right owner or team.", "teams"],
-      ["Lead scoring", "scoring-rules", "Create explainable rules that contribute to the lead score.", "sparkles"],
+      ["Lead scoring", "lead-scoring", "Manage the deterministic scoring model, rules, caps, decay and segmentation.", "sparkles"],
       ["Qualification criteria", "qualification-criteria", "Configure the readiness checklist required before a lead can be marked qualified.", "check"],
     ],
   },
@@ -43,18 +43,25 @@ const groups = [
   },
   {
     title: "Customization",
-    description: "Keep the CRM language flexible without introducing custom-object complexity outside F001–F030.",
+    description: "Keep the CRM language flexible without introducing custom-object complexity beyond the standard CRM record types.",
     items: [
       ["Tags", "tags", "Maintain reusable tags for fast lead classification.", "numbering"],
-      ["Custom objects", "custom-object-definitions", "Define tenant-specific record types beyond the standard F001–F030 set.", "modules"],
+      ["Custom objects", "custom-object-definitions", "Define tenant-specific record types beyond the standard CRM set.", "modules"],
       ["Custom fields", "custom-field-definitions", "Add typed, validated, optionally role-restricted fields to a custom object.", "settings"],
       ["Custom records", "custom-records", "Browse and manage records stored against a custom object definition.", "search"],
+    ],
+  },
+  {
+    title: "Data quality",
+    description: "Govern how the CRM detects and resolves duplicate Leads, Accounts and Contacts.",
+    items: [
+      ["Duplicate detection rules", "duplicate-rules", "Enable, reweight or disable the signals used to flag possible duplicate records.", "audit"],
     ],
   },
 ] as const satisfies ReadonlyArray<{
   title: string;
   description: string;
-  items: ReadonlyArray<readonly [string, CrmResourceKey | "lead-lifecycle", string, AppIconName]>;
+  items: ReadonlyArray<readonly [string, CrmResourceKey | "lead-lifecycle" | "lead-scoring" | "duplicate-rules", string, AppIconName]>;
 }>;
 
 export default async function CrmSettingsPage() {
@@ -65,7 +72,7 @@ export default async function CrmSettingsPage() {
     .map((group) => ({
       ...group,
       items: group.items.filter(([, key]) =>
-        key === "lead-lifecycle"
+        key === "lead-lifecycle" || key === "lead-scoring" || key === "duplicate-rules"
           ? hasPermission(session, PERMISSIONS.crmSettingsManage)
           : canViewCrmResource(session, key),
       ),
@@ -84,7 +91,7 @@ export default async function CrmSettingsPage() {
       <PageHeader
         eyebrow="CRM · Configuration"
         title="CRM setup"
-        description="Configure only the controls used by the canonical thirty-feature CRM: lead management, pipeline, teams, territories and lightweight customization."
+        description="Configure lead management, pipeline, teams, territories and lightweight customization for your CRM."
         context={<StatusBadge tone="neutral">{canManage ? "Manage setup" : "Read only"}</StatusBadge>}
       />
 

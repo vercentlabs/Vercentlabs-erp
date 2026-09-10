@@ -25,7 +25,11 @@ test("F001 hardening: CRM API errors expose stable code and errors shape", () =>
   assert.match(crmModuleSource, /code: error\.code \|\| "CRM_ERROR"/);
   assert.match(crmModuleSource, /errors,/);
   assert.match(crmModuleSource, /code: "CRM_VALIDATION_ERROR"/);
-  assert.match(crmModuleSource, /new HttpError\(error\.status, error\.message, error\.code\)/);
+  // Integrity closeout (Prompts 1-5): rethrowCrmError now also forwards
+  // error.details (e.g. CRM_OPPORTUNITY_STAGE_EXIT_BLOCKED's structured
+  // missingRequirements list) as a 4th HttpError argument — the
+  // status/message/code contract this test guards is unchanged.
+  assert.match(crmModuleSource, /new HttpError\(\s*error\.status,\s*error\.message,\s*error\.code,/);
 
   for (const route of [collectionRoute, itemRoute, statusRoute, convertRoute]) {
     assert.match(read(route), /crmErrorResponse\(error\)/, route);

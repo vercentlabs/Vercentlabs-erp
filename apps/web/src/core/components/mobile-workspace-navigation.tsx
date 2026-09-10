@@ -277,7 +277,7 @@ export default function MobileWorkspaceNavigation({
       <div className="mobile-navigation-groups">
         {visibleGroups.map((group) => (
           <section key={group.label} aria-label={group.label}>
-            {group.label === "Overview" ? null : (
+            {group.label === "Overview" || group.label === "Home" ? null : (
               <p className="mobile-navigation-label">{group.label}</p>
             )}
             {group.items.map((item) => (

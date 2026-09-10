@@ -72,12 +72,16 @@ function movingClient({
     client: {
       async query(sql, values = []) {
         calls.push({ sql, values });
+        if (sql.startsWith("SELECT set_config('app.crm_opportunity_lifecycle_transition'"))
+          return { rows: [] };
         if (sql.includes("FROM tenant.crm_opportunities record WHERE"))
           return { rows: [current] };
         if (sql.includes("FROM tenant.crm_pipeline_stages WHERE"))
           return { rows: stage ? [stage] : [] };
         if (sql.includes("FROM tenant.crm_lost_reasons"))
           return { rows: reasonRow ? [reasonRow] : [] };
+        if (sql.includes("FROM tenant.crm_playbook_questions"))
+          return { rows: [] };
         if (sql.startsWith("UPDATE tenant.crm_opportunities")) {
           const status = stage.is_won ? "won" : stage.is_lost ? "lost" : "open";
           return {
@@ -97,6 +101,8 @@ function movingClient({
           };
         }
         if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_history"))
+          return { rows: [] };
+        if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history"))
           return { rows: [] };
         if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
         if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };

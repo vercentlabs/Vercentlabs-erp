@@ -1,6 +1,7 @@
 import { CrmError, queueOutboxEvent } from "./index.js";
 import { assertEligibleLeadAssignee } from "./lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "./lead-security.js";
+import { upsertMeetingCalendarEvent, markMeetingCalendarEventCancelling, enqueueCalendarPushJob } from "./communications.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
@@ -508,6 +509,25 @@ export async function createCrmMeeting(client, context, input = {}) {
   meeting.attendeeCount = attendees.length;
   await recordEvent(client, context, meeting.id, mode === "log" ? "logged" : "scheduled", null, meeting, attendees.length);
   if (mode === "log") await touchParentOnCompletion(client, context, meeting);
+  // Canonical calendar-sync-intent step (final self-closing pass): a
+  // freshly-scheduled Meeting (never a "log" of one that already
+  // happened — nothing forward to sync) gets its own crm_calendar_events
+  // row and an outbound push job, exactly the same architecture
+  // bookMeeting's public-booking flow already used — no second
+  // representation. Remains a legitimate, silent no-op if the host has no
+  // connected outbound-capable calendar account (see
+  // prepareMeetingCalendarPush).
+  if (mode === "schedule") {
+    const calendarEventId = await upsertMeetingCalendarEvent(client, context, meeting);
+    if (calendarEventId) {
+      await client.query(
+        `UPDATE tenant.crm_activities SET meeting_calendar_event_id=$3 WHERE organization_id=$1 AND id=$2`,
+        [context.organizationId, meeting.id, calendarEventId],
+      );
+      meeting.calendarEventId = calendarEventId;
+      await enqueueCalendarPushJob(client, context, meeting.id, "create", meeting.updatedAt);
+    }
+  }
   await queueOutboxEvent(client, context, mode === "log" ? "crm.meeting.completed" : "crm.meeting.scheduled", "meeting", meeting.id, safeEventPayload(meeting, attendees.length));
   return meeting;
 }
@@ -571,6 +591,26 @@ export async function updateCrmMeeting(client, context, id, input = {}) {
   after.attendeeCount = after.attendees.length;
   const rescheduled = entries.some(([key, value]) => ["startAt", "endAt"].includes(key) && iso(before[key]) !== iso(value));
   await recordEvent(client, context, id, rescheduled ? "rescheduled" : "updated", before, after, after.attendeeCount);
+  // Canonical calendar-sync-intent step: any content field a real
+  // calendar invite would show (time, subject, description, location,
+  // meeting URL) OR the attendee list changing re-pushes the SAME
+  // provider event via its retained external_event_id — pushProviderCalendarEvent
+  // PATCHes rather than creating a second one, so a repeated/retried
+  // update job can never duplicate the provider event.
+  const calendarFieldsChanged = entries.some(([key]) => ["subject", "description", "startAt", "endAt", "location", "meetingUrl"].includes(key));
+  if ((calendarFieldsChanged || attendeesChanged) && after.startAt && after.endAt) {
+    const calendarEventId = await upsertMeetingCalendarEvent(client, context, after);
+    if (calendarEventId) {
+      if (!after.calendarEventId) {
+        await client.query(
+          `UPDATE tenant.crm_activities SET meeting_calendar_event_id=$3 WHERE organization_id=$1 AND id=$2`,
+          [context.organizationId, id, calendarEventId],
+        );
+        after.calendarEventId = calendarEventId;
+      }
+      await enqueueCalendarPushJob(client, context, id, "update", after.updatedAt);
+    }
+  }
   await queueOutboxEvent(client, context, rescheduled ? "crm.meeting.rescheduled" : "crm.meeting.updated", "meeting", id, safeEventPayload(after, after.attendeeCount));
   return after;
 }
@@ -657,6 +697,16 @@ export async function cancelCrmMeeting(client, context, id, input = {}) {
   after.attendees = before.attendees || [];
   after.attendeeCount = before.attendeeCount || after.attendees.length;
   await recordEvent(client, context, id, "cancelled", before, after, after.attendeeCount);
+  // Canonical calendar-sync-intent step: mark the sync-intent row
+  // "cancelling" (an honest, immediately-visible UI state) and enqueue the
+  // provider cancel — a no-op if no real external event was ever pushed
+  // (prepareMeetingCalendarPush returns externalEventId: null for an
+  // 'internal'/'vercentlabs' placeholder), and idempotent against an
+  // already-provider-deleted event (providerRequest's allowNotFound).
+  if (after.calendarEventId) {
+    await markMeetingCalendarEventCancelling(client, context, after.calendarEventId);
+    await enqueueCalendarPushJob(client, context, id, "cancel", after.updatedAt);
+  }
   await queueOutboxEvent(client, context, "crm.meeting.cancelled", "meeting", id, safeEventPayload(after, after.attendeeCount));
   return after;
 }

@@ -18,6 +18,7 @@ import {
 
 type Row = Record<string, unknown>;
 type Source = { id: string; name: string };
+type Territory = { id: string; name: string };
 
 const CONDITION_FIELDS = [
   { value: "", label: "Any lead" },
@@ -25,6 +26,13 @@ const CONDITION_FIELDS = [
   { value: "countryCode", label: "Country code" },
   { value: "industry", label: "Industry" },
   { value: "productInterest", label: "Product interest" },
+  { value: "leadGrade", label: "Score segment" },
+];
+const LEAD_GRADES = [
+  { value: "cold", label: "Cold" },
+  { value: "warm", label: "Warm" },
+  { value: "hot", label: "Hot" },
+  { value: "qualified", label: "Qualified" },
 ];
 
 function criteriaEntry(policy: Row | null) {
@@ -39,11 +47,13 @@ function criteriaEntry(policy: Row | null) {
 export default function LeadAssignmentRulesWorkspace({
   policies,
   sources,
+  territories,
   fallback,
   availability,
 }: {
   policies: Row[];
   sources: Source[];
+  territories: Territory[];
   fallback: Row;
   availability: Row[];
 }) {
@@ -54,6 +64,7 @@ export default function LeadAssignmentRulesWorkspace({
   const [message, setMessage] = useState("");
   const [mode, setMode] = useState("fixed");
   const [conditionField, setConditionField] = useState("");
+  const [territoryId, setTerritoryId] = useState("");
   const [fixedAssignee, setFixedAssignee] = useState<LeadAssigneeOption | null>(
     null,
   );
@@ -156,6 +167,7 @@ export default function LeadAssignmentRulesWorkspace({
     setConditionField("");
     setFixedAssignee(null);
     setMembers([]);
+    setTerritoryId("");
     setMessage("");
   }
 
@@ -165,6 +177,7 @@ export default function LeadAssignmentRulesWorkspace({
     setEditing(policy);
     setMode(String(policy.mode || "fixed"));
     setConditionField(nextCondition.field);
+    setTerritoryId(policy.territory_id ? String(policy.territory_id) : "");
     setFixedAssignee(
       policy.assignee_user_id
         ? {
@@ -190,8 +203,12 @@ export default function LeadAssignmentRulesWorkspace({
       setMessage("Select the fixed assignee.");
       return;
     }
-    if (mode === "round_robin" && !members.length) {
-      setMessage("Add at least one round-robin member.");
+    if ((mode === "round_robin" || mode === "workload") && !members.length) {
+      setMessage(`Add at least one ${mode === "round_robin" ? "round-robin" : "workload"} member.`);
+      return;
+    }
+    if (mode === "territory" && !territoryId) {
+      setMessage("Select a territory.");
       return;
     }
     if (conditionField && !conditionValue) {
@@ -216,6 +233,7 @@ export default function LeadAssignmentRulesWorkspace({
             mode,
             assigneeUserId: fixedAssignee?.id || null,
             memberUserIds: members.map((member) => member.id),
+            territoryId: mode === "territory" ? territoryId : null,
             status: String(editing?.status || "active"),
           }),
         },
@@ -332,7 +350,9 @@ export default function LeadAssignmentRulesWorkspace({
                     <small>
                       {policy.mode === "fixed"
                         ? `Assign to ${String(policy.assignee_name || "Unavailable assignee")}`
-                        : `Round robin · ${Array.isArray(policy.member_user_ids) ? policy.member_user_ids.length : 0} members`}
+                        : policy.mode === "territory"
+                          ? `Territory · ${String(policy.territory_name || "Unavailable territory")}`
+                          : `${policy.mode === "workload" ? "Least workload" : "Round robin"} · ${Array.isArray(policy.member_user_ids) ? policy.member_user_ids.length : 0} members`}
                     </small>
                   </div>
                 ),
@@ -448,6 +468,22 @@ export default function LeadAssignmentRulesWorkspace({
                     ))}
                   </select>
                 </FormField>
+              ) : (conditionField || condition.field) === "leadGrade" ? (
+                <FormField label="Is" htmlFor="assignment-rule-condition-value" required>
+                  <select
+                    id="assignment-rule-condition-value"
+                    name="conditionValue"
+                    defaultValue={condition.value}
+                    required
+                  >
+                    <option value="">Select segment</option>
+                    {LEAD_GRADES.map((grade) => (
+                      <option key={grade.value} value={grade.value}>
+                        {grade.label}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
               ) : conditionField || condition.field ? (
                 <FormField label="Is" htmlFor="assignment-rule-condition-value" required>
                   <input
@@ -467,6 +503,8 @@ export default function LeadAssignmentRulesWorkspace({
                 >
                   <option value="fixed">Fixed owner</option>
                   <option value="round_robin">Round robin</option>
+                  <option value="workload">Least workload</option>
+                  <option value="territory">Territory</option>
                 </select>
               </FormField>
               {mode === "fixed" ? (
@@ -479,6 +517,23 @@ export default function LeadAssignmentRulesWorkspace({
                     onChange={setFixedAssignee}
                   />
                 </label>
+              ) : mode === "territory" ? (
+                <FormField label="Territory" htmlFor="assignment-rule-territory" required>
+                  <select
+                    id="assignment-rule-territory"
+                    value={territoryId}
+                    onChange={(event) => setTerritoryId(event.currentTarget.value)}
+                    required
+                  >
+                    <option value="">Select territory</option>
+                    {territories.map((territory) => (
+                      <option key={territory.id} value={territory.id}>
+                        {territory.name}
+                      </option>
+                    ))}
+                  </select>
+                  <small>The least-loaded active, in-scope member of this territory receives the Lead.</small>
+                </FormField>
               ) : (
                 <div className="crm-assignment-member-editor">
                   <label>
@@ -506,6 +561,11 @@ export default function LeadAssignmentRulesWorkspace({
                   >
                     Add member
                   </ActionButton>
+                  <small>
+                    {mode === "workload"
+                      ? "The eligible member currently carrying the fewest active Leads receives the next one."
+                      : "Members receive Leads in a fair, deterministic rotation."}
+                  </small>
                   <div className="crm-assignment-member-list">
                     {members.map((member) => (
                       <span key={member.id}>

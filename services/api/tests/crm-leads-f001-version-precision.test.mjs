@@ -7,10 +7,16 @@ const source = fs.readFileSync(
   "utf8",
 );
 
+// Integrity closeout (Prompts 1-5): the millisecond-precision comparison
+// logic this file tests was generalized out of assertLeadExpectedVersion
+// into assertRecordExpectedVersion (reused for Opportunity ordinary edits
+// too) — assertLeadExpectedVersion is now a thin wrapper that delegates to
+// it with entityLabel="Lead"/codePrefix="CRM_LEAD". Extract the block that
+// actually contains the comparison logic.
 function leadVersionBlock() {
-  const start = source.indexOf("function assertLeadExpectedVersion");
-  const end = source.indexOf("function mutableEntries", start);
-  assert.ok(start >= 0 && end > start, "Lead version guard should remain present");
+  const start = source.indexOf("function assertRecordExpectedVersion");
+  const end = source.indexOf("function assertLeadExpectedVersion", start);
+  assert.ok(start >= 0 && end > start, "Record version guard should remain present");
   return source.slice(start, end);
 }
 

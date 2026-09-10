@@ -3,6 +3,44 @@ import {
   normalizeAccountInput,
   validateAccountInput,
 } from "./features/accounts/record-validation.js";
+import {
+  firstSensitiveAccountInputField,
+  canViewSensitiveAccountContent,
+  projectAccountForContext,
+} from "./prospect-and-relationship-master-data/account-security.js";
+import {
+  findAccountDuplicates,
+  recordAccountDuplicateOverride,
+} from "./prospect-and-relationship-master-data/duplicate-matching.js";
+import { assertExpectedRecordVersion } from "./prospect-and-relationship-master-data/record-version.js";
+
+// F008 create-time governed duplicate check (CRM-VNEXT-081). Mirrors Lead's
+// established exact-classification-blocks-unless-overridden contract
+// (lead-duplicates.js's assertLeadDuplicatePolicy), reusing the same
+// crm.accounts.manage permission the pre-existing merge/duplicates routes
+// already require for any duplicate-management action.
+async function assertAccountDuplicatePolicy(client, context, candidate, overrideReason) {
+  const matches = await findAccountDuplicates(client, context, {
+    name: candidate.displayName || candidate.legalName,
+    gstin: candidate.gstin,
+    pan: candidate.pan,
+  });
+  const exact = matches.filter((row) => row.classification === "exact");
+  if (!exact.length) return null;
+  const canOverride = Boolean(context.permissions?.includes("crm.accounts.manage"));
+  const reason = String(overrideReason || "").trim();
+  if (!canOverride || reason.length < 10) {
+    throw new CrmError(
+      409,
+      canOverride
+        ? "Explain in at least 10 characters why this exact duplicate must be created."
+        : "This looks like an exact duplicate of an existing account. You do not have permission to create it anyway.",
+      "CRM_ACCOUNT_DUPLICATE_EXACT",
+      { matches: exact },
+    );
+  }
+  return { matchedPartyIds: exact.map((row) => row.id), reason };
+}
 
 const ACCOUNT_TYPES = ["customer", "both", "prospect"];
 const PARTY_FIELDS = Object.freeze({
@@ -16,6 +54,7 @@ const PARTY_FIELDS = Object.freeze({
   email: "email",
   gstin: "gstin",
   pan: "pan",
+  msmeNumber: "msme_number",
   currencyCode: "currency_code",
 });
 const ADDRESS_FIELDS = Object.freeze({
@@ -81,6 +120,18 @@ function assertWritableScope(context, companyId) {
       "CRM_ACCOUNT_SCOPE_FORBIDDEN",
     );
   }
+}
+
+function assertSensitiveAccountMutationAllowed(context, input) {
+  if (canViewSensitiveAccountContent(context)) return;
+  const field = firstSensitiveAccountInputField(input);
+  if (!field) return;
+  throw new CrmError(
+    403,
+    "You do not have permission to change sensitive Account content.",
+    "CRM_ACCOUNT_SENSITIVE_FIELD_FORBIDDEN",
+    { field },
+  );
 }
 
 function throwValidation(input, options) {
@@ -256,7 +307,7 @@ export async function listCrmAccounts(client, context, options = {}) {
   );
 
   return {
-    rows: result.rows.map(camelizeRow),
+    rows: result.rows.map((row) => projectAccountForContext(context, camelizeRow(row))),
     total: Number(count.rows[0]?.count || 0),
     limit,
     offset,
@@ -296,6 +347,15 @@ export async function getCrmAccount(client, context, id) {
       opportunities: Number(relationshipCounts.rows[0]?.opportunities || 0),
     },
   };
+}
+
+// The caller-safe read path — applies the sensitive-field projection.
+// getCrmAccount() itself stays raw/unprojected because internal callers
+// (updateCrmAccount's "existing" snapshot, audit before/after capture,
+// merge preview) need the real values server-side; only responses that
+// actually leave the server through an API route should call this.
+export async function getCrmAccountForCaller(client, context, id) {
+  return projectAccountForContext(context, await getCrmAccount(client, context, id));
 }
 
 async function upsertPrimaryAddress(client, context, accountId, input) {
@@ -404,6 +464,7 @@ export async function createCrmAccount(client, context, input = {}) {
         "CRM_ACCOUNT_INITIAL_STATUS_INVALID",
       );
     }
+    assertSensitiveAccountMutationAllowed(context, input);
     const normalized = normalizeAccountInput({
       partyType: "prospect",
       status: "active",
@@ -413,14 +474,20 @@ export async function createCrmAccount(client, context, input = {}) {
       normalized.companyId ?? context.activeCompanyId ?? null;
     assertWritableScope(context, normalized.companyId);
     throwValidation(normalized);
+    const duplicateOverride = await assertAccountDuplicatePolicy(
+      client,
+      context,
+      normalized,
+      input.duplicateOverrideReason,
+    );
     const code = await nextAccountCode(client, context.organizationId);
     const result = await client.query(
       `INSERT INTO tenant.business_parties (
          organization_id, company_id, code, party_type, display_name,
-         legal_name, industry, website, phone, email, gstin, pan,
+         legal_name, industry, website, phone, email, gstin, pan, msme_number,
          currency_code, status, created_by, updated_by
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $14
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15, $15
        ) RETURNING *`,
       [
         context.organizationId,
@@ -435,11 +502,22 @@ export async function createCrmAccount(client, context, input = {}) {
         normalized.email,
         normalized.gstin,
         normalized.pan,
+        normalized.msmeNumber ?? null,
         normalized.currencyCode,
         context.userId,
       ],
     );
     await upsertPrimaryAddress(client, context, result.rows[0].id, normalized);
+    if (duplicateOverride) {
+      await recordAccountDuplicateOverride(
+        client,
+        context,
+        result.rows[0].id,
+        duplicateOverride.matchedPartyIds,
+        "create",
+        duplicateOverride.reason,
+      );
+    }
     await queueOutboxEvent(
       client,
       context,
@@ -448,13 +526,19 @@ export async function createCrmAccount(client, context, input = {}) {
       result.rows[0].id,
       { accountId: result.rows[0].id, companyId: normalized.companyId },
     );
-    return getCrmAccount(client, context, result.rows[0].id);
+    return getCrmAccountForCaller(client, context, result.rows[0].id);
   } catch (error) {
     throw persistenceError(error);
   }
 }
 
-export async function updateCrmAccount(client, context, id, input = {}) {
+export async function updateCrmAccount(
+  client,
+  context,
+  id,
+  input = {},
+  expectations = {},
+) {
   try {
     if (hasOwn(input, "ownerUserId")) {
       throw new CrmError(
@@ -470,7 +554,17 @@ export async function updateCrmAccount(client, context, id, input = {}) {
         "CRM_ACCOUNT_STATUS_ACTION_REQUIRED",
       );
     }
+    assertSensitiveAccountMutationAllowed(context, input);
     const existing = await getCrmAccount(client, context, id);
+    // Integrity closeout (Prompts 1-5): this previously ran a plain
+    // UPDATE ... WHERE id=$2 with no expected-version check at all — two
+    // concurrent editors could silently overwrite each other. Mirrors
+    // Lead's exact contract (assertLeadExpectedVersion / CRM_STALE_WRITE).
+    assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
+      entityLabel: "Account",
+      codePrefix: "CRM_ACCOUNT",
+      required: expectations.requireVersion === true,
+    });
     const normalized = normalizeAccountInput(input);
     const companyId = hasOwn(normalized, "companyId")
       ? normalized.companyId
@@ -498,14 +592,30 @@ export async function updateCrmAccount(client, context, id, input = {}) {
           `${PARTY_FIELDS[field]} = ${addParameter(parameters, normalized[field])}`,
       );
       const updatedBy = addParameter(parameters, context.userId);
-      await client.query(
+      // Checked-write: when a version was supplied, the WHERE clause itself
+      // requires updated_at to still match what assertExpectedRecordVersion
+      // just confirmed — closing the read-then-write race window without a
+      // separate row lock. A zero-row result here means a concurrent writer
+      // won that race (existence was already confirmed by getCrmAccount).
+      const versionGuard = expectations.expectedUpdatedAt
+        ? ` AND account.updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        : "";
+      const updateResult = await client.query(
         `UPDATE tenant.business_parties account
          SET ${assignments.join(", ")}, updated_by = ${updatedBy},
              updated_at = now(),
              archived_at = CASE WHEN status = 'inactive' THEN COALESCE(archived_at, now()) ELSE NULL END
-         WHERE account.organization_id = $1 AND account.id = $2`,
+         WHERE account.organization_id = $1 AND account.id = $2${versionGuard}
+         RETURNING account.id`,
         parameters,
       );
+      if (versionGuard && updateResult.rowCount === 0) {
+        throw new CrmError(
+          409,
+          "This Account changed after you loaded it. Refresh and try again.",
+          "CRM_STALE_WRITE",
+        );
+      }
     }
     await upsertPrimaryAddress(client, context, id, normalized);
     await queueOutboxEvent(
@@ -516,22 +626,39 @@ export async function updateCrmAccount(client, context, id, input = {}) {
       id,
       { accountId: id, changedFields: Object.keys(normalized) },
     );
-    return getCrmAccount(client, context, id);
+    return getCrmAccountForCaller(client, context, id);
   } catch (error) {
     throw persistenceError(error);
   }
 }
 
-export async function archiveCrmAccount(client, context, id) {
+export async function archiveCrmAccount(client, context, id, expectations = {}) {
   try {
     const existing = await getCrmAccount(client, context, id);
+    assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
+      entityLabel: "Account",
+      codePrefix: "CRM_ACCOUNT",
+      required: expectations.requireVersion === true,
+    });
     if (existing.status !== "inactive") {
-      await client.query(
+      const parameters = [context.organizationId, id, context.userId];
+      const versionGuard = expectations.expectedUpdatedAt
+        ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        : "";
+      const archiveResult = await client.query(
         `UPDATE tenant.business_parties
          SET status = 'inactive', archived_at = now(), updated_by = $3, updated_at = now()
-         WHERE organization_id = $1 AND id = $2`,
-        [context.organizationId, id, context.userId],
+         WHERE organization_id = $1 AND id = $2${versionGuard}
+         RETURNING id`,
+        parameters,
       );
+      if (versionGuard && archiveResult.rowCount === 0) {
+        throw new CrmError(
+          409,
+          "This Account changed after you loaded it. Refresh and try again.",
+          "CRM_STALE_WRITE",
+        );
+      }
       await queueOutboxEvent(
         client,
         context,
@@ -541,7 +668,7 @@ export async function archiveCrmAccount(client, context, id) {
         { accountId: id },
       );
     }
-    return getCrmAccount(client, context, id);
+    return getCrmAccountForCaller(client, context, id);
   } catch (error) {
     throw persistenceError(error);
   }

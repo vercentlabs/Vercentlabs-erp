@@ -12,8 +12,10 @@
     "format:check": "prettier --check .",
     "test": "node --test",
     "verify:routes": "node scripts/verify-routes.mjs",
-    "test:e2e:erp": "playwright test -c playwright.erp.config.ts",
-    "test:e2e:erp:update": "playwright test -c playwright.erp.config.ts --update-snapshots"
+    "e2e:bootstrap": "tsx scripts/e2e-fixture-bootstrap.mts",
+    "test:e2e:erp": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts",
+    "test:e2e:erp:update": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts --update-snapshots",
+    "test:e2e:crm": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-crm-navigation.spec.ts tests/e2e/erp-crm-opportunity-journey.spec.ts tests/e2e/erp-crm-lead-lifecycle-scoring.spec.ts tests/e2e/erp-crm-merge-hierarchy.spec.ts tests/e2e/erp-crm-sensitive-projection.spec.ts tests/e2e/erp-crm-opportunity-projection-parity.spec.ts"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",
@@ -47,6 +49,7 @@
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
     "@axe-core/playwright": "^4.12.1",
-    "@playwright/test": "1.61.1"
+    "@playwright/test": "1.61.1",
+    "tsx": "^4.23.13"
   }
 }

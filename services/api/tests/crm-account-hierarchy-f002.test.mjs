@@ -1,0 +1,160 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  CrmAccountIntelligenceError,
+  getAccountHierarchy,
+  setAccountParent,
+} from "../src/modules/crm/account-intelligence.js";
+
+const org = "11111111-1111-4111-8111-111111111111";
+const user = "22222222-2222-4222-8222-222222222222";
+const accountA = "33333333-3333-4333-8333-333333333333";
+const accountB = "44444444-4444-4444-8444-444444444444";
+const accountC = "55555555-5555-4555-8555-555555555555";
+
+function context() {
+  return { organizationId: org, userId: user };
+}
+
+function norm(sql) {
+  return sql.replace(/\s+/g, " ").trim();
+}
+
+function hierarchyClient({
+  accounts = {},
+  cycleDetected = false,
+} = {}) {
+  const calls = [];
+  const events = [];
+  return {
+    calls,
+    events,
+    async query(rawSql, params = []) {
+      const sql = norm(rawSql);
+      calls.push({ sql, params });
+      if (/^SELECT party\.\*,parent\.display_name/.test(sql)) {
+        const id = params[1];
+        const row = accounts[id];
+        if (!row) return { rows: [] };
+        return { rows: [{ ...row, id }] };
+      }
+      if (/^WITH RECURSIVE ancestors AS/.test(sql)) {
+        return { rows: cycleDetected ? [{ "?column?": 1 }] : [] };
+      }
+      if (/^UPDATE tenant\.business_parties\s+SET parent_party_id=\$1/.test(sql)) {
+        const [nextParentId, , , childId] = params;
+        accounts[childId] = { ...accounts[childId], parent_party_id: nextParentId };
+        return { rows: [{ ...accounts[childId], id: childId }] };
+      }
+      if (/^INSERT INTO tenant\.crm_account_hierarchy_events/.test(sql)) {
+        events.push(params);
+        return { rows: [] };
+      }
+      if (/^WITH RECURSIVE tree AS/.test(sql)) {
+        // getAccountHierarchy's ancestor/descendant queries — return empty by
+        // default; tests that need real rows override query() directly.
+        return { rows: [] };
+      }
+      if (/^SELECT event\.\*,previous_parent\.display_name/.test(sql)) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+test("F002 hierarchy: an account cannot be set as its own parent", async () => {
+  const client = hierarchyClient({ accounts: { [accountA]: { status: "active" } } });
+  await assert.rejects(
+    () => setAccountParent(client, context(), accountA, accountA),
+    (error) => error instanceof CrmAccountIntelligenceError && error.code === "CRM_ACCOUNT_HIERARCHY_SELF_PARENT",
+  );
+  assert.equal(client.calls.some((c) => c.sql.startsWith("UPDATE tenant.business_parties")), false);
+});
+
+test("F002 hierarchy: an inactive proposed parent is rejected", async () => {
+  const client = hierarchyClient({
+    accounts: {
+      [accountA]: { status: "active" },
+      [accountB]: { status: "inactive" },
+    },
+  });
+  await assert.rejects(
+    () => setAccountParent(client, context(), accountA, accountB),
+    (error) => error instanceof CrmAccountIntelligenceError && error.code === "CRM_ACCOUNT_HIERARCHY_PARENT_INACTIVE",
+  );
+});
+
+test("F002 hierarchy: a cycle (proposed parent is already a descendant) is rejected", async () => {
+  const client = hierarchyClient({
+    accounts: {
+      [accountA]: { status: "active" },
+      [accountC]: { status: "active" },
+    },
+    cycleDetected: true,
+  });
+  await assert.rejects(
+    () => setAccountParent(client, context(), accountA, accountC),
+    (error) => error instanceof CrmAccountIntelligenceError && error.code === "CRM_ACCOUNT_HIERARCHY_CYCLE",
+  );
+  assert.equal(client.calls.some((c) => c.sql.startsWith("UPDATE tenant.business_parties")), false, "no write may happen once a cycle is detected");
+});
+
+test("F002 hierarchy: setting a valid parent updates the row and writes an audit hierarchy event", async () => {
+  const client = hierarchyClient({
+    accounts: {
+      [accountA]: { status: "active", parent_party_id: null },
+      [accountB]: { status: "active" },
+    },
+  });
+  const updated = await setAccountParent(client, context(), accountA, accountB, "Reorganized under regional HQ");
+  assert.equal(updated.parent_party_id, accountB);
+  assert.equal(client.events.length, 1);
+  assert.equal(client.events[0][3], accountB, "new_parent_party_id must be recorded");
+  assert.equal(client.events[0][4], "parent_set");
+  assert.match(client.events[0][5], /regional HQ/);
+});
+
+test("F002 hierarchy: clearing the parent (null) is a no-op guard against redundant writes when already unparented", async () => {
+  const client = hierarchyClient({
+    accounts: { [accountA]: { status: "active", parent_party_id: null } },
+  });
+  const result = await setAccountParent(client, context(), accountA, null);
+  assert.equal(client.calls.some((c) => c.sql.startsWith("UPDATE tenant.business_parties")), false, "already-unparented + clear-parent must not issue a write");
+  assert.equal(result.parent_party_id, null);
+});
+
+test("F002 hierarchy: getAccountHierarchy returns ancestors, descendants and computed metrics", async () => {
+  const client = {
+    calls: [],
+    async query(rawSql, params = []) {
+      const sql = norm(rawSql);
+      this.calls.push({ sql, params });
+      if (/^SELECT party\.\*,parent\.display_name/.test(sql)) {
+        return { rows: [{ id: accountA, display_name: "Acme India", status: "active" }] };
+      }
+      if (/^WITH RECURSIVE tree AS[\s\S]*ORDER BY depth DESC/.test(sql)) {
+        return { rows: [{ id: accountB, display_name: "Acme Global", depth: 1 }] };
+      }
+      if (/^WITH RECURSIVE tree AS[\s\S]*ORDER BY depth,display_name/.test(sql)) {
+        return {
+          rows: [
+            { id: accountC, display_name: "Acme India — West", depth: 1 },
+            { id: "66666666-6666-4666-8666-666666666666", display_name: "Acme India — West — Pune", depth: 2 },
+          ],
+        };
+      }
+      if (/^SELECT event\.\*,previous_parent\.display_name/.test(sql)) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    },
+  };
+  const result = await getAccountHierarchy(client, context(), accountA);
+  assert.equal(result.ancestors.length, 1);
+  assert.equal(result.descendants.length, 2);
+  assert.equal(result.metrics.ancestorCount, 1);
+  assert.equal(result.metrics.descendantCount, 2);
+  assert.equal(result.metrics.hierarchyDepth, 2);
+});

@@ -152,7 +152,7 @@
 }
 
 .crm-overview-ledger__item small {
-  color: #7a8492;
+  color: var(--erp-color-text-muted);
   font-size: 9.25px;
   line-height: 1.45;
 }
@@ -231,14 +231,14 @@
 
 .crm-overview-primary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.78fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   align-items: stretch;
 }
 
 .crm-overview-secondary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   align-items: stretch;
 }
@@ -279,7 +279,7 @@
 .crm-overview-section-heading p:last-child {
   max-width: 620px;
   margin: 0;
-  color: #7a8492;
+  color: var(--erp-color-text-muted);
   font-size: 9.75px;
   line-height: 1.5;
 }
@@ -315,7 +315,7 @@
 }
 
 .crm-overview-revenue-summary span {
-  color: #7a8492;
+  color: var(--erp-color-text-muted);
   font-size: 8.75px;
   font-weight: 750;
   text-transform: uppercase;
@@ -333,7 +333,7 @@
 }
 
 .crm-overview-revenue-summary small {
-  color: #8a94a2;
+  color: var(--erp-color-text-muted);
   font-size: 8.75px;
 }
 
@@ -376,7 +376,7 @@
 
 .crm-overview-stage-copy small,
 .crm-overview-stage-value small {
-  color: #8a94a2;
+  color: var(--erp-color-text-muted);
   font-size: 8.5px;
 }
 
@@ -422,7 +422,7 @@
 }
 
 .crm-overview-lead-pulse span {
-  color: #8a94a2;
+  color: var(--erp-color-text-muted);
   font-size: 8.25px;
   line-height: 1.35;
 }
@@ -472,7 +472,7 @@
 }
 
 .crm-overview-source-row small {
-  color: #8a94a2;
+  color: var(--erp-color-text-muted);
   font-size: 8.25px;
 }
 
@@ -544,7 +544,7 @@
 
 .crm-overview-activity-list small,
 .crm-overview-activity-list time {
-  color: #8a94a2;
+  color: var(--erp-color-text-muted);
   font-size: 8.5px;
 }
 
@@ -580,7 +580,7 @@
 }
 
 .crm-overview-decision-list > a > span {
-  color: #98a2b3;
+  color: var(--erp-color-text-muted);
   font-size: 8.5px;
   font-weight: 800;
 }
@@ -601,7 +601,7 @@
 }
 
 .crm-overview-decision-list small {
-  color: #8a94a2;
+  color: var(--erp-color-text-muted);
   font-size: 8.5px;
 }
 
@@ -617,7 +617,7 @@
   align-content: center;
   gap: 5px;
   padding: 18px;
-  color: #98a2b3;
+  color: var(--erp-color-text-muted);
   text-align: center;
 }
 

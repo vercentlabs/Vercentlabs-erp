@@ -114,7 +114,18 @@ checkDynamicSiblings(appRoot);
 // `<module>/[resource]/page.tsx` pattern most modules use for their
 // non-overview destinations) — see docs/implementation/
 // ERP_NAVIGATION_FOUNDATION_006.md Section 10.
-const navigationDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/lib/navigation");
+//
+// CRM vNext Prompt 2 fix: this previously pointed at
+// "../src/lib/navigation", a path retired by verify-architecture.mjs's own
+// forbidden-path list (apps/web/src/lib is not allowed to exist at all —
+// see that script's `forbidden` array). Since that directory never
+// existed, `fs.existsSync(navigationDir)` below was always false, so this
+// check silently examined zero files and always reported "Checked 0
+// navigation registry href(s)" while still exiting 0 — a validator that
+// looked like it verified navigation but checked nothing. The real,
+// live navigation registry lives at apps/web/src/core/navigation/ (see
+// apps/web/src/core/navigation/index.ts).
+const navigationDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/core/navigation");
 const authenticatedAppRoot = path.join(appRoot, "(app)");
 
 function extractHrefs(source) {
@@ -152,6 +163,7 @@ function routeExists(hrefPath) {
 }
 
 let navigationHrefsChecked = 0;
+const allNavigationHrefs = new Set();
 if (fs.existsSync(navigationDir)) {
   const seenPerFile = new Map();
   for (const file of fs.readdirSync(navigationDir)) {
@@ -162,6 +174,7 @@ if (fs.existsSync(navigationDir)) {
     const seen = new Set();
     for (const href of hrefs) {
       navigationHrefsChecked += 1;
+      allNavigationHrefs.add(href);
       if (seen.has(href)) {
         fail(`navigation/${file}: duplicate href "${href}" declared more than once in the same file`);
       }
@@ -171,6 +184,25 @@ if (fs.existsSync(navigationDir)) {
       }
     }
     seenPerFile.set(file, seen);
+  }
+}
+
+// This check must never be able to silently pass by examining nothing —
+// that was exactly the pre-fix bug (the directory didn't exist, so this
+// whole block was skipped and 0 hrefs were "checked" without failing).
+// Fail loudly instead of quietly reporting a zero count if the directory
+// is ever missing/empty again, and confirm real, specific CRM navigation
+// destinations were actually discovered — not just some non-zero count
+// from an unrelated module's registry file.
+if (!fs.existsSync(navigationDir)) {
+  fail(`navigation registry directory not found at ${path.relative(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), navigationDir)} — navigation validation cannot run`);
+} else if (navigationHrefsChecked === 0) {
+  fail("navigation registry directory exists but zero href(s) were discovered — the registry may have moved or the extraction pattern is stale");
+} else {
+  const expectedCrmHrefs = ["/crm", "/crm/leads", "/crm/accounts", "/crm/contacts", "/crm/opportunities", "/crm/activities"];
+  const missingCrmHrefs = expectedCrmHrefs.filter((href) => !allNavigationHrefs.has(href));
+  if (missingCrmHrefs.length) {
+    fail(`expected live CRM navigation entries were not discovered in the registry: ${missingCrmHrefs.join(", ")}`);
   }
 }
 
@@ -208,7 +240,7 @@ for (const href of staticTopbarDestinations) {
 }
 
 console.log(`Checked ${pagesChecked} page.tsx and ${routesChecked} route.ts file(s) under src/app.`);
-console.log(`Checked ${navigationHrefsChecked} navigation registry href(s) under src/lib/navigation.`);
+console.log(`Checked ${navigationHrefsChecked} navigation registry href(s) under src/core/navigation.`);
 console.log(`Checked ${quickCreateHrefsChecked} Quick Create action href(s) and ${staticTopbarDestinations.length} static topbar destination(s).`);
 if (failures > 0) {
   console.error(`\nverify:routes summary — ${failures} failing check(s).`);

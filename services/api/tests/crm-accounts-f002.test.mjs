@@ -8,6 +8,7 @@ import {
 import {
   archiveCrmAccount,
   createCrmAccount,
+  getCrmAccountForCaller,
   listCrmAccounts,
   updateCrmAccount,
 } from "../src/modules/crm/account-operations.js";
@@ -141,6 +142,145 @@ test("F002: valid account creation uses governed numbering, active company scope
   assert.equal(outbox.values[1], "crm.accounts.created");
 });
 
+test("F002: MSME registration number is actually persisted on create (regression — the INSERT column list previously omitted it)", async () => {
+  const calls = [];
+  const client = {
+    async query(sql, values) {
+      calls.push({ sql, values });
+      if (sql.includes("UPDATE public.numbering_series")) {
+        return { rows: [{ prefix: "PTY-", number: 43, padding: 5 }] };
+      }
+      if (sql.includes("INSERT INTO tenant.business_parties")) {
+        return { rows: [{ ...accountRow, code: "PTY-00043", msme_number: "UDYAM-XX-00-0000001" }] };
+      }
+      if (sql.includes("FROM tenant.business_parties account")) {
+        return { rows: [{ ...accountRow, code: "PTY-00043", msme_number: "UDYAM-XX-00-0000001" }] };
+      }
+      if (sql.includes("AS contacts") && sql.includes("AS opportunities")) {
+        return { rows: [{ contacts: 0, opportunities: 0 }] };
+      }
+      return { rows: [] };
+    },
+  };
+  await createCrmAccount(client, sensitiveViewerContext, {
+    displayName: "Acme Manufacturing",
+    msmeNumber: " UDYAM-XX-00-0000001 ",
+  });
+  const insert = calls.find((call) => call.sql.includes("INSERT INTO tenant.business_parties"));
+  assert.match(insert.sql, /msme_number/);
+  assert.equal(insert.values.includes("UDYAM-XX-00-0000001"), true, "the trimmed MSME number must actually be bound as an INSERT parameter");
+});
+
+function duplicateBlockingClient({ existingGstin = "27AABCU9603R1ZM" } = {}) {
+  const calls = [];
+  const inserted = [];
+  return {
+    calls,
+    inserted,
+    async query(sql, values = []) {
+      calls.push({ sql, values });
+      if (sql.includes("SELECT * FROM tenant.crm_duplicate_rules")) {
+        return { rows: [{ signal: "gstin", method: "exact", weight: 70, fuzzy_threshold: null, enabled: true, blocking: true }] };
+      }
+      if (sql.includes("SELECT max(updated_at) AS at FROM tenant.crm_duplicate_rules")) {
+        return { rows: [{ at: new Date("2026-01-01") }] };
+      }
+      if (sql.includes("SELECT DISTINCT unnest(matched_party_ids)")) {
+        return { rows: [] };
+      }
+      if (/FROM tenant\.business_parties party\s/.test(sql)) {
+        return {
+          rows: [
+            {
+              id: "existing-account-1",
+              display_name: "Acme Existing",
+              match_score: 70,
+              matched_signals: ["gstin"],
+              classification: "exact",
+            },
+          ],
+        };
+      }
+      if (sql.includes("UPDATE public.numbering_series")) {
+        return { rows: [{ prefix: "PTY-", number: 99, padding: 5 }] };
+      }
+      if (sql.includes("INSERT INTO tenant.business_parties")) {
+        return { rows: [{ ...accountRow, id: "new-account-1", gstin: existingGstin }] };
+      }
+      if (sql.includes("FROM tenant.business_parties account")) {
+        return { rows: [{ ...accountRow, id: "new-account-1", gstin: existingGstin }] };
+      }
+      if (sql.includes("AS contacts") && sql.includes("AS opportunities")) {
+        return { rows: [{ contacts: 0, opportunities: 0 }] };
+      }
+      if (sql.includes("INSERT INTO tenant.crm_account_duplicate_overrides")) {
+        inserted.push(values);
+        return { rows: [{ id: "override-1" }] };
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+test("F002/F008: creating an Account that exactly matches an existing GSTIN is blocked without an override reason", async () => {
+  const client = duplicateBlockingClient();
+  await assert.rejects(
+    () => createCrmAccount(client, sensitiveViewerContext, { displayName: "Acme New Entity", gstin: "27AABCU9603R1ZM" }),
+    (error) => error.code === "CRM_ACCOUNT_DUPLICATE_EXACT" && error.status === 409,
+  );
+  assert.equal(client.calls.some((c) => c.sql.includes("INSERT INTO tenant.business_parties")), false, "the account must not be created while the exact duplicate is unresolved");
+});
+
+test("F002/F008: a caller without crm.accounts.manage cannot override an exact duplicate even with a reason", async () => {
+  const client = duplicateBlockingClient();
+  const noOverrideContext = { ...sensitiveViewerContext, permissions: ["crm.view", "parties.manage", "crm.accounts.view_sensitive"] };
+  await assert.rejects(
+    () =>
+      createCrmAccount(client, noOverrideContext, {
+        displayName: "Acme New Entity",
+        gstin: "27AABCU9603R1ZM",
+        duplicateOverrideReason: "This is a genuinely separate legal entity",
+      }),
+    (error) => error.code === "CRM_ACCOUNT_DUPLICATE_EXACT",
+  );
+});
+
+test("F002/F008: an authorized caller with a valid reason may create the exact duplicate, and the override is recorded as immutable evidence", async () => {
+  const client = duplicateBlockingClient();
+  const overrideContext = {
+    ...sensitiveViewerContext,
+    permissions: ["crm.view", "parties.manage", "crm.accounts.view_sensitive", "crm.accounts.manage"],
+  };
+  await createCrmAccount(client, overrideContext, {
+    displayName: "Acme New Entity",
+    gstin: "27AABCU9603R1ZM",
+    duplicateOverrideReason: "This is a genuinely separate legal entity, confirmed by phone",
+  });
+  assert.equal(client.inserted.length, 1);
+  assert.equal(client.inserted[0][3], "create");
+  assert.match(client.inserted[0][4], /genuinely separate legal entity/);
+});
+
+test("F002/F008: a merely probable (non-blocking) match does not require an override", async () => {
+  const client = duplicateBlockingClient();
+  client.query = async function (sql, values = []) {
+    this.calls.push({ sql, values });
+    if (sql.includes("SELECT * FROM tenant.crm_duplicate_rules")) {
+      return { rows: [{ signal: "legal_name", method: "normalized", weight: 35, fuzzy_threshold: null, enabled: true, blocking: false }] };
+    }
+    if (/FROM tenant\.business_parties party\s/.test(sql)) {
+      return { rows: [{ id: "existing-account-1", display_name: "Acme Existing", match_score: 35, matched_signals: ["legal_name"], classification: "probable" }] };
+    }
+    if (sql.includes("UPDATE public.numbering_series")) return { rows: [{ prefix: "PTY-", number: 99, padding: 5 }] };
+    if (sql.includes("INSERT INTO tenant.business_parties")) return { rows: [{ ...accountRow, id: "new-account-1" }] };
+    if (sql.includes("FROM tenant.business_parties account")) return { rows: [{ ...accountRow, id: "new-account-1" }] };
+    if (sql.includes("AS contacts") && sql.includes("AS opportunities")) return { rows: [{ contacts: 0, opportunities: 0 }] };
+    return { rows: [] };
+  };
+  const created = await createCrmAccount(client, context, { displayName: "Acme Existing Ltd" });
+  assert.equal(created.id, "new-account-1");
+});
+
 test("F002: list search and filters remain organization and active-company scoped", async () => {
   const calls = [];
   const client = {
@@ -262,5 +402,140 @@ test("F002: fabricated owner assignment is rejected server-side", async () => {
       }),
     (error) =>
       error.code === "CRM_ACCOUNT_OWNER_FORBIDDEN" && error.status === 403,
+  );
+});
+
+// --- CRM-VNEXT-004/035: Account sensitive-field (GSTIN/PAN/MSME) policy ---
+// Real behavioral tests (not source-regex) proving the same server-side
+// projection pattern already established for Leads (Prompt 1) and Contacts
+// now also covers Accounts.
+
+const sensitiveAccountRow = Object.freeze({
+  ...accountRow,
+  gstin: "27AAAAA0000A1Z5",
+  pan: "AAAAA0000A",
+  msme_number: "UDYAM-MH-01-0000001",
+  // The GENERATED column added by migration
+  // 091_f008_account_contact_matching_performance.sql — real `SELECT
+  // party.*` queries always include this. A restricted browser E2E run
+  // (erp-crm-sensitive-projection.spec.ts) found it leaking the PAN value
+  // even when `pan` itself was correctly redacted.
+  normalized_pan: "AAAAA0000A",
+});
+
+const ordinaryViewerContext = Object.freeze({
+  ...context,
+  permissions: ["crm.view", "parties.manage"],
+  roleSlugs: [],
+});
+const sensitiveViewerContext = Object.freeze({
+  ...context,
+  permissions: ["crm.view", "parties.manage", "crm.accounts.view_sensitive"],
+  roleSlugs: [],
+});
+
+function sensitiveAccountClient() {
+  return {
+    async query(sql) {
+      if (sql.includes("FROM tenant.business_parties account")) {
+        return { rows: [sensitiveAccountRow] };
+      }
+      if (sql.includes("count(*)::int AS count")) {
+        return { rows: [{ count: 1 }] };
+      }
+      if (sql.includes("AS contacts") && sql.includes("AS opportunities")) {
+        return { rows: [{ contacts: 0, opportunities: 0 }] };
+      }
+      if (sql.includes("array_remove(array_agg")) {
+        return { rows: [{ industries: [], countries: [] }] };
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+test("F002 sensitive fields: an ordinary account viewer (no crm.accounts.view_sensitive) does not receive GSTIN/PAN/MSME via getCrmAccountForCaller", async () => {
+  const record = await getCrmAccountForCaller(
+    sensitiveAccountClient(),
+    ordinaryViewerContext,
+    accountRow.id,
+  );
+  assert.equal(record.gstin, undefined);
+  assert.equal(record.pan, undefined);
+  assert.equal(record.msmeNumber, undefined);
+  assert.equal(record.normalizedPan, undefined, "the GENERATED normalized_pan column must be redacted too — it derives directly from PAN (regression, see erp-crm-sensitive-projection.spec.ts)");
+  assert.equal(record.sensitiveDataRestricted, true);
+  assert.equal(record.displayName, accountRow.display_name, "ordinary fields remain visible");
+});
+
+test("F002 sensitive fields: an authorized viewer (crm.accounts.view_sensitive) receives the real GSTIN/PAN/MSME values", async () => {
+  const record = await getCrmAccountForCaller(
+    sensitiveAccountClient(),
+    sensitiveViewerContext,
+    accountRow.id,
+  );
+  assert.equal(record.gstin, "27AAAAA0000A1Z5");
+  assert.equal(record.pan, "AAAAA0000A");
+  assert.equal(record.msmeNumber, "UDYAM-MH-01-0000001");
+  assert.equal(record.sensitiveDataRestricted, undefined);
+});
+
+test("F002 sensitive fields: listCrmAccounts redacts GSTIN/PAN/MSME for an ordinary viewer and includes them for an authorized viewer", async () => {
+  const ordinary = await listCrmAccounts(sensitiveAccountClient(), ordinaryViewerContext, {});
+  assert.equal(ordinary.rows[0].gstin, undefined);
+  assert.equal(ordinary.rows[0].sensitiveDataRestricted, true);
+
+  const privileged = await listCrmAccounts(sensitiveAccountClient(), sensitiveViewerContext, {});
+  assert.equal(privileged.rows[0].gstin, "27AAAAA0000A1Z5");
+});
+
+test("F002 sensitive fields: an ordinary viewer cannot set GSTIN/PAN/MSME on create — blocked before any write query", async () => {
+  const calls = [];
+  const client = {
+    async query(sql, values) {
+      calls.push(sql);
+      return { rows: [] };
+    },
+  };
+  await assert.rejects(
+    createCrmAccount(client, ordinaryViewerContext, {
+      displayName: "Beta Industries",
+      gstin: "27BBBBB1111B1Z5",
+    }),
+    (error) =>
+      error.status === 403 &&
+      error.code === "CRM_ACCOUNT_SENSITIVE_FIELD_FORBIDDEN",
+  );
+  assert.equal(calls.length, 0, "no write should be attempted once the sensitive-field guard rejects the input");
+});
+
+test("F002 sensitive fields: an ordinary viewer cannot change GSTIN/PAN/MSME on update, but may still edit ordinary fields", async () => {
+  const client = lifecycleClient();
+  await assert.rejects(
+    updateCrmAccount(client, ordinaryViewerContext, accountRow.id, {
+      pan: "ZZZZZ9999Z",
+    }),
+    (error) =>
+      error.status === 403 &&
+      error.code === "CRM_ACCOUNT_SENSITIVE_FIELD_FORBIDDEN",
+  );
+
+  await assert.doesNotReject(
+    updateCrmAccount(client, ordinaryViewerContext, accountRow.id, {
+      industry: "Logistics",
+    }),
+  );
+  const update = client.calls.find((call) =>
+    call.sql.includes("UPDATE tenant.business_parties account"),
+  );
+  assert.match(update.sql, /industry = /);
+});
+
+test("F002 sensitive fields: an authorized viewer may set GSTIN/PAN/MSME on update", async () => {
+  const client = lifecycleClient();
+  await assert.doesNotReject(
+    updateCrmAccount(client, sensitiveViewerContext, accountRow.id, {
+      gstin: "27CCCCC2222C1Z5",
+    }),
   );
 });

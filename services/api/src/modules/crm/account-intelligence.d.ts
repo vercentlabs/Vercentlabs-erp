@@ -24,18 +24,36 @@ export function previewAccountMerge(
   sourceId: string,
   survivorId: string,
 ): Promise<Record<string, unknown>>;
+export function previewAccountMergeForCaller(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  sourceId: string,
+  survivorId: string,
+): Promise<Record<string, unknown>>;
 export function previewContactMerge(
   client: QueryClient,
   context: CrmFoundationContext,
   sourceId: string,
   survivorId: string,
 ): Promise<Record<string, unknown>>;
+export function previewContactMergeForCaller(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  sourceId: string,
+  survivorId: string,
+): Promise<Record<string, unknown>>;
+export type MergeOptions = {
+  fieldSelections?: Record<string, "source" | "survivor">;
+  expectedSourceUpdatedAt?: string;
+  expectedSurvivorUpdatedAt?: string;
+};
 export function mergeAccountsGoverned(
   client: QueryClient,
   context: CrmFoundationContext,
   sourceId: string,
   survivorId: string,
   reason?: string | null,
+  options?: MergeOptions,
 ): Promise<Record<string, unknown>>;
 export function mergeContactsGoverned(
   client: QueryClient,
@@ -43,6 +61,7 @@ export function mergeContactsGoverned(
   sourceId: string,
   survivorId: string,
   reason?: string | null,
+  options?: MergeOptions,
 ): Promise<Record<string, unknown>>;
 export function resolveMergedEntity(
   client: QueryClient,

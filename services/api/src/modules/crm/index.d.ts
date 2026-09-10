@@ -56,15 +56,31 @@ export function assignLeadOwner(
     reason?: string;
     expectedUpdatedAt?: string;
     requireVersion?: boolean;
+    override?: boolean;
+    overrideReason?: string;
   },
 ): Promise<any>;
 export function listLeadStages(client: QueryClient, context: CrmContext, options?: { status?: string }): Promise<any>;
 export function getLeadStage(client: QueryClient, context: CrmContext, idOrCode: string): Promise<any>;
 export function createLeadStage(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
 export function updateLeadStage(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function setLeadStageActive(client: QueryClient, context: CrmContext, id: string, active: boolean): Promise<any>;
-export function transitionLeadStage(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>): Promise<any>;
+export function reactivateLeadStage(client: QueryClient, context: CrmContext, id: string): Promise<any>;
+export function deactivateLeadStageWithMigration(client: QueryClient, context: CrmContext, id: string, options?: { migrateToStageId?: string }): Promise<any>;
+export function enqueueLeadStageMigrationJob(client: QueryClient, context: CrmContext, fromStageId: string, toStageId: string): Promise<any>;
+export function getLeadStageMigrationJob(client: QueryClient, context: CrmContext, jobId: string): Promise<any>;
+export function processLeadStageMigrationBatch(client: QueryClient, systemContext: CrmContext, jobId: string): Promise<any>;
+export const STAGE_MIGRATION_JOB_TYPE: string;
+export const STAGE_MIGRATION_BATCH_SIZE: number;
+export function transitionLeadStage(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>, options?: { skipTransitionGraphCheck?: boolean; source?: string }): Promise<any>;
 export function listLeadStageHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<any[]>;
+export function getLeadStageDwell(client: QueryClient, context: CrmContext, leadId: string): Promise<any>;
+export function listLeadStageTransitions(client: QueryClient, context: CrmContext): Promise<any[]>;
+export function addLeadStageTransition(client: QueryClient, context: CrmContext, fromStageId: string, toStageId: string, input?: { reasonRequired?: boolean }): Promise<any>;
+export function removeLeadStageTransition(client: QueryClient, context: CrmContext, fromStageId: string, toStageId: string): Promise<any>;
+export function listLeadStageTransitionReasons(client: QueryClient, context: CrmContext): Promise<any[]>;
+export function createLeadStageTransitionReason(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
+export function setLeadStageTransitionReasonActive(client: QueryClient, context: CrmContext, id: string, active: boolean): Promise<any>;
+export function findApplicableTransitionReasons(client: QueryClient, context: CrmContext, fromStageId: string, toStageId: string): Promise<any[]>;
 export function archiveCrmRecord(
   client: QueryClient,
   context: CrmContext,

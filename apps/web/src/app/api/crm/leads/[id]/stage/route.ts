@@ -1,4 +1,4 @@
-import { listLeadStageHistory, transitionLeadStage } from "@vercentlabs/api";
+import { getLeadStageDwell, listLeadStageHistory, transitionLeadStage } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
@@ -19,7 +19,11 @@ export async function GET(_request: Request, route: Route) {
     const { id } = await route.params;
     assertCrmIdentifier(id);
     const context = await crmApiContext(session);
-    return ok({ history: await tenantTransaction(context.organizationId, (client) => listLeadStageHistory(client, context, id)) });
+    const { history, dwell } = await tenantTransaction(context.organizationId, async (client) => ({
+      history: await listLeadStageHistory(client, context, id),
+      dwell: await getLeadStageDwell(client, context, id),
+    }));
+    return ok({ history, dwell });
   } catch (error) {
     return crmErrorResponse(error);
   }

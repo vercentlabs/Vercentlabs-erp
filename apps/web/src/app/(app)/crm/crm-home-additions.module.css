@@ -1,0 +1,93 @@
+/*
+ * CRM vNext Prompt 2 — CRM Home enhancements (My/Team day breakdown,
+ * Recent leads). New CRM Home content lands in a canonical CSS Module
+ * using shared --erp-* tokens and the canonical breakpoint policy (see
+ * apps/web/src/shared/design/breakpoints.ts) instead of growing the
+ * existing crm-overview-redesign.css legacy stylesheet further.
+ */
+
+.activityTypeBreakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--erp-space-3);
+  margin: 0 0 var(--erp-space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.activityTypeBreakdown li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--erp-space-2);
+  padding: var(--erp-space-2) var(--erp-space-3);
+  border: 1px solid var(--erp-color-border);
+  border-radius: var(--erp-radius-card);
+  background: var(--erp-color-surface-subtle);
+}
+
+.activityTypeBreakdown strong {
+  font-size: var(--erp-font-size-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.activityTypeBreakdown span {
+  color: var(--erp-color-text-muted);
+  font-size: var(--erp-font-size-sm);
+}
+
+.recentLeads {
+  padding: var(--erp-space-5);
+}
+
+.recentLeadsList {
+  display: grid;
+  gap: var(--erp-space-2);
+  margin: var(--erp-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recentLeadsList li a {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: var(--erp-space-4);
+  padding: var(--erp-space-3) var(--erp-space-4);
+  border: 1px solid var(--erp-color-border);
+  border-radius: var(--erp-radius-card);
+  text-decoration: none;
+  color: inherit;
+}
+
+.recentLeadsList li a:hover,
+.recentLeadsList li a:focus-visible {
+  border-color: var(--erp-color-border-strong);
+  background: var(--erp-color-surface-subtle);
+}
+
+.recentLeadsName {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recentLeadsName small {
+  color: var(--erp-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentLeadsList time {
+  color: var(--erp-color-text-muted);
+  font-size: var(--erp-font-size-sm);
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .recentLeadsList li a {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    gap: var(--erp-space-2);
+  }
+}

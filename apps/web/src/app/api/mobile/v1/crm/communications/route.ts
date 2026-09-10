@@ -1,23 +1,25 @@
 import { getCommunicationsDashboard } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
 import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
-import { crmApiContext } from "@/modules/crm";
-import { crmCommunicationsErrorResponse } from "@/modules/crm/server/communications";
+import { crmApiContext, rethrowCrmError } from "@/modules/crm";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok } from "@/core/http";
+import { mobileError, mobileOk } from "@/core/mobile-http";
+import { requireMobileSession } from "@/core/mobile-session";
 
-export async function GET() {
+// F018/mobile-parity fix — this route previously authenticated via
+// getSessionContext() (the WEB cookie-session helper) instead of
+// requireMobileSession(request) (the Bearer-token session every other
+// mobile/v1/crm route uses) — a real inconsistency: a mobile client
+// presenting only its access token, no browser cookie, would have failed
+// here with a misleading 401 rather than the real Bearer-session check.
+export async function GET(request: Request) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
+    const session = await requireMobileSession(request);
     requirePermissionFromSession(session, PERMISSIONS.crmView);
     const context = await crmApiContext(session);
     const dashboard = await tenantTransaction(
       context.organizationId,
       (client) => getCommunicationsDashboard(client, context),
     );
-    return ok({ dashboard, contractVersion: "crm-communications-v1" });
-  } catch (error) {
-    return crmCommunicationsErrorResponse(error);
-  }
+    return mobileOk(request, { dashboard, contractVersion: "crm-communications-v1" });
+  } catch (error) { try { rethrowCrmError(error); } catch (mapped) { return mobileError(request, mapped); } }
 }

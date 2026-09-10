@@ -93,6 +93,17 @@ export default function SalesDocumentEditor({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [preview, setPreview] = useState<SalesPreview | null>(null);
+  // F023 (Opportunity-to-quotation conversion) — LAST PROMPT 1/3 closeout:
+  // one key per mount of this editor, reused across every save() attempt
+  // for the SAME create flow (including a retry after a dropped response),
+  // so a double-click or timeout-triggered retry cannot create two
+  // quotations from the same Opportunity. A fresh page load (a genuinely
+  // new create flow) gets a fresh key.
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const [form, setForm] = useState({
     companyId: "",
     branchId: "",
@@ -256,6 +267,10 @@ export default function SalesDocumentEditor({
   const payload = () => ({
     ...form,
     opportunityId: opportunityId || null,
+    // createOrder does not yet support an idempotency key — only threaded
+    // through for quotation creation, matching createQuotation's own
+    // optional (not required) key acceptance.
+    ...(mode === "quotation" ? { idempotencyKey } : {}),
     branchId: form.branchId || null,
     contactId: form.contactId || null,
     ownerUserId: form.ownerUserId || null,

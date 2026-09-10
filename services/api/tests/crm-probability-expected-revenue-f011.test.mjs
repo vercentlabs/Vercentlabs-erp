@@ -19,6 +19,7 @@ function clientFor(current=row()) {
   const calls=[];
   return { calls, client: { async query(sql, values=[]) {
     calls.push({sql,values});
+    if (sql.startsWith("SELECT set_config('app.crm_opportunity_lifecycle_transition'")) return {rows:[]};
     if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return {rows:[current]};
     if (sql.startsWith("UPDATE tenant.crm_opportunities")) return {rows:[row({probability:String(values[0]),expected_revenue:(1000*Number(values[0])/100).toFixed(2),updated_at:"2026-08-27T00:01:00.000Z"})]};
     if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history")) return {rows:[]};

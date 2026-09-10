@@ -9,6 +9,7 @@ export class HttpError extends Error {
     public readonly status: number,
     message: string,
     public readonly code?: string,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -42,7 +43,9 @@ export function failWithCode(error: HttpError) {
   return fail(
     error.message,
     error.status,
-    error.code ? { code: error.code } : undefined,
+    error.code || error.details
+      ? { ...(error.code ? { code: error.code } : {}), ...(error.details || {}) }
+      : undefined,
   );
 }
 

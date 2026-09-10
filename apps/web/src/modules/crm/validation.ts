@@ -550,3 +550,58 @@ export const completeMeetingSchema = z
     ...meetingExpectationFields,
   })
   .strict();
+
+// Prompt 6 (CRM-CAP-004): F016 Follow-ups and reminders.
+const followUpDateTime = z.string().trim().refine((value) => Number.isFinite(Date.parse(value)), {
+  message: "Use a valid date and time.",
+});
+const followUpExpectationFields = {
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+  expectedStatus: z.enum(["planned", "overdue", "in_progress", "completed", "cancelled"]).optional(),
+};
+const followUpBaseFields = {
+  companyId: z.string().uuid().nullable().optional(),
+  branchId: z.string().uuid().nullable().optional(),
+  entityType: z.enum(["lead", "opportunity", "party", "contact", "campaign", "general"]).default("general"),
+  entityId: z.string().uuid().nullable().optional(),
+  subject: z.string().trim().min(1).max(300),
+  description: z.string().trim().max(4000).nullable().optional(),
+  assignedTo: z.string().uuid().nullable().optional(),
+  dueAt: followUpDateTime,
+  followUpReason: z.string().trim().max(1000).nullable().optional(),
+  followUpChannel: z.enum(["call", "email", "meeting", "whatsapp", "sms", "other"]).nullable().optional(),
+  escalateAfterMinutes: z.coerce.number().int().min(1).max(43_200).nullable().optional(),
+};
+export const createFollowUpSchema = z
+  .object({
+    ...followUpBaseFields,
+    reminderOffsets: z.array(z.coerce.number().int().min(0).max(43_200)).max(10).optional(),
+    reminderChannel: z.enum(["in_app", "email"]).default("in_app"),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.entityType === "general" && input.entityId)
+      context.addIssue({ code: "custom", path: ["entityId"], message: "General Follow-ups cannot have a related-record ID." });
+    if (input.entityType !== "general" && !input.entityId)
+      context.addIssue({ code: "custom", path: ["entityId"], message: "Select the related CRM record." });
+  });
+export const updateFollowUpSchema = z
+  .object({
+    companyId: followUpBaseFields.companyId,
+    branchId: followUpBaseFields.branchId,
+    entityType: followUpBaseFields.entityType.optional(),
+    entityId: followUpBaseFields.entityId,
+    subject: followUpBaseFields.subject.optional(),
+    description: followUpBaseFields.description,
+    assignedTo: followUpBaseFields.assignedTo,
+    dueAt: followUpBaseFields.dueAt.optional(),
+    followUpReason: followUpBaseFields.followUpReason,
+    followUpChannel: followUpBaseFields.followUpChannel,
+    escalateAfterMinutes: followUpBaseFields.escalateAfterMinutes,
+    ...followUpExpectationFields,
+  })
+  .strict();
+export const followUpLifecycleSchema = z.object(followUpExpectationFields).strict();
+export const snoozeFollowUpSchema = z
+  .object({ dueAt: followUpDateTime, ...followUpExpectationFields })
+  .strict();

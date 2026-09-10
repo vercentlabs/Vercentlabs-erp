@@ -27,6 +27,11 @@ export const salesDocumentSchema = z.object({
   internalNotes: z.string().max(10000).optional().nullable(), customerNotes: z.string().max(10000).optional().nullable(),
   termsAndConditions: z.string().max(20000).optional().nullable(), revisionReason: z.string().max(1000).optional().nullable(),
   amendmentReason: z.string().max(1000).optional().nullable(), lines: z.array(line).min(1).max(500), charges: z.array(charge).max(50).optional(),
+  // F023 — optional; only createQuotation currently honors it (see
+  // services/api/src/modules/sales/index.js). Present here (rather than a
+  // separate schema) so the SAME document-editor.tsx payload() shape is
+  // valid for both quotation and order submission without branching schemas.
+  idempotencyKey: z.string().trim().min(8).max(200).optional(),
 }).strict();
 export const salesActionSchema = z.object({
   action: z.enum(["submit","send","convert","confirm","hold","release_hold","cancel","close","request_fulfillment","complete_fulfillment","request_invoice","record_decision","amend"]),

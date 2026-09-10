@@ -1,4 +1,4 @@
-import { getCrmRecord } from "@vercentlabs/api";
+import { deleteCrmAttachment, getCrmAttachmentContent } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
 import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
@@ -15,6 +15,8 @@ function dispositionFileName(value: unknown) {
   return String(value || "attachment").replace(/[\r\n"\\]/g, "-").slice(0, 180);
 }
 
+// F017 closeout — delegates to the canonical attachment domain module
+// (attachments-operations.js) rather than a Lead-only copy of this query.
 export async function GET(_request: Request, { params }: Params) {
   try {
     const session = await getSessionContext();
@@ -25,19 +27,7 @@ export async function GET(_request: Request, { params }: Params) {
     assertCrmIdentifier(id);
     assertCrmIdentifier(attachmentId);
     const context = await crmApiContext(session);
-    const row = await tenantTransaction(context.organizationId, async (client) => {
-      await getCrmRecord(client, context, "leads", id);
-      const result = await client.query(
-        `SELECT file_name,mime_type,size_bytes,content
-           FROM public.attachments
-          WHERE organization_id=$1 AND id=$2 AND entity_type='crm.lead' AND entity_id=$3
-            AND lifecycle_status='clean' AND scan_status IN ('clean','not_applicable')
-          LIMIT 1`,
-        [context.organizationId, attachmentId, id],
-      );
-      if (!result.rows[0]?.content) throw new HttpError(404, "Attachment not found.");
-      return result.rows[0];
-    });
+    const row = await tenantTransaction(context.organizationId, (client) => getCrmAttachmentContent(client, context, "lead", id, attachmentId));
     return new Response(row.content, {
       status: 200,
       headers: {
@@ -67,21 +57,14 @@ export async function DELETE(request: Request, { params }: Params) {
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
     const context = await crmApiContext(session);
     await tenantTransaction(context.organizationId, async (client) => {
-      await getCrmRecord(client, context, "leads", id);
-      const result = await client.query(
-        `DELETE FROM public.attachments
-          WHERE organization_id=$1 AND id=$2 AND entity_type='crm.lead' AND entity_id=$3
-          RETURNING id,file_name,mime_type,size_bytes`,
-        [context.organizationId, attachmentId, id],
-      );
-      if (!result.rows[0]) throw new HttpError(404, "Attachment not found.");
+      const deleted = await deleteCrmAttachment(client, context, "lead", id, attachmentId);
       await audit({
         organizationId: context.organizationId,
         actorUserId: session.userId,
         eventType: "crm.lead.attachment_deleted",
         entityType: "lead",
         entityId: id,
-        beforeData: result.rows[0],
+        beforeData: deleted,
         request,
         client,
       });

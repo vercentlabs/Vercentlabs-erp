@@ -43,8 +43,18 @@ test("F001 Wave 1: operations dashboard composes company, branch and owner recor
 test("F001 Wave 1: authoritative Lead mutations use row locks and stale-write conflicts", () => {
   const source = read("src/modules/crm/index.js");
   assert.match(source, /async function getLeadRecordForUpdate[\s\S]*FOR UPDATE/);
-  assert.match(source, /CRM_LEAD_VERSION_REQUIRED/);
-  assert.match(source, /CRM_LEAD_VERSION_INVALID/);
+  // Integrity closeout (Prompts 1-5): assertLeadExpectedVersion's literal
+  // CRM_LEAD_VERSION_REQUIRED/CRM_LEAD_VERSION_INVALID codes were
+  // generalized into assertRecordExpectedVersion (entityLabel/codePrefix
+  // parameters), reused for Opportunity ordinary edits too — Lead's own
+  // codes are now produced by passing codePrefix="CRM_LEAD" through the
+  // thin assertLeadExpectedVersion wrapper rather than appearing as a
+  // literal string, so match the generalized shape instead of the old
+  // literal constants.
+  assert.match(source, /function assertRecordExpectedVersion\(/);
+  assert.match(source, /\$\{codePrefix\}_VERSION_REQUIRED/);
+  assert.match(source, /\$\{codePrefix\}_VERSION_INVALID/);
+  assert.match(source, /function assertLeadExpectedVersion[\s\S]*assertRecordExpectedVersion\(record, expectedUpdatedAt, required, "Lead", "CRM_LEAD"\)/);
   assert.match(source, /CRM_STALE_WRITE/);
   assert.match(source, /updateCrmRecord\([\s\S]*expectations = \{\}/);
   assert.match(source, /archiveCrmRecord\([\s\S]*expectations = \{\}/);
@@ -66,7 +76,8 @@ test("F001 Wave 1: Lead merge locks deterministically before replay check and us
 });
 
 test("F001 Wave 1: lifecycle expected-version parsing is bounded and invalid timestamps are actionable", () => {
-  const source = read("src/modules/crm/lead-lifecycle.js");
+  // F007 Prompt 4: implementation moved to the lifecycle/ capability directory.
+  const source = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/transition-engine.js");
   assert.match(source, /input\.requireVersion === true/);
   assert.match(source, /CRM_LEAD_VERSION_REQUIRED/);
   assert.match(source, /Number\.isFinite\(expected\.getTime\(\)\)/);

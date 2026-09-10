@@ -7,6 +7,8 @@ import { requestJson } from "@/shared/http/client-request";
 import {
   ActionButton,
   ActionLink,
+  ConfirmDialog,
+  Dialog,
   EnterpriseDataGrid,
   FormField,
   StatePanel,
@@ -119,6 +121,7 @@ export default function MeetingsWorkspace({
     startCreating && canManage ? { mode: "schedule" } : null,
   );
   const [completion, setCompletion] = useState<MeetingRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<MeetingRow | null>(null);
   const [eventsFor, setEventsFor] = useState<MeetingRow | null>(null);
   const [events, setEvents] = useState<MeetingEvent[]>([]);
   const [relationType, setRelationType] = useState<MeetingRow["entityType"]>("lead");
@@ -206,7 +209,10 @@ export default function MeetingsWorkspace({
   }
 
   async function lifecycle(record: MeetingRow, action: "start" | "cancel") {
-    if (action === "cancel" && !confirm(`Cancel ${record.subject}?`)) return;
+    if (action === "cancel") {
+      setCancelTarget(record);
+      return;
+    }
     setBusy(`${action}:${record.id}`);
     setMessage("");
     const result = await requestJson(`/api/crm/meetings/${record.id}/${action}`, {
@@ -217,6 +223,24 @@ export default function MeetingsWorkspace({
     setBusy("");
     setMessage(result.message || (result.ok ? `Meeting ${action}ed.` : `Meeting could not be ${action}ed.`));
     if (result.ok) router.refresh();
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    const record = cancelTarget;
+    setBusy(`cancel:${record.id}`);
+    setMessage("");
+    const result = await requestJson(`/api/crm/meetings/${record.id}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedUpdatedAt: record.updatedAt, expectedStatus: record.status }),
+    });
+    setBusy("");
+    setMessage(result.message || (result.ok ? "Meeting cancelled." : "Meeting could not be cancelled."));
+    if (result.ok) {
+      setCancelTarget(null);
+      router.refresh();
+    }
   }
 
   async function complete(event: FormEvent<HTMLFormElement>) {
@@ -399,11 +423,47 @@ export default function MeetingsWorkspace({
 
       {totalPages > 1 ? <nav className="crm-meetings-pagination" aria-label="Meeting pages"><button className="secondary-button" disabled={page <= 1} onClick={() => router.push(queryHref(page - 1))}>Previous</button><span>Page {page} of {totalPages}</span><button className="secondary-button" disabled={page >= totalPages} onClick={() => router.push(queryHref(page + 1))}>Next</button></nav> : null}
 
-      {editor ? <div className="crm-meeting-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditor(null); }}><section className="crm-meeting-dialog" role="dialog" aria-modal="true" aria-labelledby="crm-meeting-editor-title"><div className="crm-meeting-dialog__heading"><div><p className="eyebrow">F014 · Meetings</p><h2 id="crm-meeting-editor-title">{editor.mode === "edit" ? "Edit scheduled Meeting" : editor.mode === "log" ? "Log completed Meeting" : "Schedule Meeting"}</h2></div><button className="icon-button" aria-label="Close Meeting editor" disabled={Boolean(busy)} onClick={() => setEditor(null)}>×</button></div><MeetingForm editor={editor} options={options} relationType={relationType} setRelationType={setRelationType} relationChoices={relationChoices} onSubmit={save} busy={busy === "save"} /></section></div> : null}
+      {editor ? (
+        <Dialog
+          title={editor.mode === "edit" ? "Edit scheduled Meeting" : editor.mode === "log" ? "Log completed Meeting" : "Schedule Meeting"}
+          description="Meetings"
+          onClose={() => setEditor(null)}
+          canDismiss={busy !== "save"}
+          busy={busy === "save"}
+        >
+          <MeetingForm editor={editor} options={options} relationType={relationType} setRelationType={setRelationType} relationChoices={relationChoices} onSubmit={save} busy={busy === "save"} />
+        </Dialog>
+      ) : null}
 
-      {completion ? <div className="crm-meeting-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setCompletion(null); }}><section className="crm-meeting-dialog crm-meeting-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="crm-meeting-complete-title"><div className="crm-meeting-dialog__heading"><div><p className="eyebrow">Complete Meeting</p><h2 id="crm-meeting-complete-title">{completion.subject}</h2></div><button className="icon-button" aria-label="Close completion dialog" onClick={() => setCompletion(null)}>×</button></div><form onSubmit={complete} className="crm-meeting-form"><label><span>Outcome</span><select name="outcomeCode" required defaultValue="held">{OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label><label className="crm-meeting-form__wide"><span>Outcome note</span><textarea name="outcome" maxLength={4000} rows={4} placeholder="Optional Meeting notes" /></label><div className="crm-meeting-form__actions"><button className="secondary-button" type="button" onClick={() => setCompletion(null)}>Cancel</button><button className="primary-button" type="submit" disabled={busy === `complete:${completion.id}`}>{busy === `complete:${completion.id}` ? "Completing…" : "Complete Meeting"}</button></div></form></section></div> : null}
+      {completion ? (
+        <Dialog
+          title={completion.subject}
+          description="Complete Meeting"
+          onClose={() => setCompletion(null)}
+          canDismiss={busy !== `complete:${completion.id}`}
+          busy={busy === `complete:${completion.id}`}
+        >
+          <form onSubmit={complete} className="crm-meeting-form"><label><span>Outcome</span><select name="outcomeCode" required defaultValue="held">{OUTCOMES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label><label className="crm-meeting-form__wide"><span>Outcome note</span><textarea name="outcome" maxLength={4000} rows={4} placeholder="Optional Meeting notes" /></label><div className="crm-meeting-form__actions"><button className="secondary-button" type="button" onClick={() => setCompletion(null)}>Cancel</button><button className="primary-button" type="submit" disabled={busy === `complete:${completion.id}`}>{busy === `complete:${completion.id}` ? "Completing…" : "Complete Meeting"}</button></div></form>
+        </Dialog>
+      ) : null}
 
-      {eventsFor ? <div className="crm-meeting-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEventsFor(null); }}><section className="crm-meeting-dialog crm-meeting-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="crm-meeting-history-title"><div className="crm-meeting-dialog__heading"><div><p className="eyebrow">Immutable evidence</p><h2 id="crm-meeting-history-title">Meeting history</h2></div><button className="icon-button" aria-label="Close Meeting history" onClick={() => setEventsFor(null)}>×</button></div><div className="crm-meeting-history">{events.length ? events.map((entry) => <article key={entry.id}><strong>{label(entry.eventType)}</strong><span>{entry.previousStatus ? `${label(entry.previousStatus)} → ${label(entry.nextStatus)}` : label(entry.nextStatus)}</span><small>{entry.changedByName || "System"} · {formatDate(entry.changedAt)}{entry.outcomeCode ? ` · ${label(entry.outcomeCode)}` : ""}{Number.isFinite(entry.attendeeCount) ? ` · ${entry.attendeeCount} attendee${entry.attendeeCount === 1 ? "" : "s"}` : ""}</small></article>) : <p>No Meeting events were recorded.</p>}</div></section></div> : null}
+      {cancelTarget ? (
+        <ConfirmDialog
+          title="Cancel Meeting?"
+          description={cancelTarget.subject}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={() => void confirmCancel()}
+          confirmLabel="Cancel Meeting"
+          cancelLabel="Keep Meeting"
+          busy={busy === `cancel:${cancelTarget.id}`}
+        />
+      ) : null}
+
+      {eventsFor ? (
+        <Dialog title="Meeting history" onClose={() => setEventsFor(null)}>
+          <div className="crm-meeting-history">{events.length ? events.map((entry) => <article key={entry.id}><strong>{label(entry.eventType)}</strong><span>{entry.previousStatus ? `${label(entry.previousStatus)} → ${label(entry.nextStatus)}` : label(entry.nextStatus)}</span><small>{entry.changedByName || "System"} · {formatDate(entry.changedAt)}{entry.outcomeCode ? ` · ${label(entry.outcomeCode)}` : ""}{Number.isFinite(entry.attendeeCount) ? ` · ${entry.attendeeCount} attendee${entry.attendeeCount === 1 ? "" : "s"}` : ""}</small></article>) : <p>No Meeting events were recorded.</p>}</div>
+        </Dialog>
+      ) : null}
     </section>
   );
 }

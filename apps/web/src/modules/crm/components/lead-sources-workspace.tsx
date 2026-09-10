@@ -70,13 +70,16 @@ export default function LeadSourcesWorkspace({
       return;
     setPending(id);
     setMessage("");
+    const expectedUpdatedAt = String(source.updatedAt || "");
     const result = await requestJson(
-      `/api/crm/lead-sources/${id}`,
+      active
+        ? `/api/crm/lead-sources/${id}`
+        : `/api/crm/lead-sources/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
       active
         ? {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "reactivate" }),
+            body: JSON.stringify({ action: "reactivate", expectedUpdatedAt }),
           }
         : { method: "DELETE" },
     );

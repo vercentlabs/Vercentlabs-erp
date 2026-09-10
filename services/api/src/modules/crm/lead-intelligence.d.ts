@@ -6,6 +6,13 @@ export class CrmLeadIntelligenceError extends Error {
   readonly details: Array<Record<string, unknown>>;
 }
 export function crmLeadIntelligenceHash(value: unknown): string;
+export function assertSensitiveLeadIntelligenceAccess(context: CrmFoundationContext): void;
+export function getScopedLead(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  leadId: string,
+  options?: { lock?: boolean },
+): Promise<Record<string, unknown>>;
 export function evaluateLeadScoreRule(
   rule: Record<string, unknown>,
   lead: Record<string, unknown>,

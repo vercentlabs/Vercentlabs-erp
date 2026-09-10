@@ -194,7 +194,7 @@ export default function ContextSecondarySidebar({
             key={group.label}
             aria-label={group.label}
           >
-            {group.label === "Overview" ? null : (
+            {group.label === "Overview" || group.label === "Home" ? null : (
               <p className="context-secondary-sidebar__group-label">
                 {group.label}
               </p>

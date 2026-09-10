@@ -150,7 +150,7 @@ test("F020/F004/F005/F012/F026/F027/F028 configuration stays inside focused CRM 
   for (const resource of [
     "sources",
     "assignment-rules",
-    "scoring-rules",
+    "lead-scoring",
     "pipelines",
     "stages",
     "lost-reasons",

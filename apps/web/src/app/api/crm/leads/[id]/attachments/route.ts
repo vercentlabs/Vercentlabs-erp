@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { attachmentStorageKey, sha256, validateAttachment } from "@vercentlabs/document-engine";
-import { getCrmRecord } from "@vercentlabs/api";
+import { createCrmAttachment, listCrmAttachments } from "@vercentlabs/api";
 
 import { getSessionContext } from "@/core/auth";
 import { scanAttachmentForUpload } from "@/core/attachment-security";
@@ -10,10 +10,32 @@ import { tenantTransaction } from "@/core/db";
 import { HttpError, ok } from "@/core/http";
 import { assertSameOriginOrMobile, audit } from "@/core/security";
 import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/api";
+import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/api";
 
 type Params = { params: Promise<{ id: string }> };
 const MAX_BYTES = 5 * 1024 * 1024;
+
+// F017 closeout — this route now delegates parent-record authorization and
+// the write itself to the canonical attachment domain module (attachments-
+// operations.js), the same one Account/Contact/Opportunity's new routes
+// use, rather than owning its own copy of that logic. Upload-time
+// validation/scanning stays here — real, shared, non-CRM-specific
+// utilities (document-engine, core/attachment-security), not duplicated
+// business logic.
+export async function GET(_request: Request, { params }: Params) {
+  try {
+    const session = await getSessionContext();
+    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
+    requireCrmView(session);
+    const { id } = await params;
+    assertCrmIdentifier(id);
+    const context = await crmApiContext(session);
+    const attachments = await tenantTransaction(context.organizationId, (client) => listCrmAttachments(client, context, "lead", id));
+    return ok({ attachments });
+  } catch (error) {
+    return crmErrorResponse(error);
+  }
+}
 
 export async function POST(request: Request, { params }: Params) {
   try {
@@ -38,39 +60,31 @@ export async function POST(request: Request, { params }: Params) {
     const attachmentId = randomUUID();
     const context = await crmApiContext(session);
     await incrementBillingUsage(session.organizationId, "api_requests_monthly");
+    const replacesLogicalId = form.get("replacesLogicalId");
 
     const attachment = await tenantTransaction(context.organizationId, async (client) => {
-      await getCrmRecord(client, context, "leads", id);
-      const result = await client.query(
-        `INSERT INTO public.attachments(
-           id,organization_id,entity_type,entity_id,file_name,storage_key,mime_type,size_bytes,uploaded_by,content,content_sha256,lifecycle_status,scan_status
-         ) VALUES($1,$2,'crm.lead',$3,$4,$5,$6,$7,$8,$9,$10,'clean',$11)
-         RETURNING id,file_name,mime_type,size_bytes,created_at`,
-        [
-          attachmentId,
-          context.organizationId,
-          id,
-          governed.fileName,
-          attachmentStorageKey({ organizationId: context.organizationId, attachmentId, fileName: governed.fileName }),
-          governed.mimeType,
-          governed.sizeBytes,
-          session.userId,
-          bytes,
-          sha256(bytes),
-          scan.scanStatus,
-        ],
-      );
+      const created = await createCrmAttachment(client, context, "lead", id, {
+        id: attachmentId,
+        fileName: governed.fileName,
+        storageKey: attachmentStorageKey({ organizationId: context.organizationId, attachmentId, fileName: governed.fileName }),
+        mimeType: governed.mimeType,
+        sizeBytes: governed.sizeBytes,
+        content: bytes,
+        contentSha256: sha256(bytes),
+        scanStatus: scan.scanStatus,
+        ...(typeof replacesLogicalId === "string" && replacesLogicalId ? { replacesLogicalId } : {}),
+      });
       await audit({
         organizationId: context.organizationId,
         actorUserId: session.userId,
         eventType: "crm.lead.attachment_uploaded",
         entityType: "lead",
         entityId: id,
-        afterData: result.rows[0],
+        afterData: created,
         request,
         client,
       });
-      return result.rows[0];
+      return created;
     });
     return ok({ message: "Attachment uploaded.", attachment }, 201);
   } catch (error) {

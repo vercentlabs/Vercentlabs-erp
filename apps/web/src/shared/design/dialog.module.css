@@ -1,0 +1,113 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--erp-z-modal, 1000);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: var(--erp-color-overlay-backdrop);
+  cursor: default;
+}
+
+.dialog {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--erp-color-surface);
+  color: var(--erp-color-text);
+  box-shadow: var(--erp-shadow-overlay);
+}
+
+.variant_centered {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - var(--erp-space-6) * 2));
+  max-height: calc(100dvh - var(--erp-space-8) * 2);
+  border-radius: var(--erp-radius-overlay);
+  overflow: auto;
+}
+
+.variant_drawer-end {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(560px, 100vw);
+  height: 100dvh;
+  overflow: auto;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--erp-space-4);
+  padding: var(--erp-space-5) var(--erp-space-5) var(--erp-space-4);
+  border-bottom: 1px solid var(--erp-color-border);
+}
+
+.header h2 {
+  margin: 0 0 var(--erp-space-1);
+  font-size: var(--erp-font-size-xl);
+}
+
+.header p {
+  margin: 0;
+  color: var(--erp-color-text-muted);
+}
+
+.closeButton {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--erp-color-border);
+  border-radius: var(--erp-radius-control);
+  background: var(--erp-color-surface);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeButton:hover,
+.closeButton:focus-visible {
+  background: var(--erp-color-surface-subtle);
+}
+
+.body {
+  padding: var(--erp-space-5);
+  overflow-y: auto;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--erp-space-3);
+  margin-top: var(--erp-space-5);
+}
+
+@media (max-width: 767px) {
+  .variant_centered {
+    width: calc(100vw - var(--erp-space-4) * 2);
+    max-height: calc(100dvh - var(--erp-space-6) * 2);
+  }
+
+  .variant_drawer-end {
+    width: 100vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog {
+    transition: none;
+  }
+}

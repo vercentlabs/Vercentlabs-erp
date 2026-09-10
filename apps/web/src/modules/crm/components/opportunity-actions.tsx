@@ -195,8 +195,20 @@ export default function CrmOpportunityActions({
                 commandPayload: { opportunityId: id, ...payload },
               }),
             });
-      if (!result.ok)
-        throw new Error(result.message || "The action could not be completed.");
+      if (!result.ok) {
+        // Integrity closeout (Prompts 1-5): CRM_OPPORTUNITY_STAGE_EXIT_BLOCKED
+        // now carries the specific unanswered playbook questions — surface
+        // them so the seller knows exactly what to resolve, not just that
+        // "something" is blocking the move.
+        const missingRequirements = Array.isArray(result.missingRequirements)
+          ? (result.missingRequirements as unknown[]).map(String)
+          : [];
+        throw new Error(
+          missingRequirements.length
+            ? `${result.message || "Answer the required questions for this stage first."} Missing: ${missingRequirements.join(", ")}.`
+            : result.message || "The action could not be completed.",
+        );
+      }
       setMessage(
         result.message ||
           (action === "move"

@@ -274,10 +274,21 @@ export default function CrmResourceManager({
         }
       }
       const id = String(editing.id || "");
-      if (definition.key === "leads" && id) {
+      // Concurrency (Prompts 1-5 integrity closeout): Qualification criteria
+      // is a plain mutable generic-CRUD resource (no append-only/versioned
+      // model already protecting it) reached only through this generic
+      // editor — widened alongside Lead/Opportunity rather than adding a
+      // fourth near-identical implementation.
+      if (
+        (definition.key === "leads" ||
+          definition.key === "opportunities" ||
+          definition.key === "qualification-criteria") &&
+        id
+      ) {
         const expectedUpdatedAt = String(editing.updatedAt || "").trim();
+        const label = definition.singular.replace(/^./, (c) => c.toUpperCase());
         if (!expectedUpdatedAt)
-          throw new Error("Refresh this Lead before saving changes.");
+          throw new Error(`Refresh this ${label} before saving changes.`);
         body.expectedUpdatedAt = expectedUpdatedAt;
       }
       const result = await requestJson<{
@@ -326,7 +337,7 @@ export default function CrmResourceManager({
     setPending(true);
     setMessage("");
     const archivePath =
-      definition.key === "leads"
+      definition.key === "leads" || definition.key === "opportunities"
         ? `/api/crm/${definition.key}/${id}?expectedUpdatedAt=${encodeURIComponent(String(row?.updatedAt || ""))}`
         : `/api/crm/${definition.key}/${id}`;
     const result = await requestJson(archivePath, {

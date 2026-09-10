@@ -36,12 +36,14 @@ function QualificationDialog({
   leadName,
   decision,
   reasons,
+  needsOverride,
   onClose,
 }: {
   leadId: string;
   leadName: string;
   decision: "qualified" | "unqualified";
   reasons: Reason[];
+  needsOverride: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -49,6 +51,7 @@ function QualificationDialog({
   const closeRef = useRef(onClose);
   const pendingRef = useRef(false);
   const [reasonCode, setReasonCode] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -93,6 +96,8 @@ function QualificationDialog({
             reasonCode: decision === "unqualified" ? reasonCode : undefined,
             reasonText: form.get("reasonText"),
             note: form.get("note"),
+            overrideUsed: needsOverride ? true : undefined,
+            overrideReason: needsOverride ? overrideReason : undefined,
           }),
         },
       );
@@ -139,6 +144,25 @@ function QualificationDialog({
           </button>
         </header>
         <div className="crm-qualification-dialog__body">
+          {needsOverride ? (
+            <FormField
+              label="Override reason"
+              htmlFor="qualification-override-reason"
+              required
+              hint="Required evidence is still missing. Explain why this Lead should be qualified anyway; the override is recorded on this decision's history."
+            >
+              <textarea
+                id="qualification-override-reason"
+                required
+                minLength={3}
+                rows={3}
+                maxLength={1000}
+                value={overrideReason}
+                onChange={(event) => setOverrideReason(event.currentTarget.value)}
+                autoFocus
+              />
+            </FormField>
+          ) : null}
           {unqualified ? (
             <FormField label="Reason" htmlFor="qualification-reason" required>
               <select
@@ -167,7 +191,7 @@ function QualificationDialog({
             htmlFor="qualification-note"
             hint="Keep this specific to the decision; general notes remain separate."
           >
-            <textarea id="qualification-note" name="note" rows={3} maxLength={2000} autoFocus={!unqualified} />
+            <textarea id="qualification-note" name="note" rows={3} maxLength={2000} autoFocus={!unqualified && !needsOverride} />
           </FormField>
           {error ? <p className="field-error" role="alert">{error}</p> : null}
         </div>
@@ -179,12 +203,19 @@ function QualificationDialog({
           >
             Cancel
           </ActionButton>
-          <ActionButton tone="primary" type="submit" busy={pending}>
+          <ActionButton
+            tone="primary"
+            type="submit"
+            busy={pending}
+            disabled={needsOverride && overrideReason.trim().length < 3}
+          >
             {pending
               ? "Saving…"
-              : unqualified
-                ? "Mark unqualified"
-                : "Qualify lead"}
+              : needsOverride
+                ? "Qualify anyway"
+                : unqualified
+                  ? "Mark unqualified"
+                  : "Qualify lead"}
           </ActionButton>
         </footer>
       </form>
@@ -210,6 +241,9 @@ export default function LeadQualificationCard({
   const state = String(qualification.state || "not_reviewed");
   const mutable = canManage && String(lead.recordStatus || "active") === "active";
   const name = String(lead.fullName || lead.companyName || "this Lead");
+  const canOverride = Boolean(qualification.canOverride);
+  const ready = Boolean(readiness.ready);
+  const needsOverride = decision === "qualified" && !ready;
 
   return (
     <section className="crm-suite-surface crm-lead-qualification-card" aria-labelledby="lead-qualification-heading">
@@ -229,6 +263,9 @@ export default function LeadQualificationCard({
         ) : (
           <small>Readiness is derived from current Lead data; the decision remains manual.</small>
         )}
+        {qualification.evaluatedAt ? (
+          <small>Last evaluated {when(qualification.evaluatedAt)}</small>
+        ) : null}
       </div>
       <div className="crm-lead-qualification-criteria">
         <div>
@@ -263,10 +300,14 @@ export default function LeadQualificationCard({
             <ActionButton
               tone="primary"
               type="button"
-              disabled={!Boolean(readiness.ready)}
+              disabled={!ready && !canOverride}
               onClick={() => setDecision("qualified")}
             >
-              {state === "unqualified" ? "Requalify lead" : "Qualify lead"}
+              {!ready && canOverride
+                ? "Qualify with override"
+                : state === "unqualified"
+                  ? "Requalify lead"
+                  : "Qualify lead"}
             </ActionButton>
           ) : null}
           {state !== "unqualified" ? (
@@ -282,10 +323,14 @@ export default function LeadQualificationCard({
           <ol>
             {history.map((event) => (
               <li key={String(event.id)}>
-                <strong>{label(event.previousState)} → {label(event.newState)}</strong>
+                <strong>
+                  {label(event.previousState)} → {label(event.newState)}
+                  {event.overrideUsed ? <StatusBadge tone="warning">Override</StatusBadge> : null}
+                </strong>
                 <span>{String(event.decidedByName || "Unknown user")} · {when(event.createdAt)}</span>
                 {event.reasonCode ? <small>{label(event.reasonCode)}</small> : null}
                 {event.reasonText ? <p>{String(event.reasonText)}</p> : null}
+                {event.overrideReason ? <p>Override: {String(event.overrideReason)}</p> : null}
                 {event.note ? <p>{String(event.note)}</p> : null}
               </li>
             ))}
@@ -298,6 +343,7 @@ export default function LeadQualificationCard({
           leadName={name}
           decision={decision}
           reasons={reasons}
+          needsOverride={needsOverride}
           onClose={() => setDecision(null)}
         />
       ) : null}

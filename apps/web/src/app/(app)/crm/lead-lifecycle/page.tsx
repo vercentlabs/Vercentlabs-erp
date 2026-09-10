@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { listLeadStages } from "@vercentlabs/api";
+import { listLeadStages, listLeadStageTransitionReasons, listLeadStageTransitions } from "@vercentlabs/api";
 
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
@@ -14,8 +14,18 @@ export default async function LeadLifecyclePage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmSettingsManage)) notFound();
   const context = await crmApiContext(session);
-  const result = await tenantTransaction(context.organizationId, (client) =>
-    listLeadStages(client, context, { status: "all" }),
+  const [stages, transitions, reasons] = await tenantTransaction(context.organizationId, (client) =>
+    Promise.all([
+      listLeadStages(client, context, { status: "all" }),
+      listLeadStageTransitions(client, context),
+      listLeadStageTransitionReasons(client, context),
+    ]),
   );
-  return <LeadLifecycleWorkspace rows={JSON.parse(JSON.stringify(result.rows))} />;
+  return (
+    <LeadLifecycleWorkspace
+      rows={JSON.parse(JSON.stringify(stages.rows))}
+      transitions={JSON.parse(JSON.stringify(transitions))}
+      reasons={JSON.parse(JSON.stringify(reasons))}
+    />
+  );
 }

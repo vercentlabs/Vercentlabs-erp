@@ -226,7 +226,7 @@
 .crm-timeline time {
   display: block;
   margin-top: 0.2rem;
-  color: var(--text-tertiary, #727b8a);
+  color: var(--erp-color-text-muted);
   font-size: 0.75rem;
 }
 

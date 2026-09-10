@@ -14,7 +14,10 @@ const searchRoute = read("apps/web/src/app/api/search/route.ts");
 const integrationsPage = read("apps/web/src/app/(app)/integrations/page.tsx");
 const attachmentSecurity = read("apps/web/src/core/attachment-security.ts");
 const attachmentUpload = read("apps/web/src/app/api/crm/leads/[id]/attachments/route.ts");
-const attachmentDownload = read("apps/web/src/app/api/crm/leads/[id]/attachments/[attachmentId]/route.ts");
+// F017 attachment-generalization pass: the scan-status gate moved from this
+// route into the canonical attachment domain module (attachments-
+// operations.js) that Account/Contact/Opportunity's routes now also call.
+const attachmentDomain = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js");
 
 const evidence = {
   SP010: () => {
@@ -51,7 +54,7 @@ const evidence = {
     assert.match(read("packages/document-engine/src/index.js"), /validateAttachment/);
     assert.match(attachmentSecurity, /ATTACHMENT_SCAN_MODE/);
     assert.match(attachmentUpload, /scanAttachmentForUpload/);
-    assert.match(attachmentDownload, /scan_status IN \('clean','not_applicable'\)/);
+    assert.match(attachmentDomain, /scan_status IN \('clean','not_applicable'\)/);
   },
   SP020: () => {
     assert.match(searchRoute, /requireApiWorkspace/);

@@ -26,8 +26,16 @@ test("F011 detail uses canonical expected revenue and exposes governed probabili
   const page=read("apps/web/src/app/(app)/crm/opportunities/[id]/page.tsx");
   assert.match(page,/record\.expectedRevenue/);
   assert.match(page,/CrmOpportunityProbabilityAction/);
-  assert.match(page,/crm_opportunity_probability_history/);
-  assert.match(page,/Revenue confidence changes/);
+  // Prompts 1-5 integrity closeout (blocker B): the probability-history
+  // query moved out of page.tsx into the canonical, web+mobile-shared
+  // getOpportunityDetailData() projection.
+  const detailData=read("apps/web/src/modules/crm/server/opportunity-detail-data.ts");
+  assert.match(detailData,/crm_opportunity_probability_history/);
+  // Probability-history rendering moved into the tabbed Opportunity
+  // workspace (Prompt 5) — the "Revenue confidence changes" label lives in
+  // the History tab panel.
+  const workspaceTabs=read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/opportunity-workspace-tabs.tsx");
+  assert.match(workspaceTabs,/Revenue confidence changes/);
   const component=read("apps/web/src/modules/crm/components/opportunity-probability-action.tsx");
   assert.match(component,/expectedUpdatedAt: updatedAt/);
   assert.match(component,/expectedProbability: probability/);

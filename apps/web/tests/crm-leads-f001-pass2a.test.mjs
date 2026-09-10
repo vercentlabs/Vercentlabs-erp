@@ -62,7 +62,9 @@ test("F001 Pass 2A web: specialized Lead-content and intelligence routes require
     "src/app/api/crm/leads/duplicates/route.ts",
     "src/app/api/crm/leads/validate/route.ts",
     "src/app/api/crm/lead-intelligence/dashboard/route.ts",
-    "src/app/api/crm/lead-intelligence/scores/[leadId]/route.ts",
+    // F027 Prompt 4: the duplicate lead-intelligence/scores/[leadId] route
+    // (functionally identical to leads/[id]/score, never referenced by any
+    // UI) was removed — "duplicate implementations are not acceptable".
   ];
   for (const path of paths) assert.match(read(path), /crmLeadsViewSensitive/, path);
 });

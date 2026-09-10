@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { resources, recordScope } from "./index.js";
 
 export const CRM_OPPORTUNITY_REVENUE_CAPABILITY_IDS = Object.freeze([
   "CRM-051",
@@ -363,9 +364,19 @@ export function summarizeWinLoss(rowsValue) {
 }
 
 async function requireOpportunity(client, context, opportunityId) {
+  // Company/branch/owner record scope, not just organization — this was a
+  // real gap found this prompt: every function in this file previously
+  // only checked organization_id, meaning any authenticated actor holding
+  // crm.opportunities.manage (regardless of their own company/branch/team/
+  // owner scope) could read or write revenue schedules, splits, team
+  // membership, mutual action plans and win/loss reviews for ANY
+  // opportunity in the organization. Mirrors the same recordScope() every
+  // other Opportunity write path (moveOpportunityStage,
+  // updateOpportunityProbability, the generic CRUD routes) already applies.
+  const parameters = [context.organizationId, opportunityId];
   const result = await client.query(
-    `SELECT * FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, opportunityId],
+    `SELECT record.* FROM tenant.crm_opportunities record WHERE record.organization_id=$1 AND record.id=$2${recordScope(resources.opportunities, context, parameters)} FOR UPDATE`,
+    parameters,
   );
   if (!result.rows[0]) {
     throw new CrmOpportunityRevenueError(
@@ -448,15 +459,24 @@ export async function saveOpportunityRevenueSplits(
   const opportunityId = text(input.opportunityId);
   await requireOpportunity(client, context, opportunityId);
   const splits = validateRevenueSplits(input.splits);
+  // Replace only the split rows for the split TYPE(s) present in this save —
+  // never delete-all-team-members-then-recreate. That destroyed any team
+  // member (e.g. a view-only observer, or one holding a split of a
+  // *different* type not included in this call) who happened not to be in
+  // this particular payload — a real bug found this prompt, since the
+  // opportunity team was previously only ever manageable as a side effect
+  // of saving revenue splits, with no standalone team-membership concept.
+  const splitTypes = [...new Set(splits.map((split) => split.splitType))];
   await client.query(
-    `DELETE FROM tenant.crm_opportunity_revenue_splits WHERE organization_id=$1 AND opportunity_id=$2`,
-    [context.organizationId, opportunityId],
-  );
-  await client.query(
-    `DELETE FROM tenant.crm_opportunity_team_members WHERE organization_id=$1 AND opportunity_id=$2`,
-    [context.organizationId, opportunityId],
+    `DELETE FROM tenant.crm_opportunity_revenue_splits
+      WHERE organization_id=$1 AND opportunity_id=$2 AND split_type=ANY($3::text[])`,
+    [context.organizationId, opportunityId, splitTypes],
   );
   for (const split of splits) {
+    // Upsert the team-member row (a split's user must be on the team), but
+    // never downgrade an existing access_level — only new rows default to
+    // 'edit'; a manager added separately (addOpportunityTeamMember) keeps
+    // their access_level even if later included in a revenue split too.
     const member = await client.query(
       `INSERT INTO tenant.crm_opportunity_team_members
        (organization_id,opportunity_id,user_id,team_role,access_level,created_by,updated_by)
@@ -475,7 +495,9 @@ export async function saveOpportunityRevenueSplits(
     await client.query(
       `INSERT INTO tenant.crm_opportunity_revenue_splits
        (organization_id,opportunity_id,team_member_id,split_type,split_percent,created_by,updated_by)
-       VALUES($1,$2,$3,$4,$5,$6,$6)`,
+       VALUES($1,$2,$3,$4,$5,$6,$6)
+       ON CONFLICT (organization_id,opportunity_id,team_member_id,split_type)
+       DO UPDATE SET split_percent=EXCLUDED.split_percent,updated_by=EXCLUDED.updated_by,updated_at=now()`,
       [
         context.organizationId,
         opportunityId,
@@ -667,6 +689,15 @@ export async function submitWinLossReview(client, context, input = {}) {
   return result.rows[0];
 }
 
+// Deliberately org-wide, not recordScope()-filtered — same rationale as
+// F010's capturePipelineSnapshots (opportunity-and-pipeline-governance/
+// pipeline-snapshots.js): a predictive forecast snapshot is a system-of-record
+// artifact (crm_predictive_forecast_snapshots has no company_id column by
+// design), not one caller's restricted view, so a company-scoped manager
+// triggering a capture must not thereby produce an incomplete/misleading
+// org-level prediction. The access boundary is the capture action's own
+// permission gate (crmOpportunitiesManage, enforced by the calling route),
+// consistent with F010's manual-capture gate using the same permission.
 export async function capturePredictiveForecast(client, context, input = {}) {
   const opportunityResult = await client.query(
     `SELECT id,amount,probability,expected_close_date,status,last_activity_at,created_at,updated_at,
@@ -807,34 +838,81 @@ export async function getOpportunityRevenueWorkspace(
 }
 
 export async function getOpportunityRevenueDashboard(client, context) {
+  const summaryParameters = [context.organizationId];
+  const winLossParameters = [context.organizationId];
+  const quotaParameters = [context.organizationId];
+  const actionPlanParameters = [context.organizationId];
+  // Integrity closeout (Prompts 1-5): only the summary query below applied
+  // recordScope() — win/loss reviews, quota plans/allocations and action
+  // plans were queried by organization_id alone, so a company-restricted
+  // caller saw every company's loss reasons, competitor names, quota
+  // targets and action-plan status in this "dashboard," not just their own
+  // scope, even though the summary query right above it was correctly
+  // scoped. Each is now scoped through its real anchor: win/loss reviews
+  // and action plans via their parent Opportunity's own recordScope
+  // (mirroring the summary query exactly); quota plans/allocations via
+  // crm_quota_plans.company_id directly. crm_predictive_forecast_snapshots
+  // has no company_id and no opportunity_id in its schema — it is a
+  // genuine organization-level forecasting artifact, not a per-company or
+  // per-opportunity one, so it stays organization-scoped intentionally.
+  const winLossOpportunityScope = recordScope(
+    resources.opportunities,
+    context,
+    winLossParameters,
+    "opportunity",
+  );
+  const actionPlanOpportunityScope = recordScope(
+    resources.opportunities,
+    context,
+    actionPlanParameters,
+    "opportunity",
+  );
+  let quotaCompanyScope = "";
+  if (!context.allowAllCompanies) {
+    if (!context.activeCompanyId) {
+      quotaCompanyScope = " AND false";
+    } else {
+      quotaParameters.push(context.activeCompanyId);
+      quotaCompanyScope = ` AND (q.company_id IS NULL OR q.company_id = $${quotaParameters.length})`;
+    }
+  }
   const [summary, forecast, winLoss, quota, actionPlans] = await Promise.all([
     client.query(
-      `SELECT count(*) FILTER(WHERE status='open')::int AS open_opportunities,
-              COALESCE(sum(amount) FILTER(WHERE status='open'),0)::numeric AS open_pipeline,
-              count(*) FILTER(WHERE status='won')::int AS won,
-              count(*) FILTER(WHERE status='lost')::int AS lost,
-              count(*) FILTER(WHERE status='open' AND expected_close_date<current_date)::int AS overdue
-         FROM tenant.crm_opportunities WHERE organization_id=$1`,
-      [context.organizationId],
+      `SELECT count(*) FILTER(WHERE record.status='open')::int AS open_opportunities,
+              COALESCE(sum(record.amount) FILTER(WHERE record.status='open'),0)::numeric AS open_pipeline,
+              count(*) FILTER(WHERE record.status='won')::int AS won,
+              count(*) FILTER(WHERE record.status='lost')::int AS lost,
+              count(*) FILTER(WHERE record.status='open' AND record.expected_close_date<current_date)::int AS overdue
+         FROM tenant.crm_opportunities record WHERE record.organization_id=$1${recordScope(resources.opportunities, context, summaryParameters)}`,
+      summaryParameters,
     ),
     client.query(
       `SELECT * FROM tenant.crm_predictive_forecast_snapshots WHERE organization_id=$1 ORDER BY captured_at DESC LIMIT 1`,
       [context.organizationId],
     ),
     client.query(
-      `SELECT outcome,primary_reason,competitor_name,sales_cycle_days FROM tenant.crm_win_loss_reviews WHERE organization_id=$1 ORDER BY reviewed_at DESC LIMIT 200`,
-      [context.organizationId],
+      `SELECT review.outcome,review.primary_reason,review.competitor_name,review.sales_cycle_days
+         FROM tenant.crm_win_loss_reviews review
+         JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=review.organization_id AND opportunity.id=review.opportunity_id
+        WHERE review.organization_id=$1${winLossOpportunityScope}
+        ORDER BY review.reviewed_at DESC LIMIT 200`,
+      winLossParameters,
     ),
     client.query(
       `SELECT
-         (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1) AS plans,
-         (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1) AS target,
-         (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a WHERE a.organization_id=$1) AS allocated`,
-      [context.organizationId],
+         (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS plans,
+         (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS target,
+         (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a JOIN tenant.crm_quota_plans q ON q.organization_id=a.organization_id AND q.id=a.quota_plan_id WHERE a.organization_id=$1${quotaCompanyScope}) AS allocated`,
+      quotaParameters,
     ),
     client.query(
-      `SELECT p.id,p.opportunity_id,p.name,p.status,p.target_close_date,count(m.id)::int AS milestones,count(m.id) FILTER(WHERE m.status='completed')::int AS completed FROM tenant.crm_mutual_action_plans p LEFT JOIN tenant.crm_mutual_action_plan_milestones m ON m.organization_id=p.organization_id AND m.plan_id=p.id WHERE p.organization_id=$1 GROUP BY p.id ORDER BY p.updated_at DESC LIMIT 20`,
-      [context.organizationId],
+      `SELECT p.id,p.opportunity_id,p.name,p.status,p.target_close_date,count(m.id)::int AS milestones,count(m.id) FILTER(WHERE m.status='completed')::int AS completed
+         FROM tenant.crm_mutual_action_plans p
+         JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=p.organization_id AND opportunity.id=p.opportunity_id
+         LEFT JOIN tenant.crm_mutual_action_plan_milestones m ON m.organization_id=p.organization_id AND m.plan_id=p.id
+        WHERE p.organization_id=$1${actionPlanOpportunityScope}
+        GROUP BY p.id ORDER BY p.updated_at DESC LIMIT 20`,
+      actionPlanParameters,
     ),
   ]);
   return {
@@ -844,6 +922,66 @@ export async function getOpportunityRevenueDashboard(client, context) {
     quota: quota.rows[0],
     actionPlans: actionPlans.rows,
   };
+}
+
+// F011 integrity closeout (Prompts 1-5): the predictive-forecast model
+// already exposed model version/confidence/predicted amount (real
+// provenance, closed this prompt via the /crm/forecast page), but the
+// dossier's separate drift/calibration-monitoring requirement was
+// unimplemented — no comparison of a past prediction against what actually
+// closed existed anywhere. This is a deterministic comparison of stored
+// predictions (crm_predictive_forecast_snapshots, scoped to a real closed
+// forecast period) against the actual won revenue for that same period —
+// not a fabricated AI output, and it never reinterprets history: each
+// snapshot's own model_version/predicted_amount stays exactly as captured.
+export async function getForecastCalibration(client, context, limit = 6) {
+  const boundedLimit = Math.max(1, Math.min(24, Math.trunc(Number(limit) || 6)));
+  const parameters = [context.organizationId, boundedLimit];
+  const result = await client.query(
+    `SELECT period.id AS period_id, period.name AS period_name,
+            period.period_start, period.period_end,
+            snapshot.model_version, snapshot.predicted_amount, snapshot.confidence_percent,
+            snapshot.captured_at,
+            COALESCE((
+              SELECT sum(opportunity.amount)::numeric
+                FROM tenant.crm_opportunities opportunity
+               WHERE opportunity.organization_id = period.organization_id
+                 AND opportunity.status = 'won'
+                 AND opportunity.actual_close_date BETWEEN period.period_start AND period.period_end
+            ), 0)::numeric AS actual_won_amount
+       FROM tenant.crm_forecast_periods period
+       JOIN LATERAL (
+         SELECT s.model_version, s.predicted_amount, s.confidence_percent, s.captured_at
+           FROM tenant.crm_predictive_forecast_snapshots s
+          WHERE s.organization_id = period.organization_id
+            AND s.forecast_period_id = period.id
+          ORDER BY s.captured_at DESC
+          LIMIT 1
+       ) snapshot ON true
+      WHERE period.organization_id = $1 AND period.status = 'closed'
+      ORDER BY period.period_end DESC
+      LIMIT $2`,
+    parameters,
+  );
+  return result.rows.map((row) => {
+    const predicted = Number(row.predicted_amount || 0);
+    const actual = Number(row.actual_won_amount || 0);
+    const errorAmount = actual - predicted;
+    const errorPercent = predicted > 0 ? Math.round((errorAmount / predicted) * 10000) / 100 : null;
+    return {
+      periodId: row.period_id,
+      periodName: row.period_name,
+      periodStart: row.period_start,
+      periodEnd: row.period_end,
+      modelVersion: row.model_version,
+      confidencePercent: Number(row.confidence_percent || 0),
+      predictedAmount: predicted,
+      actualWonAmount: actual,
+      errorAmount,
+      errorPercent,
+      capturedAt: row.captured_at,
+    };
+  });
 }
 
 export async function recordCrmOpportunityRevenueAcceptance(

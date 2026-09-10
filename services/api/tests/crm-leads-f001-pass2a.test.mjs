@@ -76,22 +76,39 @@ test("F001 Pass 2A: hidden duplicate matches cannot expose signals or classifica
 
 test("F001 Pass 2A: intelligence and related-feature services enforce sensitive content plus Lead scope", () => {
   const intelligence = read("src/modules/crm/lead-intelligence.js");
+  // F027 Prompt 4: getScopedLead/scopedLeadWhere (the leadScopeSql(context
+  // callers) moved to the scoring capability directory's shared.js so the
+  // scoring engine and this file's own SLA/nurture functions can both use
+  // them without a circular import; lead-intelligence.js still calls
+  // getScopedLead(client, context, leadId) throughout, which is the same
+  // Lead-scope enforcement, just one hop away from the literal SQL call.
+  const scoringShared = read(
+    "src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/shared.js",
+  );
   const call = read("src/modules/crm/call-operations.js");
   const meeting = read("src/modules/crm/meeting-operations.js");
   const task = read("src/modules/crm/task-operations.js");
   const communications = read("src/modules/crm/communications.js");
   assert.match(intelligence, /assertSensitiveLeadIntelligenceAccess/);
-  assert.match(intelligence, /leadScopeSql\(context/);
+  assert.match(intelligence, /getScopedLead\(client, context, leadId/);
+  assert.match(scoringShared, /leadScopeSql\(context/);
   for (const source of [call, meeting, task]) {
     assert.match(source, /canViewSensitiveLeadContent/);
     assert.match(source, /leadScopeSql\(context/);
   }
-  assert.match(communications, /CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN/);
+  // F018 final closeout: communications.js no longer THROWS a 403 for
+  // missing crm.leads.view_sensitive (that hard "hide the whole thing"
+  // gate was replaced by the audience/content split — see
+  // communication-projection.js) but it still reuses the SAME permission
+  // check, now as the CONTENT-projection decision (canSeeContent) rather
+  // than a row-visibility throw.
+  assert.match(communications, /canViewSensitiveLeadContent/);
   assert.match(communications, /leadScopeSql\(context/);
 });
 
 test("F001 Pass 2A: lifecycle responses are projected through the Lead privacy boundary", () => {
-  const source = read("src/modules/crm/lead-lifecycle.js");
+  // F007 Prompt 4: implementation moved to the lifecycle/ capability directory.
+  const source = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/transition-engine.js");
   assert.match(source, /projectLeadForContext\(context, dto\(lead\)\)/);
   assert.match(source, /projectLeadForContext\(context, dto\(updated\.rows\[0\]\)\)/);
 });
