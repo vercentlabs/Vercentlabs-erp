@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import ContactAccountLookup from "@/modules/crm/prospect-and-relationship-master-data/contact-account-lookup";
 import LeadWorkspaceDrawer from "@/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer";
@@ -67,6 +68,7 @@ export default function ContactFormDrawer({
   onDismiss?: () => void;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const [pending, setPending] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
@@ -108,8 +110,8 @@ export default function ContactFormDrawer({
     };
   }, [editing, email, mobile, firstName, lastName]);
 
-  function close() {
-    if (dirty && !window.confirm("Discard the unsaved contact changes?")) return;
+  async function close() {
+    if (dirty && !(await confirmAction({ title: "Discard unsaved contact changes?", description: "Your edits will be lost.", confirmLabel: "Discard" }))) return;
     if (onDismiss) onDismiss();
     else router.replace(closeHref);
   }

@@ -87,3 +87,4 @@ __pycache__/
 
 # CRM rebuild tooling scratch state (backups/patches/logs) — never source of truth
 /.crm-rebuild/
+/.crm-uiux/

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 import LeadSourceFormDrawer from "@/modules/crm/prospect-and-relationship-master-data/lead-source-form-drawer";
 import { requestJson } from "@/shared/http/client-request";
 import {
@@ -52,6 +53,7 @@ export default function LeadSourcesWorkspace({
   editing: Source | null;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
   const query = { search, status };
@@ -63,9 +65,11 @@ export default function LeadSourcesWorkspace({
     const name = String(source.name);
     if (
       !active &&
-      !window.confirm(
-        `Deactivate “${name}”?\n\nIt will no longer be available for new Lead assignments. ${Number(source.leadCount || 0)} existing Lead${Number(source.leadCount || 0) === 1 ? "" : "s"} will keep this historical source.`,
-      )
+      !(await confirmAction({
+        title: `Deactivate “${name}”?`,
+        description: `It will no longer be available for new lead assignments. ${Number(source.leadCount || 0)} existing lead${Number(source.leadCount || 0) === 1 ? "" : "s"} will keep this historical source.`,
+        confirmLabel: "Deactivate",
+      }))
     )
       return;
     setPending(id);

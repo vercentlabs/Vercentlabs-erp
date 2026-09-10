@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 import LeadWorkspaceDrawer from "@/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer";
 import { requestJson } from "@/shared/http/client-request";
 import { ActionButton, describedById, ErrorState, FormField } from "@/shared/design";
@@ -18,14 +19,15 @@ export default function LeadSourceFormDrawer({
   closeHref: string;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const editing = Boolean(source?.id);
   const [pending, setPending] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [staleWrite, setStaleWrite] = useState(false);
-  function close() {
-    if (dirty && !window.confirm("Discard unsaved Lead source changes?"))
+  async function close() {
+    if (dirty && !(await confirmAction({ title: "Discard unsaved lead source changes?", description: "Your edits will be lost.", confirmLabel: "Discard" })))
       return;
     router.replace(closeHref);
   }

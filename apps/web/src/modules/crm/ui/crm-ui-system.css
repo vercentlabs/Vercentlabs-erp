@@ -1,0 +1,720 @@
+/*
+ * Vercentlabs CRM canonical interaction and visual layer.
+ * Loaded only by the CRM route layout and intentionally last.
+ *
+ * Contract:
+ * - canonical --erp-* tokens are the only design decisions;
+ * - legacy CRM variable names are aliases, never independent values;
+ * - four responsive ranges: <480, 480-767, 768-1023, >=1024;
+ * - no feature is removed on small screens: layouts reflow/disclose instead;
+ * - keyboard focus, reduced motion and 44px touch ergonomics are mandatory.
+ */
+
+.crm-ui-root {
+  --surface: var(--erp-color-surface);
+  --surface-muted: var(--erp-color-surface-subtle);
+  --surface-subtle: var(--erp-color-surface-subtle);
+  --surface-raised: var(--erp-color-surface-raised);
+  --text-primary: var(--erp-color-text);
+  --text-secondary: var(--erp-color-text-secondary);
+  --text-muted: var(--erp-color-text-muted);
+  --text-subtle: var(--erp-color-text-subtle);
+  --border-subtle: var(--erp-color-border);
+  --border-strong: var(--erp-color-border-strong);
+  --accent: var(--erp-color-accent);
+  --accent-strong: var(--erp-color-accent-strong);
+  --accent-soft: var(--erp-color-accent-soft);
+  --success: var(--erp-color-success);
+  --warning: var(--erp-color-warning);
+  --danger: var(--erp-color-danger);
+  --shadow-xs: var(--erp-shadow-subtle);
+  --shadow-sm: var(--erp-shadow-panel);
+  --radius-md: var(--erp-radius-control);
+  --radius-lg: var(--erp-radius-card);
+  --radius-xl: var(--erp-radius-panel);
+  --crm-touch-target: 44px;
+  --crm-page-gap: var(--erp-space-5);
+  --crm-content-max: var(--erp-content-max);
+
+  width: 100%;
+  min-width: 0;
+  color: var(--erp-color-text);
+  font-family: var(--erp-font-sans);
+}
+
+.crm-ui-root,
+.crm-ui-root * {
+  box-sizing: border-box;
+}
+
+.crm-ui-root > * {
+  min-width: 0;
+}
+
+.crm-ui-root :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--erp-color-accent);
+  outline-offset: 2px;
+  box-shadow: var(--erp-shadow-focus);
+}
+
+.crm-ui-root :where(button, [role="button"], input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: var(--crm-touch-target);
+}
+
+.crm-ui-root :where(textarea) {
+  min-height: 96px;
+}
+
+.crm-ui-root :where(input, select, textarea) {
+  max-width: 100%;
+  border-color: var(--erp-color-border);
+  border-radius: var(--erp-radius-control);
+  background: var(--erp-color-surface);
+  color: var(--erp-color-text);
+}
+
+.crm-ui-root :where(input, select, textarea)::placeholder {
+  color: var(--erp-color-text-subtle);
+}
+
+.crm-ui-root :where(.crm-standard-shell, .crm-overview-shell, .crm-record-page, .crm-activity-page, .crm-forecast-page, .crm-reports-page, .crm-setup-page, .crm-sales-stages-page, .crm-lifecycle-page, .crm-scoring-page, .crm-assignment-rules-page, .crm-duplicate-rules-page, .crm-accounts-workspace, .crm-contacts-workspace, .crm-leads-enterprise, .crm-calendar-page, .crm-feature-directory, .crm-data-management-page) {
+  width: min(100%, var(--crm-content-max));
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.crm-ui-root :where(.page-header, .erp-page-header) {
+  margin-block-end: var(--erp-space-5);
+}
+
+.crm-ui-root :where(.crm-suite-surface, .crm-overview-surface, .crm-contacts-panel, .crm-accounts-panel, .crm-sources-panel, .crm-calendar-day__surface) {
+  border-color: var(--erp-color-border);
+  border-radius: var(--erp-radius-panel);
+  background: var(--erp-color-surface);
+  box-shadow: var(--erp-shadow-subtle);
+}
+
+/* ---------- Lists / tables / saved views ---------- */
+.crm-ui-root :where(.crm-toolbar, .crm-leads-toolbar-top, .crm-calls-toolbar, .crm-meetings-toolbar, .crm-contacts-heading, .crm-accounts-heading, .crm-sources-heading) {
+  gap: var(--erp-space-3);
+}
+
+.crm-ui-root :where(.crm-filter-row, .crm-calls-filters, .crm-meetings-filters, .crm-contact-filters, .crm-account-filters, .crm-source-filters) {
+  gap: var(--erp-space-3);
+}
+
+.crm-ui-root :where(.table-scroll, .crm-leads-table-scroll, .crm-forecast-table) {
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+  border-color: var(--erp-color-border);
+  border-radius: var(--erp-radius-panel);
+  background: var(--erp-color-surface);
+}
+
+.crm-ui-root :where(.data-table, table) th {
+  color: var(--erp-color-text-muted);
+}
+
+.crm-ui-root :where(.data-table, table) tbody tr:hover {
+  background: var(--erp-color-surface-subtle);
+}
+
+.crm-ui-root :where(.crm-leads-bulk-bar, .bulk-action-bar) {
+  position: sticky;
+  inset-block-start: calc(var(--erp-topbar-height) + var(--erp-space-2));
+  z-index: var(--erp-z-sticky);
+}
+
+.crm-ui-root :where(.crm-leads-saved-views, .crm-leads-status-tabs, .crm-suite-tabs, .lead-detail-tabs) {
+  scrollbar-width: thin;
+  overscroll-behavior-inline: contain;
+}
+
+/* ---------- Record 360 ---------- */
+.crm-ui-root :where(.crm-record-page, .crm-account-detail, .crm-contact-detail, .crm-lead-detail-page) {
+  container-type: inline-size;
+}
+
+.crm-ui-root :where(.crm-record-back, .crm-lead-create-back) {
+  min-height: var(--crm-touch-target);
+  display: inline-flex;
+  align-items: center;
+  color: var(--erp-color-text-secondary);
+  text-decoration: none;
+}
+
+.crm-ui-root :where(.crm-record-back, .crm-lead-create-back):hover {
+  color: var(--erp-color-accent-strong);
+}
+
+.crm-ui-root :where(.crm-record-metrics, .crm-lead-detail-facts, .crm-account-facts, .crm-contact-facts) {
+  gap: 1px;
+  border-color: var(--erp-color-border);
+  background: var(--erp-color-border);
+}
+
+.crm-ui-root :where(.crm-record-metrics, .crm-lead-detail-facts, .crm-account-facts, .crm-contact-facts) > * {
+  min-width: 0;
+  background: var(--erp-color-surface);
+}
+
+.crm-ui-root :where(.crm-lead-stage-strip, .crm-suite-tabs, .lead-detail-tabs) {
+  max-width: 100%;
+}
+
+.crm-ui-root :where(.crm-suite-tabs, .lead-detail-tabs) {
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.crm-ui-root :where(.crm-suite-tabs, .lead-detail-tabs) > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.crm-ui-root :where(.crm-timeline, .crm-lead-timeline) article {
+  border-color: var(--erp-color-border);
+}
+
+/* ---------- Forms / editors / command surfaces ---------- */
+.crm-ui-root :where(.crm-suite-form, .crm-inline-form, .crm-call-form, .crm-meeting-form, .crm-source-form, .crm-account-form, .crm-contact-form, .crm-lead-create-form) {
+  min-width: 0;
+}
+
+.crm-ui-root :where(.crm-lead-field-grid, .crm-source-form-grid, .crm-opportunity-stage-action__fields) {
+  gap: var(--erp-space-3);
+}
+
+.crm-ui-root :where(.crm-editor, .crm-lead-create-rail) {
+  scrollbar-width: thin;
+}
+
+.crm-ui-root :where(.crm-action-panel, .crm-suite-command, .crm-lead-create-command) {
+  border-color: var(--erp-color-border);
+  background: var(--erp-color-surface);
+  box-shadow: var(--erp-shadow-subtle);
+}
+
+/* ---------- Pipeline / boards ---------- */
+.crm-ui-root :where(.crm-kanban, .crm-leads-kanban-cards) {
+  scroll-snap-type: x proximity;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.crm-ui-root :where(.crm-kanban-column, .crm-opportunity-card) {
+  border-color: var(--erp-color-border);
+}
+
+.crm-ui-root .crm-kanban-column {
+  scroll-snap-align: start;
+  background: var(--erp-color-surface-subtle);
+}
+
+.crm-ui-root .crm-opportunity-card {
+  background: var(--erp-color-surface);
+  box-shadow: var(--erp-shadow-subtle);
+}
+
+.crm-ui-root .crm-opportunity-card:focus-within {
+  border-color: var(--erp-color-accent);
+  box-shadow: var(--erp-shadow-focus);
+}
+
+/* ---------- Home / insight surfaces ---------- */
+.crm-ui-root :where(.crm-overview-ledger, .crm-overview-attention, .crm-forecast-metrics) {
+  gap: var(--erp-space-3);
+}
+
+.crm-ui-root .crm-overview-ledger__item {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.crm-ui-root .crm-overview-ledger__item:focus-visible {
+  border-radius: var(--erp-radius-card);
+}
+
+.crm-ui-root :where(.crm-report-card, .crm-overview-decision-card) {
+  border-radius: var(--erp-radius-panel);
+  border-color: var(--erp-color-border);
+}
+
+/* ---------- Setup / feature discovery / data management ---------- */
+.crm-feature-directory__search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--erp-space-2);
+  min-height: 48px;
+  margin-block: var(--erp-space-4) var(--erp-space-6);
+  padding-inline: var(--erp-space-3);
+  border: 1px solid var(--erp-color-border);
+  border-radius: var(--erp-radius-control);
+  background: var(--erp-color-surface);
+}
+
+.crm-feature-directory__search:focus-within {
+  border-color: var(--erp-color-accent);
+  box-shadow: var(--erp-shadow-focus);
+}
+
+.crm-feature-directory__search input {
+  min-height: 46px;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.crm-feature-directory__search button {
+  min-width: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--erp-color-text-muted);
+  cursor: pointer;
+}
+
+.crm-feature-directory__groups,
+.crm-data-management-groups {
+  display: grid;
+  gap: var(--erp-space-8);
+}
+
+.crm-feature-directory__group,
+.crm-data-management-group {
+  min-width: 0;
+}
+
+.crm-feature-directory__group > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--erp-space-3);
+  margin-block-end: var(--erp-space-3);
+}
+
+.crm-feature-directory__group > header h2 {
+  margin: 0;
+  font-size: var(--erp-font-size-lg);
+}
+
+.crm-feature-directory__group > header span {
+  color: var(--erp-color-text-muted);
+  font-size: var(--erp-font-size-sm);
+}
+
+.crm-feature-directory__grid,
+.crm-data-management-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--erp-space-3);
+}
+
+.crm-feature-card,
+.crm-data-management-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--erp-space-3);
+  min-height: 116px;
+  padding: var(--erp-space-4);
+  border: 1px solid var(--erp-color-border);
+  border-radius: var(--erp-radius-panel);
+  background: var(--erp-color-surface);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--erp-shadow-subtle);
+  transition: border-color var(--erp-motion-fast), box-shadow var(--erp-motion-fast), transform var(--erp-motion-fast);
+}
+
+.crm-feature-card:hover,
+.crm-data-management-card:hover {
+  border-color: var(--erp-color-border-strong);
+  box-shadow: var(--erp-shadow-panel);
+  transform: translateY(-1px);
+}
+
+
+.crm-feature-card--restricted {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.crm-feature-card--restricted:hover {
+  border-color: var(--erp-color-border);
+  box-shadow: var(--erp-shadow-subtle);
+  transform: none;
+}
+
+.crm-feature-card__icon,
+.crm-data-management-card > span:first-child {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: var(--erp-radius-control);
+  background: var(--erp-color-accent-soft);
+  color: var(--erp-color-accent-strong);
+}
+
+.crm-feature-card__copy,
+.crm-data-management-card > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: var(--erp-space-1);
+}
+
+.crm-feature-card__copy small,
+.crm-data-management-card small {
+  color: var(--erp-color-text-muted);
+  font-size: var(--erp-font-size-xs);
+}
+
+.crm-feature-card__copy strong,
+.crm-data-management-card strong {
+  font-size: var(--erp-font-size-md);
+}
+
+.crm-feature-card__copy span {
+  color: var(--erp-color-text-secondary);
+  font-size: var(--erp-font-size-sm);
+  line-height: var(--erp-line-height-body);
+}
+
+.crm-feature-card__copy em {
+  margin-block-start: var(--erp-space-1);
+  color: var(--erp-color-accent-strong);
+  font-size: var(--erp-font-size-xs);
+  font-style: normal;
+  font-weight: var(--erp-font-weight-semibold);
+}
+
+.crm-feature-directory__empty {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--erp-space-2);
+  padding: var(--erp-space-8);
+  border: 1px dashed var(--erp-color-border-strong);
+  border-radius: var(--erp-radius-panel);
+  color: var(--erp-color-text-muted);
+  text-align: center;
+}
+
+.crm-feature-directory__empty strong {
+  color: var(--erp-color-text);
+}
+
+.crm-data-management-group > :first-child {
+  margin-block-end: var(--erp-space-3);
+}
+
+/* ---------- Calendar / agenda ---------- */
+.crm-calendar-agenda {
+  display: grid;
+  gap: var(--erp-space-6);
+  margin-block-start: var(--erp-space-5);
+}
+
+.crm-calendar-day {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: var(--erp-space-5);
+  align-items: start;
+}
+
+.crm-calendar-day > header {
+  position: sticky;
+  inset-block-start: calc(var(--erp-topbar-height) + var(--erp-space-4));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--erp-space-3);
+}
+
+.crm-calendar-day > header > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-3);
+}
+
+.crm-calendar-day > header > div > span {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--erp-radius-card);
+  background: var(--erp-color-accent-soft);
+  color: var(--erp-color-accent-strong);
+  font-weight: var(--erp-font-weight-bold);
+}
+
+.crm-calendar-day h2,
+.crm-calendar-day small {
+  margin: 0;
+}
+
+.crm-calendar-day h2 {
+  margin-block-start: 2px;
+  font-size: var(--erp-font-size-md);
+}
+
+.crm-calendar-day small {
+  color: var(--erp-color-text-muted);
+}
+
+.crm-calendar-events {
+  display: grid;
+}
+
+.crm-calendar-event {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: var(--erp-space-4);
+  align-items: center;
+  min-height: 74px;
+  padding: var(--erp-space-3) var(--erp-space-4);
+  border-block-end: 1px solid var(--erp-color-border);
+}
+
+.crm-calendar-event:last-child {
+  border-block-end: 0;
+}
+
+.crm-calendar-event time {
+  color: var(--erp-color-text-secondary);
+  font-size: var(--erp-font-size-sm);
+  font-weight: var(--erp-font-weight-semibold);
+}
+
+.crm-calendar-event > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.crm-calendar-event > div span,
+.crm-calendar-event > div small {
+  color: var(--erp-color-text-muted);
+  font-size: var(--erp-font-size-sm);
+  text-transform: capitalize;
+}
+
+.crm-calendar-event > a {
+  min-height: var(--crm-touch-target);
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--erp-space-3);
+  border-radius: var(--erp-radius-control);
+  color: var(--erp-color-accent-strong);
+  font-weight: var(--erp-font-weight-semibold);
+  text-decoration: none;
+}
+
+/* ---------- Inbox / activity workspaces ---------- */
+.crm-ui-root :where(.crm-calls-workspace, .crm-meetings-workspace, .crm-activity-page) {
+  min-width: 0;
+}
+
+.crm-ui-root :where(.crm-call-row, .crm-meeting-row, .crm-suite-list > article) {
+  border-color: var(--erp-color-border);
+}
+
+.crm-ui-root :where(.crm-call-row__actions, .crm-meeting-row__actions, .crm-inline-actions, .crm-suite-actions) {
+  gap: var(--erp-space-2);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1279px) {
+  .crm-feature-directory__grid,
+  .crm-data-management-grid,
+  .crm-setup-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crm-ui-root :where(.crm-overview-primary-grid, .crm-overview-secondary-grid, .crm-lead-detail-overview, .crm-suite-two-column.wide) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .crm-ui-root {
+    --crm-page-gap: var(--erp-space-4);
+  }
+
+  .crm-ui-root :where(.crm-resource-layout:has(.crm-editor), .crm-lead-create-layout, .crm-record-columns, .crm-suite-two-column, .crm-assignment-rules-layout, .crm-account-detail-grid, .crm-contact-detail-grid) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .crm-ui-root :where(.crm-editor, .crm-lead-create-rail) {
+    position: static;
+    max-height: none;
+  }
+
+  .crm-calendar-day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--erp-space-3);
+  }
+
+  .crm-calendar-day > header {
+    position: static;
+  }
+
+  .crm-ui-root :where(.crm-record-metrics, .crm-lead-detail-facts, .crm-forecast-metrics, .crm-overview-ledger, .crm-overview-attention) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .crm-ui-root {
+    --crm-touch-target: 46px;
+    --crm-page-gap: var(--erp-space-3);
+  }
+
+  .crm-feature-directory__grid,
+  .crm-data-management-grid,
+  .crm-setup-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-feature-card,
+  .crm-data-management-card {
+    min-height: 104px;
+  }
+
+  .crm-ui-root :where(.crm-toolbar, .crm-leads-toolbar-top, .crm-calls-toolbar, .crm-meetings-toolbar, .crm-record-hero, .crm-hci-heading, .crm-sales-stages-toolbar) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crm-ui-root :where(.crm-toolbar-actions, .crm-record-actions, .crm-inline-actions, .crm-call-row__actions, .crm-meeting-row__actions) {
+    width: 100%;
+  }
+
+  .crm-ui-root :where(.crm-toolbar-actions, .crm-record-actions) > :where(a, button) {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .crm-ui-root :where(.crm-filter-row, .crm-calls-filters, .crm-meetings-filters, .crm-contact-filters, .crm-account-filters, .crm-source-filters) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .crm-ui-root :where(.crm-record-metrics, .crm-lead-detail-facts, .crm-forecast-metrics, .crm-overview-ledger, .crm-overview-attention) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .crm-ui-root :where(.crm-suite-tabs, .lead-detail-tabs, .crm-leads-status-tabs, .crm-leads-saved-views) {
+    display: flex;
+    max-width: 100%;
+    overflow-x: auto;
+    scroll-padding-inline: var(--erp-space-3);
+  }
+
+  .crm-ui-root :where(.crm-suite-tabs, .lead-detail-tabs, .crm-leads-status-tabs, .crm-leads-saved-views) > * {
+    flex: 0 0 auto;
+  }
+
+  .crm-ui-root .crm-kanban {
+    grid-auto-columns: minmax(86vw, 1fr);
+  }
+
+  .crm-calendar-event {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .crm-calendar-event > a {
+    grid-column: 2;
+    width: max-content;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 479px) {
+  .crm-ui-root {
+    --crm-touch-target: 48px;
+  }
+
+  .crm-feature-card,
+  .crm-data-management-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .crm-feature-card > svg,
+  .crm-data-management-card > svg {
+    display: none;
+  }
+
+  .crm-calendar-event {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--erp-space-2);
+    padding: var(--erp-space-4);
+  }
+
+  .crm-calendar-event > a {
+    grid-column: 1;
+  }
+
+  .crm-ui-root :where(.crm-inline-actions, .crm-record-actions, .crm-call-row__actions, .crm-meeting-row__actions) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .crm-ui-root :where(.crm-inline-actions, .crm-record-actions, .crm-call-row__actions, .crm-meeting-row__actions) > * {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-ui-root *,
+  .crm-ui-root *::before,
+  .crm-ui-root *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.crm-command-prompt {
+  display: grid;
+  gap: var(--erp-space-2);
+  color: var(--erp-color-text-secondary);
+  font-size: var(--erp-font-size-sm);
+  font-weight: var(--erp-font-weight-semibold);
+}
+
+.crm-command-prompt :where(input, textarea) {
+  width: 100%;
+  padding: var(--erp-space-3);
+  border: 1px solid var(--erp-color-border);
+  border-radius: var(--erp-radius-control);
+  background: var(--erp-color-surface);
+  color: var(--erp-color-text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.crm-command-prompt__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--erp-space-3);
+  margin-block-start: var(--erp-space-5);
+}
+
+@media (max-width: 479px) {
+  .crm-command-prompt__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import LeadWorkspaceDrawer from "@/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer";
 import { requestJson } from "@/shared/http/client-request";
@@ -28,6 +29,7 @@ export default function AccountFormDrawer({
   closeHref: string;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const [pending, setPending] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
@@ -69,8 +71,8 @@ export default function AccountFormDrawer({
     };
   }, [editing, displayName, legalName, gstin, pan]);
 
-  function close() {
-    if (dirty && !window.confirm("Discard the unsaved account changes?"))
+  async function close() {
+    if (dirty && !(await confirmAction({ title: "Discard unsaved account changes?", description: "Your edits will be lost.", confirmLabel: "Discard" })))
       return;
     router.replace(closeHref);
   }

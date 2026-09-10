@@ -5,121 +5,119 @@ import AppIcon, { type AppIconName } from "@/shared/components/app-icon";
 import { PageHeader, SectionHeader, StatusBadge } from "@/shared/design";
 import { requireWorkspace } from "@/core/auth";
 import { hasPermission, PERMISSIONS } from "@/core/authorization";
-import { canViewCrmResource } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import type { CrmResourceKey } from "@vercentlabs/shared-types";
 
 export const metadata = { title: "CRM setup" };
 
-const groups = [
-  {
-    title: "Lead management",
-    description: "Control where leads come from, who receives them and how scoring supports qualification.",
-    items: [
-      ["Lead sources", "sources", "Define the source catalogue used on every lead.", "import"],
-      ["Lead lifecycle", "lead-lifecycle", "Order the governed working stages used by Leads and Kanban.", "audit"],
-      ["Assignment rules", "assignment-rules", "Route new leads to the right owner or team.", "teams"],
-      ["Lead scoring", "lead-scoring", "Manage the deterministic scoring model, rules, caps, decay and segmentation.", "sparkles"],
-      ["Qualification criteria", "qualification-criteria", "Configure the readiness checklist required before a lead can be marked qualified.", "check"],
-    ],
-  },
-  {
-    title: "Pipeline",
-    description: "Configure the sales process without creating parallel revenue-operations workspaces.",
-    items: [
-      ["Pipelines", "pipelines", "Maintain the opportunity pipeline used by the sales team.", "sales"],
-      ["Sales stages", "stages", "Order stages, probabilities and won/lost terminal states.", "modules"],
-      ["Won / lost reasons", "lost-reasons", "Maintain governed outcome reasons captured when deals close.", "check"],
-    ],
-  },
-  {
-    title: "Teams & territories",
-    description: "Define ownership structures used by CRM assignment and reporting.",
-    items: [
-      ["Sales teams", "sales-teams", "Create sales teams and their operating scope.", "teams"],
-      ["Team members", "sales-team-members", "Maintain team membership and responsibility.", "users"],
-      ["Territories", "territories", "Define geographic or commercial territories.", "branches"],
-      ["Territory assignments", "territory-assignments", "Connect users and teams to territories.", "roles"],
-    ],
-  },
-  {
-    title: "Customization",
-    description: "Keep the CRM language flexible without introducing custom-object complexity beyond the standard CRM record types.",
-    items: [
-      ["Tags", "tags", "Maintain reusable tags for fast lead classification.", "numbering"],
-      ["Custom objects", "custom-object-definitions", "Define tenant-specific record types beyond the standard CRM set.", "modules"],
-      ["Custom fields", "custom-field-definitions", "Add typed, validated, optionally role-restricted fields to a custom object.", "settings"],
-      ["Custom records", "custom-records", "Browse and manage records stored against a custom object definition.", "search"],
-    ],
-  },
-  {
-    title: "Data quality",
-    description: "Govern how the CRM detects and resolves duplicate Leads, Accounts and Contacts.",
-    items: [
-      ["Duplicate detection rules", "duplicate-rules", "Enable, reweight or disable the signals used to flag possible duplicate records.", "audit"],
-    ],
-  },
-] as const satisfies ReadonlyArray<{
+type SetupItem = {
+  label: string;
+  href: string;
+  description: string;
+  icon: AppIconName;
+  permission?: string;
+};
+
+type SetupGroup = {
+  id: string;
   title: string;
   description: string;
-  items: ReadonlyArray<readonly [string, CrmResourceKey | "lead-lifecycle" | "lead-scoring" | "duplicate-rules", string, AppIconName]>;
-}>;
+  items: readonly SetupItem[];
+};
+
+const GROUPS: readonly SetupGroup[] = [
+  {
+    id: "lead-management",
+    title: "Lead management",
+    description: "Define capture attribution, qualification, routing and prioritization before sellers start working leads.",
+    items: [
+      { label: "Lead sources", href: "/crm/sources", description: "Define the source catalogue used on every lead.", icon: "import", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Lead lifecycle", href: "/crm/lead-lifecycle", description: "Order governed stages and allowed transitions.", icon: "audit", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Assignment rules", href: "/crm/assignment-rules", description: "Route new leads to the right owner or team.", icon: "teams", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Qualification criteria", href: "/crm/qualification-criteria", description: "Configure readiness checks used before qualification.", icon: "check", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Lead scoring", href: "/crm/lead-scoring", description: "Manage deterministic scoring, caps, decay and segments.", icon: "sparkles", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Duplicate detection rules", href: "/crm/duplicate-rules", description: "Configure matching signals used to flag possible duplicate records.", icon: "audit", permission: PERMISSIONS.crmSettingsManage },
+    ],
+  },
+  {
+    id: "pipeline",
+    title: "Pipeline",
+    description: "Govern opportunity progression and the reasons used when revenue outcomes become terminal.",
+    items: [
+      { label: "Pipelines", href: "/crm/pipelines", description: "Maintain opportunity pipelines used by sales teams.", icon: "sales", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Sales stages", href: "/crm/stages", description: "Order stages, probabilities and won/lost terminal states.", icon: "modules", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Won / lost reasons", href: "/crm/lost-reasons", description: "Maintain governed outcome reasons captured when deals close.", icon: "check", permission: PERMISSIONS.crmSettingsManage },
+    ],
+  },
+  {
+    id: "organization",
+    title: "Organization",
+    description: "Configure CRM ownership, team membership, territory coverage and seller targets.",
+    items: [
+      { label: "Sales teams", href: "/crm/sales-teams", description: "Create sales teams and operating scope.", icon: "teams", permission: PERMISSIONS.crmRevenueManage },
+      { label: "Team members", href: "/crm/sales-team-members", description: "Maintain membership and responsibility.", icon: "users", permission: PERMISSIONS.crmRevenueManage },
+      { label: "Territories", href: "/crm/territories", description: "Define geographic or commercial territories.", icon: "branches", permission: PERMISSIONS.crmRevenueManage },
+      { label: "Territory assignments", href: "/crm/territory-assignments", description: "Connect users and teams to territory ownership.", icon: "roles", permission: PERMISSIONS.crmRevenueManage },
+      { label: "Quotas", href: "/crm/quota-plans", description: "Configure quota plans used by revenue operations and forecasting.", icon: "audit", permission: PERMISSIONS.crmRevenueManage },
+    ],
+  },
+  {
+    id: "data-customization",
+    title: "Data & customization",
+    description: "Control classification, custom schema and governed movement of CRM data.",
+    items: [
+      { label: "Data management", href: "/crm/data-management", description: "Import, export, deduplicate and customize from one workspace.", icon: "import" },
+      { label: "Tags", href: "/crm/tags", description: "Maintain reusable record classification tags.", icon: "numbering", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Custom objects", href: "/crm/custom-object-definitions", description: "Define tenant-specific record types beyond standard CRM objects.", icon: "modules", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Custom fields", href: "/crm/custom-field-definitions", description: "Add typed, validated fields to custom objects.", icon: "settings", permission: PERMISSIONS.crmSettingsManage },
+      { label: "Custom records", href: "/crm/custom-records", description: "Browse and manage custom-object records.", icon: "search", permission: PERMISSIONS.crmSettingsManage },
+    ],
+  },
+  {
+    id: "discoverability",
+    title: "Discoverability",
+    description: "Use the capability directory when you know what CRM should do but do not know which workspace owns it.",
+    items: [
+      { label: "All CRM features", href: "/crm/features", description: "Search every customer-facing CRM capability and its destination.", icon: "search" },
+    ],
+  },
+];
 
 export default async function CrmSettingsPage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
 
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter(([, key]) =>
-        key === "lead-lifecycle" || key === "lead-scoring" || key === "duplicate-rules"
-          ? hasPermission(session, PERMISSIONS.crmSettingsManage)
-          : canViewCrmResource(session, key),
-      ),
-    }))
-    .filter((group) => group.items.length);
+  const visibleGroups = GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.permission || hasPermission(session, item.permission)),
+  })).filter((group) => group.items.length > 0);
 
-  if (!visibleGroups.length) notFound();
-
-  const canManage = [
-    PERMISSIONS.crmSettingsManage,
-    PERMISSIONS.crmAutomationManage,
-  ].some((permission) => hasPermission(session, permission));
+  const canManage = [PERMISSIONS.crmSettingsManage, PERMISSIONS.crmRevenueManage, PERMISSIONS.crmAutomationManage]
+    .some((permission) => hasPermission(session, permission));
 
   return (
     <div className="crm-setup-page">
       <PageHeader
-        eyebrow="CRM · Configuration"
+        eyebrow="CRM · Administration"
         title="CRM setup"
-        description="Configure lead management, pipeline, teams, territories and lightweight customization for your CRM."
+        description="Configure lead management, pipeline governance, ownership, data quality and customization without hunting through unrelated screens."
         context={<StatusBadge tone="neutral">{canManage ? "Manage setup" : "Read only"}</StatusBadge>}
       />
 
-      <div className="crm-setup-groups">
+      <nav className="crm-setup-groups" aria-label="CRM setup areas">
         {visibleGroups.map((group) => (
-          <section className="crm-setup-group" key={group.title}>
-            <SectionHeader
-              eyebrow="Configuration"
-              title={group.title}
-              description={group.description}
-            />
+          <section className="crm-setup-group" id={group.id} key={group.id} aria-labelledby={`crm-setup-${group.id}`}>
+            <SectionHeader headingId={`crm-setup-${group.id}`} title={group.title} description={group.description} />
             <div className="crm-setup-grid">
-              {group.items.map(([label, key, description, icon]) => (
-                <Link href={`/crm/${key}`} key={key}>
-                  <span className="crm-setup-card__icon" aria-hidden="true">
-                    <AppIcon name={icon} size={20} />
-                  </span>
-                  <span className="crm-setup-card__copy">
-                    <strong>{label}</strong>
-                    <small>{description}</small>
-                  </span>
+              {group.items.map((item) => (
+                <Link href={item.href} key={item.href}>
+                  <span className="crm-setup-card__icon" aria-hidden="true"><AppIcon name={item.icon} size={20} /></span>
+                  <span className="crm-setup-card__copy"><strong>{item.label}</strong><small>{item.description}</small></span>
                   <AppIcon name="arrow-right" size={16} />
                 </Link>
               ))}
             </div>
           </section>
         ))}
-      </div>
+      </nav>
     </div>
   );
 }

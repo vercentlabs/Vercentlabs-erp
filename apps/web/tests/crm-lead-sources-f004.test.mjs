@@ -24,7 +24,7 @@ const leadDetail = read(
 
 test("F004 web: CRM Setup owns the dedicated organization-wide Lead Source workspace", () => {
   assert.match(setup, /Lead sources/);
-  assert.match(setup, /\/crm\/\$\{key\}/);
+  assert.match(setup, /href: "\/crm\/sources"/);
   assert.match(page, /listCrmLeadSources/);
   assert.match(page, /crmSettingsManage/);
   assert.doesNotMatch(navigation, /href:\s*["']\/crm\/sources/);
@@ -41,7 +41,7 @@ test("F004 web: list, search, lifecycle, usage-safe confirmation and explicit st
     "Inactive",
   ])
     assert.match(workspace, new RegExp(value));
-  assert.match(workspace, /existing Lead/);
+  assert.match(workspace, /existing lead/i);
   assert.match(workspace, /StatePanel/);
   assert.match(workspace, /EnterpriseDataGrid/);
   assert.match(workspace, /renderMobileCard/);

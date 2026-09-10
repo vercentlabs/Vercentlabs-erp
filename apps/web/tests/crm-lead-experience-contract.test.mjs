@@ -299,16 +299,17 @@ test("F029 bulk lead operations remain governed and cannot bypass conversion/arc
 
 test("responsive CRM HCI covers desktop, tablet, phone, keyboard focus and reduced motion", () => {
   const css = read("apps/web/src/app/crm-experience.css");
-  const layout = read("apps/web/src/app/layout.tsx");
+  const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
   for (const bp of ["1200", "960", "680", "420"])
     assert.match(css, new RegExp(`max-width:\\s*${bp}px`));
   assert.match(css, /--crm-touch:\s*44px/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(layout, /crm-experience\.css/);
+  assert.match(layout, /crm-ui-system\.css/);
   assert.ok(
-    layout.indexOf('import "./crm-experience.css";') >
-      layout.indexOf('import "./workspace-redesign-v3.css";'),
+    layout.indexOf('crm-ui-system.css') > layout.indexOf('crm-experience.css'),
+    "canonical CRM UI layer must load after compatibility styles",
   );
 });
 

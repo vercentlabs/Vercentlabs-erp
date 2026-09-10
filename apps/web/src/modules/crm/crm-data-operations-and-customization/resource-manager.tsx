@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 import DownwardSelect from "@/shared/components/downward-select";
 import CrmLeadCreateWorkspace from "@/modules/crm/prospect-and-relationship-master-data/lead-create-workspace";
 import CrmLeadDetailWorkspace from "@/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace";
@@ -144,6 +145,7 @@ export default function CrmResourceManager({
   canManageDataQuality?: boolean;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction, prompt: promptAction } = useCrmCommandDialog();
   const fileRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState<Row | null>(() =>
     canManage
@@ -196,13 +198,15 @@ export default function CrmResourceManager({
     router.replace(leadModeUrl(), { scroll: false });
   }
 
-  function closeLeadCreate() {
+  async function closeLeadCreate() {
     if (leadCreatePending) return;
     if (
       leadCreateDirty &&
-      !window.confirm(
-        "Discard this unsaved lead? Your entered information will be lost.",
-      )
+      !(await confirmAction({
+        title: "Discard this unsaved lead?",
+        description: "Your entered information will be lost.",
+        confirmLabel: "Discard",
+      }))
     ) {
       return;
     }
@@ -333,7 +337,7 @@ export default function CrmResourceManager({
       definition.key === "leads"
         ? `Archive ${recordName}?\n\nThis removes the lead from active workspaces. Historical information is preserved.`
         : `Archive this ${definition.singular}?`;
-    if (!confirm(confirmation)) return;
+    if (!(await confirmAction({ title: `Archive ${recordName}?`, description: confirmation.replace(`${recordName}?\n\n`, ""), confirmLabel: "Archive" }))) return;
     setPending(true);
     setMessage("");
     const archivePath =
@@ -348,7 +352,7 @@ export default function CrmResourceManager({
     if (result.ok) router.refresh();
   }
   async function complete(id: string) {
-    const outcome = prompt("Outcome or completion note (optional)") || "";
+    const outcome = (await promptAction({ title: "Complete activity", description: "Add an optional outcome or completion note.", label: "Outcome", confirmLabel: "Complete", multiline: true })) || "";
     setPending(true);
     setMessage("");
     const result = await requestJson(`/api/crm/activities/${id}/complete`, {
@@ -365,7 +369,7 @@ export default function CrmResourceManager({
   }
   async function requestCompletionApproval(id: string) {
     const outcome =
-      prompt("Proposed outcome or completion note (optional)") || "";
+      (await promptAction({ title: "Request completion approval", description: "Add an optional proposed outcome or completion note.", label: "Proposed outcome", confirmLabel: "Request approval", multiline: true })) || "";
     setPending(true);
     setMessage("");
     const result = await requestJson("/api/approvals", {

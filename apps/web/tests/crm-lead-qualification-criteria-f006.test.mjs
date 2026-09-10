@@ -9,7 +9,7 @@ test("F006 web: qualification-criteria is a real, reachable resource — not orp
   assert.match(scope, /"qualification-criteria"/);
   const settings = read("src/app/(app)/crm/settings/page.tsx");
   assert.match(settings, /Qualification criteria/);
-  assert.match(settings, /"qualification-criteria"/);
+  assert.match(settings, /href: "\/crm\/qualification-criteria"/);
   const definitions = read("src/modules/crm/crm-data-operations-and-customization/resource-definitions/lead-lifecycle.ts");
   assert.match(definitions, /"qualification-criteria": workspace\(/);
   assert.match(definitions, /Lead field key\(s\), comma-separated/);
@@ -21,9 +21,9 @@ test("F028 correction: custom objects/fields/records are now reachable resources
     assert.match(scope, new RegExp(`"${key}"`));
   }
   const settings = read("src/app/(app)/crm/settings/page.tsx");
-  assert.match(settings, /"custom-object-definitions"/);
-  assert.match(settings, /"custom-field-definitions"/);
-  assert.match(settings, /"custom-records"/);
+  assert.match(settings, /href: "\/crm\/custom-object-definitions"/);
+  assert.match(settings, /href: "\/crm\/custom-field-definitions"/);
+  assert.match(settings, /href: "\/crm\/custom-records"/);
 });
 
 test("F006 backend: readiness criteria are loaded from tenant configuration, not hardcoded in JS", () => {

@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 test("F012 Web: CRM Setup keeps Sales stages in the canonical Pipeline group", () => {
   const setup = read("apps/web/src/app/(app)/crm/settings/page.tsx");
   assert.match(setup, /title: "Pipeline"/);
-  assert.match(setup, /\["Sales stages", "stages"/);
+  assert.match(setup, /label: "Sales stages"[\s\S]{0,100}href: "\/crm\/stages"/);
   const scope = read("apps/web/src/modules/crm/crm-data-operations-and-customization/capability-registry.ts");
   assert.match(scope, /\["F012", "Sales stages"\]/);
 });
@@ -74,7 +74,7 @@ test("F012 Web: generic Web and mobile writes are redirected to governed Sales S
 });
 
 test("F012 Web: responsive stage workspace is globally imported and keyboard controls retain 44px targets", () => {
-  const layout = read("apps/web/src/app/layout.tsx");
+  const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
   const css = read("apps/web/src/app/crm-sales-stages.css");
   assert.match(layout, /crm-sales-stages\.css/);
   assert.match(css, /@media\(max-width:980px\)/);

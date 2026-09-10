@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
@@ -71,6 +72,7 @@ export default function SalesStagesWorkspace({
   history: History[];
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const drawerRef = useRef<HTMLDialogElement>(null);
   const [editing, setEditing] = useState<Stage | null | undefined>(undefined);
   const [pending, setPending] = useState("");
@@ -134,7 +136,7 @@ export default function SalesStagesWorkspace({
   }
 
   async function setActive(stage: Stage, active: boolean) {
-    if (!active && !confirm(`Deactivate ${stage.name}?`)) return;
+    if (!active && !(await confirmAction({ title: `Deactivate ${stage.name}?`, description: "This stage will stop accepting new opportunities. Open opportunities may require migration.", confirmLabel: "Deactivate" }))) return;
     setPending(stage.id);
     setMessage("");
     const result = await requestJson<{ code?: string; affectedCount?: number }>(`/api/crm/sales-stages/${stage.id}`, {

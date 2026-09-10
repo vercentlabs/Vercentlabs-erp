@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { requestJson } from "@/shared/http/client-request";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 import { ActionButton, StatePanel } from "@/shared/design";
 import MergeSurvivorshipDialog from "./merge-survivorship-dialog";
 
@@ -74,6 +75,7 @@ export default function DuplicateReviewPanel({
   const [duplicates, setDuplicates] = useState<DuplicateRow[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [pendingId, setPendingId] = useState("");
+  const { prompt: promptAction } = useCrmCommandDialog();
   const [message, setMessage] = useState("");
   const [mergingSurvivorId, setMergingSurvivorId] = useState("");
 
@@ -107,9 +109,13 @@ export default function DuplicateReviewPanel({
   }, [currentId, kind, JSON.stringify(searchParams)]);
 
   async function dismiss(candidateId: string) {
-    const reason = window.prompt(
-      "Explain why this is not a duplicate (at least 10 characters). This is kept as permanent evidence.",
-    );
+    const reason = await promptAction({
+      title: "Dismiss duplicate match",
+      description: "Explain why these records are not duplicates. This reason is kept as permanent evidence.",
+      label: "Reason",
+      placeholder: "Enter at least 10 characters…",
+      confirmLabel: "Dismiss match",
+    });
     if (reason === null) return;
     if (reason.trim().length < 10) {
       setMessage("Enter at least 10 characters explaining why this is not a duplicate.");

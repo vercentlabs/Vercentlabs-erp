@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import AppIcon from "@/shared/components/app-icon";
 import { requestJson } from "@/shared/http/client-request";
@@ -71,6 +72,7 @@ export default function LeadLifecycleWorkspace({
   reasons: Reason[];
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const drawerRef = useRef<HTMLDialogElement>(null);
   const [editing, setEditing] = useState<Stage | null | undefined>(undefined);
   const [pending, setPending] = useState("");
@@ -131,7 +133,7 @@ export default function LeadLifecycleWorkspace({
   }
 
   async function setActive(stage: Stage, active: boolean, migrateToStageId?: string) {
-    if (!active && !migrateToStageId && !confirm(`Deactivate ${stage.name}?`)) return;
+    if (!active && !migrateToStageId && !(await confirmAction({ title: `Deactivate ${stage.name}?`, description: "This stage will stop accepting new leads. Existing records may require migration.", confirmLabel: "Deactivate" }))) return;
     setPending(stage.id);
     setMessage("");
     const result = await requestJson<{ migrationJob?: MigrationJob; code?: string }>(`/api/crm/lead-stages/${stage.id}`, {

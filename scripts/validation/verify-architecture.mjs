@@ -172,7 +172,7 @@ const CRM_CAPABILITY_DIRECTORIES = Object.freeze([
 const CRM_WEB_PUBLIC_BOUNDARY = Object.freeze(["index.ts"]);
 const CRM_API_PUBLIC_BOUNDARY = Object.freeze(["index.js", "index.d.ts"]);
 
-function checkCrmCapabilityArchitecture(crmRoot, publicBoundary, label) {
+function checkCrmCapabilityArchitecture(crmRoot, publicBoundary, label, additionalTopLevelDirectories = []) {
   if (!fs.existsSync(crmRoot)) {
     fail(`CRM capability architecture: missing module root ${path.relative(root, crmRoot)}`);
     return;
@@ -183,7 +183,7 @@ function checkCrmCapabilityArchitecture(crmRoot, publicBoundary, label) {
       fail(`CRM capability architecture: missing frozen capability directory ${path.relative(root, target)}`);
     }
   }
-  const allowed = new Set([...CRM_CAPABILITY_DIRECTORIES, ...publicBoundary]);
+  const allowed = new Set([...CRM_CAPABILITY_DIRECTORIES, ...additionalTopLevelDirectories, ...publicBoundary]);
   const entries = fs.readdirSync(crmRoot, { withFileTypes: true });
   let capabilityFileCount = 0;
   for (const entry of entries) {
@@ -210,6 +210,7 @@ checkCrmCapabilityArchitecture(
   path.join(root, "apps/web/src/modules/crm"),
   CRM_WEB_PUBLIC_BOUNDARY,
   "web",
+  ["ui"],
 );
 checkCrmCapabilityArchitecture(
   path.join(root, "services/api/src/modules/crm"),

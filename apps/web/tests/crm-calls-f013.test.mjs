@@ -85,7 +85,7 @@ test("F013 Web: native mobile create/lifecycle and offline replay do not fall ba
 
 test("F013 Web: responsive Call workspace is globally imported with mobile-safe controls", () => {
   const css = read("apps/web/src/app/crm-calls.css");
-  const layout = read("apps/web/src/app/layout.tsx");
+  const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
   assert.match(layout, /crm-calls\.css/);
   assert.match(css, /@media\(max-width:780px\)/);
   assert.match(css, /min-height:44px/);

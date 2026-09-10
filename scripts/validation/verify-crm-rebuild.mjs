@@ -29,6 +29,7 @@ const WEB_CAPABILITIES = [
   "crm-conversion-and-sales-handoff",
   "pipeline-analytics-and-forecasting",
 ];
+const WEB_ROOT_DIRECTORIES = [...WEB_CAPABILITIES, "ui"];
 
 // Public endpoint hardening lives inside capability-owned handlers; route.ts is now a thin adapter.
 const booking = read("apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/route-handlers/public-meeting-bookings.ts");
@@ -67,7 +68,7 @@ for (const capability of WEB_CAPABILITIES) {
   if (!exists(`services/api/src/modules/crm/${capability}`)) fail(`Missing API CRM capability directory: ${capability}`);
 }
 for (const entry of fs.readdirSync(path.join(root, "apps/web/src/modules/crm"), { withFileTypes: true })) {
-  if (entry.isDirectory() && !WEB_CAPABILITIES.includes(entry.name)) fail(`Legacy/ad-hoc web CRM root directory remains: ${entry.name}`);
+  if (entry.isDirectory() && !WEB_ROOT_DIRECTORIES.includes(entry.name)) fail(`Legacy/ad-hoc web CRM root directory remains: ${entry.name}`);
   if (entry.isFile() && entry.name !== "index.ts") fail(`Unexpected web CRM root file remains: ${entry.name}`);
 }
 for (const entry of fs.readdirSync(path.join(root, "services/api/src/modules/crm"), { withFileTypes: true })) {
@@ -102,11 +103,15 @@ for (const shard of [
 }
 
 // First-class navigation for daily work and previously-hidden governed resources.
-const requiredPages = ["work", "tasks", "calls", "meetings", "follow-ups", "inbox"];
+const requiredPages = ["work", "tasks", "calls", "meetings", "follow-ups", "calendar", "inbox", "features", "data-management"];
 for (const page of requiredPages) if (!exists(`apps/web/src/app/(app)/crm/${page}/page.tsx`)) fail(`Missing first-class CRM page /crm/${page}.`);
 const nav = read("apps/web/src/core/navigation/modules.ts");
-for (const href of ["/crm/work", "/crm/tasks", "/crm/calls", "/crm/meetings", "/crm/follow-ups", "/crm/inbox", "/crm/sales-teams", "/crm/territories", "/crm/quota-plans"]) {
+for (const href of ["/crm/work", "/crm/tasks", "/crm/calls", "/crm/meetings", "/crm/follow-ups", "/crm/calendar", "/crm/inbox", "/crm/features", "/crm/data-management", "/crm/settings"]) {
   if (!nav.includes(`href: "${href}"`)) fail(`CRM navigation is missing ${href}.`);
+}
+const setupPage = read("apps/web/src/app/(app)/crm/settings/page.tsx");
+for (const href of ["/crm/sales-teams", "/crm/territories", "/crm/quota-plans", "/crm/duplicate-rules"]) {
+  if (!setupPage.includes(`href: "${href}"`)) fail(`CRM setup is missing governed destination ${href}.`);
 }
 const capabilityRegistry = read("apps/web/src/modules/crm/crm-data-operations-and-customization/capability-registry.ts");
 if (!capabilityRegistry.includes('"quota-plans"')) fail("quota-plans is still not UI-reachable.");

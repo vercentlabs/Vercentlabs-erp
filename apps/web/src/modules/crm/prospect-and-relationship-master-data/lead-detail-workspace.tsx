@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import { requestJson } from "@/shared/http/client-request";
 import kernelStyles from "@/shared/design/experience-kernel.module.css";
@@ -94,6 +95,7 @@ export default function CrmLeadDetailWorkspace({
   onEdit?: (lead: Row) => void;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction, prompt: promptAction } = useCrmCommandDialog();
   const [tab, setTab] = useState("overview");
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
@@ -296,9 +298,11 @@ export default function CrmLeadDetailWorkspace({
   }
   async function archiveLead() {
     if (
-      !confirm(
-        `Archive ${name}?\n\nThis removes the lead from active workspaces. Historical information is preserved.`,
-      )
+      !(await confirmAction({
+        title: `Archive ${name}?`,
+        description: "This removes the lead from active workspaces. Historical information is preserved.",
+        confirmLabel: "Archive",
+      }))
     )
       return;
     setPending("archive");
@@ -327,8 +331,12 @@ export default function CrmLeadDetailWorkspace({
     }
   }
   async function convert() {
-    if (!confirm("Convert this lead into an account, contact and opportunity?"))
-      return;
+    if (!(await confirmAction({
+      title: "Convert this lead?",
+      description: "This creates the governed account, contact and opportunity records from the qualified lead.",
+      confirmLabel: "Convert lead",
+      tone: "primary",
+    }))) return;
     const result = await api(
       `/api/crm/leads/${id}/convert`,
       { createOpportunity: true },
@@ -344,12 +352,11 @@ export default function CrmLeadDetailWorkspace({
     }
   }
   async function merge(target: string) {
-    if (
-      !confirm(
-        "Merge this lead into the selected duplicate? The current lead will be archived.",
-      )
-    )
-      return;
+    if (!(await confirmAction({
+      title: "Merge this lead into the selected duplicate?",
+      description: "The current lead will be archived after survivorship is applied.",
+      confirmLabel: "Merge lead",
+    }))) return;
     const result = await api(
       `/api/crm/leads/${id}/merge`,
       { targetLeadId: target },
@@ -358,9 +365,13 @@ export default function CrmLeadDetailWorkspace({
     if (result?.ok) router.push(`/crm/leads/${target}`);
   }
   async function dismissDuplicate(matchedLeadId: string) {
-    const reason = window.prompt(
-      "Explain why this is not the same Lead (at least 10 characters):",
-    );
+    const reason = await promptAction({
+      title: "Dismiss duplicate match",
+      description: "Explain why this is not the same lead. The reason is retained for data-quality evidence.",
+      label: "Reason",
+      placeholder: "Enter at least 10 characters…",
+      confirmLabel: "Dismiss match",
+    });
     if (reason == null) return;
     await api(
       "/api/crm/leads/duplicates",
@@ -485,7 +496,7 @@ export default function CrmLeadDetailWorkspace({
     }
   }
   async function removeAttachment(attachmentId: string) {
-    if (!confirm("Remove this attachment?")) return;
+    if (!(await confirmAction({ title: "Remove this attachment?", description: "The file will no longer be attached to this lead.", confirmLabel: "Remove attachment" }))) return;
     setPending(`attachment-${attachmentId}`);
     setMessage("");
     try {

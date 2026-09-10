@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import ContactAccountLookup from "@/modules/crm/prospect-and-relationship-master-data/contact-account-lookup";
 import { requestJson } from "@/shared/http/client-request";
@@ -42,6 +43,7 @@ export default function ContactAccountRelationshipsPanel({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -139,19 +141,22 @@ export default function ContactAccountRelationshipsPanel({
     const others = (relationships || []).filter((r) => r.id !== relationship.id);
     let promoteRelationshipId: string | undefined;
     if (isPrimary && others.length) {
-      const proceed = window.confirm(
-        `Remove this relationship? "${str(others[0], "accountName")}" will become the new primary Account.`,
-      );
+      const proceed = await confirmAction({
+        title: "Remove this account relationship?",
+        description: `“${str(others[0], "accountName")}" will become the new primary account.`,
+        confirmLabel: "Remove relationship",
+      });
       if (!proceed) return;
       promoteRelationshipId = String(others[0].id);
-    } else if (
-      !window.confirm(
-        isPrimary
-          ? "Remove this relationship? The Contact will have no primary Account afterward."
-          : "Remove this relationship?",
-      )
-    ) {
-      return;
+    } else {
+      const proceed = await confirmAction({
+        title: "Remove this account relationship?",
+        description: isPrimary
+          ? "The contact will have no primary account afterward."
+          : "The relationship will be removed from this contact.",
+        confirmLabel: "Remove relationship",
+      });
+      if (!proceed) return;
     }
     setPending(String(relationship.id));
     setMessage("");

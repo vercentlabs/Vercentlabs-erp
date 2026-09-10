@@ -89,7 +89,7 @@ test("F014 native mobile creation/lifecycle and offline replay never fall back t
 });
 
 test("F014 responsive Meeting workspace is imported and preserves mobile-safe controls", () => {
-  const layout = read("apps/web/src/app/layout.tsx");
+  const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
   const css = read("apps/web/src/app/crm-meetings.css");
   assert.match(layout, /crm-meetings\.css/);
   assert.match(css, /min-height:\s*44px/);

@@ -74,6 +74,11 @@ const OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
   "custom-object-definitions": "Custom objects",
   "custom-field-definitions": "Custom fields",
   "custom-records": "Custom records",
+  calendar: "Calendar",
+  features: "All CRM features",
+  "data-management": "Data management",
+  "quota-plans": "Quotas",
+  "duplicate-rules": "Duplicate detection rules",
 });
 
 export const BREADCRUMB_LABELS: Readonly<Record<string, string>> = Object.freeze({

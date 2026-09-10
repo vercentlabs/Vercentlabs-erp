@@ -97,9 +97,12 @@ test("navigation v2: rail brand keeps its design with deliberate spacing and typ
   );
 });
 
-test("navigation v2: the new CSS is loaded last after the existing ERP style layers", () => {
+test("navigation v2: global navigation styling stays ordered while CRM owns its canonical route layer", () => {
   const layout = read("apps/web/src/app/layout.tsx");
-  const oldIndex = layout.indexOf('import "./crm-lead-workspaces.css";');
-  const newIndex = layout.indexOf('import "./navigation-v2.css";');
-  assert.ok(oldIndex >= 0 && newIndex > oldIndex);
+  const crmLayout = read("apps/web/src/app/(app)/crm/layout.tsx");
+  const navigationIndex = layout.indexOf('import "./navigation-v2.css";');
+  const workspaceIndex = layout.indexOf('import "./workspace-redesign-v3.css";');
+  assert.ok(navigationIndex >= 0 && workspaceIndex > navigationIndex);
+  assert.doesNotMatch(layout, /crm-(?:shell|home|experience|lead|accounts|contacts|calls|meetings).*\.css/);
+  assert.match(crmLayout, /crm-ui-system\.css/);
 });

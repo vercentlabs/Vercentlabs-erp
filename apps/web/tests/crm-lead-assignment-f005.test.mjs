@@ -106,7 +106,7 @@ test("F005 rules UX is guided, priority-ordered and exposes territory/workload r
   assert.match(rules, /<option value="workload">Least workload<\/option>/);
   assert.match(rules, /<option value="territory">Territory<\/option>/);
   assert.doesNotMatch(rules, /JSON\.stringify\(.*criteria/);
-  assert.match(settings, /"Assignment rules", "assignment-rules"/);
+  assert.match(settings, /label: "Assignment rules"[\s\S]{0,100}href: "\/crm\/assignment-rules"/);
 });
 
 test("F005 fallback owner and out-of-office are wired through the same governed policy route", () => {

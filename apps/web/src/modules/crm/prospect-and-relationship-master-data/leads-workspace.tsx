@@ -12,6 +12,7 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
 import AppIcon from "@/shared/components/app-icon";
 import PaginationControls from "@/shared/components/pagination-controls";
@@ -103,6 +104,7 @@ export default function CrmLeadsWorkspace({
   onSubmitEdit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 }) {
   const router = useRouter();
+  const { confirm: confirmAction } = useCrmCommandDialog();
   const [isRefreshingBoard, startBoardRefresh] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const kanbanRef = useRef<HTMLDivElement>(null);
@@ -502,7 +504,7 @@ export default function CrmLeadsWorkspace({
     } else setLocalMessage(result.message || "Saved view could not be stored.");
   }
   async function deleteView(saved: SavedView) {
-    if (!confirm(`Delete saved view “${saved.name}”?`)) return;
+    if (!(await confirmAction({ title: `Delete saved view “${saved.name}”?`, description: "This removes the saved view configuration, not the CRM records it displays.", confirmLabel: "Delete" }))) return;
     const result = await requestJson("/api/crm/leads/views", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
