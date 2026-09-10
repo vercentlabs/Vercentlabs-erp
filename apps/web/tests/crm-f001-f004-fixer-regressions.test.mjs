@@ -36,26 +36,28 @@ test("F003 QA: Contact archive audit is emitted only for a real transition", () 
 
 test("F001 QA: Lead detail uses progressive controls and explicit mobile section navigation", () => {
   const component = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx");
-  const css = read("src/app/crm-lead-workspaces.css");
+  const css = read("src/modules/crm/ui/crm.css");
   assert.match(component, /lead-lifecycle-select/);
   assert.match(component, /lead-detail-section-picker/);
   assert.doesNotMatch(component, /className=\{String\(lead\.status\) === stage \? "active"/);
   assert.match(css, /\.lead-detail-section-picker[\s\S]*display: none/);
-  assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.lead-detail-section-picker[\s\S]*display: grid/);
+  assert.match(css, /@media \(max-width: 767px\)[\s\S]*\.lead-detail-section-picker[\s\S]*display: grid/);
   assert.match(css, /\.crm-lead-detail-overview > aside[\s\S]*order: -1/);
 });
 
 test("F003/F004 QA: scoped interaction targets and mobile filter actions align at 44px", () => {
-  const contacts = read("src/app/crm-contacts.css");
-  const sources = read("src/app/crm-lead-sources.css");
+  const contacts = read("src/modules/crm/ui/crm.css");
+  const sources = read("src/modules/crm/ui/crm.css");
   assert.match(contacts, /crm-contacts-workspace :is\([\s\S]*min-height: 44px/);
   assert.match(sources, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)[\s\S]*crm-source-filters > \.link-button[\s\S]*min-height: 44px/);
 });
 
-test("F001 QA: opening any Lead drawer focuses its contextual heading", () => {
+test("F001 QA: opening any Lead drawer delegates focus management to the canonical Dialog", () => {
   const drawer = read("src/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer.tsx");
-  assert.match(drawer, /headingRef\.current\?\.focus\(\)/);
-  assert.doesNotMatch(drawer, /primaryControl/);
+  const dialog = read("src/shared/design/dialog.tsx");
+  assert.match(drawer, /<Dialog/);
+  assert.match(dialog, /headingRef\.current\?\.focus\(\)/);
+  assert.match(dialog, /previouslyFocused\?\.focus\(\)/);
 });
 
 test("F004 QA: migration enforces one active default source per organization", () => {
@@ -65,24 +67,27 @@ test("F004 QA: migration enforces one active default source per organization", (
 });
 
 test("F001 QA round two: phone layout suppresses the desktop tab rail", () => {
-  const css = read("src/app/crm-lead-workspaces.css");
+  const css = read("src/modules/crm/ui/crm.css");
   assert.match(
     css,
-    /@media \(max-width: 680px\)[\s\S]*\.crm-lead-drawer \.crm-lead-detail-page nav\.lead-detail-tabs\s*\{[\s\S]*display: none !important/,
+    /@media \(max-width: 767px\)[\s\S]*\.crm-lead-drawer \.crm-lead-detail-page nav\.lead-detail-tabs\s*\{[\s\S]*display: none/,
   );
 });
 
-test("F001 QA round two: drawer dialog uses a role-compatible neutral host", () => {
+test("F001 QA round two: drawer uses the canonical role-compatible Dialog host", () => {
   const drawer = read("src/modules/crm/prospect-and-relationship-master-data/lead-workspace-drawer.tsx");
-  assert.match(drawer, /<div[\s\S]*className=\{`crm-lead-drawer/);
-  assert.doesNotMatch(drawer, /<aside[\s\S]*role="dialog"/);
+  const dialog = read("src/shared/design/dialog.tsx");
+  assert.match(drawer, /<Dialog[\s\S]*variant="drawer-end"/);
+  assert.match(dialog, /role="dialog"/);
+  assert.match(dialog, /aria-modal="true"/);
+  assert.doesNotMatch(drawer, /<aside/);
 });
 
 test("F003 QA round two: tablet Contacts switch before desktop minimum widths overflow", () => {
-  const css = read("src/app/crm-contacts.css");
+  const css = read("src/modules/crm/ui/crm.css");
   const workspace = read("src/modules/crm/prospect-and-relationship-master-data/contacts-workspace.tsx");
   const lookup = read("src/modules/crm/prospect-and-relationship-master-data/contact-account-lookup.tsx");
-  assert.match(css, /@media \(min-width: 901px\) and \(max-width: 1100px\)/);
+  assert.match(css, /@media \(min-width: 768px\) and \(max-width: 1023px\)/);
   assert.match(css, /crm-contact-table-wrap[\s\S]*display: none/);
   assert.match(css, /crm-contact-cards[\s\S]*display: grid/);
   assert.match(workspace, /type="search"[\s\S]*suppressHydrationWarning/);
@@ -90,16 +95,16 @@ test("F003 QA round two: tablet Contacts switch before desktop minimum widths ov
 });
 
 test("F001/F003/F004 QA round two: muted canonical metadata uses AA contrast color", () => {
-  const leads = read("src/app/crm-lead-workspaces.css");
-  const contacts = read("src/app/crm-contacts.css");
-  const sources = read("src/app/crm-lead-sources.css");
-  assert.match(leads, /crm-lead-detail-facts small[\s\S]*color: #667085/);
-  assert.match(contacts, /crm-contact-account-lookup > small[\s\S]*color: #667085/);
-  assert.match(sources, /crm-sources-heading p:last-child[\s\S]*color: #667085/);
+  const leads = read("src/modules/crm/ui/crm.css");
+  const contacts = read("src/modules/crm/ui/crm.css");
+  const sources = read("src/modules/crm/ui/crm.css");
+  assert.match(leads, /crm-lead-detail-facts small[\s\S]*color: var\(--erp-color-text-muted\)/);
+  assert.match(contacts, /crm-contact-account-lookup > small[\s\S]*color: var\(--erp-color-text-muted\)/);
+  assert.match(sources, /crm-sources-heading p:last-child[\s\S]*color: var\(--erp-color-text-muted\)/);
 });
 
 test("F004 QA round two: Apply and Clear share an explicit aligned 44px row", () => {
-  const css = read("src/app/crm-lead-sources.css");
+  const css = read("src/modules/crm/ui/crm.css");
   assert.match(
     css,
     /crm-source-filters > :is\(button, \.link-button\)[\s\S]*height: 44px;[\s\S]*min-height: 44px;[\s\S]*margin: 0/,

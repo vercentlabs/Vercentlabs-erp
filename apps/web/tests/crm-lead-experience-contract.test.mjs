@@ -297,20 +297,16 @@ test("F029 bulk lead operations remain governed and cannot bypass conversion/arc
   assert.match(service, /record_status='active'/);
 });
 
-test("responsive CRM HCI covers desktop, tablet, phone, keyboard focus and reduced motion", () => {
-  const css = read("apps/web/src/app/crm-experience.css");
+test("responsive CRM HCI uses one canonical theme, breakpoint grammar, keyboard focus and reduced motion", () => {
+  const css = read("apps/web/src/modules/crm/ui/crm.css");
   const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
-  for (const bp of ["1200", "960", "680", "420"])
+  for (const bp of ["1279", "1023", "767", "479"])
     assert.match(css, new RegExp(`max-width:\\s*${bp}px`));
-  assert.match(css, /--crm-touch:\s*44px/);
+  assert.match(css, /var\(--erp-touch-target\)/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(layout, /crm-experience\.css/);
-  assert.match(layout, /crm-ui-system\.css/);
-  assert.ok(
-    layout.indexOf('crm-ui-system.css') > layout.indexOf('crm-experience.css'),
-    "canonical CRM UI layer must load after compatibility styles",
-  );
+  assert.match(layout, /@\/modules\/crm\/ui\/crm\.css/);
+  assert.doesNotMatch(layout, /crm-(?:experience|ui-system|shell|home|lead-workspaces)\.css/);
 });
 
 test("mobile CRM navigation prioritizes recognition and frequent work", () => {

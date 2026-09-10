@@ -81,7 +81,9 @@
     "verify:experience": "node scripts/validation/verify-experience.mjs && node --test scripts/validation/verify-experience.test.mjs",
     "verify:crm:static": "node scripts/validation/verify-crm-rebuild.mjs && node scripts/validation/verify-crm-uiux.mjs && node scripts/validation/verify-crm-module-contracts.mjs && node scripts/validation/verify-web-boundaries.mjs && node scripts/validation/verify-architecture.mjs && node scripts/validation/verify-db-structure.mjs && node apps/web/scripts/verify-routes.mjs && node --test apps/web/tests/crm-rebuild-hardening.test.mjs apps/web/tests/module-enforcement.test.mjs",
     "verify:crm": "corepack pnpm verify:crm:static && corepack pnpm typecheck:web && corepack pnpm lint:web && corepack pnpm test:web && corepack pnpm test:api",
-    "verify:crm:uiux": "node scripts/validation/verify-crm-uiux.mjs && node --test apps/web/tests/crm-uiux-system.test.mjs && node apps/web/scripts/verify-routes.mjs"
+    "verify:crm:uiux": "node scripts/design/generate-theme.mjs --check && node scripts/validation/verify-crm-uiux.mjs && node --test apps/web/tests/crm-uiux-system.test.mjs && node apps/web/scripts/verify-routes.mjs",
+    "design:generate": "node scripts/design/generate-theme.mjs",
+    "design:check": "node scripts/design/generate-theme.mjs --check"
   },
   "engines": {
     "node": ">=24 <25",

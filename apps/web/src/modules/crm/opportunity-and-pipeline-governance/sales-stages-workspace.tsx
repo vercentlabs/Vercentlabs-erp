@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
@@ -73,7 +73,6 @@ export default function SalesStagesWorkspace({
 }) {
   const router = useRouter();
   const { confirm: confirmAction } = useCrmCommandDialog();
-  const drawerRef = useRef<HTMLDialogElement>(null);
   const [editing, setEditing] = useState<Stage | null | undefined>(undefined);
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
@@ -90,12 +89,6 @@ export default function SalesStagesWorkspace({
     () => stages.filter((stage) => stage.status === "inactive").sort((a, b) => a.sequence - b.sequence),
     [stages],
   );
-
-  useEffect(() => {
-    const drawer = drawerRef.current;
-    if (editing !== undefined && drawer && !drawer.open) drawer.showModal();
-    if (editing === undefined && drawer?.open) drawer.close();
-  }, [editing]);
 
   function openEditor(stage: Stage | null) {
     setStageTypeValue(stage?.stageType || "open");
@@ -447,26 +440,31 @@ export default function SalesStagesWorkspace({
         </>
       )}
 
-      <dialog className="crm-sales-stages-drawer" ref={drawerRef} onClose={() => setEditing(undefined)}>
-        <form method="dialog" className="crm-sales-stages-drawer__close"><button aria-label="Close sales stage form" type="submit">×</button></form>
-        <form onSubmit={submit}>
-          <header>
+      {editing !== undefined ? (
+        <Dialog
+          title={editing ? "Edit sales stage" : "Add sales stage"}
+          description="The stable code and pipeline ownership cannot be changed after creation. Won/Lost semantics are enforced server-side."
+          onClose={() => setEditing(undefined)}
+          variant="drawer-end"
+          canDismiss={pending !== "save"}
+          busy={pending === "save"}
+          className="crm-sales-stages-drawer"
+        >
+          <form onSubmit={submit}>
             <p className="eyebrow">{selectedPipeline?.name || "Sales pipeline"}</p>
-            <h2>{editing ? "Edit sales stage" : "Add sales stage"}</h2>
-            <p>The stable code and pipeline ownership cannot be changed after creation. Won/Lost semantics are enforced server-side.</p>
-          </header>
-          <label><span>Stage name</span><input autoFocus maxLength={120} name="name" required defaultValue={editing?.name || ""} /></label>
-          <label><span>Stage type</span><select name="stageType" disabled={Boolean(editing && editing.opportunityCount > 0)} value={stageTypeValue} onChange={(event) => setStageTypeValue(event.target.value as Stage["stageType"])}><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option></select>{editing && editing.opportunityCount > 0 ? <small>Type is locked because this stage already has retained Opportunity history.</small> : null}</label>
-          <label><span>Probability %</span><input min={0} max={100} step="0.01" name="probability" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.probability ?? 0} /><small>{stageTypeValue === "won" ? "Won is fixed at 100%." : stageTypeValue === "lost" ? "Lost is fixed at 0%." : "Default applied when the pipeline moves an Opportunity into this stage."}</small></label>
-          <label><span>Forecast category</span><select name="forecastCategory" disabled={stageTypeValue !== "open"} defaultValue={editing?.forecastCategory || "pipeline"}><option value="pipeline">Pipeline</option><option value="best_case">Best case</option><option value="committed">Committed</option><option value="omitted">Omitted</option>{stageTypeValue !== "open" ? <option value="closed">Closed</option> : null}</select></label>
-          <label><span>Stale after days</span><input min={1} max={365} name="staleAfterDays" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.staleAfterDays ?? ""} /><small>Optional, 1–365 days. Terminal stages never become stale.</small></label>
-          {editing && editing.opportunityCount > 0 ? <p className="crm-sales-stages-form-warning">This stage has retained Opportunity history. Its type cannot change between Open, Won and Lost.</p> : null}
-          <footer>
-            <ActionButton type="button" onClick={() => setEditing(undefined)}>Cancel</ActionButton>
-            <ActionButton tone="primary" busy={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</ActionButton>
-          </footer>
-        </form>
-      </dialog>
+            <label><span>Stage name</span><input autoFocus maxLength={120} name="name" required defaultValue={editing?.name || ""} /></label>
+            <label><span>Stage type</span><select name="stageType" disabled={Boolean(editing && editing.opportunityCount > 0)} value={stageTypeValue} onChange={(event) => setStageTypeValue(event.target.value as Stage["stageType"])}><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option></select>{editing && editing.opportunityCount > 0 ? <small>Type is locked because this stage already has retained Opportunity history.</small> : null}</label>
+            <label><span>Probability %</span><input min={0} max={100} step="0.01" name="probability" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.probability ?? 0} /><small>{stageTypeValue === "won" ? "Won is fixed at 100%." : stageTypeValue === "lost" ? "Lost is fixed at 0%." : "Default applied when the pipeline moves an Opportunity into this stage."}</small></label>
+            <label><span>Forecast category</span><select name="forecastCategory" disabled={stageTypeValue !== "open"} defaultValue={editing?.forecastCategory || "pipeline"}><option value="pipeline">Pipeline</option><option value="best_case">Best case</option><option value="committed">Committed</option><option value="omitted">Omitted</option>{stageTypeValue !== "open" ? <option value="closed">Closed</option> : null}</select></label>
+            <label><span>Stale after days</span><input min={1} max={365} name="staleAfterDays" type="number" disabled={stageTypeValue !== "open"} defaultValue={editing?.staleAfterDays ?? ""} /><small>Optional, 1–365 days. Terminal stages never become stale.</small></label>
+            {editing && editing.opportunityCount > 0 ? <p className="crm-sales-stages-form-warning">This stage has retained Opportunity history. Its type cannot change between Open, Won and Lost.</p> : null}
+            <footer>
+              <ActionButton type="button" disabled={pending === "save"} onClick={() => setEditing(undefined)}>Cancel</ActionButton>
+              <ActionButton tone="primary" busy={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</ActionButton>
+            </footer>
+          </form>
+        </Dialog>
+      ) : null}
 
       {migrating ? (
         <StageMigrationDialog

@@ -83,12 +83,12 @@ test("F013 Web: native mobile create/lifecycle and offline replay do not fall ba
   for (const op of ["create-call", "start-call", "complete-call", "cancel-call"]) assert.match(sync, new RegExp(op));
 });
 
-test("F013 Web: responsive Call workspace is globally imported with mobile-safe controls", () => {
-  const css = read("apps/web/src/app/crm-calls.css");
+test("F013 Web: responsive Call workspace consumes the canonical CRM presentation layer", () => {
+  const css = read("apps/web/src/modules/crm/ui/crm.css");
   const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
-  assert.match(layout, /crm-calls\.css/);
-  assert.match(css, /@media\(max-width:780px\)/);
-  assert.match(css, /min-height:44px/);
+  assert.match(layout, /@\/modules\/crm\/ui\/crm\.css/);
+  assert.match(css, /@media \(max-width: 1023px\)/);
+  assert.match(css, /crm-calls-filters[\s\S]*min-height:44px/);
   // The hand-rolled dialog backdrop's own prefers-reduced-motion rule was
   // removed with the backdrop itself (Prompt 6 CRM-VNEXT-072 migration onto
   // the shared Dialog primitive) — reduced-motion is now handled once, by

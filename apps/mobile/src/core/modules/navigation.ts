@@ -22,7 +22,7 @@ export const workspaceNavigation: readonly WorkspaceDestination[] = [
     label: "CRM",
     icon: "people-outline",
     permission: "crm.view",
-    href: "/(protected)/workspace/crm",
+    href: "/(protected)/crm",
   },
   {
     key: "crm-communications",

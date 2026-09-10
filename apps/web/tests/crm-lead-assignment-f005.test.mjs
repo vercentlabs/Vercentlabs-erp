@@ -18,8 +18,9 @@ const policyRoute = read("src/app/api/crm/leads/assignment-policies/route.ts");
 const genericRoute = read("src/app/api/crm/[resource]/[id]/route.ts");
 const genericCollectionRoute = read("src/app/api/crm/[resource]/route.ts");
 const detailData = read("src/modules/crm/prospect-and-relationship-master-data/lead-detail-data.ts");
-const css = read("src/app/crm-lead-workspaces.css");
+const css = read("src/modules/crm/ui/crm.css");
 const settings = read("src/app/(app)/crm/settings/page.tsx");
+const sharedDialog = read("src/shared/design/dialog.tsx");
 
 test("F005 UI: Create Lead uses governed searchable ownership and preserves automatic fallback", () => {
   assert.match(create, /<LeadAssigneeCombobox name="ownerUserId"/);
@@ -31,12 +32,11 @@ test("F005 UI: Create Lead uses governed searchable ownership and preserves auto
 test("F005 UI: Lead Detail exposes a human owner, inactive state, governed reassignment and history reason", () => {
   assert.match(detail, /lead\.ownerName \|\| "Unassigned"/);
   assert.match(detail, /lead\.ownerStatus === "inactive"/);
-  assert.match(detail, />Change owner</);
-  assert.match(detail, /<dialog/);
-  assert.match(detail, /aria-labelledby="change-owner-title"/);
-  assert.match(detail, /if \(!dialog\.open\) dialog\.showModal\(\)/);
-  assert.match(detail, /onCloseRef\.current/);
-  assert.doesNotMatch(detail, /if \(dialog\.open\) dialog\.close\(\)/);
+  assert.match(detail, /Change owner/);
+  assert.match(detail, /<Dialog[\s\S]*title="Change owner"/);
+  assert.match(sharedDialog, /role="dialog"/);
+  assert.match(sharedDialog, /aria-modal="true"/);
+  assert.match(sharedDialog, /previouslyFocused\?\.focus\(\)/);
   assert.match(detail, /\/api\/crm\/leads\/\$\{String\(lead\.id\)\}\/assign/);
   assert.match(detail, /assignmentReason\(event\)/);
   assert.match(detailData, /crm_lead_assignment_events/);
@@ -159,11 +159,11 @@ test("F005 responsive CSS keeps dialogs, selectors and rules usable on tablets a
   assert.match(css, /input\[role="combobox"\][\s\S]*min-height: 44px/);
   assert.match(
     css,
-    /@media \(max-width: 768px\)[\s\S]*crm-assignment-rule-list/,
+    /@media \(max-width: 767px\)[\s\S]*crm-assignment-rule-list/,
   );
   assert.match(
     css,
-    /@media \(max-width: 520px\)[\s\S]*width: calc\(100vw - 16px\)/,
+    /@media \(max-width: 767px\)[\s\S]*width: calc\(100vw - 16px\)/,
   );
   assert.match(
     css,

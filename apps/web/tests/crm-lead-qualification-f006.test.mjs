@@ -11,7 +11,8 @@ const route = read("src/app/api/crm/leads/[id]/qualification/route.ts");
 const statusRoute = read("src/app/api/crm/leads/[id]/status/route.ts");
 const stageRoute = read("src/app/api/crm/leads/[id]/stage/route.ts");
 const genericRoute = read("src/app/api/crm/[resource]/[id]/route.ts");
-const css = read("src/app/crm-lead-workspaces.css");
+const css = read("src/modules/crm/ui/crm.css");
+const sharedDialog = read("src/shared/design/dialog.tsx");
 
 test("F006 UI: Lead Detail presents a compact readiness and decision section", () => {
   assert.match(detail, /<LeadQualificationCard/);
@@ -35,7 +36,7 @@ test("F006 UI: qualification is separate from lifecycle and scoring", () => {
 });
 
 test("F006 UI: unqualification is a governed dialog rather than a prompt", () => {
-  assert.match(card, /<dialog/);
+  assert.match(card, /<Dialog/);
   assert.match(card, /Select a reason/);
   assert.match(card, /reasonCode === "other"/);
   assert.match(card, /label="Other reason details" htmlFor="qualification-reason-text" required/);
@@ -68,17 +69,18 @@ test("F006 list: qualification is a server-backed filter and compact visible bad
 });
 
 test("F006 accessibility: modal semantics, live errors, focus restoration and reduced motion exist", () => {
-  assert.match(card, /aria-labelledby="qualification-dialog-title"/);
-  assert.match(card, /aria-describedby="qualification-dialog-description"/);
   assert.match(card, /role="alert"/);
-  assert.match(card, /dialog\.showModal\(\)/);
-  assert.match(card, /dialog\.addEventListener\("cancel"/);
+  assert.match(card, /<Dialog/);
+  assert.match(sharedDialog, /role="dialog"/);
+  assert.match(sharedDialog, /aria-labelledby=\{titleId\}/);
+  assert.match(sharedDialog, /aria-describedby=\{description \? descriptionId : undefined\}/);
+  assert.match(sharedDialog, /previouslyFocused\?\.focus\(\)/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
 test("F006 responsive CSS covers desktop, tablet and mobile decision ergonomics", () => {
   assert.match(css, /width: min\(520px, calc\(100vw - 32px\)\)/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*grid-template-columns: 1fr/);
-  assert.match(css, /@media \(max-width: 430px\)[\s\S]*height: 100dvh/);
+  assert.match(css, /@media \(max-width: 767px\)[\s\S]*grid-template-columns: 1fr/);
+  assert.match(css, /@media \(max-width: 479px\)[\s\S]*height: 100dvh/);
   assert.match(css, /min-height: 44px/);
 });

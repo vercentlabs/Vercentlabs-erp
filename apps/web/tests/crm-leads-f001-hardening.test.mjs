@@ -53,15 +53,15 @@ test("F001 hardening: conversion success message reflects whether an opportunity
   assert.match(source, /Lead converted to customer\./);
 });
 
-test("F001 hardening: obsolete Leads stylesheet is removed and the current mobile breakpoint remains 680px", () => {
+test("F001 hardening: obsolete Leads stylesheet is removed and the current mobile breakpoint follows the canonical 767px boundary", () => {
   const layout = read("apps/web/src/app/layout.tsx");
   assert.doesNotMatch(layout, /crm-leads-workspace\.css/);
   assert.equal(
     fs.existsSync(path.join(root, "apps/web/src/app/crm-leads-workspace.css")),
     false,
   );
-  const currentCss = read("apps/web/src/app/crm-lead-workspaces.css");
-  assert.match(currentCss, /@media \(max-width: 680px\)/);
+  const currentCss = read("apps/web/src/modules/crm/ui/crm.css");
+  assert.match(currentCss, /@media \(max-width: 767px\)/);
   assert.match(currentCss, /\.crm-leads-mobile-list/);
   assert.match(currentCss, /\.crm-leads-table-scroll/);
 });

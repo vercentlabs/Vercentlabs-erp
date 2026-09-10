@@ -1,8 +1,8 @@
 "use client";
 
-import { Record360Archetype } from "@/shared/design";
+import { ConfirmDialog, Record360Archetype } from "@/shared/design";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AccountFormDrawer from "@/modules/crm/prospect-and-relationship-master-data/account-form-drawer";
@@ -48,7 +48,7 @@ export default function AccountDetailWorkspace({
   currentUserId: string;
 }) {
   const router = useRouter();
-  const archiveDialog = useRef<HTMLDialogElement>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const location = [account.city, account.state, account.countryCode]
@@ -69,7 +69,7 @@ export default function AccountDetailWorkspace({
       setPending(false);
       return;
     }
-    archiveDialog.current?.close();
+    setConfirmArchive(false);
     router.replace(`/crm/accounts/${String(account.id)}`);
     router.refresh();
   }
@@ -107,7 +107,7 @@ export default function AccountDetailWorkspace({
             <button
               className="danger-button"
               type="button"
-              onClick={() => archiveDialog.current?.showModal()}
+              onClick={() => setConfirmArchive(true)}
             >
               Archive
             </button>
@@ -352,42 +352,22 @@ export default function AccountDetailWorkspace({
         ) : null}
       </main>
 
-      <dialog
-        className="crm-account-archive-dialog"
-        ref={archiveDialog}
-        aria-labelledby="archive-account-title"
-      >
-        <h2 id="archive-account-title">
-          Archive {String(account.displayName)}?
-        </h2>
-        <p>
-          The account will be removed from active CRM workspaces. Historical
-          relationships and records will be preserved.
-        </p>
-        {message ? (
-          <p className="field-error" role="alert">
-            {message}
-          </p>
-        ) : null}
-        <div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={pending}
-            onClick={() => archiveDialog.current?.close()}
-          >
-            Cancel
-          </button>
-          <button
-            className="danger-button"
-            type="button"
-            disabled={pending}
-            onClick={() => void archiveAccount()}
-          >
-            {pending ? "Archiving…" : "Archive account"}
-          </button>
-        </div>
-      </dialog>
+      {confirmArchive ? (
+        <ConfirmDialog
+          title={`Archive ${String(account.displayName)}?`}
+          description="The account will be removed from active CRM workspaces. Historical relationships and records will be preserved."
+          onClose={() => setConfirmArchive(false)}
+          onConfirm={() => void archiveAccount()}
+          confirmLabel="Archive account"
+          busy={pending}
+        >
+          {message ? (
+            <p className="field-error" role="alert">
+              {message}
+            </p>
+          ) : null}
+        </ConfirmDialog>
+      ) : null}
 
       {editing && canManage ? (
         <AccountFormDrawer

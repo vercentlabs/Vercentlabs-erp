@@ -92,10 +92,9 @@ test("F008 import delegates duplicate decisions to canonical createCrmRecord", (
 });
 
 test("F008 responsive and focus styling covers create and edit override surfaces", () => {
-  const createCss = read("src/app/crm-lead-create-workspace.css");
-  const suiteCss = read("src/app/crm-lead-workspaces.css");
-  assert.match(createCss, /crm-lead-duplicate-override/);
-  assert.match(createCss, /focus-visible/);
-  assert.match(suiteCss, /crm-f008-edit-warning/);
-  assert.match(suiteCss, /@media \(max-width: 430px\)/);
+  const canonicalCss = read("src/modules/crm/ui/crm.css");
+  assert.match(canonicalCss, /crm-lead-duplicate-override/);
+  assert.match(canonicalCss, /focus-visible/);
+  assert.match(canonicalCss, /crm-f008-edit-warning/);
+  assert.match(canonicalCss, /@media \(max-width: 479px\)/);
 });

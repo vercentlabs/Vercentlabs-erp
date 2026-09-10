@@ -1,9 +1,9 @@
 "use client";
 
-import { Record360Archetype } from "@/shared/design";
+import { ConfirmDialog, Record360Archetype } from "@/shared/design";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import ContactFormDrawer from "@/modules/crm/prospect-and-relationship-master-data/contact-form-drawer";
 import DuplicateReviewPanel from "@/modules/crm/prospect-and-relationship-master-data/duplicate-review-panel";
@@ -51,15 +51,7 @@ export default function ContactDetailWorkspace({
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-  const archiveDialog = useRef<HTMLDialogElement>(null);
   const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
-
-  useEffect(() => {
-    const dialog = archiveDialog.current;
-    if (!dialog) return;
-    if (confirming && !dialog.open) dialog.showModal();
-    if (!confirming && dialog.open) dialog.close();
-  }, [confirming]);
 
   async function archiveContact() {
     setPending(true);
@@ -208,18 +200,18 @@ export default function ContactDetailWorkspace({
           onDismiss={() => setEditing(false)}
         />
       ) : null}
-      <dialog
-        ref={archiveDialog}
-        className="crm-contact-archive-dialog"
-        aria-labelledby="archive-contact-title"
-        onCancel={() => setConfirming(false)}
-        onClose={() => setConfirming(false)}
-      >
-        <h2 id="archive-contact-title">Archive {fullName}?</h2>
-        <p>This contact will be removed from active CRM workspaces. Historical relationships and activity will remain available.</p>
-        {message ? <p className="field-error" role="alert">{message}</p> : null}
-        <div><button className="secondary-button" type="button" disabled={pending} onClick={() => setConfirming(false)}>Cancel</button><button className="danger-button" type="button" disabled={pending} onClick={() => void archiveContact()}>{pending ? "Archiving…" : "Archive contact"}</button></div>
-      </dialog>
+      {confirming ? (
+        <ConfirmDialog
+          title={`Archive ${fullName}?`}
+          description="This contact will be removed from active CRM workspaces. Historical relationships and activity will remain available."
+          onClose={() => setConfirming(false)}
+          onConfirm={() => void archiveContact()}
+          confirmLabel="Archive contact"
+          busy={pending}
+        >
+          {message ? <p className="field-error" role="alert">{message}</p> : null}
+        </ConfirmDialog>
+      ) : null}
     </Record360Archetype>
   );
 }

@@ -104,5 +104,5 @@ test("navigation v2: global navigation styling stays ordered while CRM owns its 
   const workspaceIndex = layout.indexOf('import "./workspace-redesign-v3.css";');
   assert.ok(navigationIndex >= 0 && workspaceIndex > navigationIndex);
   assert.doesNotMatch(layout, /crm-(?:shell|home|experience|lead|accounts|contacts|calls|meetings).*\.css/);
-  assert.match(crmLayout, /crm-ui-system\.css/);
+  assert.match(crmLayout, /@\/modules\/crm\/ui\/crm\.css/);
 });

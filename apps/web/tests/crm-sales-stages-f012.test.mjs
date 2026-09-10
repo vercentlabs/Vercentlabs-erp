@@ -73,14 +73,14 @@ test("F012 Web: generic Web and mobile writes are redirected to governed Sales S
   assert.equal((mobileRecord.match(/CRM_SALES_STAGE_API_MOVED/g) || []).length, 2);
 });
 
-test("F012 Web: responsive stage workspace is globally imported and keyboard controls retain 44px targets", () => {
+test("F012 Web: Sales stages use the canonical route theme and capability-owned responsive card module", () => {
   const layout = read("apps/web/src/app/(app)/crm/layout.tsx");
-  const css = read("apps/web/src/app/crm-sales-stages.css");
-  assert.match(layout, /crm-sales-stages\.css/);
-  assert.match(css, /@media\(max-width:980px\)/);
-  assert.match(css, /@media\(max-width:640px\)/);
-  assert.match(css, /min-height:44px/);
-  assert.match(css, /prefers-reduced-motion/);
+  const canonicalCss = read("apps/web/src/modules/crm/ui/crm.css");
+  const moduleCss = read("apps/web/src/modules/crm/opportunity-and-pipeline-governance/sales-stages-workspace.module.css");
+  assert.match(layout, /@\/modules\/crm\/ui\/crm\.css/);
+  assert.match(moduleCss, /@media \(max-width: 767px\)/);
+  assert.match(moduleCss, /min-height: 44px/);
+  assert.match(canonicalCss, /prefers-reduced-motion/);
 });
 
 test("F012 documentation/register remain canonical and reflect verified production-ready status",()=>{

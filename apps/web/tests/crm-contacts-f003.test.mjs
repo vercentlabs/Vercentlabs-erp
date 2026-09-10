@@ -13,7 +13,7 @@ const collectionRoute = read("../src/app/api/crm/contacts/route.ts");
 const recordRoute = read("../src/app/api/crm/contacts/[id]/route.ts");
 const loading = read("../src/app/(app)/crm/contacts/loading.tsx");
 const error = read("../src/app/(app)/crm/contacts/error.tsx");
-const css = read("../src/app/crm-contacts.css");
+const css = read("../src/modules/crm/ui/crm.css");
 
 test("F003 web: Contacts uses the dedicated server-backed Contact service", () => {
   assert.match(listPage, /listCrmContacts/);
@@ -33,7 +33,7 @@ test("F003 web: canonical list, search, filters, create, detail, edit and archiv
   assert.match(detail, /Archive contact/);
   assert.match(detail, /Historical relationships and activity will remain available/);
   assert.match(detail, /onDismiss=\{\(\) => setEditing\(false\)\}/);
-  assert.match(detail, /showModal\(\)/);
+  assert.match(detail, /<ConfirmDialog/);
 });
 
 test("F003 web: the form is compact, grouped, labelled and enforces reachability", () => {
@@ -87,10 +87,10 @@ test("F003 web: Contact Detail prioritizes identity, channels and clickable Acco
 });
 
 test("F003 web: responsive, loading, error and accessibility states are explicit", () => {
-  assert.match(css, /@media \(max-width: 900px\)/);
+  assert.match(css, /@media \(max-width: 1023px\)/);
   assert.match(css, /\.crm-contact-table-wrap[\s\S]*display: none/);
   assert.match(css, /\.crm-contact-cards[\s\S]*display: grid/);
-  assert.match(css, /@media \(max-width: 620px\)/);
+  assert.match(css, /@media \(max-width: 767px\)/);
   assert.match(css, /min-height: 44px/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(loading, /aria-busy="true"/);

@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { requestJson } from "@/shared/http/client-request";
-import { ActionButton, FormField, StatusBadge, type StatusTone } from "@/shared/design";
+import { ActionButton, Dialog, FormField, StatusBadge, type StatusTone } from "@/shared/design";
 
 type Row = Record<string, unknown>;
 type Criterion = { key: string; label: string; met: boolean; help?: string };
@@ -47,37 +47,11 @@ function QualificationDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef(onClose);
-  const pendingRef = useRef(false);
   const [reasonCode, setReasonCode] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    pendingRef.current = pending;
-  }, [pending]);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    dialog.showModal();
-    const closed = () => closeRef.current();
-    const cancel = (event: Event) => {
-      if (pendingRef.current) event.preventDefault();
-    };
-    dialog.addEventListener("close", closed);
-    dialog.addEventListener("cancel", cancel);
-    return () => {
-      dialog.removeEventListener("close", closed);
-      dialog.removeEventListener("cancel", cancel);
-    };
-  }, []);
+  const unqualified = decision === "unqualified";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,9 +75,10 @@ function QualificationDialog({
           }),
         },
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(String(response.message || "Decision could not be saved."));
-      dialogRef.current?.close();
+      }
+      onClose();
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Decision could not be saved.");
@@ -112,37 +87,20 @@ function QualificationDialog({
     }
   }
 
-  const unqualified = decision === "unqualified";
   return (
-    <dialog
+    <Dialog
+      title={unqualified ? "Mark as unqualified" : "Qualify lead"}
+      description={
+        unqualified
+          ? `Record why ${leadName} should not progress.`
+          : `${leadName} meets the required readiness criteria.`
+      }
+      onClose={onClose}
+      canDismiss={!pending}
+      busy={pending}
       className="crm-qualification-dialog"
-      ref={dialogRef}
-      aria-labelledby="qualification-dialog-title"
-      aria-describedby="qualification-dialog-description"
     >
       <form onSubmit={submit}>
-        <header>
-          <div>
-            <p className="eyebrow">Qualification decision</p>
-            <h2 id="qualification-dialog-title">
-              {unqualified ? "Mark as unqualified" : "Qualify lead"}
-            </h2>
-            <p id="qualification-dialog-description">
-              {unqualified
-                ? `Record why ${leadName} should not progress.`
-                : `${leadName} meets the required readiness criteria.`}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Close qualification decision"
-            disabled={pending}
-            onClick={() => dialogRef.current?.close()}
-          >
-            ×
-          </button>
-        </header>
         <div className="crm-qualification-dialog__body">
           {needsOverride ? (
             <FormField
@@ -196,11 +154,7 @@ function QualificationDialog({
           {error ? <p className="field-error" role="alert">{error}</p> : null}
         </div>
         <footer>
-          <ActionButton
-            type="button"
-            disabled={pending}
-            onClick={() => dialogRef.current?.close()}
-          >
+          <ActionButton type="button" disabled={pending} onClick={onClose}>
             Cancel
           </ActionButton>
           <ActionButton
@@ -219,7 +173,7 @@ function QualificationDialog({
           </ActionButton>
         </footer>
       </form>
-    </dialog>
+    </Dialog>
   );
 }
 

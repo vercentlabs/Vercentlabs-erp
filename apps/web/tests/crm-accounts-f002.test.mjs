@@ -12,7 +12,7 @@ const detail = read(
 const form = read("../src/modules/crm/prospect-and-relationship-master-data/account-form-drawer.tsx");
 const collectionRoute = read("../src/app/api/crm/accounts/route.ts");
 const recordRoute = read("../src/app/api/crm/accounts/[id]/route.ts");
-const css = read("../src/app/crm-accounts.css");
+const css = read("../src/modules/crm/ui/crm.css");
 
 test("F002 web: Accounts uses the dedicated server-backed Account service", () => {
   assert.match(listPage, /listCrmAccounts/);
@@ -69,10 +69,10 @@ test("F002 web: API lifecycle is authenticated, permission guarded, scoped and a
 });
 
 test("F002 web: responsive table-to-card and mobile detail behavior is explicit", () => {
-  assert.match(css, /@media \(max-width: 900px\)/);
+  assert.match(css, /@media \(max-width: 1023px\)/);
   assert.match(css, /\.crm-account-table-wrap[\s\S]*display: none/);
   assert.match(css, /\.crm-account-cards[\s\S]*display: grid/);
-  assert.match(css, /@media \(max-width: 520px\)/);
+  assert.match(css, /@media \(max-width: 479px\)/);
   assert.match(css, /min-height: 44px/);
   assert.match(css, /prefers-reduced-motion/);
 });

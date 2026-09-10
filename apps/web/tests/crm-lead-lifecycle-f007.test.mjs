@@ -39,11 +39,12 @@ test("F007 Kanban and Lead detail use dynamic stages and canonical transition en
 });
 
 test("F007 lifecycle Setup is responsive and right-sided", async () => {
-  const css = await read("src/app/crm-lead-lifecycle.css");
-  for (const breakpoint of ["1100px", "380px"]) assert.match(css, new RegExp(breakpoint));
-  assert.match(css, /inset:0 0 0 auto/);
-  assert.match(css, /100dvh/);
-  assert.match(css, /prefers-reduced-motion/);
+  const moduleCss = await read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle-workspace.module.css");
+  const canonicalCss = await read("src/modules/crm/ui/crm.css");
+  assert.match(moduleCss, /@media \(max-width: 767px\)/);
+  assert.match(moduleCss, /min-height: 44px/);
+  assert.match(canonicalCss, /100dvh/);
+  assert.match(canonicalCss, /prefers-reduced-motion/);
 });
 
 test("F007 native capture and shared follow-ups use governed lifecycle boundaries", async () => {

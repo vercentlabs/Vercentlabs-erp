@@ -1,26 +1,28 @@
+/* GENERATED from packages/shared-ui/tokens/theme.json. Do not edit directly. */
 export const palette = Object.freeze({
-  navy950: "#070D18",
+  navy950: "#0B1220",
   navy900: "#0B1220",
-  navy800: "#172033",
-  slate900: "#101828",
-  slate700: "#344054",
+  navy800: "#171A1F",
+  slate900: "#171A1F",
+  slate700: "#3F4652",
   slate500: "#667085",
-  slate300: "#D0D5DD",
-  slate200: "#E4E7EC",
-  slate100: "#F2F4F7",
-  canvas: "#F4F6FA",
+  slate300: "#CFD5E2",
+  slate200: "#E3E6EB",
+  slate100: "#EEF0F3",
+  canvas: "#F5F6F8",
   white: "#FFFFFF",
-  indigo700: "#3730A3",
-  indigo600: "#4F46E5",
-  indigo100: "#E0E7FF",
-  indigo50: "#EEF2FF",
-  cyan600: "#0891B2",
-  success700: "#067647",
-  success50: "#ECFDF3",
-  warning700: "#B54708",
-  warning50: "#FFFAEB",
+  indigo700: "#292F9D",
+  indigo600: "#3F46D8",
+  indigo100: "#D9DCFF",
+  indigo50: "#EEF0FF",
+  cyan600: "#315EFB",
+  success700: "#087A55",
+  success50: "#EDF8F3",
+  warning700: "#9A5B08",
+  warning50: "#FFF7E8",
   danger700: "#B42318",
-  danger50: "#FEF3F2",
+  danger50: "#FFF1F0",
+  navigationMuted: "#B7C0D0",
 });
 
 export const spacing = Object.freeze({
@@ -35,10 +37,10 @@ export const spacing = Object.freeze({
 });
 
 export const radii = Object.freeze({
-  sm: 10,
-  md: 16,
-  lg: 20,
-  xl: 28,
+  sm: 8,
+  md: 10,
+  lg: 12,
+  xl: 14,
   full: 999,
 });
 
@@ -49,6 +51,13 @@ export const typeScale = Object.freeze({
   body: { fontSize: 16, lineHeight: 24, fontWeight: "400" as const },
   label: { fontSize: 15, lineHeight: 20, fontWeight: "600" as const },
   caption: { fontSize: 13, lineHeight: 18, fontWeight: "500" as const },
+});
+
+export const breakpoints = Object.freeze({
+  narrow: 480,
+  mobile: 768,
+  tablet: 1024,
+  compactDesktop: 1280,
 });
 
 export const minimumTouchTarget = 48;

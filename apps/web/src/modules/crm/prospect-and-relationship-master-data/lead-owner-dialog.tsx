@@ -1,10 +1,13 @@
 "use client";
 
-import { ActionButton } from "@/shared/design";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { ActionButton, Dialog } from "@/shared/design";
 import { requestJson } from "@/shared/http/client-request";
-import LeadAssigneeCombobox, { type LeadAssigneeOption } from "../lead-lifecycle-qualification-and-prioritization/lead-assignee-combobox";
+import LeadAssigneeCombobox, {
+  type LeadAssigneeOption,
+} from "../lead-lifecycle-qualification-and-prioritization/lead-assignee-combobox";
 import type { Row } from "./lead-detail-model";
 
 export default function LeadOwnerDialog({
@@ -15,8 +18,6 @@ export default function LeadOwnerDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const onCloseRef = useRef(onClose);
   const [selected, setSelected] = useState<LeadAssigneeOption | null>(
     lead.ownerUserId && lead.ownerStatus === "active"
       ? {
@@ -28,19 +29,6 @@ export default function LeadOwnerDialog({
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (!dialog.open) dialog.showModal();
-    const close = () => onCloseRef.current();
-    dialog.addEventListener("close", close);
-    return () => dialog.removeEventListener("close", close);
-  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,17 +47,14 @@ export default function LeadOwnerDialog({
           }),
         },
       );
-      if (!result.ok)
-        throw new Error(
-          String(result.message || "Lead owner could not be changed."),
-        );
-      dialogRef.current?.close();
+      if (!result.ok) {
+        throw new Error(String(result.message || "Lead owner could not be changed."));
+      }
+      onClose();
       router.refresh();
     } catch (error) {
       setMessage(
-        error instanceof Error
-          ? error.message
-          : "Lead owner could not be changed.",
+        error instanceof Error ? error.message : "Lead owner could not be changed.",
       );
     } finally {
       setPending(false);
@@ -77,26 +62,15 @@ export default function LeadOwnerDialog({
   }
 
   return (
-    <dialog
+    <Dialog
+      title="Change owner"
+      description="Assign this lead to an active CRM member with access to the current company and branch."
+      onClose={onClose}
+      canDismiss={!pending}
+      busy={pending}
       className="crm-owner-dialog"
-      ref={dialogRef}
-      aria-labelledby="change-owner-title"
     >
       <form onSubmit={submit}>
-        <header>
-          <div>
-            <p className="eyebrow">Lead ownership</p>
-            <h2 id="change-owner-title">Change owner</h2>
-          </div>
-          <ActionButton
-            aria-label="Close Change owner"
-            tone="quiet"
-            onClick={() => dialogRef.current?.close()}
-            type="button"
-          >
-            ×
-          </ActionButton>
-        </header>
         <div className="crm-owner-dialog__body">
           <div className="crm-owner-dialog__current">
             <span>Current owner</span>
@@ -109,8 +83,7 @@ export default function LeadOwnerDialog({
             <span>New owner</span>
             <LeadAssigneeCombobox value={selected} onChange={setSelected} />
             <small>
-              Only active CRM members with access to this company and branch are
-              shown.
+              Only active CRM members with access to this company and branch are shown.
             </small>
           </label>
           {message ? (
@@ -120,24 +93,14 @@ export default function LeadOwnerDialog({
           ) : null}
         </div>
         <footer>
-          <ActionButton
-            tone="secondary"
-            busy={pending}
-            onClick={() => dialogRef.current?.close()}
-            type="button"
-          >
+          <ActionButton tone="secondary" disabled={pending} onClick={onClose} type="button">
             Cancel
           </ActionButton>
-          <ActionButton
-            tone="primary"
-            disabled={!selected}
-            busy={pending}
-            type="submit"
-          >
+          <ActionButton tone="primary" disabled={!selected} busy={pending} type="submit">
             {pending ? "Assigning…" : "Assign owner"}
           </ActionButton>
         </footer>
       </form>
-    </dialog>
+    </Dialog>
   );
 }

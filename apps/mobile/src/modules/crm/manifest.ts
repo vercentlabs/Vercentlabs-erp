@@ -8,7 +8,7 @@ export const crmManifest: NativeModuleManifest = {
   icon: "people-outline",
   permission: "crm.view",
   released: true,
-  routes: ["leads", "pipeline", "activities", "crm/[resource]/[id]"],
+  routes: ["crm", "leads", "pipeline", "activities", "crm/[resource]/[id]"],
   offline: {
     resources: ["dashboard", "leads", "opportunities", "activities"],
     mutationHandlers: [

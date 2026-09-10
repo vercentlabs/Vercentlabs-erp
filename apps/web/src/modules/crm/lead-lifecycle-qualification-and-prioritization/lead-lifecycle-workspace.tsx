@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 
@@ -73,7 +73,6 @@ export default function LeadLifecycleWorkspace({
 }) {
   const router = useRouter();
   const { confirm: confirmAction } = useCrmCommandDialog();
-  const drawerRef = useRef<HTMLDialogElement>(null);
   const [editing, setEditing] = useState<Stage | null | undefined>(undefined);
   const [pending, setPending] = useState("");
   const [message, setMessage] = useState("");
@@ -84,12 +83,6 @@ export default function LeadLifecycleWorkspace({
   const [reasonForm, setReasonForm] = useState(false);
 
   const activeStages = rows.filter((stage) => stage.status === "active");
-
-  useEffect(() => {
-    const drawer = drawerRef.current;
-    if (editing !== undefined && drawer && !drawer.open) drawer.showModal();
-    if (editing === undefined && drawer?.open) drawer.close();
-  }, [editing]);
 
   useEffect(() => {
     if (!migrationJob || migrationJob.status === "completed" || migrationJob.status === "dead") return;
@@ -477,31 +470,35 @@ export default function LeadLifecycleWorkspace({
         </ul>
       </section>
 
-      <dialog className="crm-lifecycle-drawer" ref={drawerRef} onClose={() => setEditing(undefined)}>
-        <form method="dialog" className="crm-lifecycle-drawer__close"><button aria-label="Close stage form" type="submit">×</button></form>
-        <form onSubmit={submit}>
-          <header>
-            <p className="eyebrow">Lead lifecycle</p>
-            <h2>{editing ? "Edit stage" : "Add stage"}</h2>
-            <p>The internal code is created once and stays stable when the label changes.</p>
-          </header>
-          <label><span>Stage name</span><input autoFocus maxLength={120} name="name" required defaultValue={editing?.name || ""} /></label>
-          <label><span>Description</span><textarea maxLength={1000} name="description" rows={4} defaultValue={editing?.description || ""} /></label>
-          <label><span>Order</span><input min={0} max={100000} name="sortOrder" required type="number" defaultValue={editing?.sortOrder ?? (rows.length + 1) * 10} /></label>
-          <label>
-            <span>Dwell warning (hours)</span>
-            <input min={1} max={100000} name="dwellWarningHours" type="number" defaultValue={editing?.dwellWarningHours ?? ""} placeholder="Optional" />
-          </label>
-          <label>
-            <span>Dwell breach (hours)</span>
-            <input min={1} max={100000} name="dwellBreachHours" type="number" defaultValue={editing?.dwellBreachHours ?? ""} placeholder="Optional" />
-          </label>
-          <footer>
-            <ActionButton type="button" onClick={() => setEditing(undefined)}>Cancel</ActionButton>
-            <ActionButton tone="primary" busy={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</ActionButton>
-          </footer>
-        </form>
-      </dialog>
+      {editing !== undefined ? (
+        <Dialog
+          title={editing ? "Edit stage" : "Add stage"}
+          description="The internal code is created once and stays stable when the label changes."
+          onClose={() => setEditing(undefined)}
+          variant="drawer-end"
+          busy={pending === "save"}
+          canDismiss={pending !== "save"}
+          className="crm-lifecycle-drawer"
+        >
+          <form onSubmit={submit}>
+            <label><span>Stage name</span><input autoFocus maxLength={120} name="name" required defaultValue={editing?.name || ""} /></label>
+            <label><span>Description</span><textarea maxLength={1000} name="description" rows={4} defaultValue={editing?.description || ""} /></label>
+            <label><span>Order</span><input min={0} max={100000} name="sortOrder" required type="number" defaultValue={editing?.sortOrder ?? (rows.length + 1) * 10} /></label>
+            <label>
+              <span>Dwell warning (hours)</span>
+              <input min={1} max={100000} name="dwellWarningHours" type="number" defaultValue={editing?.dwellWarningHours ?? ""} placeholder="Optional" />
+            </label>
+            <label>
+              <span>Dwell breach (hours)</span>
+              <input min={1} max={100000} name="dwellBreachHours" type="number" defaultValue={editing?.dwellBreachHours ?? ""} placeholder="Optional" />
+            </label>
+            <footer>
+              <ActionButton type="button" onClick={() => setEditing(undefined)} disabled={pending === "save"}>Cancel</ActionButton>
+              <ActionButton tone="primary" busy={pending === "save"} type="submit">{pending === "save" ? "Saving…" : "Save stage"}</ActionButton>
+            </footer>
+          </form>
+        </Dialog>
+      ) : null}
 
       {graphStageId ? (
         <Dialog

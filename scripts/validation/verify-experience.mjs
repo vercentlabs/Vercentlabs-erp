@@ -161,7 +161,7 @@ export function validateExperience(analysis, baseline) {
   }
 
   for (const file of analysis.allCssFiles) {
-    if (file === canonicalTokenFile || legacyAppCss.has(file)) continue;
+    if (file === canonicalTokenFile || legacyAppCss.has(file) || canonicalStyles.has(file)) continue;
     if (!file.endsWith(".module.css")) {
       failures.push(
         `${file}: new web CSS outside the canonical token file must use *.module.css`,
@@ -227,6 +227,13 @@ export function validateExperience(analysis, baseline) {
       continue;
     }
 
+    if (canonicalStyles.has(file)) {
+      for (const query of setDifference(queries, [...canonicalMedia])) {
+        failures.push(`${file}: noncanonical media query "${query}"; use the Experience Kernel breakpoint policy`);
+      }
+      continue;
+    }
+
     for (const query of setDifference(queries, [...canonicalMedia])) {
       failures.push(
         `${file}: noncanonical media query "${query}"; use the Experience Kernel breakpoint policy`,
@@ -238,6 +245,11 @@ export function validateExperience(analysis, baseline) {
     analysis.hardcodedColorLiteralsByFile,
   )) {
     if (file === canonicalTokenFile) continue;
+
+    if (canonicalStyles.has(file)) {
+      if (count > 0) failures.push(`${file}: ${count} hard-coded color literal(s); canonical styles must consume --erp-* tokens`);
+      continue;
+    }
 
     if (legacyAppCss.has(file)) {
       const legacyLimit =

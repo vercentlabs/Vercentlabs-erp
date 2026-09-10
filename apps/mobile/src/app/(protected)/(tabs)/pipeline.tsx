@@ -91,7 +91,7 @@ export default function PipelineScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   borderRadius: radii.md,
-                  backgroundColor: "#EEF1F6",
+                  backgroundColor: colors.canvas,
                   gap: spacing.sm,
                 }}
               >

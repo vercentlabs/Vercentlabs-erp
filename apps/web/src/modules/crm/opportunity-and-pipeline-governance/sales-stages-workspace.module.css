@@ -13,9 +13,9 @@
     display: grid;
     gap: 12px;
     padding: 16px;
-    border: 1px solid var(--color-line);
-    border-radius: var(--radius-panel);
-    background: var(--color-surface);
+    border: 1px solid var(--erp-color-border);
+    border-radius: var(--erp-radius-panel);
+    background: var(--erp-color-surface);
   }
 
   .card header {
@@ -31,14 +31,14 @@
     gap: 10px;
     margin: 0;
     padding-top: 10px;
-    border-top: 1px solid var(--color-line);
+    border-top: 1px solid var(--erp-color-border);
   }
 
   .metrics dt {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-muted);
+    color: var(--erp-color-text-muted);
   }
 
   .metrics dd {

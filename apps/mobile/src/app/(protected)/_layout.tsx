@@ -14,6 +14,7 @@ export default function ProtectedLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="workspace/[area]" />
       <Stack.Screen name="workspace/[area]/[resource]" />
+      <Stack.Screen name="crm/index" />
       <Stack.Screen name="crm/[resource]/[id]" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="search" />

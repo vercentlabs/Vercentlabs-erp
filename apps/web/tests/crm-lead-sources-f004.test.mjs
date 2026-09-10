@@ -12,7 +12,7 @@ const collection = read("../src/app/api/crm/lead-sources/route.ts");
 const record = read("../src/app/api/crm/lead-sources/[id]/route.ts");
 const setup = read("../src/app/(app)/crm/settings/page.tsx");
 const navigation = read("../src/core/navigation/modules.ts");
-const css = read("../src/app/crm-lead-sources.css");
+const css = read("../src/modules/crm/ui/crm.css");
 const options = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-options.js");
 const resourceRegistry = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-registry.js");
 const resourceMutation = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js");
@@ -101,10 +101,10 @@ test("F004 web: original-source lineage and referrer details are wired through c
 
 test("F004 web: desktop table, tablet/mobile cards, touch targets and reduced motion are explicit", () => {
   assert.match(css, /crm-source-table/);
-  assert.match(css, /@media \(max-width: 900px\)/);
+  assert.match(css, /@media \(max-width: 1023px\)/);
   assert.match(css, /crm-source-table-wrap[\s\S]*?display: none/);
   assert.match(css, /crm-source-cards[\s\S]*?display: grid/);
-  assert.match(css, /@media \(max-width: 640px\)/);
+  assert.match(css, /@media \(max-width: 767px\)/);
   assert.match(css, /min-height: 44px/);
   assert.match(css, /prefers-reduced-motion/);
 });
