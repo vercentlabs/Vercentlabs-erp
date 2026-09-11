@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "corepack pnpm build:landing",
+    "predev": "node scripts/dev/free-ports.mjs",
     "dev": "corepack pnpm --parallel --filter @vercentlabs/landing --filter @vercentlabs/web dev",
     "dev:mobile": "corepack pnpm --filter @vercentlabs/mobile dev",
     "dev:landing": "corepack pnpm --filter @vercentlabs/landing dev",
