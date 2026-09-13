@@ -16,7 +16,6 @@ const css = read("../src/modules/crm/ui/crm.css");
 const options = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-options.js");
 const resourceRegistry = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-registry.js");
 const resourceMutation = read("../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js");
-const leadWorkspace = read("../src/modules/crm/prospect-and-relationship-master-data/leads-workspace.tsx");
 const leadEditor = read("../src/modules/crm/prospect-and-relationship-master-data/lead-edit-panel.tsx");
 const leadDetail = read(
   "../src/modules/crm/prospect-and-relationship-master-data/lead-detail-workspace.tsx",

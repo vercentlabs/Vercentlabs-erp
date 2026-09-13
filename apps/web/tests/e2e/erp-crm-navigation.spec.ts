@@ -71,13 +71,13 @@ const crmDestinations = [
   "Opportunities",
   "Pipeline",
   "Forecast",
-  "Activities",
+  "Activity timeline",
   "Reports",
   "CRM setup",
 ];
 
 test.describe("CRM navigation — Prompt 2 information architecture", () => {
-  test("desktop sidebar renders Home, Customers, Sales, Work, Insights and Administration with every expected destination", async ({
+  test("desktop sidebar renders Home, Customers, Pipeline, Work, Engagement, Insights and Administration with every expected destination", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -86,7 +86,11 @@ test.describe("CRM navigation — Prompt 2 information architecture", () => {
     const nav = page.getByRole("navigation", { name: "CRM destinations" });
     await expect(nav).toBeVisible();
 
-    for (const group of ["Customers", "Sales", "Work", "Insights", "Administration"]) {
+    // Groups renamed/regrouped after this suite was first written: the
+    // "Sales" group became "Pipeline" (to stop overloading the name of the
+    // separate Sales module) and a new "Engagement" group (Team inbox) was
+    // added — see docs/03-modules/crm/CRM_VNEXT_IMPLEMENTATION_REGISTER.md.
+    for (const group of ["Customers", "Pipeline", "Work", "Engagement", "Insights", "Administration"]) {
       await expect(nav.getByText(group, { exact: true })).toBeVisible();
     }
 
@@ -118,7 +122,7 @@ test.describe("CRM navigation — Prompt 2 information architecture", () => {
     );
   });
 
-  test("every CRM navigation group is reachable and correct: Sales, Work, Insights, Administration", async ({
+  test("every CRM navigation group is reachable and correct: Pipeline, Work, Insights, Administration", async ({
     page,
   }) => {
     await openStable(page, "/crm");
@@ -130,7 +134,7 @@ test.describe("CRM navigation — Prompt 2 information architecture", () => {
     await page.getByRole("navigation", { name: "CRM destinations" }).getByRole("link", { name: "Forecast" }).click();
     await page.waitForURL(/\/crm\/forecast/);
 
-    await page.getByRole("navigation", { name: "CRM destinations" }).getByRole("link", { name: "Activities" }).click();
+    await page.getByRole("navigation", { name: "CRM destinations" }).getByRole("link", { name: "Activity timeline" }).click();
     await page.waitForURL(/\/crm\/activities/);
 
     await page.getByRole("navigation", { name: "CRM destinations" }).getByRole("link", { name: "Reports" }).click();

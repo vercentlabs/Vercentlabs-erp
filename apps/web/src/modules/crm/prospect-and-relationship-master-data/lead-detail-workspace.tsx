@@ -12,7 +12,7 @@ import {
   Surface,
 } from "@/shared/design";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrmCommandDialog } from "@/modules/crm/ui/crm-command-dialog-provider";
 

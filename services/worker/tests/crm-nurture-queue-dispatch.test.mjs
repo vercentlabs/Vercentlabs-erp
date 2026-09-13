@@ -90,7 +90,7 @@ test("CRM-VNEXT-052 worker: the claim itself is the idempotency mechanism — no
   try {
     const { runtime } = fakeRuntime();
     await dispatchNurtureQueueNotificationsHandler(null, null, {}, runtime);
-    const source = await import("node:fs").then((fs) => fs.readFileSync(new URL("../../api/src/modules/crm/lead-intelligence.js", import.meta.url), "utf8"));
+    const source = await import("node:fs").then((fs) => fs.readFileSync(new URL("../../api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js", import.meta.url), "utf8"));
     assert.match(source, /FOR UPDATE SKIP LOCKED/);
     assert.match(source, /SET notified_at=now\(\)/);
   } finally {

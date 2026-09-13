@@ -7,7 +7,7 @@ export const payloadSchema = z.object({}).strict();
 
 // F005/F014 gap: crm_lead_sla_policies already supports
 // escalation_after_minutes and reassign_on_breach, and
-// scanLeadSlaBreaches (services/api/src/modules/crm/lead-intelligence.js)
+// scanLeadSlaBreaches (services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js)
 // already correctly marks a case breached and reassigns the Lead to
 // policy.escalation_user_id when configured - the whole "reassignment SLA
 // timer" domain logic was real and tested. It was reachable only through

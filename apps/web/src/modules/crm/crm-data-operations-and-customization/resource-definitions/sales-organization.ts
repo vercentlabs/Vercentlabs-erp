@@ -1,6 +1,6 @@
 import type { CrmResourceKey } from "@vercentlabs/shared-types";
 import { PERMISSIONS } from "@/core/authorization";
-import { branch, company, config, owner, status, workspace, type CrmDefinition } from "./core";
+import { company, config, owner, status, workspace, type CrmDefinition } from "./core";
 
 export const salesOrganizationDefinitions = {
 "sales-teams": config(
