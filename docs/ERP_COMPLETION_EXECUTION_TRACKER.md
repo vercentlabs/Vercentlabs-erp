@@ -391,6 +391,31 @@ any of the other 22 files than it would be for a deterministic bug.
    so far, see below) using the same atomic-requirement-trace methodology
    CRM/Sales already went through.
 
+### Procurement — F063 (Supplier master) traced, 2026-09-14
+
+First real atomic-requirement trace for Procurement:
+`docs/03-modules/procurement/audits/F063-AUDIT.md`. Verdict: core
+CRUD/lifecycle/security engineering is solid (real permission gates,
+test-covered sensitive-field redaction, audit/idempotency/outbox on every
+mutation, RLS-enforced isolation) — matches CRM/Sales' quality bar. Three
+real gaps recorded, not fixed: no duplicate-supplier detection, an
+`archived` lifecycle status referenced defensively in queries but with no
+actual transition to reach or leave it, and qualification/activation gated
+by a single permission rather than a maker-checker approval. **Zero
+Procurement browser E2E exists** — flagged as the single highest-leverage
+next step, given this exact session found two real, previously-invisible
+production bugs in CRM (a live concurrency bug and a deterministic
+report-query bug) only once its E2E suite ran end-to-end for the first
+time. Also fixed one instance of the concurrent-`client.query()` pattern
+found in `pass1-operations.js`'s `listProcurementPass1Options` while
+reading through the module (see commit `03172368`) — Procurement's main
+governance dashboard was already correctly fixed in an earlier pass, with
+an explicit comment explaining why.
+
+**Next action for Procurement:** trace F064 (Supplier contacts and
+addresses) next, following the same dossier -> code -> migration -> web ->
+test evidence chain used for F063. 33 features remain (F064-F096).
+
 ### Procurement reconnaissance (not a trace — just current-state orientation)
 
 - `services/api/src/modules/procurement/`: `index.js`, `governance.js`,
@@ -429,7 +454,7 @@ any of the other 22 files than it would be for a deterministic bug.
 |---|---|---|---|
 | CRM | F001-F030 | 30/30 traced | Production-ready, gap-closing pass complete (2026-09-06); reorged 09-10/11 (undocumented then, reconciled now); 2 live E2E nav-spec failures to root-cause |
 | Sales | F031-F062 | 32/32 traced | Trace + gap-closing pass complete (2026-09-06); no further changes found since |
-| Procurement | F063-F096 | 0/34 | Foundation exists (Pass 1 + dedicated code), untraced — **next module** |
+| Procurement | F063-F096 | 1/34 (F063) | Foundation exists (Pass 1 + dedicated code) and is solid where traced; 3 real gaps found, 0 E2E exists — **in progress, trace F064 next** |
 | Stock | F097-F144 | 0/48 | Foundation exists (Pass 1 + dedicated code), untraced |
 | Manufacturing | F145-F192 | 0/48 | Thin/scaffolding per 2026-09-05 table, not re-verified this session |
 | Projects | F193-F230 | 0/38 | Thin/scaffolding, not re-verified |
