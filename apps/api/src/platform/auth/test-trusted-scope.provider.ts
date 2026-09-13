@@ -10,10 +10,18 @@ const TEST_SCOPE_HEADER = 'x-test-trusted-scope';
  * `TrustedScope` by sending a base64url-encoded JSON header, without a real
  * identity platform (SP004-SP010) existing yet.
  *
- * Must never run in production - the constructor throws immediately if
- * instantiated with NODE_ENV=production, and PlatformAuthModule only wires
- * it up outside production. Absence of a valid header resolves to `null`
- * (fail closed), matching FailClosedTrustedScopeProvider's contract.
+ * `PlatformAuthModule` never registers this class under any `NODE_ENV` -
+ * the only way it becomes the active `TRUSTED_SCOPE_PROVIDER` is a test's
+ * own explicit `Test.createTestingModule(...).overrideProvider(...)` call
+ * (see apps/api/test/platform-api.integration.test.ts). A normally started
+ * process - production, development, a missing/misspelled `NODE_ENV`,
+ * anything - always uses `FailClosedTrustedScopeProvider` instead and never
+ * even imports this file. The constructor's `NODE_ENV === 'production'`
+ * throw below is a second, independent layer of defense on top of that
+ * module-level exclusion, in case a test ever mis-overrides the provider
+ * against a production-configured environment by mistake. Absence of a
+ * valid header resolves to `null` (fail closed), matching
+ * `FailClosedTrustedScopeProvider`'s contract.
  */
 @Injectable()
 export class TestTrustedScopeProvider implements TrustedScopeProvider {

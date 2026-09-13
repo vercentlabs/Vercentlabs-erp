@@ -1,23 +1,45 @@
-# Tenant isolation: RLS, least-privilege role, and transaction-local scoping
+# Tenant isolation: RLS, least-privilege roles, and transaction-local scoping
 
 This is the concrete implementation ADR-0003 deferred: real RLS policies
 over real tenant-owned tables (`platform.organizations`,
 `platform.companies`, `platform.operating_units`), added in
-`database/migrations/platform/0006_create_runtime_role_and_rls.sql`.
+`database/migrations/platform/0006_create_runtime_role_and_rls.sql` and
+hardened in
+`database/migrations/platform/0007_harden_organizations_tenant_boundary.sql`.
 
-## The `erp_runtime` role
+**Update (Prompt 002A-H):** `platform.organizations` was originally shipped
+with no RLS at all, relying entirely on application-layer authorization
+(`isPlatformOperatorScope` checks). That was verified as a real,
+exploitable gap - see
+[product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md](../../product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md)
+for the executable proof - and fixed with the second database role and RLS
+policy described below.
 
-`apps/api` and `apps/worker` connect as `erp_runtime`
-(`NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION`) for every
-domain query - never as the migration/admin role, which can bypass RLS
-entirely. `packages/database/src/runtime-connection.ts`
-(`toRuntimeConnectionString`) derives this connection string from the admin
-one; `apps/api`'s `PLATFORM_DATABASE_SCHEMA`... concretely,
-`PlatformDatabaseService` (`apps/api/src/platform/database/platform-database.service.ts`)
-constructs its pool from `RUNTIME_DATABASE_URL` if set, else derives it.
-Production must set `RUNTIME_DATABASE_URL` explicitly via a secrets
-manager - the derived dev password is a local-development placeholder only,
-documented at its definition site.
+## Two database roles, two connection pools
+
+| Role | Used by | Tables | Purpose |
+|---|---|---|---|
+| `erp_runtime` (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION`) | `apps/api`'s `PlatformDatabaseService` (`PLATFORM_DB`), `apps/worker` | `platform.companies`, `platform.operating_units`, `platform.idempotency_records`, `audit.audit_events`, `integration.outbox_events`, and a read-only, own-row-only view of `platform.organizations` | Ordinary tenant-scoped domain queries |
+| `erp_platform_admin` (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION`) | `apps/api`'s `PlatformAdminDatabaseService` (`PLATFORM_ADMIN_DB`), injected only by `OrganizationsController` | `platform.organizations` (full, cross-tenant), plus the same shared `audit`/`outbox`/`idempotency` tables organization commands also write to | Organization control-plane writes: create/activate/suspend/recover/close/update-metadata |
+
+Which token a controller injects is a compile-time choice
+(`@Inject(PLATFORM_DB)` vs `@Inject(PLATFORM_ADMIN_DB)`), never derived from
+a client-supplied header, cookie, query parameter or body field -
+`tests/architecture/platform-api-boundaries.test.ts` enforces that only
+`OrganizationsController` may reference `PLATFORM_ADMIN_DB` at all. Both
+services derive their connection string from `env.DATABASE_URL` via
+`packages/database/src/runtime-connection.ts`'s `toRuntimeConnectionString`
+(overridable per-role via `RUNTIME_DATABASE_URL` /
+`PLATFORM_ADMIN_DATABASE_URL`). Production must set both explicitly via a
+secrets manager - the derived dev passwords are local-development
+placeholders only, documented at their definition sites.
+
+An `erp_platform_admin` credential leak controls organization lifecycle
+only: it has **no grant at all** on `platform.companies` or
+`platform.operating_units` (verified in
+`tests/integration/tenant-isolation-rls.integration.test.ts`'s "tenant/
+platform pools cannot be confused" test) - it cannot reach tenant business
+data underneath the organizations it administers.
 
 ### Column-level immutability, enforced by the database
 
@@ -53,13 +75,34 @@ rows; when one is set, it matches only that organization's rows. Either way
 the row set is always determined by what `SET LOCAL` actually put in place -
 never "everything" as a fallback.
 
-**`platform.organizations` intentionally has no RLS policy.** It has no
-`organization_id` column to scope by - an organization *is* the tenant
-boundary, not a member of one - and it is only ever read/written through
-platform-operator-scoped commands and queries (`isPlatformOperatorScope`
-checks in `platform/tenancy`), which is an application-layer authorization
-decision, not a row-filtering one. `erp_runtime`'s `GRANT SELECT, INSERT`
-(and column-restricted `UPDATE`) on this table has no RLS layered under it.
+**`platform.organizations` now has RLS too (Prompt 002A-H), with two
+different policies for its two roles:**
+
+```sql
+-- erp_runtime: read-only, and only its own scoped organization row -
+-- needed for loadOrganizationAcceptingNewCompanies, never for anything else.
+CREATE POLICY organizations_tenant_runtime_read_own ON platform.organizations
+  FOR SELECT TO erp_runtime
+  USING (id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid);
+
+-- erp_platform_admin: explicit full access - preferred over BYPASSRLS so
+-- this role's privileges stay inside the same auditable policy system as
+-- every other role, per the Prompt 002A-H threat model.
+CREATE POLICY organizations_platform_admin_full_access ON platform.organizations
+  TO erp_platform_admin
+  USING (true) WITH CHECK (true);
+```
+
+`erp_runtime`'s `INSERT`/`UPDATE` grants on `platform.organizations` were
+revoked outright (not narrowed) - it has no legitimate reason left to write
+this table at all, now that organization control-plane writes go through
+`erp_platform_admin` instead. `id = current_setting(...)` (not an
+`organization_id` column - an organization *is* the tenant boundary, not a
+member of one) is why `erp_runtime`'s one remaining read needs the
+organization's *own id* as the scope value, which is exactly what
+`loadOrganizationAcceptingNewCompanies`
+(`platform/organization/src/organization-guard.ts`) now sets via
+`withOrganizationScope(db, organizationId, ...)` before reading.
 
 ## `SET LOCAL`, not session-level `SET` - why this matters under pooling
 
@@ -91,22 +134,28 @@ asserting no cross-contamination.
 `SET`/`SET LOCAL`, so this validation is the injection guard for that
 interpolation, not optional input hygiene.
 
-A platform-operator (cross-tenant) command passes `organizationId: null`,
-which sets `app.current_organization_id = ''` - the RLS policies then only
-match rows whose organization scope is itself empty/null, which is none of
-the tenant-owned rows. Platform-operator commands (organization
-create/activate/suspend/recover/close, and the list/get organization
-queries) therefore read via `platform.organizations` directly rather than
-relying on this setting to expose anything.
+A platform-operator (cross-tenant) command still passes `organizationId:
+null` when it calls `withOrganizationScope`/`runIdempotentCommand`, which
+sets `app.current_organization_id = ''` - but since these commands now run
+via `erp_platform_admin` (whose policy is `USING (true)`, unconditional),
+that setting has no effect on what the query can see. It is preserved
+purely so the shared audit/outbox/idempotency tables' `organization_id IS
+NULL` branch still matches correctly for these cross-tenant writes.
 
 ## What is verified, concretely
 
-`tests/integration/tenant-isolation-rls.integration.test.ts` (9 tests,
-real PostgreSQL) covers: two organizations' rows are mutually invisible to
-each other under `erp_runtime` + RLS; missing/malformed
-`app.current_organization_id` exposes nothing; direct SQL attempts to
-update an immutable column (`tenant_key`, `company_code`, `unit_code`) as
-`erp_runtime` are rejected by the column-level `GRANT`; append-only
-enforcement on `audit.audit_events`/`integration.outbox_events` (no
-`UPDATE`/`DELETE` grant exists at all); and the pool-reuse-no-leak case
-above.
+`tests/integration/tenant-isolation-rls.integration.test.ts` (19 tests
+across two `describe` blocks, real PostgreSQL) covers: two organizations'
+company rows are mutually invisible to each other under `erp_runtime` +
+RLS; missing/malformed `app.current_organization_id` exposes nothing;
+direct SQL attempts to update an immutable column (`tenant_key`,
+`company_code`, `unit_code`) as `erp_runtime` **or** `erp_platform_admin`
+are rejected by the column-level `GRANT`; append-only enforcement on
+`audit.audit_events`/`integration.outbox_events`; the pool-reuse-no-leak
+case; and, added in Prompt 002A-H: `erp_runtime` sees zero organizations
+with no scope set, cannot read or write a different organization's row,
+cannot insert an organization at all (direct-table attack fails);
+`erp_platform_admin` can read/update across tenants but not `tenant_key`,
+and has no grant whatsoever on `platform.companies`/`platform.operating_units`
+(the tenant and platform connection pools cannot be confused with each
+other).

@@ -1,5 +1,17 @@
 # Prompt 002A evidence: SP001-SP003 domain, database and API foundation
 
+> **Amended by Prompt 002A-H** (see
+> [`product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md`](PROMPT-002A-H-TENANT-BOUNDARY.md)):
+> two statements below became inaccurate and are superseded, not deleted
+> (the record of what was true at the time this file was written is kept
+> intact). Section 1 described `platform.organizations` as having "no RLS
+> by design" - a real gap was found (application-layer authorization only,
+> no database-layer defense-in-depth) and fixed with a dedicated
+> `erp_platform_admin` role and an explicit RLS policy. The "19 REST
+> endpoints" phrasing in section 1 conflated the OpenAPI document's unique
+> path count (19) with the total number of HTTP operations (25) - both
+> figures were and remain correct individually, just not interchangeable.
+
 Date: 2026-09-13 (UTC)
 Branch: `erp-v2/shared-platform`, based on `erp-v2/foundation` @
 `877f0294ed5959ef08c1983c30aef2265c81fbd9`

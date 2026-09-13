@@ -37,7 +37,7 @@ import {
 import { z } from 'zod';
 import { CurrentTrustedScope } from '../auth/trusted-scope.decorator.js';
 import { TrustedScopeGuard } from '../auth/trusted-scope.guard.js';
-import { PLATFORM_DB } from '../database/platform-database.service.js';
+import { PLATFORM_ADMIN_DB } from '../database/platform-admin-database.service.js';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   parseBody,
@@ -58,13 +58,21 @@ const listQuerySchema = cursorPaginationRequestSchema.extend({
  * client-supplied `organizationId`/actor anywhere in these bodies; the
  * trusted scope resolved by `TrustedScopeGuard` is the sole source of
  * identity and authorization (root governance rule 6).
+ *
+ * Injects `PLATFORM_ADMIN_DB` (the `erp_platform_admin` role), not
+ * `PLATFORM_DB` - organization control-plane writes are database-role
+ * distinct from ordinary tenant-runtime queries, per
+ * database/migrations/platform/0007_harden_organizations_tenant_boundary.sql
+ * and docs/security/platform-operator-boundary.md. This choice is fixed at
+ * startup by which token this constructor asks for, never by anything in
+ * the request.
  */
 @ApiTags('platform-organizations')
 @ApiSecurity('trusted-scope')
 @UseGuards(TrustedScopeGuard)
 @Controller('platform/organizations')
 export class OrganizationsController {
-  constructor(@Inject(PLATFORM_DB) private readonly db: NodePgDatabase) {}
+  constructor(@Inject(PLATFORM_ADMIN_DB) private readonly db: NodePgDatabase) {}
 
   @Post()
   @HttpCode(201)

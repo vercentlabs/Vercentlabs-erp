@@ -1,27 +1,30 @@
 import { Global, Module } from '@nestjs/common';
 import { FailClosedTrustedScopeProvider } from './fail-closed-trusted-scope.provider.js';
-import { TestTrustedScopeProvider } from './test-trusted-scope.provider.js';
 import { TRUSTED_SCOPE_PROVIDER } from './trusted-scope.port.js';
 import { TrustedScopeGuard } from './trusted-scope.guard.js';
 
 /**
- * Selects the active `TrustedScopeProvider` for the whole process. Production
- * always gets `FailClosedTrustedScopeProvider`; every other NODE_ENV (test,
- * development) gets the test-only header-driven adapter so integration and
- * security-negative tests can assert specific trusted scopes without a real
- * identity platform. This is the ONLY place that decision is made - no
- * controller or test may construct a provider directly.
+ * Registers `FailClosedTrustedScopeProvider` as `TRUSTED_SCOPE_PROVIDER`
+ * unconditionally - every normal application startup (production,
+ * development, a missing or misspelled `NODE_ENV`, anything) gets the same
+ * fail-closed behavior. There is deliberately no `NODE_ENV` branch here: an
+ * earlier version of this module chose `TestTrustedScopeProvider` whenever
+ * `NODE_ENV !== 'production'`, which meant a plain `next dev`-style local
+ * run, a misconfigured staging deployment, or simply forgetting to set
+ * `NODE_ENV` at all would silently accept the `x-test-trusted-scope` test
+ * header - see product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md.
+ *
+ * `TestTrustedScopeProvider` is never imported here, and never referenced
+ * by name in this module at all - the only way it becomes active is a test
+ * file's own `Test.createTestingModule(...).overrideProvider(TRUSTED_SCOPE_PROVIDER).useClass(TestTrustedScopeProvider)`
+ * call, which is an explicit act of the test's own module composition, not
+ * something this module (or an environment variable) can trigger on its
+ * behalf. See docs/architecture/trusted-request-context.md.
  */
 @Global()
 @Module({
   providers: [
-    {
-      provide: TRUSTED_SCOPE_PROVIDER,
-      useClass:
-        process.env['NODE_ENV'] === 'production'
-          ? FailClosedTrustedScopeProvider
-          : TestTrustedScopeProvider,
-    },
+    { provide: TRUSTED_SCOPE_PROVIDER, useClass: FailClosedTrustedScopeProvider },
     TrustedScopeGuard,
   ],
   exports: [TRUSTED_SCOPE_PROVIDER, TrustedScopeGuard],

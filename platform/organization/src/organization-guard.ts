@@ -1,6 +1,7 @@
 import { DomainNotFoundError, DomainValidationError } from '@vercentlabs/contracts';
 import { findOrganizationById, type OrganizationRow } from '@vercentlabs/platform-tenancy';
-import type { QueryExecutor } from './tx.js';
+import { withOrganizationScope } from '@vercentlabs/database';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 /**
  * SP002/SP003 depend on SP001: every company/operating-unit write must be
@@ -8,12 +9,24 @@ import type { QueryExecutor } from './tx.js';
  * assumption. Calls platform/tenancy's own exported (public) repository
  * read - cross-module reads go through the owning module's public surface,
  * never a direct query against another module's private table.
+ *
+ * Runs inside `withOrganizationScope(db, organizationId, ...)` - required
+ * since `platform.organizations` now enforces Row-Level Security for the
+ * `erp_runtime` role (see
+ * database/migrations/platform/0007_harden_organizations_tenant_boundary.sql):
+ * an unscoped read would see zero rows, and a read scoped to a *different*
+ * organization would also see zero rows for this one. Takes the top-level
+ * `NodePgDatabase`, not a `QueryExecutor`, precisely because it must open
+ * its own transaction to set that scope - it cannot run inside an
+ * already-open one.
  */
 export async function loadOrganizationAcceptingNewCompanies(
-  db: QueryExecutor,
+  db: NodePgDatabase,
   organizationId: string,
 ): Promise<OrganizationRow> {
-  const organization = await findOrganizationById(db, organizationId);
+  const organization = await withOrganizationScope(db, organizationId, (tx) =>
+    findOrganizationById(tx, organizationId),
+  );
   if (!organization) {
     throw new DomainNotFoundError('Organization', organizationId);
   }

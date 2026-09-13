@@ -111,48 +111,52 @@ describe('TrustedScopeGuard', () => {
   });
 });
 
-describe('PlatformAuthModule provider selection', () => {
+describe('PlatformAuthModule provider selection (Prompt 002A-H hardening)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('selects FailClosedTrustedScopeProvider when NODE_ENV=production at module load time', async () => {
-    const previous = process.env['NODE_ENV'];
-    process.env['NODE_ENV'] = 'production';
-    try {
-      const { PlatformAuthModule } = await import('../src/platform/auth/platform-auth.module.js');
-      const { TRUSTED_SCOPE_PROVIDER } = await import('../src/platform/auth/trusted-scope.port.js');
-      const { FailClosedTrustedScopeProvider: FreshFailClosed } = await import(
-        '../src/platform/auth/fail-closed-trusted-scope.provider.js'
-      );
-      const metadata = Reflect.getMetadata('providers', PlatformAuthModule) as {
-        provide?: unknown;
-        useClass?: unknown;
-      }[];
-      const providerEntry = metadata.find((entry) => entry.provide === TRUSTED_SCOPE_PROVIDER);
-      expect(providerEntry?.useClass).toBe(FreshFailClosed);
-    } finally {
-      process.env['NODE_ENV'] = previous;
-    }
-  });
+  async function providerClassRegisteredBy(): Promise<unknown> {
+    const { PlatformAuthModule } = await import('../src/platform/auth/platform-auth.module.js');
+    const { TRUSTED_SCOPE_PROVIDER } = await import('../src/platform/auth/trusted-scope.port.js');
+    const metadata = Reflect.getMetadata('providers', PlatformAuthModule) as {
+      provide?: unknown;
+      useClass?: unknown;
+    }[];
+    return metadata.find((entry) => entry.provide === TRUSTED_SCOPE_PROVIDER)?.useClass;
+  }
 
-  it('selects TestTrustedScopeProvider when NODE_ENV is not production at module load time', async () => {
-    const previous = process.env['NODE_ENV'];
-    process.env['NODE_ENV'] = 'development';
-    try {
-      const { PlatformAuthModule } = await import('../src/platform/auth/platform-auth.module.js');
-      const { TRUSTED_SCOPE_PROVIDER } = await import('../src/platform/auth/trusted-scope.port.js');
-      const { TestTrustedScopeProvider: FreshTest } = await import(
-        '../src/platform/auth/test-trusted-scope.provider.js'
-      );
-      const metadata = Reflect.getMetadata('providers', PlatformAuthModule) as {
-        provide?: unknown;
-        useClass?: unknown;
-      }[];
-      const providerEntry = metadata.find((entry) => entry.provide === TRUSTED_SCOPE_PROVIDER);
-      expect(providerEntry?.useClass).toBe(FreshTest);
-    } finally {
-      process.env['NODE_ENV'] = previous;
-    }
+  it.each([
+    ['production', 'production'],
+    ['development', 'development'],
+    ['test', 'test'],
+    ['missing', undefined],
+    ['misspelled', 'developement'],
+  ])(
+    'always registers FailClosedTrustedScopeProvider regardless of NODE_ENV (%s)',
+    async (_label, nodeEnvValue) => {
+      const previous = process.env['NODE_ENV'];
+      if (nodeEnvValue === undefined) {
+        delete process.env['NODE_ENV'];
+      } else {
+        process.env['NODE_ENV'] = nodeEnvValue;
+      }
+      try {
+        const { FailClosedTrustedScopeProvider: FreshFailClosed } = await import(
+          '../src/platform/auth/fail-closed-trusted-scope.provider.js'
+        );
+        expect(await providerClassRegisteredBy()).toBe(FreshFailClosed);
+      } finally {
+        if (previous === undefined) delete process.env['NODE_ENV'];
+        else process.env['NODE_ENV'] = previous;
+      }
+    },
+  );
+
+  it('never imports TestTrustedScopeProvider (a documentation mention in a comment is fine; an import statement is not)', async () => {
+    const moduleSource = await import('node:fs/promises').then((fs) =>
+      fs.readFile(new URL('../src/platform/auth/platform-auth.module.ts', import.meta.url), 'utf8'),
+    );
+    expect(moduleSource).not.toMatch(/^import .*TestTrustedScopeProvider/m);
   });
 });

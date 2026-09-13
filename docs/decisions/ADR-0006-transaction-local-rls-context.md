@@ -63,3 +63,9 @@ only under connection reuse.
   which sets the variable to an empty string - RLS policies then only match
   `NULL`-scoped rows on the shared audit/outbox/idempotency tables, and
   no rows on tenant-owned tables, rather than defaulting to "all rows".
+  Organization control-plane commands (create/activate/suspend/recover/
+  close) still pass `organizationId: null` for this reason even though they
+  run via the separate `erp_platform_admin` role (Prompt 002A-H) whose
+  policy on `platform.organizations` is unconditional (`USING (true)`) - the
+  `SET LOCAL` value only matters there for the shared audit/outbox/
+  idempotency tables those commands also write to in the same transaction.

@@ -11,6 +11,10 @@ export const apiEnvSchema = z.object({
     .string()
     .regex(/^postgres(ql)?:\/\//, 'must be a postgres connection string')
     .optional(),
+  PLATFORM_ADMIN_DATABASE_URL: z
+    .string()
+    .regex(/^postgres(ql)?:\/\//, 'must be a postgres connection string')
+    .optional(),
   PLATFORM_DATABASE_SCHEMA: z.string().min(1).default('platform'),
   TENANT_DATABASE_SCHEMA: z.string().min(1).default('tenant'),
   REDIS_URL: z.string().regex(/^rediss?:\/\//, 'must be a redis connection string'),

@@ -1,7 +1,7 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../../..');
 const PORT = 3011;
@@ -40,54 +40,85 @@ function findPidListeningOnPort(port: number): string | undefined {
   return pid && /^\d+$/.test(pid) ? pid : undefined;
 }
 
+async function stopOnPort(port: number): Promise<void> {
+  const pid = findPidListeningOnPort(port);
+  if (!pid) return;
+  try {
+    execFileSync('taskkill', ['/PID', pid, '/F'], { stdio: 'ignore' });
+  } catch {
+    // already gone
+  }
+  await waitUntil(async () => findPidListeningOnPort(port) === undefined, 15_000).catch(() => {
+    // best-effort cleanup between tests
+  });
+}
+
+/** Starts the real compiled dist/main.js with a given (possibly absent) NODE_ENV and waits until it answers. */
+function startApi(nodeEnv: string | undefined): ChildProcess {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    API_PORT: String(PORT),
+    API_CORS_ORIGINS: 'http://localhost:3000',
+    DATABASE_URL:
+      process.env['DATABASE_URL'] ??
+      'postgres://vercentlabs:vercentlabs_dev_password@localhost:5442/vercentlabs_erp',
+    REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
+  };
+  if (nodeEnv === undefined) {
+    delete env['NODE_ENV'];
+  } else {
+    env['NODE_ENV'] = nodeEnv;
+  }
+  return spawn(process.execPath, [path.join(REPO_ROOT, 'apps/api/dist/main.js')], {
+    cwd: REPO_ROOT,
+    env,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+}
+
+const forgedScopeHeader = Buffer.from(
+  JSON.stringify({
+    kind: 'platform_operator',
+    actor: { actorId: 'forged-operator', actorType: 'user' },
+    roles: ['platform_operator'],
+    correlationId: 'forged-corr',
+    requestId: 'forged-req',
+  }),
+).toString('base64url');
+
 /**
- * Verifies OpenAPI generation against the REAL `tsc`-compiled dist build,
- * run as its own child process - not the vitest/esbuild-transformed source.
- * apps/api/test/health.unit.test.ts documents why: @nestjs/swagger's
+ * Verifies OpenAPI generation and the auth boundary against the REAL
+ * `tsc`-compiled dist build, run as its own child process - not the
+ * vitest/esbuild-transformed source. apps/api/test/health.unit.test.ts
+ * documents why the OpenAPI check specifically needs this: @nestjs/swagger's
  * parameter explorer needs `design:paramtypes` metadata that esbuild-based
  * test transforms do not reliably emit once a controller has decorated
- * method parameters (every platform controller does). Run via
- * `pnpm test:integration`; requires `pnpm --filter @vercentlabs/api build`
- * to have produced apps/api/dist/main.js, and PostgreSQL/Redis running.
+ * method parameters (every platform controller does). Requires
+ * `pnpm --filter @vercentlabs/api build` to have produced
+ * apps/api/dist/main.js, and PostgreSQL/Redis running.
+ *
+ * A NORMALLY STARTED process (this file's `startApi`, exactly what
+ * `node dist/main.js` does in every real deployment) must never accept the
+ * `x-test-trusted-scope` header, under any `NODE_ENV` - see
+ * platform-auth.module.ts and product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md.
+ * Only the explicit `Test.createTestingModule(...).overrideProvider(...)`
+ * composition in platform-api.integration.test.ts may ever accept it.
  */
-describe('platform OpenAPI contract (integration, real compiled build)', () => {
-  let child: ChildProcess;
+describe('platform OpenAPI contract and auth boundary (integration, real compiled build)', () => {
+  let child: ChildProcess | undefined;
 
-  beforeAll(async () => {
-    if (await isLive()) {
-      throw new Error(`Port ${PORT} is already in use - refusing to start a second instance.`);
-    }
-    child = spawn(process.execPath, [path.join(REPO_ROOT, 'apps/api/dist/main.js')], {
-      cwd: REPO_ROOT,
-      env: {
-        ...process.env,
-        NODE_ENV: 'development', // never 'production': this test authenticates via the test-only trusted-scope header
-        API_PORT: String(PORT),
-        API_CORS_ORIGINS: 'http://localhost:3000',
-        DATABASE_URL:
-          process.env['DATABASE_URL'] ??
-          'postgres://vercentlabs:vercentlabs_dev_password@localhost:5442/vercentlabs_erp',
-        REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
-      },
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    await waitUntil(isLive, 30_000);
-  }, 40_000);
-
-  afterAll(async () => {
-    const pid = findPidListeningOnPort(PORT);
-    if (pid) {
-      try {
-        execFileSync('taskkill', ['/PID', pid, '/F'], { stdio: 'ignore' });
-      } catch {
-        // already gone
-      }
-    }
+  afterEach(async () => {
     child?.kill();
+    child = undefined;
+    await stopOnPort(PORT);
   });
 
   it('exposes an OpenAPI 3.x document listing every platform organizations/companies/operating-units path', async () => {
+    if (await isLive()) throw new Error(`Port ${PORT} is already in use.`);
+    child = startApi('development');
+    await waitUntil(isLive, 30_000);
+
     const response = await fetch(`${BASE_URL}/docs-json`);
     expect(response.status).toBe(200);
     const document = (await response.json()) as { openapi: string; paths: Record<string, unknown> };
@@ -101,27 +132,28 @@ describe('platform OpenAPI contract (integration, real compiled build)', () => {
       '/api/v1/platform/organizations/{organizationId}/companies/{companyId}/operating-units',
     );
     expect(platformPaths.length).toBeGreaterThanOrEqual(19);
-  });
+  }, 40_000);
 
-  it('fails closed on a protected route with no trusted-scope header, against the real compiled build', async () => {
-    const response = await fetch(`${BASE_URL}/platform/organizations`);
-    expect(response.status).toBe(401);
-  });
+  it.each([
+    ['production', 'production'],
+    ['development', 'development'],
+    ['test (no explicit test-module override)', 'test'],
+    ['missing NODE_ENV', undefined],
+  ])(
+    'a normal API startup under %s rejects a forged trusted-scope header (401), never opens or accepts it',
+    async (_label, nodeEnv) => {
+      if (await isLive()) throw new Error(`Port ${PORT} is already in use.`);
+      child = startApi(nodeEnv);
+      await waitUntil(isLive, 30_000);
 
-  it('serves a real end-to-end request through the compiled build using the test trusted-scope header', async () => {
-    const scope = {
-      kind: 'platform_operator',
-      actor: { actorId: 'openapi-test-operator', actorType: 'user' },
-      roles: ['platform_operator'],
-      correlationId: 'openapi-test-corr',
-      requestId: 'openapi-test-req',
-    };
-    const header = Buffer.from(JSON.stringify(scope)).toString('base64url');
-    const response = await fetch(`${BASE_URL}/platform/organizations?limit=1`, {
-      headers: { 'x-test-trusted-scope': header },
-    });
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { items: unknown[] };
-    expect(Array.isArray(body.items)).toBe(true);
-  });
+      const noHeader = await fetch(`${BASE_URL}/platform/organizations`);
+      expect(noHeader.status).toBe(401);
+
+      const forged = await fetch(`${BASE_URL}/platform/organizations`, {
+        headers: { 'x-test-trusted-scope': forgedScopeHeader },
+      });
+      expect(forged.status).toBe(401);
+    },
+    40_000,
+  );
 });

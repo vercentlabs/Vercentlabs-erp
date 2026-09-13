@@ -59,15 +59,32 @@ describe('company/operating-unit domain (integration, requires PostgreSQL)', () 
     adminPool = handle.pool;
     runtime = createDatabaseConnection(toRuntimeConnectionString(TEST_DATABASE_URL));
 
-    const created = await createOrganization(runtime.db, {
-      scope: operatorScope(),
-      request: {
-        tenantKey: `HOST-${randomUUID().slice(0, 8).toUpperCase()}`,
-        displayName: 'Host Org',
-      },
-      idempotencyKey: randomUUID(),
-    });
-    organizationId = created.body.id;
+    // Only the parent organization's creation is a control-plane write and
+    // needs erp_platform_admin (see
+    // database/migrations/platform/0007_harden_organizations_tenant_boundary.sql).
+    // Every company/operating-unit command below correctly stays on
+    // erp_runtime - that role's read-only, own-scope access to
+    // platform.organizations (via loadOrganizationAcceptingNewCompanies) is
+    // exactly what this file's other tests exercise.
+    const platformAdmin = createDatabaseConnection(
+      toRuntimeConnectionString(TEST_DATABASE_URL, {
+        user: 'erp_platform_admin',
+        password: 'erp_platform_admin_dev_password',
+      }),
+    );
+    try {
+      const created = await createOrganization(platformAdmin.db, {
+        scope: operatorScope(),
+        request: {
+          tenantKey: `HOST-${randomUUID().slice(0, 8).toUpperCase()}`,
+          displayName: 'Host Org',
+        },
+        idempotencyKey: randomUUID(),
+      });
+      organizationId = created.body.id;
+    } finally {
+      await platformAdmin.close();
+    }
   });
 
   afterAll(async () => {

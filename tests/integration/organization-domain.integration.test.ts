@@ -38,16 +38,27 @@ function operatorScope(overrides: Partial<PlatformOperatorScope> = {}): Platform
 
 describe('organization domain (integration, requires PostgreSQL)', () => {
   let adminPool: Pool;
-  let runtime: DatabaseConnection;
+  let platformAdmin: DatabaseConnection;
 
   beforeAll(async () => {
     const handle = await setupTestDatabase(TEST_DATABASE_URL);
     adminPool = handle.pool;
-    runtime = createDatabaseConnection(toRuntimeConnectionString(TEST_DATABASE_URL));
+    // Organization commands are control-plane writes and run via
+    // `erp_platform_admin`, not `erp_runtime` - see
+    // database/migrations/platform/0007_harden_organizations_tenant_boundary.sql.
+    // `erp_runtime` can no longer insert/update platform.organizations at
+    // all (see tenant-isolation-rls.integration.test.ts for that negative
+    // proof); this file exercises the real production wiring instead.
+    platformAdmin = createDatabaseConnection(
+      toRuntimeConnectionString(TEST_DATABASE_URL, {
+        user: 'erp_platform_admin',
+        password: 'erp_platform_admin_dev_password',
+      }),
+    );
   });
 
   afterAll(async () => {
-    await runtime.close();
+    await platformAdmin.close();
     await resetTestDatabase(adminPool, TEST_DATABASE_URL);
     await adminPool.end();
   });
@@ -56,7 +67,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     const scope = operatorScope();
     const tenantKey = `ACME-${randomUUID().slice(0, 8).toUpperCase()}`;
 
-    const result = await createOrganization(runtime.db, {
+    const result = await createOrganization(platformAdmin.db, {
       scope,
       request: { tenantKey, displayName: 'Acme Inc' },
       idempotencyKey: randomUUID(),
@@ -87,14 +98,14 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     const scope = operatorScope();
     const tenantKey = `DUPE-${randomUUID().slice(0, 8).toUpperCase()}`;
 
-    await createOrganization(runtime.db, {
+    await createOrganization(platformAdmin.db, {
       scope,
       request: { tenantKey, displayName: 'First' },
       idempotencyKey: randomUUID(),
     });
 
     await expect(
-      createOrganization(runtime.db, {
+      createOrganization(platformAdmin.db, {
         scope,
         request: { tenantKey, displayName: 'Second' },
         idempotencyKey: randomUUID(),
@@ -110,7 +121,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
   it('rejects an invalid lifecycle transition before any side effect', async () => {
     const scope = operatorScope();
-    const created = await createOrganization(runtime.db, {
+    const created = await createOrganization(platformAdmin.db, {
       scope,
       request: {
         tenantKey: `DRAFT-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -121,7 +132,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
     // DRAFT cannot be suspended - only ACTIVE can.
     await expect(
-      suspendOrganization(runtime.db, {
+      suspendOrganization(platformAdmin.db, {
         scope,
         organizationId: created.body.id,
         expectedVersion: created.body.version,
@@ -140,7 +151,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
   it('returns a typed stale-version conflict and does not record a successful effect', async () => {
     const scope = operatorScope();
-    const created = await createOrganization(runtime.db, {
+    const created = await createOrganization(platformAdmin.db, {
       scope,
       request: {
         tenantKey: `STALE-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -150,7 +161,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     });
 
     await expect(
-      activateOrganization(runtime.db, {
+      activateOrganization(platformAdmin.db, {
         scope,
         organizationId: created.body.id,
         expectedVersion: created.body.version + 1, // wrong on purpose
@@ -168,7 +179,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
   it('reports not-found for a nonexistent organization id', async () => {
     await expect(
-      activateOrganization(runtime.db, {
+      activateOrganization(platformAdmin.db, {
         scope: operatorScope(),
         organizationId: randomUUID(),
         expectedVersion: 1,
@@ -183,8 +194,8 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     const idempotencyKey = randomUUID();
     const request = { tenantKey, displayName: 'Idempotent Co' };
 
-    const first = await createOrganization(runtime.db, { scope, request, idempotencyKey });
-    const second = await createOrganization(runtime.db, { scope, request, idempotencyKey });
+    const first = await createOrganization(platformAdmin.db, { scope, request, idempotencyKey });
+    const second = await createOrganization(platformAdmin.db, { scope, request, idempotencyKey });
 
     expect(second).toEqual(first);
 
@@ -199,7 +210,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     const scope = operatorScope();
     const idempotencyKey = randomUUID();
 
-    await createOrganization(runtime.db, {
+    await createOrganization(platformAdmin.db, {
       scope,
       request: {
         tenantKey: `PAYLOAD-A-${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -209,7 +220,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     });
 
     await expect(
-      createOrganization(runtime.db, {
+      createOrganization(platformAdmin.db, {
         scope,
         request: {
           tenantKey: `PAYLOAD-B-${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -222,7 +233,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
   it('lets only one of two concurrent same-version lifecycle requests succeed', async () => {
     const scope = operatorScope();
-    const created = await createOrganization(runtime.db, {
+    const created = await createOrganization(platformAdmin.db, {
       scope,
       request: {
         tenantKey: `RACE-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -232,13 +243,13 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     });
 
     const results = await Promise.allSettled([
-      activateOrganization(runtime.db, {
+      activateOrganization(platformAdmin.db, {
         scope,
         organizationId: created.body.id,
         expectedVersion: created.body.version,
         idempotencyKey: randomUUID(),
       }),
-      activateOrganization(runtime.db, {
+      activateOrganization(platformAdmin.db, {
         scope,
         organizationId: created.body.id,
         expectedVersion: created.body.version,
@@ -267,8 +278,8 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
     const request = { tenantKey, displayName: 'Concurrent Co' };
 
     const results = await Promise.allSettled([
-      createOrganization(runtime.db, { scope, request, idempotencyKey }),
-      createOrganization(runtime.db, { scope, request, idempotencyKey }),
+      createOrganization(platformAdmin.db, { scope, request, idempotencyKey }),
+      createOrganization(platformAdmin.db, { scope, request, idempotencyKey }),
     ]);
 
     const outcomes = results.map((r) =>
@@ -296,7 +307,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
   it('closure preserves the row - no physical delete path exists', async () => {
     const scope = operatorScope();
-    const created = await createOrganization(runtime.db, {
+    const created = await createOrganization(platformAdmin.db, {
       scope,
       request: {
         tenantKey: `CLOSE-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -305,7 +316,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
       idempotencyKey: randomUUID(),
     });
 
-    const closed = await closeOrganization(runtime.db, {
+    const closed = await closeOrganization(platformAdmin.db, {
       scope,
       organizationId: created.body.id,
       expectedVersion: created.body.version,
@@ -325,7 +336,7 @@ describe('organization domain (integration, requires PostgreSQL)', () => {
 
     // CLOSED is terminal.
     await expect(
-      activateOrganization(runtime.db, {
+      activateOrganization(platformAdmin.db, {
         scope,
         organizationId: created.body.id,
         expectedVersion: closed.body.version,

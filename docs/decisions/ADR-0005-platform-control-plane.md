@@ -36,11 +36,17 @@ API shaped correctly now, not retrofitted once SP004-SP010 lands.
 - Future SP004-SP010 work grants `platform_operator` scope to some real
   identity/credential; it does not need to change any SP001-SP003 command,
   query, or controller - the seam is already the right shape.
-- `platform.organizations` deliberately has no Row-Level Security policy
-  (see [tenant-isolation.md](../security/tenant-isolation.md)) - it is
-  authorized at the application layer via `isPlatformOperatorScope`, not
-  filtered at the row level, since there is no `organization_id` to filter
-  by on the tenant-boundary table itself.
+- `platform.organizations` is authorized at the application layer via
+  `isPlatformOperatorScope`, **and**, since Prompt 002A-H, at the database
+  layer via a dedicated `erp_platform_admin` role and an explicit RLS
+  policy scoped to it (see
+  [tenant-isolation.md](../security/tenant-isolation.md) and
+  [ADR-0006](ADR-0006-transaction-local-rls-context.md)). The original
+  version of this ADR said organizations had no RLS at all "by design" -
+  that turned out to be a real gap (a missed `isPlatformOperatorScope`
+  check anywhere would have exposed every organization to any caller with
+  an `erp_runtime` connection), not a deliberate simplification, and was
+  corrected.
 - `tests/architecture/platform-api-boundaries.test.ts` enforces that no code
   outside the auth boundary can fabricate a `platform_operator` (or
   `organization`) scope literal, so this separation cannot silently erode as

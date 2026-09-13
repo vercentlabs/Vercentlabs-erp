@@ -52,14 +52,28 @@ interface TrustedScopeProvider {
 }
 ```
 
-Exactly two implementations exist, and `PlatformAuthModule`
-(`apps/api/src/platform/auth/platform-auth.module.ts`) is the **only** place
-that chooses between them, based on `NODE_ENV` **at module load time**:
+Exactly two implementations exist. **`PlatformAuthModule`
+(`apps/api/src/platform/auth/platform-auth.module.ts`) registers
+`FailClosedTrustedScopeProvider` unconditionally - there is no `NODE_ENV`
+branch at all.** Every normal application startup, regardless of
+`NODE_ENV` (`production`, `development`, `test`, missing, misspelled -
+anything), gets the same fail-closed behavior:
 
-| `NODE_ENV`                    | Active provider                       | Behavior |
-|--------------------------------|----------------------------------------|----------|
-| `production`                   | `FailClosedTrustedScopeProvider`       | `resolve()` always returns `null`. |
-| anything else (`development`, `test`) | `TestTrustedScopeProvider` | Reads a `x-test-trusted-scope` header: base64url-encoded JSON, validated against `trustedScopeSchema`. Invalid/absent header → `null`. |
+| Provider | When active | Behavior |
+|---|---|---|
+| `FailClosedTrustedScopeProvider` | Always, for any normal `node dist/main.js` startup | `resolve()` always returns `null`. |
+| `TestTrustedScopeProvider` | **Only** when a test's own module composition explicitly overrides it: `Test.createTestingModule({...}).overrideProvider(TRUSTED_SCOPE_PROVIDER).useClass(TestTrustedScopeProvider)` | Reads a `x-test-trusted-scope` header: base64url-encoded JSON, validated against `trustedScopeSchema`. Invalid/absent header → `null`. |
+
+**Prompt 002A-H correction:** the table above used to have a `NODE_ENV`
+column, because an earlier version of `PlatformAuthModule` really did
+select `TestTrustedScopeProvider` whenever `NODE_ENV !== 'production'`.
+That meant a plain local `dev` run, a misconfigured staging deployment, or
+simply forgetting to set `NODE_ENV` would silently accept the test header -
+see
+[product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md](../../product/evidence/PROMPT-002A-H-TENANT-BOUNDARY.md).
+The fix removed the branch entirely rather than tightening its condition,
+so there is no environment variable anywhere that can re-enable the test
+provider by accident.
 
 `TrustedScopeGuard` (`trusted-scope.guard.ts`) is applied to every platform
 controller (`@UseGuards(TrustedScopeGuard)`). If the active provider
@@ -70,16 +84,25 @@ to the handler.
 
 ## Why this is not a security hole
 
-- `TestTrustedScopeProvider`'s constructor throws immediately if
-  `process.env.NODE_ENV === 'production'` - it is structurally impossible
-  for it to run in a production process, not just unwired by convention.
-  Verified in `apps/api/test/platform-auth.unit.test.ts`.
+- `PlatformAuthModule` never imports `TestTrustedScopeProvider` at all -
+  `tests/architecture/platform-api-boundaries.test.ts` enforces this by
+  scanning import specifiers, not just reading the current source by eye.
+  The only route to activating it is a test file's own explicit
+  `overrideProvider(...)` call, which is that test's responsibility, not
+  something an environment variable can trigger on the module's behalf.
+- `TestTrustedScopeProvider`'s constructor *also* throws immediately if
+  `process.env.NODE_ENV === 'production'`, as a second, independent layer
+  of defense in case a test ever mis-overrides the provider against a
+  production-configured environment by mistake. Verified in
+  `apps/api/test/platform-auth.unit.test.ts`.
 - There is no hardcoded admin scope, backdoor header, or universal token
   anywhere in this codebase. A request with no header, a malformed header,
   or a schema-invalid header all resolve to `null` and are rejected
   identically.
 - `apps/api/test/platform-openapi.integration.test.ts` proves the real
-  compiled build (not test-transformed source) fails closed the same way.
+  compiled build (not test-transformed source) fails closed on a forged
+  header under all of: production, development, test (without an explicit
+  override), and a missing `NODE_ENV`.
 
 ## What SP004-SP010 will replace
 
@@ -88,6 +111,8 @@ every request to a platform endpoint in a real deployment is currently
 rejected with 401, which is correct: there is no authenticated identity
 platform yet, so nothing should be let through. SP004-SP010 will add a real
 `TrustedScopeProvider` implementation (reading a session/JWT and populating
-`organizationId`/`roles` for real); `PlatformAuthModule`'s production branch
-is what that work replaces, not `apps/api`'s controllers, guards, or the
-domain layer underneath them - none of that needs to change.
+`organizationId`/`roles` for real) and change `PlatformAuthModule` to
+register it - by adding a new provider, not by resurrecting an
+environment-variable branch - alongside `FailClosedTrustedScopeProvider`
+for whatever cases still need to fail closed. None of `apps/api`'s
+controllers, guards, or the domain layer underneath them need to change.

@@ -72,7 +72,21 @@ describe('platform API (integration, requires PostgreSQL)', () => {
     // env vars above are set - a static top-of-file import would capture
     // whatever DATABASE_URL was set before this file's env overrides ran.
     const { AppModule } = await import('../src/app.module.js');
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const { TRUSTED_SCOPE_PROVIDER } = await import('../src/platform/auth/trusted-scope.port.js');
+    const { TestTrustedScopeProvider } = await import(
+      '../src/platform/auth/test-trusted-scope.provider.js'
+    );
+
+    // PlatformAuthModule always registers FailClosedTrustedScopeProvider
+    // (see Prompt 002A-H) - this test's own module composition is the
+    // explicit override that activates the test-only header-driven adapter,
+    // exactly the "tests override the provider through the test
+    // application/module composition" model that replaced the old
+    // NODE_ENV-driven selection.
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(TRUSTED_SCOPE_PROVIDER)
+      .useClass(TestTrustedScopeProvider)
+      .compile();
     app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
     app.setGlobalPrefix('api/v1');
     await app.init();

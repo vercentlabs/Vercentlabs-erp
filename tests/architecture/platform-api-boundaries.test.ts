@@ -92,14 +92,19 @@ describe('trusted-scope construction is confined to the platform auth boundary',
     expect(violations).toEqual([]);
   });
 
-  it('TestTrustedScopeProvider is only referenced from the platform auth module and test files', () => {
+  it('TestTrustedScopeProvider is never imported from any non-test file in apps/api/src, including platform-auth.module.ts', () => {
+    // Prompt 002A-H hardening: an earlier version of platform-auth.module.ts
+    // conditionally imported and registered TestTrustedScopeProvider
+    // whenever NODE_ENV !== 'production', which meant a plain local `dev`
+    // run (or a misconfigured staging deployment, or simply forgetting to
+    // set NODE_ENV) would silently accept the test-only header. The fix
+    // removed that reference entirely - the ONLY files allowed to import
+    // this class now are its own definition file and test files, which
+    // activate it exclusively via an explicit
+    // `Test.createTestingModule(...).overrideProvider(...)` call.
     const violations: string[] = [];
     for (const file of listSourceFiles(path.join(REPO_ROOT, 'apps/api/src'))) {
-      if (
-        file.endsWith('platform-auth.module.ts') ||
-        file.endsWith('test-trusted-scope.provider.ts')
-      )
-        continue;
+      if (file.endsWith('test-trusted-scope.provider.ts')) continue;
       for (const specifier of extractImportSpecifiers(file)) {
         if (specifier.includes('test-trusted-scope.provider')) {
           violations.push(
@@ -109,5 +114,46 @@ describe('trusted-scope construction is confined to the platform auth boundary',
       }
     }
     expect(violations).toEqual([]);
+  });
+
+  it('platform-auth.module.ts always registers FailClosedTrustedScopeProvider as a static useClass, never a conditional expression', () => {
+    const source = readFileSync(
+      path.join(REPO_ROOT, 'apps/api/src/platform/auth/platform-auth.module.ts'),
+      'utf8',
+    );
+    expect(source).toContain('useClass: FailClosedTrustedScopeProvider');
+    expect(source).not.toMatch(/process\.env(\.|\[)['"]?NODE_ENV/);
+  });
+});
+
+describe('the platform-administration database connection is confined to organization control-plane code', () => {
+  it('only OrganizationsController injects PLATFORM_ADMIN_DB', () => {
+    const violations: string[] = [];
+    for (const file of CONTROLLER_FILES) {
+      const isOrganizationsController = file.endsWith('organizations.controller.ts');
+      const content = readFileSync(file, 'utf8');
+      const referencesAdminDb = content.includes('PLATFORM_ADMIN_DB');
+      if (referencesAdminDb && !isOrganizationsController) {
+        violations.push(`${path.relative(REPO_ROOT, file)} references PLATFORM_ADMIN_DB`);
+      }
+      if (isOrganizationsController && !referencesAdminDb) {
+        violations.push(`${path.relative(REPO_ROOT, file)} does not use PLATFORM_ADMIN_DB`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('the choice of PLATFORM_ADMIN_DB vs PLATFORM_DB is never derived from request data (no header/cookie/query lookup near the token)', () => {
+    // Structural proxy for "never chosen by client-supplied data": the
+    // token is injected via a plain constructor @Inject(...), a compile-time
+    // decision, not read from `request.headers`/`request.cookies`/`request.query`/`request.body`
+    // anywhere in the controller that uses it.
+    const organizationsController = CONTROLLER_FILES.find((file) =>
+      file.endsWith('organizations.controller.ts'),
+    );
+    expect(organizationsController).toBeDefined();
+    const content = readFileSync(organizationsController as string, 'utf8');
+    expect(content).toMatch(/@Inject\(PLATFORM_ADMIN_DB\)/);
+    expect(content).not.toMatch(/request\.(headers|cookies|query|body)\s*\[.*(admin|platform)/i);
   });
 });
