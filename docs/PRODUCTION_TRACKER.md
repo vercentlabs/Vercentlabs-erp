@@ -22,6 +22,21 @@ A feature counts as done when, for its dossier's requirements:
 
 ## CRM (module 1/12): production-ready — gap-closing pass complete (2026-09-06)
 
+**2026-09-14 addendum:** the standing "no live E2E" gap noted below is now
+closed — `test:e2e:crm` runs end-to-end against a real database and real
+browser. Doing so for the first time found and fixed two real, previously
+undetected production bugs invisible to CRM's fake-DB-client unit-test
+convention: (1) a live concurrency bug (concurrent `client.query()` on one
+shared `PoolClient`, reproduced as a Postgres `08P01` protocol violation)
+across 22 call sites in the CRM module, and (2) a deterministic bug where 8
+of 14 `getCrmReport()` report types always fail against a real database
+(parameter-count mismatch). Full detail, root-cause evidence, and remaining
+follow-ups in `docs/ERP_COMPLETION_EXECUTION_TRACKER.md`. Does not change
+CRM's PASS verdicts below — these were infrastructure/reliability bugs
+outside what the atomic-requirement trace covers, not defects in the
+traced business logic — but is exactly the kind of gap the "no live E2E"
+caveat was flagging.
+
 All 30 features fully traced; every real, reasonably-scoped gap the trace found is fixed (17 fixes, each with its own migration where needed, real regression tests, and clean `tsc`/`eslint`/`verify:db`/`verify:architecture`). The items left in "Real but scoped gaps" below are deliberately **not** fixed — they are multi-day feature additions (new entities, a notification-delivery subsystem, an import-engine redesign, forecast-backtesting analytics), not gaps in what CRM already claims to do; closing them is new scope, decided against for now in favor of moving to the next module. Standing E2E/UAT/load-testing gaps remain, as noted below — these need a human, not more code.
 
 All 30 features (F001-F030) traced against `SUBREQUIREMENT_REGISTER.csv` with cited code evidence — see `docs/03-modules/crm/features/F0##-AUDIT.md` for each. Consolidated gap list for the gap-closing pass:

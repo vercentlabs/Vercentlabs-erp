@@ -244,6 +244,18 @@ fixture org's mobile login**, not a product defect. It will clear on its
 own once the rate-limit window elapses; re-run `test:e2e:crm` fresh (ideally
 not immediately after another full run) to get a clean 45/45.
 
+**Then ran the full comprehensive `pnpm verify:erp` gate one final time,
+clean, after every fix above (and after the diagnostic instrumentation was
+fully removed from `apps/web/src/core/db.ts` — confirmed `git diff` on that
+file is empty): PASS, exit 0.** Same full breakdown as the earlier baseline
+(toolchain/T01/experience/architecture/doc-links/DB-structure static
+checks, `typecheck:web`, `lint:web` 0 problems, `test:web` 719/719,
+`verify:routes`, `typecheck:mobile`/`lint:mobile`, `verify:worker`,
+`test:sdk` 14/14, `test:packages` 138/138, `test:integration` 1/1,
+`test:security` 4/4, `test:enterprise-rbac` 11/11) — all still green after
+all 22 files' worth of fixes in this session. All 5 commits for this
+session's work are in `git log` on `main`.
+
 **A separate, unrelated real bug also surfaced during this investigation,
 NOT yet root-caused or fixed:** `error: column record.created_at does not
 exist` (Postgres `42703`), logged as an **unhandled promise rejection**
