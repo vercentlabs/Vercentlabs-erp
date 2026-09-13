@@ -1,0 +1,139 @@
+name: ERP CI
+
+# Comprehensive gate for the authenticated ERP product (web + API + worker +
+# shared packages + cross-module contracts) — distinct from landing-ci.yml
+# (public marketing site) and crm-ci.yml (CRM-path-scoped fast gate). This
+# workflow is what a green check on a PR touching the ERP should actually
+# mean: every one of these commands ran and passed, not just that the CRM
+# subset or the landing site built.
+#
+# Deliberately excluded here (kept in a separate manual/nightly workflow
+# instead, per the standing instruction not to put the whole expensive
+# browser/perf suite on every PR): Playwright browser E2E
+# (test:e2e:erp/test:e2e:crm), load/performance testing.
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "apps/mobile/**"
+      - "services/api/**"
+      - "services/worker/**"
+      - "packages/**"
+      - "database/**"
+      - "tests/integration/**"
+      - "tests/security/**"
+      - "scripts/**"
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - ".github/workflows/erp-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "apps/mobile/**"
+      - "services/api/**"
+      - "services/worker/**"
+      - "packages/**"
+      - "database/**"
+      - "tests/integration/**"
+      - "tests/security/**"
+      - "scripts/**"
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - ".github/workflows/erp-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: erp-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  erp-verification:
+    name: Toolchain, architecture, DB structure, web/API/worker/package/SDK tests, integration, security, RBAC, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must run before actions/setup-node@v4 — cache: pnpm needs `pnpm`
+      # resolvable on PATH to key its cache, which fails ("Unable to locate
+      # executable file: pnpm") unless corepack has already shimmed it in.
+      # See landing-ci.yml's and crm-ci.yml's identical comment.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Activate repository pnpm
+        run: corepack prepare pnpm@11.21.0 --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Toolchain verification
+        run: pnpm verify:toolchain
+
+      - name: Shared-platform (T01) verification
+        run: pnpm verify:t01
+
+      - name: Experience Kernel convergence verification
+        run: pnpm verify:experience
+
+      - name: Architecture + documentation link verification
+        run: pnpm verify:architecture
+
+      - name: Database structure verification
+        run: pnpm verify:db
+
+      - name: Web typecheck
+        run: pnpm typecheck:web
+
+      - name: Web lint
+        run: pnpm lint:web
+
+      - name: Web tests
+        run: pnpm test:web
+
+      - name: Route contract verification
+        run: pnpm verify:routes
+
+      - name: Mobile typecheck + lint
+        run: pnpm verify:mobile
+
+      - name: API tests
+        run: pnpm test:api
+
+      - name: Worker tests + structure verification
+        run: pnpm verify:worker
+
+      - name: Shared package tests
+        run: pnpm test:packages
+
+      - name: Shared SDK tests
+        run: pnpm test:sdk
+
+      - name: Cross-module integration tests
+        run: pnpm test:integration
+
+      - name: Security-negative tests
+        run: pnpm test:security
+
+      - name: Enterprise RBAC tests
+        run: pnpm test:enterprise-rbac
+
+      - name: Production ERP web build
+        run: pnpm build:web
+
+      - name: Dependency audit
+        run: pnpm audit:dependencies

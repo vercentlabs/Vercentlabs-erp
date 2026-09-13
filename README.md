@@ -76,6 +76,17 @@ pnpm dev:worker
 
 ERP web runs on `http://localhost:3001` by default.
 
+## Build commands
+
+The root `pnpm build` is a Hostinger deployment compatibility alias — it
+only builds `apps/landing` (the public marketing site `server.js` serves).
+It is **not** an ERP build; do not treat a green `pnpm build` as evidence
+the ERP product builds. Use the explicit names instead:
+
+- `pnpm build:landing` — landing site only
+- `pnpm build:erp` (= `pnpm build:web`) — the authenticated ERP web app
+- `pnpm build:all` — landing + ERP web
+
 ## ERP verification
 
 ```bash
@@ -91,6 +102,12 @@ pnpm test:integration
 pnpm test:security
 pnpm build:web
 ```
+
+`pnpm verify:erp` runs the full ERP gate (toolchain, architecture, docs,
+database, web typecheck/lint/tests, API/SDK/worker/package/integration/
+security/enterprise-RBAC tests, and the ERP web production build) in one
+command. `pnpm verify:release` additionally includes the landing site's
+own lint/typecheck/build/tests and a dependency audit.
 
 ## Development rule
 

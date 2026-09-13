@@ -42,14 +42,22 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      # Must run before actions/setup-node@v4: that action's `cache: pnpm`
+      # needs `pnpm` resolvable on PATH to key its cache, which fails
+      # ("Unable to locate executable file: pnpm") unless corepack has
+      # already shimmed it in. See landing-ci.yml's identical comment.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Activate repository pnpm
+        run: corepack prepare pnpm@11.21.0 --activate
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: "pnpm"
-      - name: Enable Corepack
-        run: corepack enable
-      - name: Activate repository pnpm
-        run: corepack prepare pnpm@11.21.0 --activate
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify CRM
