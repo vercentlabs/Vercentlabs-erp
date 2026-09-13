@@ -206,13 +206,28 @@ export async function getCrmReport(client, context, report, filters = {}) {
   else if (report === "ai-governance")
     sql = `SELECT prediction.prediction_type, prediction.model_provider, prediction.model_name, count(*)::int AS predictions, round(avg(prediction.score),4) AS average_score, count(feedback.id)::int AS feedback_events, count(feedback.id) FILTER (WHERE feedback.outcome IN ('accepted','correct'))::int AS positive_feedback, count(feedback.id) FILTER (WHERE feedback.outcome IN ('rejected','incorrect','not_actionable'))::int AS negative_feedback FROM tenant.crm_ai_predictions prediction LEFT JOIN tenant.crm_ai_feedback feedback ON feedback.organization_id = prediction.organization_id AND feedback.prediction_id = prediction.id WHERE prediction.organization_id = $1 ${dateClause("prediction.generated_at")} AND ${companyVisible("prediction")} GROUP BY prediction.prediction_type, prediction.model_provider, prediction.model_name ORDER BY predictions DESC`;
   else throw new CrmError(404, "Unknown CRM report.");
+  // All 8 elements of `parameters` are bound on every call regardless of
+  // report type, but only report branches that call ownerVisible() ($7/$8)
+  // reference $7/$8 in their own SQL — Postgres infers the required bind
+  // count from the highest $n it finds in the final query text, so a report
+  // branch that never touches $7/$8 would deterministically fail with
+  // "bind message supplies 8 parameters, but prepared statement "" requires
+  // 6" (reproduced live: account-health/privacy/pipeline-intelligence/
+  // engagement-intelligence/relationship-coverage/partner-pipeline/
+  // ai-governance/campaigns all hit this on every single call against a
+  // real database — no fake-DB-client unit test caught it since none
+  // enforce real Postgres bind-count validation). Referencing $7/$8 here
+  // unconditionally guarantees every report's final query always
+  // references all 8 placeholders, matching what's always bound.
   const scopeParametersCte = `crm_scope_parameters AS (
     SELECT $1::uuid AS organization_id,
       $2::uuid AS active_company_id,
       $3::uuid AS active_branch_id,
       $4::boolean AS allow_all_companies,
       $5::date AS date_from,
-      $6::date AS date_to
+      $6::date AS date_to,
+      $7::boolean AS can_view_all_records,
+      $8::uuid AS active_user_id
   )`;
   sql = /^\s*WITH\s+/i.test(sql)
     ? sql.replace(/^\s*WITH\s+/i, `WITH ${scopeParametersCte}, `)
