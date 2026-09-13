@@ -102,14 +102,17 @@ export async function createProcurementSubcontractOrder(client,c,input={}){
 export async function listProcurementPass1Options(client,c){
   need(c,"procurement.view");
   const values=[c.organizationId];const scope=companyWhere(c,values,"record");
-  const [suppliers,orders,receipts,items,warehouses,sourcingEvents,uoms]=await Promise.all([
-    client.query(`SELECT record.id,COALESCE(record.data->>'displayName',record.data->>'legalName',record.data->>'supplierCode',record.id::text) AS label,record.status FROM tenant.procurement_suppliers record WHERE record.organization_id=$1${scope} AND record.status NOT IN ('archived','rejected') ORDER BY record.updated_at DESC LIMIT 100`,values),
-    client.query(`SELECT record.id,COALESCE(record.data->>'purchaseOrderNumber',record.data->>'poNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values),
-    client.query(`SELECT record.id,COALESCE(record.data->>'receiptNumber',record.data->>'grnNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_receipts record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values),
-    client.query(`SELECT id,code,name FROM tenant.items WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 200`,[c.organizationId,c.activeCompanyId]),
-    client.query(`SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND ($2::uuid IS NULL OR company_id=$2) ORDER BY name LIMIT 100`,[c.organizationId,c.activeCompanyId]),
-    client.query(`SELECT record.id,COALESCE(record.data->>'eventNumber',record.data->>'title',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values),
-    client.query(`SELECT id,code,name FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 200`,[c.organizationId]),
-  ]);
+  // Sequential, not Promise.all — concurrent client.query() on one shared
+  // PoolClient can interleave extended-query protocol messages (observed
+  // live in CRM as Postgres 08P01 "bind message supplies N parameters...");
+  // see services/api/src/modules/crm/opportunity-and-pipeline-governance/
+  // opportunity-revenue-intelligence.js's fix for the full explanation.
+  const suppliers=await client.query(`SELECT record.id,COALESCE(record.data->>'displayName',record.data->>'legalName',record.data->>'supplierCode',record.id::text) AS label,record.status FROM tenant.procurement_suppliers record WHERE record.organization_id=$1${scope} AND record.status NOT IN ('archived','rejected') ORDER BY record.updated_at DESC LIMIT 100`,values);
+  const orders=await client.query(`SELECT record.id,COALESCE(record.data->>'purchaseOrderNumber',record.data->>'poNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
+  const receipts=await client.query(`SELECT record.id,COALESCE(record.data->>'receiptNumber',record.data->>'grnNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_receipts record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
+  const items=await client.query(`SELECT id,code,name FROM tenant.items WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 200`,[c.organizationId,c.activeCompanyId]);
+  const warehouses=await client.query(`SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND ($2::uuid IS NULL OR company_id=$2) ORDER BY name LIMIT 100`,[c.organizationId,c.activeCompanyId]);
+  const sourcingEvents=await client.query(`SELECT record.id,COALESCE(record.data->>'eventNumber',record.data->>'title',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
+  const uoms=await client.query(`SELECT id,code,name FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 200`,[c.organizationId]);
   return {suppliers:suppliers.rows,purchaseOrders:orders.rows,receipts:receipts.rows,items:items.rows,warehouses:warehouses.rows,sourcingEvents:sourcingEvents.rows,uoms:uoms.rows};
 }
