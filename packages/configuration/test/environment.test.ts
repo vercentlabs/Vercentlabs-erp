@@ -5,8 +5,18 @@ import { loadWebEnv } from '../src/web-env.js';
 import { loadWorkerEnv } from '../src/worker-env.js';
 
 describe('loadApiEnv', () => {
+  // SP004-SP007 (Prompt 002B): TOTP_ENCRYPTION_KEYS/CURRENT_KEY_VERSION
+  // deliberately have no dev default (fail closed, no default key - see
+  // docs/decisions/ADR-0011-argon2id-password-storage.md), so every fixture
+  // below must supply them explicitly, exactly like DATABASE_URL/REDIS_URL
+  // already had to be supplied in production.
+  const totpEnv = {
+    TOTP_ENCRYPTION_KEYS: JSON.stringify({ 1: Buffer.alloc(32, 1).toString('base64') }),
+    TOTP_ENCRYPTION_CURRENT_KEY_VERSION: '1',
+  };
+
   it('applies safe development defaults when NODE_ENV is development', () => {
-    const env = loadApiEnv({ NODE_ENV: 'development' });
+    const env = loadApiEnv({ NODE_ENV: 'development', ...totpEnv });
     expect(env.DATABASE_URL).toContain('postgres://');
     expect(env.API_CORS_ORIGINS).toBe('http://localhost:3000');
   });
@@ -21,6 +31,9 @@ describe('loadApiEnv', () => {
       API_CORS_ORIGINS: 'https://app.vercentlabs.example',
       DATABASE_URL: 'postgres://prod-host/db',
       REDIS_URL: 'redis://prod-host:6379',
+      WEBAUTHN_RP_ID: 'app.vercentlabs.example',
+      WEBAUTHN_EXPECTED_ORIGIN: 'https://app.vercentlabs.example',
+      ...totpEnv,
     });
     expect(env.NODE_ENV).toBe('production');
   });

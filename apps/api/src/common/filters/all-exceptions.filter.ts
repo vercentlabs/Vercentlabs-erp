@@ -8,11 +8,15 @@ import {
   type ErrorDetail,
 } from '@vercentlabs/contracts';
 import {
+  AuthenticationFailedError,
   DomainForbiddenError,
   DomainNotFoundError,
   DomainValidationError,
+  InvalidOrExpiredTokenError,
+  RateLimitedError,
   StaleVersionConflictError,
   StateTransitionConflictError,
+  StepUpRequiredError,
 } from '@vercentlabs/contracts';
 import { IdempotencyInProgressError, IdempotencyPayloadConflictError } from '@vercentlabs/database';
 import type { Logger } from '@vercentlabs/observability';
@@ -45,9 +49,15 @@ function extractMessage(exception: HttpException): string {
  * HTTP. Returns undefined for anything that isn't one of these, so the
  * caller can fall back to generic HttpException/500 handling.
  */
-function mapDomainError(
-  exception: unknown,
-): { status: number; code: ErrorCode; message: string } | undefined {
+interface DomainErrorMapping {
+  status: number;
+  code: ErrorCode;
+  message: string;
+  meta?: Record<string, unknown>;
+  retryAfterSeconds?: number;
+}
+
+function mapDomainError(exception: unknown): DomainErrorMapping | undefined {
   if (exception instanceof DomainValidationError) {
     return { status: HttpStatus.BAD_REQUEST, code: 'VALIDATION_ERROR', message: exception.message };
   }
@@ -79,6 +89,29 @@ function mapDomainError(
       status: HttpStatus.CONFLICT,
       code: 'IDEMPOTENCY_CONFLICT',
       message: exception.message,
+    };
+  }
+  // --- SP004-SP007 identity/auth domain errors ---
+  if (exception instanceof AuthenticationFailedError) {
+    return { status: HttpStatus.UNAUTHORIZED, code: 'UNAUTHORIZED', message: exception.message };
+  }
+  if (exception instanceof InvalidOrExpiredTokenError) {
+    return { status: HttpStatus.BAD_REQUEST, code: 'VALIDATION_ERROR', message: exception.message };
+  }
+  if (exception instanceof RateLimitedError) {
+    return {
+      status: HttpStatus.TOO_MANY_REQUESTS,
+      code: 'RATE_LIMITED',
+      message: exception.message,
+      retryAfterSeconds: exception.retryAfterSeconds,
+    };
+  }
+  if (exception instanceof StepUpRequiredError) {
+    return {
+      status: HttpStatus.FORBIDDEN,
+      code: 'STEP_UP_REQUIRED',
+      message: exception.message,
+      meta: { purpose: exception.purpose, acceptableMethods: exception.acceptableMethods },
     };
   }
   return undefined;
@@ -137,6 +170,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       });
     }
 
-    reply.status(status).send(buildErrorEnvelope(code, message, { correlationId, details }));
+    if (domainMapping?.retryAfterSeconds !== undefined) {
+      reply.header('Retry-After', String(domainMapping.retryAfterSeconds));
+    }
+    reply
+      .status(status)
+      .send(
+        buildErrorEnvelope(code, message, { correlationId, details, meta: domainMapping?.meta }),
+      );
   }
 }

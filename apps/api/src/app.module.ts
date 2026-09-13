@@ -8,9 +8,10 @@ import { HealthModule } from './health/health.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { CorrelationMiddleware } from './common/middleware/correlation.middleware.js';
 import { PlatformModule } from './platform/platform.module.js';
+import { IdentityModule } from './identity/identity.module.js';
 
 @Module({
-  imports: [ObservabilityModule, ConfigModule, HealthModule, PlatformModule],
+  imports: [ObservabilityModule, ConfigModule, HealthModule, PlatformModule, IdentityModule],
   providers: [
     {
       provide: APP_FILTER,

@@ -63,6 +63,16 @@ function startApi(nodeEnv: string | undefined): ChildProcess {
       process.env['DATABASE_URL'] ??
       'postgres://vercentlabs:vercentlabs_dev_password@localhost:5442/vercentlabs_erp',
     REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
+    // SP004-SP007 (Prompt 002B): a real startup, under any NODE_ENV including
+    // production, now requires this config to boot at all -
+    // TOTP_ENCRYPTION_KEYS/CURRENT_KEY_VERSION deliberately have no dev
+    // default (fail closed, no default key - see ADR-0011), and
+    // WEBAUTHN_RP_ID/EXPECTED_ORIGIN have a dev default only outside
+    // production. This is test-only key material, never a real one.
+    TOTP_ENCRYPTION_KEYS: JSON.stringify({ 1: Buffer.alloc(32, 11).toString('base64') }),
+    TOTP_ENCRYPTION_CURRENT_KEY_VERSION: '1',
+    WEBAUTHN_RP_ID: 'localhost',
+    WEBAUTHN_EXPECTED_ORIGIN: 'http://localhost:3000',
   };
   if (nodeEnv === undefined) {
     delete env['NODE_ENV'];

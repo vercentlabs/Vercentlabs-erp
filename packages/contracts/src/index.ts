@@ -15,3 +15,8 @@ export * from './platform/organization.js';
 export * from './platform/company.js';
 export * from './platform/operating-unit.js';
 export * from './platform/domain-errors.js';
+export * from './identity/session-context.js';
+export * from './identity/user.js';
+export * from './identity/auth.js';
+export * from './identity/mfa.js';
+export * from './identity/domain-errors.js';

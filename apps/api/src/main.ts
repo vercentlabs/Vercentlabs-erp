@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import fastifyCookie from '@fastify/cookie';
 import type { ApiEnv } from '@vercentlabs/configuration';
 import type { Logger } from '@vercentlabs/observability';
 import { AppModule } from './app.module.js';
@@ -25,6 +26,10 @@ async function bootstrap(): Promise<void> {
     origin: env.API_CORS_ORIGINS.split(',').map((origin) => origin.trim()),
     credentials: true,
   });
+  // No secret/signing key: cookie values are opaque, high-entropy, hashed
+  // session tokens - Fastify's own cookie signing would be redundant, not
+  // a real security boundary, on top of that.
+  await app.register(fastifyCookie);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Vercentlabs ERP API')

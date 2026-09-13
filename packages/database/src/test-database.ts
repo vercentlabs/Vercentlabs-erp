@@ -60,4 +60,10 @@ export async function resetTestDatabase(pool: Pool, connectionString: string): P
   await pool.query('DROP SCHEMA IF EXISTS tenant CASCADE');
   await pool.query('DROP SCHEMA IF EXISTS audit CASCADE');
   await pool.query('DROP SCHEMA IF EXISTS integration CASCADE');
+  // Added in Prompt 002B (SP004-SP007): identity/auth live in their own
+  // schemas, bootstrapped by database/migrations/platform/0008-0013, so
+  // they must be dropped here too or the next setupTestDatabase call fails
+  // with "relation already exists" - the exact bug this fix corrects.
+  await pool.query('DROP SCHEMA IF EXISTS identity CASCADE');
+  await pool.query('DROP SCHEMA IF EXISTS auth CASCADE');
 }

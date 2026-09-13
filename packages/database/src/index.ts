@@ -4,6 +4,7 @@ export * from './migration-runner.js';
 export * from './migration-paths.js';
 export * from './uuid.js';
 export * from './organization-scope.js';
+export * from './user-scope.js';
 export * from './runtime-connection.js';
 export * from './idempotency-schema.js';
 export * from './idempotency.js';

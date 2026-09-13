@@ -19,7 +19,8 @@
     "@nestjs/platform-fastify": "10.4.15",
     "@nestjs/swagger": "8.1.0",
     "@fastify/static": "7.0.4",
-    "fastify": "5.2.1",
+    "@fastify/cookie": "9.4.0",
+    "fastify": "4.28.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.1",
     "pg": "8.13.1",
@@ -30,6 +31,7 @@
     "@vercentlabs/database": "workspace:*",
     "@vercentlabs/platform-tenancy": "workspace:*",
     "@vercentlabs/platform-organization": "workspace:*",
+    "@vercentlabs/platform-identity": "workspace:*",
     "drizzle-orm": "0.38.3",
     "zod": "3.24.1"
   },

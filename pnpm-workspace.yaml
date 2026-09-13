@@ -5,6 +5,9 @@ packages:
 allowBuilds:
   '@nestjs/core': true
   '@scarf/scarf': false
+  argon2: true
   esbuild: true
   msgpackr-extract: true
   sharp: false
+minimumReleaseAgeExclude:
+  - '@simplewebauthn/server@14.0.2'

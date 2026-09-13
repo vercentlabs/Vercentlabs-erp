@@ -15,6 +15,7 @@ export const errorCodeSchema = z.enum([
   'STATE_TRANSITION_CONFLICT',
   'STALE_VERSION_CONFLICT',
   'RATE_LIMITED',
+  'STEP_UP_REQUIRED',
   'INTERNAL_ERROR',
   'SERVICE_UNAVAILABLE',
 ]);
@@ -30,6 +31,7 @@ export const errorCodeToHttpStatus: Record<ErrorCode, number> = {
   STATE_TRANSITION_CONFLICT: 409,
   STALE_VERSION_CONFLICT: 409,
   RATE_LIMITED: 429,
+  STEP_UP_REQUIRED: 403,
   INTERNAL_ERROR: 500,
   SERVICE_UNAVAILABLE: 503,
 };
@@ -46,13 +48,19 @@ export interface ApiErrorEnvelope {
     message: string;
     correlationId?: string;
     details?: ErrorDetail[];
+    /** Non-secret, error-specific structured data - e.g. STEP_UP_REQUIRED's `purpose`/`acceptableMethods`. Never a token, code, or other authenticator material. */
+    meta?: Record<string, unknown>;
   };
 }
 
 export function buildErrorEnvelope(
   code: ErrorCode,
   message: string,
-  options: { correlationId?: string | undefined; details?: ErrorDetail[] | undefined } = {},
+  options: {
+    correlationId?: string | undefined;
+    details?: ErrorDetail[] | undefined;
+    meta?: Record<string, unknown> | undefined;
+  } = {},
 ): ApiErrorEnvelope {
   return {
     error: {
@@ -60,6 +68,7 @@ export function buildErrorEnvelope(
       message,
       ...(options.correlationId ? { correlationId: options.correlationId } : {}),
       ...(options.details ? { details: options.details } : {}),
+      ...(options.meta ? { meta: options.meta } : {}),
     },
   };
 }

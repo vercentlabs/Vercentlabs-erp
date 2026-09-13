@@ -41,6 +41,8 @@
     "@vercentlabs/platform-organization": "workspace:*",
     "@vercentlabs/platform-audit": "workspace:*",
     "@vercentlabs/platform-outbox": "workspace:*",
+    "@vercentlabs/platform-identity": "workspace:*",
+    "otpauth": "9.5.2",
     "drizzle-orm": "0.38.3",
     "ioredis": "5.4.2",
     "pg": "8.13.1",

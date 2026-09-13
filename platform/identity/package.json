@@ -18,9 +18,20 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "drizzle-orm": "0.38.3",
+    "argon2": "0.45.1",
+    "@simplewebauthn/server": "14.0.2",
+    "otpauth": "9.5.2",
+    "@vercentlabs/contracts": "workspace:*",
+    "@vercentlabs/database": "workspace:*",
+    "@vercentlabs/platform-audit": "workspace:*",
+    "@vercentlabs/platform-outbox": "workspace:*"
+  },
   "devDependencies": {
     "@vercentlabs/typescript-config": "workspace:*",
     "@vercentlabs/eslint-config": "workspace:*",
+    "@vercentlabs/testing": "workspace:*",
     "typescript": "5.7.3",
     "vitest": "2.1.8"
   }
