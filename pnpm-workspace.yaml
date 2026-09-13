@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+  - platform/*
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': false
+  esbuild: true
+  msgpackr-extract: true
+  sharp: false

@@ -1,0 +1,51 @@
+name: vercentlabs-erp
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: vercentlabs-erp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vercentlabs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vercentlabs_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-vercentlabs_erp}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # Postgres 18's image expects a single mount at /var/lib/postgresql
+      # (not .../data) so it can lay out data by major-version subdirectory;
+      # mounting at .../data is the pre-18 convention and fails to start.
+      - vercentlabs-erp-postgres-data:/var/lib/postgresql
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-vercentlabs} -d ${POSTGRES_DB:-vercentlabs_erp}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: vercentlabs-erp-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - vercentlabs-erp-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  vercentlabs-erp-postgres-data:
+    name: vercentlabs-erp-postgres-data
+  vercentlabs-erp-redis-data:
+    name: vercentlabs-erp-redis-data

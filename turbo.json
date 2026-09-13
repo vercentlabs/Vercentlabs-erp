@@ -1,0 +1,40 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      // Workspace packages resolve each other via package.json "types"
+      // pointing at dist/*.d.ts (needed so real `node` runtime imports also
+      // resolve to compiled output, not source) - so a dependency must be
+      // built, not just typechecked, before a consumer can typecheck.
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:integration": {
+      "dependsOn": ["build"],
+      "outputs": [],
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL",
+        "REDIS_URL",
+        "PLATFORM_DATABASE_SCHEMA",
+        "TENANT_DATABASE_SCHEMA"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

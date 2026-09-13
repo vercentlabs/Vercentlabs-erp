@@ -1,0 +1,414 @@
+# Vercentlabs ERP shared-platform capability register.
+#
+# This register is descriptive, not authoritative on its own: it cannot mark
+# itself or any capability implemented. See
+# docs/decisions/ADR-0004-evidence-based-feature-status.md. Validate with
+# `pnpm register:validate` (also part of `pnpm verify`).
+version: 1
+capabilities:
+  - id: SP001
+    title: "Organization and tenant lifecycle"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies: []
+    evidencePaths:
+      - product/evidence/SP001-organization-and-tenant-lifecycle.md
+
+  - id: SP002
+    title: "Company and legal-entity structure"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP002-company-and-legal-entity-structure.md
+
+  - id: SP003
+    title: "Branch, site and operating-unit context"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP003-branch-site-and-operating-unit-context.md
+
+  - id: SP004
+    title: "Identity and user lifecycle"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP004-identity-and-user-lifecycle.md
+
+  - id: SP005
+    title: "Authentication and credential security"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP004
+    evidencePaths:
+      - product/evidence/SP005-authentication-and-credential-security.md
+
+  - id: SP006
+    title: "Session and device security"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP004
+      - SP005
+    evidencePaths:
+      - product/evidence/SP006-session-and-device-security.md
+
+  - id: SP007
+    title: "MFA, account recovery and step-up authentication"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP005
+      - SP006
+    evidencePaths:
+      - product/evidence/SP007-mfa-account-recovery-and-step-up-authentication.md
+
+  - id: SP008
+    title: "Roles and permission model"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP004
+    evidencePaths:
+      - product/evidence/SP008-roles-and-permission-model.md
+
+  - id: SP009
+    title: "Record, field and contextual access control"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP008
+    evidencePaths:
+      - product/evidence/SP009-record-field-and-contextual-access-control.md
+
+  - id: SP010
+    title: "Module entitlements and feature access"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP008
+      - SP009
+    evidencePaths:
+      - product/evidence/SP010-module-entitlements-and-feature-access.md
+
+  - id: SP011
+    title: "Subscription billing and usage metering"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+      - SP010
+    evidencePaths:
+      - product/evidence/SP011-subscription-billing-and-usage-metering.md
+
+  - id: SP012
+    title: "Approval framework and segregation of duties"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP008
+    evidencePaths:
+      - product/evidence/SP012-approval-framework-and-segregation-of-duties.md
+
+  - id: SP013
+    title: "Workflow and automation engine"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP008
+      - SP015
+    evidencePaths:
+      - product/evidence/SP013-workflow-and-automation-engine.md
+
+  - id: SP014
+    title: "Audit trail and change history"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP004
+    evidencePaths:
+      - product/evidence/SP014-audit-trail-and-change-history.md
+
+  - id: SP015
+    title: "Domain events, transactional outbox and event delivery"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP015-domain-events-transactional-outbox-and-event-delivery.md
+
+  - id: SP016
+    title: "Background jobs, scheduling, retries and dead letters"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP015
+    evidencePaths:
+      - product/evidence/SP016-background-jobs-scheduling-retries-and-dead-letters.md
+
+  - id: SP017
+    title: "Notifications and preference centre"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP015
+      - SP016
+    evidencePaths:
+      - product/evidence/SP017-notifications-and-preference-centre.md
+
+  - id: SP018
+    title: "Email delivery and inbound-mail platform"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP016
+    evidencePaths:
+      - product/evidence/SP018-email-delivery-and-inbound-mail-platform.md
+
+  - id: SP019
+    title: "Files, attachments and document security"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+      - SP009
+    evidencePaths:
+      - product/evidence/SP019-files-attachments-and-document-security.md
+
+  - id: SP020
+    title: "Search and indexing"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP020-search-and-indexing.md
+
+  - id: SP021
+    title: "Custom fields, tags and controlled extensibility"
+    priority: P2
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+      - SP009
+    evidencePaths:
+      - product/evidence/SP021-custom-fields-tags-and-controlled-extensibility.md
+
+  - id: SP022
+    title: "Numbering sequences and reference generation"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP022-numbering-sequences-and-reference-generation.md
+
+  - id: SP023
+    title: "Import, export and bulk-data operations"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP009
+      - SP024
+    evidencePaths:
+      - product/evidence/SP023-import-export-and-bulk-data-operations.md
+
+  - id: SP024
+    title: "API platform, versioning and error contracts"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP005
+      - SP006
+    evidencePaths:
+      - product/evidence/SP024-api-platform-versioning-and-error-contracts.md
+
+  - id: SP025
+    title: "Webhooks and external-integration runtime"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP015
+      - SP024
+    evidencePaths:
+      - product/evidence/SP025-webhooks-and-external-integration-runtime.md
+
+  - id: SP026
+    title: "Configuration, effective dating and feature flags"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP010
+    evidencePaths:
+      - product/evidence/SP026-configuration-effective-dating-and-feature-flags.md
+
+  - id: SP027
+    title: "Localization, timezone, currency and UOM platform"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP001
+    evidencePaths:
+      - product/evidence/SP027-localization-timezone-currency-and-uom-platform.md
+
+  - id: SP028
+    title: "Privacy, consent, retention and data-subject controls"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP004
+      - SP019
+    evidencePaths:
+      - product/evidence/SP028-privacy-consent-retention-and-data-subject-controls.md
+
+  - id: SP029
+    title: "Security governance, secrets, keys and secure delivery"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP005
+    evidencePaths:
+      - product/evidence/SP029-security-governance-secrets-keys-and-secure-delivery.md
+
+  - id: SP030
+    title: "Observability, diagnostics and supportability"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies: []
+    evidencePaths:
+      - product/evidence/SP030-observability-diagnostics-and-supportability.md
+
+  - id: SP031
+    title: "Reporting, analytics and read-model platform"
+    priority: P1
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP009
+      - SP020
+    evidencePaths:
+      - product/evidence/SP031-reporting-analytics-and-read-model-platform.md
+
+  - id: SP032
+    title: "Accessibility and inclusive interaction"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies: []
+    evidencePaths:
+      - product/evidence/SP032-accessibility-and-inclusive-interaction.md
+
+  - id: SP033
+    title: "Experience kernel, responsive web and cross-device UX"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP024
+    evidencePaths:
+      - product/evidence/SP033-experience-kernel-responsive-web-and-cross-device-ux.md
+
+  - id: SP034
+    title: "Mobile platform, offline sync and device capabilities"
+    priority: P2
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP016
+      - SP033
+    evidencePaths:
+      - product/evidence/SP034-mobile-platform-offline-sync-and-device-capabilities.md
+
+  - id: SP035
+    title: "Reliability, backup, restore, disaster recovery and release safety"
+    priority: P0
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies: []
+    evidencePaths:
+      - product/evidence/SP035-reliability-backup-restore-disaster-recovery-and-release-safety.md
+
+  - id: SP036
+    title: "AI governance, copilot runtime and evaluation"
+    priority: P2
+    specificationStatus: SPECIFICATION_READY
+    implementationStatus: NOT_STARTED
+    productStatus: NOT_READY
+    dependencies:
+      - SP009
+      - SP030
+    evidencePaths:
+      - product/evidence/SP036-ai-governance-copilot-runtime-and-evaluation.md

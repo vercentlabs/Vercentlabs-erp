@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  NODE_ENV: test
+  DATABASE_URL: postgres://vercentlabs:vercentlabs_ci_password@localhost:5432/vercentlabs_erp
+  TEST_DATABASE_URL: postgres://vercentlabs:vercentlabs_ci_password@localhost:5432/vercentlabs_erp_test
+  REDIS_URL: redis://localhost:6379
+  API_CORS_ORIGINS: http://localhost:3000
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: vercentlabs
+          POSTGRES_PASSWORD: vercentlabs_ci_password
+          POSTGRES_DB: vercentlabs_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned Node version
+        id: node-version
+        run: echo "version=$(cat .node-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
+
+      - name: Enable corepack (pinned pnpm)
+        run: corepack enable
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Formatting check
+        run: pnpm run format:check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Unit tests
+        run: pnpm run test
+
+      - name: Architecture tests
+        run: pnpm run test:architecture
+
+      - name: Validate shared-platform register
+        run: pnpm run register:validate
+
+      - name: Build all applications and packages
+        run: pnpm run build
+
+      - name: Create the disposable test database
+        run: |
+          PGPASSWORD=vercentlabs_ci_password psql -h localhost -U vercentlabs -d vercentlabs_erp \
+            -c "CREATE DATABASE vercentlabs_erp_test;"
+
+      - name: Run migrations against the disposable database
+        run: pnpm run db:migrate
+        env:
+          DATABASE_URL: postgres://vercentlabs:vercentlabs_ci_password@localhost:5432/vercentlabs_erp_test
+
+      - name: Integration tests
+        run: pnpm run test:integration

@@ -1,0 +1,31 @@
+{
+  "name": "@vercentlabs/web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "next": "15.1.4",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@vercentlabs/api-client": "workspace:*",
+    "@vercentlabs/configuration": "workspace:*"
+  },
+  "devDependencies": {
+    "@vercentlabs/typescript-config": "workspace:*",
+    "@vercentlabs/eslint-config": "workspace:*",
+    "typescript": "5.7.3",
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2",
+    "@types/node": "22.10.5",
+    "vitest": "2.1.8"
+  }
+}
