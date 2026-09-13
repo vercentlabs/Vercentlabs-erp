@@ -1,0 +1,62 @@
+# F063 Supplier master — Atomic requirement trace
+
+Verified against `SUBREQUIREMENT_REGISTER.csv` (37 rows) by reading
+`services/api/src/modules/procurement/index.js` in full (2,380 lines,
+generic resource-CRUD engine covering all Procurement document/child
+resources including `suppliers`), `services/api/src/modules/procurement/
+pass1-operations.js`, `services/api/src/modules/procurement/governance.js`,
+`database/tenant/migrations/012_procurement_module.sql`,
+`013_procurement_enterprise_completion.sql`,
+`014_procurement_integrity_hardening.sql`, the web pages under
+`apps/web/src/app/(app)/procurement/suppliers/`, and
+`services/api/tests/field-visibility.test.mjs`.
+
+This is the first Procurement feature traced — no prior
+`docs/03-modules/procurement/audits/*` exists. Unlike CRM/Sales, Procurement
+was not reorganized into feature-named domains; it uses a single generic
+`resource` string dispatched through shared `create/update/list/get/
+transition` functions (`configFor(resource)` drives permissions, table,
+lifecycle). This trace evaluates F063 as the `suppliers` resource
+configuration and its supplier-specific carve-outs within that shared engine.
+
+| ID | Verdict | Evidence |
+|---|---|---|
+| CAP-001/FR-001/US-001 | PASS | `createProcurementRecord`/`updateProcurementRecord`/`listProcurementRecords`/`getProcurementRecord`/`transitionProcurementRecord` all dispatch on `resource="suppliers"` with a real permission gate (`procurement.suppliers.view`/`.manage`) and a real lifecycle (`draft -> submitted -> qualified -> active`, with `block`/`suspend`/`cancel` branches — `index.js:1278-1284`). Web has list/detail/create pages (`apps/web/src/app/(app)/procurement/suppliers/{page.tsx,[id],new}`). |
+| CAP-003 (module boundary) | PASS (by construction) | Suppliers are Procurement-owned (`tenant.procurement_suppliers`); no other module's code writes to this table (not independently grepped across all 11 other modules this pass, but Procurement's own code never writes cross-module private tables here). |
+| **CAP-002 (enterprise breadth) — GAP: duplicate legal entities.** | **GAP, recorded, not fixed this pass.** No duplicate-detection mechanism exists for suppliers anywhere in `procurement/index.js` or `pass1-operations.js` (the only `duplicate` hit in the module is for supplier *invoices*, a different feature). CRM has a dedicated F008 duplicate-detection capability for leads/accounts with matching rules and merge; Procurement has no equivalent for suppliers, so two suppliers with the same legal name/tax ID can be created with no warning. |
+| **CAP-002 — GAP: archive/reactivation.** | **GAP, recorded, not fixed this pass.** `pass1-operations.js`'s supplier lookup/list queries defensively exclude `status NOT IN ('archived','rejected')`, implying an `archived` state was planned, but `transitionProcurementRecord`'s `suppliers` transition table (`submit/qualify/activate/block/suspend/cancel`) has no `archive` action and no `reactivate` action for any status. A supplier can never actually reach `archived`, and a `blocked`/`suspended` supplier can only return to `active` (not through any distinct "reactivate" audit trail) via the same `activate` transition. No web UI reference to archive either (grepped `apps/web/src/app/(app)/procurement` and `apps/web/src/modules/procurement` for "archive": zero matches). |
+| CAP-002 — bank-data sensitivity | **PASS.** `SUPPLIER_SENSITIVE_FIELDS` (bank account/routing/IFSC-style fields, per the module's own comment) is enforced two ways: `applySupplierFieldVisibility` redacts them from any read unless the caller is the org owner or holds `procurement.suppliers.sensitive`; `assertSupplierSensitiveFieldsAllowed` blocks *writing* them without that same permission (`PROCUREMENT_SUPPLIER_SENSITIVE_FORBIDDEN`). Both are real server-side gates, not UI-only. Test-covered: `services/api/tests/field-visibility.test.mjs` exercises the sensitive-field redaction path with a real permission matrix (view/manage/sensitive). |
+| CAP-002 — company scope | PASS | `tenant.procurement_suppliers` carries `company_id NOT NULL`; list/get queries apply `companyWhere(context, values)` scoping consistently (`pass1-operations.js:11,105-113`). |
+| CAP-002 — preferred/blocked flags | PARTIAL | `blocked`/`suspended`/`conditional` exist as real lifecycle statuses (dashboard's `supplier-risk` report groups by exactly these — `index.js:2324,2343`). No distinct "preferred" flag/status was found; if the dossier means a supplier *tier* rather than a lifecycle status, this is unverified either way, not confirmed present. |
+| FR-002/DATA-002 (audit/lineage, immutable historical references) | PASS | Every create/update/transition calls `event(client, context, record, resource, "created"/"updated"/etc., {...})` (an audit-log write) and `outbox(...)` (durable cross-module event) in the same transaction as the state change — `index.js:1135-1140,1192+`. `content_hash`+`version` columns support optimistic concurrency and idempotent-replay detection (`ON CONFLICT DO NOTHING` + idempotency-key fallback lookup on create, `index.js:1145-1170`). |
+| VAL-001/002 | PASS (structurally) | `normalizeDocument`/server-side field validators run before every write (`index.js:485` supplier-specific validation: `legalName` required, max length enforced); `ProcurementError` carries stable HTTP status + machine code (e.g. `PROCUREMENT_SUPPLIER_SENSITIVE_FORBIDDEN`, `409` on missing idempotent record) rather than a generic 500. |
+| BR-001/BR-002 | PASS | The shared `procurement/index.js` engine is the sole authoritative path for supplier CRUD/lifecycle — no separate duplicate implementation was found in the web layer beyond thin route handlers. `content_hash`/`version` on the record row plus the audit-event trail mean a later edit doesn't silently overwrite history (each transition is its own logged event). |
+| SEC-001 (org/company/branch scope, server-authoritative) | PASS | Every list/get/create/update/transition function requires a real permission via `permission(context, ...)`/`requireAnyPermission` before touching data, and queries are consistently scoped by `organization_id` (RLS-enforced, `012_procurement_module.sql:39` forces RLS on `procurement_suppliers`) plus application-layer `company_id` scoping (`companyWhere`). Not independently negative-tested this pass (no dedicated cross-org/cross-company IDOR test for suppliers found — `field-visibility.test.mjs` covers sensitive-field redaction, not org/company isolation). |
+| SEC-002 (sensitive fields) | PASS | See CAP-002 bank-data-sensitivity row above — this is the same mechanism, test-covered. |
+| **APP-001 (approval policy) — GAP or NOT VERIFIED.** | **Real gap, not fixed this pass.** No `approval_requests` integration or maker-checker workflow was found for supplier qualification/activation — the `qualify`/`activate` transitions are gated only by a single permission (`procurement.suppliers.qualify`), not a two-person segregation-of-duties approval like Sales' quotation/order approval flow. May be an intentional design choice (supplier approval via role-gated transition rather than a formal request/approve pair) rather than a bug, but the dossier's "maker-checker" language in the shared write-operation constitution suggests this should be verified with the module owner before assuming it's fine as-is. |
+| NOTIF-001 | NOT INDEPENDENTLY VERIFIED | No supplier-specific notification dispatch found in `procurement/index.js`; the `outbox` write on every mutation could feed a notification consumer elsewhere (e.g. the worker service), but no worker handler subscribing to `procurement.suppliers.*` outbox events was found in `services/worker/src/handlers/`. Likely a real gap (parallel to CRM's own F014/F016 "no confirmed reminder-notification delivery mechanism" finding), not confirmed fixed. |
+| REP-001 | PASS | `getProcurementReport`'s `supplier-performance`/`supplier-risk` keys (`index.js:2343` area) are real, company-scoped, permission-gated aggregate queries, not placeholders. |
+| AI-001 | NOT INDEPENDENTLY VERIFIED | No AI-adjacent code found for suppliers (consistent with CRM/Sales' own "AI-001 consistently unbuilt" finding — likely a real, consistent, org-wide scope gap rather than a per-feature defect). |
+| INT-001/INT-002 | PASS (for what exists) | Idempotency-key create-path (see FR-002 row) and the `outbox` event on every mutation are the real cross-module integration primitives; no evidence of Procurement writing directly into another module's private tables for supplier data. Reversal/compensation semantics beyond the `cancel`/`block`/`suspend` transitions were not separately verified. |
+| API-001/002 | PASS (structurally) | Route handlers are thin wrappers over the domain functions above (not independently re-read line-by-line this pass, but the domain layer itself enforces auth/validation/idempotency, which the constitution requires the API layer to inherit rather than reimplement). |
+| PERF-001 | **GAP, recorded.** `listProcurementPass1Options`'s supplier picker query caps at `LIMIT 100` (fixed this session for the concurrency bug, param behavior unchanged) — bounded, good. The main `listProcurementRecords` path was not checked for pagination/`LIMIT` on this pass; flag for the gap-closing pass. |
+| OBS-001 | NOT INDEPENDENTLY VERIFIED | Not traced this pass. |
+| E2E-001/002 | **GAP.** No Procurement browser E2E exists at all (confirmed: no `erp-procurement-*.spec.ts` files under `apps/web/tests/e2e/`) — Procurement has zero live-browser evidence, unlike CRM which now has 45 real E2E tests covering exactly this kind of gap (see this session's CRM findings: two real, production-blocking bugs were only found once E2E ran for the first time). This is the single highest-leverage gap for Procurement's gap-closing pass. |
+| UAT-001/002 | PENDING HUMAN UAT | Cannot be performed by this session. |
+
+## Net assessment (2026-09-14)
+
+Supplier master's core CRUD/lifecycle/security engineering is genuinely
+solid and mirrors CRM/Sales' quality bar: real permission gates, real
+sensitive-field redaction (test-covered), real audit/idempotency/outbox
+primitives on every mutation, RLS-enforced tenant isolation. Three concrete
+gaps found this pass, none fixed (per methodology — record during trace,
+fix in a dedicated pass): (1) no duplicate-supplier detection, (2) the
+`archived`/reactivation lifecycle is referenced defensively in queries but
+has no actual transition to reach or leave it, (3) no approval/maker-checker
+workflow for qualification — gated by a single permission instead. The
+single most valuable next step for this module, based directly on what
+this session found in CRM, is standing up even minimal Procurement browser
+E2E — CRM's two real, previously-invisible production bugs (a live
+concurrency bug and a deterministic report-query bug) were only found once
+real E2E ran for the first time, and Procurement currently has none at all.
