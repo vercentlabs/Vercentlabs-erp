@@ -1,6 +1,18 @@
 # Tenant data strategy
 
-## Current state (Prompt 1)
+## Current state (as of Prompt 002A)
+
+SP001-SP003's real tenant-owned tables now exist and implement the strategy
+below concretely - see
+[organization-tenancy-model.md](organization-tenancy-model.md) for the
+entity model and [tenant-isolation.md](../security/tenant-isolation.md) for
+the RLS/least-privilege-role implementation. The "Prompt 1" section below is
+kept for history; steps 1-3 of "Planned strategy" are now done for
+`platform.companies`/`platform.operating_units`. Step 4 (`apps/worker`
+carrying persisted tenant context) and step 5 (single-deployment RLS
+strategy extended to future business-module tables) remain open.
+
+## Original state (Prompt 1)
 
 One PostgreSQL 18 deployment, with two schema boundaries already
 established: `platform` and `tenant` (see

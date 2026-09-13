@@ -2,8 +2,12 @@
 
 ## Status
 
-Accepted (strategy); implementation deferred to the prompt that builds
-SP001-SP003 and the first tenant-owned table.
+Accepted and implemented for SP001-SP003 (`platform.companies` and
+`platform.operating_units` carry RLS; `platform.organizations` does not, by
+design - see [tenant-isolation.md](../security/tenant-isolation.md) and
+[ADR-0006](ADR-0006-transaction-local-rls-context.md) for the concrete
+mechanism this ADR only committed to in principle). Extending this same
+strategy to future business-module tables remains open.
 
 ## Context
 

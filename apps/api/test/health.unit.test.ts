@@ -4,6 +4,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
+import { HealthModule } from '../src/health/health.module.js';
 
 describe('health endpoints (unit, no external services required)', () => {
   let app: NestFastifyApplication;
@@ -14,11 +15,28 @@ describe('health endpoints (unit, no external services required)', () => {
     app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
     app.setGlobalPrefix('api/v1');
 
+    // The OpenAPI document itself is built from a health-only testing module,
+    // not the full AppModule: @nestjs/swagger's parameter explorer reads
+    // `design:paramtypes` for every route parameter, and esbuild-based test
+    // transforms (vitest, tsx - see health.service.ts) do not reliably emit
+    // that metadata, unlike a real `tsc` build. Route registration itself
+    // (exercised below via `.inject()`) does not depend on this metadata, so
+    // this only narrows what the *document* describes in this unit-test
+    // tier - the full document, including every platform/* path, is verified
+    // against the real compiled build in
+    // apps/api/test/platform-openapi.integration.test.ts.
+    const healthOnlyModuleRef = await Test.createTestingModule({
+      imports: [HealthModule],
+    }).compile();
+    const healthOnlyApp = healthOnlyModuleRef.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
+    healthOnlyApp.setGlobalPrefix('api/v1');
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Vercentlabs ERP API')
       .setVersion('1.0')
       .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    const document = SwaggerModule.createDocument(healthOnlyApp, swaggerConfig);
     SwaggerModule.setup('api/v1/docs', app, document);
 
     await app.init();

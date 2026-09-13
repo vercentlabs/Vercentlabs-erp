@@ -94,21 +94,51 @@ describe('timezone validation', () => {
 });
 
 describe('trusted scope', () => {
-  it('requires an organization id and actor', () => {
+  it('accepts a well-formed organization scope', () => {
     expect(() =>
       trustedScopeSchema.parse({
-        organizationId: 'org_1',
+        kind: 'organization',
+        organizationId: '00000000-0000-4000-8000-000000000001',
         actor: { actorId: 'user_1', actorType: 'user' },
         roles: ['member'],
+        correlationId: 'req-1',
+        requestId: 'req-1',
       }),
     ).not.toThrow();
   });
 
-  it('rejects a scope missing organizationId', () => {
+  it('accepts a well-formed platform-operator scope without an organizationId', () => {
     expect(() =>
       trustedScopeSchema.parse({
+        kind: 'platform_operator',
+        actor: { actorId: 'operator_1', actorType: 'user' },
+        roles: ['platform_operator'],
+        correlationId: 'req-2',
+        requestId: 'req-2',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects an organization scope missing organizationId', () => {
+    expect(() =>
+      trustedScopeSchema.parse({
+        kind: 'organization',
         actor: { actorId: 'user_1', actorType: 'user' },
         roles: [],
+        correlationId: 'req-3',
+        requestId: 'req-3',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects an unknown kind discriminant', () => {
+    expect(() =>
+      trustedScopeSchema.parse({
+        kind: 'anonymous',
+        actor: { actorId: 'user_1', actorType: 'user' },
+        roles: [],
+        correlationId: 'req-4',
+        requestId: 'req-4',
       }),
     ).toThrow();
   });

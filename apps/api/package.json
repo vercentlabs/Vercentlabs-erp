@@ -27,7 +27,11 @@
     "@vercentlabs/contracts": "workspace:*",
     "@vercentlabs/observability": "workspace:*",
     "@vercentlabs/configuration": "workspace:*",
-    "@vercentlabs/database": "workspace:*"
+    "@vercentlabs/database": "workspace:*",
+    "@vercentlabs/platform-tenancy": "workspace:*",
+    "@vercentlabs/platform-organization": "workspace:*",
+    "drizzle-orm": "0.38.3",
+    "zod": "3.24.1"
   },
   "devDependencies": {
     "@vercentlabs/typescript-config": "workspace:*",

@@ -38,12 +38,27 @@ importers:
       '@vercentlabs/observability':
         specifier: workspace:*
         version: link:packages/observability
+      '@vercentlabs/platform-audit':
+        specifier: workspace:*
+        version: link:platform/audit
+      '@vercentlabs/platform-organization':
+        specifier: workspace:*
+        version: link:platform/organization
+      '@vercentlabs/platform-outbox':
+        specifier: workspace:*
+        version: link:platform/outbox
+      '@vercentlabs/platform-tenancy':
+        specifier: workspace:*
+        version: link:platform/tenancy
       '@vercentlabs/testing':
         specifier: workspace:*
         version: link:packages/testing
       '@vitest/coverage-v8':
         specifier: 2.1.8
         version: 2.1.8(supports-color@7.2.0)(vitest@2.1.8(@types/node@22.10.5)(supports-color@7.2.0))
+      drizzle-orm:
+        specifier: 0.38.3
+        version: 0.38.3(@types/pg@8.11.10)(@types/react@19.0.2)(pg@8.13.1)(react@19.0.0)
       eslint:
         specifier: 9.17.0
         version: 9.17.0(supports-color@7.2.0)
@@ -110,6 +125,15 @@ importers:
       '@vercentlabs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@vercentlabs/platform-organization':
+        specifier: workspace:*
+        version: link:../../platform/organization
+      '@vercentlabs/platform-tenancy':
+        specifier: workspace:*
+        version: link:../../platform/tenancy
+      drizzle-orm:
+        specifier: 0.38.3
+        version: 0.38.3(@types/pg@8.11.10)(@types/react@19.0.2)(pg@8.13.1)(react@19.0.0)
       fastify:
         specifier: 5.2.1
         version: 5.2.1
@@ -125,6 +149,9 @@ importers:
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
+      zod:
+        specifier: 3.24.1
+        version: 3.24.1
     devDependencies:
       '@nestjs/testing':
         specifier: 10.4.15
@@ -481,6 +508,13 @@ importers:
         version: 2.1.8(@types/node@22.10.5)(supports-color@7.2.0)
 
   platform/audit:
+    dependencies:
+      '@vercentlabs/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      drizzle-orm:
+        specifier: 0.38.3
+        version: 0.38.3(@types/pg@8.11.10)(@types/react@19.0.2)(pg@8.13.1)(react@19.0.0)
     devDependencies:
       '@vercentlabs/eslint-config':
         specifier: workspace:*
@@ -616,10 +650,32 @@ importers:
         version: 2.1.8(@types/node@22.10.5)(supports-color@7.2.0)
 
   platform/organization:
+    dependencies:
+      '@vercentlabs/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@vercentlabs/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@vercentlabs/platform-audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@vercentlabs/platform-outbox':
+        specifier: workspace:*
+        version: link:../outbox
+      '@vercentlabs/platform-tenancy':
+        specifier: workspace:*
+        version: link:../tenancy
+      drizzle-orm:
+        specifier: 0.38.3
+        version: 0.38.3(@types/pg@8.11.10)(@types/react@19.0.2)(pg@8.13.1)(react@19.0.0)
     devDependencies:
       '@vercentlabs/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@vercentlabs/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@vercentlabs/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -631,6 +687,10 @@ importers:
         version: 2.1.8(@types/node@22.10.5)(supports-color@7.2.0)
 
   platform/outbox:
+    dependencies:
+      drizzle-orm:
+        specifier: 0.38.3
+        version: 0.38.3(@types/pg@8.11.10)(@types/react@19.0.2)(pg@8.13.1)(react@19.0.0)
     devDependencies:
       '@vercentlabs/eslint-config':
         specifier: workspace:*
@@ -676,10 +736,29 @@ importers:
         version: 2.1.8(@types/node@22.10.5)(supports-color@7.2.0)
 
   platform/tenancy:
+    dependencies:
+      '@vercentlabs/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@vercentlabs/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@vercentlabs/platform-audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@vercentlabs/platform-outbox':
+        specifier: workspace:*
+        version: link:../outbox
+      drizzle-orm:
+        specifier: 0.38.3
+        version: 0.38.3(@types/pg@8.11.10)(@types/react@19.0.2)(pg@8.13.1)(react@19.0.0)
     devDependencies:
       '@vercentlabs/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@vercentlabs/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@vercentlabs/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config

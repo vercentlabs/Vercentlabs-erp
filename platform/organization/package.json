@@ -18,9 +18,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "drizzle-orm": "0.38.3",
+    "@vercentlabs/contracts": "workspace:*",
+    "@vercentlabs/database": "workspace:*",
+    "@vercentlabs/platform-audit": "workspace:*",
+    "@vercentlabs/platform-outbox": "workspace:*",
+    "@vercentlabs/platform-tenancy": "workspace:*"
+  },
   "devDependencies": {
     "@vercentlabs/typescript-config": "workspace:*",
     "@vercentlabs/eslint-config": "workspace:*",
+    "@vercentlabs/testing": "workspace:*",
     "typescript": "5.7.3",
     "vitest": "2.1.8"
   }

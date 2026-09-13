@@ -43,9 +43,21 @@ export async function setupTestDatabase(connectionString: string): Promise<TestD
   return { pool, close: () => pool.end() };
 }
 
-/** Drops and recreates the platform/tenant schemas so the next test suite starts clean. */
+/**
+ * Drops every schema a migration file can create, so the next test suite
+ * starts clean. `platform._migrations` (the bookkeeping table for every
+ * migration under database/migrations/platform, including the ones that
+ * create the `audit`/`integration` schemas) lives inside the `platform`
+ * schema - dropping `platform` without also dropping `audit`/`integration`
+ * would wipe that bookkeeping while leaving their tables behind, so a later
+ * `setupTestDatabase` call would fail replaying migrations against
+ * already-existing objects. Keep this list in sync with every schema a
+ * platform migration creates.
+ */
 export async function resetTestDatabase(pool: Pool, connectionString: string): Promise<void> {
   assertTestDatabase(connectionString);
   await pool.query('DROP SCHEMA IF EXISTS platform CASCADE');
   await pool.query('DROP SCHEMA IF EXISTS tenant CASCADE');
+  await pool.query('DROP SCHEMA IF EXISTS audit CASCADE');
+  await pool.query('DROP SCHEMA IF EXISTS integration CASCADE');
 }

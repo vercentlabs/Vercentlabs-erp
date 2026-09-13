@@ -37,11 +37,24 @@ describe('platform/tenant migration bootstrap (integration, requires PostgreSQL)
     expect(tenant.rows.map((row) => row.id)).toContain('0000_bootstrap_tenant_schema.sql');
   });
 
-  it('creates no business-module tables', async () => {
+  it('creates only bookkeeping and SP001-SP003 shared-platform foundation tables - no business-module tables', async () => {
+    // Prompt 002A legitimately adds these (SP001 organizations, SP002
+    // companies, SP003 operating_units, plus the generic idempotency_records
+    // infrastructure table) - this list must only ever grow for further
+    // shared-platform capabilities (SP004-SP036), never for a business
+    // module's own entities (e.g. invoices, products, customers).
+    const ALLOWED_PLATFORM_TABLES = new Set([
+      '_migrations',
+      'organizations',
+      'companies',
+      'operating_units',
+      'idempotency_records',
+    ]);
+
     const { rows } = await pool.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables WHERE table_schema IN ('platform', 'tenant')`,
     );
-    const nonBookkeepingTables = rows.filter((row) => row.table_name !== '_migrations');
-    expect(nonBookkeepingTables).toEqual([]);
+    const unexpectedTables = rows.filter((row) => !ALLOWED_PLATFORM_TABLES.has(row.table_name));
+    expect(unexpectedTables).toEqual([]);
   });
 });

@@ -1,7 +1,20 @@
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { Catch, HttpException, HttpStatus } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { buildErrorEnvelope, CORRELATION_HEADER, type ErrorCode } from '@vercentlabs/contracts';
+import {
+  buildErrorEnvelope,
+  CORRELATION_HEADER,
+  type ErrorCode,
+  type ErrorDetail,
+} from '@vercentlabs/contracts';
+import {
+  DomainForbiddenError,
+  DomainNotFoundError,
+  DomainValidationError,
+  StaleVersionConflictError,
+  StateTransitionConflictError,
+} from '@vercentlabs/contracts';
+import { IdempotencyInProgressError, IdempotencyPayloadConflictError } from '@vercentlabs/database';
 import type { Logger } from '@vercentlabs/observability';
 import { RawResponseException } from '../exceptions/raw-response.exception.js';
 
@@ -23,6 +36,59 @@ function extractMessage(exception: HttpException): string {
     return Array.isArray(message) ? message.join('; ') : String(message);
   }
   return exception.message;
+}
+
+/**
+ * Maps the framework-free domain error vocabulary (packages/contracts,
+ * packages/database) onto {status, code} - the seam that lets
+ * platform/tenancy and platform/organization stay entirely ignorant of
+ * HTTP. Returns undefined for anything that isn't one of these, so the
+ * caller can fall back to generic HttpException/500 handling.
+ */
+function mapDomainError(
+  exception: unknown,
+): { status: number; code: ErrorCode; message: string } | undefined {
+  if (exception instanceof DomainValidationError) {
+    return { status: HttpStatus.BAD_REQUEST, code: 'VALIDATION_ERROR', message: exception.message };
+  }
+  if (exception instanceof DomainNotFoundError) {
+    return { status: HttpStatus.NOT_FOUND, code: 'NOT_FOUND', message: exception.message };
+  }
+  if (exception instanceof DomainForbiddenError) {
+    return { status: HttpStatus.FORBIDDEN, code: 'FORBIDDEN', message: exception.message };
+  }
+  if (exception instanceof StateTransitionConflictError) {
+    return {
+      status: HttpStatus.CONFLICT,
+      code: 'STATE_TRANSITION_CONFLICT',
+      message: exception.message,
+    };
+  }
+  if (exception instanceof StaleVersionConflictError) {
+    return {
+      status: HttpStatus.CONFLICT,
+      code: 'STALE_VERSION_CONFLICT',
+      message: exception.message,
+    };
+  }
+  if (
+    exception instanceof IdempotencyPayloadConflictError ||
+    exception instanceof IdempotencyInProgressError
+  ) {
+    return {
+      status: HttpStatus.CONFLICT,
+      code: 'IDEMPOTENCY_CONFLICT',
+      message: exception.message,
+    };
+  }
+  return undefined;
+}
+
+function domainErrorDetails(exception: unknown): ErrorDetail[] | undefined {
+  if (exception instanceof DomainValidationError && exception.details) {
+    return exception.details;
+  }
+  return undefined;
 }
 
 /**
@@ -48,13 +114,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ? correlationHeader[0]
       : correlationHeader;
 
+    const domainMapping = mapDomainError(exception);
     const status =
-      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    const code: ErrorCode = STATUS_TO_CODE[status] ?? 'INTERNAL_ERROR';
+      domainMapping?.status ??
+      (exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR);
+    const code: ErrorCode = domainMapping?.code ?? STATUS_TO_CODE[status] ?? 'INTERNAL_ERROR';
     const message =
-      exception instanceof HttpException
+      domainMapping?.message ??
+      (exception instanceof HttpException
         ? extractMessage(exception)
-        : 'An unexpected error occurred.';
+        : 'An unexpected error occurred.');
+    const details = domainErrorDetails(exception);
 
     if (status >= 500) {
       this.logger.error('unhandled exception', {
@@ -65,6 +137,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       });
     }
 
-    reply.status(status).send(buildErrorEnvelope(code, message, { correlationId }));
+    reply.status(status).send(buildErrorEnvelope(code, message, { correlationId, details }));
   }
 }

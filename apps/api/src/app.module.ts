@@ -7,9 +7,10 @@ import { LOGGER } from './observability/logger.provider.js';
 import { HealthModule } from './health/health.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { CorrelationMiddleware } from './common/middleware/correlation.middleware.js';
+import { PlatformModule } from './platform/platform.module.js';
 
 @Module({
-  imports: [ObservabilityModule, ConfigModule, HealthModule],
+  imports: [ObservabilityModule, ConfigModule, HealthModule, PlatformModule],
   providers: [
     {
       provide: APP_FILTER,

@@ -7,6 +7,10 @@ export const apiEnvSchema = z.object({
   API_CORS_ORIGINS: z.string().min(1),
   CORRELATION_HEADER_NAME: z.string().min(1).default('x-correlation-id'),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres connection string'),
+  RUNTIME_DATABASE_URL: z
+    .string()
+    .regex(/^postgres(ql)?:\/\//, 'must be a postgres connection string')
+    .optional(),
   PLATFORM_DATABASE_SCHEMA: z.string().min(1).default('platform'),
   TENANT_DATABASE_SCHEMA: z.string().min(1).default('tenant'),
   REDIS_URL: z.string().regex(/^rediss?:\/\//, 'must be a redis connection string'),
