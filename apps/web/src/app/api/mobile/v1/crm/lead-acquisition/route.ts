@@ -13,13 +13,15 @@ export async function GET(request: Request) {
     const session = await requireMobileSession(request);
     requirePermissionFromSession(session, PERMISSIONS.crmView);
     const context = await crmApiContext(session);
+    // Sequential, not Promise.all — see the CRM revenue-intelligence fix for
+    // why concurrent client.query() on one shared PoolClient is unsafe.
     const [dashboard, readiness] = await tenantTransaction(
       context.organizationId,
-      async (client) =>
-        Promise.all([
-          getLeadAcquisitionDashboard(client, context),
-          getCrmLeadAcquisitionReadiness(client, context),
-        ]),
+      async (client) => {
+        const dashboardResult = await getLeadAcquisitionDashboard(client, context);
+        const readinessResult = await getCrmLeadAcquisitionReadiness(client, context);
+        return [dashboardResult, readinessResult] as const;
+      },
     );
     return mobileOk(request, {
       dashboard,

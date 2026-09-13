@@ -86,20 +86,22 @@ export async function listEligibleLeadAssignees(client, context, input = {}) {
   const where = `membership.organization_id=$1 AND membership.status='active'
     AND user_account.status='active' AND ${crmEligibleSql()} ${assigneeScopeSql(2, 3)}
     AND ($4='' OR user_account.full_name ILIKE '%'||$4||'%' OR user_account.email ILIKE '%'||$4||'%')`;
-  const [items, count] = await Promise.all([
-    client.query(
-      `SELECT user_account.id,user_account.full_name AS name,user_account.email
-         FROM public.organization_memberships membership
-         JOIN public.users user_account ON user_account.id=membership.user_id
-        WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $5 OFFSET $6`,
-      [...values, limit, offset],
-    ),
-    client.query(
-      `SELECT count(*)::int AS total FROM public.organization_memberships membership
-       JOIN public.users user_account ON user_account.id=membership.user_id WHERE ${where}`,
-      values,
-    ),
-  ]);
+  // Sequential, not Promise.all — concurrent client.query() on one shared
+  // PoolClient can interleave extended-query protocol messages (observed
+  // live as Postgres 08P01 "bind message supplies N parameters..."); see
+  // opportunity-revenue-intelligence.js's fix for the full explanation.
+  const items = await client.query(
+    `SELECT user_account.id,user_account.full_name AS name,user_account.email
+       FROM public.organization_memberships membership
+       JOIN public.users user_account ON user_account.id=membership.user_id
+      WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $5 OFFSET $6`,
+    [...values, limit, offset],
+  );
+  const count = await client.query(
+    `SELECT count(*)::int AS total FROM public.organization_memberships membership
+     JOIN public.users user_account ON user_account.id=membership.user_id WHERE ${where}`,
+    values,
+  );
   return { items: items.rows, total: Number(count.rows[0]?.total || 0), limit, offset };
 }
 

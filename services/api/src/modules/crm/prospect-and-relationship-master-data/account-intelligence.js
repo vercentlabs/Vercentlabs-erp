@@ -1476,18 +1476,18 @@ export async function executePrivacyRequest(
 }
 
 export async function getPrivacyRetentionDashboard(client, context) {
-  const [policies, runs] = await Promise.all([
-    client.query(
-      `SELECT * FROM tenant.crm_privacy_retention_policies
-       WHERE organization_id=$1 ORDER BY subject_type,name`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT * FROM tenant.crm_privacy_execution_runs
-       WHERE organization_id=$1 ORDER BY executed_at DESC LIMIT 100`,
-      [context.organizationId],
-    ),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const policies = await client.query(
+    `SELECT * FROM tenant.crm_privacy_retention_policies
+     WHERE organization_id=$1 ORDER BY subject_type,name`,
+    [context.organizationId],
+  );
+  const runs = await client.query(
+    `SELECT * FROM tenant.crm_privacy_execution_runs
+     WHERE organization_id=$1 ORDER BY executed_at DESC LIMIT 100`,
+    [context.organizationId],
+  );
   return {
     policies: policies.rows,
     runs: runs.rows,

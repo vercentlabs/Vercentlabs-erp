@@ -270,10 +270,10 @@ async function recentSnapshots(client, context) {
 
 export async function getCrmCoreAcceptanceDashboard(client, context) {
   requireViewPermission(context);
-  const [checks, snapshots] = await Promise.all([
-    latestChecks(client, context),
-    recentSnapshots(client, context),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const checks = await latestChecks(client, context);
+  const snapshots = await recentSnapshots(client, context);
   const health = evaluateCrmCoreAcceptance({ checks });
   return {
     health,

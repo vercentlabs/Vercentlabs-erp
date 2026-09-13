@@ -21,19 +21,19 @@ export default async function LeadAssignmentRulesPage() {
   const data = await tenantTransaction(
     context.organizationId,
     async (client) => {
-      const [policies, sources, territories, fallback, availability] = await Promise.all([
-        listLeadAssignmentPolicies(client, context),
-        client.query(
-          `SELECT id,name FROM tenant.crm_lead_sources WHERE organization_id=$1 AND status='active' ORDER BY is_default DESC,sort_order,name`,
-          [context.organizationId],
-        ),
-        client.query(
-          `SELECT id,name FROM tenant.crm_territories WHERE organization_id=$1 AND status='active' ORDER BY name`,
-          [context.organizationId],
-        ),
-        getLeadAssignmentFallback(client, context),
-        listLeadAssigneeAvailability(client, context),
-      ]);
+      // Sequential, not Promise.all — see the CRM revenue-intelligence fix
+      // for why concurrent client.query() on one shared PoolClient is unsafe.
+      const policies = await listLeadAssignmentPolicies(client, context);
+      const sources = await client.query(
+        `SELECT id,name FROM tenant.crm_lead_sources WHERE organization_id=$1 AND status='active' ORDER BY is_default DESC,sort_order,name`,
+        [context.organizationId],
+      );
+      const territories = await client.query(
+        `SELECT id,name FROM tenant.crm_territories WHERE organization_id=$1 AND status='active' ORDER BY name`,
+        [context.organizationId],
+      );
+      const fallback = await getLeadAssignmentFallback(client, context);
+      const availability = await listLeadAssigneeAvailability(client, context);
       // F005 Prompt 4: territory/workload modes are governed CRM-CAP-002
       // configuration — every active mode is shown, not just fixed/round_robin.
       return {

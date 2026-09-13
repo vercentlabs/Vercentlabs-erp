@@ -102,20 +102,20 @@ export async function getOpportunityTimeline(client, context, opportunityId) {
       "Opportunity not found.",
       "CRM_OPPORTUNITY_NOT_FOUND",
     );
-  const [stages, activities, forecasts] = await Promise.all([
-    client.query(
-      `SELECT id,from_stage_id,to_stage_id,probability,note,changed_at FROM tenant.crm_opportunity_stage_history WHERE organization_id=$1 AND opportunity_id=$2 ORDER BY changed_at DESC LIMIT 100`,
-      [context.organizationId, opportunityId],
-    ),
-    client.query(
-      `SELECT id,activity_type,subject,status,due_at,completed_at,created_at FROM tenant.crm_activities WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2 ORDER BY created_at DESC LIMIT 100`,
-      [context.organizationId, opportunityId],
-    ),
-    client.query(
-      `SELECT id,forecast_category,probability,amount,expected_close_date,captured_at FROM tenant.crm_opportunity_forecast_snapshots WHERE organization_id=$1 AND opportunity_id=$2 ORDER BY captured_at DESC LIMIT 50`,
-      [context.organizationId, opportunityId],
-    ),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const stages = await client.query(
+    `SELECT id,from_stage_id,to_stage_id,probability,note,changed_at FROM tenant.crm_opportunity_stage_history WHERE organization_id=$1 AND opportunity_id=$2 ORDER BY changed_at DESC LIMIT 100`,
+    [context.organizationId, opportunityId],
+  );
+  const activities = await client.query(
+    `SELECT id,activity_type,subject,status,due_at,completed_at,created_at FROM tenant.crm_activities WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2 ORDER BY created_at DESC LIMIT 100`,
+    [context.organizationId, opportunityId],
+  );
+  const forecasts = await client.query(
+    `SELECT id,forecast_category,probability,amount,expected_close_date,captured_at FROM tenant.crm_opportunity_forecast_snapshots WHERE organization_id=$1 AND opportunity_id=$2 ORDER BY captured_at DESC LIMIT 50`,
+    [context.organizationId, opportunityId],
+  );
   return {
     opportunity: opportunity.rows[0],
     health: evaluateOpportunityHealth(opportunity.rows[0]),

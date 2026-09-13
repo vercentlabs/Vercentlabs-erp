@@ -75,10 +75,10 @@ export async function mergeAccounts(
 ) {
   if (sourceId === survivorId)
     throw new CrmFoundationError(400, "Choose two different accounts.");
-  const [source, survivor] = await Promise.all([
-    lockParty(client, context, sourceId),
-    lockParty(client, context, survivorId),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const source = await lockParty(client, context, sourceId);
+  const survivor = await lockParty(client, context, survivorId);
   if (source.status !== "active" || survivor.status !== "active") {
     throw new CrmFoundationError(
       409,
@@ -172,10 +172,10 @@ export async function mergeContacts(
 ) {
   if (sourceId === survivorId)
     throw new CrmFoundationError(400, "Choose two different contacts.");
-  const [source, survivor] = await Promise.all([
-    lockContact(client, context, sourceId),
-    lockContact(client, context, survivorId),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const source = await lockContact(client, context, sourceId);
+  const survivor = await lockContact(client, context, survivorId);
   if (source.status !== "active" || survivor.status !== "active") {
     throw new CrmFoundationError(
       409,

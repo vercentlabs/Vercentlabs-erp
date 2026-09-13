@@ -25,10 +25,10 @@ export default async function SalesStagesPage({ searchParams }: { searchParams: 
     const pipelines = await listSalesStagePipelines(client, context, { status: "all" });
     const selected = pipelines.find((pipeline) => String(pipeline.id) === requestedPipelineId) || pipelines[0] || null;
     if (!selected) return { pipelines, selectedPipelineId: null, stages: [], history: [] };
-    const [stages, history] = await Promise.all([
-      listSalesStages(client, context, { pipelineId: String(selected.id), status: "all" }),
-      listSalesStageHistory(client, context, String(selected.id), 50),
-    ]);
+    // Sequential, not Promise.all — see the CRM revenue-intelligence fix for
+    // why concurrent client.query() on one shared PoolClient is unsafe.
+    const stages = await listSalesStages(client, context, { pipelineId: String(selected.id), status: "all" });
+    const history = await listSalesStageHistory(client, context, String(selected.id), 50);
     return { pipelines, selectedPipelineId: String(selected.id), stages: stages.rows, history };
   });
   return <SalesStagesWorkspace {...JSON.parse(JSON.stringify(data))} />;

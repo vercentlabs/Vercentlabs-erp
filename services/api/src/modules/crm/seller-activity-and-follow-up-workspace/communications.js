@@ -2344,44 +2344,38 @@ export async function getCommunicationTimeline(client, context, input = {}) {
 }
 
 export async function getCommunicationsDashboard(client, context) {
-  const [
-    summary,
-    inboxes,
-    threads,
-    upcoming,
-    syncAccounts,
-    suppressions,
-    signatures,
-  ] = await Promise.all([
-    client.query(
-      `SELECT count(*) FILTER (WHERE status='open')::int AS open_threads,count(*) FILTER (WHERE status='open' AND first_response_due_at<now() AND first_responded_at IS NULL)::int AS overdue_threads,count(*) FILTER (WHERE unread_count>0)::int AS unread_threads FROM tenant.crm_email_threads WHERE organization_id=$1`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT inbox.*,count(thread.id)::int AS open_threads,count(thread.id) FILTER (WHERE thread.first_response_due_at<now() AND thread.first_responded_at IS NULL)::int AS overdue_threads FROM tenant.crm_shared_inboxes inbox LEFT JOIN tenant.crm_email_threads thread ON thread.organization_id=inbox.organization_id AND thread.inbox_id=inbox.id AND thread.status='open' WHERE inbox.organization_id=$1 GROUP BY inbox.id ORDER BY inbox.name`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT thread.*,inbox.name AS inbox_name FROM tenant.crm_email_threads thread LEFT JOIN tenant.crm_shared_inboxes inbox ON inbox.organization_id=thread.organization_id AND inbox.id=thread.inbox_id WHERE thread.organization_id=$1 AND thread.status IN ('open','pending') ORDER BY CASE thread.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 ELSE 3 END,thread.first_response_due_at NULLS LAST,thread.last_message_at DESC LIMIT 50`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT booking.*,link.name AS meeting_name FROM tenant.crm_meeting_bookings booking JOIN tenant.crm_meeting_links link ON link.organization_id=booking.organization_id AND link.id=booking.meeting_link_id WHERE booking.organization_id=$1 AND booking.status='confirmed' AND booking.starts_at>=now() ORDER BY booking.starts_at LIMIT 20`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT id,provider,display_name,email_address,status,last_synced_at,last_error,webhook_expires_at FROM tenant.crm_sync_accounts WHERE organization_id=$1 ORDER BY updated_at DESC`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT count(*)::int AS active FROM tenant.crm_email_suppressions WHERE organization_id=$1 AND status='active' AND (expires_at IS NULL OR expires_at>now())`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT id,name,is_default,status FROM tenant.crm_email_signatures WHERE organization_id=$1 AND status='active' AND (user_id=$2 OR user_id IS NULL) ORDER BY is_default DESC,name`,
-      [context.organizationId, context.userId],
-    ),
-  ]);
+  // Sequential, not Promise.all — concurrent client.query() on one shared
+  // PoolClient can interleave extended-query protocol messages (observed
+  // live as Postgres 08P01 "bind message supplies N parameters..."); see
+  // opportunity-revenue-intelligence.js's fix for the full explanation.
+  const summary = await client.query(
+    `SELECT count(*) FILTER (WHERE status='open')::int AS open_threads,count(*) FILTER (WHERE status='open' AND first_response_due_at<now() AND first_responded_at IS NULL)::int AS overdue_threads,count(*) FILTER (WHERE unread_count>0)::int AS unread_threads FROM tenant.crm_email_threads WHERE organization_id=$1`,
+    [context.organizationId],
+  );
+  const inboxes = await client.query(
+    `SELECT inbox.*,count(thread.id)::int AS open_threads,count(thread.id) FILTER (WHERE thread.first_response_due_at<now() AND thread.first_responded_at IS NULL)::int AS overdue_threads FROM tenant.crm_shared_inboxes inbox LEFT JOIN tenant.crm_email_threads thread ON thread.organization_id=inbox.organization_id AND thread.inbox_id=inbox.id AND thread.status='open' WHERE inbox.organization_id=$1 GROUP BY inbox.id ORDER BY inbox.name`,
+    [context.organizationId],
+  );
+  const threads = await client.query(
+    `SELECT thread.*,inbox.name AS inbox_name FROM tenant.crm_email_threads thread LEFT JOIN tenant.crm_shared_inboxes inbox ON inbox.organization_id=thread.organization_id AND inbox.id=thread.inbox_id WHERE thread.organization_id=$1 AND thread.status IN ('open','pending') ORDER BY CASE thread.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 ELSE 3 END,thread.first_response_due_at NULLS LAST,thread.last_message_at DESC LIMIT 50`,
+    [context.organizationId],
+  );
+  const upcoming = await client.query(
+    `SELECT booking.*,link.name AS meeting_name FROM tenant.crm_meeting_bookings booking JOIN tenant.crm_meeting_links link ON link.organization_id=booking.organization_id AND link.id=booking.meeting_link_id WHERE booking.organization_id=$1 AND booking.status='confirmed' AND booking.starts_at>=now() ORDER BY booking.starts_at LIMIT 20`,
+    [context.organizationId],
+  );
+  const syncAccounts = await client.query(
+    `SELECT id,provider,display_name,email_address,status,last_synced_at,last_error,webhook_expires_at FROM tenant.crm_sync_accounts WHERE organization_id=$1 ORDER BY updated_at DESC`,
+    [context.organizationId],
+  );
+  const suppressions = await client.query(
+    `SELECT count(*)::int AS active FROM tenant.crm_email_suppressions WHERE organization_id=$1 AND status='active' AND (expires_at IS NULL OR expires_at>now())`,
+    [context.organizationId],
+  );
+  const signatures = await client.query(
+    `SELECT id,name,is_default,status FROM tenant.crm_email_signatures WHERE organization_id=$1 AND status='active' AND (user_id=$2 OR user_id IS NULL) ORDER BY is_default DESC,name`,
+    [context.organizationId, context.userId],
+  );
   return {
     summary: {
       ...summary.rows[0],

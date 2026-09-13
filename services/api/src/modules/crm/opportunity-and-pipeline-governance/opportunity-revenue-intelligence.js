@@ -791,39 +791,39 @@ export async function getOpportunityRevenueWorkspace(
   opportunityId,
 ) {
   const opportunity = await requireOpportunity(client, context, opportunityId);
-  const [items, team, plan, reviews, forecasts] = await Promise.all([
-    client.query(
-      `SELECT oi.*,COALESCE(jsonb_agg(jsonb_build_object('sequence',rs.sequence,'scheduleDate',rs.schedule_date,'amount',rs.amount,'interval',rs.recurrence_interval) ORDER BY rs.sequence) FILTER(WHERE rs.id IS NOT NULL),'[]'::jsonb) AS revenue_schedule
-         FROM tenant.crm_opportunity_items oi
-         LEFT JOIN tenant.crm_opportunity_revenue_schedules rs ON rs.organization_id=oi.organization_id AND rs.opportunity_item_id=oi.id
-        WHERE oi.organization_id=$1 AND oi.opportunity_id=$2 GROUP BY oi.id ORDER BY oi.created_at`,
-      [context.organizationId, opportunityId],
-    ),
-    client.query(
-      `SELECT tm.id,tm.user_id,tm.team_role,tm.access_level,u.full_name,
-              COALESCE(jsonb_agg(jsonb_build_object('splitType',s.split_type,'percent',s.split_percent)) FILTER(WHERE s.id IS NOT NULL),'[]'::jsonb) AS splits
-         FROM tenant.crm_opportunity_team_members tm
-         JOIN public.users u ON u.id=tm.user_id
-         LEFT JOIN tenant.crm_opportunity_revenue_splits s ON s.organization_id=tm.organization_id AND s.team_member_id=tm.id
-        WHERE tm.organization_id=$1 AND tm.opportunity_id=$2 GROUP BY tm.id,u.full_name ORDER BY u.full_name`,
-      [context.organizationId, opportunityId],
-    ),
-    client.query(
-      `SELECT p.*,COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'title',m.title,'sequence',m.sequence,'dueDate',m.due_date,'required',m.required,'status',m.status,'internalOwnerUserId',m.internal_owner_user_id,'customerOwnerName',m.customer_owner_name) ORDER BY m.sequence) FILTER(WHERE m.id IS NOT NULL),'[]'::jsonb) AS milestones
-         FROM tenant.crm_mutual_action_plans p
-         LEFT JOIN tenant.crm_mutual_action_plan_milestones m ON m.organization_id=p.organization_id AND m.plan_id=p.id
-        WHERE p.organization_id=$1 AND p.opportunity_id=$2 GROUP BY p.id`,
-      [context.organizationId, opportunityId],
-    ),
-    client.query(
-      `SELECT * FROM tenant.crm_win_loss_reviews WHERE organization_id=$1 AND opportunity_id=$2`,
-      [context.organizationId, opportunityId],
-    ),
-    client.query(
-      `SELECT * FROM tenant.crm_predictive_forecast_snapshots WHERE organization_id=$1 ORDER BY captured_at DESC LIMIT 10`,
-      [context.organizationId],
-    ),
-  ]);
+  // Sequential, not Promise.all — see getOpportunityRevenueDashboard below
+  // for why concurrent client.query() on one shared PoolClient is unsafe.
+  const items = await client.query(
+    `SELECT oi.*,COALESCE(jsonb_agg(jsonb_build_object('sequence',rs.sequence,'scheduleDate',rs.schedule_date,'amount',rs.amount,'interval',rs.recurrence_interval) ORDER BY rs.sequence) FILTER(WHERE rs.id IS NOT NULL),'[]'::jsonb) AS revenue_schedule
+       FROM tenant.crm_opportunity_items oi
+       LEFT JOIN tenant.crm_opportunity_revenue_schedules rs ON rs.organization_id=oi.organization_id AND rs.opportunity_item_id=oi.id
+      WHERE oi.organization_id=$1 AND oi.opportunity_id=$2 GROUP BY oi.id ORDER BY oi.created_at`,
+    [context.organizationId, opportunityId],
+  );
+  const team = await client.query(
+    `SELECT tm.id,tm.user_id,tm.team_role,tm.access_level,u.full_name,
+            COALESCE(jsonb_agg(jsonb_build_object('splitType',s.split_type,'percent',s.split_percent)) FILTER(WHERE s.id IS NOT NULL),'[]'::jsonb) AS splits
+       FROM tenant.crm_opportunity_team_members tm
+       JOIN public.users u ON u.id=tm.user_id
+       LEFT JOIN tenant.crm_opportunity_revenue_splits s ON s.organization_id=tm.organization_id AND s.team_member_id=tm.id
+      WHERE tm.organization_id=$1 AND tm.opportunity_id=$2 GROUP BY tm.id,u.full_name ORDER BY u.full_name`,
+    [context.organizationId, opportunityId],
+  );
+  const plan = await client.query(
+    `SELECT p.*,COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'title',m.title,'sequence',m.sequence,'dueDate',m.due_date,'required',m.required,'status',m.status,'internalOwnerUserId',m.internal_owner_user_id,'customerOwnerName',m.customer_owner_name) ORDER BY m.sequence) FILTER(WHERE m.id IS NOT NULL),'[]'::jsonb) AS milestones
+       FROM tenant.crm_mutual_action_plans p
+       LEFT JOIN tenant.crm_mutual_action_plan_milestones m ON m.organization_id=p.organization_id AND m.plan_id=p.id
+      WHERE p.organization_id=$1 AND p.opportunity_id=$2 GROUP BY p.id`,
+    [context.organizationId, opportunityId],
+  );
+  const reviews = await client.query(
+    `SELECT * FROM tenant.crm_win_loss_reviews WHERE organization_id=$1 AND opportunity_id=$2`,
+    [context.organizationId, opportunityId],
+  );
+  const forecasts = await client.query(
+    `SELECT * FROM tenant.crm_predictive_forecast_snapshots WHERE organization_id=$1 ORDER BY captured_at DESC LIMIT 10`,
+    [context.organizationId],
+  );
   const actionPlan = plan.rows[0] || null;
   return {
     opportunity,
@@ -877,45 +877,50 @@ export async function getOpportunityRevenueDashboard(client, context) {
       quotaCompanyScope = ` AND (q.company_id IS NULL OR q.company_id = $${quotaParameters.length})`;
     }
   }
-  const [summary, forecast, winLoss, quota, actionPlans] = await Promise.all([
-    client.query(
-      `SELECT count(*) FILTER(WHERE record.status='open')::int AS open_opportunities,
-              COALESCE(sum(record.amount) FILTER(WHERE record.status='open'),0)::numeric AS open_pipeline,
-              count(*) FILTER(WHERE record.status='won')::int AS won,
-              count(*) FILTER(WHERE record.status='lost')::int AS lost,
-              count(*) FILTER(WHERE record.status='open' AND record.expected_close_date<current_date)::int AS overdue
-         FROM tenant.crm_opportunities record WHERE record.organization_id=$1${recordScope(resources.opportunities, context, summaryParameters)}`,
-      summaryParameters,
-    ),
-    client.query(
-      `SELECT * FROM tenant.crm_predictive_forecast_snapshots WHERE organization_id=$1 ORDER BY captured_at DESC LIMIT 1`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT review.outcome,review.primary_reason,review.competitor_name,review.sales_cycle_days
-         FROM tenant.crm_win_loss_reviews review
-         JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=review.organization_id AND opportunity.id=review.opportunity_id
-        WHERE review.organization_id=$1${winLossOpportunityScope}
-        ORDER BY review.reviewed_at DESC LIMIT 200`,
-      winLossParameters,
-    ),
-    client.query(
-      `SELECT
-         (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS plans,
-         (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS target,
-         (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a JOIN tenant.crm_quota_plans q ON q.organization_id=a.organization_id AND q.id=a.quota_plan_id WHERE a.organization_id=$1${quotaCompanyScope}) AS allocated`,
-      quotaParameters,
-    ),
-    client.query(
-      `SELECT p.id,p.opportunity_id,p.name,p.status,p.target_close_date,count(m.id)::int AS milestones,count(m.id) FILTER(WHERE m.status='completed')::int AS completed
-         FROM tenant.crm_mutual_action_plans p
-         JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=p.organization_id AND opportunity.id=p.opportunity_id
-         LEFT JOIN tenant.crm_mutual_action_plan_milestones m ON m.organization_id=p.organization_id AND m.plan_id=p.id
-        WHERE p.organization_id=$1${actionPlanOpportunityScope}
-        GROUP BY p.id ORDER BY p.updated_at DESC LIMIT 20`,
-      actionPlanParameters,
-    ),
-  ]);
+  // Sequential, not Promise.all: these 5 reads share one PoolClient with
+  // dynamic, differing parameter counts (recordScope()/quotaCompanyScope
+  // append scope params conditionally) — firing them concurrently on a
+  // single client risks the extended-query protocol interleaving Parse/Bind
+  // across queries (observed live as "bind message supplies N parameters,
+  // but prepared statement "" requires M", Postgres error 08P01). node-pg
+  // itself deprecated concurrent client.query() for exactly this reason.
+  const summary = await client.query(
+    `SELECT count(*) FILTER(WHERE record.status='open')::int AS open_opportunities,
+            COALESCE(sum(record.amount) FILTER(WHERE record.status='open'),0)::numeric AS open_pipeline,
+            count(*) FILTER(WHERE record.status='won')::int AS won,
+            count(*) FILTER(WHERE record.status='lost')::int AS lost,
+            count(*) FILTER(WHERE record.status='open' AND record.expected_close_date<current_date)::int AS overdue
+       FROM tenant.crm_opportunities record WHERE record.organization_id=$1${recordScope(resources.opportunities, context, summaryParameters)}`,
+    summaryParameters,
+  );
+  const forecast = await client.query(
+    `SELECT * FROM tenant.crm_predictive_forecast_snapshots WHERE organization_id=$1 ORDER BY captured_at DESC LIMIT 1`,
+    [context.organizationId],
+  );
+  const winLoss = await client.query(
+    `SELECT review.outcome,review.primary_reason,review.competitor_name,review.sales_cycle_days
+       FROM tenant.crm_win_loss_reviews review
+       JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=review.organization_id AND opportunity.id=review.opportunity_id
+      WHERE review.organization_id=$1${winLossOpportunityScope}
+      ORDER BY review.reviewed_at DESC LIMIT 200`,
+    winLossParameters,
+  );
+  const quota = await client.query(
+    `SELECT
+       (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS plans,
+       (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS target,
+       (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a JOIN tenant.crm_quota_plans q ON q.organization_id=a.organization_id AND q.id=a.quota_plan_id WHERE a.organization_id=$1${quotaCompanyScope}) AS allocated`,
+    quotaParameters,
+  );
+  const actionPlans = await client.query(
+    `SELECT p.id,p.opportunity_id,p.name,p.status,p.target_close_date,count(m.id)::int AS milestones,count(m.id) FILTER(WHERE m.status='completed')::int AS completed
+       FROM tenant.crm_mutual_action_plans p
+       JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=p.organization_id AND opportunity.id=p.opportunity_id
+       LEFT JOIN tenant.crm_mutual_action_plan_milestones m ON m.organization_id=p.organization_id AND m.plan_id=p.id
+      WHERE p.organization_id=$1${actionPlanOpportunityScope}
+      GROUP BY p.id ORDER BY p.updated_at DESC LIMIT 20`,
+    actionPlanParameters,
+  );
   return {
     summary: summary.rows[0],
     latestForecast: forecast.rows[0] || null,

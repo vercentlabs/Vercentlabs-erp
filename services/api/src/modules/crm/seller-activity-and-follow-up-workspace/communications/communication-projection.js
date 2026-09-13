@@ -109,10 +109,10 @@ export async function resolveCommunicationParticipants(client, context, communic
   const rows = (participants || []).filter((entry) => entry?.email);
   if (!rows.length) return;
   const addresses = Array.from(new Set(rows.map((entry) => String(entry.email).toLowerCase())));
-  const [users, contacts] = await Promise.all([
-    client.query(`SELECT id, lower(email) AS email FROM public.users WHERE lower(email) = ANY($1::text[])`, [addresses]),
-    client.query(`SELECT id, lower(email) AS email FROM tenant.contacts WHERE organization_id=$1 AND lower(email) = ANY($2::text[])`, [context.organizationId, addresses]),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const users = await client.query(`SELECT id, lower(email) AS email FROM public.users WHERE lower(email) = ANY($1::text[])`, [addresses]);
+  const contacts = await client.query(`SELECT id, lower(email) AS email FROM tenant.contacts WHERE organization_id=$1 AND lower(email) = ANY($2::text[])`, [context.organizationId, addresses]);
   const userByEmail = new Map(users.rows.map((row) => [row.email, row.id]));
   const contactByEmail = new Map(contacts.rows.map((row) => [row.email, row.id]));
   for (const entry of rows) {

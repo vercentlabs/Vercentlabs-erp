@@ -122,16 +122,16 @@ export async function recalculateLeadScoreInternal(client, context, leadId, reas
   );
   const lead = leadResult.rows[0];
   if (!lead) return null;
-  const [rulesResult, eventsResult] = await Promise.all([
-    client.query(
-      `SELECT * FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND model_id=$2 AND status='active' ORDER BY sequence,id`,
-      [context.organizationId, model.id],
-    ),
-    client.query(
-      `SELECT * FROM tenant.crm_lead_behavior_events WHERE organization_id=$1 AND lead_id=$2 AND occurred_at>=now()-interval '5 years' ORDER BY occurred_at DESC`,
-      [context.organizationId, leadId],
-    ),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const rulesResult = await client.query(
+    `SELECT * FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND model_id=$2 AND status='active' ORDER BY sequence,id`,
+    [context.organizationId, model.id],
+  );
+  const eventsResult = await client.query(
+    `SELECT * FROM tenant.crm_lead_behavior_events WHERE organization_id=$1 AND lead_id=$2 AND occurred_at>=now()-interval '5 years' ORDER BY occurred_at DESC`,
+    [context.organizationId, leadId],
+  );
   const breakdown = calculateLeadScoreBreakdown({ lead, model, rules: rulesResult.rows, events: eventsResult.rows });
   const explanation = {
     model: { id: model.id, name: model.name, version: model.version },

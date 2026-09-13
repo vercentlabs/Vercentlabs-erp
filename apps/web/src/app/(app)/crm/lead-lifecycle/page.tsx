@@ -14,13 +14,14 @@ export default async function LeadLifecyclePage() {
   const session = await requireWorkspace();
   if (!hasPermission(session, PERMISSIONS.crmSettingsManage)) notFound();
   const context = await crmApiContext(session);
-  const [stages, transitions, reasons] = await tenantTransaction(context.organizationId, (client) =>
-    Promise.all([
-      listLeadStages(client, context, { status: "all" }),
-      listLeadStageTransitions(client, context),
-      listLeadStageTransitionReasons(client, context),
-    ]),
-  );
+  // Sequential, not Promise.all — see the CRM revenue-intelligence fix for
+  // why concurrent client.query() on one shared PoolClient is unsafe.
+  const [stages, transitions, reasons] = await tenantTransaction(context.organizationId, async (client) => {
+    const stagesResult = await listLeadStages(client, context, { status: "all" });
+    const transitionsResult = await listLeadStageTransitions(client, context);
+    const reasonsResult = await listLeadStageTransitionReasons(client, context);
+    return [stagesResult, transitionsResult, reasonsResult] as const;
+  });
   return (
     <LeadLifecycleWorkspace
       rows={JSON.parse(JSON.stringify(stages.rows))}

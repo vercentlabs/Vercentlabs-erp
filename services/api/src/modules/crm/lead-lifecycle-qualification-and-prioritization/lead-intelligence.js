@@ -441,16 +441,16 @@ export async function refreshLeadNurtureQueue(
   const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
   const leadValues = [context.organizationId];
   const leadScope = scopedLeadWhere(context, leadValues);
-  const [policiesResult, leadsResult] = await Promise.all([
-    client.query(
-      `SELECT * FROM tenant.crm_lead_nurture_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT lead.*,sla.status AS sla_status,sla.response_due_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT status,response_due_at FROM tenant.crm_lead_sla_cases c WHERE c.organization_id=lead.organization_id AND c.lead_id=lead.id ORDER BY c.created_at DESC LIMIT 1) sla ON true WHERE lead.organization_id=$1 AND lead.record_status='active'${leadScope}`,
-      leadValues,
-    ),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const policiesResult = await client.query(
+    `SELECT * FROM tenant.crm_lead_nurture_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
+    [context.organizationId],
+  );
+  const leadsResult = await client.query(
+    `SELECT lead.*,sla.status AS sla_status,sla.response_due_at FROM tenant.crm_leads lead LEFT JOIN LATERAL (SELECT status,response_due_at FROM tenant.crm_lead_sla_cases c WHERE c.organization_id=lead.organization_id AND c.lead_id=lead.id ORDER BY c.created_at DESC LIMIT 1) sla ON true WHERE lead.organization_id=$1 AND lead.record_status='active'${leadScope}`,
+    leadValues,
+  );
   let generated = 0;
   let exited = 0;
   for (const lead of leadsResult.rows) {
@@ -662,28 +662,33 @@ export async function getLeadIntelligenceDashboard(client, context) {
   const queueScope = scopedLeadWhere(context, queueValues);
   const topValues = [context.organizationId];
   const topScope = scopedLeadWhere(context, topValues);
-  const [summary, grades, sla, queue, topQueue] = await Promise.all([
-    client.query(
-      `SELECT count(*) FILTER (WHERE lead.record_status='active')::int AS active_leads,count(*) FILTER (WHERE lead.lead_grade='qualified')::int AS qualified_leads,round(avg(lead.score),2) AS average_score,count(*) FILTER (WHERE lead.score_calculated_at IS NULL)::int AS unscored_leads FROM tenant.crm_leads lead WHERE lead.organization_id=$1${summaryScope}`,
-      summaryValues,
-    ),
-    client.query(
-      `SELECT lead.lead_grade,count(*)::int AS leads FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.record_status='active'${gradeScope} GROUP BY lead.lead_grade ORDER BY CASE lead.lead_grade WHEN 'qualified' THEN 1 WHEN 'hot' THEN 2 WHEN 'warm' THEN 3 ELSE 4 END`,
-      gradeValues,
-    ),
-    client.query(
-      `SELECT sla_case.status,count(*)::int AS cases FROM tenant.crm_lead_sla_cases sla_case JOIN tenant.crm_leads lead ON lead.organization_id=sla_case.organization_id AND lead.id=sla_case.lead_id WHERE sla_case.organization_id=$1${slaScope} GROUP BY sla_case.status ORDER BY sla_case.status`,
-      slaValues,
-    ),
-    client.query(
-      `SELECT queue.status,count(*)::int AS items FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1${queueScope} GROUP BY queue.status ORDER BY queue.status`,
-      queueValues,
-    ),
-    client.query(
-      `SELECT queue.id,queue.priority_score,queue.recommended_action,queue.reason_codes,queue.due_at,queue.status,lead.id AS lead_id,lead.code,lead.full_name,lead.company_name,lead.score,lead.lead_grade,lead.owner_user_id FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1 AND queue.status IN ('active','claimed','snoozed') AND (queue.snoozed_until IS NULL OR queue.snoozed_until<=now())${topScope} ORDER BY queue.priority_score DESC,queue.due_at LIMIT 50`,
-      topValues,
-    ),
-  ]);
+  // Sequential, not Promise.all: these queries share one PoolClient with
+  // dynamic, differing parameter counts (scopedLeadWhere() conditionally
+  // appends scope params per call) — firing them concurrently risks the
+  // extended-query protocol interleaving Parse/Bind across queries
+  // (observed live as Postgres 08P01 "bind message supplies N parameters,
+  // but prepared statement "" requires M"). See
+  // opportunity-revenue-intelligence.js's identical fix.
+  const summary = await client.query(
+    `SELECT count(*) FILTER (WHERE lead.record_status='active')::int AS active_leads,count(*) FILTER (WHERE lead.lead_grade='qualified')::int AS qualified_leads,round(avg(lead.score),2) AS average_score,count(*) FILTER (WHERE lead.score_calculated_at IS NULL)::int AS unscored_leads FROM tenant.crm_leads lead WHERE lead.organization_id=$1${summaryScope}`,
+    summaryValues,
+  );
+  const grades = await client.query(
+    `SELECT lead.lead_grade,count(*)::int AS leads FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.record_status='active'${gradeScope} GROUP BY lead.lead_grade ORDER BY CASE lead.lead_grade WHEN 'qualified' THEN 1 WHEN 'hot' THEN 2 WHEN 'warm' THEN 3 ELSE 4 END`,
+    gradeValues,
+  );
+  const sla = await client.query(
+    `SELECT sla_case.status,count(*)::int AS cases FROM tenant.crm_lead_sla_cases sla_case JOIN tenant.crm_leads lead ON lead.organization_id=sla_case.organization_id AND lead.id=sla_case.lead_id WHERE sla_case.organization_id=$1${slaScope} GROUP BY sla_case.status ORDER BY sla_case.status`,
+    slaValues,
+  );
+  const queue = await client.query(
+    `SELECT queue.status,count(*)::int AS items FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1${queueScope} GROUP BY queue.status ORDER BY queue.status`,
+    queueValues,
+  );
+  const topQueue = await client.query(
+    `SELECT queue.id,queue.priority_score,queue.recommended_action,queue.reason_codes,queue.due_at,queue.status,lead.id AS lead_id,lead.code,lead.full_name,lead.company_name,lead.score,lead.lead_grade,lead.owner_user_id FROM tenant.crm_lead_nurture_queue queue JOIN tenant.crm_leads lead ON lead.organization_id=queue.organization_id AND lead.id=queue.lead_id WHERE queue.organization_id=$1 AND queue.status IN ('active','claimed','snoozed') AND (queue.snoozed_until IS NULL OR queue.snoozed_until<=now())${topScope} ORDER BY queue.priority_score DESC,queue.due_at LIMIT 50`,
+    topValues,
+  );
   return { summary: summary.rows[0], grades: grades.rows, sla: sla.rows, queue: queue.rows, topQueue: topQueue.rows };
 }
 
@@ -734,29 +739,28 @@ export async function getCrmLeadIntelligenceReadiness(
   context,
   commitSha = null,
 ) {
-  const [models, rules, slaPolicies, nurturePolicies, acceptance] =
-    await Promise.all([
-      client.query(
-        `SELECT count(*)::int AS count FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND status='active'`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT count(*)::int AS count FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND status='active'`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT count(*)::int AS count FROM tenant.crm_lead_sla_policies WHERE organization_id=$1 AND status='active'`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT count(*)::int AS count FROM tenant.crm_lead_nurture_policies WHERE organization_id=$1 AND status='active'`,
-        [context.organizationId],
-      ),
-      client.query(
-        `SELECT capability_id,status,commit_sha,recorded_at FROM tenant.crm_lead_intelligence_acceptance_runs WHERE organization_id=$1 AND ($2::text IS NULL OR commit_sha=$2) ORDER BY recorded_at DESC`,
-        [context.organizationId, commitSha],
-      ),
-    ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const models = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND status='active'`,
+    [context.organizationId],
+  );
+  const rules = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND status='active'`,
+    [context.organizationId],
+  );
+  const slaPolicies = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.crm_lead_sla_policies WHERE organization_id=$1 AND status='active'`,
+    [context.organizationId],
+  );
+  const nurturePolicies = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.crm_lead_nurture_policies WHERE organization_id=$1 AND status='active'`,
+    [context.organizationId],
+  );
+  const acceptance = await client.query(
+    `SELECT capability_id,status,commit_sha,recorded_at FROM tenant.crm_lead_intelligence_acceptance_runs WHERE organization_id=$1 AND ($2::text IS NULL OR commit_sha=$2) ORDER BY recorded_at DESC`,
+    [context.organizationId, commitSha],
+  );
   const latest = new Map();
   for (const row of acceptance.rows)
     if (!latest.has(row.capability_id)) latest.set(row.capability_id, row);

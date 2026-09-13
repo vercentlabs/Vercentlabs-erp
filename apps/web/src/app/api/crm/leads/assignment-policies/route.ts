@@ -30,14 +30,16 @@ export async function GET() {
     if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
     requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
     const context = await crmApiContext(session);
+    // Sequential, not Promise.all — see the CRM revenue-intelligence fix for
+    // why concurrent client.query() on one shared PoolClient is unsafe.
     const [policies, fallback, availability] = await tenantTransaction(
       context.organizationId,
-      (client) =>
-        Promise.all([
-          listLeadAssignmentPolicies(client, context),
-          getLeadAssignmentFallback(client, context),
-          listLeadAssigneeAvailability(client, context),
-        ]),
+      async (client) => {
+        const policiesResult = await listLeadAssignmentPolicies(client, context);
+        const fallbackResult = await getLeadAssignmentFallback(client, context);
+        const availabilityResult = await listLeadAssigneeAvailability(client, context);
+        return [policiesResult, fallbackResult, availabilityResult] as const;
+      },
     );
     // F005 Prompt 4: territory/workload modes are now governed CRM-CAP-002
     // configuration (previously write-blocked and hidden here) — every

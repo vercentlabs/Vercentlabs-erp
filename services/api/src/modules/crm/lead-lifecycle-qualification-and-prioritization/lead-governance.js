@@ -25,20 +25,20 @@ export async function getLeadConfiguration(
       "Lead record type not found.",
       "CRM_LEAD_RECORD_TYPE_NOT_FOUND",
     );
-  const [fields, layouts, policies] = await Promise.all([
-    client.query(
-      `SELECT field_key,label,data_type,storage,standard_column,help_text,placeholder,options,default_value,required,searchable,unique_value FROM tenant.crm_lead_field_definitions WHERE organization_id=$1 AND status='active' ORDER BY created_at,id`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT id,name,sections,visibility_rules,validation_rules FROM tenant.crm_lead_layouts WHERE organization_id=$1 AND record_type_id=$2 AND status='active' ORDER BY created_at LIMIT 1`,
-      [context.organizationId, rt.rows[0].id],
-    ),
-    client.query(
-      `SELECT id,name,sequence,criteria,mode,assignee_user_id,member_user_ids,territory_id FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
-      [context.organizationId],
-    ),
-  ]);
+  // Sequential, not Promise.all — see opportunity-revenue-intelligence.js's
+  // fix for why concurrent client.query() on one shared PoolClient is unsafe.
+  const fields = await client.query(
+    `SELECT field_key,label,data_type,storage,standard_column,help_text,placeholder,options,default_value,required,searchable,unique_value FROM tenant.crm_lead_field_definitions WHERE organization_id=$1 AND status='active' ORDER BY created_at,id`,
+    [context.organizationId],
+  );
+  const layouts = await client.query(
+    `SELECT id,name,sections,visibility_rules,validation_rules FROM tenant.crm_lead_layouts WHERE organization_id=$1 AND record_type_id=$2 AND status='active' ORDER BY created_at LIMIT 1`,
+    [context.organizationId, rt.rows[0].id],
+  );
+  const policies = await client.query(
+    `SELECT id,name,sequence,criteria,mode,assignee_user_id,member_user_ids,territory_id FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND status='active' ORDER BY sequence,id`,
+    [context.organizationId],
+  );
   return {
     recordType: rt.rows[0],
     fields: fields.rows,

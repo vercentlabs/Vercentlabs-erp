@@ -53,13 +53,20 @@ export default async function CrmDashboardPage() {
   if (!hasPermission(session, PERMISSIONS.crmView)) notFound();
 
   const context = await crmApiContext(session);
+  // Sequential, not Promise.all: getCrmDashboard() and listCrmRecords() each
+  // issue several of their own client.query() calls, and firing both
+  // functions concurrently on one shared PoolClient can interleave their
+  // extended-query protocol messages (observed live as "bind message
+  // supplies N parameters, but prepared statement "" requires M", Postgres
+  // 08P01) — this page is prefetched by every CRM route's persistent sidebar
+  // link, so it runs far more often than a direct visit would suggest.
   const [dashboard, recentLeads] = await tenantTransaction(
     context.organizationId,
-    (client) =>
-      Promise.all([
-        getCrmDashboard(client, context),
-        listCrmRecords(client, context, "leads", { limit: 5 }),
-      ]),
+    async (client) => {
+      const dashboardResult = await getCrmDashboard(client, context);
+      const recentLeadsResult = await listCrmRecords(client, context, "leads", { limit: 5 });
+      return [dashboardResult, recentLeadsResult] as const;
+    },
   );
   const metrics = dashboard.metrics as DashboardRow;
 
