@@ -41,6 +41,8 @@
   --color-navigation: #0B1220;
   --color-navigation-text: #FFFFFF;
   --color-navigation-muted: #B7C0D0;
+  --color-overlay-backdrop: rgb(15 23 42 / 42%);
+  --color-overlay-backdrop-strong: rgb(15 23 42 / 52%);
 
   /* Spacing (4px grid) */
   --spacing-1: 4px;

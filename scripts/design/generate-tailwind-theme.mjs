@@ -64,6 +64,8 @@ const content = `/* GENERATED from packages/design-tokens/tokens/theme.json by
   --color-navigation: ${c.navigation};
   --color-navigation-text: ${c.navigationText};
   --color-navigation-muted: ${c.navigationMuted};
+  --color-overlay-backdrop: ${theme.alpha.overlayBackdrop};
+  --color-overlay-backdrop-strong: ${theme.alpha.overlayBackdropStrong};
 
   /* Spacing (4px grid) */
   --spacing-1: ${px(s["1"])};
