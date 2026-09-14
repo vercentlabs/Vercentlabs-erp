@@ -17,5 +17,11 @@ export default defineConfig([
     // to lint as source, producing thousands of unrelated false failures.
     "playwright-report/**",
     "test-results/**",
+    // Same reasoning as playwright-report/test-results above -- a local
+    // `pnpm test:storybook` run leaves a built static Storybook bundle on
+    // disk (gitignored, see .gitignore) that ESLint otherwise tries to
+    // lint as source, producing thousands of unrelated minified-bundle
+    // failures.
+    "storybook-static/**",
   ]),
 ]);
