@@ -53,7 +53,7 @@
     "test:enterprise-rbac": "node --test docs/frontend-rebuild/recovered-platform-code/apps/web/tests/enterprise-rbac.test.mjs",
     "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:worker && corepack pnpm test:sdk && corepack pnpm test:mobile && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security",
     "audit:dependencies": "corepack pnpm audit --audit-level high",
-    "format:check": "corepack pnpm --filter @vercentlabs/web exec prettier --check src/core/login-policy.ts src/shared/components/access-denied.tsx \"src/app/(app)/sales/orders/page.tsx\" \"src/app/(app)/sales/quotations/page.tsx\" src/app/api/auth/login/route.ts src/app/api/mobile/v1/auth/login/route.ts tests/auth-session-safety.test.mjs tests/enterprise-rbac.test.mjs tests/foundation.test.mjs ../../package.json",
+    "format:check": "corepack pnpm --filter @vercentlabs/web format:check && corepack pnpm --filter @vercentlabs/web exec prettier --check ../../package.json",
     "verify:fast": "corepack pnpm typecheck:web && corepack pnpm lint:web && corepack pnpm test:web && corepack pnpm test:api",
     "verify:routes": "corepack pnpm --filter @vercentlabs/web verify:routes",
     "verify:web": "corepack pnpm verify:experience && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm build:web",

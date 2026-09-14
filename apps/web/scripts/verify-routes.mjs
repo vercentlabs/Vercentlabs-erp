@@ -27,9 +27,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/app");
+const appRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../src/app",
+);
 
-const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+const HTTP_METHODS = [
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+];
 
 let failures = 0;
 let pagesChecked = 0;
@@ -74,12 +85,16 @@ walk(appRoot, (file, name) => {
   if (name !== "route.ts") return;
   routesChecked += 1;
   const source = fs.readFileSync(file, "utf8");
-  const exported = HTTP_METHODS.filter((method) =>
-    new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`).test(source) ||
-    new RegExp(`export\\s+const\\s+${method}\\s*=`).test(source),
+  const exported = HTTP_METHODS.filter(
+    (method) =>
+      new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`).test(
+        source,
+      ) || new RegExp(`export\\s+const\\s+${method}\\s*=`).test(source),
   );
   if (exported.length === 0) {
-    fail(`${relative(file)}: exports no recognized HTTP method handler (${HTTP_METHODS.join("/")})`);
+    fail(
+      `${relative(file)}: exports no recognized HTTP method handler (${HTTP_METHODS.join("/")})`,
+    );
   }
 });
 
@@ -92,7 +107,9 @@ function dynamicSegmentName(directoryName) {
 }
 
 function checkDynamicSiblings(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory());
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory());
   const dynamicNames = new Set();
   for (const entry of entries) {
     if (entry.name.startsWith("(")) continue; // route groups are not real segments
@@ -111,11 +128,14 @@ function checkDynamicSiblings(dir) {
 
 checkDynamicSiblings(appRoot);
 
-
-console.log(`Checked ${pagesChecked} page.tsx and ${routesChecked} route.ts file(s) under src/app.`);
+console.log(
+  `Checked ${pagesChecked} page.tsx and ${routesChecked} route.ts file(s) under src/app.`,
+);
 if (failures > 0) {
   console.error(`\nverify:routes summary — ${failures} failing check(s).`);
   process.exitCode = 1;
 } else {
-  console.log("Route smoke validation passed (static analysis only — Next.js was not booted).");
+  console.log(
+    "Route smoke validation passed (static analysis only — Next.js was not booted).",
+  );
 }

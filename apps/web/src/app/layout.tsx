@@ -4,7 +4,11 @@ import { Inter } from "next/font/google";
 import { LocaleProvider } from "@/shared/providers/locale-provider.tsx";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "Vercentlabs ERP", template: "%s — Vercentlabs ERP" },

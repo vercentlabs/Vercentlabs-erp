@@ -9,6 +9,12 @@ import { I18nProvider } from "react-aria-components";
 // browser-detected so server-rendered and client-rendered date/number
 // formatting always match; wire to real tenant/user locale settings once
 // that exists.
-export function LocaleProvider({ locale, children }: { locale: string; children: ReactNode }) {
+export function LocaleProvider({
+  locale,
+  children,
+}: {
+  locale: string;
+  children: ReactNode;
+}) {
   return <I18nProvider locale={locale}>{children}</I18nProvider>;
 }
