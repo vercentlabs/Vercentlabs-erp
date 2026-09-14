@@ -509,12 +509,10 @@ function was already reviewed as solid in F084's audit.
 `typecheck:web` (clean), `pnpm verify:erp` full gate (see below for this
 session's final run).
 
-**Not yet attempted:** the required browser E2E journey. Procurement has
-zero E2E fixture infrastructure (no equivalent of `apps/web/scripts/
-e2e-fixture-bootstrap.mts` exists for Procurement) — building that from
-scratch, plus the actual Playwright spec walking through Supplier ->
-Requisition -> RFQ -> PO -> GRN -> Match in a real browser, is the
-immediate next action for whoever continues this work.
+**Update (2026-09-14, later same session): the browser E2E journey is now
+done — see "Procurement — real browser E2E journey" section below.** It
+found and this pass fixed three further real production defects beyond
+the two above, all invisible to the existing (fake-DB-client) test suite.
 
 **Other real gaps found during the trace, recorded but deliberately not
 fixed this pass** (each is genuinely new scope, not a fix to something
@@ -530,6 +528,95 @@ times are real but disconnected from PO pricing/reorder calculations;
 payment terms don't exist anywhere in the module; the Settings page is a
 static mock; `procurement_reporting_facts` is queried but never
 populated.
+
+### Procurement — real browser E2E journey (2026-09-14, later same session)
+
+Built the E2E fixture infrastructure that didn't exist (`apps/web/scripts/
+e2e-fixture-procurement.mts`) and a full Playwright spec
+(`apps/web/tests/e2e/erp-procurement-source-to-pay-journey.spec.ts`)
+driving Supplier -> Requisition -> RFQ -> Purchase Order -> Goods Receipt
+-> Supplier Bill -> Payment through two real, independently authenticated
+browser sessions (a buyer and an approver — required because
+`transitionProcurementRecord`'s self-approval guard correctly rejects the
+same user creating and approving/qualifying a document) against the real
+Next.js routes and a real Postgres database, plus a companion test
+confirming a CRM-only restricted user is denied read/write on Procurement
+resources.
+
+Getting this green took 25 iterative real-failure fixes, three of which
+were genuine production defects, not test bugs — each found because this
+was the **first time any real Postgres/real HTTP path exercised these
+exact code paths**; every existing test in the repo uses a fake DB client
+that only ever returns the string/shape it was told to:
+
+1. **`parseProcurementUpdate` — every PATCH to any Procurement resource
+   returned 500.** Zod 4 refuses `.partial()` on any object schema that
+   already carries a `.superRefine()`/`.refine()` effect, including one
+   inherited via `.extend()`. The shared `common`/`childSchema` base
+   objects had the refinement baked in, so `.partial()` always threw
+   `.partial() cannot be used on object schemas containing refinements`.
+   Fixed by keeping the base schemas unrefined and applying
+   `rejectInternalFields` at each call site instead.
+2. **`isoDate()` — posting a real vendor bill failed with "Accounting
+   date is invalid."** `postVendorBill` re-feeds a date it just read back
+   from the database (`bill.accounting_date`) into `createJournalEntry`.
+   node-postgres returns DATE columns as real JS `Date` objects, and
+   `isoDate()` assumed a string, so `String(new Date(...))` never matched
+   the `YYYY-MM-DD` regex. Fixed to accept both shapes.
+3. **`hashPayload()` — posting ANY real document that creates a journal
+   entry (vendor bill, customer invoice, manual journal, vendor payment)
+   was completely broken**, crashing with `TypeError: Do not know how to
+   serialize a BigInt`. `normalizeLines()` (journals.js) returns several
+   BigInt fields per line (debit, credit, baseDebit, baseCredit,
+   taxBaseAmount, dimension allocationPercent) for the journal entry's own
+   `contentHash` computation, and the stable-stringify helper fell
+   through to a raw `JSON.stringify()` for any BigInt — which throws for
+   `0n` just as much as any nonzero value, so this was not an edge case,
+   it was universal. Fixed once, at the source, so every caller is
+   covered.
+
+Also fixed, found the same way: this session's own
+`runProcurementMatchWithVendorBillImport` returned `vendorBill` as
+`importProcurementMatchAsVendorBill`'s composite `{ bill, lines,
+schedules, ... }` detail shape rather than the flat bill row its name
+promised, and `browser.newContext()` (via Playwright Test's `browser`
+fixture) silently inherits the project's `use.storageState` — the buyer's
+own session — unless explicitly cleared, so the "fresh" approver context
+started pre-authenticated as the buyer until fixed.
+
+Also fixed as a byproduct: `tests/helpers/load-ts-module.mjs` could not
+previously load any module with a plain npm dependency (e.g. `zod`) —
+bare specifiers were left unresolved against a `os.tmpdir()` compile
+target with no `node_modules` chain of its own. Now resolved against
+`apps/web`'s real dependency tree.
+
+**What this proves, matching the release-readiness bar the task set:**
+authorization (restricted-user boundary test; the real self-approval
+guard fired mid-journey exactly as designed, requiring the two-session
+buyer/approver split), concurrency (every transition call in the journey
+carries and checks `expectedVersion`), the real segregation-of-duties
+approval-request workflow this fixture organization defaults to for
+vendor bills and payments (submit -> pending_approval -> a *different*
+user approves via `/api/approvals/{id}` -> post), and both cross-module
+effects end-to-end for the first time via real HTTP: Goods Receipt
+approval posting a real Stock movement (F080/F081), and a clean invoice
+match auto-importing and fully posting+paying a real Accounting vendor
+bill (F084-F086).
+
+**What remains genuinely unverified, so Procurement should not yet be
+called production-ready without it:** multi-company/branch isolation was
+not specifically re-exercised in this E2E pass (covered only at the
+trace/unit level); failure-recovery paths beyond the one receipt-reversal
+already covered in the earlier integration test were not driven through
+the browser; and every gap listed in the F063 gap-closing section above
+(no supplier portal, no Item/Warehouse/UOM master-data UI or API — this
+E2E's own fixture had to seed those directly via SQL — blanket POs,
+payment terms, etc.) is still real and still open.
+
+`pnpm test:api` (887/887), `pnpm test:web` (727/727),
+`pnpm test:e2e:procurement` (3/3, run twice to confirm it's stable and
+safely re-runnable), and `pnpm verify:erp` all pass clean at this
+checkpoint.
 
 ### Procurement reconnaissance (not a trace — just current-state orientation)
 
@@ -569,7 +656,7 @@ populated.
 |---|---|---|---|
 | CRM | F001-F030 | 30/30 traced | Production-ready, gap-closing pass complete (2026-09-06); reorged 09-10/11 (undocumented then, reconciled now); 2 live E2E nav-spec failures to root-cause |
 | Sales | F031-F062 | 32/32 traced | Trace + gap-closing pass complete (2026-09-06); no further changes found since |
-| Procurement | F063-F096 | 1/34 (F063) | Foundation exists (Pass 1 + dedicated code) and is solid where traced; 3 real gaps found, 0 E2E exists — **in progress, trace F064 next** |
+| Procurement | F063-F096 | 34/34 traced | Full trace + gap-closing pass + real browser E2E journey complete (2026-09-14); 3 production defects found via E2E and fixed (Zod `.partial()`, `isoDate`, `hashPayload` BigInt — all in shared Accounting helpers, not Procurement-specific); genuine gaps remain open (no supplier portal, no Item/Warehouse/UOM master-data UI/API, blanket POs, payment terms) — **not yet declared production-ready, see E2E section above for exactly what's still unverified** |
 | Stock | F097-F144 | 0/48 | Foundation exists (Pass 1 + dedicated code), untraced |
 | Manufacturing | F145-F192 | 0/48 | Thin/scaffolding per 2026-09-05 table, not re-verified this session |
 | Projects | F193-F230 | 0/38 | Thin/scaffolding, not re-verified |

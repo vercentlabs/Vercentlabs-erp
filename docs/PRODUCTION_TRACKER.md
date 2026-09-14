@@ -110,7 +110,7 @@ F031 Customer master was traced first (Sales doesn't own a customer entity — i
 - F060 Sales analytics: the report queries themselves are solid (and now correctly company-scoped), but the analytics capability around them is thin — no filters, no drilldown API, no export, no configurable date range, no report-level snapshotting. Notably less developed than CRM's equivalent reporting work.
 - **F062 Order-to-cash reporting (capstone finding, connects to F053): `sales_orders.payment_status` is a real, modeled column that is never written to by any code path anywhere.** The delivery-to-invoice half of order-to-cash is well-built; the cash half (has the customer actually paid) is completely disconnected from Accounting's real payment state. Same root theme as F053/F052 — Sales' connective tissue to Accounting's actual financial reality is thin across the board. Likely one fix closes all three.
 
-## Procurement (module 3/12): full atomic trace complete (2026-09-14), gap-closing pass in progress
+## Procurement (module 3/12): full atomic trace + gap-closing pass + real browser E2E complete (2026-09-14)
 
 All 34 features (F063-F096) traced against `SUBREQUIREMENT_REGISTER.csv`
 with cited code evidence — see `docs/03-modules/procurement/audits/F0##-AUDIT.md`
@@ -193,18 +193,50 @@ plus the new cross-module organization-mismatch guard and the
 not-yet-linked-to-Accounting skip path. All assertions pass.
 `test:api` (883/883) and `typecheck:web` remain clean throughout.
 
-**Not yet done:** a fully *posted* vendor bill/payment (needs a complete
-Accounting chart-of-accounts/ledger/journal fixture, out of scope for
-this pass — see the execution tracker for why); the required browser E2E
-journey (Procurement has zero E2E fixture infrastructure, unlike CRM);
-and the large number of genuinely-new-scope gaps recorded during the
-trace (duplicate-supplier detection, supplier portal, approval-threshold
-routing, the unused `evaluateSupplierScore` function, blanket POs,
-payment terms, etc. — see each feature's own audit). None of these block
-the two release-blocking fixes above from being real and verified.
+**Browser E2E, 2026-09-14 (same session, later): done.** Built the fixture
+infrastructure Procurement was missing (`apps/web/scripts/
+e2e-fixture-procurement.mts`) and a real Playwright spec
+(`apps/web/tests/e2e/erp-procurement-source-to-pay-journey.spec.ts`)
+driving the full Supplier → Requisition → RFQ → Purchase Order → Goods
+Receipt → Supplier Bill → Payment journey through two independently
+authenticated real browser sessions (buyer + approver, required by the
+real self-approval guard) against the real Next.js routes and a real
+Postgres database — including the full posted vendor bill/payment this
+module's earlier integration test had explicitly deferred, and the real
+segregation-of-duties approval-request workflow this fixture organization
+defaults both on for. A companion test confirms a CRM-only restricted
+user is denied read/write on Procurement resources.
 
-See `docs/ERP_COMPLETION_EXECUTION_TRACKER.md` for the full detail and
-exact next action (build Procurement E2E fixture infrastructure next).
+Getting this green found and fixed **three further real production
+defects**, all in shared Accounting helpers rather than Procurement
+itself, and all invisible to this repo's fake-DB-client test convention
+because this was the first time any real HTTP/Postgres path exercised
+them: `parseProcurementUpdate` calling Zod 4's `.partial()` on a schema
+with an inherited refinement (every PATCH to any Procurement resource
+returned 500); `isoDate()` assuming its input was always a string when
+node-postgres returns DATE columns as real `Date` objects (posting a real
+vendor bill failed with a misleading "Accounting date is invalid.");
+and `hashPayload()`'s stable-stringify falling through to a raw
+`JSON.stringify()` for BigInt values that `normalizeLines()` always
+produces for a journal entry's own contentHash — meaning posting *any*
+real document that creates a journal entry (vendor bill, customer
+invoice, manual journal, vendor payment) was completely broken. Full
+root-cause detail and the fixes in `docs/ERP_COMPLETION_EXECUTION_TRACKER.md`.
+
+**Still not done, so Procurement is not yet declared production-ready:**
+multi-company/branch isolation wasn't specifically re-exercised at the
+browser level (only at trace/unit level); failure-recovery paths beyond
+the one receipt-reversal case (covered in the integration test) weren't
+driven through the browser; and the large number of genuinely-new-scope
+gaps recorded during the trace remain open (duplicate-supplier detection,
+no supplier portal, no Item/Warehouse/UOM master-data UI or API anywhere
+in the repo — confirmed again by this E2E's own fixture having to seed
+them via raw SQL, approval-threshold routing, the unused
+`evaluateSupplierScore` function, blanket POs, payment terms, etc. — see
+each feature's own audit). None of these block the fixes above from being
+real and verified.
+
+See `docs/ERP_COMPLETION_EXECUTION_TRACKER.md` for the full detail.
 
 ## Module order
 
