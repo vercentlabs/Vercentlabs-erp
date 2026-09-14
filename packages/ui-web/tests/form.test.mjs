@@ -88,3 +88,22 @@ test("EntityLookupField and MultiSelectField mount without throwing", async () =
   assert.match(html, /Owner/);
   assert.match(html, /Tags/);
 });
+
+test("CheckboxField renders the label beside the control and reflects the field's boolean value", async () => {
+  const { useAppForm } = await import(pathToFileURL(compile("src/form/useAppForm.ts")).href);
+
+  function ConsentForm() {
+    const form = useAppForm({ defaultValues: { consentEmail: true, doNotContact: false }, onSubmit: () => {} });
+    return React.createElement(
+      "form",
+      null,
+      React.createElement(form.AppField, { name: "consentEmail" }, (field) => React.createElement(field.CheckboxField, { label: "Email consent" })),
+      React.createElement(form.AppField, { name: "doNotContact" }, (field) => React.createElement(field.CheckboxField, { label: "Do not contact" })),
+    );
+  }
+
+  const html = renderToStaticMarkup(React.createElement(ConsentForm));
+  assert.match(html, /Email consent/);
+  assert.match(html, /Do not contact/);
+  assert.match(html, /data-checked/);
+});

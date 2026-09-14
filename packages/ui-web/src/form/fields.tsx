@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
 
 import { FormField } from "../enterprise/FormField";
+import { Checkbox } from "../primitives/Checkbox";
 import { ComboboxContent, ComboboxInput, ComboboxItem, ComboboxRoot } from "../primitives/Combobox";
 import { Input } from "../primitives/Input";
 import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValue } from "../primitives/Select";
@@ -249,6 +250,40 @@ export function ComboboxField({
 /** A named preset of ComboboxField for record-lookup fields (lead owner, account, contact, ...) -- same component, named so screen code reads as intent ("look up an entity") rather than a generic search box. */
 export function EntityLookupField(props: BaseFieldProps & { onSearch: (query: string) => Promise<ComboboxFieldItem[]>; placeholder?: string }) {
   return <ComboboxField {...props} />;
+}
+
+// A checkbox reads as a single-line "label to the right of the control"
+// idiom, not FormField's usual "label above the control" -- so this
+// renders its own label/description/error layout rather than routing
+// through FormField, while still sharing fieldErrorMessage/id-generation
+// conventions with every other field above.
+export function CheckboxField({ label, description, disabled, indeterminate }: { label: ReactNode; description?: ReactNode; disabled?: boolean; indeterminate?: boolean }) {
+  const field = useFieldContext<boolean>();
+  const id = useId();
+  const error = field.state.meta.isTouched ? fieldErrorMessage(field.state.meta.errors) : undefined;
+  const describedBy = error || description ? `${id}-hint` : undefined;
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="flex items-center gap-2 text-[length:var(--text-sm)] text-[var(--color-text-primary)]">
+        <Checkbox
+          id={id}
+          checked={Boolean(field.state.value)}
+          indeterminate={indeterminate}
+          disabled={disabled}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          onCheckedChange={(checked) => field.handleChange(Boolean(checked))}
+          onBlur={field.handleBlur}
+        />
+        {label}
+      </label>
+      {description || error ? (
+        <p id={describedBy} className={`pl-6 text-[length:var(--text-xs)] ${error ? "text-[var(--color-state-danger)]" : "text-[var(--color-text-muted)]"}`}>
+          {error || description}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function MultiSelectField({
