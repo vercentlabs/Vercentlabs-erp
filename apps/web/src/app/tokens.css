@@ -77,8 +77,10 @@
   --text-sm: 13px;
   --text-md: 14px;
   --text-lg: 16px;
+  --text-section: 18px;
   --text-xl: 20px;
-  --text-2xl: 28px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
   --leading-tight: 1.25;
   --leading-body: 1.5;
   --font-weight-medium: 500;

@@ -4,8 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
     "./theme.json": "./tokens/theme.json"
   },
-  "scripts": { "test": "node --test" }
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.9.3"
+  }
 }

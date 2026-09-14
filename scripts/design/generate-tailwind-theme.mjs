@@ -100,8 +100,10 @@ const content = `/* GENERATED from packages/design-tokens/tokens/theme.json by
   --text-sm: ${px(t.sm)};
   --text-md: ${px(t.md)};
   --text-lg: ${px(t.lg)};
+  --text-section: ${px(t.section)};
   --text-xl: ${px(t.xl)};
   --text-2xl: ${px(t["2xl"])};
+  --text-3xl: ${px(t["3xl"])};
   --leading-tight: ${t.lineHeightTight};
   --leading-body: ${t.lineHeightBody};
   --font-weight-medium: ${t.weightMedium};

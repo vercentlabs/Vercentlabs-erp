@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
 export interface VercentlabsTheme {
   version: string;
   font: { sans: string };
@@ -14,4 +18,8 @@ export interface VercentlabsTheme {
   nativeType: Record<string, [number, number, number]>;
 }
 
-export declare const theme: VercentlabsTheme;
+const themePath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../tokens/theme.json");
+
+/** The raw token source (packages/design-tokens/tokens/theme.json). Prefer
+ * the primitive/semantic modules over reaching into this directly. */
+export const theme: VercentlabsTheme = JSON.parse(readFileSync(themePath, "utf8"));
