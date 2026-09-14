@@ -25,4 +25,7 @@ export * from "./enterprise/FilterBar";
 export * from "./enterprise/BulkActionBar";
 export * from "./enterprise/ActivityTimeline";
 export * from "./enterprise/FormField";
+export * from "./primitives/Combobox";
+export { useAppForm, withForm } from "./form/useAppForm";
+export * from "./form/fields";
 export * from "./utils/cn";
