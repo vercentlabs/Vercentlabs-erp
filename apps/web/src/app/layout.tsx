@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import "../shared/design/tokens.css";
+import "./tailwind-theme.css";
 import "./globals.css";
 import "./business-data-extension.css";
 import "./billing-extension.css";

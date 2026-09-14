@@ -33,6 +33,7 @@ const nextConfig = {
     "@vercentlabs/reporting-engine",
     "@vercentlabs/shared-types",
     "@vercentlabs/shared-ui",
+    "@vercentlabs/ui-web",
     "@vercentlabs/workflows",
   ],
   async headers() {

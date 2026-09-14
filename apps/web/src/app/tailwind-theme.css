@@ -1,0 +1,111 @@
+/*
+ * Tailwind v4 CSS-first theme, bridged onto the EXISTING --erp-* token
+ * pipeline (packages/shared-ui/tokens/theme.json ->
+ * scripts/design/generate-theme.mjs -> shared/design/tokens.css).
+ *
+ * This is deliberately a bridge, not a second token source: every value
+ * below is `var(--erp-*)`, never a raw hex/px literal. Tailwind utility
+ * classes (bg-canvas, text-primary, border-focus, etc.) become the
+ * ergonomic way to reach the same tokens the CSS-module Experience Kernel
+ * already uses -- adding Tailwind does not fork "ONE token system" into
+ * two. Family names follow docs/01-standards/TECH_STACK_ADR_002_FRONTEND_REWRITE.md.
+ *
+ * ADD A TOKEN HERE, NOT A HARDCODED VALUE IN A COMPONENT. If a family this
+ * file's own header comment promises (e.g. color.state.*) still has a gap
+ * against tokens.css, extend packages/shared-ui/tokens/theme.json and
+ * regenerate (`pnpm exec node scripts/design/generate-theme.mjs`) rather
+ * than inventing a one-off value inline.
+ */
+@import "tailwindcss";
+
+@theme inline {
+  /* color.background.* */
+  --color-canvas: var(--erp-color-canvas);
+  --color-canvas-strong: var(--erp-color-canvas-strong);
+  --color-surface: var(--erp-color-surface);
+  --color-surface-subtle: var(--erp-color-surface-subtle);
+  --color-surface-elevated: var(--erp-color-surface-raised);
+
+  /* color.text.* */
+  --color-text-primary: var(--erp-color-text);
+  --color-text-secondary: var(--erp-color-text-secondary);
+  --color-text-muted: var(--erp-color-text-muted);
+  --color-text-subtle: var(--erp-color-text-subtle);
+  --color-text-inverse: var(--erp-color-on-accent);
+
+  /* color.border.* */
+  --color-border-default: var(--erp-color-border);
+  --color-border-strong: var(--erp-color-border-strong);
+  --color-border-focus: var(--erp-color-accent);
+
+  /* color.action.* */
+  --color-action-primary: var(--erp-color-accent);
+  --color-action-primary-hover: var(--erp-color-accent-strong);
+  --color-action-primary-soft: var(--erp-color-accent-soft);
+  --color-action-primary-border: var(--erp-color-accent-border);
+  --color-action-secondary: var(--erp-color-surface);
+  --color-action-danger: var(--erp-color-danger);
+  --color-action-danger-hover: var(--erp-color-danger-emphasis);
+
+  /* color.state.* */
+  --color-state-success: var(--erp-color-success);
+  --color-state-success-soft: var(--erp-color-success-soft);
+  --color-state-warning: var(--erp-color-warning);
+  --color-state-warning-soft: var(--erp-color-warning-soft);
+  --color-state-danger: var(--erp-color-danger);
+  --color-state-danger-soft: var(--erp-color-danger-soft);
+  --color-state-info: var(--erp-color-info);
+  --color-state-info-soft: var(--erp-color-info-soft);
+  --color-state-neutral: var(--erp-color-text-muted);
+
+  /* spacing.* (Tailwind's own numeric scale is kept; these are named
+     aliases for the fixed set the token source defines) */
+  --spacing-1: var(--erp-space-1);
+  --spacing-2: var(--erp-space-2);
+  --spacing-3: var(--erp-space-3);
+  --spacing-4: var(--erp-space-4);
+  --spacing-5: var(--erp-space-5);
+  --spacing-6: var(--erp-space-6);
+  --spacing-8: var(--erp-space-8);
+  --spacing-10: var(--erp-space-10);
+  --spacing-12: var(--erp-space-12);
+
+  /* radius.* */
+  --radius-control: var(--erp-radius-control);
+  --radius-card: var(--erp-radius-card);
+  --radius-panel: var(--erp-radius-panel);
+  --radius-overlay: var(--erp-radius-overlay);
+  --radius-pill: var(--erp-radius-pill);
+
+  /* shadow.* */
+  --shadow-subtle: var(--erp-shadow-subtle);
+  --shadow-panel: var(--erp-shadow-panel);
+  --shadow-overlay: var(--erp-shadow-overlay);
+  --shadow-focus: var(--erp-shadow-focus);
+
+  /* control.* (density) */
+  --control-compact: var(--erp-control-height-compact);
+  --control-standard: var(--erp-control-height);
+  --control-large: var(--erp-control-height-large);
+  --control-touch: var(--erp-touch-target);
+
+  /* typography.* */
+  --font-sans: var(--erp-font-sans);
+  --text-xs: var(--erp-font-size-xs);
+  --text-sm: var(--erp-font-size-sm);
+  --text-md: var(--erp-font-size-md);
+  --text-lg: var(--erp-font-size-lg);
+  --text-xl: var(--erp-font-size-xl);
+  --text-2xl: var(--erp-font-size-2xl);
+
+  /* motion.* */
+  --motion-fast: var(--erp-motion-fast);
+  --motion-standard: var(--erp-motion-standard);
+
+  /* zIndex.* */
+  --z-sticky: var(--erp-z-sticky);
+  --z-dropdown: var(--erp-z-dropdown);
+  --z-drawer: var(--erp-z-drawer);
+  --z-modal: var(--erp-z-modal);
+  --z-toast: var(--erp-z-toast);
+}
