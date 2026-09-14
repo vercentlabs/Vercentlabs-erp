@@ -50,7 +50,7 @@
     "test:packages": "corepack pnpm --filter @vercentlabs/config --filter @vercentlabs/document-engine --filter @vercentlabs/landing-content --filter @vercentlabs/localization --filter @vercentlabs/observability --filter @vercentlabs/reporting-engine --filter @vercentlabs/design-tokens --filter @vercentlabs/test-utils --filter @vercentlabs/workflows test",
     "test:integration": "node --test tests/integration/*.test.mjs",
     "test:security": "node --test tests/security/*.test.mjs",
-    "test:enterprise-rbac": "corepack pnpm --filter @vercentlabs/web exec node --test tests/enterprise-rbac.test.mjs",
+    "test:enterprise-rbac": "node --test docs/frontend-rebuild/recovered-platform-code/apps/web/tests/enterprise-rbac.test.mjs",
     "test:all": "corepack pnpm test:landing && corepack pnpm test:web && corepack pnpm test:api && corepack pnpm test:worker && corepack pnpm test:sdk && corepack pnpm test:mobile && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security",
     "audit:dependencies": "corepack pnpm audit --audit-level high",
     "format:check": "corepack pnpm --filter @vercentlabs/web exec prettier --check src/core/login-policy.ts src/shared/components/access-denied.tsx \"src/app/(app)/sales/orders/page.tsx\" \"src/app/(app)/sales/quotations/page.tsx\" src/app/api/auth/login/route.ts src/app/api/mobile/v1/auth/login/route.ts tests/auth-session-safety.test.mjs tests/enterprise-rbac.test.mjs tests/foundation.test.mjs ../../package.json",

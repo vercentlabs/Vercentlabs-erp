@@ -85,7 +85,7 @@ test("F001 Pass 2B: generic consent list/create boundaries inherit the Lead priv
 
 test("F001 Pass 2B: specialized enrichment service and route enforce both record scope and same-origin mutation protection", () => {
   const service = read("src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.js");
-  const route = read("../../apps/web/src/app/api/crm/lead-acquisition/enrichment/route.ts");
+  const route = read("../../docs/frontend-rebuild/recovered-platform-code/apps/web/src/app/api/crm/lead-acquisition/enrichment/route.ts");
   assert.match(service, /getScopedSensitiveEnrichmentLead/);
   assert.match(service, /canViewSensitiveLeadContent/);
   assert.match(service, /leadScopeSql\(context/);

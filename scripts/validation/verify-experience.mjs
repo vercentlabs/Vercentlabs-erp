@@ -1,382 +1,121 @@
 #!/usr/bin/env node
-
+// Design-system convergence check for the clean-slate frontend.
+//
+// This is a rewrite, not the original script: the pre-rebuild version
+// enforced convergence toward a specific "Experience Kernel" component set
+// (apps/web/src/shared/design/*.tsx, --erp-* tokens) with a baseline
+// debt-ratchet mechanism calibrated to ~9,000 lines of legacy CSS. Both the
+// Experience Kernel and that legacy CSS were deleted wholesale in the
+// clean-slate rebuild (see docs/frontend-rebuild/README.md) — there is no
+// more grandfathered debt to ratchet down, so that machinery is gone too.
+// What's rewritten and kept is the actual invariant that mattered: no
+// hardcoded color literals outside the generated token file, and no raw
+// <table> elements outside the canonical EnterpriseDataGrid.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const UI_SOURCE_EXTENSIONS = new Set([".tsx", ".jsx"]);
-const COLOR_LITERAL_PATTERN =
+export const COLOR_LITERAL_PATTERN =
   /(?<![\w-])(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\([^)]*\)|hsla?\([^)]*\))(?![\w-])/g;
-const RAW_TABLE_PATTERN = /<table(?:\s|>)/g;
-const MEDIA_PATTERN = /@media\s*([^{]+)\{/g;
+export const RAW_TABLE_PATTERN = /<table(?:\s|>)/g;
 
-export function normalizeMediaQuery(query) {
-  return query
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\s*:\s*/g, ":")
-    .replace(/\s*\(\s*/g, "(")
-    .replace(/\s*\)\s*/g, ")");
+/** Number of hardcoded color literals in a CSS source string. */
+export function countColorLiterals(source) {
+  return [...source.matchAll(COLOR_LITERAL_PATTERN)].length;
 }
 
-function posix(relativePath) {
-  return relativePath.split(path.sep).join("/");
+/** Number of raw <table> elements in a TSX/JSX source string. */
+export function countRawTables(source) {
+  return [...source.matchAll(RAW_TABLE_PATTERN)].length;
 }
 
-function walk(directory, predicate = () => true) {
-  if (!fs.existsSync(directory)) return [];
-  const output = [];
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const full = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      output.push(...walk(full, predicate));
-    } else if (predicate(full)) {
-      output.push(full);
-    }
+function walk(dir, predicate, acc = [], skipDirNames) {
+  if (!fs.existsSync(dir)) return acc;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (skipDirNames.has(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, predicate, acc, skipDirNames);
+    else if (predicate(full)) acc.push(full);
   }
-  return output;
+  return acc;
 }
 
-function countMatches(source, pattern) {
-  return [...source.matchAll(pattern)].length;
+function posix(p) {
+  return p.split(path.sep).join("/");
 }
 
-function mediaQueries(source) {
-  return new Set(
-    [...source.matchAll(MEDIA_PATTERN)].map((match) =>
-      normalizeMediaQuery(match[1]),
-    ),
-  );
-}
-
-function read(relativePath, root) {
-  return fs.readFileSync(path.join(root, relativePath), "utf8");
-}
-
-function cssImportsFromRootLayout(root) {
-  const layout = read("apps/web/src/app/layout.tsx", root);
-  return [...layout.matchAll(/import\s+["'](.+?\.css)["'];/g)].map(
-    (match) => match[1],
-  );
-}
-
-export function analyzeExperience(root) {
-  const appRoot = path.join(root, "apps/web/src/app");
-  const webRoot = path.join(root, "apps/web/src");
-  const designRoot = path.join(root, "apps/web/src/shared/design");
-  const canonicalTokenFile = "apps/web/src/shared/design/tokens.css";
-
-  const appCssFiles = walk(
-    appRoot,
-    (file) => path.dirname(file) === appRoot && file.endsWith(".css"),
-  )
-    .map((file) => posix(path.relative(root, file)))
-    .sort();
-
-  const allCssFiles = walk(webRoot, (file) => file.endsWith(".css"))
-    .map((file) => posix(path.relative(root, file)))
-    .sort();
-
-  const designComponentFiles = walk(
-    designRoot,
-    (file) => UI_SOURCE_EXTENSIONS.has(path.extname(file)),
-  )
-    .map((file) => posix(path.relative(root, file)))
-    .sort();
-
-  const rootBlocksByFile = {};
-  const mediaQueriesByFile = {};
-  const hardcodedColorLiteralsByFile = {};
-
-  for (const relativePath of allCssFiles) {
-    const source = read(relativePath, root);
-    const rootCount = countMatches(source, /:root/g);
-    const queries = [...mediaQueries(source)].sort();
-    const colors = countMatches(source, COLOR_LITERAL_PATTERN);
-
-    if (rootCount) rootBlocksByFile[relativePath] = rootCount;
-    if (queries.length) mediaQueriesByFile[relativePath] = queries;
-    if (colors) hardcodedColorLiteralsByFile[relativePath] = colors;
-  }
-
-  const rawTableCountsByFile = {};
-  for (const file of walk(webRoot, (candidate) =>
-    UI_SOURCE_EXTENSIONS.has(path.extname(candidate)),
-  )) {
-    const relativePath = posix(path.relative(root, file));
-    const count = countMatches(fs.readFileSync(file, "utf8"), RAW_TABLE_PATTERN);
-    if (count) rawTableCountsByFile[relativePath] = count;
-  }
-
-  return {
-    canonicalTokenFile,
-    appCssFiles,
-    allCssFiles,
-    designComponentFiles,
-    rootLayoutCssImports: cssImportsFromRootLayout(root),
-    rootBlocksByFile,
-    mediaQueriesByFile,
-    hardcodedColorLiteralsByFile,
-    rawTableCountsByFile,
-  };
-}
-
-function setDifference(actual, allowed) {
-  const allow = new Set(allowed);
-  return actual.filter((item) => !allow.has(item));
-}
-
-export function validateExperience(analysis, baseline) {
-  const failures = [];
-  const canonicalTokenFile = baseline.canonicalTokenFile;
-  const legacyAppCss = new Set(baseline.legacyAppCssFiles);
-  const canonicalMedia = new Set(baseline.canonicalMediaQueries);
-  const canonicalComponents = new Set(baseline.canonicalComponentFiles ?? []);
-  const canonicalStyles = new Set(baseline.canonicalStyleFiles ?? []);
-  const canonicalRawTables = baseline.canonicalRawTableCountsByFile ?? {};
-
-  if (!analysis.allCssFiles.includes(canonicalTokenFile)) {
-    failures.push(`missing canonical token file: ${canonicalTokenFile}`);
-  }
-
-  for (const file of canonicalComponents) {
-    if (!analysis.designComponentFiles.includes(file)) {
-      failures.push(`missing canonical Experience Kernel component: ${file}`);
-    }
-  }
-
-  for (const file of canonicalStyles) {
-    if (!analysis.allCssFiles.includes(file)) {
-      failures.push(`missing canonical Experience Kernel stylesheet: ${file}`);
-    }
-  }
-
-  const newAppGlobalCss = analysis.appCssFiles.filter(
-    (file) => !legacyAppCss.has(file),
-  );
-  for (const file of newAppGlobalCss) {
-    failures.push(
-      `${file}: new application-global CSS is forbidden; use a shared/design or module *.module.css`,
-    );
-  }
-
-  for (const file of analysis.allCssFiles) {
-    if (file === canonicalTokenFile || legacyAppCss.has(file) || canonicalStyles.has(file)) continue;
-    if (!file.endsWith(".module.css")) {
-      failures.push(
-        `${file}: new web CSS outside the canonical token file must use *.module.css`,
-      );
-    }
-  }
-
-  const expectedCanonicalImport = "../shared/design/tokens.css";
-  const tokenImportIndex = analysis.rootLayoutCssImports.indexOf(
-    expectedCanonicalImport,
-  );
-  if (tokenImportIndex !== 0) {
-    failures.push(
-      `apps/web/src/app/layout.tsx: ${expectedCanonicalImport} must be the first CSS import`,
-    );
-  }
-
-  const allowedRootImports = new Set([
-    expectedCanonicalImport,
-    ...baseline.rootLayoutLegacyCssImports,
+/**
+ * Runs the convergence checks against a given repo root. Kept separate from
+ * process.exit/console so it's directly unit-testable against a fixture
+ * root, not just runnable as a CLI.
+ */
+export function checkDesignSystemConvergence(root) {
+  const SKIP_DIR_NAMES = new Set(["node_modules", ".next", "storybook-static", "playwright-report", "test-results"]);
+  const CSS_SCAN_DIRS = ["apps/web/src"];
+  const TSX_SCAN_DIRS = ["apps/web/src", "packages/design-system/src"];
+  // Files allowed to contain raw hex/rgb/hsl literals because they ARE the
+  // token source or are mechanically generated from it.
+  const COLOR_LITERAL_EXEMPT_FILES = new Set([
+    "packages/design-tokens/tokens/theme.json",
+    "apps/web/src/app/tokens.css",
   ]);
-  for (const specifier of analysis.rootLayoutCssImports) {
-    if (!allowedRootImports.has(specifier)) {
-      failures.push(
-        `apps/web/src/app/layout.tsx: new global CSS import ${specifier} is forbidden`,
-      );
-    }
-  }
+  // The one place a real <table> element is expected: the grid primitive.
+  const RAW_TABLE_EXEMPT_FILES = new Set([
+    "packages/design-system/src/enterprise/data-grid/EnterpriseDataGrid.tsx",
+  ]);
 
-  for (const [file, count] of Object.entries(analysis.rootBlocksByFile)) {
-    if (file === canonicalTokenFile) {
-      if (count !== 1) {
-        failures.push(
-          `${file}: canonical token file must own exactly one :root block; found ${count}`,
-        );
-      }
-      continue;
-    }
+  const failures = [];
 
-    const legacyLimit = baseline.legacyRootBlocksByFile[file] ?? 0;
-    if (count > legacyLimit) {
-      failures.push(
-        `${file}: :root debt increased from ${legacyLimit} to ${count}`,
-      );
-    }
-  }
-
-  for (const [file, queries] of Object.entries(analysis.mediaQueriesByFile)) {
-    if (legacyAppCss.has(file)) {
-      const legacyQueries = baseline.legacyMediaQueriesByFile[file] ?? [];
-      for (const query of setDifference(queries, legacyQueries)) {
-        failures.push(
-          `${file}: new legacy media query "${query}" is forbidden; migrate toward canonical breakpoints`,
-        );
-      }
-      continue;
-    }
-
-    if (file === canonicalTokenFile) {
-      if (queries.length) {
-        failures.push(`${file}: token file must not own media queries`);
-      }
-      continue;
-    }
-
-    if (canonicalStyles.has(file)) {
-      for (const query of setDifference(queries, [...canonicalMedia])) {
-        failures.push(`${file}: noncanonical media query "${query}"; use the Experience Kernel breakpoint policy`);
-      }
-      continue;
-    }
-
-    for (const query of setDifference(queries, [...canonicalMedia])) {
-      failures.push(
-        `${file}: noncanonical media query "${query}"; use the Experience Kernel breakpoint policy`,
-      );
-    }
-  }
-
-  for (const [file, count] of Object.entries(
-    analysis.hardcodedColorLiteralsByFile,
-  )) {
-    if (file === canonicalTokenFile) continue;
-
-    if (canonicalStyles.has(file)) {
-      if (count > 0) failures.push(`${file}: ${count} hard-coded color literal(s); canonical styles must consume --erp-* tokens`);
-      continue;
-    }
-
-    if (legacyAppCss.has(file)) {
-      const legacyLimit =
-        baseline.legacyHardcodedColorLiteralsByFile[file] ?? 0;
-      if (count > legacyLimit) {
-        failures.push(
-          `${file}: hard-coded color debt increased from ${legacyLimit} to ${count}`,
-        );
-      }
-      continue;
-    }
-
+  const cssFiles = CSS_SCAN_DIRS.flatMap((dir) => walk(path.join(root, dir), (f) => f.endsWith(".css"), [], SKIP_DIR_NAMES));
+  for (const file of cssFiles) {
+    const rel = posix(path.relative(root, file));
+    if (COLOR_LITERAL_EXEMPT_FILES.has(rel)) continue;
+    const count = countColorLiterals(fs.readFileSync(file, "utf8"));
     if (count > 0) {
-      failures.push(
-        `${file}: ${count} hard-coded color literal(s); new CSS must consume --erp-* tokens`,
-      );
+      failures.push(`${rel}: ${count} hard-coded color literal(s); consume packages/design-tokens via a Tailwind utility or var(--color-*) instead`);
     }
   }
 
-  for (const [file, count] of Object.entries(analysis.rawTableCountsByFile)) {
-    if (Object.hasOwn(canonicalRawTables, file)) {
-      const canonicalLimit = canonicalRawTables[file];
-      if (count > canonicalLimit) {
-        failures.push(
-          `${file}: canonical raw <table> ownership increased from ${canonicalLimit} to ${count}`,
-        );
-      }
-      continue;
-    }
-
-    const legacyLimit = baseline.legacyRawTableCountsByFile[file] ?? 0;
-    if (count > legacyLimit) {
-      failures.push(
-        `${file}: raw <table> debt increased from ${legacyLimit} to ${count}; use the canonical data-grid/table primitive`,
-      );
+  const tsxFiles = TSX_SCAN_DIRS.flatMap((dir) => walk(path.join(root, dir), (f) => f.endsWith(".tsx") || f.endsWith(".jsx"), [], SKIP_DIR_NAMES));
+  for (const file of tsxFiles) {
+    const rel = posix(path.relative(root, file));
+    if (RAW_TABLE_EXEMPT_FILES.has(rel)) continue;
+    const count = countRawTables(fs.readFileSync(file, "utf8"));
+    if (count > 0) {
+      failures.push(`${rel}: ${count} raw <table> element(s); use packages/design-system's EnterpriseDataGrid instead`);
     }
   }
 
-  return failures;
-}
+  const globalsCssPath = path.join(root, "apps/web/src/app/globals.css");
+  if (fs.existsSync(globalsCssPath)) {
+    const globals = fs.readFileSync(globalsCssPath, "utf8");
+    if (!/@import\s+["']\.\/tokens\.css["']/.test(globals)) {
+      failures.push('apps/web/src/app/globals.css: must @import "./tokens.css" (the generated design-tokens theme)');
+    }
+  }
 
-function summarize(analysis, baseline) {
-  const legacyCss = new Set(baseline.legacyAppCssFiles);
-  const rootBlocks = Object.entries(analysis.rootBlocksByFile)
-    .filter(([file]) => legacyCss.has(file))
-    .reduce((sum, [, count]) => sum + count, 0);
-  const mediaPairs = Object.entries(analysis.mediaQueriesByFile)
-    .filter(([file]) => legacyCss.has(file))
-    .reduce((sum, [, queries]) => sum + queries.length, 0);
-  const mediaDistinct = new Set(
-    Object.entries(analysis.mediaQueriesByFile)
-      .filter(([file]) => legacyCss.has(file))
-      .flatMap(([, queries]) => queries),
-  ).size;
-  const hardcodedColors = Object.entries(
-    analysis.hardcodedColorLiteralsByFile,
-  )
-    .filter(([file]) => legacyCss.has(file))
-    .reduce((sum, [, count]) => sum + count, 0);
-  const canonicalRawTables = new Set(
-    Object.keys(baseline.canonicalRawTableCountsByFile ?? {}),
-  );
-  const legacyRawTableEntries = Object.entries(analysis.rawTableCountsByFile).filter(
-    ([file]) => !canonicalRawTables.has(file),
-  );
-  const rawTables = legacyRawTableEntries.reduce(
-    (sum, [, count]) => sum + count,
-    0,
-  );
-
-  return {
-    legacyAppCssFiles: analysis.appCssFiles.filter((file) =>
-      legacyCss.has(file),
-    ).length,
-    legacyRootBlocks: rootBlocks,
-    legacyDistinctMediaQueries: mediaDistinct,
-    legacyMediaQueryFilePairs: mediaPairs,
-    legacyHardcodedColorLiterals: hardcodedColors,
-    legacyRawTableOccurrences: rawTables,
-    legacyRawTableFiles: legacyRawTableEntries.length,
-  };
+  return { failures, cssFileCount: cssFiles.length, tsxFileCount: tsxFiles.length };
 }
 
 function main() {
-  const root = process.cwd();
-  const baselinePath = path.join(
-    root,
-    "scripts/validation/experience-debt-baseline.json",
-  );
-
-  if (!fs.existsSync(baselinePath)) {
-    console.error("FAIL  missing scripts/validation/experience-debt-baseline.json");
-    process.exit(1);
-  }
-
-  const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
-  const analysis = analyzeExperience(root);
-  const failures = validateExperience(analysis, baseline);
-  const summary = summarize(analysis, baseline);
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(here, "../..");
+  const { failures, cssFileCount, tsxFileCount } = checkDesignSystemConvergence(root);
 
   if (failures.length) {
-    console.error("\nEXPERIENCE KERNEL CONVERGENCE VIOLATIONS\n");
+    console.error("\nDESIGN-SYSTEM CONVERGENCE VIOLATIONS\n");
     for (const failure of failures) console.error(`- ${failure}`);
-    console.error(`\n${failures.length} experience violation(s) detected.`);
+    console.error(`\n${failures.length} violation(s) detected.`);
     process.exit(1);
   }
 
-  console.log("EXPERIENCE KERNEL CONVERGENCE VALIDATION PASSED");
-  console.log(` - legacy application CSS files: ${summary.legacyAppCssFiles}`);
-  console.log(` - legacy :root blocks: ${summary.legacyRootBlocks}`);
-  console.log(
-    ` - normalized legacy media queries: ${summary.legacyDistinctMediaQueries} distinct / ${summary.legacyMediaQueryFilePairs} file-query pairs`,
-  );
-  console.log(
-    ` - legacy hard-coded color literals: ${summary.legacyHardcodedColorLiterals}`,
-  );
-  console.log(
-    ` - raw table debt: ${summary.legacyRawTableOccurrences} occurrence(s) across ${summary.legacyRawTableFiles} file(s)`,
-  );
-  console.log(
-    " - policy: grandfathered debt may decrease; new design-system debt is fail-closed",
-  );
+  console.log("DESIGN-SYSTEM CONVERGENCE VALIDATION PASSED");
+  console.log(` - ${cssFileCount} CSS file(s) scanned for hardcoded color literals`);
+  console.log(` - ${tsxFileCount} .tsx/.jsx file(s) scanned for raw <table> usage`);
+  console.log(" - globals.css imports the generated token file");
 }
 
-const invokedPath = process.argv[1]
-  ? path.resolve(process.argv[1])
-  : "";
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
 if (invokedPath === fileURLToPath(import.meta.url)) {
   main();
 }

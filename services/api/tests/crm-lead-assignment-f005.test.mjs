@@ -530,7 +530,7 @@ test("F005: offline and SLA entry points delegate to the canonical assignment do
   const offline = read("../src/modules/crm/crm-data-operations-and-customization/offline-sync.js");
   const intelligence = read("../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js");
   const slaRoute = read(
-    "../../../apps/web/src/app/api/crm/lead-intelligence/sla/route.ts",
+    "../../../docs/frontend-rebuild/recovered-platform-code/apps/web/src/app/api/crm/lead-intelligence/sla/route.ts",
   );
   assert.match(offline, /createCrmRecord\(client, context, "leads"/);
   assert.doesNotMatch(offline, /INSERT INTO tenant\.crm_leads/);

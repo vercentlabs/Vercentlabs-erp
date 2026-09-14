@@ -14,7 +14,8 @@
     "test": "node --test",
     "test:e2e": "playwright test",
     "verify:tokens": "node ../../scripts/design/generate-tailwind-theme.mjs --check",
-    "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs"
+    "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs",
+    "verify:routes": "node scripts/verify-routes.mjs"
   },
   "dependencies": {
     "@tanstack/react-form": "1.33.5",
