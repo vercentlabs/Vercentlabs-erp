@@ -11,7 +11,11 @@ import { cn } from "../utils/cn";
 // owns is the ONE visual vocabulary (variant/size/tone) every module must
 // reuse instead of inventing its own button styling, per
 // docs/01-standards/TECH_STACK_ADR_002_FRONTEND_REWRITE.md.
-const buttonVariants = cva(
+// Exported so a non-<button> element that needs the exact same visual
+// language (e.g. a Next.js <Link> acting as a CTA -- nesting a <button>
+// inside an <a> is invalid HTML) can apply it directly:
+// `<Link className={buttonVariants({ variant: "primary" })}>`.
+export const buttonVariants = cva(
   [
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)]",
     "font-[family-name:var(--font-sans)] font-medium transition-colors",
