@@ -518,14 +518,145 @@ row-by-row at that point, not before.
 Commit: `feat(crm): add real, backend-connected CRM Leads golden
 reference (UI 2.0)`.
 
-**Not yet done:** create/edit forms wired to real domain commands (the
-form system from Phase 3 exists but isn't yet plugged into a CRM screen);
-real in-place actions (assign/qualify/disqualify/convert/merge/archive)
-— today these link out to the real existing flows rather than executing
-inline; board view; import/export; saved views; mobile card-renderer for
-the List (an extension point exists on `EnterpriseDataGrid` but wasn't
-wired here); cutover of `/crm/leads` itself (requires full feature parity
-with `CrmResourceManager` first — not attempted this session).
+**Not yet done at the end of Phase 4:** create/edit forms wired to real
+domain commands (the form system from Phase 3 exists but isn't yet
+plugged into a CRM screen); real in-place actions (assign/qualify/
+disqualify/convert/merge/archive) — today these link out to the real
+existing flows rather than executing inline; board view; import/export;
+saved views; mobile card-renderer for the List (an extension point exists
+on `EnterpriseDataGrid` but wasn't wired here); cutover of `/crm/leads`
+itself (requires full feature parity with `CrmResourceManager` first —
+not attempted this session).
+
+### Phase 5: remaining primitives, two more archetypes, real Create/Edit forms, and a real backend bug found + fixed — DONE, verified end-to-end
+
+Continuation session (same date, picked up after Phase 4 — 19/19
+Storybook interaction+a11y tests re-confirmed passing first, no
+regression from the Phase 3/4 work).
+
+**Primitives** (`packages/ui-web/src/primitives/`): RadioGroup (small
+always-visible mutually-exclusive choices, distinct from Select's larger/
+space-constrained lists), Switch, Progress (determinate + indeterminate),
+Accordion, Toast (`ToastProvider`/`Toaster`/`useToast`). Toast required
+reading Base UI's actual barrel export shape rather than guessing:
+`@base-ui-components/react/toast` re-exports `useToastManager` as
+TYPE-ONLY at the top level — the real callable value only exists as
+`Toast.useToastManager` inside the namespace export; caught by `tsc`
+(TS1362), not assumed correct. This closes out the original brief's core
+primitive list except Combobox-adjacent items already covered and a few
+(DatePicker, Breadcrumb, Drawer/Sheet) no built screen has needed yet.
+
+**Archetypes** (`packages/ui-web/src/archetypes/`, new directory):
+`RecordFormSurface` (the Create/Edit page shell — real `beforeunload`
+unsaved-change protection, one real space for a server-rejected submit's
+error, a consistent Cancel-with-discard-confirmation/primary-action row)
+and `RecordActivityPanel` (composes `ActivityTimeline` + `AuditTimeline`
+into the Audit/Activity surface every Record 360 needs — extracted from
+the shape Lead 360 had already hand-assembled inline in Phase 4).
+
+**CRM Leads golden reference deepened**: `/crm/leads-next/new` and
+`/crm/leads-next/[id]/edit` — real Create/Edit forms on `useAppForm` +
+`RecordFormSurface`, submitting to the real, existing
+`POST /api/crm/leads` / `PATCH /api/crm/leads/[id]` routes. Owner and
+stage/status are deliberately not editable here (real backend contracts:
+`CRM_LEAD_ASSIGNMENT_REQUIRED` requires an owner change alone;
+`CRM_LEAD_STAGE_ACTION_REQUIRED` requires the governed lifecycle action).
+List/Detail now link to these real forms instead of the legacy
+`?create=1`/`?edit=` flows.
+
+**Four real defects found and fixed while building this against the live
+database** (this is what "verify as you go" against a real backend is
+for — none of these were visible from typecheck or the mocked unit test
+suite):
+1. `getCrmOptions` has no `owners` key (it's `users`) — the List page's
+   owner filter (added in Phase 4) was silently always empty. Fixed.
+2. `crmErrorResponse` puts a generic "Review the submitted fields." at
+   the top level for `CRM_VALIDATION_ERROR`, with the real per-field
+   messages under `errors` — both new forms only showed the generic
+   message. Fixed to surface the real message (e.g. "Provide at least
+   one contact method...").
+3. `tenant.crm_leads.priority`/`rating`/`estimated_value` are `NOT NULL`
+   columns; the Create form defaulted them to `null`, which the database
+   rejected with a raw constraint-violation 500 instead of a clean
+   message. Fixed by defaulting to the columns' own DB defaults
+   (medium/warm/0).
+4. **A real, significant, pre-existing backend concurrency bug**,
+   root-caused (not guessed) via direct query instrumentation:
+   `updateCrmRecord`'s checked-write `WHERE` clause compared
+   `record.updated_at` (genuine microsecond precision, confirmed e.g.
+   `.700902`) by exact equality against `before.updatedAt` — a value
+   that had already been silently truncated to millisecond precision by
+   `pg`'s default `timestamptz` → JS `Date` parsing. No API response can
+   ever hand a client more than millisecond precision to begin with, so
+   this made every checked write on leads/opportunities/the generic
+   versioned resources fail with a **false `CRM_STALE_WRITE` close to
+   100% of the time** — confirmed by direct instrumentation showing
+   `expectedUpdatedAt` and the stored value displaying identically
+   (`.700Z`) yet Postgres itself reporting `matches: false`. Fixed by
+   comparing both sides at millisecond precision
+   (`date_trunc('milliseconds', ...)`) in
+   `crm-data-operations-and-customization/resource-mutation-service.js`
+   — the only precision any client can ever meaningfully supply, so this
+   only removes the false positive and cannot mask a real concurrent
+   write. An existing unit test
+   (`crm-leads-f001-version-precision.test.mjs`) already covered a
+   *different*, earlier precision bug in the JS-level pre-check
+   (`String(Date)` vs `Date`) and remains correct/untouched; this bug was
+   in a *later-added*, separate atomic re-check embedded in the UPDATE's
+   own WHERE clause, invisible to the existing mocked-client unit tests
+   since a mock never has genuine sub-millisecond timestamps to truncate.
+   This also fixed `LeadEditForm`'s own client-side bug of checking the
+   wrong error code for this condition (`CRM_LEAD_VERSION_REQUIRED`,
+   which actually means "expectedUpdatedAt wasn't sent at all") instead
+   of the real code, `CRM_STALE_WRITE`.
+
+**Verified, not asserted:**
+- `pnpm --filter @vercentlabs/ui-web test` 36/36; `pnpm --filter
+  @vercentlabs/web typecheck` clean; `pnpm --filter @vercentlabs/web
+  build` succeeds with `/crm/leads-next/new` and
+  `/crm/leads-next/[id]/edit` as new routes; `pnpm --filter
+  @vercentlabs/web lint` clean (found and fixed, in passing, a real gap:
+  ESLint had no ignore for the gitignored `storybook-static/` build
+  output, so a local Storybook test run left 464 errors/10,833 warnings
+  of minified-bundle noise until excluded the same way
+  `playwright-report/`/`test-results/` already were).
+- **`pnpm --filter @vercentlabs/api test`: full backend unit suite,
+  887/887 pass** after the concurrency fix (one existing test's SQL-shape
+  regex needed updating to match the corrected, still-present
+  checked-write clause — its intent was preserved, not weakened).
+- **Real Playwright E2E, live Postgres fixture org**:
+  `erp-crm-leads-next.spec.ts` grew to 5 new tests (Create rejects a
+  contact-method-less lead via the real backend rule; Create succeeds and
+  redirects to the real Record 360; Edit succeeds through the real PATCH;
+  Edit surfaces a stale-conflict response — intercepted deterministically
+  for this one assertion only, since reproducing the underlying race live
+  is inherently timing-dependent and the fix's real-world correctness is
+  already independently confirmed by the full regression run below) — full
+  spec 8/8.
+- **Full existing CRM E2E regression, all 6 spec files, run specifically
+  to check the concurrency fix for side effects**: `erp-crm-navigation`,
+  `erp-crm-opportunity-journey`, `erp-crm-lead-lifecycle-scoring`,
+  `erp-crm-merge-hierarchy`, `erp-crm-sensitive-projection`,
+  `erp-crm-opportunity-projection-parity` — **45/45 pass**, including
+  tests that specifically assert a genuinely stale write is still
+  correctly rejected (Account/Contact merge conflict detection),
+  confirming the fix removes the false positive without weakening real
+  conflict detection anywhere else in CRM.
+
+Commits: `fix(api): correct false-positive optimistic-concurrency
+rejections on CRM checked writes`, `feat(ui): add CheckboxField to the
+TanStack Form field system`, `feat(crm): add real Lead Create/Edit forms
+to the UI 2.0 golden reference`, `build(web): exclude storybook-static
+build output from eslint`.
+
+**Not yet done:** real in-place actions (assign/qualify/disqualify/
+convert/merge/archive) — still link out to the real existing flows;
+board view; import/export; saved views; mobile card-renderer for the
+List; Storybook stories for any Phase 3/5 primitive or archetype (only
+the original 4 Phase 1/2 primitives have stories); Work Queue and Board
+shell archetypes (not built — no concrete consumer needed them yet, per
+the brief's own "Board shell where necessary" phrasing); cutover of
+`/crm/leads` itself.
 
 ## Module-by-module DIRECT_UI mapping coverage (from `verify:ux-coverage` Section B)
 
@@ -591,36 +722,34 @@ numbers here as sessions progress; this table is a snapshot of the
 
 1. ~~Set up Storybook for real~~ — done (see Phase 2 section above): 19/19
    interaction+a11y tests pass for the 4 existing primitives.
-2. ~~Grow `packages/ui-web/src/primitives`~~ — done (see Phase 3 section
-   above): Checkbox/DropdownMenu/Avatar/Skeleton/Textarea/IconButton/
-   Separator/Tabs/Popover/Tooltip/AlertDialog/Select/Combobox added, all
-   with real render tests. Still missing from the original brief list and
-   not yet needed by any built screen: RadioGroup, Switch, DatePicker
-   (native date/datetime inputs are used today instead), Toast,
-   Accordion/Collapsible, Progress, Breadcrumb, Drawer/Sheet. No Storybook
-   stories exist yet for any Phase 3 primitive (only the original 4 from
-   Phase 1/2 have stories) — add them before growing the primitive count
-   further, per the standing Phase 2 guidance.
+2. ~~Grow `packages/ui-web/src/primitives`~~ — done (see Phase 3/5
+   sections above): Checkbox/DropdownMenu/Avatar/Skeleton/Textarea/
+   IconButton/Separator/Tabs/Popover/Tooltip/AlertDialog/Select/Combobox/
+   RadioGroup/Switch/Progress/Accordion/Toast added, all with real render
+   tests. Still missing and not yet needed by any built screen:
+   DatePicker (native date/datetime inputs used today instead),
+   Breadcrumb, Drawer/Sheet. No Storybook stories exist yet for any
+   Phase 3/5 primitive (only the original 4 from Phase 1/2 have stories)
+   — add them before growing the primitive count further, per the
+   standing Phase 2 guidance.
 3. ~~Start Phase 0b~~ — done (see Phase 0b section above).
 4. ~~Build the canonical `EnterpriseDataGrid`~~ — done (see Phase 3
    section above), used for real in `/crm/leads-next`.
-5. ~~Pick ONE golden-reference screen and migrate it~~ — done as a
-   **read-surface** migration (see Phase 4 section above): `/crm/leads-next`
-   (List) and `/crm/leads-next/[id]` (Record 360), real data, real E2E
-   (4/4), mounted at a new path rather than `/crm/leads` itself for the
-   documented routing-collision reason. **Next concrete step: wire the
-   Phase 3 form system into a real Lead create/edit surface** (the
-   `useAppForm`/`TextField`/`SelectField`/etc. exist but nothing consumes
-   them yet) backed by the real `createCrmRecord`/`updateCrmRecord`
-   domain commands, then wire real in-place actions (assign owner via
-   `assignLeadOwner`, change stage via `transitionLeadStage`, convert via
-   `convertCrmLead`) into `leads-next`'s Record 360 rather than linking
-   out to the legacy workspace for those specific actions. Only once
-   `leads-next` has full parity with `CrmResourceManager` should cutting
-   over the real `/crm/leads` path be considered — and only with the
-   route-collision hazard documented in Phase 4 re-verified as resolved
-   (e.g. by that point `resource-manager.tsx` for the `leads` resource may
-   itself be retired, removing the collision entirely).
+5. ~~Pick ONE golden-reference screen and migrate it~~ / ~~wire the form
+   system into a real Create/Edit surface~~ — done (see Phase 4/5
+   sections above): `/crm/leads-next` (List), `/crm/leads-next/[id]`
+   (Record 360), `/crm/leads-next/new` and `/crm/leads-next/[id]/edit`
+   (real Create/Edit), all real data, real E2E (8/8), mounted at a new
+   path rather than `/crm/leads` itself for the documented
+   routing-collision reason. **Next concrete step: wire real in-place
+   actions** (assign owner via `assignLeadOwner`, change stage via
+   `transitionLeadStage`, convert via `convertCrmLead`) into
+   `leads-next`'s Record 360 rather than linking out to the legacy
+   workspace for those specific actions. Only once `leads-next` has full
+   parity with `CrmResourceManager` (actions + board + import/export +
+   saved views) should cutting over the real `/crm/leads` path be
+   considered — and only with the route-collision hazard documented in
+   Phase 4 re-verified as resolved.
 6. Add a mobile `mobileCardRenderer` to `LeadsListView`'s
    `EnterpriseDataGrid` usage — the extension point exists on the
    component but wasn't wired for this first pass; today the List falls
@@ -628,5 +757,11 @@ numbers here as sessions progress; this table is a snapshot of the
    own doc comment marks acceptable only for READ_ONLY/APPROVAL_ONLY phone
    classifications, not confirmed correct for Leads specifically.
 7. Revisit `UX_TRACEABILITY_REGISTER.csv`'s F001 rows once `leads-next`
-   reaches real feature parity (create/edit/actions) — see Phase 4's
+   reaches real feature parity (actions/board) — see Phase 4's
    explanation of why none were marked `DONE` this session.
+8. If any other module's edit flow uses `updateCrmRecord`'s checked-write
+   contract (opportunities and the generic versioned resources do), it
+   was silently affected by the same false-`CRM_STALE_WRITE` bug fixed in
+   Phase 5 before this session started — no further action needed (the
+   fix is in the one shared function), but worth knowing when reading
+   git blame on `resource-mutation-service.js` later.
