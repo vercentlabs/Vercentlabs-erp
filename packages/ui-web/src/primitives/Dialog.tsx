@@ -5,14 +5,21 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "../utils/cn";
 
 // Base UI owns focus trapping, inert-background, Escape-to-close,
-// return-focus-on-close and the required aria-modal/aria-labelledby/
-// aria-describedby wiring here -- exactly the class of primitive
-// docs/01-standards/ACCESSIBILITY_STANDARD.md requires and that is easy to
-// get subtly wrong hand-rolling it per module (this repo's own legacy
-// apps/web/src/shared/design/dialog.module.css is exactly that hand-rolled
-// pattern, kept until every dialog usage migrates). This wraps Base UI's
-// parts with the ERP's own visual language rather than exposing Base UI's
-// unstyled parts directly to module code.
+// return-focus-on-close and aria-labelledby/aria-describedby wiring here --
+// exactly the class of primitive docs/01-standards/ACCESSIBILITY_STANDARD.md
+// requires and that is easy to get subtly wrong hand-rolling it per module
+// (this repo's own legacy apps/web/src/shared/design/dialog.module.css is
+// exactly that hand-rolled pattern, kept until every dialog usage
+// migrates). This wraps Base UI's parts with the ERP's own visual language
+// rather than exposing Base UI's unstyled parts directly to module code.
+//
+// One thing Base UI does NOT set: `aria-modal`. It enforces modality
+// BEHAVIORALLY (focus trap + inert background), which is not the same
+// contract as the `aria-modal="true"` ARIA attribute screen readers use to
+// decide whether to allow virtual/browse-mode navigation outside the
+// dialog -- found by the Storybook a11y test-runner failing on this exact
+// gap, not assumed. Set explicitly below since every DialogContent usage
+// in this package is modal today (no non-modal variant exists yet).
 export const DialogRoot = BaseDialog.Root;
 export const DialogTrigger = BaseDialog.Trigger;
 export const DialogClose = BaseDialog.Close;
@@ -27,6 +34,7 @@ export function DialogContent({
     <BaseDialog.Portal>
       <BaseDialog.Backdrop className="fixed inset-0 z-[var(--z-modal)] bg-[var(--erp-color-overlay-backdrop)] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-opacity" />
       <BaseDialog.Popup
+        aria-modal="true"
         className={cn(
           "fixed left-1/2 top-1/2 z-[var(--z-modal)] w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
           "rounded-[var(--radius-panel)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-overlay)]",

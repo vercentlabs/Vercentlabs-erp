@@ -278,16 +278,82 @@ exit 0, all 187 existing routes still build), and the existing
 `pnpm --filter @vercentlabs/web test` suite (723/723, zero regressions from
 adding the new stack).
 
-**Explicitly not done yet** (do not claim otherwise): Storybook is not
-configured (checked `storybook`/`@storybook/nextjs`/`@storybook/addon-a11y`
-are all published and installable; deferred to keep this slice reviewable
-and because a half-configured Storybook is worse than none — do it as its
-own real slice); no axe/accessibility automated test yet exists for these
-4 primitives; the remaining ~35+ primitives and all enterprise
-components/archetypes from the brief's component registry are not started;
-no module page has been migrated to consume `@vercentlabs/ui-web` yet —
-these 4 primitives exist and are proven but are not yet used anywhere in
-the real product.
+**Explicitly not done yet at the end of the foundation slice:** Storybook
+itself (see next section — now done); no axe/accessibility automated test
+existed yet for these 4 primitives (now done); the remaining ~35+
+primitives and all enterprise components/archetypes from the brief's
+component registry are not started; no module page has been migrated to
+consume `@vercentlabs/ui-web` yet.
+
+### Phase 2: Storybook + accessibility testing infrastructure — DONE, verified end-to-end
+
+Configured Storybook 10.6.0 in `apps/web/.storybook/` (`main.ts` +
+`preview.tsx`), consuming the REAL production pipeline, not an isolated
+demo: `main.ts` points `stories` at `packages/ui-web/src/**/*.stories.tsx`
+and uses `@storybook/nextjs` as the framework (Next 16/React 19 compatible,
+confirmed via published peerDependencies before installing);
+`preview.tsx` imports the real `shared/design/tokens.css` +
+`app/tailwind-theme.css` — deliberately NOT the legacy global stylesheets
+(`globals.css`/`navigation-v2.css`/etc.), so a component looking right in
+Storybook can never be because of page-level legacy CSS a real consumer
+wouldn't have. Sets `a11y.test = "error"` globally: a real WCAG violation
+fails the story, not just a lint warning, per SP032's own normative "no
+hidden critical errors" language.
+
+Added `@storybook/addon-a11y` and `@storybook/test-runner`. Because
+`@storybook/test-runner` needs a running Storybook to connect to,
+`apps/web/scripts/run-storybook-tests.mjs` (`pnpm test:storybook`) builds
+the static output once and serves it with an **in-process** `node:http`
+static file server (no child process) rather than spawning `http-server`
+as a subprocess — found and fixed a real Windows bug this way: `child.kill()`
+only signals the immediate child, and when that child is a shell wrapper
+(needed to resolve `npx.cmd`), the real server process it spawned survives
+and keeps the port bound, breaking the next run with `EADDRINUSE`. An
+in-process listener has no grandchild to leak.
+
+Wrote real stories for all 4 existing primitives (Button, Input,
+StatusBadge, Dialog) — default/variants/density/disabled/loading/long-text/
+keyboard-focus/keyboard-activation states, per the brief's own list, with
+`play()` interaction tests where a state is worth asserting rather than
+just looking at, not decorative stories added purely to inflate a count.
+
+**Running the real test-runner against the real components found two real
+defects, not test-authoring mistakes:**
+
+1. **Dialog had no `aria-modal="true"`.** The component's own comment
+   claimed "Base UI owns the required aria-modal ... wiring" — that claim
+   was never verified before being written, and was wrong: Base UI enforces
+   modality *behaviorally* (focus trap + inert background) but does not set
+   the `aria-modal` ARIA attribute itself, which is a distinct contract
+   screen readers use to decide whether to allow virtual/browse-mode
+   navigation outside the dialog. Fixed by setting it explicitly in
+   `DialogContent`, and the comment corrected to state what was actually
+   verified instead of what was assumed.
+2. **The Input `Invalid` story had no accessible label**, only a
+   placeholder — axe's `label-title-only` rule correctly failed it
+   (placeholder text disappears on input and isn't reliably exposed as the
+   accessible name). Fixed by giving every Input story a real
+   `<label htmlFor>` via a shared decorator, which is also the honest
+   preview of why a `FormField` wrapper is a real, load-bearing part of the
+   later form-system phase, not a nice-to-have.
+
+A third finding, resolved as a test fix rather than a component fix:
+Escape-triggered dialog dismissal restores focus to the trigger
+**asynchronously** in this Base UI release (a Close-button click restores
+it synchronously) — the story's assertion needed `waitFor(...)`, which is
+a real, worth-remembering behavioral difference for anyone building more
+dialogs on this primitive, not a bug in the primitive itself.
+
+**Verified, not asserted:** `pnpm --filter @vercentlabs/web test:storybook`
+— 4 story suites, **19/19 tests pass** (interactions + axe together), run
+to a clean pass after each fix, not just once. `pnpm --filter
+@vercentlabs/ui-web test` (4/4, unchanged) and `pnpm --filter
+@vercentlabs/web typecheck` (clean) still pass with Storybook and its
+story files present.
+
+**Not yet done:** stories only exist for the 4 primitives that existed
+before this phase; no enterprise component or archetype has a story yet
+(there are none built yet to write one for — see Phase 3).
 
 ## Module-by-module DIRECT_UI mapping coverage (from `verify:ux-coverage` Section B)
 
@@ -351,12 +417,8 @@ numbers here as sessions progress; this table is a snapshot of the
 
 ## Immediate next action for whoever continues this
 
-1. Set up Storybook for real (`storybook`, `@storybook/nextjs`,
-   `@storybook/addon-a11y` all confirmed installable at time of writing)
-   against `packages/ui-web`, with a real story + axe check for each of the
-   4 existing primitives before adding more. Do this before growing the
-   primitive count further — retrofitting stories onto 30+ components later
-   is far more expensive than writing them alongside each one now.
+1. ~~Set up Storybook for real~~ — done (see Phase 2 section above): 19/19
+   interaction+a11y tests pass for the 4 existing primitives.
 2. Grow `packages/ui-web/src/primitives` to cover the rest of the core
    primitive list from the brief (Select, Combobox, Checkbox, RadioGroup,
    Switch, DatePicker, Popover, Tooltip, DropdownMenu, Tabs, Avatar, Toast,

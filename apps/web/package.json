@@ -17,7 +17,10 @@
     "test:e2e:erp": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts",
     "test:e2e:erp:update": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts --update-snapshots",
     "test:e2e:crm": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-crm-navigation.spec.ts tests/e2e/erp-crm-opportunity-journey.spec.ts tests/e2e/erp-crm-lead-lifecycle-scoring.spec.ts tests/e2e/erp-crm-merge-hierarchy.spec.ts tests/e2e/erp-crm-sensitive-projection.spec.ts tests/e2e/erp-crm-opportunity-projection-parity.spec.ts",
-    "test:e2e:procurement": "tsx scripts/e2e-fixture-bootstrap.mts && tsx scripts/e2e-fixture-procurement.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-procurement-source-to-pay-journey.spec.ts"
+    "test:e2e:procurement": "tsx scripts/e2e-fixture-bootstrap.mts && tsx scripts/e2e-fixture-procurement.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-procurement-source-to-pay-journey.spec.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "test:storybook": "node scripts/run-storybook-tests.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",
@@ -62,6 +65,10 @@
     "typescript": "^5.9.3",
     "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "1.61.1",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.13",
+    "storybook": "^10.6.0",
+    "@storybook/nextjs": "^10.6.0",
+    "@storybook/addon-a11y": "^10.6.0",
+    "@storybook/test-runner": "^0.24.5"
   }
 }
