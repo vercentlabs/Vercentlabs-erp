@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@vercentlabs/api",
     "@vercentlabs/database",
+    "@vercentlabs/design-system",
     "@vercentlabs/design-tokens",
     "@vercentlabs/permissions",
     "@vercentlabs/shared-types",

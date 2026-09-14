@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
+/* Tailwind v4's automatic content detection only scans this app's own
+   tree; packages/design-system is a separate workspace package (symlinked
+   under node_modules), so its class usage must be registered explicitly
+   or every utility class there is silently dropped from the build. */
+@source "../../../../packages/design-system/src";
+
 html,
 body {
   height: 100%;

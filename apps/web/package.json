@@ -23,6 +23,7 @@
     "@tanstack/react-virtual": "3.14.12",
     "@vercentlabs/api": "workspace:*",
     "@vercentlabs/database": "workspace:*",
+    "@vercentlabs/design-system": "workspace:*",
     "@vercentlabs/design-tokens": "workspace:*",
     "@vercentlabs/permissions": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*",

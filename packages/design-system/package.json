@@ -1,0 +1,38 @@
+{
+  "name": "@vercentlabs/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "test:a11y": "test-storybook"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "dependencies": {
+    "@internationalized/date": "3.10.1",
+    "@tanstack/react-form": "1.33.5",
+    "@vercentlabs/design-tokens": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "lucide-react": "1.45.0",
+    "react-aria-components": "1.21.1",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "typescript": "^5.9.3"
+  }
+}
