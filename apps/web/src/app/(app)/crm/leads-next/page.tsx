@@ -75,7 +75,7 @@ export default async function LeadsNextPage({
       sourceId={sourceId}
       ownerId={ownerId}
       sources={JSON.parse(JSON.stringify(options.sources || []))}
-      owners={JSON.parse(JSON.stringify(options.owners || []))}
+      owners={JSON.parse(JSON.stringify(options.users || []))}
       stages={JSON.parse(JSON.stringify(stages.rows || []))}
       canManage={canManage}
       canAssignOwner={canAssignOwner}

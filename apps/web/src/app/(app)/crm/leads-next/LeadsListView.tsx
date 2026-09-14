@@ -170,10 +170,10 @@ export function LeadsListView({
     <PageShell>
       <PageHeader
         title="Leads"
-        description={`${total} lead${total === 1 ? "" : "s"} · UI 2.0 preview -- create/edit/board still open in the existing CRM workspace`}
+        description={`${total} lead${total === 1 ? "" : "s"} · UI 2.0 preview -- owner/stage changes and the board view still open in the existing CRM workspace`}
         actions={
           canManage ? (
-            <Link href="/crm/leads?create=1" className={buttonVariants({ variant: "primary" })}>
+            <Link href="/crm/leads-next/new" className={buttonVariants({ variant: "primary" })}>
               New lead
             </Link>
           ) : undefined
@@ -263,7 +263,7 @@ export function LeadsListView({
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => router.push(`/crm/leads-next/${row.id}`)}>View 360</DropdownMenuItem>
               {canManage ? (
-                <DropdownMenuItem onClick={() => router.push(`/crm/leads?edit=${row.id}`)}>Edit</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/crm/leads-next/${row.id}/edit`)}>Edit</DropdownMenuItem>
               ) : null}
               <DropdownMenuItem onClick={() => router.push(`/crm/leads/${row.id}`)}>Open full workspace</DropdownMenuItem>
             </DropdownMenuContent>

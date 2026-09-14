@@ -165,7 +165,7 @@ export function LeadDetailView({
             <DropdownMenuRoot>
               <DropdownMenuTrigger className={buttonVariants({ variant: "secondary" })}>Actions</DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem render={<Link href={`/crm/leads?edit=${lead.id}`} />}>Edit lead</DropdownMenuItem>
+                <DropdownMenuItem render={<Link href={`/crm/leads-next/${lead.id}/edit`} />}>Edit lead</DropdownMenuItem>
                 <DropdownMenuItem render={<Link href={`/crm/leads/${lead.id}`} />}>Assign / change stage / convert...</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenuRoot>
