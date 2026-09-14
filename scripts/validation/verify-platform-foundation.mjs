@@ -88,7 +88,7 @@ const required = [
   "packages/observability",
   "packages/localization",
   "packages/shared-types",
-  "packages/shared-ui",
+  "packages/design-tokens",
   "packages/shared-sdk",
 
   "database/platform/migrations",

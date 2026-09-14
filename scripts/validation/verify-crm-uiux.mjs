@@ -31,7 +31,7 @@ const expectedIds = Array.from(
 );
 
 const required = [
-  "packages/shared-ui/tokens/theme.json",
+  "packages/design-tokens/tokens/theme.json",
   "scripts/design/generate-theme.mjs",
   "apps/web/src/shared/design/tokens.css",
   "apps/mobile/src/shared/theme/tokens.ts",
@@ -60,8 +60,8 @@ if (exists("scripts/design/generate-theme.mjs")) {
   }
 }
 
-if (exists("packages/shared-ui/tokens/theme.json")) {
-  const theme = JSON.parse(read("packages/shared-ui/tokens/theme.json"));
+if (exists("packages/design-tokens/tokens/theme.json")) {
+  const theme = JSON.parse(read("packages/design-tokens/tokens/theme.json"));
   for (const key of ["color", "spacing", "radius", "control", "layout", "breakpoint", "motion", "webType", "nativeType"]) {
     if (!theme[key]) fail(`Canonical theme source is missing ${key}.`);
   }
