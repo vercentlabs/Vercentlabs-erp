@@ -105,4 +105,29 @@ export * from "./orchestration/sales-stock-reservation.js";
 
 export * from "./orchestration/sales-stock-fulfillment.js";
 
+// Platform reactivation port (Prompt 2 of 15) — see
+// docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the source mapping.
+// Every symbol below is ported from docs/frontend-rebuild/
+// recovered-platform-code and re-reviewed for the current security
+// standard; none of the ACTIVE code re-exported here reads from that
+// parked directory at runtime.
+export * from "./core/access-control-runtime.js";
+export * from "./core/session.js";
+export * from "./core/access-administration.js";
+export * from "./core/entitlements.js";
+export * from "./core/module-entitlements.js";
+export * from "./core/audit-redaction.js";
+export * from "./core/security.js";
+export * from "./core/attachment-security.js";
+export * from "./core/password-policy.js";
+export * from "./core/auth-mailer.js";
+export * from "./core/api-keys.js";
+export * from "./core/oauth.js";
+export * from "./core/notification-preferences.js";
+export * from "./core/inbound-mail.js";
+export * from "./core/tags.js";
+export * from "./core/configuration.js";
+export * from "./core/privacy.js";
+export * from "./core/ai-governance.js";
+
 export * from "./orchestration/sales-crm-opportunity-sync.js";

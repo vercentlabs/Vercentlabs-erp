@@ -1,0 +1,261 @@
+// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// core/billing.ts. Named "entitlements.js" (not "billing.js") to avoid
+// colliding with the existing services/api/src/core/billing.js, which
+// handles Razorpay plan/status-mapping only — a distinct concern from the
+// usage/entitlement policy ported here.
+//
+// Security/business properties preserved: enforcement-mode awareness
+// (observe vs enforce, defaulting to enforce only in production) so a
+// billing lookup failure never silently blocks in non-production;
+// idempotency-key-checked usage increments with divergence detection;
+// advisory-lock-serialized organization-limit checks (companies/branches)
+// to prevent a race from exceeding a plan's seat/company limit.
+export class EntitlementError extends Error {
+  constructor(status, message, code = "ENTITLEMENT_ERROR") {
+    super(message);
+    this.name = "EntitlementError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const DEFAULT_LIMITS = Object.freeze({
+  companies: 1,
+  branches: 2,
+  storage_gb: 25,
+  api_requests_monthly: 100_000,
+  automation_actions_monthly: 5_000,
+  outbound_messages_monthly: 5_000,
+  imports_rows_monthly: 25_000,
+});
+
+function limits(value) {
+  if (!value || typeof value !== "object") return { ...DEFAULT_LIMITS };
+  return { ...DEFAULT_LIMITS, ...value };
+}
+
+function iso(value) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+export function billingEnforcementMode(env = process.env) {
+  const configured = env.BILLING_ENFORCEMENT_MODE?.toLowerCase();
+  if (configured === "observe" || configured === "enforce") return configured;
+  return env.NODE_ENV === "production" ? "enforce" : "observe";
+}
+
+function hasWriteAccess({ status, trialEndsAt, graceEndsAt }) {
+  if (["active", "trialing"].includes(status)) return true;
+  if (status === "past_due" && graceEndsAt && new Date(graceEndsAt) > new Date()) return true;
+  if (trialEndsAt && new Date(trialEndsAt) > new Date()) return true;
+  return false;
+}
+
+export async function getBillingSummary(client, organizationId, env = process.env) {
+  const rows = await client.query(
+    `SELECT
+        subscription.status,
+        plan.code AS plan_code,
+        plan.name AS plan_name,
+        subscription.billing_period,
+        subscription.current_period_ends_at,
+        subscription.trial_ends_at,
+        subscription.grace_ends_at,
+        subscription.cancel_at_cycle_end,
+        subscription.provider_subscription_id,
+        subscription.modules_snapshot,
+        subscription.limits_snapshot
+      FROM organization_subscriptions subscription
+      JOIN billing_plan_prices price ON price.id = subscription.plan_price_id
+      JOIN billing_plans plan ON plan.id = price.plan_id
+      WHERE subscription.organization_id = $1
+      LIMIT 1`,
+    [organizationId],
+  );
+  const row = rows.rows[0];
+  if (!row) throw new EntitlementError(409, "Billing is not initialised for this organisation.");
+
+  const [usageRows, overrideRows] = await Promise.all([
+    client.query(
+      `SELECT metric, quantity FROM billing_usage_monthly
+        WHERE organization_id = $1 AND month_start = date_trunc('month', current_date)::date`,
+      [organizationId],
+    ),
+    client.query(
+      `SELECT entitlement_key, entitlement_value FROM billing_entitlement_overrides
+        WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > now())`,
+      [organizationId],
+    ),
+  ]);
+  const usage = Object.fromEntries(usageRows.rows.map((item) => [item.metric, Number(item.quantity)]));
+  const effectiveLimits = limits(row.limits_snapshot);
+  let effectiveModules = Array.isArray(row.modules_snapshot) ? row.modules_snapshot.map(String) : [];
+  for (const override of overrideRows.rows) {
+    if (override.entitlement_key === "modules") {
+      if (Array.isArray(override.entitlement_value)) {
+        effectiveModules = override.entitlement_value.map(String);
+      }
+      continue;
+    }
+    if (!(override.entitlement_key in effectiveLimits)) continue;
+    const value = Number(override.entitlement_value);
+    if (!Number.isFinite(value) || value < 0) continue;
+    effectiveLimits[override.entitlement_key] = value;
+  }
+
+  return {
+    status: row.status,
+    planCode: row.plan_code,
+    planName: row.plan_name,
+    billingPeriod: row.billing_period,
+    currentPeriodEndsAt: iso(row.current_period_ends_at),
+    trialEndsAt: iso(row.trial_ends_at),
+    graceEndsAt: iso(row.grace_ends_at),
+    cancelAtCycleEnd: row.cancel_at_cycle_end,
+    providerSubscriptionId: row.provider_subscription_id,
+    limits: effectiveLimits,
+    modules: effectiveModules,
+    usage,
+    writeAccess: hasWriteAccess({
+      status: row.status,
+      trialEndsAt: row.trial_ends_at,
+      graceEndsAt: row.grace_ends_at,
+    }),
+    enforcementMode: billingEnforcementMode(env),
+  };
+}
+
+export async function requireBillingWriteAccess(client, organizationId, env = process.env) {
+  const summary = await getBillingSummary(client, organizationId, env);
+  if (!summary.writeAccess && summary.enforcementMode === "enforce") {
+    throw new EntitlementError(
+      402,
+      "The subscription is not active. Billing owners can renew from the Billing workspace. Read and export access remains available.",
+    );
+  }
+  return summary;
+}
+
+function usageLimit(summary, metric) {
+  if (metric === "storage_bytes") return Number(summary.limits.storage_gb || 0) * 1024 * 1024 * 1024;
+  return Number(summary.limits[metric] || 0);
+}
+
+export async function incrementBillingUsage(
+  client,
+  organizationId,
+  metric,
+  quantity = 1,
+  { idempotencyKey = "", source = "runtime", env = process.env } = {},
+) {
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+    throw new EntitlementError(400, "Usage quantity must be a positive integer.");
+  }
+  const key = String(idempotencyKey || "").trim();
+  if (key.length > 240) throw new EntitlementError(400, "Usage idempotency key is too long.");
+  const normalizedSource = String(source || "runtime").trim() || "runtime";
+  if (normalizedSource.length > 120) throw new EntitlementError(400, "Usage source is too long.");
+
+  const summary = await requireBillingWriteAccess(client, organizationId, env);
+  const maximum = usageLimit(summary, metric);
+
+  if (key) {
+    const event = await client.query(
+      `INSERT INTO billing_usage_events (
+         organization_id, month_start, metric, quantity, idempotency_key, source
+       ) VALUES ($1, date_trunc('month', current_date)::date, $2, $3, $4, $5)
+       ON CONFLICT (organization_id, metric, idempotency_key) DO NOTHING
+       RETURNING id`,
+      [organizationId, metric, quantity, key, normalizedSource],
+    );
+    if (!event.rows[0]) {
+      const prior = await client.query(
+        `SELECT quantity,source FROM billing_usage_events
+          WHERE organization_id=$1 AND metric=$2 AND idempotency_key=$3`,
+        [organizationId, metric, key],
+      );
+      if (!prior.rows[0] || Number(prior.rows[0].quantity) !== quantity || prior.rows[0].source !== normalizedSource) {
+        throw new EntitlementError(409, "The usage idempotency key was already used with different input.", "BILLING_IDEMPOTENCY_CONFLICT");
+      }
+      const current = await client.query(
+        `SELECT quantity FROM billing_usage_monthly
+          WHERE organization_id=$1 AND month_start=date_trunc('month', current_date)::date AND metric=$2`,
+        [organizationId, metric],
+      );
+      return { replayed: true, quantity: current.rows[0] ? Number(current.rows[0].quantity) : null };
+    }
+  }
+
+  await client.query(
+    `INSERT INTO billing_usage_monthly (organization_id, month_start, metric, quantity)
+     VALUES ($1, date_trunc('month', current_date)::date, $2, 0)
+     ON CONFLICT (organization_id, month_start, metric) DO NOTHING`,
+    [organizationId, metric],
+  );
+
+  if (summary.enforcementMode === "enforce" && maximum > 0) {
+    const updated = await client.query(
+      `UPDATE billing_usage_monthly
+          SET quantity = quantity + $3, updated_at = now()
+        WHERE organization_id = $1
+          AND month_start = date_trunc('month', current_date)::date
+          AND metric = $2
+          AND quantity + $3 <= $4
+        RETURNING quantity`,
+      [organizationId, metric, quantity, maximum],
+    );
+    if (!updated.rows[0]) {
+      throw new EntitlementError(
+        402,
+        `The ${summary.planName} plan has reached its ${metric.replaceAll("_", " ")} allowance. Upgrade or add capacity before continuing.`,
+      );
+    }
+    return { replayed: false, quantity: Number(updated.rows[0].quantity) };
+  }
+
+  const updated = await client.query(
+    `UPDATE billing_usage_monthly
+        SET quantity = quantity + $3, updated_at = now()
+      WHERE organization_id = $1
+        AND month_start = date_trunc('month', current_date)::date
+        AND metric = $2
+      RETURNING quantity`,
+    [organizationId, metric, quantity],
+  );
+  return { replayed: false, quantity: updated.rows[0] ? Number(updated.rows[0].quantity) : null };
+}
+
+export async function assertModuleEntitlement(client, organizationId, moduleKey, env = process.env) {
+  const summary = await requireBillingWriteAccess(client, organizationId, env);
+  const allowed = summary.modules.includes("*") || summary.modules.includes(moduleKey);
+  if (!allowed && summary.enforcementMode === "enforce") {
+    throw new EntitlementError(
+      402,
+      `The ${summary.planName} plan does not include the ${moduleKey.replaceAll("-", " ")} module. Upgrade the subscription before enabling it.`,
+    );
+  }
+  return summary;
+}
+
+export async function assertOrganizationLimit(client, organizationId, limitKey, env = process.env) {
+  const summary = await requireBillingWriteAccess(client, organizationId, env);
+  const maximum = Number(summary.limits[limitKey] || 0);
+  if (maximum <= 0 || summary.enforcementMode !== "enforce") return;
+
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
+    organizationId,
+    `billing-limit:${limitKey}`,
+  ]);
+  const table = limitKey === "companies" ? "companies" : "branches";
+  const result = await client.query(
+    `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1 AND status = 'active'`,
+    [organizationId],
+  );
+  const current = result.rows[0]?.count || 0;
+  if (current >= maximum) {
+    throw new EntitlementError(
+      402,
+      `The ${summary.planName} plan includes ${maximum} ${limitKey}. Upgrade the subscription before adding another.`,
+    );
+  }
+}

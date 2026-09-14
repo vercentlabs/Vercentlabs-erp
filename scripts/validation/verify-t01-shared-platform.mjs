@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 // T01 "shared platform" (SP010-SP036) verification.
 //
-// IMPORTANT: as of the clean-slate frontend rebuild, the actual
-// implementation of this capability set (apps/web/src/core/shared-platform.ts
-// and friends) was deleted along with the rest of the old apps/web tree, and
-// has no replacement anywhere in the current codebase. The source was
-// recovered verbatim into docs/frontend-rebuild/recovered-platform-code/ for
-// preservation (see that directory's README), but it is NOT wired into any
-// active build — nothing imports it. This script now verifies the *parked
-// snapshot* still contains the expected security-relevant patterns, and the
-// database/dossier checks that ARE still real. A pass here is NOT evidence
-// the shared-platform system works in production; it currently does not
-// exist in production. See the README for what needs to happen before this
-// can be un-parked.
+// UPDATED (Prompt 2 of 15 — platform reactivation): the capability set
+// recovered into docs/frontend-rebuild/recovered-platform-code/ has now
+// been ported into services/api/src/core/*.js as framework-agnostic,
+// client-injected modules, re-reviewed against current security
+// standards, and wired into @vercentlabs/api's barrel export. See
+// docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the full per-
+// capability source mapping and classification.
+//
+// Two slices remain intentionally NOT ported yet, pending a dedicated
+// overlap audit against packages/reporting-engine and packages/workflows
+// (porting them without that check risked creating a duplicate,
+// possibly-diverging implementation): shared reporting dataset
+// permissions (requireReportDatasetPermission) and the generic
+// workflow-run engine (executeWorkflowRun). This script still checks
+// those two against the parked snapshot only, and says so explicitly.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,25 +38,51 @@ for (const id of expected) {
   if (!dossierMatch) fail(`${id}: missing shared-platform requirement dossier`);
 }
 
-// Real, current artifacts (unaffected by the frontend deletion).
+// Real, current artifacts.
 for (const relative of [
   "database/platform/migrations/035_t01_shared_platform_completion.sql",
   "database/tenant/migrations/075_t01_import_idempotency.sql",
   "services/api/tests/t01-shared-platform-imports.test.mjs",
+  "docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv",
+  // The port: live, client-injected services/api modules.
+  "services/api/src/core/access-control-runtime.js",
+  "services/api/src/core/session.js",
+  "services/api/src/core/access-administration.js",
+  "services/api/src/core/entitlements.js",
+  "services/api/src/core/module-entitlements.js",
+  "services/api/src/core/security.js",
+  "services/api/src/core/audit-redaction.js",
+  "services/api/src/core/attachment-security.js",
+  "services/api/src/core/password-policy.js",
+  "services/api/src/core/auth-mailer.js",
+  "services/api/src/core/api-keys.js",
+  "services/api/src/core/oauth.js",
+  "services/api/src/core/notification-preferences.js",
+  "services/api/src/core/inbound-mail.js",
+  "services/api/src/core/tags.js",
+  "services/api/src/core/configuration.js",
+  "services/api/src/core/privacy.js",
+  "services/api/src/core/ai-governance.js",
+  "packages/permissions/src/roles.js",
+  // Dedicated tests for the ported modules.
+  "services/api/tests/platform-access-control-runtime.test.mjs",
+  "services/api/tests/platform-session.test.mjs",
+  "services/api/tests/platform-access-administration.test.mjs",
+  "services/api/tests/platform-module-entitlements.test.mjs",
+  "services/api/tests/platform-entitlements.test.mjs",
+  "services/api/tests/platform-oauth.test.mjs",
+  "services/api/tests/platform-api-keys.test.mjs",
+  "services/api/tests/platform-inbound-mail.test.mjs",
+  "services/api/tests/platform-security.test.mjs",
+  "services/api/tests/platform-attachment-security.test.mjs",
+  "services/api/tests/platform-ai-governance.test.mjs",
+  "services/api/tests/platform-privacy.test.mjs",
+  "services/api/tests/platform-configuration.test.mjs",
+  "services/api/tests/platform-tags-notifications.test.mjs",
+  "services/api/tests/platform-password-policy-mailer.test.mjs",
+  "packages/permissions/tests/roles.test.mjs",
 ]) {
   if (!exists(relative)) fail(`required T01 artifact missing: ${relative}`);
-}
-
-// Parked snapshot (see docs/frontend-rebuild/recovered-platform-code/README.md)
-// — verifies the recovered source hasn't itself gone missing, not that it's live.
-for (const relative of [
-  `${PARKED}/src/core/shared-platform.ts`,
-  `${PARKED}/src/core/attachment-security.ts`,
-  `${PARKED}/src/core/security.ts`,
-  `${PARKED}/src/app/(app)/settings/platform/page.tsx`,
-  `${PARKED}/tests/t01-shared-platform.test.mjs`,
-]) {
-  if (!exists(relative)) fail(`parked T01 snapshot artifact missing: ${relative} (see recovered-platform-code/README.md)`);
 }
 
 const platformMigration = text("database/platform/migrations/035_t01_shared_platform_completion.sql");
@@ -66,23 +95,39 @@ for (const token of [
 }
 if (!/role\.slug IN \('organization_owner','system_administrator'\)/.test(platformMigration)) fail("new platform permissions must be granted to both owner and system administrator");
 
-const platform = text(`${PARKED}/src/core/shared-platform.ts`);
-for (const token of [
-  "createTenantApiKeyMaterial","requireTenantApiScope","completeOAuthConnection","verifyInboundMailSignature","PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT",
-  "setFeatureFlag","assertPrivacyTransition","requireReportDatasetPermission","AI_POLICY_MISSING","AI_APPROVAL_REQUIRED","executeWorkflowRun",
-]) {
-  if (!platform.includes(token)) fail(`parked shared-platform snapshot missing ${token} (should not happen — the snapshot shouldn't drift; see recovered-platform-code/README.md)`);
+// Live ported modules must retain the expected security-relevant symbols
+// (this replaces the old "does the parked snapshot still contain X" check
+// — the question now is whether the ACTIVE code contains it).
+const liveChecks = [
+  ["services/api/src/core/api-keys.js", ["createTenantApiKeyMaterial", "requireTenantApiScope"]],
+  ["services/api/src/core/oauth.js", ["completeOAuthConnection", "encryptIntegrationCredentials"]],
+  ["services/api/src/core/inbound-mail.js", ["verifyInboundMailSignature", "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT"]],
+  ["services/api/src/core/configuration.js", ["setFeatureFlag", "isFeatureFlagEnabled"]],
+  ["services/api/src/core/privacy.js", ["assertPrivacyTransition"]],
+  ["services/api/src/core/ai-governance.js", ["AI_POLICY_MISSING", "AI_APPROVAL_REQUIRED"]],
+  ["services/api/src/core/security.js", ["canonicalAppOrigin", "assertSameOriginOrMobile"]],
+];
+for (const [relative, tokens] of liveChecks) {
+  const source = text(relative);
+  for (const token of tokens) {
+    if (!source.includes(token)) fail(`live module ${relative} missing expected symbol ${token}`);
+  }
 }
-if (/new URL\(request\.url\)\.origin/.test(text(`${PARKED}/src/app/api/platform/integrations/oauth/route.ts`))) fail("parked OAuth route snapshot: redirect must not trust request Host/origin");
-if (!text(`${PARKED}/src/core/security.ts`).includes("canonicalAppOrigin")) fail("parked security snapshot missing canonical app-origin helper");
+
+// Deliberately still-deferred slices (see header comment) — checked
+// against the parked snapshot only, and explicitly reported as such.
+const deferred = text(`${PARKED}/src/core/shared-platform.ts`);
+for (const token of ["requireReportDatasetPermission", "executeWorkflowRun"]) {
+  if (!deferred.includes(token)) fail(`parked shared-platform snapshot missing deferred symbol ${token}`);
+}
 
 if (failures.length) {
   console.error("T01 SHARED-PLATFORM VALIDATION FAILED");
   for (const item of failures) console.error(" -", item);
   process.exit(1);
 }
-console.log("T01 SHARED-PLATFORM VALIDATION PASSED (parked snapshot + live DB/dossier artifacts)");
+console.log("T01 SHARED-PLATFORM VALIDATION PASSED (live ported modules + DB/dossier artifacts)");
 console.log(` - shared-platform requirement dossiers present: ${expected.length}/${expected.length}`);
-console.log(" - parked snapshot still contains expected API/OAuth/inbound-mail/config/privacy/reporting/AI/workflow security patterns");
+console.log(" - platform/access/session/API-key/OAuth/inbound-mail/config/privacy/AI-governance modules are LIVE in services/api/src/core/*.js, each with dedicated tests");
 console.log(" - platform 035 and tenant 075 migration artifacts present");
-console.log(" - REMINDER: this capability is NOT wired into any active build — see docs/frontend-rebuild/recovered-platform-code/README.md");
+console.log(" - STILL DEFERRED (parked only, pending a reporting-engine/workflows overlap audit): shared report-dataset permissions, generic workflow-run engine — see PLATFORM_PORT_REGISTER.csv");

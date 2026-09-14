@@ -13,7 +13,9 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@vercentlabs/config": "workspace:*",
     "@vercentlabs/permissions": "workspace:*",
-    "@vercentlabs/shared-types": "workspace:*"
+    "@vercentlabs/shared-types": "workspace:*",
+    "nodemailer": "^9.0.3"
   }
 }
