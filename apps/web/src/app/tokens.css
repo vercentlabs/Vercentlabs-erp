@@ -1,0 +1,117 @@
+/* GENERATED from packages/design-tokens/tokens/theme.json by
+   scripts/design/generate-tailwind-theme.mjs. Do not edit directly. */
+@theme {
+  /* --font-sans is intentionally NOT set here: next/font/google owns it at
+     runtime (apps/web/src/app/layout.tsx) so the actual Inter font loads
+     instead of a static fallback stack winning the cascade. See
+     packages/design-tokens/tokens/theme.json's font.sans for the source
+     value used by generate-theme.mjs for the native (mobile) adapter. */
+
+  /* Semantic color tokens (color.*) */
+  --color-canvas: #F5F6F8;
+  --color-canvas-strong: #EEF0F3;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F8F9FB;
+  --color-surface-raised: #FFFFFF;
+  --color-text: #171A1F;
+  --color-text-secondary: #3F4652;
+  --color-text-muted: #667085;
+  --color-text-subtle: #98A2B3;
+  --color-text-inverse: #FFFFFF;
+  --color-border: #E3E6EB;
+  --color-border-strong: #CFD5E2;
+  --color-focus: rgb(63 70 216 / 16%);
+  --color-brand: #3F46D8;
+  --color-brand-hover: #292F9D;
+  --color-brand-active: #292F9D;
+  --color-brand-soft: #EEF0FF;
+  --color-brand-border: #D9DCFF;
+  --color-danger: #B42318;
+  --color-danger-emphasis: #D92D20;
+  --color-danger-soft: #FFF1F0;
+  --color-warning: #9A5B08;
+  --color-warning-emphasis: #F79009;
+  --color-warning-soft: #FFF7E8;
+  --color-success: #087A55;
+  --color-success-emphasis: #12B76A;
+  --color-success-soft: #EDF8F3;
+  --color-info: #315EFB;
+  --color-info-emphasis: #356AE6;
+  --color-info-soft: #EDF2FF;
+  --color-navigation: #0B1220;
+  --color-navigation-text: #FFFFFF;
+  --color-navigation-muted: #B7C0D0;
+
+  /* Spacing (4px grid) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+
+  /* Radius */
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-panel: 12px;
+  --radius-overlay: 14px;
+  --radius-pill: 999px;
+
+  /* Control heights / touch targets (density.*) */
+  --control-height-compact: 34px;
+  --control-height-standard: 42px;
+  --control-height-large: 48px;
+  --control-touch-target-web: 44px;
+
+  /* Shadows — reserved for menus/popovers/dialogs/overlays only */
+  --shadow-subtle: 0 1px 2px rgb(16 24 40 / 4%);
+  --shadow-panel: 0 8px 24px rgb(16 24 40 / 7%);
+  --shadow-overlay: 0 24px 64px rgb(15 23 42 / 20%);
+  --shadow-focus: 0 0 0 3px rgb(63 70 216 / 16%);
+
+  /* Typography */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+  --leading-tight: 1.25;
+  --leading-body: 1.5;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-standard: 160ms;
+
+  /* Z-index scale */
+  --z-base: 1;
+  --z-sticky: 20;
+  --z-dropdown: 30;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* Layout */
+  --layout-primary-rail-width: 68px;
+  --layout-secondary-sidebar-width: 276px;
+  --layout-content-max: 1680px;
+  --layout-topbar-height: 68px;
+
+  /* Breakpoints */
+  --breakpoint-narrow: 480px;
+  --breakpoint-mobile: 768px;
+  --breakpoint-tablet: 1024px;
+  --breakpoint-compact-desktop: 1280px;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Dark mode is not yet designed for the ERP workspace (light-canvas-first
+     per the rebuild brief); this guard exists so components that already
+     branch on it don't silently break. Revisit when dark mode is scoped. */
+}

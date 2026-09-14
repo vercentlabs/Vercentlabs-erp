@@ -1,0 +1,52 @@
+{
+  "name": "@vercentlabs/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "node ../../scripts/design/generate-tailwind-theme.mjs && next build",
+    "start": "next start -p 3001",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test",
+    "test:e2e": "playwright test",
+    "verify:tokens": "node ../../scripts/design/generate-tailwind-theme.mjs --check",
+    "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-form": "1.33.5",
+    "@tanstack/react-query": "5.102.8",
+    "@tanstack/react-table": "9.2.4",
+    "@tanstack/react-virtual": "3.14.12",
+    "@vercentlabs/api": "workspace:*",
+    "@vercentlabs/database": "workspace:*",
+    "@vercentlabs/design-tokens": "workspace:*",
+    "@vercentlabs/permissions": "workspace:*",
+    "@vercentlabs/shared-types": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "lucide-react": "1.45.0",
+    "next": "16.2.11",
+    "react": "19.2.3",
+    "react-aria-components": "1.21.1",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "1.61.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.11",
+    "postcss": "^8.5.23",
+    "prettier": "^3.7.4",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
+  }
+}
