@@ -158,16 +158,20 @@ Do not generate empty boilerplate.
 
 ## Design-system rule
 
-**Superseded 2026-09-14 by `docs/01-standards/TECH_STACK_ADR_002_FRONTEND_REWRITE.md`**
+**Superseded 2026-09-14 by `docs/01-standards/TECH_STACK_ADR_002_FRONTEND_REWRITE.md`
+and `docs/01-standards/TECH_STACK_ADR_003_PRIMITIVE_LIBRARY_CORRECTION.md`**
 (owner-authorized full frontend rewrite). The design authority is now
-`packages/ui-web` (Base UI + Tailwind v4, shadcn-style open-code ownership),
-fed by `packages/design-tokens`, per that ADR. The rule itself is unchanged
-in spirit — new module code composes the canonical system's primitives,
-enterprise components and archetypes; do not create a second button/table/
-form/state system inside a module — only the implementation stack changed.
-See `docs/ux/UI_REWRITE_TRACKER.md` for migration status: legacy Experience
-Kernel CSS Modules remain in place and load-bearing until each capability
-is actually migrated, so do not delete them opportunistically.
+`packages/design-system` (React Aria Components + Tailwind v4, shadcn-style
+open-code ownership — ADR-003 corrected this from an earlier Base UI/
+`packages/ui-web` choice), fed by `packages/design-tokens`, per those ADRs.
+The rule itself is unchanged in spirit — new module code composes the
+canonical system's primitives, enterprise components and archetypes; do
+not create a second button/table/form/state system inside a module — only
+the implementation stack changed. `apps/web` (including the old Experience
+Kernel CSS Modules referenced by an earlier version of this note) was
+deleted outright as part of the rewrite, not migrated incrementally — see
+`docs/frontend-rebuild/README.md` for the archive point and contract
+inventory, and `docs/ux/UI_REWRITE_TRACKER.md` for current rebuild status.
 
 ## Rendering rule
 

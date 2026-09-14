@@ -1,6 +1,10 @@
 # ADR-002 — Frontend Design-System Rewrite (supersedes frontend rows of ADR-001)
 
-Status: `APPROVED_FOR_IMPLEMENTATION`
+Status: `APPROVED_FOR_IMPLEMENTATION` — **Accessible primitives, Component
+ownership model, and drag-and-drop default rows superseded by
+`docs/01-standards/TECH_STACK_ADR_003_PRIMITIVE_LIBRARY_CORRECTION.md`
+(React Aria Components replaces Base UI; `packages/ui-web` renamed
+`packages/design-system`). Read ADR-003 alongside this document.**
 Supersedes: `docs/01-standards/TECH_STACK_ADR.md` (web/shared-UI rows only — backend,
 database, worker, mobile-runtime, permissions, workflows, reporting, documents,
 localization and observability rows are unchanged and remain frozen) and the
@@ -23,14 +27,14 @@ package (3 helper components) with one owned design system built on:
 | Layer | Adopted |
 |---|---|
 | Styling engine | Tailwind CSS v4 (`@tailwindcss/postcss`), CSS-first `@theme` config |
-| Accessible primitives | Base UI (`@base-ui-components/react`) |
-| Component ownership model | shadcn-style open-code — primitives copied into `packages/ui-web/src/primitives`, not consumed as an opaque npm component library |
+| Accessible primitives | ~~Base UI (`@base-ui-components/react`)~~ — **superseded by ADR-003: React Aria Components (`react-aria-components`)** |
+| Component ownership model | shadcn-style open-code — primitives copied into ~~`packages/ui-web/src/primitives`~~ **`packages/design-system/src` (ADR-003)**, not consumed as an opaque npm component library |
 | Icons | `lucide-react` |
 | Forms | `@tanstack/react-form` + Zod 4 (already frozen/kept) |
 | Data grid | `@tanstack/react-table` + `@tanstack/react-virtual` |
 | Server-state fetching (client-side only, where genuinely needed) | `@tanstack/react-query` |
 | Charts | Recharts v3 |
-| Drag-and-drop | `@dnd-kit/core` + `@dnd-kit/sortable` (every drag interaction must ship a non-drag command/menu alternative per `ACCESSIBILITY_STANDARD.md`) |
+| Drag-and-drop | ~~`@dnd-kit/core` + `@dnd-kit/sortable` as the default~~ — **superseded by ADR-003: React Aria's drag-and-drop patterns are the default; `@dnd-kit` only for specialist cases React Aria can't satisfy** (every drag interaction must still ship a non-drag command/menu alternative per `ACCESSIBILITY_STANDARD.md`) |
 | Calendar | FullCalendar |
 | Graph/lineage/workflow diagrams | React Flow |
 | Rich text | Tiptap (headless core only) |
@@ -45,10 +49,14 @@ GPL terms this repository cannot accept for a closed-source product. Do not
 introduce it without a signed commercial license recorded by the business
 owner. Until then, build Projects/Manufacturing scheduling surfaces on
 FullCalendar's resource-timeline view plus a thin `SchedulingAdapter`
-interface (`packages/ui-web/src/archetypes/schedule/`) so a licensed Gantt
+interface (`packages/design-system/src/archetypes/schedule/`) so a licensed Gantt
 engine can be swapped in later without a second rewrite.
 
 ## Ownership structure
+
+**Superseded by ADR-003 — see that document for the current tree
+(`packages/ui-web` renamed `packages/design-system`).** Kept below for
+historical record of what this ADR originally approved:
 
 ```
 packages/
@@ -58,11 +66,11 @@ packages/
   ux-contracts/       Shared TypeScript types/schemas for UX state (loading/empty/error/forbidden/stale/conflict/offline), permission-aware field/column contracts, archetype prop contracts
 ```
 
-`packages/shared-ui` is deprecated in favor of `packages/design-tokens` +
-`packages/ui-web`. It is not deleted in this pass (`apps/mobile` still
-consumes `packages/shared-ui/tokens/theme.json`); it becomes a thin
-re-export shim once `ui-mobile` exists, tracked in
-`docs/ux/UI_REWRITE_TRACKER.md`.
+`packages/shared-ui` was deprecated by this ADR, then actually deleted
+outright in the rewrite that followed (not kept as a shim) — its real
+token values were migrated verbatim into `packages/design-tokens` first
+and mobile's generated native theme output was verified byte-identical
+before deletion. See `docs/frontend-rebuild/README.md`.
 
 ## What stays frozen (ADR-001 rows NOT superseded)
 
