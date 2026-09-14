@@ -21,8 +21,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-* {
-  border-color: var(--color-border);
+/* Must be inside a Tailwind layer: unlayered CSS always wins over layered
+   CSS regardless of specificity (CSS Cascade Layers), so an unlayered
+   `* { border-color }` here would silently override every Tailwind
+   border-color utility in the app (border-danger, group-data-[invalid]:
+   border-danger, hover:border-border-strong, etc.) — found via browser
+   testing when a form's invalid-field border never turned red despite the
+   correct class and a matching, higher-specificity selector existing. */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
 }
 
 :focus-visible {
