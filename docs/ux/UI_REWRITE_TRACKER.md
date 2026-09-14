@@ -939,3 +939,165 @@ verification before committing each batch, not after.
    pagination/selection interactions specifically (only the visual states
    are covered) — add one when the CRM list screen's real usage clarifies
    what interaction coverage actually matters, rather than guessing now.
+
+## Session 2026-09-15 — Prompt 2 of 15: platform reactivation + application shell + navigation
+
+**Starting point:** `rebuild/clean-frontend` at `a46ef93dcdadc8c2a3baf67c00590aaf9ffdf618`, the
+Prompt 1B cleanup-pass HEAD, verified clean.
+
+### What this session actually built (verified, not asserted)
+
+**Platform port (Phase 1-3).** Audited all 42 files under
+`docs/frontend-rebuild/recovered-platform-code/` and produced
+`docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv` classifying every
+capability. Ported the security-critical platform/session/access-control
+logic into `services/api/src/core/*.js` as framework-agnostic,
+client-injected modules (the same convention as the pre-existing
+`master-data.js`/`idempotency.js`): session lifecycle, delegated-admin
+access administration, module entitlement resolution, billing
+entitlements, request security (origin/rate-limit/audit), attachment
+security, password policy, auth email delivery, tenant API keys, OAuth
+(Google/Microsoft), notification preferences, inbound-mail webhook
+verification, entity tagging, effective-dated configuration/feature
+flags, privacy requests/retention policy, and AI governance. Also ported
+the role-template/separation-of-duties policy layer into
+`packages/permissions/src/roles.js` (previously only the permission-key
+catalogue was live there, not the role templates or SoD rules).
+
+Three gaps in the recovered snapshot were discovered and disclosed (not
+silently patched): a session-permission helper (`hasPermission`/
+`PERMISSIONS`), an audit-payload redaction function, and password-policy
+validation were all referenced by the recovered files but never
+themselves among the 42 recovered files. Each was reconstructed
+conservatively and flagged in the register rather than invented and left
+undocumented. Two capability slices (shared reporting-dataset permissions,
+the generic workflow-run engine) were deliberately left parked pending a
+dedicated overlap audit against `packages/reporting-engine` and
+`packages/workflows` — porting them blind risked creating a duplicate,
+possibly-diverging implementation of something that package may already
+own.
+
+**Test honesty.** 15 new `services/api/tests/platform-*.test.mjs` files
+and `packages/permissions/tests/roles.test.mjs` exercise the ported code
+directly (965/965 `services/api` tests passing, 8/8 `packages/permissions`
+tests passing). `enterprise-rbac.test.mjs` was rewritten against the live
+`packages/permissions/src/roles.js` + `services/api/src/core/
+access-administration.js` and moved to `services/api/tests/` — the old
+parked-location copy (which transpiled and ran the parked
+`access-control.ts` snapshot) was deleted, and root `package.json`'s
+`test:enterprise-rbac` script repointed. `scripts/validation/
+verify-t01-shared-platform.mjs` was rewritten to check the live ported
+modules instead of the parked snapshot for everything except the two
+deliberately-deferred slices above, which it still (accurately) checks
+against the parked copy. **Not fixed this pass:** `apps/web/tests/
+search-security.test.mjs` still depends on the parked snapshot — the
+search route itself (`apps/web/src/app/api/search/route.ts`) was not
+rebuilt this session, only classified. This is the one disclosed
+remaining parked-test dependency outside RBAC/session/access.
+
+**Auth web experience (Phase 4).** Real `(auth)/login` route + `/api/
+auth/login` and `/api/auth/logout` route handlers, calling the newly
+ported `services/api` session/security modules through a new
+`apps/web/src/core/db.ts` (a `pg` Pool wrapper — the one place in
+`apps/web` that owns a database connection; gated by a `server-only`
+import) and `apps/web/src/core/session.ts` (the Next.js-specific cookie/
+header/redirect half of the ported session module). Verified end-to-end
+against the local dev Postgres instance with the existing `qa.tester@
+vercentlabs.test` / "QA Test Org" fixture (the convention `apps/web/
+.env.local`'s own comments already establish): unauthenticated redirect
+to `/login`, successful login, session cookie set, logout, redirect back
+to `/login` — all confirmed via a real Chromium session (Playwright),
+not just a passing build.
+
+**Workspace context + shell (Phase 5-6).** One canonical
+`resolveWorkspaceContext()` (server) resolving session + all-12-module
+entitlement status via the ported `getAccessibleModules`, exposed to
+client components through `WorkspaceContext.tsx`. `apps/web/src/shell/`
+built with `navigation/`, `workspace-context/`, `primary-sidebar/`,
+`app-shell/`, `module-foundation/` subdirectories. Primary sidebar
+matches the brief's exact IA (Vercentlabs mark, Home/Work/Search, the 12
+modules in CRM/Sales/Procurement/Inventory/Manufacturing/Projects/
+Assets/POS/Quality/Support/HR & Payroll/Accounting order, Approvals/
+Notifications/Background Jobs, Help/Settings/Profile), with module
+entries backend-gated (disabled + reason shown when
+`not_released`/`disabled`/`not_entitled`/`not_permitted` — never just
+visually hidden). Verified live: an org-owner session shows all 12
+modules enabled (billing enforcement is `observe` in dev, matching the
+ported `billingEnforcementMode()` logic exactly).
+
+**Mobile/tablet nav (390px — no longer deferrable per this prompt's own
+instruction).** The icon rail is replaced below 1024px by a top app bar
++ full-label drawer (`MobileNav.tsx`, using the design-system's existing
+`Drawer`), not squeezed into the viewport. Verified live at 1440/1024/834/
+390px, including opening the drawer and navigating to a module from it at
+390px.
+
+**Three real bugs found and fixed only because this was driven in an
+actual browser, not just built:**
+1. Passing a lucide icon *component reference* as a prop from a Server
+   Component to a Client Component is not serializable across the RSC
+   boundary (`"Functions cannot be passed directly to Client
+   Components"`) — fixed by rendering the icon server-side and passing
+   the resulting element instead of the component reference.
+2. React Aria's `TooltipTrigger` silently breaks a plain `next/link`
+   child's navigation (`"A PressResponder was rendered without a
+   pressable child"`) — replaced with a plain CSS hover/focus-reveal
+   tooltip for the primary nav items. Next.js `Link` also prefetches
+   every viewport-visible link automatically; the resulting background
+   `GET` requests in the dev server log are not evidence of an actual
+   navigation having happened — a red herring this session chased for a
+   while before recognizing it.
+3. `<MenuItem key="sign-out" ...>` — the sign-out action never fired
+   under any interaction method, because React's own `key` prop is never
+   readable by the component; react-aria-components' `Menu`/`onAction`
+   needs an explicit `id` prop instead. Silent, no console error, would
+   have shipped broken.
+
+**Deliberately NOT done this pass (disclosed, not hidden):**
+- Only auth (login/logout) got real route handlers wired end-to-end.
+  Every other ported platform capability (API keys, OAuth, invitations,
+  user administration, privacy, tags, configuration, AI governance) has
+  its `services/api` logic ported and unit-tested, but the corresponding
+  `apps/web` HTTP route handler was **not** built this session — the
+  register's `migration_status` column says `deferred` for each, not
+  `ported`, specifically so this isn't misread as route-complete.
+- Each of the 12 modules has exactly one real destination (an
+  entitlement-gated honest "foundation" page), not the detailed
+  per-module secondary navigation the brief sketched — building that
+  without cross-checking every entry against
+  `docs/02-register/FEATURE_REGISTER.csv` per module would have violated
+  the brief's own explicit instruction ("do not add navigation merely
+  because this prompt names it if repository requirements contradict
+  it"). See `moduleNavigationRegistry.ts`'s header comment.
+- Home/Work/Search/Approvals/Notifications/Background Jobs/Settings are
+  all honest foundation pages — real permission checks, no fabricated
+  data, explicitly stating what's still pending.
+- No secondary (module) sidebar region — none of the 12 modules has real
+  secondary nav to put there yet; building an empty one would be
+  decorative chrome.
+- Command menu, global search UI, quick-create registry, notification
+  center, approval inbox UI, background-job visibility UI: not built.
+  The search *adapter pattern* in `apps/web/src/app/api/search/route.ts`
+  was reviewed and classified but not modified.
+- axe accessibility audit against the assembled shell was not run this
+  pass.
+
+### Immediate next action for whoever continues this
+
+1. Build the actual `apps/web` route handlers for the platform
+   capabilities that only have logic-layer ports so far (invitations,
+   user administration, API keys, OAuth, privacy, tags, configuration,
+   AI governance) — the hard/risky part (the ported, security-reviewed,
+   tested logic) is done; this is comparatively low-risk wiring.
+2. Run the reporting-engine/workflows overlap audit this session
+   deferred, then port `requireReportDatasetPermission`/
+   `executeWorkflowRun` into whichever package actually owns that
+   concern.
+3. CRM golden reference (Prompt 3, F001-F030) — replace the CRM
+   foundation page with the real screens, and give CRM its first real
+   secondary-navigation entries in `moduleNavigationRegistry.ts`,
+   cross-checked against the F001-F030 rows this time.
+4. Command menu, global search UI, and quick-create registry are the
+   next shell surfaces worth building — the search adapter and module-
+   entitlement resolution they'd both depend on already exist and are
+   tested.

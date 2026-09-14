@@ -28,6 +28,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  // The dev-mode indicator badge defaults to the bottom-left corner, which
+  // is exactly where the primary sidebar's profile control now lives (see
+  // src/shell/primary-sidebar) — it visually and pointer-event overlaps
+  // the profile menu button. Disabled rather than worked around.
+  devIndicators: false,
   transpilePackages: [
     "@vercentlabs/api",
     "@vercentlabs/database",

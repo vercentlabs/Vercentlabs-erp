@@ -1,8 +1,38 @@
 import type { ReactNode } from "react";
 
-// Temporary passthrough. The real app shell (primary sidebar, module nav,
-// workspace context, command menu) lands here in a later rebuild phase —
-// see docs/ux/UI_REWRITE_TRACKER.md.
-export default function WorkspaceLayout({ children }: { children: ReactNode }) {
-  return <div className="min-h-full bg-canvas">{children}</div>;
+import { resolveWorkspaceContext } from "@/shell/workspace-context/resolveWorkspaceContext";
+import { AppShell } from "@/shell/app-shell/AppShell";
+
+export default async function WorkspaceLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const { session, accessibleModules } = await resolveWorkspaceContext();
+
+  return (
+    <AppShell
+      workspace={{
+        organizationId: session.organizationId,
+        organizationName: session.organizationName,
+        companyId: session.activeCompanyId,
+        companyName: session.companyName,
+        branchId: session.activeBranchId,
+        branchName: session.branchName,
+        userId: session.userId,
+        fullName: session.fullName,
+        email: session.email,
+        locale: session.locale,
+        timezone: session.timezone,
+        roleSlugs: session.roleSlugs,
+        permissions: session.permissions,
+        accessibleModuleKeys: accessibleModules
+          .filter((m) => m.accessible)
+          .map((m) => m.moduleId),
+        accessibleModules,
+      }}
+    >
+      {children}
+    </AppShell>
+  );
 }
