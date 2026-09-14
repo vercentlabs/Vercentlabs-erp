@@ -13,9 +13,11 @@
     "test": "node --test",
     "verify:routes": "node scripts/verify-routes.mjs",
     "e2e:bootstrap": "tsx scripts/e2e-fixture-bootstrap.mts",
+    "e2e:bootstrap:procurement": "tsx scripts/e2e-fixture-bootstrap.mts && tsx scripts/e2e-fixture-procurement.mts",
     "test:e2e:erp": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts",
     "test:e2e:erp:update": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts --update-snapshots",
-    "test:e2e:crm": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-crm-navigation.spec.ts tests/e2e/erp-crm-opportunity-journey.spec.ts tests/e2e/erp-crm-lead-lifecycle-scoring.spec.ts tests/e2e/erp-crm-merge-hierarchy.spec.ts tests/e2e/erp-crm-sensitive-projection.spec.ts tests/e2e/erp-crm-opportunity-projection-parity.spec.ts"
+    "test:e2e:crm": "tsx scripts/e2e-fixture-bootstrap.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-crm-navigation.spec.ts tests/e2e/erp-crm-opportunity-journey.spec.ts tests/e2e/erp-crm-lead-lifecycle-scoring.spec.ts tests/e2e/erp-crm-merge-hierarchy.spec.ts tests/e2e/erp-crm-sensitive-projection.spec.ts tests/e2e/erp-crm-opportunity-projection-parity.spec.ts",
+    "test:e2e:procurement": "tsx scripts/e2e-fixture-bootstrap.mts && tsx scripts/e2e-fixture-procurement.mts && playwright test -c playwright.erp.config.ts tests/e2e/erp-procurement-source-to-pay-journey.spec.ts"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

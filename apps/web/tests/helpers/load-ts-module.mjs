@@ -17,6 +17,14 @@ const ts = require("typescript");
 
 const root = path.resolve(import.meta.dirname, "../../../..");
 const webSrc = path.join(root, "apps/web/src");
+// Scoped to apps/web (not this helper's own directory) so plain npm
+// package specifiers (e.g. "zod") resolve the same hoisted pnpm install
+// the real module would see -- the compiled output lands in an os.tmpdir()
+// directory with no node_modules chain of its own, so a bare specifier
+// left untouched (like @/ and @vercentlabs/* already were) would otherwise
+// fail with ERR_MODULE_NOT_FOUND for every module that imports anything
+// beyond its own source tree.
+const webRequire = createRequire(path.join(root, "apps/web/package.json"));
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "vercent-ts-loader-"));
 const compiled = new Map(); // absolute .ts source path -> compiled .mjs file path
 
@@ -60,13 +68,19 @@ function compileRecursive(sourcePath) {
 
   const rewritten = transpiled.replace(/from\s+"([^"]+)"/g, (whole, specifier) => {
     const resolved = resolveAliasToSourcePath(specifier);
-    if (!resolved) return whole; // leave bare npm-package specifiers untouched
-    if (typeof resolved === "object" && resolved.plainJsEntry) {
-      return `from "${pathToFileURL(resolved.plainJsEntry).href}"`;
+    if (resolved) {
+      if (typeof resolved === "object" && resolved.plainJsEntry) {
+        return `from "${pathToFileURL(resolved.plainJsEntry).href}"`;
+      }
+      const resolvedSourceFile = findSourceFile(resolved);
+      const compiledDependencyFile = compileRecursive(resolvedSourceFile);
+      return `from "${pathToFileURL(compiledDependencyFile).href}"`;
     }
-    const resolvedSourceFile = findSourceFile(resolved);
-    const compiledDependencyFile = compileRecursive(resolvedSourceFile);
-    return `from "${pathToFileURL(compiledDependencyFile).href}"`;
+    if (specifier.startsWith(".") || specifier.startsWith("node:")) return whole;
+    // A plain npm package specifier (e.g. "zod") -- resolve it against
+    // apps/web's own dependency tree rather than leaving it bare, since the
+    // compiled file has no node_modules chain of its own from tmpdir().
+    return `from "${pathToFileURL(webRequire.resolve(specifier)).href}"`;
   });
 
   fs.writeFileSync(outFile, rewritten);
