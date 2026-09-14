@@ -106,7 +106,20 @@ test("updateCrmRecord (opportunities): the UPDATE statement carries a checked-wr
   });
   const updateQuery = client.queries.find((q) => /^\s*UPDATE/i.test(q.sql));
   assert.ok(updateQuery, "expected an UPDATE query");
-  assert.match(updateQuery.sql, /AND record\.updated_at = \$\d+/, "must guard the write with the expected version");
+  // Millisecond-precision comparison (date_trunc on both sides), not exact
+  // equality: `updated_at` is timestamptz with real microsecond precision,
+  // but `pg`'s default Date parsing (and therefore any expectedUpdatedAt an
+  // API client can ever supply) only carries millisecond precision -- an
+  // exact `=` here made every checked write fail with a false
+  // CRM_STALE_WRITE almost 100% of the time, found and fixed via a real
+  // Postgres-backed E2E run (mocked-client tests like this one can't catch
+  // it, since the mock never has genuine sub-millisecond precision to
+  // truncate).
+  assert.match(
+    updateQuery.sql,
+    /AND date_trunc\('milliseconds', record\.updated_at\) = date_trunc\('milliseconds', \$\d+::timestamptz\)/,
+    "must guard the write with the expected version at millisecond precision",
+  );
   assert.ok(updateQuery.values.includes(freshTimestamp), "the expected timestamp must be bound as a parameter");
 });
 

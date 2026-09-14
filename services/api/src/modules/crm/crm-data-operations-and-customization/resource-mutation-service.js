@@ -594,8 +594,27 @@ export async function updateCrmRecord(
   const versionChecked =
     expectations.expectedUpdatedAt &&
     (resource === "leads" || resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource]));
+  // Real bug found and root-caused while building the UI 2.0 Lead Edit
+  // form's optimistic-concurrency handling (not assumed -- confirmed by
+  // instrumenting this exact query): `crm_leads.updated_at` is `timestamptz`
+  // with genuine microsecond precision (e.g. `.700902`), but `before`
+  // (read moments earlier via getLeadRecordForUpdate/camelizeRow) comes
+  // back from `pg`'s default type parser as a JS `Date`, which can only
+  // hold millisecond precision (`.700000`) -- so re-binding that
+  // ALREADY-TRUNCATED value for an exact `=` comparison against the
+  // full-precision stored value fails almost every time, even with zero
+  // real concurrent writes, because no API response can ever hand a
+  // client more than millisecond precision to begin with (JSON/ISO-8601
+  // via JS Date). This made every checked write on leads/opportunities/
+  // the generic versioned resources (this same shared function) fail with
+  // a false CRM_STALE_WRITE close to 100% of the time. Compares at
+  // millisecond precision on both sides instead -- the only precision any
+  // client-supplied `expectedUpdatedAt` can ever meaningfully carry, so
+  // this only removes a false-positive rejection, never masks a real
+  // concurrent change (which will practically always land in a different
+  // millisecond).
   const versionGuard = versionChecked
-    ? ` AND record.updated_at = ${addParameter(parameters, before.updatedAt)}`
+    ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";
   let updated = before;
   if (entries.length) {
