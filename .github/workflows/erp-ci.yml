@@ -87,7 +87,7 @@ jobs:
       - name: Shared-platform (T01) verification
         run: pnpm verify:t01
 
-      - name: Experience Kernel convergence verification
+      - name: Design-system convergence verification
         run: pnpm verify:experience
 
       - name: Architecture + documentation link verification
