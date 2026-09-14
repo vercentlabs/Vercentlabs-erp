@@ -15,7 +15,7 @@ This exists so that marketing module names, descriptions, and colors stay mechan
 
 ## A note on module accent colors
 
-Only 4 of the 12 modules (CRM, Sales, Procurement, Accounting) have a real, dedicated accent color in the live product today (`apps/web/src/app/enterprise-modules.css`). Those 4 are reused verbatim here. The other 8 modules are assigned **new, landing-original** colors in the same palette family — they are explicitly marked `sourcedFromProduct: false` in `modules.js` and must not be described as "the product's colors" in copy. Every accent color should be verified for WCAG AA contrast against both the off-white canvas and any on-dark usage before shipping (see `phase-2-brief.md`).
+All 12 modules' accent colors are **landing-original** — marketing-owned, not sourced from the product — and are explicitly marked `sourcedFromProduct: false` in `modules.js`. Copy must not describe them as "the product's colors." (Four of them — CRM, Sales, Procurement, Accounting — were briefly sourced from a real product file, `apps/web/src/app/enterprise-modules.css`; that file was deleted in the clean-slate frontend rebuild and the new design-token architecture doesn't define per-module accents, so the claim no longer holds. The hex values are unchanged, only their provenance.) Every accent color should be verified for WCAG AA contrast against both the off-white canvas and any on-dark usage before shipping (see `phase-2-brief.md`).
 
 ## Status
 

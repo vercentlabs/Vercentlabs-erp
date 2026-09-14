@@ -7,10 +7,17 @@ import { ERP_MODULE_CATALOG, getErpModule } from "@vercentlabs/shared-types";
  * engineering-maintained module catalog. See docs/landing-redesign/phase-1/
  * seo-aeo-geo-architecture.md ("consistent entities").
  *
- * accentColor.sourcedFromProduct: true for the 4 modules with a real, dedicated
- * token in apps/web/src/app/enterprise-modules.css (crm, sales, procurement,
- * accounting). The other 8 are landing-original colors in the same family —
- * never describe them as "the product's colors" in copy.
+ * accentColor.sourcedFromProduct is false for all 12 modules — landing-
+ * original colors, never described as "the product's colors" in copy.
+ * (Historical note: crm/sales/procurement/accounting were briefly `true`,
+ * sourced from apps/web/src/app/enterprise-modules.css. That file was
+ * deleted along with the rest of the old frontend in the clean-slate
+ * rebuild — see docs/frontend-rebuild/README.md — and the new design-token
+ * architecture, packages/design-tokens, doesn't define per-module accent
+ * colors at all; the rebuild brief is explicit that module identity should
+ * use restrained secondary accents rather than a distinct color per
+ * module. The hex values themselves are unchanged; only the provenance
+ * claim was wrong once its source stopped existing.)
  *
  * Every field below (directDefinition, businessProblems, capabilityGroups,
  * primaryWorkflow, connectedModules, reporting, automation, governance) is
@@ -31,7 +38,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "A public capture form becomes a scored, SLA-tracked lead, converts to an account and opportunity in one step, and syncs offline on mobile with conflict-safe queuing.",
-    accentColor: { hex: "#6956d9", soft: "#f2efff", sourcedFromProduct: true },
+    accentColor: { hex: "#6956d9", soft: "#f2efff", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs CRM module is the revenue team's system of record — it captures leads from any channel, qualifies and routes them by policy, and manages the account, contact, and opportunity lifecycle through to a won deal, with privacy governance and offline mobile access built in rather than bolted on.",
     heroVariant: "screenshot-led",
@@ -148,7 +155,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "A GST-aware quotation is accepted publicly with a typed signature, converts to an order with a real-time credit check, and hands off to Accounting through an idempotent, auditable request.",
-    accentColor: { hex: "#2468d7", soft: "#edf4ff", sourcedFromProduct: true },
+    accentColor: { hex: "#2468d7", soft: "#edf4ff", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Sales module is the quote-to-cash engine — it turns a priced, tax-compliant, versioned quotation into a credit-checked order with an auditable handoff to Accounting, including a public link the customer can accept without logging in.",
     heroVariant: "operational-sequence",
@@ -282,7 +289,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "Two- and three-way matching gates every accounts-payable posting, and period close is a governed, task-gated workflow that mechanically blocks completion until every exception is resolved.",
-    accentColor: { hex: "#31566f", soft: "#edf4f7", sourcedFromProduct: true },
+    accentColor: { hex: "#31566f", soft: "#edf4f7", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Accounting module is a multi-company, multi-currency general ledger and financial-operations system — receivables, payables, banking, fixed assets, tax, and a governed period close, with native India GST compliance built into the ledger, not added on afterward.",
     heroVariant: "operational-sequence",
@@ -429,7 +436,7 @@ const MODULE_ENRICHMENT = Object.freeze({
     ],
     bestAngle:
       "An invoice-matching engine mechanically blocks accounts-payable bill creation on unresolved variance, with live readiness scoring across the entire requisition-to-payment chain.",
-    accentColor: { hex: "#087f6a", soft: "#eaf8f4", sourcedFromProduct: true },
+    accentColor: { hex: "#087f6a", soft: "#eaf8f4", sourcedFromProduct: false },
     directDefinition:
       "The Vercentlabs Procurement module is a source-to-pay control tower — it governs requisition, sourcing, ordering, receiving, and invoice matching with policy-driven readiness scoring at every stage, so a bill can't reach Accounts Payable until it's actually matched.",
     heroVariant: "operational-sequence",
