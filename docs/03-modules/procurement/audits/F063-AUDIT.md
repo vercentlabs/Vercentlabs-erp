@@ -34,29 +34,34 @@ configuration and its supplier-specific carve-outs within that shared engine.
 | SEC-001 (org/company/branch scope, server-authoritative) | PASS | Every list/get/create/update/transition function requires a real permission via `permission(context, ...)`/`requireAnyPermission` before touching data, and queries are consistently scoped by `organization_id` (RLS-enforced, `012_procurement_module.sql:39` forces RLS on `procurement_suppliers`) plus application-layer `company_id` scoping (`companyWhere`). Not independently negative-tested this pass (no dedicated cross-org/cross-company IDOR test for suppliers found — `field-visibility.test.mjs` covers sensitive-field redaction, not org/company isolation). |
 | SEC-002 (sensitive fields) | PASS | See CAP-002 bank-data-sensitivity row above — this is the same mechanism, test-covered. |
 | **APP-001 (approval policy) — GAP or NOT VERIFIED.** | **Real gap, not fixed this pass.** No `approval_requests` integration or maker-checker workflow was found for supplier qualification/activation — the `qualify`/`activate` transitions are gated only by a single permission (`procurement.suppliers.qualify`), not a two-person segregation-of-duties approval like Sales' quotation/order approval flow. May be an intentional design choice (supplier approval via role-gated transition rather than a formal request/approve pair) rather than a bug, but the dossier's "maker-checker" language in the shared write-operation constitution suggests this should be verified with the module owner before assuming it's fine as-is. |
-| NOTIF-001 | NOT INDEPENDENTLY VERIFIED | No supplier-specific notification dispatch found in `procurement/index.js`; the `outbox` write on every mutation could feed a notification consumer elsewhere (e.g. the worker service), but no worker handler subscribing to `procurement.suppliers.*` outbox events was found in `services/worker/src/handlers/`. Likely a real gap (parallel to CRM's own F014/F016 "no confirmed reminder-notification delivery mechanism" finding), not confirmed fixed. |
+| **NOTIF-001 — CONFIRMED GAP (module-wide, not supplier-specific).** | **Confirmed, not fixed this pass.** `grep -rl "procurement_outbox" services/` finds exactly one file: `services/api/src/modules/procurement/index.js` itself — the table that every create/update/transition writes to (`outbox()`, line ~1008) is **never read anywhere in the entire codebase**: no worker handler, no orchestration function, no generic outbox-drain poller. Every Procurement outbox event ever written (supplier created/qualified/activated, PO approved/dispatched, receipt posted, sourcing awarded, `procurement.vendor-bill.ready`, etc.) is a permanent dead letter. This affects every feature in the module, not just F063 — recorded once here and referenced by ID from every other Procurement audit rather than repeated. |
 | REP-001 | PASS | `getProcurementReport`'s `supplier-performance`/`supplier-risk` keys (`index.js:2343` area) are real, company-scoped, permission-gated aggregate queries, not placeholders. |
 | AI-001 | NOT INDEPENDENTLY VERIFIED | No AI-adjacent code found for suppliers (consistent with CRM/Sales' own "AI-001 consistently unbuilt" finding — likely a real, consistent, org-wide scope gap rather than a per-feature defect). |
-| INT-001/INT-002 | PASS (for what exists) | Idempotency-key create-path (see FR-002 row) and the `outbox` event on every mutation are the real cross-module integration primitives; no evidence of Procurement writing directly into another module's private tables for supplier data. Reversal/compensation semantics beyond the `cancel`/`block`/`suspend` transitions were not separately verified. |
+| **INT-001/INT-002 — CONFIRMED GAP: no real Procurement→Stock receiving contract.** | **Confirmed, not fixed this pass — this is the single most important cross-module finding for the whole module.** `docs/04-cross-module/PROCUREMENT_TO_STOCK_RECEIVING.md` explicitly documents that "posting an approved receipt calls a Stock public contract" — but `services/api/src/orchestration/` has zero Procurement-related files (only `reorder-purchasing.js`, which is the *opposite* direction: Stock triggering Procurement, F094). `applyReceiptToOrder` (the function that runs when a receipt is approved) only updates `tenant.procurement_purchase_order_lines`' own `received_quantity` — it never calls Stock's `postStockMovement` or any Stock public function. **Goods receipt does not actually move physical inventory.** This is the Procurement equivalent of what Sales' own trace found and fixed for `SALES_TO_STOCK_FULFILMENT.md` before this module was certified — except here it has not been fixed at all. Directly relevant to F080/F081/F082 (receiving) and is the centerpiece of the task's required Supplier→...→Payment E2E journey. |
+| **No supplier portal exists at all (module-wide).** | **Confirmed gap.** Every Procurement dossier's personas section mentions "Supplier/portal personas can see only their own authorized invitations, documents and collaboration surfaces" — but `portal-users` is a bare generic child resource (`RESOURCE_CONFIG["portal-users"]`, gated by `procurement.supplier_portal.manage`) with no distinct authentication path, no portal-facing route, and no code anywhere granting an external supplier contact actual access to anything. There is nothing for a supplier to log into. Every "supplier/portal persona" requirement across all 34 Procurement features is aspirational, not implemented — recorded once here rather than repeated per feature. |
+| **Correction — child-entity data is real but invisible in the UI.** | Initially suspected `getProcurementRecord` might not hydrate `sites`/`qualifications`/`certifications`/`scorecards` — re-checked and it does (`hydrateChildren` is called for every `kind: "document"` resource, confirmed at `index.js:1101`, so the API layer is correct). The real gap is narrower but still confirmed: `apps/web/src/modules/procurement/components/procurement-workspace.tsx` (the generic detail workspace every Procurement page uses) has **zero references** to `sites`/`qualifications`/`certifications`/`scorecards` in its render logic — it only renders top-level scalar fields (`cleanRecord(record).slice(0,24)`) and `record.lines` for line-item documents. There is no UI anywhere to view or manage a supplier's sites, qualifications, certifications or scorecards, even though `evaluateSupplierGovernance` (the governance dashboard's health check) treats missing qualification/certification evidence as a **blocker** (`qualificationCount < 1` → "Supplier qualification evidence is missing."). The dashboard can tell an operator a supplier isn't ready, with no way in the actual product to fix it. |
 | API-001/002 | PASS (structurally) | Route handlers are thin wrappers over the domain functions above (not independently re-read line-by-line this pass, but the domain layer itself enforces auth/validation/idempotency, which the constitution requires the API layer to inherit rather than reimplement). |
 | PERF-001 | **GAP, recorded.** `listProcurementPass1Options`'s supplier picker query caps at `LIMIT 100` (fixed this session for the concurrency bug, param behavior unchanged) — bounded, good. The main `listProcurementRecords` path was not checked for pagination/`LIMIT` on this pass; flag for the gap-closing pass. |
 | OBS-001 | NOT INDEPENDENTLY VERIFIED | Not traced this pass. |
 | E2E-001/002 | **GAP.** No Procurement browser E2E exists at all (confirmed: no `erp-procurement-*.spec.ts` files under `apps/web/tests/e2e/`) — Procurement has zero live-browser evidence, unlike CRM which now has 45 real E2E tests covering exactly this kind of gap (see this session's CRM findings: two real, production-blocking bugs were only found once E2E ran for the first time). This is the single highest-leverage gap for Procurement's gap-closing pass. |
 | UAT-001/002 | PENDING HUMAN UAT | Cannot be performed by this session. |
 
-## Net assessment (2026-09-14)
+## Net assessment (2026-09-14, revised after full-module reconnaissance)
 
-Supplier master's core CRUD/lifecycle/security engineering is genuinely
-solid and mirrors CRM/Sales' quality bar: real permission gates, real
-sensitive-field redaction (test-covered), real audit/idempotency/outbox
-primitives on every mutation, RLS-enforced tenant isolation. Three concrete
-gaps found this pass, none fixed (per methodology — record during trace,
-fix in a dedicated pass): (1) no duplicate-supplier detection, (2) the
-`archived`/reactivation lifecycle is referenced defensively in queries but
-has no actual transition to reach or leave it, (3) no approval/maker-checker
-workflow for qualification — gated by a single permission instead. The
-single most valuable next step for this module, based directly on what
-this session found in CRM, is standing up even minimal Procurement browser
-E2E — CRM's two real, previously-invisible production bugs (a live
-concurrency bug and a deterministic report-query bug) were only found once
-real E2E ran for the first time, and Procurement currently has none at all.
+Supplier master's own CRUD/lifecycle/security engineering is genuinely
+solid: real permission gates, real sensitive-field redaction (test-covered),
+real per-record audit/idempotency primitives, RLS-enforced tenant isolation.
+But two **module-wide** findings surfaced while reading the rest of the
+engine change the overall picture significantly: (1) **the outbox that every
+mutation writes to is never consumed anywhere** — no notifications, no
+downstream automation, nothing; (2) **goods receipt never actually moves
+Stock inventory**, despite a documented cross-module contract saying it
+should. Neither is specific to F063, but both were found while tracing it
+and apply to the whole module — recorded here once, referenced by ID from
+every other Procurement audit. Feature-specific gaps: no duplicate-supplier
+detection, an `archived`/reactivation lifecycle referenced defensively but
+unreachable, no approval/maker-checker for qualification, and no UI at all
+for the qualification/certification/scorecard evidence the governance
+dashboard requires to mark a supplier ready. **Do not certify Procurement
+production-ready without fixing the outbox and Stock-receiving gaps** —
+they affect nearly every downstream feature in the module.
