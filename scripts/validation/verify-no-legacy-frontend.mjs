@@ -1,13 +1,21 @@
 #!/usr/bin/env node
-// Fails if apps/web's active source contains references to the frontend
-// generations the clean-slate rebuild retired. See
-// docs/frontend-rebuild/README.md and docs/ux/UI_REWRITE_TRACKER.md.
+// Fails if the active new-frontend source (apps/web, packages/design-system,
+// packages/design-tokens) contains references to any retired frontend
+// generation. See docs/frontend-rebuild/README.md and
+// docs/ux/UI_REWRITE_TRACKER.md. Repo-root relative by construction, so it
+// gives the same result regardless of which package's script invokes it.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const root = process.cwd();
-const SCAN_DIRS = ["src", "tests"].map((d) => path.join(root, d));
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const SCAN_DIRS = [
+  "apps/web/src",
+  "apps/web/tests",
+  "packages/design-system/src",
+  "packages/design-tokens/src",
+].map((d) => path.join(repoRoot, d));
 const SKIP_DIR_NAMES = new Set(["node_modules", ".next", "playwright-report", "test-results", "storybook-static"]);
 
 const FORBIDDEN_TERMS = [
@@ -25,6 +33,8 @@ const FORBIDDEN_TERMS = [
   { term: "business-data-extension.css", reason: "legacy module CSS, deleted" },
   { term: "procurement-extension.css", reason: "legacy module CSS, deleted" },
   { term: "sales-extension.css", reason: "legacy module CSS, deleted" },
+  { term: "@base-ui-components", reason: "Base UI was superseded by React Aria Components — see ADR-003" },
+  { term: "base-ui-components", reason: "Base UI was superseded by React Aria Components — see ADR-003" },
 ];
 
 // --erp-* and --v2-* were the legacy custom-property prefixes; the new
@@ -53,7 +63,7 @@ const failures = [];
 
 for (const file of files) {
   const content = fs.readFileSync(file, "utf8");
-  const rel = path.relative(root, file);
+  const rel = path.relative(repoRoot, file);
   for (const { term, reason } of FORBIDDEN_TERMS) {
     if (content.includes(term)) failures.push(`${rel}: contains "${term}" (${reason})`);
   }
@@ -67,5 +77,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`  - ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`verify:no-legacy-frontend passed (${files.length} files scanned, 0 legacy references).`);
+  console.log(`verify:no-legacy-frontend passed (${files.length} files scanned across apps/web, packages/design-system, packages/design-tokens — 0 legacy references).`);
 }

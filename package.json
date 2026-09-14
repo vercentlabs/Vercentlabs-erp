@@ -59,6 +59,7 @@
     "verify:web": "corepack pnpm verify:experience && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm build:web",
     "verify:mobile": "corepack pnpm typecheck:mobile && corepack pnpm lint:mobile",
     "verify:db": "node scripts/validation/verify-db-structure.mjs",
+    "verify:no-legacy-frontend": "node scripts/validation/verify-no-legacy-frontend.mjs",
     "export:source": "node scripts/export/export-source.mjs",
     "verify:source-export": "node scripts/export/verify-source-export.mjs",
     "verify": "corepack pnpm verify:toolchain && corepack pnpm verify:t01 && corepack pnpm verify:experience && corepack pnpm verify:architecture && corepack pnpm verify:fast && corepack pnpm verify:routes && corepack pnpm verify:mobile && corepack pnpm verify:db && corepack pnpm verify:worker && corepack pnpm test:sdk && corepack pnpm test:packages && corepack pnpm test:integration && corepack pnpm test:security && corepack pnpm test:enterprise-rbac",

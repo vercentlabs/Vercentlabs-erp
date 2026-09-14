@@ -27,7 +27,28 @@ verified work, (4) update both artifacts, (5) commit. Do not attempt to
 "finish" the whole program in a single sitting — that produces exactly the
 fabricated-completion outcome this tracker exists to prevent.
 
-## Session 2026-09-14 — Phase 0 + ADR + foundation start
+## ⚠ 2026-09-14 (later the same day): clean-slate restart, sessions below are historical
+
+Everything from here through "Phase 5" below describes real work that
+happened, but it was built on Base UI inside the old `apps/web` tree
+(`packages/ui-web`, the `/crm/leads-next` golden reference). Later the
+same day, a separate directive authorized a full clean-slate rewrite:
+`apps/web`, `packages/shared-ui`, and `packages/ui-web` were **deleted
+outright** (not migrated) on branch `rebuild/clean-frontend`, and the
+primitive library was corrected from Base UI to **React Aria Components**
+per `docs/01-standards/TECH_STACK_ADR_003_PRIMITIVE_LIBRARY_CORRECTION.md`
+— including the `leads-next` work specifically, discarded rather than
+ported, after the owner was asked directly whether to keep or discard it.
+
+Read the sessions below for narrative/decision history only (why the old
+UX traceability register looks the way it does, what the old primitive
+set covered) — **do not treat any "DONE" marker below as describing
+current repository state.** The current state starts at the "Prompt 1"
+session near the end of this file. `docs/frontend-rebuild/README.md` has
+the archive point (`archive/pre-clean-frontend-rebuild`) if any of this
+history needs to be recovered from git.
+
+## Session 2026-09-14 — Phase 0 + ADR + foundation start (historical — see notice above)
 
 ### Governance decision (recorded, binding)
 
@@ -765,3 +786,156 @@ numbers here as sessions progress; this table is a snapshot of the
    Phase 5 before this session started — no further action needed (the
    fix is in the one shared function), but worth knowing when reading
    git blame on `resource-mutation-service.js` later.
+
+## Session 2026-09-14 (continued) — clean-slate rebuild, Prompt 1: design-system foundation
+
+**This session's state is current; everything above this heading is
+historical (see the warning notice near the top of this file).**
+
+Continued the clean-slate rebuild on branch `rebuild/clean-frontend`
+(PR #8). Phases A-D (archive, contract inventory, deletion, new `apps/web`
+bootstrap) were already done and verified in an earlier part of this same
+session — see PR #8's description and the commit history on that branch
+for the archive point, `docs/frontend-rebuild/FRONTEND_CONTRACT_REGISTER.csv`,
+and the first working `apps/web` build.
+
+This entry covers "Prompt 1" — the design-system + UI foundation phase,
+explicitly scoped as **foundation, not feature work**. No F001-F510
+business requirement is implemented by anything in this session; a design
+system component existing is platform/foundation evidence only, per this
+file's own honesty rule.
+
+### What was built, in commit order (all on `rebuild/clean-frontend`)
+
+1. **ADR-003** — corrected the primitive library from Base UI to React
+   Aria Components (the old ADR-002 choice, made earlier the same day,
+   was itself superseded after the owner was asked directly and chose
+   React Aria over keeping the already-working Base UI implementation).
+2. **`packages/design-tokens` restructured** — `primitives/` (thin typed
+   wrappers over `theme.json`) into `semantic/` (the actual design
+   decisions: `surface.*`, `text.*`, `border.*`, `action.*`, `status.*`,
+   typography roles, compact/comfortable density) into `themes/light.ts`.
+   Verified mobile's generated native theme stayed byte-identical. 6 real
+   unit tests.
+3. **`packages/design-system` actions + data-entry** — Button/IconButton/
+   IconLinkButton/LinkButton, and the full field system (TextField,
+   TextArea, NumberField + Money/Percentage/Quantity presets, SearchField,
+   Checkbox(+Group), RadioGroup, Switch, Select, ComboBox, MultiSelect,
+   DateField, DatePicker, TimeField, DateTimeField).
+4. **overlays + navigation + data-display + layout** — Dialog,
+   AlertDialog, Popover, Tooltip, Menu, ContextMenu, Drawer/Sheet; Tabs,
+   Breadcrumbs, Pagination; Badge, StatusBadge, Avatar, ProgressBar,
+   Meter, Skeleton, EmptyState/NoResultsState/ErrorState/PermissionState;
+   Stack, Inline, Grid, Surface, Section, Divider, ScrollableArea.
+5. **enterprise components** — PageHeader, RecordHeader, SectionHeader,
+   ActionBar, FilterBar, SavedViewBar, BulkActionBar, MetricCard/Strip,
+   Timeline (backing ActivityTimeline/AuditTimeline/ApprovalTimeline),
+   AttachmentPanel, CommentThread, RelatedRecords, RelatedBusinessFlow,
+   BackgroundJobProgress, ConflictBanner/OfflineBanner/StaleDataBanner.
+6. **form architecture** — `useAppForm` (TanStack Form + Zod, Standard
+   Schema), SubmitButton, ServerErrorSummary, `useUnsavedChangesWarning`.
+7. **EnterpriseDataGrid** — TanStack Table v8 (deliberately *not* v9,
+   which turned out to be a beta ground-up API rewrite — see the commit
+   for the full reasoning) plus TanStack Virtual, with server sort/
+   pagination contracts, row selection, column resizing, sticky header,
+   all five grid states, opt-in mobile card fallback.
+8. **Page composition** — EnterpriseListPage, RecordDetailsPage,
+   RecordFormPage (layout only, no domain knowledge).
+9. **Storybook** — real stories for the core components, sharing
+   production's actual generated Tailwind theme (not a second token
+   pipeline), `@storybook/addon-a11y` with `test: "error"` so violations
+   fail the run, `@storybook/test-runner` wired and passing (52/52).
+10. **`docs/frontend-rebuild/HCI_STANDARD.md`** — enforceable interaction
+    rules, each naming the actual component that implements it.
+
+### Real defects found by actually testing, not assumed away
+
+Every one of these was found by driving a real headless browser (Next.js
+dev server + Playwright) or running the Storybook a11y harness — not by
+reading code and reasoning about it:
+
+- `MultiSelect` nested a `<button>` inside its trigger `<button>` (invalid
+  HTML, broke hydration) — fixed by moving chip removal into the popover.
+- Every design-system component rendered completely unstyled the first
+  time apps/web imported one — Tailwind v4's content scanning doesn't
+  reach a separate workspace package without an explicit `@source`.
+- Date/time components hydration-mismatched — Intl locale formatting
+  differed between Node SSR and the browser; fixed with a fixed-locale
+  `I18nProvider` at the app root (also the architecturally correct call
+  for a multi-tenant product) rather than relying on ambient detection.
+- `z-modal`/`z-dropdown`/etc. never resolved (`z-index: auto`) — Tailwind
+  v4 does not auto-generate `z-*` utilities from a custom `--z-*`
+  namespace the way it does for color/radius/shadow/text. Fixed with
+  arbitrary-value syntax.
+- The single most significant one: `apps/web/src/app/globals.css` had an
+  **unlayered** `* { border-color: var(--color-border) }` reset. Per CSS
+  Cascade Layers, unlayered CSS always wins over layered CSS regardless
+  of specificity — this was silently overriding every Tailwind
+  border-color utility app-wide (invalid-field red borders, hover states,
+  focus-within states), not just the form where it was first noticed.
+  Fixed by wrapping it in `@layer base`.
+- Storybook's a11y harness found a real WCAG failure: placeholder text
+  using `--color-text-subtle` (#98A2B3) measured 2.57:1 contrast against
+  white, below the 4.5:1 AA minimum. Fixed across every field component
+  that used it for real text (kept on the two purely-decorative
+  `aria-hidden` icon uses, which are exempt).
+
+None of these would have been caught by typecheck, lint, or build passing
+alone — which is exactly why this session insisted on browser
+verification before committing each batch, not after.
+
+### What is deliberately NOT done, and why
+
+- **No CRM/any-module golden reference screen yet.** This was explicitly
+  out of scope for "Prompt 1" (foundation only) — the brief for this
+  phase was explicit: do not move into CRM F001-F030 in this prompt.
+  That's the next prompt.
+- **App shell / primary navigation / workspace context / auth** — also
+  explicitly deferred to the next phase per the brief.
+- **Charts, rich text, calendar, offline storage, PWA/service worker** —
+  no screen has needed them yet; adding the dependencies before a real
+  use exists would violate the dependency-discipline principle.
+- **Dark mode** — the token architecture has a stub for it
+  (`themes/light.ts`'s doc comment) but no second theme exists; the
+  rebuild brief is explicit this product is light-canvas-first.
+- **`docs/ux/UX_TRACEABILITY_REGISTER.csv` was not touched this session.**
+  It's still the Phase-0-generated skeleton from the historical sessions
+  above (every UI-specific column blank). Populating it honestly requires
+  real screens to point it at — doing so now, before any screen exists on
+  the new stack, would just be guessing at routes/components that don't
+  exist yet.
+- **Full `pnpm verify`/`pnpm verify:crm*`** was not run to green — those
+  chains (`.github/workflows/crm-ci.yml`) target the old CRM file
+  structure that no longer exists (see the apps/web bootstrap commit).
+  This is expected and documented, not a silent regression: `pnpm
+  --filter @vercentlabs/design-tokens typecheck/test`,
+  `pnpm --filter @vercentlabs/design-system typecheck`, and
+  `pnpm --filter @vercentlabs/web typecheck/lint/build` all pass.
+
+### Immediate next action for whoever continues this
+
+1. **App shell** (per the rebuild brief's own phase order): primary
+   sidebar, module navigation, workspace/company/branch context, global
+   command menu (Ctrl/Cmd+K), notifications/approvals surfaces, auth/
+   session integration. Build the design-system primitives this needs
+   first if any are missing (a `NavRail`/`NavItem` pair doesn't exist
+   yet — nothing in Phase 1 needed it).
+2. **Then** the CRM Lead golden reference (List + Record 360 + Create +
+   Edit) at the canonical `/crm/leads*` routes — not `/crm/leads-next`,
+   there's no legacy `/crm/leads` route left to collide with anymore
+   (apps/web was deleted, so the routing-collision hazard the old
+   sessions documented no longer applies; use the real path from the
+   start).
+3. Before building the CRM screen, read `docs/03-modules/crm/features/`
+   and `docs/02-register/SUBREQUIREMENT_REGISTER.csv`'s F001-F008 rows
+   for the actual requirement detail — this session deliberately did not
+   duplicate that detail into `docs/frontend-rebuild/FRONTEND_CONTRACT_REGISTER.csv`
+   (see that file's own README for why).
+4. Once the CRM golden reference exists, come back and fill in its real
+   rows in `UX_TRACEABILITY_REGISTER.csv` and this session's
+   `FRONTEND_CONTRACT_REGISTER.csv` — both were left honestly
+   `TBD`/blank rather than guessed.
+5. `EnterpriseDataGrid` has no Storybook story yet exercising sorting/
+   pagination/selection interactions specifically (only the visual states
+   are covered) — add one when the CRM list screen's real usage clarifies
+   what interaction coverage actually matters, rather than guessing now.
