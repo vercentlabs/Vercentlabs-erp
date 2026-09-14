@@ -17,7 +17,7 @@ export const inputChrome = cva(
   [
     "w-full rounded-[var(--radius-control)] border bg-surface px-3 text-sm text-text",
     "outline-none transition-colors duration-[var(--motion-fast)]",
-    "placeholder:text-text-subtle",
+    "placeholder:text-text-muted",
     "border-border hover:border-border-strong",
     "focus-within:border-brand focus-within:ring-2 focus-within:ring-focus",
     "group-data-[invalid]:border-danger group-data-[invalid]:focus-within:ring-danger-soft",

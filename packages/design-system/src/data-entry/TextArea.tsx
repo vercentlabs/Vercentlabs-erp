@@ -28,7 +28,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
           placeholder={placeholder}
           className={[
             "w-full resize-y rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text",
-            "outline-none transition-colors duration-[var(--motion-fast)] placeholder:text-text-subtle",
+            "outline-none transition-colors duration-[var(--motion-fast)] placeholder:text-text-muted",
             "hover:border-border-strong focus:border-brand focus:ring-2 focus:ring-focus",
             "group-data-[invalid]:border-danger group-data-[disabled]:pointer-events-none group-data-[disabled]:opacity-50",
           ].join(" ")}

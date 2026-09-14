@@ -75,7 +75,7 @@ export function MultiSelect<T extends string = string>({
             )}
           >
             <span className="flex flex-1 flex-wrap items-center gap-1">
-              {selectedOptions.length === 0 && <span className="text-text-subtle">{placeholder}</span>}
+              {selectedOptions.length === 0 && <span className="text-text-muted">{placeholder}</span>}
               {selectedOptions.map((o) => (
                 <span
                   key={o.value}

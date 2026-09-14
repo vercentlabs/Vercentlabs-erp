@@ -29,7 +29,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           <Input
             ref={ref}
             placeholder={placeholder}
-            className="h-full flex-1 bg-transparent px-3 outline-none placeholder:text-text-subtle"
+            className="h-full flex-1 bg-transparent px-3 outline-none placeholder:text-text-muted"
           />
           {suffix && <span className="pr-3 text-text-muted">{suffix}</span>}
         </div>

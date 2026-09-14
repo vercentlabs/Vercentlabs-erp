@@ -34,7 +34,7 @@ export function DateField<T extends DateValue>({
           {(segment) => (
             <DateSegment
               segment={segment}
-              className="rounded px-0.5 tabular-nums outline-none data-[placeholder]:text-text-subtle data-[focused]:bg-brand-soft"
+              className="rounded px-0.5 tabular-nums outline-none data-[placeholder]:text-text-muted data-[focused]:bg-brand-soft"
             />
           )}
         </DateInput>

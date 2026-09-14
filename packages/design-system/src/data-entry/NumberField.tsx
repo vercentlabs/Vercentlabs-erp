@@ -41,7 +41,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
           {prefix && <span className="pl-3 text-text-muted">{prefix}</span>}
           <Input
             ref={ref}
-            className="h-full min-w-0 flex-1 bg-transparent px-3 text-right tabular-nums outline-none placeholder:text-text-subtle [appearance:textfield]"
+            className="h-full min-w-0 flex-1 bg-transparent px-3 text-right tabular-nums outline-none placeholder:text-text-muted [appearance:textfield]"
           />
           {suffix && <span className="pr-2 text-text-muted">{suffix}</span>}
           {!hideStepper && (

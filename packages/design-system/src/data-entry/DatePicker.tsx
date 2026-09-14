@@ -42,7 +42,7 @@ export function DatePicker<T extends DateValue>({
             {(segment) => (
               <DateSegment
                 segment={segment}
-                className="rounded px-0.5 tabular-nums outline-none data-[placeholder]:text-text-subtle data-[focused]:bg-brand-soft"
+                className="rounded px-0.5 tabular-nums outline-none data-[placeholder]:text-text-muted data-[focused]:bg-brand-soft"
               />
             )}
           </DateInput>
@@ -70,7 +70,7 @@ export function DatePicker<T extends DateValue>({
                   className={cn(
                     "flex size-8 cursor-default items-center justify-center rounded-[var(--radius-control)] text-sm tabular-nums outline-none",
                     "data-[hovered]:bg-surface-muted data-[selected]:bg-brand data-[selected]:text-text-inverse",
-                    "data-[outside-month]:text-text-subtle data-[unavailable]:pointer-events-none data-[unavailable]:text-text-subtle data-[unavailable]:line-through",
+                    "data-[outside-month]:text-text-muted data-[unavailable]:pointer-events-none data-[unavailable]:text-text-muted data-[unavailable]:line-through",
                     "data-[focus-visible]:ring-2 data-[focus-visible]:ring-brand",
                   )}
                 />

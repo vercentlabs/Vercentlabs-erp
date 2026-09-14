@@ -43,7 +43,7 @@ export function Select<T extends string = string>({
     <AriaSelect isRequired={isRequired} className={cn("group flex flex-col gap-1.5", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <Button className={cn(inputChrome({ size }), "flex items-center justify-between gap-2 text-left")}>
-          <SelectValue className="truncate data-[placeholder]:text-text-subtle">
+          <SelectValue className="truncate data-[placeholder]:text-text-muted">
             {({ selectedText }) => selectedText || placeholder}
           </SelectValue>
           <ChevronDown className="size-4 shrink-0 text-text-muted" aria-hidden="true" />
