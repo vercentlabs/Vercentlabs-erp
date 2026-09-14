@@ -50,7 +50,16 @@ export function requiredText(value, label, limit = 500) {
   return result;
 }
 export function isoDate(value, label = "Date") {
-  const result = String(value || "").slice(0, 10);
+  // node-postgres returns DATE/TIMESTAMP columns as real JS Date objects,
+  // not strings -- String(new Date(...)) produces something like "Sun Dec
+  // 06 2026 ...", which fails the regex below. Every caller here re-feeds
+  // values it just read back from a real database row (e.g. postVendorBill
+  // passing bill.accounting_date into createJournalEntry) as well as raw
+  // client input, so both shapes must be accepted. Found via a real
+  // browser E2E run against a live Postgres database -- this repo's
+  // existing test suite never caught it because every other test uses a
+  // fake DB client that only ever returns the string it was told to.
+  const result = (value instanceof Date ? value.toISOString() : String(value || "")).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(result) || Number.isNaN(Date.parse(`${result}T00:00:00Z`))) {
     throw new AccountingError(400, `${label} is invalid.`);
   }
@@ -74,6 +83,17 @@ export function nonNegativeAmount(value, label = "Amount") {
 }
 export function hashPayload(value) {
   const stable = (input) => {
+    // Every journal line normalizeLines() produces (journals.js) carries
+    // several BigInt fields (debit, credit, baseDebit, baseCredit,
+    // taxBaseAmount, dimension allocationPercent) -- JSON.stringify()
+    // throws on ANY BigInt, including 0n, so every real journal entry
+    // (vendor bill, customer invoice, manual journal, payment...) crashed
+    // computing its own contentHash. No existing test caught this because
+    // every one of them uses a fake DB client that only ever hands back
+    // the decimal *strings* it was told to, never a real decimal()-derived
+    // BigInt -- a real browser E2E run against a live Postgres database
+    // was what finally exercised this path for real.
+    if (typeof input === "bigint") return input.toString();
     if (Array.isArray(input)) return `[${input.map(stable).join(",")}]`;
     if (input && typeof input === "object") return `{${Object.keys(input).sort().map((key) => `${JSON.stringify(key)}:${stable(input[key])}`).join(",")}}`;
     return JSON.stringify(input);

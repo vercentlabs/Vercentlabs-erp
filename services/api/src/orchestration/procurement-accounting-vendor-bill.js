@@ -57,11 +57,16 @@ export async function runProcurementMatchWithVendorBillImport(
     };
   }
 
-  const vendorBill = await importProcurementMatchAsVendorBill(
+  // importProcurementMatchAsVendorBill returns getVendorBill()'s composite
+  // { bill, lines, schedules, allocations, events } detail shape, not a flat
+  // bill row -- unwrapped here so this wrapper's own `vendorBill` field is
+  // what its name promises (found the hard way: a real browser E2E run
+  // sent `vendorBill.id` -- always undefined -- to the bill-actions route).
+  const vendorBillDetail = await importProcurementMatchAsVendorBill(
     client,
     accountingContext,
     matchingRecord.id,
     { partyId },
   );
-  return { ...result, vendorBill };
+  return { ...result, vendorBill: vendorBillDetail.bill, vendorBillDetail };
 }

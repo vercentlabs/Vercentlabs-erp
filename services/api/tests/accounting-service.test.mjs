@@ -2,8 +2,44 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { asDatabaseDecimal, decimal, div, mul, roundMoney } from "../src/modules/accounting/money.js";
 import { allocateInstallments } from "../src/modules/accounting/schedules.js";
+import { AccountingError, hashPayload, isoDate } from "../src/modules/accounting/core.js";
 import { ACCOUNTING_REPORT_KEYS } from "@vercentlabs/shared-types";
 import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
+
+// Regression for a real production defect found via a browser E2E run
+// (tests/e2e/erp-procurement-source-to-pay-journey.spec.ts): postVendorBill
+// re-feeds a date it just read back from the database (bill.accounting_date)
+// into isoDate() via createJournalEntry. node-postgres returns DATE columns
+// as real JS Date objects, not strings, and every existing test used a fake
+// DB client that only ever returns the string it was told to -- so nothing
+// caught String(new Date(...)) failing the "YYYY-MM-DD" regex until a real
+// Postgres round-trip did.
+test("isoDate accepts a real Date object the way a pg row returns a DATE column", () => {
+  assert.equal(isoDate(new Date("2026-12-10T00:00:00.000Z")), "2026-12-10");
+});
+
+test("isoDate still accepts a plain ISO date string", () => {
+  assert.equal(isoDate("2026-12-10"), "2026-12-10");
+});
+
+test("isoDate still rejects genuinely invalid input", () => {
+  assert.throws(() => isoDate("not-a-date"), AccountingError);
+  assert.throws(() => isoDate(""), AccountingError);
+});
+
+// Regression for a real production defect found via the same browser E2E
+// run: createJournalEntry's contentHash computation hashes normalizeLines()'s
+// output, which carries several BigInt fields (debit, credit, baseDebit,
+// baseCredit, taxBaseAmount, dimension allocationPercent) -- hashPayload's
+// stable-stringify fell through to a raw JSON.stringify(bigint), which
+// throws for ANY BigInt including 0n. Posting a real vendor bill (or any
+// other document that creates a journal entry) always crashed.
+test("hashPayload hashes BigInt values instead of crashing on them", () => {
+  assert.doesNotThrow(() => hashPayload({ debit: 0n, credit: 100n }));
+  assert.equal(hashPayload({ amount: 0n }), hashPayload({ amount: 0n }));
+  assert.notEqual(hashPayload({ amount: 0n }), hashPayload({ amount: 1n }));
+  assert.notEqual(hashPayload({ amount: 100n }), hashPayload({ amount: "100" }));
+});
 
 test("accounting decimal arithmetic is deterministic", () => {
   assert.equal(asDatabaseDecimal(decimal("0.1") + decimal("0.2")), "0.300000");

@@ -52,18 +52,26 @@ const lineSchema = z
   })
   .passthrough();
 
-const common = z
+// Deliberately NOT refined here (Zod 4's .partial() throws
+// ".partial() cannot be used on object schemas containing refinements" if
+// the schema it's called on -- or anything it was .extend()-ed from --
+// already carries a .superRefine()/.refine() effect). parseProcurementUpdate
+// needs a genuinely plain ZodObject to call .partial() on, so
+// rejectInternalFields is applied at each call site (parseProcurementCreate,
+// and after .partial() in parseProcurementUpdate) instead of being baked in
+// here. Found via a real browser E2E run: every PATCH to any Procurement
+// document resource returned 500 before this fix.
+const commonShape = z
   .object({
     companyId: optionalUuid,
     branchId: optionalUuid,
     currencyCode: z.string().trim().length(3).default("INR"),
     idempotencyKey: z.string().trim().max(200).optional(),
   })
-  .passthrough()
-  .superRefine(rejectInternalFields);
+  .passthrough();
 
 const documentSchemas = {
-  suppliers: common.extend({
+  suppliers: commonShape.extend({
     partyId: optionalUuid,
     supplierCode: z.string().trim().min(1).max(60),
     legalName: z.string().trim().min(1).max(240),
@@ -73,23 +81,23 @@ const documentSchemas = {
     certifications: z.array(z.record(z.string(), z.unknown())).optional(),
     scorecards: z.array(z.record(z.string(), z.unknown())).optional(),
   }),
-  categories: common.extend({
+  categories: commonShape.extend({
     code: z.string().trim().min(1).max(60),
     name: z.string().trim().min(1).max(160),
   }),
-  catalogs: common.extend({
+  catalogs: commonShape.extend({
     code: z.string().trim().min(1).max(60),
     name: z.string().trim().min(1).max(160),
     items: z.array(lineSchema).optional(),
   }),
-  requisitions: common.extend({
+  requisitions: commonShape.extend({
     title: z.string().trim().min(1).max(240),
     requestedBy: optionalUuid,
     needByDate: date,
     lines: z.array(lineSchema).min(1),
     distributions: z.array(z.record(z.string(), z.unknown())).optional(),
   }),
-  "sourcing-events": common.extend({
+  "sourcing-events": commonShape.extend({
     title: z.string().trim().min(1).max(240),
     eventType: z.enum(["rfi", "rfq", "rfp", "tender", "auction"]).default("rfq"),
     bidCloseAt: z.string().trim().min(1).max(40),
@@ -97,14 +105,14 @@ const documentSchemas = {
     bids: z.array(z.record(z.string(), z.unknown())).optional(),
     evaluations: z.array(z.record(z.string(), z.unknown())).optional(),
   }),
-  agreements: common.extend({
+  agreements: commonShape.extend({
     title: z.string().trim().min(1).max(240),
     supplierId: uuid,
     validFrom: date,
     validUntil: date,
     lines: z.array(lineSchema).min(1),
   }),
-  "purchase-orders": common.extend({
+  "purchase-orders": commonShape.extend({
     title: z.string().trim().min(1).max(240).default("Purchase order"),
     supplierId: uuid,
     expectedDeliveryDate: date,
@@ -112,22 +120,22 @@ const documentSchemas = {
     schedules: z.array(z.record(z.string(), z.unknown())).optional(),
     shippingNotices: z.array(z.record(z.string(), z.unknown())).optional(),
   }),
-  receipts: common.extend({
+  receipts: commonShape.extend({
     purchaseOrderId: uuid,
     receiptDate: date,
     lines: z.array(lineSchema).min(1),
   }),
-  "service-entries": common.extend({
+  "service-entries": commonShape.extend({
     purchaseOrderId: uuid,
     serviceDate: date,
     lines: z.array(lineSchema).min(1),
   }),
-  returns: common.extend({
+  returns: commonShape.extend({
     receiptId: uuid,
     reason: z.string().trim().min(1).max(1000),
     lines: z.array(lineSchema).min(1),
   }),
-  "match-exceptions": common.extend({
+  "match-exceptions": commonShape.extend({
     purchaseOrderId: uuid,
     invoiceNumber: z.string().trim().min(1).max(100),
     title: z.string().trim().max(240).optional(),
@@ -143,12 +151,14 @@ function getDocumentSchema(resource: string) {
   return documentSchemas[resource as ProcurementDocumentResource];
 }
 
-const childSchema = z
+const childShape = z
   .object({
     companyId: optionalUuid,
     parentId: optionalUuid,
   })
-  .passthrough()
+  .passthrough();
+
+const childSchema = childShape
   .superRefine(rejectInternalFields)
   .refine((value) => Object.keys(value).length > 0, "Provide Procurement data.");
 
@@ -163,17 +173,13 @@ export const procurementUpdateSchema = z
   .refine((value) => Object.keys(value).length > 0, "Provide at least one field to update.");
 
 export function parseProcurementCreate(resource: string, value: unknown) {
-  return (getDocumentSchema(resource) || childSchema).parse(value);
+  const schema = getDocumentSchema(resource);
+  if (!schema) return childSchema.parse(value);
+  return schema.superRefine(rejectInternalFields).parse(value);
 }
 
 export function parseProcurementUpdate(resource: string, value: unknown) {
-  const schema = getDocumentSchema(resource);
-  if (!schema) {
-    return childSchema
-      .partial()
-      .extend({ expectedVersion: z.coerce.number().int().positive() })
-      .parse(value);
-  }
+  const schema = getDocumentSchema(resource) || childShape;
   return schema
     .partial()
     .extend({ expectedVersion: z.coerce.number().int().positive() })
