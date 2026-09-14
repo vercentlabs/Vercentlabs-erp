@@ -565,6 +565,8 @@ export function createProcurementReorderRequest(client: QueryClient, context: an
 export function createProcurementSubcontractOrder(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function listProcurementPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
 export function generateReorderPurchasingRequests(client: QueryClient, stockContext: any, procurementContext: any, options?: { limit?: number; asOf?: Date }): Promise<{ candidates: number; createdOrReplayed: number; rows: any[] }>;
+export function transitionProcurementReceiptWithStockMovement(client: QueryClient, procurementContext: any, stockContext: any, receiptId: string, action: string, input?: Record<string, unknown>): Promise<any>;
+export function runProcurementMatchWithVendorBillImport(client: QueryClient, procurementContext: any, accountingContext: any, input?: Record<string, unknown>): Promise<any>;
 
 export function getStockAvailability(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function reserveStock(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

@@ -486,6 +486,14 @@ function normalizeDocument(resource, input, context) {
       common.legalName = text(value.legalName || value.name || value.displayName, "Supplier legal name", { required: true, max: 240 });
       common.displayName = text(value.displayName || common.legalName, "Supplier display name", { required: true, max: 240 });
       common.supplierCode = text(value.supplierCode || value.code, "Supplier code", { required: true, max: 60 }).toUpperCase();
+      // Optional link to the Accounting business partner this supplier
+      // corresponds to. Procurement and Accounting/Sales/CRM do not share
+      // one supplier/customer entity (unlike Sales, which consumes CRM's
+      // tenant.business_parties directly) -- this is the minimum additive
+      // field needed so a matched invoice can actually be imported as a
+      // real vendor bill (accounting.payables.importProcurementMatchAsVendorBill
+      // already requires a partyId; nothing populated one before this).
+      common.accountingPartyId = value.accountingPartyId ? id(value.accountingPartyId, "Accounting business partner") : null;
       common.sites = array(value.sites, "Supplier sites");
       common.qualifications = array(value.qualifications, "Supplier qualifications");
       common.certifications = array(value.certifications, "Supplier certifications");

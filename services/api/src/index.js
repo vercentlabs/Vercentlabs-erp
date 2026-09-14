@@ -96,6 +96,8 @@ export * from "./modules/sales/pass1-operations.js";
 
 export * from "./modules/procurement/pass1-operations.js";
 export * from "./orchestration/reorder-purchasing.js";
+export * from "./orchestration/procurement-stock-receiving.js";
+export * from "./orchestration/procurement-accounting-vendor-bill.js";
 
 export * from "./orchestration/sales-pass1-options.js";
 
