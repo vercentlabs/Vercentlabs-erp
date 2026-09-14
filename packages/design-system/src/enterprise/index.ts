@@ -24,3 +24,4 @@ export { RelatedRecords, type RelatedRecordsProps, type RelatedRecord } from "./
 export { RelatedBusinessFlow, type RelatedBusinessFlowProps, type BusinessFlowNode, type BusinessFlowNodeState } from "./RelatedBusinessFlow.tsx";
 export { BackgroundJobProgress, type BackgroundJobProgressProps, type BackgroundJobStatus } from "./BackgroundJobProgress.tsx";
 export { ConflictBanner, OfflineBanner, StaleDataBanner, type ConflictBannerProps, type OfflineBannerProps, type StaleDataBannerProps } from "./banners.tsx";
+export { EnterpriseDataGrid, type EnterpriseDataGridProps, type GridState, type GridDensity, type ColumnDef } from "./data-grid/index.ts";
