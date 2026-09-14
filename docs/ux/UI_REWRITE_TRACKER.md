@@ -11,8 +11,9 @@ per-requirement coverage; this file is prose narrative around it.
 
 **Read this file's own honesty rule before editing it:** never mark a phase
 "complete" here unless `pnpm verify:ux-coverage`'s Section B numbers for
-that phase's scope actually show it. This program's entire premise (an
-18,870-row machine-checkable register) exists specifically so completion
+that phase's scope actually show it. This program's entire premise (a
+20,958-row machine-checkable register, as of Phase 0b — 18,870 F rows +
+2,088 SP rows) exists specifically so completion
 claims can be verified instead of asserted.
 
 ## Scale reality check
@@ -148,6 +149,88 @@ extraction"), not yet started. Do not force this check to pass by loosening
 it; do not fabricate SP-level rows without actually reading each SP
 document.
 
+### Phase 0b: SP001-SP036 atomic requirement extraction — DONE (structural)
+
+Read all 36 dossiers in full before writing any parser. Ground truth
+established directly from the text (not assumed): every one of the 36
+dossiers shares one exact **54-section** template
+(`## [SPEC-<SLUG>] <Title>`, verified with `grep -c`). Only **3** of those
+54 sections declare genuinely enumerated atomic requirement IDs shaped
+like the F-register's own `SP###-TYPE-###`:
+
+- `[SPEC-FUNCTIONAL]` → exactly 3 IDs, `SP0##-FR-001..003`
+- `[SPEC-E2E]` → exactly 2 IDs, `SP0##-TEST-E2E-01..02`
+- `[SPEC-UAT]` → exactly 2 IDs, `SP0##-UAT-01..02`
+
+= **7 enumerated atomic requirements per dossier, 252 total**, uniform
+across all 36 files. The other **51 sections per dossier** are real,
+substantive, human-authored normative prose that is genuinely NOT broken
+into individually numbered atomic requirements. Per the explicit
+instruction not to fabricate false granularity, each such section becomes
+exactly **one** row, with a requirement_id built from a `SECTION` marker
+(e.g. `SP001-SECTION-SECURITY`) that can never be mistaken for an
+author-enumerated ID — 51 × 36 = **1,836 section-level rows**.
+**Total SP atomic requirements: 2,088** (252 enumerated + 1,836
+section-level). Do not quote 18,870 as the total requirement count going
+forward — see the header note above.
+
+Built `scripts/ux/extract-sp-requirements.mjs` →
+`docs/04-shared-platform/SP_SUBREQUIREMENT_REGISTER.csv` (schema:
+`requirement_id, sp_id, requirement_family, enumerated, title,
+normative_statement, priority, category, dependencies, source_dossier`).
+`normative_statement` is always the section's real prose, verbatim, never
+generated text. The parser hard-asserts 54 sections per file and warns if
+the enumerated count isn't exactly 252 — it already caught two real bugs
+in its own first draft this way (a digit in an `E2E` slug excluded by an
+overly strict character class, and multi-segment `SRC-*` benchmark
+citations like `SP007-SRC-SP-NIST-63B-4` not matching an exact `"SRC"`
+equality check) before either could silently corrupt the extracted counts.
+
+Extended `scripts/ux/generate-ux-traceability.mjs` to load this SP
+register alongside the existing F register and emit ONE combined
+`docs/ux/UX_TRACEABILITY_REGISTER.csv` (new `source_register` column:
+`F_REGISTER` / `SP_REGISTER`). SP rows are classified the same way F rows
+are — a reasoned rule per `requirement_family` for the 252 enumerated rows,
+and a reasoned rule per each of the 51 distinct section slugs for the
+section-level rows (see `SP_SECTION_RULES` in the script — e.g.
+`ACCESSIBILITY` → `AFFECTS_UI_STATE` with a note pointing at SP032's own
+rows as the concrete acceptance contract; `LIST`/`DETAIL`/`CREATE`/`EDIT`/
+`APPROVALS`/`AUDIT` → `DIRECT_UI`; `BENCHMARK`/`OMISSION-GATE`/`DOD`/
+`CODE-AUDIT` → `NO_DIRECT_UI`, governance/process content, not UI). SP034
+(the mobile/offline platform SP itself) is the one place `offline_support`
+is forced to `REQUIRED` for its own DIRECT_UI/AFFECTS_UI_STATE rows,
+rather than guessed from a module heuristic.
+
+**Combined UX traceability, current real totals** (from
+`pnpm verify:ux-coverage`, re-run after this change):
+
+| | F requirements | SP requirements | Total |
+|---|---|---|---|
+| DIRECT_UI | (7,314 baseline, unchanged) | 648 | 7,962 |
+| AFFECTS_UI_STATE | 6,966 | 648 | 7,614 |
+| NO_DIRECT_UI | 4,590 | 792 | 5,382 |
+| **Total** | **18,870** | **2,088** | **20,958** |
+
+Extended `scripts/ux/verify-ux-coverage.mjs` Section A with SP-specific
+hard-fail checks: all 36 SP groups present with rows, every SP group has
+exactly 58 rows (7 enumerated + 51 section-level — a group with a
+different count means the extractor drifted from the template
+unnoticed), plus two new cross-cutting checks that apply to F **and** SP
+rows alike: every UI-facing row has an explicit `phone_support`
+classification, and every row has a `background_job_behavior` value
+(new column, keyword-detected on `background job`/`queue`/`retry`/
+`async`/`dead-letter`/`scheduled job`). **All Section A checks pass with
+zero failures** — verified by actually running the script, not asserted.
+
+**What this genuinely proves:** SP001-SP036 now have the same
+machine-checkable classification discipline F001-F510 already had.
+**What it does NOT prove:** that any SP's actual UX contract (e.g. SP032's
+concrete accessibility acceptance criteria) has been implemented anywhere
+yet — Section B shows 0/648 SP DIRECT_UI rows mapped to a real
+route/component, same as F's 0/7,314, because nothing has been migrated.
+SP032 specifically: 58 rows exist, 0 have an `accessibility_test` recorded
+yet (see the dedicated line `verify:ux-coverage` now prints for it).
+
 ### Phase 1: foundation — first slice DONE, verified end-to-end
 
 Added the new stack to `apps/web` and a new workspace package
@@ -261,7 +344,7 @@ numbers here as sessions progress; this table is a snapshot of the
 - DHTMLX Gantt cannot be adopted without a signed commercial license (GPL
   terms are incompatible with a closed-source product) — see ADR-002's
   `SchedulingAdapter` interim plan.
-- SP001-SP036 have no CSV-parseable atomic-requirement source yet (Phase 0b).
+- ~~SP001-SP036 have no CSV-parseable atomic-requirement source~~ — closed by Phase 0b (`docs/04-shared-platform/SP_SUBREQUIREMENT_REGISTER.csv`).
 - This program's true size (18,870 requirements) means "done" is a
   multi-session, likely multi-week-of-agent-time destination — track
   fractional progress honestly rather than declaring early completion.
@@ -282,9 +365,7 @@ numbers here as sessions progress; this table is a snapshot of the
    `/tooltip`, `/menu`, `/tabs`, `/toast`, ...; confirmed present in the
    installed package). Each needs the same treatment as Button/Dialog: a
    real render test minimum, a Storybook story once Storybook exists.
-3. Start Phase 0b (SP001-SP036 atomic requirement extraction) in parallel
-   if a second work-stream is available — it blocks the SP coverage check
-   in `verify:ux-coverage` from ever going green otherwise.
+3. ~~Start Phase 0b~~ — done (see Phase 0b section above).
 4. Pick ONE golden-reference screen (CRM Lead 360 is the natural first
    candidate — smallest, most-trafficked, already has real backend
    contracts from this program's earlier CRM completion pass) and migrate

@@ -26,6 +26,7 @@ import { readCsvRecords } from "./csv.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const registerDir = path.join(root, "docs/02-register");
 const uxPath = path.join(root, "docs/ux/UX_TRACEABILITY_REGISTER.csv");
+const spRegisterPath = path.join(root, "docs/04-shared-platform/SP_SUBREQUIREMENT_REGISTER.csv");
 
 if (!fs.existsSync(uxPath)) {
   console.error(`FAIL: ${path.relative(root, uxPath)} does not exist. Run: node scripts/ux/generate-ux-traceability.mjs`);
@@ -33,8 +34,9 @@ if (!fs.existsSync(uxPath)) {
 }
 
 const rows = readCsvRecords(fs.readFileSync(uxPath, "utf8"));
+const fRows = rows.filter((r) => r.source_register === "F_REGISTER");
+const spRows = rows.filter((r) => r.source_register === "SP_REGISTER");
 const features = readCsvRecords(fs.readFileSync(path.join(registerDir, "FEATURE_REGISTER.csv"), "utf8"));
-const semantics = readCsvRecords(fs.readFileSync(path.join(registerDir, "FEATURE_SEMANTIC_SUBCAPABILITY_REGISTER.csv"), "utf8"));
 
 let hardFailures = 0;
 const report = (label, count, sample) => {
@@ -55,19 +57,27 @@ const unreasonedNoDirect = rows.filter((r) => r.ui_relevance === "NO_DIRECT_UI" 
 hardFailures += report("NO_DIRECT_UI rows missing an explicit reason", unreasonedNoDirect.length, unreasonedNoDirect.map((r) => r.requirement_id));
 
 const allFeatureIds = new Set(features.map((f) => f.feature_id));
-const coveredFeatureIds = new Set(rows.map((r) => r.feature_id));
+const coveredFeatureIds = new Set(fRows.map((r) => r.feature_id));
 const missingFeatures = [...allFeatureIds].filter((id) => !coveredFeatureIds.has(id));
 hardFailures += report("F001-F510 features with zero traceability rows", missingFeatures.length, missingFeatures);
 
 const expectedSpIds = Array.from({ length: 36 }, (_, i) => `SP${String(i + 1).padStart(3, "0")}`);
-const referencedSpIds = new Set();
-for (const row of semantics) {
-  for (const sp of (row.shared_platform_dependencies || "").split(";").map((s) => s.trim()).filter(Boolean)) {
-    referencedSpIds.add(sp);
-  }
+const coveredSpIds = new Set(spRows.map((r) => r.feature_id));
+const missingSpGroups = expectedSpIds.filter((id) => !coveredSpIds.has(id));
+hardFailures += report("SP001-SP036 with zero rows in the combined UX traceability register", missingSpGroups.length, missingSpGroups);
+
+// Every SP group should carry the same fixed shape (7 enumerated + 51
+// section-level = 58 rows) -- a group with a different count means the
+// extractor drifted from the dossier template without anyone noticing.
+if (fs.existsSync(spRegisterPath)) {
+  const spSource = readCsvRecords(fs.readFileSync(spRegisterPath, "utf8"));
+  const countBySp = {};
+  for (const row of spSource) countBySp[row.sp_id] = (countBySp[row.sp_id] || 0) + 1;
+  const wrongCount = expectedSpIds.filter((id) => countBySp[id] !== 58);
+  hardFailures += report("SP groups with an unexpected requirement-row count (expected 58 each: 7 enumerated + 51 section-level)", wrongCount.length, wrongCount.map((id) => `${id}=${countBySp[id] || 0}`));
+} else {
+  hardFailures += report(`missing ${path.relative(root, spRegisterPath)} (run scripts/ux/extract-sp-requirements.mjs)`, 1);
 }
-const missingSpIds = expectedSpIds.filter((id) => !referencedSpIds.has(id));
-hardFailures += report("SP001-SP036 with zero references in FEATURE_SEMANTIC_SUBCAPABILITY_REGISTER", missingSpIds.length, missingSpIds);
 
 // A destructive-sounding requirement (per its title text) must not be
 // classified in a way that skips confirmation/recovery UX -- i.e. it must
@@ -88,6 +98,19 @@ hardFailures += report("SEC requirements without an explicit permission_behavior
 // and sync state.
 const offlineWithoutSyncState = rows.filter((r) => r.offline_support === "REQUIRED" && (r.offline_state === "NOT_APPLICABLE" || r.sync_state === "NOT_APPLICABLE"));
 hardFailures += report("offline-required rows missing offline_state/sync_state", offlineWithoutSyncState.length, offlineWithoutSyncState.map((r) => r.requirement_id));
+
+// Every UI-facing row must carry a mobile/responsive classification
+// (phone_support), not a blank -- SP033/SP034 both require this to be an
+// explicit decision, never an omission.
+const uiFacingWithoutPhoneSupport = rows.filter((r) => (r.ui_relevance === "DIRECT_UI" || r.ui_relevance === "AFFECTS_UI_STATE") && !r.phone_support.trim());
+hardFailures += report("UI-facing rows with no phone_support classification", uiFacingWithoutPhoneSupport.length, uiFacingWithoutPhoneSupport.map((r) => r.requirement_id));
+
+// Every row must have SOME value (REQUIRED or NOT_APPLICABLE) in the
+// background-job column -- a blank means the register schema drifted
+// (e.g. an old cached CSV row from before this column existed survived a
+// re-run via the generator's own column-preservation logic).
+const backgroundJobUnflagged = rows.filter((r) => !r.background_job_behavior || !r.background_job_behavior.trim());
+hardFailures += report("rows missing a background_job_behavior column value (register schema drift)", backgroundJobUnflagged.length, backgroundJobUnflagged.map((r) => r.requirement_id));
 
 console.log("");
 console.log(`Section A (structural completeness): ${hardFailures === 0 ? "PASS" : `${hardFailures} FAILING CHECK(S)`}`);
@@ -122,6 +145,15 @@ console.log("  DIRECT_UI mapping coverage by module:");
 for (const [module, { total, mapped }] of Object.entries(byModule).sort()) {
   console.log(`    ${module.padEnd(28)} ${mapped}/${total} mapped (${((mapped / total) * 100).toFixed(1)}%)`);
 }
+
+// SP032 (accessibility) is the one SP whose own rows should, once real
+// implementation starts, show up as accessibility_test-backed -- report
+// this specifically rather than only in the generic module rollup, since
+// "Shared Platform" as a module would otherwise bury it among all 36 SPs.
+const sp032Rows = rows.filter((r) => r.feature_id === "SP032");
+const sp032WithAccessibilityTest = sp032Rows.filter((r) => r.accessibility_test.trim());
+console.log("");
+console.log(`  SP032 (accessibility) rows: ${sp032Rows.length}, with an accessibility_test recorded: ${sp032WithAccessibilityTest.length}`);
 
 if (hardFailures > 0) {
   console.log("");
