@@ -110,6 +110,102 @@ F031 Customer master was traced first (Sales doesn't own a customer entity — i
 - F060 Sales analytics: the report queries themselves are solid (and now correctly company-scoped), but the analytics capability around them is thin — no filters, no drilldown API, no export, no configurable date range, no report-level snapshotting. Notably less developed than CRM's equivalent reporting work.
 - **F062 Order-to-cash reporting (capstone finding, connects to F053): `sales_orders.payment_status` is a real, modeled column that is never written to by any code path anywhere.** The delivery-to-invoice half of order-to-cash is well-built; the cash half (has the customer actually paid) is completely disconnected from Accounting's real payment state. Same root theme as F053/F052 — Sales' connective tissue to Accounting's actual financial reality is thin across the board. Likely one fix closes all three.
 
+## Procurement (module 3/12): full atomic trace complete (2026-09-14), gap-closing pass in progress
+
+All 34 features (F063-F096) traced against `SUBREQUIREMENT_REGISTER.csv`
+with cited code evidence — see `docs/03-modules/procurement/audits/F0##-AUDIT.md`
+for each. Unlike CRM/Sales, Procurement uses one generic resource-driven
+engine (`services/api/src/modules/procurement/index.js`,
+`governance.js`, `pass1-operations.js`) rather than per-feature files —
+most features share the same create/update/list/transition/audit/
+idempotency plumbing, which is genuinely solid (RLS-enforced isolation,
+optimistic concurrency with `FOR UPDATE` locking on money-moving paths,
+real audit-event + outbox writes on every mutation, sensitive-field
+redaction on suppliers, correct self-approval prevention).
+
+**Two release-blocking, module-wide gaps found, not yet fixed:**
+1. **`tenant.procurement_outbox` is written on every mutation and read by
+   nothing, anywhere** (`grep -rl "procurement_outbox" services/` finds
+   only the one file that writes it). Every downstream effect the module
+   claims to trigger via outbox — notifications, the Accounting vendor-bill
+   handoff on a clean invoice match (F084/F085/F086) — never happens.
+2. **Goods receipt never calls Stock's `postStockMovement`** (F080/F081) —
+   `applyReceiptToOrder` only updates Procurement's own bookkeeping,
+   despite `docs/04-cross-module/PROCUREMENT_TO_STOCK_RECEIVING.md`
+   explicitly documenting that posting a receipt should call a Stock
+   public contract. This is the exact same class of gap Sales found and
+   fixed for its own Stock fulfilment contract before certification;
+   Procurement has not been fixed yet.
+
+**Other real gaps found, recorded, not fixed this pass** (see each
+feature's audit for full detail): no duplicate-supplier detection (F063);
+an `archived` supplier status referenced defensively in queries with no
+transition to reach it (F063); no supplier portal exists at all despite
+every dossier assuming one (F063); qualification/certification/scorecard
+child data is correctly stored and hydrated but has **zero UI** anywhere
+to view or manage it (F063/F064/F065/F090) — the governance dashboard can
+report a supplier isn't qualified with no way in the product to fix it;
+no amount/category/budget-based approval routing anywhere, only flat
+single-permission gates (F068/F075); a real, correct, decimal-safe
+weighted-scoring function (`evaluateSupplierScore`) that is never called —
+bid comparison and supplier scorecards are pure manual number entry
+instead (F072/F089/F090); the sourcing-award UI is three `window.prompt()`
+dialogs requiring a manually-typed bid UUID, with no comparison view or
+justification/approval gate (F073); blanket purchase orders are entirely
+unimplemented, no committed-value ceiling or consumption tracking exists
+(F077); price lists and lead times are real, validated, and completely
+disconnected from PO line pricing and reorder date calculation
+respectively (F079/F091); payment terms do not exist anywhere in the
+module (F088); the Settings page is a static mock with hardcoded
+"Governed" labels and no real category/catalog/policy management UI
+behind it (F066); `procurement_reporting_facts` is queried by every
+report call but never populated by anything (F092). The best-engineered
+code in the module: PO amendment-with-rollback (F076), the sourcing-award
+mechanism's locking/idempotency/eligibility-check (F073), the two/three-way
+matching calculation itself (F085/F086), and the reorder-generation
+orchestration (F094, correctly placed in `services/api/src/orchestration`
+with real cross-module idempotency).
+
+**Standing, not feature-specific:** zero Procurement browser E2E exists
+(no `erp-procurement-*.spec.ts` files) — this is the same infrastructure
+gap CRM had until this session; no human UAT.
+
+**Gap-closing pass, 2026-09-14: both release-blocking gaps fixed.**
+Goods receipt now posts a real Stock movement
+(`services/api/src/orchestration/procurement-stock-receiving.js`,
+modeled on Sales' own pre-existing Stock-fulfilment pattern) on approve,
+and a compensating movement on reverse — verified against a real local
+Postgres database, not a fake client (see below). A clean invoice match
+now automatically imports as a real Accounting vendor bill
+(`services/api/src/orchestration/procurement-accounting-vendor-bill.js`)
+by calling Accounting's own pre-existing `importProcurementMatchAsVendorBill`
+directly instead of routing through the dead outbox — that function
+turned out to already be correct and idempotent, just never triggered;
+the only genuinely new piece needed was linking a supplier to its
+Accounting business partner at all (`accountingPartyId`, previously
+absent). Added
+`tests/integration/procurement-source-to-receipt-journey.test.mjs`, this
+repo's first real-PostgreSQL (non-fake-client) integration test: it runs
+Supplier→Requisition→RFQ→Award→PO→Dispatch→Receipt-approve (asserting a
+real `stock_balances` row appears)→Match→Receipt-reverse (asserting the
+balance nets back to zero) against a genuinely migrated local database,
+plus the new cross-module organization-mismatch guard and the
+not-yet-linked-to-Accounting skip path. All assertions pass.
+`test:api` (883/883) and `typecheck:web` remain clean throughout.
+
+**Not yet done:** a fully *posted* vendor bill/payment (needs a complete
+Accounting chart-of-accounts/ledger/journal fixture, out of scope for
+this pass — see the execution tracker for why); the required browser E2E
+journey (Procurement has zero E2E fixture infrastructure, unlike CRM);
+and the large number of genuinely-new-scope gaps recorded during the
+trace (duplicate-supplier detection, supplier portal, approval-threshold
+routing, the unused `evaluateSupplierScore` function, blanket POs,
+payment terms, etc. — see each feature's own audit). None of these block
+the two release-blocking fixes above from being real and verified.
+
+See `docs/ERP_COMPLETION_EXECUTION_TRACKER.md` for the full detail and
+exact next action (build Procurement E2E fixture infrastructure next).
+
 ## Module order
 
 Following the build order already established in the existing codebase (`apps/web/src/modules/*`, `services/api/src/modules/*`):

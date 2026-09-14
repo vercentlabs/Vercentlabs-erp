@@ -416,6 +416,121 @@ an explicit comment explaining why.
 addresses) next, following the same dossier -> code -> migration -> web ->
 test evidence chain used for F063. 33 features remain (F064-F096).
 
+### Procurement — full 34-feature trace complete (2026-09-14)
+
+All 34 features (F063-F096) traced; see `docs/03-modules/procurement/
+audits/F0##-AUDIT.md` for each and `docs/PRODUCTION_TRACKER.md`'s
+Procurement section for the consolidated summary. Two release-blocking,
+module-wide gaps found: (1) `tenant.procurement_outbox` is written on
+every mutation and consumed by nothing anywhere; (2) goods receipt never
+called Stock's `postStockMovement` despite a documented cross-module
+contract saying it should.
+
+### Procurement — gap-closing pass (2026-09-14): both release-blocking gaps fixed
+
+**1. Procurement -> Stock on goods receipt (F080/F081), fixed.**
+Added `services/api/src/orchestration/procurement-stock-receiving.js`
+(`transitionProcurementReceiptWithStockMovement`), modeled directly on
+Sales' own pre-existing `sales-stock-fulfillment.js` pattern: approving a
+receipt now posts a real `postStockMovement("receipt", ...)` per
+stock-tracked line (skipping lines with no `warehouseId`, matching the
+existing "not a stock-tracked line" convention), and reversing a receipt
+posts the compensating `"issue"` movement. Not best-effort — a Stock
+failure rolls back the whole transition, matching Sales' own documented
+reasoning (a receipt claims a specific physical quantity moved, so that
+claim must actually be true). Wired into
+`apps/web/src/app/api/procurement/resources/[resource]/[id]/actions/route.ts`
+for the `receipts` resource's `approve`/`reverse` actions only (every
+other resource/action is unaffected).
+
+**2. Procurement -> Accounting vendor-bill handoff on clean match
+(F084/F085/F086), fixed — smaller fix than first suspected.**
+Reconnaissance found `accounting.payables.importProcurementMatchAsVendorBill`
+already existed, already correct and idempotent (checks
+`matchingData.accountingVendorBillId` before re-importing), and was
+already reachable via a real web route
+(`/api/accounting/payables/procurement-matches/[id]/import`) — it just had
+no automatic trigger, since the only thing that was supposed to trigger
+it (the `procurement.vendor-bill.ready` outbox event) is never consumed
+by anything. Added `services/api/src/orchestration/
+procurement-accounting-vendor-bill.js`
+(`runProcurementMatchWithVendorBillImport`), which calls
+`runProcurementMatch` then, only on a clean (non-exception) match, calls
+the existing import function directly — best-effort on the *missing-link*
+precondition (if the supplier has no linked Accounting party yet, the
+match still succeeds and is permanently recorded, with an explicit
+`vendorBillSkippedReason` rather than a silent no-op or a failure), but
+NOT best-effort on any other Accounting-side error (those propagate).
+Also added the missing link itself: `accountingPartyId` is now a captured
+field on the `suppliers` document (`normalizeDocument`'s `suppliers`
+case) — previously there was no way to link a Procurement supplier to an
+Accounting business partner at all. Wired into
+`apps/web/src/app/api/procurement/matching/run/route.ts`.
+
+**Real PostgreSQL integration test added:**
+`tests/integration/procurement-source-to-receipt-journey.test.mjs` — runs
+the actual domain functions (not fake clients) against a real local
+Postgres: creates a real org/company/item/warehouse/UOM fixture, then
+Supplier (create->submit->qualify->activate) -> Requisition (create->
+submit->approve) -> RFQ/sourcing-event (create->submit->approve->
+activate->bid->award, which creates the PO) -> PO (submit->approve->
+dispatch) -> Receipt (create->submit->**approve, asserting a real
+`tenant.stock_balances` row appears with quantity 10**) -> Match (clean
+two-way, asserting `vendorBillSkippedReason` since no Accounting party is
+linked yet) -> Receipt reverse (asserting the Stock balance nets back to
+0). Also asserts the new Procurement/Accounting organization-mismatch
+guard rejects before touching data. **All assertions pass against a real
+database.** Skips cleanly (not a false pass) if
+`DATABASE_URL`/`MIGRATION_DATABASE_URL` aren't reachable, matching the
+task's own "distinguish skipped from passed" rule — run
+`pnpm infra:up && pnpm db:setup` first, then
+`DATABASE_URL=... MIGRATION_DATABASE_URL=... pnpm test:integration` (the
+plain `pnpm test:integration`/`pnpm verify:erp` invocation does not
+export these automatically, by design, so it never breaks an environment
+without a live database — see the test file's own header for the exact
+reasoning).
+
+**Deliberately NOT attempted this pass, and why:** a fully *posted* vendor
+bill and payment (the literal "Bill -> Payment" tail of the journey)
+needs a complete Accounting foundation (chart of accounts, primary
+ledger, purchase/bank journals, account mappings for expense/input-tax/
+withholding) that a real organization only gets from
+`apps/web/src/core/platform.ts`'s `seedOrganizationFoundation()` — which
+itself has Next.js/`@/`-aliased runtime dependencies that cannot safely
+load outside Next's bundler (confirmed by `apps/web/tests/helpers/
+load-ts-module.mjs`'s own documented limitation). Building a
+database-only Accounting fixture from scratch is real, separately-scoped
+work for a future pass, not a quick addition to this one. What's proven
+instead: the orchestration wrapper's own new logic (guard + skip path) is
+real and correct, and the pre-existing `importProcurementMatchAsVendorBill`
+function was already reviewed as solid in F084's audit.
+
+**Verified after every change:** `test:api` (883/883, unchanged),
+`typecheck:web` (clean), `pnpm verify:erp` full gate (see below for this
+session's final run).
+
+**Not yet attempted:** the required browser E2E journey. Procurement has
+zero E2E fixture infrastructure (no equivalent of `apps/web/scripts/
+e2e-fixture-bootstrap.mts` exists for Procurement) — building that from
+scratch, plus the actual Playwright spec walking through Supplier ->
+Requisition -> RFQ -> PO -> GRN -> Match in a real browser, is the
+immediate next action for whoever continues this work.
+
+**Other real gaps found during the trace, recorded but deliberately not
+fixed this pass** (each is genuinely new scope, not a fix to something
+broken — see individual audits for full detail): no duplicate-supplier
+detection; the `archived` supplier status is unreachable; no supplier
+portal exists; qualification/certification/scorecard data has no UI;
+approval routing is flat/single-permission everywhere (no amount/
+category thresholds); `evaluateSupplierScore` (a real, correct, unused
+weighted-scoring function) is never called from bid comparison or
+supplier scorecards; the sourcing-award UI is three `window.prompt()`
+dialogs; blanket POs are entirely unimplemented; price lists and lead
+times are real but disconnected from PO pricing/reorder calculations;
+payment terms don't exist anywhere in the module; the Settings page is a
+static mock; `procurement_reporting_facts` is queried but never
+populated.
+
 ### Procurement reconnaissance (not a trace — just current-state orientation)
 
 - `services/api/src/modules/procurement/`: `index.js`, `governance.js`,
