@@ -19,6 +19,8 @@ export * from "./primitives/Switch";
 export * from "./primitives/Progress";
 export * from "./primitives/Accordion";
 export * from "./primitives/Toast";
+export * from "./archetypes/RecordFormSurface";
+export * from "./archetypes/RecordActivityPanel";
 export * from "./enterprise/StatePanel";
 export * from "./enterprise/EnterpriseDataGrid";
 export * from "./enterprise/PageShell";
