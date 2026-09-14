@@ -4,4 +4,5 @@ export * from "./overlays/index.ts";
 export * from "./navigation/index.ts";
 export * from "./data-display/index.ts";
 export * from "./layout/index.ts";
+export * from "./enterprise/index.ts";
 export { cn } from "./utilities/cn.ts";

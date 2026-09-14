@@ -3,7 +3,7 @@ import { Button as AriaButton, type ButtonProps as AriaButtonProps } from "react
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../utilities/cn.ts";
 
-const iconButtonVariants = cva(
+export const iconButtonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center rounded-[var(--radius-control)]",
     "transition-colors duration-[var(--motion-fast)]",
