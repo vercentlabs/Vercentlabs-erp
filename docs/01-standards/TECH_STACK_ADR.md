@@ -2,6 +2,12 @@
 
 Status: `APPROVED_FOR_ARCHITECTURE_FREEZE`
 
+**Note (2026-09-14):** the "Shared UI" row and `WEB_FRONTEND_ARCHITECTURE.md`'s
+design-system rule are superseded by
+`docs/01-standards/TECH_STACK_ADR_002_FRONTEND_REWRITE.md` (owner-authorized
+full frontend rewrite). Every other row in this document remains frozen and
+in force unchanged.
+
 ## Decision
 Preserve and harden the current modular-monolith stack. AI implementation agents MUST reuse existing platform packages and boundaries before introducing new infrastructure.
 

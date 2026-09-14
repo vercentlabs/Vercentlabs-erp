@@ -158,7 +158,16 @@ Do not generate empty boilerplate.
 
 ## Design-system rule
 
-The Experience Kernel is the single design authority. New module code must compose its canonical workspace/header/grid/forms/states/workflow/analytics patterns and `--erp-*` semantic tokens. Do not create a second button/table/form/state system inside a module.
+**Superseded 2026-09-14 by `docs/01-standards/TECH_STACK_ADR_002_FRONTEND_REWRITE.md`**
+(owner-authorized full frontend rewrite). The design authority is now
+`packages/ui-web` (Base UI + Tailwind v4, shadcn-style open-code ownership),
+fed by `packages/design-tokens`, per that ADR. The rule itself is unchanged
+in spirit — new module code composes the canonical system's primitives,
+enterprise components and archetypes; do not create a second button/table/
+form/state system inside a module — only the implementation stack changed.
+See `docs/ux/UI_REWRITE_TRACKER.md` for migration status: legacy Experience
+Kernel CSS Modules remain in place and load-bearing until each capability
+is actually migrated, so do not delete them opportunistically.
 
 ## Rendering rule
 
