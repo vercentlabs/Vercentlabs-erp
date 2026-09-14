@@ -355,6 +355,178 @@ story files present.
 before this phase; no enterprise component or archetype has a story yet
 (there are none built yet to write one for — see Phase 3).
 
+### Phase 3: core primitives, enterprise components, form system — DONE, verified end-to-end
+
+Continuation session (same date). Added, each with real render tests
+(`node --test`, `react-dom/server`) and a clean `tsc --noEmit` for both
+`packages/ui-web` and the full `apps/web` program after every batch:
+
+- **Primitives** (`packages/ui-web/src/primitives/`): Checkbox, DropdownMenu
+  (Base UI Menu wrapper), Avatar, Skeleton, Textarea, IconButton (requires
+  `aria-label` — an icon-only trigger with no label is an SP032 defect, not
+  an optional prop), Separator, Tabs, Popover, Tooltip, AlertDialog
+  (destructive confirmations — no default close button, not dismissible by
+  outside press), Select, Combobox (backs both EntityLookupField's async
+  search and MultiSelectField's chip removal). `Button.tsx` now also
+  exports `buttonVariants` so a non-`<button>` element (a Next.js `<Link>`
+  acting as a CTA) can apply the identical visual language without invalid
+  `<button>`-inside-`<a>` nesting.
+- **Enterprise components** (`packages/ui-web/src/enterprise/`):
+  `EnterpriseDataGrid` (TanStack Table's `/legacy` v8-compatible API,
+  chosen deliberately over v9's new atom/store `useTable` — both ship in
+  the installed v9.2.4 package; the legacy surface is well-established and
+  correct under this session's time constraints, migration to the new API
+  is a tracked future option, not a silent shortcut. Server-driven sorting/
+  pagination, row selection + bulk-actions toolbar, column visibility
+  toggle, sticky header, permission-sensitive column marking, loading/
+  empty/no-results/error/forbidden states, TanStack Virtual gated above a
+  row-count threshold, mobile card-renderer extension point. Column
+  pinning/grouping/tree rows/inline editing/saved views/cell selection/
+  totals are explicitly NOT implemented — extension points documented
+  inline, not silently omitted), StatePanel (Empty/NoResults/Error/
+  PermissionState), PageShell/PageHeader/SectionHeader, RecordHeader +
+  MetricCard, ActionBar/FilterBar/BulkActionBar, ActivityTimeline +
+  AuditTimeline (deliberately separate — different data shapes: a
+  free-form feed vs. field-level before/after diffs), FormField/
+  FormSection/FormActions (label↔control↔error/description id wiring).
+- **Form system** (`packages/ui-web/src/form/`): real TanStack Form +
+  Zod architecture — `form-context.ts` (`createFormHookContexts`),
+  `useAppForm.ts` (`createFormHook` binding every field component +
+  `FormSubmitButton`), `fields.tsx` (TextField, TextareaField, NumberField,
+  DateField, DateTimeField, SelectField, ComboboxField, EntityLookupField
+  — async search-and-select, e.g. lead owner —, MultiSelectField). Every
+  field reads value/error/dirty state from TanStack Form via
+  `useFieldContext` and renders through `FormField`'s id-wiring; zod
+  validators passed to `useAppForm` are documented as client-side UX
+  polish, explicitly NOT a replacement for backend domain validation.
+  `FormSubmitButton` disables itself while the form is unchanged or
+  invalid via `form.Subscribe`.
+
+**Verified, not asserted:** `pnpm --filter @vercentlabs/ui-web test` —
+**27/27 pass** (12 Phase-3-primitive tests, 8 batch-2-primitive tests, 5
+enterprise-layout tests, 2 form-system tests, plus the original 4 from
+Phase 1 minus dedup). `pnpm --filter @vercentlabs/web typecheck` clean
+after every batch. `pnpm --filter @vercentlabs/web build` (production,
+exit 0) after the EnterpriseDataGrid/primitives batch and again after the
+form system. `pnpm --filter @vercentlabs/web lint` clean (one pre-existing
+`postcss.config.mjs` warning, unrelated). `pnpm verify:ux-coverage`
+Section A still passes.
+
+Commits: `feat(ui): expand primitives (Checkbox/DropdownMenu/Avatar/
+Skeleton/StatePanel) and add EnterpriseDataGrid`, `feat(ui): add Textarea/
+IconButton/Separator/Tabs/Popover/Tooltip/AlertDialog/Select primitives`,
+`feat(ui): add enterprise layout/record/form components for the CRM
+golden reference`, `feat(ui): add TanStack Form + Zod field system for
+CRM Leads create/edit`.
+
+### Phase 4: CRM Leads golden reference — DONE (List + Record 360 read surfaces), verified end-to-end with real E2E
+
+**A real routing hazard was found and changed course on before writing
+any page**, not assumed from the brief: the original plan (carried over
+from a prior session's summary) was to add a static
+`apps/web/src/app/(app)/crm/leads/page.tsx`, relying on Next.js route
+precedence over the existing `crm/[resource]/page.tsx` to present a new
+List page at the same real URL. Reading
+`crm-data-operations-and-customization/resource-manager.tsx` before
+writing anything showed this would have been wrong: its own client-side
+navigation (`leadModeUrl()`, `navigate()`) hardcodes `router.push`/
+`router.replace` to the literal string `"/crm/leads"` for search,
+pagination, create, edit and the view-drawer flow — a static
+`crm/leads/page.tsx` would take route-matching precedence for **every one
+of those real, working, permission-audited flows**, not just the initial
+load, silently breaking the mature production Leads workflow this session
+was explicitly told not to break. Same issue would apply to overwriting
+`crm/leads/[id]/page.tsx` (`CrmLeadDetailWorkspace` — a real, large
+component covering SLA cases, consent events, enrichment reviews, AI
+predictions and every mutation action).
+
+**Decision:** built the golden reference at a new, non-colliding path,
+`/crm/leads-next` and `/crm/leads-next/[id]`, additive and zero-risk to
+the existing `/crm/leads` flows, using the **same real backend calls**
+the existing page uses (`listCrmRecords`, `getCrmOptions`,
+`listLeadStages`, `enrichLeadOwnerIdentity`, `getLeadDetailData`) and the
+same permission checks (`crmView`/`crmLeadsManage`/`crmRecordsViewAll`).
+Mutation actions (New lead, Edit, Assign, Convert, ...) link to the
+existing, real, permission-and-audit-correct `/crm/leads` and
+`/crm/leads/[id]` flows rather than re-implementing those domain commands
+here — per "do not bypass CRM domain commands" / "do not break the CRM
+backend". This is explicitly a **read-surface migration**, not a full
+feature migration: create/edit forms, in-place actions (assign/qualify/
+convert/merge/archive) and the board view are NOT yet built on the new
+design system.
+
+Built:
+- `apps/web/src/app/(app)/crm/leads-next/page.tsx` + `LeadsListView.tsx`
+  — real server-rendered List: `EnterpriseDataGrid` with code/lead/
+  company/stage/score/value/owner/next-follow-up columns, stage filter
+  (real `listLeadStages`), source + owner filters (real `getCrmOptions`),
+  search, pagination, row click → Record 360, row-actions menu (View 360 /
+  Edit → real `/crm/leads?edit=` / Open full workspace → real
+  `/crm/leads/[id]`).
+- `apps/web/src/app/(app)/crm/leads-next/[id]/page.tsx` +
+  `LeadDetailView.tsx` — real Record 360: `RecordHeader` (identity/
+  status/score/owner/duplicate + do-not-contact indicators), Overview/
+  Activity/Sales context/Governance tabs (`ActivityTimeline` merging real
+  activities+communications+notes; `AuditTimeline` from real stage +
+  assignment history), "Open full workspace" primary action linking to
+  the real detail page for anything this preview doesn't cover.
+
+**Verified, not asserted:**
+- `pnpm --filter @vercentlabs/ui-web test` 27/27, `pnpm --filter
+  @vercentlabs/web typecheck` clean, `pnpm --filter @vercentlabs/web
+  build` succeeds with `/crm/leads-next` and `/crm/leads-next/[id]` as new
+  routes (confirmed in the build's own route listing), `pnpm --filter
+  @vercentlabs/web lint` clean.
+- **Real Playwright E2E against the live fixture Postgres organization**
+  (`playwright.erp.config.ts` + `erp-auth.setup.ts`, real login, real
+  standalone Next.js server, no mocking): new
+  `apps/web/tests/e2e/erp-crm-leads-next.spec.ts`, **4/4 passing** — List
+  renders a lead created through the real `/api/crm/leads` POST endpoint
+  and links to its Record 360; Record 360 renders identity/tabs and a
+  correct link back to the real full workspace; an axe scan of both pages
+  has zero critical/serious violations (one pre-existing app-shell defect,
+  `.topbar-profile` missing a discernible name, found by this same scan —
+  confirmed NOT introduced by this work since the selector doesn't appear
+  anywhere in the new code — excluded from this gate and left here as a
+  recorded, separate finding rather than silently passed over).
+- Re-ran the existing `erp-crm-navigation.spec.ts` (22 tests: sidebar
+  navigation, CRM Home, the canonical Dialog's focus/keyboard behavior,
+  responsive contract, axe) to check for regressions from the new routes
+  and the `Button.tsx`/`index.ts` export changes: **22/22 still pass**.
+- Did **not** run the other 5 CRM E2E spec files this session (lead
+  lifecycle/scoring, merge/hierarchy, opportunity journey, opportunity
+  projection parity, sensitive projection) — out of scope for this
+  change (none of them touch `/crm/leads-next` or anything this session
+  edited) and skipped for time; if a future session touches lead
+  lifecycle/scoring/merge UI, run `pnpm test:e2e:crm` in full first.
+
+**Traceability register: deliberately NOT updated with DONE/mapped rows
+this session.** Checked first: `UX_TRACEABILITY_REGISTER.csv`'s F001 rows
+are feature-wide (37 rows total — one per requirement type: CAP/FR/US/
+FLOW/BR/DATA/VAL/CALC/UX/SEC/AUTO/APP/NOTIF/REP/AI/INT/API/PERF/OBS/E2E/
+UAT — e.g. `F001-UX-001 Workspace`, `F001-UX-002 States and feedback`),
+not screen-scoped. None of them can be honestly marked `DONE` by a
+read-only List + Record-360-preview migration that explicitly excludes
+create/edit/actions/board — doing so would misrepresent partial progress
+as full requirement compliance, which the "a requirement is implemented
+only when its actual feature surface satisfies it" rule exists
+specifically to prevent. The honest, detailed account of what's real vs.
+not lives here instead; a future session that completes create/edit +
+wires real actions into `leads-next` should revisit F001's DIRECT_UI rows
+row-by-row at that point, not before.
+
+Commit: `feat(crm): add real, backend-connected CRM Leads golden
+reference (UI 2.0)`.
+
+**Not yet done:** create/edit forms wired to real domain commands (the
+form system from Phase 3 exists but isn't yet plugged into a CRM screen);
+real in-place actions (assign/qualify/disqualify/convert/merge/archive)
+— today these link out to the real existing flows rather than executing
+inline; board view; import/export; saved views; mobile card-renderer for
+the List (an extension point exists on `EnterpriseDataGrid` but wasn't
+wired here); cutover of `/crm/leads` itself (requires full feature parity
+with `CrmResourceManager` first — not attempted this session).
+
 ## Module-by-module DIRECT_UI mapping coverage (from `verify:ux-coverage` Section B)
 
 Run `pnpm verify:ux-coverage` for current numbers — do not hand-copy stale
@@ -419,26 +591,42 @@ numbers here as sessions progress; this table is a snapshot of the
 
 1. ~~Set up Storybook for real~~ — done (see Phase 2 section above): 19/19
    interaction+a11y tests pass for the 4 existing primitives.
-2. Grow `packages/ui-web/src/primitives` to cover the rest of the core
-   primitive list from the brief (Select, Combobox, Checkbox, RadioGroup,
-   Switch, DatePicker, Popover, Tooltip, DropdownMenu, Tabs, Avatar, Toast,
-   etc.) — Base UI has a matching part for nearly all of these
-   (`@base-ui-components/react/select`, `/checkbox`, `/switch`, `/popover`,
-   `/tooltip`, `/menu`, `/tabs`, `/toast`, ...; confirmed present in the
-   installed package). Each needs the same treatment as Button/Dialog: a
-   real render test minimum, a Storybook story once Storybook exists.
+2. ~~Grow `packages/ui-web/src/primitives`~~ — done (see Phase 3 section
+   above): Checkbox/DropdownMenu/Avatar/Skeleton/Textarea/IconButton/
+   Separator/Tabs/Popover/Tooltip/AlertDialog/Select/Combobox added, all
+   with real render tests. Still missing from the original brief list and
+   not yet needed by any built screen: RadioGroup, Switch, DatePicker
+   (native date/datetime inputs are used today instead), Toast,
+   Accordion/Collapsible, Progress, Breadcrumb, Drawer/Sheet. No Storybook
+   stories exist yet for any Phase 3 primitive (only the original 4 from
+   Phase 1/2 have stories) — add them before growing the primitive count
+   further, per the standing Phase 2 guidance.
 3. ~~Start Phase 0b~~ — done (see Phase 0b section above).
-4. Pick ONE golden-reference screen (CRM Lead 360 is the natural first
-   candidate — smallest, most-trafficked, already has real backend
-   contracts from this program's earlier CRM completion pass) and migrate
-   it fully onto `@vercentlabs/ui-web`, updating its rows in
-   `UX_TRACEABILITY_REGISTER.csv` to `implementation_status=DONE` with real
-   `route_or_surface`/`web_component`/`storybook_story`/`e2e_test` values,
-   before touching a second screen. Resist the urge to touch many screens
-   shallowly — that produces exactly the "layer another generation on top"
-   outcome this whole rewrite exists to end.
-5. Only after (4) proves the pattern: build the canonical
-   `EnterpriseDataGrid` on `@tanstack/react-table` + `@tanstack/react-virtual`
-   (both already installed) — this is the single highest-leverage shared
-   component, since nearly every module's Enterprise List archetype depends
-   on it.
+4. ~~Build the canonical `EnterpriseDataGrid`~~ — done (see Phase 3
+   section above), used for real in `/crm/leads-next`.
+5. ~~Pick ONE golden-reference screen and migrate it~~ — done as a
+   **read-surface** migration (see Phase 4 section above): `/crm/leads-next`
+   (List) and `/crm/leads-next/[id]` (Record 360), real data, real E2E
+   (4/4), mounted at a new path rather than `/crm/leads` itself for the
+   documented routing-collision reason. **Next concrete step: wire the
+   Phase 3 form system into a real Lead create/edit surface** (the
+   `useAppForm`/`TextField`/`SelectField`/etc. exist but nothing consumes
+   them yet) backed by the real `createCrmRecord`/`updateCrmRecord`
+   domain commands, then wire real in-place actions (assign owner via
+   `assignLeadOwner`, change stage via `transitionLeadStage`, convert via
+   `convertCrmLead`) into `leads-next`'s Record 360 rather than linking
+   out to the legacy workspace for those specific actions. Only once
+   `leads-next` has full parity with `CrmResourceManager` should cutting
+   over the real `/crm/leads` path be considered — and only with the
+   route-collision hazard documented in Phase 4 re-verified as resolved
+   (e.g. by that point `resource-manager.tsx` for the `leads` resource may
+   itself be retired, removing the collision entirely).
+6. Add a mobile `mobileCardRenderer` to `LeadsListView`'s
+   `EnterpriseDataGrid` usage — the extension point exists on the
+   component but wasn't wired for this first pass; today the List falls
+   back to horizontal-scroll-at-narrow-width, which `EnterpriseDataGrid`'s
+   own doc comment marks acceptable only for READ_ONLY/APPROVAL_ONLY phone
+   classifications, not confirmed correct for Leads specifically.
+7. Revisit `UX_TRACEABILITY_REGISTER.csv`'s F001 rows once `leads-next`
+   reaches real feature parity (create/edit/actions) — see Phase 4's
+   explanation of why none were marked `DONE` this session.
