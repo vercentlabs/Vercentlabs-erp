@@ -29,4 +29,32 @@ export type Territory = {
   updatedAt: string;
 };
 
+export type SalesTeamMember = {
+  id: string;
+  companyId: string | null;
+  teamId: string;
+  userId: string;
+  memberRole: string | null;
+  allocationPercent: number | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TerritoryAssignment = {
+  id: string;
+  companyId: string | null;
+  territoryId: string;
+  assigneeType: "user" | "team";
+  assigneeId: string;
+  assignmentRole: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  source: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };

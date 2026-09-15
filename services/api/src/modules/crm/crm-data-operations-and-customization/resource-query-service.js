@@ -79,6 +79,14 @@ export function buildFilters(
     ["pipelineId", "pipeline_id"],
     ["sourceId", "source_id"],
     ["campaignId", "campaign_id"],
+    // F020 Tranche D (Stage A) — sales-team-members/territory-assignments
+    // are inherently parent-scoped (a membership belongs to exactly one
+    // team, an assignment to exactly one territory); listing either
+    // without this filter would return every membership/assignment across
+    // the organization, a real cross-team/cross-territory data exposure,
+    // not just a UX inconvenience.
+    ["teamId", "team_id"],
+    ["territoryId", "territory_id"],
   ]) {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;

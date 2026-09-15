@@ -92,7 +92,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F017 | Notes / attachments | IN_PROGRESS | Notes: real, composed into Lead/Opportunity 360s (as a tab) and Account/Contact 360s (as a section). Reuses design-system's CommentThread. **Attachments built this Stage A pass** — composed into all four 360s the same way (Lead/Opportunity as a tab, Account/Contact as a section). Governed entirely by the real, pre-existing `attachments-operations.js` (parent-record authorization via `resolveCrmEntityAccess`, versioning, current-version promotion on delete, audit/outbox — none of it re-derived), layered with `@vercentlabs/document-engine`'s `validateAttachment`/`sha256`/`attachmentStorageKey` and `attachment-security.js`'s `scanAttachmentForUpload` exactly as those primitives are designed to be used — nothing bypassed, nothing re-implemented. Upload is synchronous validate-then-scan-then-persist, so a rejected file is never written at all (no "quarantined" row is ever visible in this UI, because none is ever created). Four new routes under `/api/crm/attachments/[entityType]/[entityId]/...` (a static-prefixed subtree, deliberately not nested under `/api/crm/[resource]` to avoid a Next.js conflicting-dynamic-siblings error). New `CrmAttachmentPanel` component: list/upload/replace(new version)/version-history dialog/download/delete, with each state (loading/empty/permission-denied/error) handled. **Two real, previously-unreported package-wiring gaps found and fixed**, same class as F012/F022 earlier this pass: `attachments-operations.js` was fully implemented but not exported from `@vercentlabs/api` (fixed, plus wrote its missing `.d.ts`); `@vercentlabs/document-engine` was not a dependency of `apps/web` at all (added). **Also found (and restored) a real, previously-existing, thorough backend test file** (`crm-attachments-f017.test.mjs`, 20 tests, committed in an earlier prompt pass) that this pass's own agent nearly overwrote by using the Write tool on that path without checking it already existed first — caught immediately when the full test count dropped from 985 to 979 instead of rising; `git checkout` restored the original file exactly before anything was pushed. Lesson recorded: always Read/check a path before Write, even under this session's checkpoint discipline. As a result, no new backend tests were needed — 20 pre-existing tests plus 6 pre-existing attachment-security/document-engine tests (26 total) already cover this domain thoroughly. Missing: no inline image/PDF preview (downloads force `application/octet-stream` deliberately, for security — see the routes' own comments), no bulk upload. |
 | F018 | Communications | IN_PROGRESS | Read-only list (`/crm/communications`) reusing the generic `/api/crm/[resource]` boundary (communications IS a real CRM_RESOURCE_KEYS entry) — no new backend route needed. Verified the strict-participant-visibility requirement is genuinely enforced: `record-policy.js`'s `projectCrmRecord` masks subject/body/participants to metadata-only (channel/direction/status/occurredAt) unless the caller is the sender or holds `crm.leads.view_sensitive` — confirmed by reading the actual projection function, not assumed. Full content remains available only through the dedicated per-record Timeline (already in Lead/Opportunity 360s). Missing: composing/sending a real communication (needs the OAuth/provider-send infrastructure — out of scope), shared-inbox thread view, calendar-sync surfaces — all explicitly deferred, not overlooked. |
 | F019 | Timeline | IN_PROGRESS | Unified component built and used on Lead 360 and Opportunity 360. |
-| F020 | Territories & sales teams | IN_PROGRESS | `/crm/settings/territories` — real list + create dialog + archive for both Sales Teams and Territories, reusing the generic `/api/crm/[resource]` boundary (`sales-teams`/`sales-team-members`/`territories`/`territory-assignments` are all genuine CRM_RESOURCE_KEYS entries; `sales-organization-and-coverage/` was an empty placeholder directory before this pass — no dedicated domain module exists or was needed). Extended `resource-permissions.ts`'s manage-permission map to cover these four resources with `crm.settings.manage` (they previously fell through to module-access-only, a real gap this same edit closed before any UI could exploit it). Missing: team hierarchy (parentTeamId) UI, team membership management, territory hierarchy/parent picker, territory assignment rules editor, edit forms (create/archive only). |
+| F020 | Territories & sales teams | IN_PROGRESS | `/crm/settings/territories` — full CRUD for both Sales Teams and Territories, reusing the generic `/api/crm/[resource]` boundary. **Tranche D (Stage A) closed every gap the prior pass's row disclosed**: edit dialogs for both (not just create/archive); parent-team/parent-territory pickers with a new server-side cycle guard for `sales-teams` (mirroring the pre-existing `territories` guard exactly — self-parent + recursive-CTE ancestor check, `CRM_SALES_TEAM_HIERARCHY_SELF_PARENT`/`_CYCLE`); a "Members" dialog per team (add/list/end membership — role, allocation %, effective dates — via `sales-team-members`); an "Assignments" dialog per territory (add/list/end coverage — user-or-team assignee, role, effective dates — via `territory-assignments`, ended by setting `effectiveTo` since that resource has no archive transition, not a DELETE); an assignment-rules JSON editor on Territories (honestly labeled as opaque coverage-routing storage — no matching engine reads it anywhere in the codebase, confirmed by search, so this is not a fake "rules engine" UI). Fixed a real cross-team/cross-territory data-exposure gap found while building this: `listCrmRecords`' generic filter builder had no `teamId`/`territoryId` key, so a membership/assignment list would have returned every team's/territory's rows into one dialog — added both filter keys (`resource-query-service.js`) plus their frontend pass-through (`[resource]/route.ts`). 12 new backend tests (8 hierarchy-cycle, 4 filter-scoping). Disclosed, not fixed this pass: none of these four resources are in `GENERIC_VERSIONED_RESOURCES`, so `expectedUpdatedAt` optimistic-concurrency is not actually enforced server-side for them (a stale write currently succeeds rather than conflicting) — a broader concurrency-policy change, out of this tranche's scope. |
 | F021 | Import/export | IN_PROGRESS | `/crm/data/import-export`. **Import**: a real 2-stage CSV workflow (upload → client-side parse/map → `POST .../import/preview` → review → `POST .../import/[batchId]/commit`, with a `POST .../import/[batchId]/rollback` action after commit), reusing `lead-acquisition.js`'s own `previewLeadImport`/`commitLeadImport`/`rollbackLeadImport` — each valid row is created through the real governed `createLead` one at a time, with the batch's own duplicate strategy (skip/update/warn/block) applied per row; nothing is written to `crm_leads` until commit. **Backend test gap closed this Stage A pass**: `crm-lead-import-f021.test.mjs`, 10 new tests — confirmed by `git log` search this file genuinely never existed (unlike the Attachments near-miss), covering preview validation/idempotency/no-persistence/oversize-rejection, commit's status-gate/404/per-row-error-handling/real-`createLead`-dispatch/provenance-recording, and rollback's status-gate/activity-protected-row-count. **Export architecture re-audited per the dossier's own `[SPEC-IMPORT-EXPORT]` section, which explicitly requires "large operations are asynchronous and produce a result manifest" — confirmed this is a real, NOT-closed gap**: the current export is a synchronous, client-side, capped-at-5,000-rows CSV build with no background job, no manifest, and no threshold-based fallback to an async path. Deliberately not built this pass — a real async-job + manifest system (mirroring the existing Lead/Opportunity bulk-job pattern's use of `tenant.background_jobs`) is a genuine, non-trivial infrastructure addition, and attempting it under this pass's remaining time budget risked a rushed, undertested result; disclosed honestly rather than claimed complete. |
 | F022 | Lead conversion | IN_PROGRESS | Conversion action + RelatedBusinessFlow result. **Pre-conversion review built this Stage A pass**: a new read-only `GET .../convert/preview` runs the exact same governed duplicate engine (`findAccountDuplicates`/`findContactDuplicates`) that `convertCrmLead` itself already used internally to decide create-vs-reuse — so the preview shows the literal truth of what conversion would do, not a second hand-rolled approximation. **Real, previously-unreported package-export gap found and fixed along the way**: both functions were fully implemented, already had `.d.ts` declarations, and were already used internally by `convertCrmLead` — but were missing from the named-export list in `index.js`/`index.d.ts`, so no `apps/web` code could reach them (the same class of gap found for F012's `sales-stage-operations.js` earlier this pass — worth a dedicated audit for other instances, not assumed to be only these two). The Lead 360's Convert button now opens a review dialog: an exact match is pre-selected (matching the backend's own default), the user can pick a different candidate or "Create a new…" for either Account or Contact, then confirms — the real `POST .../convert` call is unchanged, just given an explicit `partyId`/`contactId` instead of leaving it to the backend's default. |
 | F023 | Opportunity → quotation handoff | NOT_STARTED | **Investigated, deliberately not built** — not an oversight. `sales/index.js`'s real `createQuotation(client, context, input)` already accepts `input.opportunityId` (stored as `source_opportunity_id`, confirming the cross-module link exists), but requires `requirePermission(context, "sales.quotation.create")` (a Sales-namespace permission, not a CRM one) AND `previewSalesDocument` throws "Add at least one item line" if `input.lines` is empty — a quotation cannot exist with zero line items. Opportunities in this rebuild have a single `amount` field, not structured line items, so a genuine "create quotation from this Opportunity" action would require building an item/pricing picker — that IS Sales' own editing surface, and the prompt's own instruction is explicit: "do NOT build a fake Sales editor (Prompt 4 builds Sales)." Also confirmed no valid Sales route exists yet to link to (`/sales` is still the foundation placeholder), so even a read-only "view the linked quotation" display would link nowhere real. Recommendation: build F023 properly in Prompt 4 once Sales' own quotation UI (and its real line-item entry surface) exists, exposed as an action ON that surface that CRM's Opportunity 360 can then deep-link to — not as CRM-side work. |
@@ -834,6 +834,64 @@ or in Stage B. This is disclosed, not silently left incomplete: with 30
 features × ~37 rows each, exhaustively auditing all of them individually
 is its own multi-session undertaking; F017/F028 establish the format and
 discipline for whichever tranche does the rest next.
+
+## Tranche D: F020 sales teams + territories complete (Stage A)
+
+Confirmed the backend was already fully field-complete for everything the
+mega-prompt asked for (`parentTeamId`, `managerUserId`, membership fields
+with `effectiveFrom`/`effectiveTo`/`allocationPercent`, territory
+`parentTerritoryId`/`territoryType`/`assignmentRules`, assignment
+`assigneeType`/`assigneeId`/`assignmentRole`/effective dating) — this was
+purely a frontend gap plus two small, real backend gaps found while
+closing it:
+
+1. **Sales-team hierarchy had no cycle guard.** `territories` already had
+   one (from an earlier pass, `resource-mutation-service.js`); `sales-teams`
+   `parentTeamId` did not. Added the identical self-parent + recursive-CTE
+   ancestor-cycle check for `sales-teams`, reusing the exact same shape
+   (`CRM_SALES_TEAM_HIERARCHY_SELF_PARENT`/`_CYCLE`, mirroring
+   `CRM_TERRITORY_HIERARCHY_SELF_PARENT`/`_CYCLE`). 4 new tests appended to
+   the existing `crm-territories-f020.test.mjs` (existence-checked, not
+   overwritten).
+2. **`listCrmRecords`'s generic filter builder had no `teamId`/`territoryId`
+   key.** Without it, a "list this team's members" or "list this
+   territory's assignments" call would have returned every membership/
+   assignment in the organization — a real cross-team/cross-territory data
+   exposure the UI would have silently shipped, not just a missing
+   convenience filter. Added both keys to `buildFilters`'s existing
+   stageId/pipelineId/sourceId/campaignId key-column loop
+   (`resource-query-service.js`) and to the frontend generic route's
+   `LIST_FILTER_KEYS` (`[resource]/route.ts`). 4 new tests
+   (`crm-sales-org-hierarchy-f020.test.mjs`, existence-checked first).
+
+Rebuilt `SalesOrganizationSettingsScreen.tsx`: edit dialogs for both Sales
+Teams and Territories (parent picker, manager, default pipeline/currency
+for teams; parent picker, type, manager, assignment-rules JSON for
+territories); a "Members" management dialog per team (add/list/end
+membership with role/allocation/effective dates, via
+`sales-team-members`); an "Assignments" management dialog per territory
+(add/list/end coverage with assignee type/role/effective dates, via
+`territory-assignments` — ended by setting `effectiveTo` through the
+normal governed PATCH, never a DELETE, since that resource has no archive
+transition registered in `archiveStatuses`). Parent-team/parent-territory
+columns added to both grids so hierarchy is visible in the list, not just
+inside the edit dialog.
+
+The assignment-rules field is a plain JSON textarea, deliberately not a
+structured "rule builder" — confirmed by direct search that no matching/
+routing engine anywhere in the codebase reads `assignmentRules`; it is
+opaque JSONB storage today. Building a fake rules UI implying automated
+territory routing that doesn't exist would have been worse than an honest
+plain-JSON field with that limitation stated in its own description text.
+
+Full `services/api` suite: 1033/1033 passing (1025 prior + 8 cycle-guard +
+4 filter-scoping). Web typecheck, ESLint and `verify:routes`: clean.
+
+Not built this tranche: quota-plans integration into this screen (the
+resource exists but isn't surfaced here — F020-CAP-002's own dossier
+scope, `quotas`, remains a disclosed partial); coverage-gap detection;
+cross-check against F005 assignment / F025 forecast consumption
+(F020-CAP-003/INT-001, not audited this pass).
 
 ## Mandatory-gap candidates
 
