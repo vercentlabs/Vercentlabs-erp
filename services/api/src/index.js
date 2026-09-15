@@ -25,6 +25,7 @@ export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lea
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
 
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 

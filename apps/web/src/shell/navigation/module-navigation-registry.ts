@@ -141,11 +141,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Territories & Sales Teams", "/crm/settings/territories"), requiredPermission: "crm.settings.manage" },
           { ...available("Custom Fields & Tags", "/crm/settings/custom-fields-and-tags"), requiredPermission: "crm.settings.manage" },
-          adminOnly(
-            "Lead Sources",
-            "/crm/settings/lead-sources",
-            "crm.settings.manage",
-          ),
+          { ...available("Lead Sources", "/crm/settings/lead-sources"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Assignment & Territories",
             "/crm/settings/assignment",
@@ -156,11 +152,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             "/crm/settings/lead-scoring",
             "crm.settings.manage",
           ),
-          adminOnly(
-            "Pipeline Stages",
-            "/crm/settings/pipeline-stages",
-            "crm.settings.manage",
-          ),
+          { ...available("Pipeline Stages", "/crm/settings/pipeline-stages"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Qualification / Playbooks",
             "/crm/settings/playbooks",
