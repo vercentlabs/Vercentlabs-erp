@@ -25,6 +25,10 @@ export type Territory = {
   managerUserId: string | null;
   assignmentRules: Record<string, unknown> | null;
   status: "active" | "archived";
+  // F020 Stage A2 §8 — computed by the generic list route (never by client
+  // aggregation), the exact same predicate the CRM dashboard's
+  // uncovered_territories metric already uses.
+  hasPrimaryCoverage?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -53,6 +57,27 @@ export type TerritoryAssignment = {
   effectiveFrom: string | null;
   effectiveTo: string | null;
   source: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// tenant.crm_quota_plans rows via the generic /api/crm/[resource]
+// boundary — CHECK (num_nonnulls(team_id, territory_id, user_id) >= 1)
+// means a quota is assigned to at least one of team/territory/user.
+export type QuotaPlan = {
+  id: string;
+  companyId: string | null;
+  teamId: string | null;
+  territoryId: string | null;
+  userId: string | null;
+  name: string;
+  quotaType: "revenue" | "bookings" | "margin" | "quantity" | "new_logo" | "activity";
+  periodStart: string;
+  periodEnd: string;
+  currencyCode: string | null;
+  targetAmount: number;
+  stretchAmount: number | null;
+  status: "draft" | "active" | "closed" | "cancelled";
   createdAt: string;
   updatedAt: string;
 };

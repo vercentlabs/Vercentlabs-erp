@@ -44,4 +44,8 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // buffers/provider) is what a public booking page is generated from,
   // so only settings-manage should create/edit one.
   "meeting-links": CRM_PERMISSIONS.settingsManage,
+  // Stage A2 §8 (F020) — quota-plans configuration (team/territory/user
+  // target amounts) is a settings-manage concern, same as territories
+  // themselves.
+  "quota-plans": CRM_PERMISSIONS.settingsManage,
 };

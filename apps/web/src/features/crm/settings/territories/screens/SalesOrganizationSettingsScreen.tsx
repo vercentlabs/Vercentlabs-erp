@@ -10,6 +10,7 @@ import {
   EnterpriseDataGrid,
   EnterpriseListPage,
   IconButton,
+  NumberField,
   PermissionState,
   Select,
   StatusBadge,
@@ -22,15 +23,19 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { money } from "@/features/crm/shared/format";
 import {
+  archiveQuotaPlan,
   archiveSalesTeam,
   archiveSalesTeamMember,
   archiveTerritory,
+  createQuotaPlan,
   createSalesTeam,
   createSalesTeamMember,
   createTerritory,
   createTerritoryAssignment,
   endTerritoryAssignment,
+  listQuotaPlans,
   listSalesTeamMembers,
   listSalesTeams,
   listTerritories,
@@ -39,9 +44,24 @@ import {
   updateSalesTeam,
   updateTerritory,
 } from "../api/territories-api";
-import type { SalesTeam, SalesTeamMember, Territory, TerritoryAssignment } from "../types";
+import type { QuotaPlan, SalesTeam, SalesTeamMember, Territory, TerritoryAssignment } from "../types";
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
+
+// F020 Stage A2 §8 — the real, DB-enforced values (migration 003's
+// assignment_role CHECK). Was previously a free-text field, which let a
+// caller type e.g. "Primary" (capitalized) and silently fall outside both
+// this dashboard's uncovered_territories count and F005's
+// activeTerritoryUserIds exact-match filter — a real correctness gap, not
+// just a UX one. 'overlay' is the dossier's own named "overlay/secondary
+// assignment" concept — already modeled in the schema since the original
+// migration, just never exposed as a selectable option.
+const ASSIGNMENT_ROLE_OPTIONS: SelectOption[] = [
+  { value: "primary", label: "Primary owner" },
+  { value: "overlay", label: "Overlay (secondary coverage)" },
+  { value: "shared", label: "Shared" },
+  { value: "manager", label: "Manager" },
+];
 
 // F020 Territories & Sales Teams — a governed setup screen, not frontend
 // constants. All four resources reuse the generic /api/crm/[resource]
@@ -61,14 +81,17 @@ export function SalesOrganizationSettingsScreen() {
   const [editingTerritory, setEditingTerritory] = useState<Territory | null>(null);
   const [membersTeam, setMembersTeam] = useState<SalesTeam | null>(null);
   const [assignmentsTerritory, setAssignmentsTerritory] = useState<Territory | null>(null);
+  const [quotaDialogOpen, setQuotaDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const teamsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "sales-teams"), queryFn: listSalesTeams });
   const territoriesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "territories"), queryFn: listTerritories });
+  const quotaPlansQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "quota-plans"), queryFn: listQuotaPlans });
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
 
   const teams = useMemo(() => teamsQuery.data?.rows ?? [], [teamsQuery.data]);
   const territories = useMemo(() => territoriesQuery.data?.rows ?? [], [territoriesQuery.data]);
+  const quotaPlans = useMemo(() => quotaPlansQuery.data?.rows ?? [], [quotaPlansQuery.data]);
   const teamNameById = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams]);
   const territoryNameById = useMemo(() => new Map(territories.map((territory) => [territory.id, territory.name])), [territories]);
 
@@ -80,6 +103,10 @@ export function SalesOrganizationSettingsScreen() {
     const rows = optionsQuery.data?.options?.users ?? [];
     return rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }));
   }, [optionsQuery.data]);
+  const userOptionLabel = useMemo(() => {
+    const byId = new Map(userOptions.map((option) => [option.value, option.label]));
+    return (userId: string) => byId.get(userId) || userId;
+  }, [userOptions]);
   const pipelineOptions: SelectOption[] = useMemo(() => {
     const rows = optionsQuery.data?.options?.pipelines ?? [];
     return [{ value: "", label: "No default pipeline" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.name || row.id) }))];
@@ -97,6 +124,9 @@ export function SalesOrganizationSettingsScreen() {
   function invalidateTerritories() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "territories") });
   }
+  function invalidateQuotaPlans() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "quota-plans") });
+  }
   function handleError(err: unknown) {
     setError(err instanceof SettingsApiError ? err.message : "This action could not be completed.");
     // A stale-write conflict means a row's local updatedAt is already
@@ -109,6 +139,7 @@ export function SalesOrganizationSettingsScreen() {
 
   const archiveTeamMutation = useMutation({ mutationFn: (team: SalesTeam) => archiveSalesTeam(team.id, team.updatedAt), onSuccess: invalidateTeams, onError: handleError });
   const archiveTerritoryMutation = useMutation({ mutationFn: (territory: Territory) => archiveTerritory(territory.id, territory.updatedAt), onSuccess: invalidateTerritories, onError: handleError });
+  const archiveQuotaPlanMutation = useMutation({ mutationFn: (plan: QuotaPlan) => archiveQuotaPlan(plan.id, plan.updatedAt), onSuccess: invalidateQuotaPlans, onError: handleError });
 
   const teamColumns: ColumnDef<SalesTeam, unknown>[] = useMemo(
     () => [
@@ -138,9 +169,49 @@ export function SalesOrganizationSettingsScreen() {
         accessorKey: "status",
         cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{String(getValue())}</StatusBadge>,
       },
+      // F020 Stage A2 §8 — the dossier's required "coverage gap" signal,
+      // now visible per-row (previously only an aggregate count on the CRM
+      // dashboard). A non-active territory intentionally shows no badge —
+      // coverage only matters for territories currently in use.
+      {
+        id: "coverage",
+        header: "Coverage",
+        cell: ({ row }) =>
+          row.original.status !== "active" ? null : (
+            <StatusBadge tone={row.original.hasPrimaryCoverage ? "success" : "danger"}>
+              {row.original.hasPrimaryCoverage ? "Covered" : "Uncovered"}
+            </StatusBadge>
+          ),
+      },
       { id: "updatedAt", header: "Updated", accessorFn: (row) => dateFormatter.format(new Date(row.updatedAt)) },
     ],
     [territoryNameById],
+  );
+
+  const quotaColumns: ColumnDef<QuotaPlan, unknown>[] = useMemo(
+    () => [
+      { id: "name", header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
+      {
+        id: "assignee",
+        header: "Assigned to",
+        accessorFn: (row) =>
+          row.teamId ? `Team: ${teamNameById.get(row.teamId) || row.teamId}`
+          : row.territoryId ? `Territory: ${territoryNameById.get(row.territoryId) || row.territoryId}`
+          : row.userId ? `User: ${userOptionLabel(row.userId)}`
+          : "—",
+      },
+      { id: "quotaType", header: "Type", accessorKey: "quotaType" },
+      { id: "period", header: "Period", accessorFn: (row) => `${dateFormatter.format(new Date(row.periodStart))} – ${dateFormatter.format(new Date(row.periodEnd))}` },
+      { id: "targetAmount", header: "Target", accessorFn: (row) => money(row.currencyCode, row.targetAmount) },
+      { id: "stretchAmount", header: "Stretch", accessorFn: (row) => (row.stretchAmount === null ? "—" : money(row.currencyCode, row.stretchAmount)) },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "status",
+        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : getValue() === "cancelled" ? "danger" : "neutral"}>{String(getValue())}</StatusBadge>,
+      },
+    ],
+    [teamNameById, territoryNameById, userOptionLabel],
   );
 
   if (!canManage) return <PermissionState title="You don't have access to CRM Setup" description="Ask an administrator to grant crm.settings.manage." />;
@@ -225,6 +296,36 @@ export function SalesOrganizationSettingsScreen() {
         />
       </EnterpriseListPage>
 
+      <EnterpriseListPage
+        header={{
+          title: "Quota plans",
+          description: "Revenue/bookings/margin targets assigned to a team, territory or individual for a period.",
+          primaryAction: (
+            <Button variant="primary" onPress={() => setQuotaDialogOpen(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              New quota plan
+            </Button>
+          ),
+        }}
+      >
+        <EnterpriseDataGrid<QuotaPlan>
+          aria-label="Quota plans"
+          columns={quotaColumns}
+          data={quotaPlans}
+          getRowId={(row) => row.id}
+          state={quotaPlansQuery.isLoading ? "loading" : quotaPlans.length === 0 ? "empty" : "ready"}
+          rowActions={(row) =>
+            row.status !== "cancelled" ? (
+              <span onClick={(event) => event.stopPropagation()}>
+                <IconButton aria-label={`Cancel ${row.name}`} size="compact" variant="danger" onPress={() => archiveQuotaPlanMutation.mutate(row)}>
+                  <Archive className="size-4" aria-hidden="true" />
+                </IconButton>
+              </span>
+            ) : null
+          }
+        />
+      </EnterpriseListPage>
+
       <TeamDialog
         isOpen={teamDialogOpen || Boolean(editingTeam)}
         onOpenChange={(open) => {
@@ -265,6 +366,15 @@ export function SalesOrganizationSettingsScreen() {
         onOpenChange={(open) => !open && setAssignmentsTerritory(null)}
         userOptions={userOptions}
         teamOptions={teams.map((team) => ({ value: team.id, label: team.name }))}
+        onError={handleError}
+      />
+      <QuotaPlanDialog
+        isOpen={quotaDialogOpen}
+        onOpenChange={setQuotaDialogOpen}
+        teamOptions={teams.map((team) => ({ value: team.id, label: team.name }))}
+        territoryOptions={territories.map((territory) => ({ value: territory.id, label: territory.name }))}
+        userOptions={userOptions}
+        onSaved={invalidateQuotaPlans}
         onError={handleError}
       />
     </div>
@@ -565,7 +675,7 @@ function TerritoryAssignmentsDialog({
   const workspace = useWorkspaceContext();
   const [assigneeType, setAssigneeType] = useState<"user" | "team">("user");
   const [assigneeId, setAssigneeId] = useState("");
-  const [assignmentRole, setAssignmentRole] = useState("");
+  const [assignmentRole, setAssignmentRole] = useState("primary");
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [effectiveTo, setEffectiveTo] = useState("");
 
@@ -587,7 +697,7 @@ function TerritoryAssignmentsDialog({
         territoryId: territory!.id,
         assigneeType,
         assigneeId,
-        assignmentRole: assignmentRole || null,
+        assignmentRole,
         effectiveFrom: effectiveFrom || null,
         effectiveTo: effectiveTo || null,
         source: "manual",
@@ -595,7 +705,7 @@ function TerritoryAssignmentsDialog({
     onSuccess: () => {
       invalidate();
       setAssigneeId("");
-      setAssignmentRole("");
+      setAssignmentRole("primary");
       setEffectiveFrom("");
       setEffectiveTo("");
     },
@@ -658,7 +768,7 @@ function TerritoryAssignmentsDialog({
             }}
           />
           <Select label="Assignee" options={assigneeOptions} selectedKey={assigneeId} onSelectionChange={(key) => setAssigneeId(String(key ?? ""))} />
-          <TextField label="Role" placeholder="e.g. primary, backup" value={assignmentRole} onChange={setAssignmentRole} />
+          <Select label="Role" options={ASSIGNMENT_ROLE_OPTIONS} selectedKey={assignmentRole} onSelectionChange={(key) => setAssignmentRole(String(key ?? "primary"))} />
           <div className="flex gap-3">
             <TextField label="Effective from" placeholder="YYYY-MM-DD" value={effectiveFrom} onChange={setEffectiveFrom} />
             <TextField label="Effective to" placeholder="YYYY-MM-DD" value={effectiveTo} onChange={setEffectiveTo} />
@@ -669,6 +779,122 @@ function TerritoryAssignmentsDialog({
         </div>
         <div className="flex justify-end">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Close</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+const QUOTA_TYPE_OPTIONS: SelectOption[] = [
+  { value: "revenue", label: "Revenue" },
+  { value: "bookings", label: "Bookings" },
+  { value: "margin", label: "Margin" },
+  { value: "quantity", label: "Quantity" },
+  { value: "new_logo", label: "New logo" },
+  { value: "activity", label: "Activity" },
+];
+const ASSIGNEE_KIND_OPTIONS: SelectOption[] = [
+  { value: "team", label: "Team" },
+  { value: "territory", label: "Territory" },
+  { value: "user", label: "Individual" },
+];
+
+// F020 Stage A2 §8. quota-plans (tenant.crm_quota_plans) is a real,
+// already-migrated resource (FK'd to team/territory/user, CHECK
+// num_nonnulls(...)>=1) with zero frontend consumer before this pass —
+// confirmed by grep. This is the setup/configuration half of "quotas"
+// (F020-CAP-002); F025's own forecast-attainment work (Stage A2 §11)
+// consumes these plans, it does not define them.
+function QuotaPlanDialog({
+  isOpen,
+  onOpenChange,
+  teamOptions,
+  territoryOptions,
+  userOptions,
+  onSaved,
+  onError,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  teamOptions: SelectOption[];
+  territoryOptions: SelectOption[];
+  userOptions: SelectOption[];
+  onSaved: () => void;
+  onError: (error: unknown) => void;
+}) {
+  const [name, setName] = useState("");
+  const [assigneeKind, setAssigneeKind] = useState<"team" | "territory" | "user">("team");
+  const [assigneeId, setAssigneeId] = useState("");
+  const [quotaType, setQuotaType] = useState("revenue");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("");
+  const [targetAmount, setTargetAmount] = useState(0);
+  const [stretchAmount, setStretchAmount] = useState<number | null>(null);
+
+  const assigneeOptions = assigneeKind === "team" ? teamOptions : assigneeKind === "territory" ? territoryOptions : userOptions;
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      createQuotaPlan({
+        name,
+        teamId: assigneeKind === "team" ? assigneeId : null,
+        territoryId: assigneeKind === "territory" ? assigneeId : null,
+        userId: assigneeKind === "user" ? assigneeId : null,
+        quotaType,
+        periodStart,
+        periodEnd,
+        currencyCode: currencyCode || null,
+        targetAmount,
+        stretchAmount,
+      }),
+    onSuccess: () => {
+      onSaved();
+      onOpenChange(false);
+      setName("");
+      setAssigneeId("");
+      setPeriodStart("");
+      setPeriodEnd("");
+      setTargetAmount(0);
+      setStretchAmount(null);
+    },
+    onError,
+  });
+
+  return (
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New quota plan">
+      <div className="flex flex-col gap-4">
+        <TextField label="Name" isRequired value={name} onChange={setName} />
+        <Select
+          label="Assigned to"
+          options={ASSIGNEE_KIND_OPTIONS}
+          selectedKey={assigneeKind}
+          onSelectionChange={(key) => {
+            setAssigneeKind((key as "team" | "territory" | "user") ?? "team");
+            setAssigneeId("");
+          }}
+        />
+        <Select label={assigneeKind === "team" ? "Team" : assigneeKind === "territory" ? "Territory" : "User"} options={assigneeOptions} selectedKey={assigneeId} onSelectionChange={(key) => setAssigneeId(String(key ?? ""))} />
+        <Select label="Quota type" options={QUOTA_TYPE_OPTIONS} selectedKey={quotaType} onSelectionChange={(key) => setQuotaType(String(key ?? "revenue"))} />
+        <div className="flex gap-3">
+          <TextField label="Period start" isRequired placeholder="YYYY-MM-DD" value={periodStart} onChange={setPeriodStart} />
+          <TextField label="Period end" isRequired placeholder="YYYY-MM-DD" value={periodEnd} onChange={setPeriodEnd} />
+        </div>
+        <TextField label="Currency code" placeholder="e.g. INR, USD" value={currencyCode} onChange={setCurrencyCode} />
+        <div className="flex gap-3">
+          <NumberField label="Target amount" minValue={0} value={targetAmount} onChange={setTargetAmount} />
+          <NumberField label="Stretch amount (optional)" minValue={0} value={stretchAmount ?? 0} onChange={(value) => setStretchAmount(value || null)} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={!name.trim() || !assigneeId || !periodStart || !periodEnd}
+          >
+            Create quota plan
+          </Button>
         </div>
       </div>
     </Dialog>

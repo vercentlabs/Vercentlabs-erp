@@ -1632,6 +1632,64 @@ escalation/lifecycle history timeline. All four closed:
 Full `services/api` suite: 1054/1054 (1052 + 2 new `updateCrmFollowUp`
 reminder-plan tests). Web typecheck, ESLint, `verify:routes`: all clean.
 
+### 8. F020 Territories/Sales Teams — overlay role exposed, coverage-gap drill-down, quota plans built
+
+`F020-AUDIT.md` (dated 2026-09-05) named three remaining CAP-002 gaps:
+no "overlay" concept, no temporary delegation, no coverage-gap detection.
+Re-reading current code before writing anything found two of the three
+already substantially real:
+
+- **"Overlay"** is already modeled in the schema — `assignment_role CHECK
+  IN ('primary','overlay','shared','manager')`, present since the
+  original migration (003). The gap was that
+  `SalesOrganizationSettingsScreen.tsx`'s Role field was free text
+  (`placeholder="e.g. primary, backup"`), which is worse than just an
+  unbuilt feature: a manager typing "Primary" (capitalized) would create
+  an assignment that *looks* like coverage in the UI but is silently
+  invisible to both the dashboard's `uncovered_territories` exact-match
+  query and F005's `activeTerritoryUserIds`. Replaced with a proper
+  `ASSIGNMENT_ROLE_OPTIONS` Select — a correctness fix, not just UX.
+- **Temporary delegation** is already achievable generically: every
+  territory assignment already carries real `effectiveFrom`/`effectiveTo`
+  columns with existing CRUD (create/end) in the settings screen — a
+  manager delegating primary ownership for two weeks just sets both dates
+  on a new assignment. No separate delegation mechanism was needed or
+  built; the dossier's own phrase describes a *use* of effective-dating
+  already present, not a distinct feature.
+- **Coverage-gap detection** existed only as one aggregate number on the
+  CRM dashboard (`uncovered_territories`, an earlier pass) — real, but
+  gave a manager no way to see *which* territories needed attention.
+  Added `annotateTerritoryCoverage` to `listCrmRecords`'s `"territories"`
+  path (`resource-query-service.js`) — a batched query reusing the
+  **identical** "no currently-effective 'primary' assignment" predicate
+  the dashboard metric already uses (never a second one), merging a
+  `hasPrimaryCoverage` field onto each row. The Territories grid now
+  shows a Covered/Uncovered badge per active territory.
+
+**Quotas**, the fourth CAP-002 item, was a genuine, confirmed gap:
+`tenant.crm_quota_plans` is fully migrated (FK'd to team/territory/user,
+`CHECK (num_nonnulls(team_id,territory_id,user_id)>=1)`, quota type/
+period/target/stretch-amount) and registered as a generic resource, but
+had zero frontend consumer anywhere (confirmed by grep). Built a "Quota
+plans" section in the same settings screen — list with assignee/type/
+period/target/stretch columns (money-formatted via the shared numeric
+helper, not raw NUMERIC strings) and a create dialog (assignee-kind
+radio resolving to exactly one of team/territory/user, matching the
+DB's own `num_nonnulls` constraint). This is the *configuration* half of
+quotas — F025's own forecast-attainment tracking (Stage A2 §11) consumes
+these plans, it does not define them, per F020-CAP-003's own boundary.
+
+CAP-003 re-verified directly rather than carried forward from the old
+audit: F005 already reads `crm_territory_assignments`/`crm_territories`
+directly (confirmed in an earlier session). F025 currently has **no**
+territory-scoping code at all (grep confirmed) — a real gap for §11 to
+close, not evidence F020 invented independent hierarchy semantics.
+
+Full `services/api` suite: 1055/1055 (1 new test proving the per-row
+coverage annotation reuses the dashboard's exact predicate). Web
+typecheck, ESLint, `verify:routes`, the `resource-permissions`
+regression test: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

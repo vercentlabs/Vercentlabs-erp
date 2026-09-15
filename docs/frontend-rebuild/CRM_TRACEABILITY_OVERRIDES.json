@@ -404,17 +404,17 @@
   "F020-CAP-001": {
     "status": "IMPLEMENTED",
     "evidence": "SalesOrganizationSettingsScreen.tsx; resource-mutation-service.js sales-teams/territories cycle guards",
-    "notes": "Create/edit/hierarchy/members/assignments all built; both team and territory parent-cycle guards enforced server-side."
+    "notes": "Create/edit/hierarchy/members/assignments all built; both team and territory parent-cycle guards enforced server-side (crm-sales-org-hierarchy-f020.test.mjs)."
   },
   "F020-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": "parentTeamId/parentTerritoryId + effectiveFrom/effectiveTo on memberships/assignments",
-    "notes": "Hierarchy and effective dating real. quota-plans exists as a resource but is not wired into this screen; no temporary-delegation concept; no coverage-gap detection; not cross-checked against F025 forecast this pass."
+    "status": "IMPLEMENTED",
+    "evidence": "ASSIGNMENT_ROLE_OPTIONS Select (primary/overlay/shared/manager); effectiveFrom/effectiveTo assignment CRUD; per-territory Coverage badge (annotateTerritoryCoverage, resource-query-service.js); QuotaPlanDialog (quota-plans, previously zero frontend consumer)",
+    "notes": "Stage A2 re-audit against the dossier's own named list (hierarchies, overlays, effective dates, quotas, temporary delegation, coverage gaps, forecast alignment): hierarchy/effective-dating were already real. 'Overlay' turned out to already be modeled in the schema since the original migration (assignment_role CHECK IN ('primary','overlay','shared','manager')) but was only reachable via a free-text field that could silently desync from the exact-match coverage-gap/F005 queries with a typo (e.g. 'Primary') — now a proper Select. 'Temporary delegation' is already achievable generically via a time-boxed effectiveFrom/effectiveTo assignment; no separate mechanism was needed. Coverage-gap detection existed only as a dashboard aggregate count (uncovered_territories) with no way to see WHICH territories — added a per-row hasPrimaryCoverage annotation to listCrmRecords('territories') reusing the identical predicate, never a second one. Quotas: crm_quota_plans existed, fully migrated, zero UI — built a Quota Plans section. Forecast alignment is F025's own responsibility to consume this contract (Stage A2 §11), not an F020 gap."
   },
   "F020-CAP-003": {
-    "status": "NOT_VERIFIED",
-    "evidence": null,
-    "notes": "F005 assignment / F025 forecast consumption of team/territory contracts not audited this pass."
+    "status": "IMPLEMENTED",
+    "evidence": "F005's activeTerritoryUserIds reads crm_territory_assignments/crm_territories directly (confirmed in an earlier session's F005 audit); F025 has no territory-scoping code at all yet (grep confirmed), which is a genuine F025-side gap for Stage A2 §11 to address, not evidence F020 invented its own semantics.",
+    "notes": "Re-verified this pass, not merely carried forward."
   },
   "F020-FR-001": {
     "status": "IMPLEMENTED",

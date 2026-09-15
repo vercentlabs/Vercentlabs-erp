@@ -1,6 +1,6 @@
 "use client";
 
-import type { CrmListResponse, SalesTeam, SalesTeamMember, Territory, TerritoryAssignment } from "../types";
+import type { CrmListResponse, QuotaPlan, SalesTeam, SalesTeamMember, Territory, TerritoryAssignment } from "../types";
 
 export class SettingsApiError extends Error {
   constructor(
@@ -92,5 +92,26 @@ export async function endTerritoryAssignment(id: string, effectiveTo: string, ex
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ input: { effectiveTo }, expectedUpdatedAt }),
   });
+  return parseResponse(response);
+}
+
+// F020 Stage A2 §8 — quota-plans (tenant.crm_quota_plans) is a real,
+// already-migrated generic resource FK'd to team/territory/user, with
+// zero frontend consumer before this pass (confirmed by grep). Reuses
+// the same generic /api/crm/[resource] boundary.
+export async function listQuotaPlans(): Promise<CrmListResponse<QuotaPlan>> {
+  const response = await fetch("/api/crm/quota-plans?limit=100");
+  return parseResponse(response);
+}
+export async function createQuotaPlan(input: Record<string, unknown>): Promise<{ record: QuotaPlan }> {
+  const response = await fetch("/api/crm/quota-plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return parseResponse(response);
+}
+export async function updateQuotaPlan(id: string, input: Record<string, unknown>, expectedUpdatedAt: string): Promise<{ record: QuotaPlan }> {
+  const response = await fetch(`/api/crm/quota-plans/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input, expectedUpdatedAt }) });
+  return parseResponse(response);
+}
+export async function archiveQuotaPlan(id: string, expectedUpdatedAt: string): Promise<{ record: QuotaPlan }> {
+  const response = await fetch(`/api/crm/quota-plans/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
   return parseResponse(response);
 }

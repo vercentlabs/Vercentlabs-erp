@@ -241,6 +241,26 @@ export async function getSalesStageResourceRecord(client, context, id) {
 
 
 
+// F020 Stage A2 §8. The exact same "no effectively-active primary
+// assignment" predicate the CRM dashboard's uncovered_territories metric
+// already uses (analytics-service.js) — reused here, not re-derived, so
+// the aggregate count and this per-row detail can never silently drift
+// apart. A territory with only an 'overlay'/'shared'/'manager' assignment
+// still counts as uncovered; those roles supplement primary ownership,
+// they do not substitute for it.
+async function annotateTerritoryCoverage(client, context, rows) {
+  const ids = rows.map((row) => row.id);
+  if (!ids.length) return rows;
+  const { rows: covered } = await client.query(
+    `SELECT DISTINCT territory_id FROM tenant.crm_territory_assignments
+      WHERE organization_id=$1 AND territory_id = ANY($2::uuid[]) AND assignment_role='primary'
+        AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date)`,
+    [context.organizationId, ids],
+  );
+  const coveredIds = new Set(covered.map((row) => row.territory_id));
+  return rows.map((row) => ({ ...row, hasPrimaryCoverage: coveredIds.has(row.id) }));
+}
+
 export async function listCrmRecords(client, context, resource, filters = {}) {
   if (resource === "stages") return listSalesStageResourceRecords(client, context, filters);
   const definition = definitionFor(resource);
@@ -263,13 +283,10 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
     `SELECT record.* FROM ${definition.table} record WHERE ${where} ORDER BY ${definition.orderBy} LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
     parameters,
   );
+  let rows = result.rows.map((row) => camelizeRow(row));
+  if (resource === "territories") rows = await annotateTerritoryCoverage(client, context, rows);
   return {
-    rows: await projectCrmRecords(
-      client,
-      context,
-      resource,
-      result.rows.map((row) => camelizeRow(row)),
-    ),
+    rows: await projectCrmRecords(client, context, resource, rows),
     total,
     limit,
     offset,
