@@ -16,6 +16,7 @@
     "@vercentlabs/config": "workspace:*",
     "@vercentlabs/permissions": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*",
+    "@vercentlabs/workflows": "workspace:*",
     "nodemailer": "^9.0.3"
   }
 }

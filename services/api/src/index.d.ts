@@ -603,3 +603,6 @@ export * from "./core/tags.js";
 export * from "./core/configuration.js";
 export * from "./core/privacy.js";
 export * from "./core/ai-governance.js";
+export * from "./core/approvals.js";
+export * from "./core/notifications.js";
+export * from "./core/background-jobs.js";

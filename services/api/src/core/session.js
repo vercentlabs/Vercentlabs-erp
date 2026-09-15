@@ -153,6 +153,108 @@ export async function revokeSessionByTokenHash(client, hash, reason = "logout") 
   );
 }
 
+export class ContextSwitchError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.name = "ContextSwitchError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// The exact same "unrestricted role OR explicit membership grant" predicate
+// resolveSessionContext's own company/branch lateral joins use — kept as
+// one shared fragment so listing and switching can never drift from what
+// session resolution itself considers accessible (Phase 4).
+const UNRESTRICTED_ROLE_EXISTS = `
+  EXISTS (
+    SELECT 1
+    FROM user_role_assignments AS unrestricted_assignment
+    JOIN roles AS unrestricted_role
+      ON unrestricted_role.id = unrestricted_assignment.role_id
+     AND unrestricted_role.organization_id = $1
+     AND unrestricted_role.slug IN ('organization_owner', 'system_administrator')
+     AND unrestricted_role.status = 'active'
+    WHERE unrestricted_assignment.organization_id = $1
+      AND unrestricted_assignment.user_id = $2
+      AND unrestricted_assignment.status = 'active'
+      AND unrestricted_assignment.starts_at <= now()
+      AND (unrestricted_assignment.expires_at IS NULL OR unrestricted_assignment.expires_at > now())
+  )
+`;
+
+// Every company (and, for each, every branch) the user may legitimately
+// switch to — the same access predicate session resolution uses, not a
+// separate/looser one a context-switch route could accidentally trust
+// instead.
+export async function listAccessibleCompanies(client, organizationId, userId) {
+  const companies = await client.query(
+    `SELECT company.id, company.name
+       FROM companies AS company
+      WHERE company.organization_id = $1
+        AND company.status = 'active'
+        AND (
+          ${UNRESTRICTED_ROLE_EXISTS}
+          OR EXISTS (
+            SELECT 1 FROM membership_company_access AS access
+            WHERE access.organization_id = $1 AND access.user_id = $2 AND access.company_id = company.id
+          )
+        )
+      ORDER BY company.is_primary DESC, company.created_at ASC, company.id ASC`,
+    [organizationId, userId],
+  );
+  const branches = await client.query(
+    `SELECT branch.id, branch.company_id, branch.name
+       FROM branches AS branch
+      WHERE branch.organization_id = $1
+        AND branch.status = 'active'
+        AND (
+          ${UNRESTRICTED_ROLE_EXISTS}
+          OR EXISTS (
+            SELECT 1 FROM membership_branch_access AS access
+            WHERE access.organization_id = $1 AND access.user_id = $2 AND access.branch_id = branch.id
+          )
+        )
+      ORDER BY branch.is_primary DESC, branch.created_at ASC, branch.id ASC`,
+    [organizationId, userId],
+  );
+  return companies.rows.map((company) => ({
+    ...company,
+    branches: branches.rows.filter((branch) => branch.company_id === company.id),
+  }));
+}
+
+// Validates the requested company/branch against the SAME access predicate
+// before persisting — never trusts an id from the browser. Never returns
+// data from another company: on success, the caller must re-resolve the
+// session (getSessionContext is request-scoped cache()'d, so a fresh
+// request after this call sees the new context) and invalidate any
+// client-side query cache keyed to the previous companyId.
+export async function switchActiveCompany(client, session, companyId, branchId) {
+  const accessible = await listAccessibleCompanies(client, session.organizationId, session.userId);
+  const company = accessible.find((entry) => entry.id === companyId);
+  if (!company) throw new ContextSwitchError(403, "You do not have access to this company.", "COMPANY_ACCESS_DENIED");
+
+  let resolvedBranchId = null;
+  if (branchId) {
+    const branch = company.branches.find((entry) => entry.id === branchId);
+    if (!branch) throw new ContextSwitchError(403, "You do not have access to this branch.", "BRANCH_ACCESS_DENIED");
+    resolvedBranchId = branch.id;
+  }
+
+  await client.query(
+    `INSERT INTO user_preferences (organization_id, user_id, active_company_id, active_branch_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (organization_id, user_id) DO UPDATE SET
+       active_company_id = EXCLUDED.active_company_id,
+       active_branch_id = EXCLUDED.active_branch_id,
+       updated_at = now()`,
+    [session.organizationId, session.userId, companyId, resolvedBranchId],
+  );
+
+  return { companyId, branchId: resolvedBranchId };
+}
+
 // The single query that resolves a session token into a full workspace
 // context: user identity, active organization membership, role/permission
 // composition, and (deliberately, per Part 10 of the original design) the

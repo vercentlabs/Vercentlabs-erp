@@ -130,4 +130,10 @@ export * from "./core/configuration.js";
 export * from "./core/privacy.js";
 export * from "./core/ai-governance.js";
 
+// Prompt 2B — global shell closure: cross-module approval inbox,
+// notification center, and background-job visibility.
+export * from "./core/approvals.js";
+export * from "./core/notifications.js";
+export * from "./core/background-jobs.js";
+
 export * from "./orchestration/sales-crm-opportunity-sync.js";
