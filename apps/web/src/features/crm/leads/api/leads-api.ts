@@ -186,3 +186,126 @@ export async function getCrmOptions(): Promise<{ options: Record<string, Array<R
   const response = await fetch("/api/crm/options");
   return parseResponse(response);
 }
+
+// F007: dwell/SLA context + transition history for the current stage.
+export type LeadStageDwell = { enteredAt: string; elapsedHours: number; warningHours: number | null; breachHours: number | null; status: "ok" | "warning" | "breached" };
+export type LeadStageHistoryEntry = { id: string; fromStageName: string; toStageName: string; source: string; note?: string | null; reasonCode: string | null; reasonLabel: string | null; actorName: string | null; createdAt: string };
+
+export async function getLeadStageDetail(id: string): Promise<{ dwell: LeadStageDwell; history: LeadStageHistoryEntry[] }> {
+  const response = await fetch(`/api/crm/leads/${id}/stage`);
+  return parseResponse(response);
+}
+
+export type LeadStageTransitionEdge = { fromStageId: string; toStageId: string; reasonRequired: boolean; fromStageName: string; fromStageCode: string; toStageName: string; toStageCode: string };
+
+export async function getLeadTransitionGraph(): Promise<{ transitions: LeadStageTransitionEdge[] }> {
+  const response = await fetch("/api/crm/leads/transition-graph");
+  return parseResponse(response);
+}
+
+export type LeadTransitionReason = { code: string; label: string };
+
+export async function getLeadStageReasons(id: string, toStageId: string): Promise<{ reasons: LeadTransitionReason[] }> {
+  const response = await fetch(`/api/crm/leads/${id}/stage/reasons?toStageId=${encodeURIComponent(toStageId)}`);
+  return parseResponse(response);
+}
+
+// F006 qualification — independent axis from pipeline stage/record status.
+export type LeadQualificationCriterion = { key: string; label: string; met: boolean; help?: string };
+export type LeadQualification = {
+  state: "not_reviewed" | "qualified" | "unqualified";
+  reasonCode: string | null;
+  reasonText: string | null;
+  note: string | null;
+  decidedAt: string | null;
+  decidedByUserId: string | null;
+  decidedByName: string | null;
+  readiness: { ready: boolean; required: LeadQualificationCriterion[]; recommended: LeadQualificationCriterion[] };
+  evaluatedAt: string;
+  history: Array<{ id: string; previousState: string | null; newState: string; reasonCode: string | null; reasonText: string | null; note: string | null; decidedByName: string | null; overrideUsed: boolean; overrideReason: string | null; createdAt: string }>;
+  reasons: LeadTransitionReason[];
+  canOverride: boolean;
+};
+
+export async function getLeadQualificationDetail(id: string): Promise<{ qualification: LeadQualification }> {
+  const response = await fetch(`/api/crm/leads/${id}/qualification`);
+  return parseResponse(response);
+}
+
+export async function decideLeadQualification(
+  id: string,
+  input: { decision: "qualified" | "unqualified"; reasonCode?: string; reasonText?: string; note?: string; overrideUsed?: boolean; overrideReason?: string },
+): Promise<{ changed: boolean; lead?: Lead; event?: unknown; qualification: LeadQualification }> {
+  const response = await fetch(`/api/crm/leads/${id}/qualification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return parseResponse(response);
+}
+
+// F027 scoring — read-only intelligence, never lifecycle authority.
+export type LeadScoreExplanation = {
+  id: string;
+  code: string;
+  full_name: string;
+  score: number | null;
+  lead_grade: string | null;
+  score_calculated_at: string | null;
+  score_explanation: { model?: { id: string; name: string; version: number }; thresholds?: Record<string, number>; contributions?: string; reason?: string } | null;
+  content_hash: string | null;
+  snapshot_at: string | null;
+};
+
+export async function getLeadScoreDetail(id: string): Promise<{ explanation: LeadScoreExplanation }> {
+  const response = await fetch(`/api/crm/leads/${id}/score`);
+  return parseResponse(response);
+}
+
+export type LeadScoreContribution = { ruleId: string | null; name: string; signalType: string; points: number; occurrences: number };
+
+export async function recalculateLeadScore(id: string, reason?: string): Promise<{
+  leadId: string;
+  score: number;
+  grade: string;
+  contributions: LeadScoreContribution[];
+  thresholds: { warm: number; hot: number; qualified: number };
+  calculatedAt: string;
+}> {
+  const response = await fetch(`/api/crm/leads/${id}/score`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  return parseResponse(response);
+}
+
+export async function dismissLeadDuplicate(id: string, matchedLeadId: string, reason: string): Promise<{ result: unknown }> {
+  const response = await fetch(`/api/crm/leads/${id}/duplicates/dismiss`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ matchedLeadId, reason }),
+  });
+  return parseResponse(response);
+}
+
+// F029 governed bulk edit — only sourceId/nextFollowUpAt/priority/rating
+// are supported (see lead-operations.js's normalizeLeadBulkChanges);
+// ownership/stage/qualification remain single-record governed actions.
+export type LeadBulkItemResult = { id: string; status: "applied" | "conflict" | "skipped" | "failed"; updatedAt?: string; code?: string; message?: string };
+export type LeadBulkSyncResult = { mode: "synchronous"; requested: number; updated: number; applied: number; conflict: number; skipped: number; failed: number; items: LeadBulkItemResult[] };
+export type LeadBulkJobResult = { mode: "asynchronous"; deduped: boolean; job: { id: string; status: string; progress: Record<string, unknown>; resultManifest: Record<string, unknown> } };
+
+export async function bulkUpdateLeads(
+  ids: string[],
+  changes: Record<string, unknown>,
+  expectedVersions: Record<string, string>,
+  idempotencyKey?: string,
+): Promise<LeadBulkSyncResult | LeadBulkJobResult> {
+  const response = await fetch("/api/crm/leads/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, changes, expectedVersions, idempotencyKey }),
+  });
+  return parseResponse(response);
+}

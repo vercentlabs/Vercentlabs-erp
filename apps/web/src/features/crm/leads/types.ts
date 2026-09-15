@@ -29,8 +29,10 @@ export type Lead = {
   status: string;
   /** F007 overall record lifecycle (e.g. active/converted/archived) — never a single merged enum with `status`. */
   recordStatus?: string;
-  /** F006 qualification decision — a distinct axis from `status`. */
-  qualificationStatus?: string | null;
+  /** F006 qualification decision — a distinct axis from `status`. Backed
+   * by the real `qualification_state` column (see lead-qualification.js);
+   * do not rename to "qualificationStatus", which is not a real field. */
+  qualificationState?: "not_reviewed" | "qualified" | "unqualified" | null;
   priority: "low" | "medium" | "high" | "urgent";
   rating: "cold" | "warm" | "hot" | null;
   ownerUserId: string | null;
@@ -49,6 +51,12 @@ export type Lead = {
   consentWhatsapp: boolean;
   doNotContact: boolean;
   customData: Record<string, unknown> | null;
+  /** F022: populated only once recordStatus is "converted" — see
+   * lead-conversion.js's convertCrmLead UPDATE of these three columns. */
+  convertedPartyId?: string | null;
+  convertedContactId?: string | null;
+  convertedOpportunityId?: string | null;
+  convertedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

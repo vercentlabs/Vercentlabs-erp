@@ -1,21 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Users } from "lucide-react";
+import { Archive, Plus, Users } from "lucide-react";
 import {
   Badge,
   Button,
   EnterpriseDataGrid,
   EnterpriseListPage,
   ErrorState,
+  IconButton,
   NoResultsState,
   PermissionState,
   SearchField,
   Select,
   StatusBadge,
+  TextField,
   type ActiveFilter,
   type SelectOption,
 } from "@vercentlabs/design-system";
@@ -23,7 +25,14 @@ import {
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { archiveLead, LeadApiError, listLeads } from "../api/leads-api";
+import {
+  archiveLead,
+  bulkUpdateLeads,
+  getCrmOptions,
+  LeadApiError,
+  listLeads,
+  type LeadBulkItemResult,
+} from "../api/leads-api";
 import type { Lead, LeadListFilters } from "../types";
 
 const PAGE_SIZE = 25;
@@ -36,12 +45,33 @@ const PRIORITY_OPTIONS: SelectOption[] = [
   { value: "low", label: "Low" },
 ];
 
+const RATING_OPTIONS: SelectOption[] = [
+  { value: "all", label: "Any rating" },
+  { value: "hot", label: "Hot" },
+  { value: "warm", label: "Warm" },
+  { value: "cold", label: "Cold" },
+];
+
 const FOLLOWUP_OPTIONS: SelectOption[] = [
   { value: "all", label: "Any follow-up" },
   { value: "overdue", label: "Overdue" },
   { value: "today", label: "Due today" },
   { value: "upcoming", label: "Upcoming" },
   { value: "none", label: "No follow-up set" },
+];
+
+const QUALIFICATION_OPTIONS: SelectOption[] = [
+  { value: "all", label: "Any qualification" },
+  { value: "not_reviewed", label: "Not reviewed" },
+  { value: "qualified", label: "Qualified" },
+  { value: "unqualified", label: "Unqualified" },
+];
+
+const BULK_FIELD_OPTIONS: SelectOption[] = [
+  { value: "priority", label: "Priority" },
+  { value: "rating", label: "Rating" },
+  { value: "sourceId", label: "Source" },
+  { value: "nextFollowUpAt", label: "Next follow-up date" },
 ];
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
@@ -55,22 +85,66 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
+function filtersFromSearchParams(params: URLSearchParams): LeadListFilters {
+  const filters: LeadListFilters = { limit: PAGE_SIZE, offset: 0 };
+  const search = params.get("search");
+  const status = params.get("status");
+  const ownerId = params.get("ownerId");
+  const sourceId = params.get("sourceId");
+  const priority = params.get("priority");
+  const rating = params.get("rating");
+  const followup = params.get("followup");
+  const qualification = params.get("qualification");
+  const offset = params.get("offset");
+  if (search) filters.search = search;
+  if (status) filters.status = status;
+  if (ownerId) filters.ownerId = ownerId;
+  if (sourceId) filters.sourceId = sourceId;
+  if (priority) filters.priority = priority;
+  if (rating) filters.rating = rating;
+  if (followup) filters.followup = followup as LeadListFilters["followup"];
+  if (qualification) filters.qualification = qualification as LeadListFilters["qualification"];
+  if (offset) filters.offset = Number(offset) || 0;
+  return filters;
+}
+
 export function LeadListScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManageLeads = workspace.permissions.includes(CRM_PERMISSIONS.leadsManage);
 
-  const [filters, setFilters] = useState<LeadListFilters>({ limit: PAGE_SIZE, offset: 0 });
-  const [searchInput, setSearchInput] = useState("");
+  const [filters, setFilters] = useState<LeadListFilters>(() => filtersFromSearchParams(searchParams));
+  const [searchInput, setSearchInput] = useState(filters.search ?? "");
   const [selection, setSelection] = useState<Record<string, boolean>>({});
-  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkField, setBulkField] = useState<string>("priority");
+  const [bulkValue, setBulkValue] = useState<string>("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ summary: string; failures: LeadBulkItemResult[] } | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  // URL-addressable list state (Tranche 9): every filter/page change is
+  // reflected in the URL so a saved link, browser back, or a reload all
+  // restore the exact same view.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== "" && value !== "all" && key !== "limit") params.set(key, String(value));
+    }
+    router.replace(`/crm/leads${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", filters),
     queryFn: () => listLeads(filters),
     placeholderData: (previous) => previous,
+  });
+
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "options"),
+    queryFn: getCrmOptions,
   });
 
   function updateFilter<K extends keyof LeadListFilters>(key: K, value: LeadListFilters[K]) {
@@ -81,11 +155,24 @@ export function LeadListScreen() {
     updateFilter("search", searchInput || undefined);
   }
 
+  const ownerOptions: SelectOption[] = useMemo(() => {
+    const rows = optionsQuery.data?.options?.users ?? [];
+    return [{ value: "all", label: "Any owner" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+  }, [optionsQuery.data]);
+
+  const stageOptions: SelectOption[] = useMemo(() => {
+    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ id: string; code: string; name: string; status: string }>;
+    return [{ value: "all", label: "Any stage" }, ...rows.filter((row) => row.status === "active").map((row) => ({ value: row.code, label: row.name }))];
+  }, [optionsQuery.data]);
+
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.priority && filters.priority !== "all") active.push({ id: "priority", label: `Priority: ${filters.priority}` });
-    if (filters.followup && filters.followup !== "all") active.push({ id: "followup", label: `Follow-up: ${filters.followup}` });
-    if (filters.qualification && filters.qualification !== "all") active.push({ id: "qualification", label: `Qualification: ${filters.qualification}` });
+    if (filters.status) active.push({ id: "status", label: `Stage: ${filters.status}` });
+    if (filters.ownerId) active.push({ id: "ownerId", label: "Owner filter" });
+    if (filters.priority) active.push({ id: "priority", label: `Priority: ${filters.priority}` });
+    if (filters.rating) active.push({ id: "rating", label: `Rating: ${filters.rating}` });
+    if (filters.followup) active.push({ id: "followup", label: `Follow-up: ${filters.followup}` });
+    if (filters.qualification) active.push({ id: "qualification", label: `Qualification: ${filters.qualification}` });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
   }, [filters]);
@@ -106,28 +193,46 @@ export function LeadListScreen() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
+  const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification);
 
-  async function bulkArchiveSelected() {
+  async function runBulkUpdate() {
+    if (!bulkValue && bulkField !== "nextFollowUpAt") return;
     setBulkBusy(true);
-    setBulkError(null);
+    setBulkResult(null);
     const targets = rows.filter((row) => selection[row.id]);
-    let succeeded = 0;
-    const failures: string[] = [];
-    for (const lead of targets) {
-      try {
-        await archiveLead(lead.id, lead.updatedAt);
-        succeeded += 1;
-      } catch (error) {
-        failures.push(`${lead.fullName || lead.firstName}: ${error instanceof LeadApiError ? error.message : "failed"}`);
-      }
-    }
-    setBulkBusy(false);
-    setSelection({});
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
-    if (failures.length > 0) {
-      setBulkError(
-        `${succeeded} of ${targets.length} leads archived. ${failures.length} could not be archived: ${failures.join("; ")}`,
+    const expectedVersions = Object.fromEntries(targets.map((row) => [row.id, row.updatedAt]));
+    try {
+      const result = await bulkUpdateLeads(
+        targets.map((row) => row.id),
+        { [bulkField]: bulkField === "nextFollowUpAt" ? bulkValue || null : bulkValue },
+        expectedVersions,
+        `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       );
+      if (result.mode === "synchronous") {
+        const failures = result.items.filter((item) => item.status !== "applied");
+        setBulkResult({
+          summary: `${result.applied} of ${result.requested} leads updated. ${result.conflict} changed since selection, ${result.skipped} out of scope, ${result.failed} failed.`,
+          failures,
+        });
+      } else {
+        setBulkResult({ summary: `Large selection queued as background job ${result.job.id} (status: ${result.job.status}).`, failures: [] });
+      }
+    } catch (error) {
+      setBulkResult({ summary: error instanceof LeadApiError ? error.message : "The bulk update could not be completed.", failures: [] });
+    } finally {
+      setBulkBusy(false);
+      setSelection({});
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
+    }
+  }
+
+  async function archiveRow(lead: Lead) {
+    setRowError(null);
+    try {
+      await archiveLead(lead.id, lead.updatedAt);
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
+    } catch (error) {
+      setRowError(error instanceof LeadApiError ? error.message : "This Lead could not be archived.");
     }
   }
 
@@ -149,6 +254,11 @@ export function LeadListScreen() {
         header: "Stage",
         accessorKey: "status",
         cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
+      },
+      {
+        id: "qualificationState",
+        header: "Qualification",
+        accessorFn: (row) => row.qualificationState || "not_reviewed",
       },
       {
         id: "priority",
@@ -195,7 +305,7 @@ export function LeadListScreen() {
       ? "permission-denied"
       : query.isError
         ? "error"
-        : rows.length === 0 && (filters.search || filters.priority || filters.followup || filters.qualification)
+        : rows.length === 0 && hasFilters
           ? "no-results"
           : rows.length === 0
             ? "empty"
@@ -222,22 +332,14 @@ export function LeadListScreen() {
               value={searchInput}
               onChange={setSearchInput}
               onKeyDown={(event) => event.key === "Enter" && submitSearch()}
-              className="min-w-[260px]"
+              className="min-w-[240px]"
             />
-            <Select
-              aria-label="Priority"
-              size="compact"
-              options={PRIORITY_OPTIONS}
-              selectedKey={filters.priority ?? "all"}
-              onSelectionChange={(key) => updateFilter("priority", key === "all" ? undefined : (String(key) as LeadListFilters["priority"]))}
-            />
-            <Select
-              aria-label="Follow-up"
-              size="compact"
-              options={FOLLOWUP_OPTIONS}
-              selectedKey={filters.followup ?? "all"}
-              onSelectionChange={(key) => updateFilter("followup", key === "all" ? undefined : (String(key) as LeadListFilters["followup"]))}
-            />
+            <Select aria-label="Stage" size="compact" options={stageOptions} selectedKey={filters.status ?? "all"} onSelectionChange={(key) => updateFilter("status", key === "all" ? undefined : String(key))} />
+            <Select aria-label="Qualification" size="compact" options={QUALIFICATION_OPTIONS} selectedKey={filters.qualification ?? "all"} onSelectionChange={(key) => updateFilter("qualification", key === "all" ? undefined : (String(key) as LeadListFilters["qualification"]))} />
+            <Select aria-label="Owner" size="compact" options={ownerOptions} selectedKey={filters.ownerId ?? "all"} onSelectionChange={(key) => updateFilter("ownerId", key === "all" ? undefined : String(key))} />
+            <Select aria-label="Priority" size="compact" options={PRIORITY_OPTIONS} selectedKey={filters.priority ?? "all"} onSelectionChange={(key) => updateFilter("priority", key === "all" ? undefined : (String(key) as LeadListFilters["priority"]))} />
+            <Select aria-label="Rating" size="compact" options={RATING_OPTIONS} selectedKey={filters.rating ?? "all"} onSelectionChange={(key) => updateFilter("rating", key === "all" ? undefined : String(key))} />
+            <Select aria-label="Follow-up" size="compact" options={FOLLOWUP_OPTIONS} selectedKey={filters.followup ?? "all"} onSelectionChange={(key) => updateFilter("followup", key === "all" ? undefined : (String(key) as LeadListFilters["followup"]))} />
           </>
         ),
         end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
@@ -247,16 +349,38 @@ export function LeadListScreen() {
         selectedCount: selectedIds.length,
         onClearSelection: () => setSelection({}),
         actions: (
-          <Button variant="danger" size="compact" onPress={bulkArchiveSelected} isLoading={bulkBusy} isDisabled={!canManageLeads}>
-            Archive selected
-          </Button>
+          <>
+            <Select aria-label="Bulk field" size="compact" options={BULK_FIELD_OPTIONS} selectedKey={bulkField} onSelectionChange={(key) => { setBulkField(String(key)); setBulkValue(""); }} />
+            {bulkField === "priority" ? (
+              <Select aria-label="New priority" size="compact" options={PRIORITY_OPTIONS.filter((o) => o.value !== "all")} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
+            ) : bulkField === "rating" ? (
+              <Select aria-label="New rating" size="compact" options={RATING_OPTIONS.filter((o) => o.value !== "all")} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
+            ) : (
+              <TextField aria-label="New value" size="compact" placeholder={bulkField === "nextFollowUpAt" ? "YYYY-MM-DD" : "Source id"} value={bulkValue} onChange={setBulkValue} className="w-40" />
+            )}
+            <Button variant="secondary" size="compact" onPress={runBulkUpdate} isLoading={bulkBusy} isDisabled={!canManageLeads}>
+              Apply to selected
+            </Button>
+          </>
         ),
       }}
     >
-      {bulkError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
-          {bulkError}
+      {rowError && (
+        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          {rowError}
         </p>
+      )}
+      {bulkResult && (
+        <div className="flex flex-col gap-1 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+          <p>{bulkResult.summary}</p>
+          {bulkResult.failures.length > 0 && (
+            <ul className="list-disc pl-5 text-xs">
+              {bulkResult.failures.map((item) => (
+                <li key={item.id}>{item.message || item.code || item.status}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       <EnterpriseDataGrid<Lead>
         aria-label="Leads"
@@ -286,6 +410,18 @@ export function LeadListScreen() {
         totalRowCount={total}
         onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
         onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
+        rowActions={
+          canManageLeads
+            ? (row) =>
+                row.recordStatus === "converted" || row.recordStatus === "archived" ? null : (
+                  <span onClick={(event) => event.stopPropagation()}>
+                    <IconButton aria-label={`Archive ${row.fullName || row.firstName}`} size="compact" variant="ghost" onPress={() => archiveRow(row)}>
+                      <Archive className="size-4" aria-hidden="true" />
+                    </IconButton>
+                  </span>
+                )
+            : undefined
+        }
         renderMobileCard={(row) => (
           <button
             type="button"

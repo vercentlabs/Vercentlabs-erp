@@ -69,20 +69,27 @@ export function EnterpriseDataGrid<TRow>({
         size: 40,
         enableResizing: false,
         header: ({ table }) => (
-          <Checkbox
-            aria-label="Select all rows"
-            isSelected={table.getIsAllRowsSelected()}
-            isIndeterminate={table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
-            onChange={(checked) => table.toggleAllRowsSelected(checked)}
-          />
+          // Selecting a row must never also trigger the row's own onRowClick
+          // navigation — the checkbox's native click bubbles to the <tr>
+          // otherwise, since AriaCheckbox renders a real clickable label.
+          <span onClick={(event) => event.stopPropagation()}>
+            <Checkbox
+              aria-label="Select all rows"
+              isSelected={table.getIsAllRowsSelected()}
+              isIndeterminate={table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
+              onChange={(checked) => table.toggleAllRowsSelected(checked)}
+            />
+          </span>
         ),
         cell: ({ row }) => (
-          <Checkbox
-            aria-label={`Select row ${row.id}`}
-            isSelected={row.getIsSelected()}
-            isDisabled={!row.getCanSelect()}
-            onChange={(checked) => row.toggleSelected(checked)}
-          />
+          <span onClick={(event) => event.stopPropagation()}>
+            <Checkbox
+              aria-label={`Select row ${row.id}`}
+              isSelected={row.getIsSelected()}
+              isDisabled={!row.getCanSelect()}
+              onChange={(checked) => row.toggleSelected(checked)}
+            />
+          </span>
         ),
       });
     }

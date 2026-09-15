@@ -6,7 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Checkbox,
+  ErrorState,
   NumberField,
+  PermissionState,
   RecordFormPage,
   Select,
   TextField,
@@ -62,7 +64,17 @@ function leadToFormValues(lead: Lead): LeadFormValues {
   };
 }
 
-export function LeadFormScreen({ mode, lead }: { mode: "create" | "edit"; lead?: Lead }) {
+export function LeadFormScreen({
+  mode,
+  lead,
+  canManage = true,
+  notFound = false,
+}: {
+  mode: "create" | "edit";
+  lead?: Lead;
+  canManage?: boolean;
+  notFound?: boolean;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
@@ -114,6 +126,16 @@ export function LeadFormScreen({ mode, lead }: { mode: "create" | "edit"; lead?:
       setServerError(error.message);
     },
   });
+
+  if (!canManage) {
+    return <PermissionState title={`You don't have access to ${mode === "create" ? "create" : "edit"} Leads`} description="Ask an administrator to grant CRM lead management access." />;
+  }
+  if (mode === "edit" && notFound) {
+    return <ErrorState title="Lead not found" description="This Lead may have been merged, converted, or removed." action={{ label: "Back to Leads", onPress: () => router.push("/crm/leads") }} />;
+  }
+  if (mode === "edit" && lead && (lead.recordStatus === "converted" || lead.recordStatus === "archived")) {
+    return <ErrorState title="This Lead can no longer be edited" description={`This Lead is ${lead.recordStatus} and is read-only.`} action={{ label: "Back to Lead", onPress: () => router.push(`/crm/leads/${lead.id}`) }} />;
+  }
 
   return (
     <RecordFormPage

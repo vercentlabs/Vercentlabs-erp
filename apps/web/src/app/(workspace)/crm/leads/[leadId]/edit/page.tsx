@@ -1,6 +1,5 @@
 import { getCrmRecord } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { ErrorState, PermissionState } from "@vercentlabs/design-system";
 
 import { withClient } from "@/core/db";
 import { requireWorkspace } from "@/core/session";
@@ -10,21 +9,21 @@ import type { Lead } from "@/features/crm/leads/types";
 
 export const metadata = { title: "Edit lead" };
 
+// Never import @vercentlabs/design-system from a server component (see
+// new/page.tsx's comment) — every not-found/closed/permission state is
+// rendered by the client LeadFormScreen instead of here.
 export default async function EditLeadPage({ params }: { params: Promise<{ leadId: string }> }) {
   const session = await requireWorkspace();
   const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.leadsManage);
-  if (!canManage) {
-    return <PermissionState title="You don't have access to edit Leads" description="Ask an administrator to grant CRM lead management access." />;
-  }
   const { leadId } = await params;
-  let lead: Lead;
-  try {
-    lead = await withClient((client) => getCrmRecord(client, crmContext(session), "leads", leadId));
-  } catch {
-    return <ErrorState title="Lead not found" description="This Lead may have been merged, converted, or removed." />;
+  let lead: Lead | null = null;
+  let notFound = false;
+  if (canManage) {
+    try {
+      lead = await withClient((client) => getCrmRecord(client, crmContext(session), "leads", leadId));
+    } catch {
+      notFound = true;
+    }
   }
-  if (lead.recordStatus === "converted" || lead.recordStatus === "archived") {
-    return <ErrorState title="This Lead can no longer be edited" description={`This Lead is ${lead.recordStatus} and is read-only.`} />;
-  }
-  return <LeadFormScreen mode="edit" lead={lead} />;
+  return <LeadFormScreen mode="edit" lead={lead ?? undefined} canManage={canManage} notFound={notFound} />;
 }
