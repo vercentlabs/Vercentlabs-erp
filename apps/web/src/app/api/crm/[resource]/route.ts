@@ -24,6 +24,8 @@ const LIST_FILTER_KEYS = [
   "committeeId",
   "teamId",
   "territoryId",
+  "partyId",
+  "accountPlanId",
 ] as const;
 
 function parseListFilters(url: URL) {

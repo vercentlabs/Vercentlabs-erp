@@ -64,3 +64,39 @@ test("F020: a teamId filter has no effect on a resource with no team_id column (
   const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_territories"));
   assert.ok(!select.sql.includes("team_id ="), "teamId must only apply to resources that actually declare a team_id field");
 });
+
+// F002 Tranche E — the same reasoning applied to account-plans/
+// account-stakeholders/communications (each row belongs to exactly one
+// Account or account plan).
+const partyId = "55555555-5555-4555-8555-555555555555";
+const accountPlanId = "66666666-6666-4666-8666-666666666666";
+
+test("F002: listing account-plans with partyId scopes the query to that account, not the whole organization", async () => {
+  const client = createClient();
+  await listCrmRecords(client, context, "account-plans", { partyId });
+  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_account_plans"));
+  assert.ok(select.sql.includes("party_id ="), "the SQL must filter on party_id, not just organization_id");
+  assert.ok(select.values.includes(partyId), "partyId must be bound as a real parameter");
+});
+
+test("F002: listing account-stakeholders with accountPlanId scopes the query to that plan, not the whole organization", async () => {
+  const client = createClient();
+  await listCrmRecords(client, context, "account-stakeholders", { accountPlanId });
+  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_account_stakeholders"));
+  assert.ok(select.sql.includes("account_plan_id ="), "the SQL must filter on account_plan_id, not just organization_id");
+  assert.ok(select.values.includes(accountPlanId), "accountPlanId must be bound as a real parameter");
+});
+
+test("F002: listing communications with partyId scopes the query to that account", async () => {
+  const client = createClient();
+  await listCrmRecords(client, context, "communications", { partyId });
+  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_communications"));
+  assert.ok(select.sql.includes("party_id ="), "the SQL must filter on party_id, not just organization_id");
+});
+
+test("F002: a partyId filter has no effect on a resource with no party_id column (e.g. sales-teams)", async () => {
+  const client = createClient();
+  await listCrmRecords(client, context, "sales-teams", { partyId });
+  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_sales_teams"));
+  assert.ok(!select.sql.includes("party_id ="), "partyId must only apply to resources that actually declare a party_id field");
+});

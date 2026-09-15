@@ -74,7 +74,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | Feature | Name | Status | Notes |
 |---|---|---|---|
 | F001 | Leads | IN_PROGRESS | List/360/create/edit/assign/stage/qualify/score/duplicates/convert all real. Missing: saved views, custom fields/tags rendering, notes/attachments/communications composed into the 360, enrichment-review UI (backend route exists), SLA UI, mobile audit, full negative-permission test pass, formal Playwright. |
-| F002 | Accounts / companies | IN_PROGRESS | List/360/create/edit built on the real CRM-native governed layer (account-operations.js): search/industry/country/status filters, sensitive-field projection, optimistic concurrency, archive. Missing: hierarchy (parent/children/cycle prevention — unclear if business_parties even models this; needs dossier re-check), stakeholders, account plans, duplicate-check-on-create UI (create-time exact-duplicate block exists server-side but no pre-submission warning UI like Lead has), notes/attachments/communications, merge. |
+| F002 | Accounts / companies | IN_PROGRESS | List/360/create/edit on the real CRM-native governed layer (account-operations.js), plus Notes/Attachments/Custom-fields from Tranches A/B (`entityType="party"`). **Tranche E (Stage A) closed the rest**: `getAccountHierarchy`/`setAccountParent`/`previewAccountMergeForCaller`/`mergeAccountsGoverned` (`account-intelligence.js`) and `findAccountDuplicates` (`duplicate-matching.js`) were ALL already real, already-tested, already-cycle-guarded backend services (`business_parties.parent_party_id` has had a DB-trigger cycle guard since migration `029_crm_account_intelligence_privacy.sql` — the prior pass's "unclear if business_parties even models this" was wrong, corrected honestly here) with **zero frontend wiring** — confirmed by grep, not assumed. Built 3 new routes (`accounts/[id]/hierarchy`, `accounts/merge/preview`, `accounts/merge`) plus a duplicates route, and four new Account-360 sections: `AccountHierarchyPanel` (ancestor breadcrumb, child list, parent picker, history), `AccountDuplicatesPanel` (possible-duplicate banner + merge dialog with field-selection and impact preview), `AccountPlanPanel` (`crm_account_plans`/`crm_account_stakeholders` — also pre-existing, zero-wired resources), `AccountCommunicationsPanel` (read-only — `crm_communications` is sync-populated, not manually entered). Also added `partyId`/`accountPlanId` to `buildFilters` (mirroring `teamId`/`territoryId` from Tranche D) — without it, an account plan/stakeholder/communications list would have returned every account's rows across the organization. 4 new backend filter-scoping tests. The duplicate-check is post-creation (on the 360, same as Lead), not pre-submission on create — checked and found Lead has no pre-submission duplicate UI either (the prior register's own comparison was factually wrong), so this is genuine parity, not a new gap. |
 | F003 | Contacts | IN_PROGRESS | List/360/create/edit built (contact-operations.js): account linkage, primary flag, archive/reactivate. Missing: multi-account stakeholder roles, duplicate-check UI, notes/attachments/communications, merge. |
 | F004 | Lead sources | IN_PROGRESS | `/crm/settings/lead-sources` built (Prompt 3 Stage A). Real governed setup screen against the DEDICATED `lead-source-operations.js` module (`listCrmLeadSources`/`createCrmLeadSource`/`updateCrmLeadSource`/`setCrmLeadSourceActive`) — confirmed the generic `/api/crm/[resource]` boundary already redirects `"sources"` mutations to `CRM_LEAD_SOURCE_API_MOVED` (410) specifically so this richer module stays canonical (default-source uniqueness, lead-count-in-use, sort order), so the earlier register note ("likely exists via generic resource routes, unverified") was itself imprecise — corrected here. List + create + activate/deactivate; no edit-description/sort-order UI yet (disclosed gap). |
 | F005 | Lead assignment | IN_PROGRESS | Real eligible-list assignment + reason; no full policy-rule setup UI, no explain-trace UI, no out-of-directory override UI |
@@ -892,6 +892,72 @@ resource exists but isn't surfaced here — F020-CAP-002's own dossier
 scope, `quotas`, remains a disclosed partial); coverage-gap detection;
 cross-check against F005 assignment / F025 forecast consumption
 (F020-CAP-003/INT-001, not audited this pass).
+
+## Tranche E: F002 Accounts deep closure (Stage A)
+
+Another F012/F017-shaped discovery: `account-intelligence.js` is a large,
+mature, already-tested module (`crm-account-hierarchy-f002.test.mjs`,
+`crm-merge-survivorship.test.mjs` predate this session) covering account
+hierarchy, account/contact merge, Customer 360, and privacy-request
+workflows — exported from the top-level `services/api/src/index.js`
+correctly — but grepping `apps/web/src` for every one of its exports
+(`getAccountHierarchy`, `setAccountParent`, `mergeAccountsGoverned`,
+`previewAccountMergeForCaller`, `getCustomer360`) returned zero matches.
+Same for `findAccountDuplicates` and the `account-plans`/
+`account-stakeholders` generic resources. This tranche wired the F002
+subset of that surface (hierarchy, merge, duplicates, plans/stakeholders,
+communications); `getCustomer360`/privacy-request workflows are a
+separate, larger surface not required by F002 specifically and left for
+a dedicated pass.
+
+Built:
+- `apps/web/src/app/api/crm/accounts/[id]/hierarchy/route.ts` (GET/PATCH,
+  PATCH gated by `crm.accounts.manage`, matching the existing Account
+  PATCH/DELETE convention).
+- `apps/web/src/app/api/crm/accounts/merge/preview/route.ts` (POST,
+  module-access-only, uses `previewAccountMergeForCaller` — never the raw
+  `previewAccountMerge`, per that function's own CRM-VNEXT-085 comment
+  about not leaking unprojected sensitive fields to the browser) and
+  `.../merge/route.ts` (POST, gated by `crm.accounts.manage`).
+- `apps/web/src/app/api/crm/accounts/duplicates/route.ts` (POST,
+  module-access-only, mirrors `/api/crm/leads/duplicates` exactly).
+- `AccountHierarchyPanel.tsx`, `AccountDuplicatesPanel.tsx` (+ inline
+  merge dialog with per-field source/survivor selection and a
+  row-impact-count preview before committing), `AccountPlanPanel.tsx`
+  (plan fields + a stakeholders sub-list with add/remove), and
+  `AccountCommunicationsPanel.tsx` (deliberately read-only — the table is
+  sync-populated via `provider`/`provider_message_id`, not user-entered)
+  — all composed into `AccountDetailScreen.tsx`.
+- `resource-query-service.js`'s `buildFilters` gained `partyId`→`party_id`
+  and `accountPlanId`→`account_plan_id`, alongside Tranche D's
+  `teamId`/`territoryId`, in the same key-column loop — same reasoning:
+  without it, listing one account's plan/stakeholders/communications
+  would return every account's rows in the organization.
+
+Note on `account-intelligence.js`'s own data shape: unlike every other
+CRM service function in this codebase, it does **not** call
+`camelizeRow` — hierarchy/merge-preview payloads are raw
+`tenant.business_parties` rows (`display_name`, `parent_party_id`, etc).
+The new frontend types (`AccountHierarchy`, `AccountHierarchyNode`,
+`AccountMergePreview`) are deliberately snake_case to match reality
+rather than silently assuming the camelCase convention used everywhere
+else and getting it wrong.
+
+`findAccountDuplicates` has no restricted-match/sensitive-projection
+layer of its own (unlike the Lead duplicate finder) — confirmed by
+reading its source, not fixed this pass (would be a change to
+pre-existing, already-tested backend logic, out of this tranche's
+scope); disclosed in `AccountDuplicatesPanel.tsx`'s own comment and in
+the traceability override below rather than silently shipped.
+
+Full `services/api` suite: 1037/1037 passing (1033 prior + 4 new). Web
+typecheck, ESLint, `verify:routes`, `verify:no-legacy-frontend`, and
+`verify:architecture`: all clean.
+
+Not built this tranche: `getCustomer360` and the privacy-request/
+retention workflows (a separate, larger surface, not required by F002
+itself); Communications creation (deliberately out of scope — it is a
+sync target, not a user-entered record).
 
 ## Mandatory-gap candidates
 

@@ -46,3 +46,106 @@ export type AccountListResponse = {
   offset: number;
   filters: { industries: string[]; countries: string[] };
 };
+
+// account-intelligence.js (getAccountHierarchy/previewAccountMergeForCaller)
+// returns RAW tenant.business_parties rows — this file is the one place in
+// the CRM backend that does not run camelizeRow — so these types are
+// deliberately snake_case, not a typo relative to the camelCase convention
+// used everywhere else in this codebase.
+export type AccountHierarchyNode = {
+  id: string;
+  parent_party_id: string | null;
+  display_name: string;
+  legal_name: string | null;
+  party_type: string;
+  status: string;
+  depth: number;
+};
+
+export type AccountHierarchyEvent = {
+  id: string;
+  action: "parent_set" | "parent_cleared";
+  previous_parent_name: string | null;
+  new_parent_name: string | null;
+  reason: string | null;
+  changed_by_name: string | null;
+  changed_at: string;
+};
+
+export type AccountHierarchy = {
+  account: Record<string, unknown> & { id: string; display_name: string; parent_party_id: string | null };
+  ancestors: AccountHierarchyNode[];
+  descendants: AccountHierarchyNode[];
+  history: AccountHierarchyEvent[];
+  metrics: { ancestorCount: number; descendantCount: number; hierarchyDepth: number };
+};
+
+export type AccountDuplicateMatch = {
+  id: string;
+  code: string;
+  display_name: string;
+  legal_name: string | null;
+  gstin: string | null;
+  pan: string | null;
+  match_score: number;
+  matched_signals: string[];
+};
+
+export type AccountMergePreview = {
+  source: Record<string, unknown> & { id: string };
+  survivor: Record<string, unknown> & { id: string };
+  impact: { tableName: string; columnName: string; count: number }[];
+  fieldComparison: Record<string, { source: unknown; survivor: unknown }>;
+};
+
+export type AccountPlan = {
+  id: string;
+  companyId: string | null;
+  partyId: string;
+  ownerUserId: string | null;
+  executiveSponsorUserId: string | null;
+  accountTier: string | null;
+  lifecycleStage: string | null;
+  objectives: string | null;
+  risks: string | null;
+  whiteSpace: string | null;
+  successPlan: string | null;
+  renewalDate: string | null;
+  annualRevenue: number | string | null;
+  potentialRevenue: number | string | null;
+  healthScore: number | null;
+  healthStatus: string | null;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountStakeholder = {
+  id: string;
+  companyId: string | null;
+  accountPlanId: string;
+  contactId: string | null;
+  name: string;
+  title: string | null;
+  stakeholderRole: string | null;
+  influenceLevel: string | null;
+  sentiment: string | null;
+  relationshipOwnerUserId: string | null;
+  engagementScore: number | null;
+  notes: string | null;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+
+export type AccountCommunication = {
+  id: string;
+  channel: string;
+  direction: string;
+  subject: string | null;
+  fromAddress: string | null;
+  occurredAt: string;
+  status: string;
+};

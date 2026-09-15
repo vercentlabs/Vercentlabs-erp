@@ -87,6 +87,15 @@ export function buildFilters(
     // not just a UX inconvenience.
     ["teamId", "team_id"],
     ["territoryId", "territory_id"],
+    // F002 Tranche E (Stage A) — same reasoning for account-plans/
+    // account-stakeholders/communications: each row belongs to exactly one
+    // Account (party_id) or, for stakeholders, one account plan
+    // (account_plan_id). Without these keys an Account 360's plan/
+    // stakeholder/communications panel would have had to list the whole
+    // organization's rows and filter client-side, which is both wasteful
+    // and a real cross-account data exposure over the wire.
+    ["partyId", "party_id"],
+    ["accountPlanId", "account_plan_id"],
   ]) {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;

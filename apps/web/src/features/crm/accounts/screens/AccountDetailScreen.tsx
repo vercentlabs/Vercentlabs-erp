@@ -13,6 +13,10 @@ import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { AccountApiError, archiveAccount, getAccount } from "../api/accounts-api";
+import { AccountHierarchyPanel } from "../components/AccountHierarchyPanel";
+import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
+import { AccountPlanPanel } from "../components/AccountPlanPanel";
+import { AccountCommunicationsPanel } from "../components/AccountCommunicationsPanel";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -94,6 +98,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
             {actionError}
           </p>
         )}
+        <AccountDuplicatesPanel account={account} canManage={canManage} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Legal name" value={account.legalName} />
           <Field label="Website" value={account.website} />
@@ -115,12 +120,24 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           </button>
         </div>
         <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Hierarchy</p>
+          <AccountHierarchyPanel accountId={accountId} canManage={canManage} />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Account plan</p>
+          <AccountPlanPanel accountId={accountId} canManage={canManage} />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Notes</p>
           <NotesPanel entityType="party" entityId={accountId} />
         </div>
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Attachments</p>
           <CrmAttachmentPanel entityType="party" entityId={accountId} />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Communications</p>
+          <AccountCommunicationsPanel accountId={accountId} />
         </div>
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Custom fields</p>
