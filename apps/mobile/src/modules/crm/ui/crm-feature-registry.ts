@@ -30,7 +30,7 @@ export const CRM_MOBILE_FEATURES: readonly CrmMobileFeature[] = [
   { id: "F005", label: "Lead assignment", group: "Setup", support: "web-workspace", description: "Ownership and routing rules.", webPath: "/crm/assignment-rules" },
   { id: "F006", label: "Lead qualification", group: "Customers", support: "web-workspace", description: "Commercial-readiness decisions.", webPath: "/crm/qualification-criteria" },
   { id: "F007", label: "Lead lifecycle", group: "Setup", support: "web-workspace", description: "Lifecycle stages and transitions.", webPath: "/crm/lead-lifecycle" },
-  { id: "F008", label: "Duplicate management", group: "Data", support: "web-workspace", description: "Detect, review and merge duplicate records.", webPath: "/crm/duplicate-rules" },
+  { id: "F008", label: "Duplicate management", group: "Data", support: "web-workspace", description: "Detect, review and merge duplicate records.", webPath: "/crm/data/duplicates" },
   { id: "F009", label: "Opportunities", group: "Pipeline", support: "native", description: "Qualified revenue opportunities.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/opportunities" },
   { id: "F010", label: "Pipeline", group: "Pipeline", support: "native", description: "Stage-based revenue execution.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/pipeline" },
   { id: "F011", label: "Probability & expected revenue", group: "Pipeline", support: "native-read", description: "Probability-weighted opportunity value.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/pipeline" },

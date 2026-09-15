@@ -80,7 +80,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F005 | Lead assignment | IN_PROGRESS | Real eligible-list assignment + reason; no full policy-rule setup UI, no explain-trace UI, no out-of-directory override UI |
 | F006 | Lead qualification | IN_PROGRESS | Full decide/readiness/override/history UI this pass. No criteria/playbook setup UI. |
 | F007 | Lead lifecycle | IN_PROGRESS | Governed "Move to stage", dwell, reason codes, history this pass. No stage/transition setup UI. |
-| F008 | Duplicate handling | IN_PROGRESS | Lead-only so far (dismiss/merge/override). Account/Contact duplicate workspace not started. |
+| F008 | Duplicate handling | IN_PROGRESS | Per-record duplicate banners now exist on all three entities (Lead: dismiss/merge, pre-existing; Account/Contact: merge, built in Tranches E/F). **Tranche G (Stage A)** adds the standalone workspace the dossier's `F008-UX-001` calls for: `/crm/data/duplicates` (previously `planned` in the nav registry, now `available`) — pick a record type, search, select a record, resolve its duplicates from one dedicated screen, reusing the exact same governed engine and resolution panels (no fuzzy-matching logic duplicated in the browser). Found and fixed a real stale mobile deep link: `apps/mobile/.../crm-feature-registry.ts`'s F008 entry pointed `webPath` at `/crm/duplicate-rules`, a route that has never existed — corrected to the real `/crm/data/duplicates`. Candidate discovery is search-driven (find a record, see its candidates), not a full-database pairwise scan — no backend function for the latter exists, and building one is a materially larger, separate capability, not a wiring gap; disclosed rather than silently substituted. |
 | F009 | Opportunities | IN_PROGRESS | List/360(Overview/Pipeline/Activity tabs)/create/edit built on the generic CRM resource boundary (opportunities IS a CRM_RESOURCE_KEYS resource, unlike Account/Contact). Missing: risks/intelligence panels, notes/attachments/communications, related quotation lineage display (F023 dependency). |
 | F010 | Pipeline | IN_PROGRESS | Real board (`/crm/pipeline`) grouped by actual configured pipeline/stage, non-drag "Move to stage…" per card (keyboard-operable Select+button, no drag-only path) — real amount totals per column. **Fixed this pass, per the mega-prompt's explicit instruction**: moving a card directly into a Won/Lost stage now prompts inline for the outcome reason (same governed `moveOpportunityStage` call, same `CRM_OUTCOME_REASON_REQUIRED` server-side rule as the Opportunity 360) — previously this was a real bug, not just a disclosed gap: the board called the same governed function without a reason, which the backend already rejected, so a user selecting a terminal stage from the board hit an unexplained error with no way to complete it. Missing: owner/team filters, per-stage aging/dwell indicators. |
 | F011 | Probability / expected revenue | IN_PROGRESS | Manual override wired to the real governed updateOpportunityProbability action with concurrency check; stage-default probability display exists via the stage's own probability field in options. History view not built. |
@@ -995,6 +995,46 @@ left unmentioned.
 
 Full `services/api` suite: 1038/1038 passing (1037 prior + 1 new). Web
 typecheck, ESLint, `verify:routes`: all clean.
+
+## Tranche G: F008 cross-entity duplicates workspace (Stage A)
+
+Built `/crm/data/duplicates` (`DuplicatesWorkspaceScreen.tsx`): a
+record-type selector (Lead/Account/Contact), a search box, and a result
+list; selecting a record renders that entity's existing duplicate-
+resolution panel. For Account/Contact this reuses
+`AccountDuplicatesPanel`/`ContactDuplicatesPanel` unchanged (built in
+Tranches E/F). For Lead, rather than extracting `LeadDetailScreen.tsx`'s
+existing inline dismiss/merge block — a refactor of an already-shipped
+screen with no dedicated frontend test coverage, real regression risk
+for a purely cosmetic DRY win — built a new, self-contained
+`LeadDuplicatesWorkspacePanel.tsx` calling the exact same backend
+functions (`findLeadDuplicates`/`dismissLeadDuplicate`/`mergeLead`).
+Deliberate, disclosed duplication of JSX (not logic) rather than a
+same-tranche refactor of untested-by-automation code.
+
+Flipped the nav registry's F008 entry from `planned` to `available`
+(`module-navigation-registry.ts`) and, while checking the mobile
+deep-link registry per the mega-prompt's own navigation checkpoint,
+found it was already stale in a way unrelated to this session's own
+work: `apps/mobile/.../crm-feature-registry.ts`'s F008 row pointed at
+`/crm/duplicate-rules`, a path that has never existed as a real route —
+corrected to `/crm/data/duplicates`. `apps/mobile` typecheck: clean.
+
+No new backend code this tranche — `findLeadDuplicates`/
+`findAccountDuplicates`/`findContactDuplicates`/`dismissLeadDuplicate`/
+`mergeLead`/`mergeAccountsGoverned`/`mergeContactsGoverned` were all
+already built and wired by prior work (this session's Tranches E/F, plus
+Lead's pre-existing dismiss/merge). Full `services/api` suite still
+1038/1038 (no backend files touched, run as a checkpoint sanity check,
+not because anything changed). Web typecheck, ESLint, `verify:routes`:
+clean.
+
+Not built this tranche: a full-database pairwise duplicate scan
+(surfacing every candidate pair across the organization without the
+user searching for a starting record first) — no backend aggregation
+function for this exists; would be a materially larger, separate
+capability than "wire an existing engine into a dedicated screen,"
+disclosed rather than faked with a client-side full-list scan.
 
 ## Mandatory-gap candidates
 

@@ -131,7 +131,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F027-F028",
         items: [
           available("Imports & Exports", "/crm/data/import-export"),
-          planned("Duplicate Management", "/crm/data/duplicates"),
+          available("Duplicate Management", "/crm/data/duplicates"),
         ],
       },
       {
