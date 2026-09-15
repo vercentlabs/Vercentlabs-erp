@@ -64,6 +64,12 @@ export function SalesOrganizationSettingsScreen() {
   }
   function handleError(err: unknown) {
     setError(err instanceof SettingsApiError ? err.message : "This action could not be completed.");
+    // A stale-write conflict means a row's local updatedAt is already
+    // wrong — refetch both lists so the next attempt uses current data.
+    if (err instanceof SettingsApiError && err.code === "CRM_STALE_WRITE") {
+      invalidateTeams();
+      invalidateTerritories();
+    }
   }
 
   const archiveTeamMutation = useMutation({ mutationFn: (team: SalesTeam) => archiveSalesTeam(team.id, team.updatedAt), onSuccess: invalidateTeams, onError: handleError });

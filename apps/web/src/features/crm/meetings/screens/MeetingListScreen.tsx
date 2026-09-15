@@ -61,6 +61,10 @@ export function MeetingListScreen() {
 
   function handleError(error: unknown) {
     setActionError(error instanceof MeetingApiError ? error.message : "This action could not be completed.");
+    // A stale-write conflict means this row's local updatedAt is already
+    // wrong — refetch so the next attempt uses current data instead of
+    // failing the same way again.
+    if (error instanceof MeetingApiError && error.code === "CRM_STALE_WRITE") invalidate();
   }
 
   const startMutation = useMutation({ mutationFn: (meeting: Meeting) => startMeeting(meeting.id, meeting.updatedAt), onSuccess: invalidate, onError: handleError });

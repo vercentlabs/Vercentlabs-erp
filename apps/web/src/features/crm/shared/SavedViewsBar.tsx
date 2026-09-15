@@ -38,6 +38,7 @@ export function SavedViewsBar<TFilters extends Record<string, unknown>>({
   const [createOpen, setCreateOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [appliedDefault, setAppliedDefault] = useState(false);
+  const [manageError, setManageError] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "saved-views", resource),
@@ -81,8 +82,16 @@ export function SavedViewsBar<TFilters extends Record<string, unknown>>({
   const deleteMutation = useMutation({
     mutationFn: (view: CrmSavedView) => deleteSavedView(view.id, view.updatedAt),
     onSuccess: (_, view) => {
+      setManageError(null);
       invalidate();
       if (activeViewId === view.id) selectView(ALL_VIEW_ID);
+    },
+    onError: (err: unknown) => {
+      // A stale-write conflict here means this row's local updatedAt is
+      // already wrong — refetch so the list (and the next delete attempt)
+      // reflects current data instead of failing the same way again.
+      setManageError(err instanceof SavedViewApiError ? err.message : "This view could not be deleted.");
+      invalidate();
     },
   });
 
@@ -107,19 +116,26 @@ export function SavedViewsBar<TFilters extends Record<string, unknown>>({
       />
 
       <Dialog isOpen={manageOpen} onOpenChange={setManageOpen} title="Manage saved views">
-        <div className="flex flex-col divide-y divide-border">
-          {rows.map((row) => (
-            <div key={row.id} className="flex items-center justify-between gap-2 py-2">
-              <span className="text-sm text-text">
-                {row.name}
-                {row.isDefault && <span className="ml-1.5 text-xs text-text-muted">(default)</span>}
-              </span>
-              <IconButton aria-label={`Delete ${row.name}`} size="compact" variant="danger" onPress={() => deleteMutation.mutate(row)} isDisabled={deleteMutation.isPending}>
-                <Trash2 className="size-4" aria-hidden="true" />
-              </IconButton>
-            </div>
-          ))}
-          {rows.length === 0 && <p className="py-2 text-sm text-text-muted">No saved views yet.</p>}
+        <div className="flex flex-col gap-2">
+          {manageError && (
+            <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+              {manageError}
+            </p>
+          )}
+          <div className="flex flex-col divide-y divide-border">
+            {rows.map((row) => (
+              <div key={row.id} className="flex items-center justify-between gap-2 py-2">
+                <span className="text-sm text-text">
+                  {row.name}
+                  {row.isDefault && <span className="ml-1.5 text-xs text-text-muted">(default)</span>}
+                </span>
+                <IconButton aria-label={`Delete ${row.name}`} size="compact" variant="danger" onPress={() => deleteMutation.mutate(row)} isDisabled={deleteMutation.isPending}>
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </IconButton>
+              </div>
+            ))}
+            {rows.length === 0 && <p className="py-2 text-sm text-text-muted">No saved views yet.</p>}
+          </div>
         </div>
       </Dialog>
     </div>

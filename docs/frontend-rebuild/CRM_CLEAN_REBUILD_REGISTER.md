@@ -452,6 +452,56 @@ the offline-sync route works end-to-end against a real mobile client,
 no review of the mobile app's native screens themselves (leads/pipeline/
 activities tabs) beyond the feature-registry deep-link audit above.
 
+## Tranche 11: Concurrency/offline audit across all new screens
+
+Grepped every session-built screen for `CRM_STALE_WRITE` handling and
+found only Lead/Account/Contact/Opportunity (pre-existing, earlier-
+prompt-built detail+form screens) explicitly detect it and show a
+`ConflictBanner`-style reload prompt. None of this session's screens
+did. Investigated the actual user impact rather than assuming a full
+`ConflictBanner` retrofit was warranted: none of this session's new
+screens has an edit FORM with a real risk of silently overwriting a
+concurrent change (Calls/Meetings/Tasks/Follow-ups have no edit form at
+all, a disclosed gap already recorded per-feature); the real risk is
+narrower — an inline lifecycle action (start/complete/cancel/archive/
+delete) failing against a stale `updatedAt` and leaving the same stale
+row in the list, so retrying the identical action fails the same way
+again. The backend's own message for this
+(`resource-validation.js`: `"This {X} changed after you loaded it.
+Refresh and try again."`) is already clear and actionable — every
+screen was already surfacing it as-is via `error.message`. The gap was
+narrower: nothing then refetched the list.
+
+**Fixed**: `CallListScreen`, `MeetingListScreen`, `TaskListScreen`,
+`FollowUpListScreen`, `SalesOrganizationSettingsScreen` (Territories &
+Sales Teams) and `CustomFieldsAndTagsSettingsScreen` now call their
+query invalidation on a `CRM_STALE_WRITE` error specifically, so the
+list re-syncs to the server's current state and the next attempt uses
+fresh data instead of repeating the same failure.
+
+**Also found and fixed a plain (non-concurrency) silent-failure bug**
+while doing this audit: `NotesPanel`'s create mutation had no `onError`
+handler at all — a failed note (permission denial, validation, network)
+left the composer looking like it had worked, with the typed text
+simply gone (`CommentThread` clears its draft optimistically on
+submit) and zero indication anything went wrong. Added an error banner;
+this does not restore the lost draft (fixing that would mean changing
+`CommentThread`'s own behavior, a shared design-system component used
+elsewhere — out of scope for this audit) but at least tells the user
+their note did not save. `SavedViewsBar`'s delete mutation had the same
+silent-failure gap (no `onError` at all); fixed the same way, plus a
+refetch on conflict.
+
+**Not done in this pass** (disclosed, not silently skipped): no
+dedicated `ConflictBanner`-quality UI (a named "someone else changed
+this" banner with an explicit Reload button, matching Lead/Account/
+Opportunity's pattern) was added to any of these screens — the fix
+here is functionally equivalent (the list silently re-syncs) but not
+visually distinguished from an ordinary refresh. No offline/network-
+loss banner (`OfflineBanner`) was added anywhere in the CRM screens
+this session touched; every screen still shows a generic error message
+for a network failure rather than a dedicated "you're offline" state.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
@@ -476,7 +526,7 @@ as a defect.
 8. CRM Home — done; global Search + Command Menu + Quick Create investigated and deliberately deferred to a cross-module platform prompt (see that section above) — not CRM-scoped work
 9. Saved views + URL state generalization — done for Leads and Opportunities (see the new section below); not yet composed into Accounts/Contacts/Tasks/Calls/Meetings/Follow-ups/Communications
 10. Mobile web + apps/mobile audit — done (see the new section below); a real missing route and stale mobile-side deep links found and fixed, not just reviewed clean
-11. Concurrency/offline audit across all new screens
+11. Concurrency/offline audit across all new screens — done (see the new section below); real fixes applied, not just reviewed clean
 12. Security negative-test pass
 13. Formal Playwright + axe
 14. Visual QA at 1440/1024/390

@@ -61,6 +61,10 @@ export function CallListScreen() {
 
   function handleError(error: unknown) {
     setActionError(error instanceof CallApiError ? error.message : "This action could not be completed.");
+    // A stale-write conflict means this row's local updatedAt is already
+    // wrong — refetch so the next attempt uses current data instead of
+    // failing the same way again.
+    if (error instanceof CallApiError && error.code === "CRM_STALE_WRITE") invalidate();
   }
 
   const startMutation = useMutation({ mutationFn: (call: Call) => startCall(call.id, call.updatedAt), onSuccess: invalidate, onError: handleError });

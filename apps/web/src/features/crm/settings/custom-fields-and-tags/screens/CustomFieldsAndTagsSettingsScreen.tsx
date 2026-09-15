@@ -91,6 +91,13 @@ export function CustomFieldsAndTagsSettingsScreen() {
   }
   function handleError(err: unknown) {
     setError(err instanceof SettingsApiError ? err.message : "This action could not be completed.");
+    // A stale-write conflict means a row's local updatedAt is already
+    // wrong — refetch every list so the next attempt uses current data.
+    if (err instanceof SettingsApiError && err.code === "CRM_STALE_WRITE") {
+      invalidateTags();
+      invalidateObjects();
+      invalidateFields();
+    }
   }
 
   const archiveTagMutation = useMutation({ mutationFn: (tag: CrmTag) => archiveTag(tag.id, tag.updatedAt), onSuccess: invalidateTags, onError: handleError });
