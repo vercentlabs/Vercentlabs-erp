@@ -1,21 +1,23 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, PageHeader, Select, StatusBadge, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { downloadCsv, parseCsv, rowsToObjects, toCsv } from "../csv";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { parseCsv, rowsToObjects } from "../csv";
 import {
   commitLeadImportRequest,
-  fetchAllLeadsForExport,
+  getLeadExportJobRequest,
   ImportExportApiError,
+  leadExportDownloadUrl,
   previewLeadImportRequest,
   rollbackLeadImportRequest,
+  startLeadExportRequest,
 } from "../api/import-export-api";
 import { LEAD_IMPORT_FIELDS, type LeadImportPreviewResult } from "../types";
-import type { Lead } from "@/features/crm/leads/types";
 
 const DUPLICATE_STRATEGY_OPTIONS: SelectOption[] = [
   { value: "skip", label: "Skip duplicates" },
@@ -24,16 +26,17 @@ const DUPLICATE_STRATEGY_OPTIONS: SelectOption[] = [
   { value: "block", label: "Block the whole row" },
 ];
 
-const EXPORT_COLUMNS = ["code", "firstName", "lastName", "email", "phone", "mobile", "companyName", "status", "priority", "rating", "ownerName", "estimatedValue", "currencyCode", "city", "state", "countryCode", "createdAt"];
-
 type Step = "upload" | "map" | "preview" | "done";
 
 // F021 Import/Export. Import is a real 2-stage workflow against
 // lead-acquisition.js's own previewLeadImport/commitLeadImport/
 // rollbackLeadImport (nothing is written to crm_leads until commit, and
-// a committed batch can be rolled back). Export reuses the already-
-// governed GET /api/crm/leads list read rather than a new backend
-// export endpoint — see import-export-api.ts's fetchAllLeadsForExport.
+// a committed batch can be rolled back). Export is a real async,
+// server-side job (tenant.background_jobs, job_type='crm.leads.export')
+// — see lead-export.js. Replaces the prior client-side "fetch every page
+// then build CSV in the browser" approach, which used a local CSV writer
+// with no formula-injection protection at all (a real, now-fixed gap;
+// see the register's Stage A2 §9 entry).
 export function CrmImportExportScreen() {
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.leadsManage);
@@ -47,7 +50,8 @@ export function CrmImportExportScreen() {
   const [duplicateStrategy, setDuplicateStrategy] = useState("skip");
   const [preview, setPreview] = useState<LeadImportPreviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [exportBusy, setExportBusy] = useState(false);
+  const [exportJobId, setExportJobId] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   function handleFile(file: File) {
     setError(null);
@@ -113,22 +117,23 @@ export function CrmImportExportScreen() {
 
   const invalidRows = useMemo(() => preview?.rows.filter((row) => !row.valid) ?? [], [preview]);
 
-  async function handleExport() {
-    setExportBusy(true);
-    setError(null);
-    try {
-      const rows = await fetchAllLeadsForExport({});
-      const csv = toCsv(
-        EXPORT_COLUMNS,
-        rows.map((row: Lead) => row as unknown as Record<string, unknown>),
-      );
-      downloadCsv(`leads-export-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-    } catch (err) {
-      setError(err instanceof ImportExportApiError ? err.message : "Export failed.");
-    } finally {
-      setExportBusy(false);
-    }
-  }
+  const exportStartMutation = useMutation({
+    mutationFn: () => startLeadExportRequest({}),
+    onSuccess: ({ job }) => {
+      setExportJobId(job.id);
+      setExportError(null);
+    },
+    onError: (err) => setExportError(err instanceof ImportExportApiError ? err.message : "Could not start the export."),
+  });
+
+  const exportJobQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "leads", "export", exportJobId ?? ""),
+    queryFn: () => getLeadExportJobRequest(exportJobId!),
+    enabled: Boolean(exportJobId),
+    refetchInterval: (query) => (["pending", "processing"].includes(query.state.data?.job.status ?? "") ? 2000 : false),
+  });
+  const exportJob = exportJobQuery.data?.job;
+  const exportFailureMessage = exportJob?.status === "dead" ? exportJob.lastError || "The export failed." : null;
 
   if (!canManage) {
     return (
@@ -151,12 +156,39 @@ export function CrmImportExportScreen() {
 
       <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-text">Export leads</h2>
-        <p className="text-sm text-text-muted">Downloads every Lead you have access to (up to 5,000 rows) as a CSV file.</p>
-        <div>
-          <Button variant="secondary" onPress={handleExport} isLoading={exportBusy}>
-            Export leads to CSV
-          </Button>
-        </div>
+        <p className="text-sm text-text-muted">Exports every Lead you have access to (up to 10,000 rows) as a CSV file. Runs as a background job — this page will show a download link when it&apos;s ready.</p>
+        {(exportError || exportFailureMessage) && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {exportError || exportFailureMessage}
+          </p>
+        )}
+        {!exportJobId || (exportJob && ["completed", "dead", "cancelled"].includes(exportJob.status)) ? (
+          <div>
+            <Button
+              variant="secondary"
+              onPress={() => {
+                setExportJobId(null);
+                exportStartMutation.mutate();
+              }}
+              isLoading={exportStartMutation.isPending}
+            >
+              Start export
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <StatusBadge tone="info">{exportJob?.status ?? "starting"}</StatusBadge>
+            <span className="text-sm text-text-muted">Generating your export…</span>
+          </div>
+        )}
+        {exportJob?.status === "completed" && (
+          <div className="flex items-center gap-3 text-sm text-text">
+            <span>{exportJob.manifest.rowCount ?? 0} row(s) ready{exportJob.manifest.truncated ? " (truncated at 10,000)" : ""}.</span>
+            <a href={leadExportDownloadUrl(exportJobId!)} className="font-medium text-accent underline">
+              Download CSV
+            </a>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">

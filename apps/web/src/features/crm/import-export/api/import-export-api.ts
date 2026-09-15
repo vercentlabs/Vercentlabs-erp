@@ -1,7 +1,6 @@
 "use client";
 
-import type { LeadImportBatch, LeadImportPreviewResult, LeadImportRollbackResult } from "../types";
-import type { Lead } from "@/features/crm/leads/types";
+import type { LeadExportJob, LeadImportBatch, LeadImportPreviewResult, LeadImportRollbackResult } from "../types";
 
 export class ImportExportApiError extends Error {
   constructor(
@@ -45,28 +44,30 @@ export async function rollbackLeadImportRequest(batchId: string): Promise<LeadIm
   return parseResponse(response);
 }
 
-// Export reuses the already-governed GET /api/crm/leads list read — the
-// exact same organization/company/branch/owner scope and field
-// projection a Lead list request already enforces — rather than a new
-// backend export endpoint. Pages through in batches of 200 up to 5,000
-// rows (matching the import side's own 5,000-row cap) and formats CSV
-// entirely client-side from data the caller was already authorized to
-// read.
-export async function fetchAllLeadsForExport(filters: Record<string, string | undefined>): Promise<Lead[]> {
-  const rows: Lead[] = [];
-  let offset = 0;
-  const pageSize = 200;
-  const maximum = 5000;
-  for (;;) {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
-    params.set("limit", String(pageSize));
-    params.set("offset", String(offset));
-    const response = await fetch(`/api/crm/leads?${params.toString()}`);
-    const payload = await parseResponse<{ rows: Lead[]; total: number }>(response);
-    rows.push(...payload.rows);
-    offset += pageSize;
-    if (payload.rows.length < pageSize || rows.length >= maximum || offset >= payload.total) break;
-  }
-  return rows;
+// F021 Stage A2 §9. Export is now a real async, server-side job
+// (tenant.background_jobs, job_type='crm.leads.export') — CSV generation,
+// formula-injection neutralization (rowsToCsv/csvCell,
+// @vercentlabs/reporting-engine) and row/field authorization all happen
+// server-side via the SAME governed listCrmRecords("leads", ...) read the
+// interactive list uses. Replaces the prior client-side "fetch every page
+// then build CSV in the browser" approach, which used a local CSV writer
+// with no formula-injection protection at all — a real, now-fixed gap.
+export async function startLeadExportRequest(filters: Record<string, string | undefined> = {}): Promise<{ job: LeadExportJob }> {
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(filters)) if (value) cleaned[key] = value;
+  const response = await fetch("/api/crm/leads/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filters: cleaned }),
+  });
+  return parseResponse(response);
+}
+
+export async function getLeadExportJobRequest(jobId: string): Promise<{ job: LeadExportJob }> {
+  const response = await fetch(`/api/crm/leads/export/${jobId}`);
+  return parseResponse(response);
+}
+
+export function leadExportDownloadUrl(jobId: string): string {
+  return `/api/crm/leads/export/${jobId}/download`;
 }

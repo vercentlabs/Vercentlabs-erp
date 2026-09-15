@@ -63,6 +63,7 @@ export * from "./core/release/governance.js";
 export * from "./modules/crm/seller-activity-and-follow-up-workspace/communications.js";
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export {
   listLeadScoringModels,

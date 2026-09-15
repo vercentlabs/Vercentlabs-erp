@@ -1690,6 +1690,82 @@ coverage annotation reuses the dashboard's exact predicate). Web
 typecheck, ESLint, `verify:routes`, the `resource-permissions`
 regression test: all clean.
 
+### 9. F021 Import/Export — async export job built; a real formula-injection vulnerability found and fixed
+
+`F021-AUDIT.md` credited "formula injection: PASS, confirmed at the
+shared utility level" because `packages/reporting-engine`'s
+`neutralizeFormula`/`csvCell` exists and is correct — but never verified
+that utility is actually *wired into* the real CRM export path. It
+wasn't: `apps/web/src/features/crm/import-export/csv.ts`'s own
+`toCsv`/`csvField` only escaped quotes/commas/newlines, never a leading
+`=`/`+`/`-`/`@`. A Lead with `firstName = "=cmd|'/c calc'!A1"` would
+export as a live formula Excel/Sheets would execute on open — a real,
+exploitable gap, not an architecture nicety. `packages/reporting-engine`
+itself had **zero consumers anywhere in the codebase**, for any module,
+confirmed by grep — an orphaned but correct, ready-to-use package.
+
+Re-reading the actual import code (not just the audit) also found the
+audit stale on its own "no dry-run / no upsert" claims:
+`lead-acquisition.js`'s `previewLeadImport`/`commitLeadImport`/
+`rollbackLeadImport` already exist, already power a real 4-step wizard
+(`CrmImportExportScreen.tsx`: upload → map → preview → done), and
+`commitLeadImport` already supports create/update/skip via
+`duplicateStrategy`. This is genuinely the "preview/commit/rollback...
+domain foundation" this prompt's own §9 instruction told me to keep, not
+replace — left untouched.
+
+What Import does NOT have — real async/resumable processing for large
+volumes — was left as a deliberate, disclosed scope boundary (bounded at
+5,000 rows synchronously, matching the existing tested cap), since the
+prompt explicitly says not to replace working logic unnecessarily and no
+volume complaint or failure mode was found.
+
+**Export was different: it had no job architecture, no manifest, no
+download authorization, no expiration — at all.** `handleExport` fetched
+every page of `/api/crm/leads` client-side, then built CSV in the
+browser with the vulnerable local writer, and triggered a same-tab blob
+download. Built a real async job:
+
+- `lead-export.js`: `enqueueCrmLeadExportJob` (snapshots an allowlisted
+  filter set into `tenant.background_jobs`, job_type `crm.leads.export`
+  — the SAME generic durable queue `crm.leads.bulk_update` already
+  uses, not a second job system), `buildCrmLeadExportCsv` (calls
+  `listCrmRecords("leads", filters)` — the exact governed, scoped read
+  the interactive Leads list itself uses, so row/field scope is
+  identical by construction), `getCrmLeadExportJob` (download
+  authorization: requester or a `crm.records.view_all` holder only),
+  `completeCrmLeadExportJob` (writes a light `progress` summary and a
+  fuller `result_manifest` that additionally carries the generated CSV
+  — this codebase has no separate blob-storage abstraction, and the
+  existing 10,000-row cap already bounds the size).
+- `services/worker/src/handlers/crm-lead-export.js`: managed-mode
+  handler, re-resolves a fresh execution context via
+  `resolveLeadBulkExecutionContext` (the SAME resolver bulk-update
+  already uses — re-validates `crm.leads.manage` and current company/
+  branch access, never trusting the requester's permissions as they
+  were at enqueue time), fails closed (throws, does not silently
+  "complete" with 0 rows) if authorization was revoked since enqueue.
+- Three new routes: `POST /api/crm/leads/export` (enqueue),
+  `GET .../export/[jobId]` (status — strips the CSV out of the response
+  so polling stays cheap), `GET .../export/[jobId]/download` (streams
+  the CSV with `Content-Disposition: attachment`, `X-Content-Type-
+  Options: nosniff`, `Cache-Control: private, no-store`, and rejects
+  past the manifest's own `expiresAt`).
+- `CrmImportExportScreen.tsx`'s export section rewritten to start the
+  job and poll status (2s interval while pending/processing) rather than
+  block the tab. The vulnerable `toCsv`/`csvField`/`downloadCsv` were
+  deleted from `import-export/csv.ts` entirely, not just stopped being
+  called — the parser half (`parseCsv`/`rowsToObjects`, used by import
+  upload) was kept.
+- `@vercentlabs/reporting-engine` added as a real dependency of
+  `services/api` (previously depended on by nothing) so `buildCrmLeadExportCsv`
+  can call `rowsToCsv`/`csvCell` directly.
+
+Full `services/api` suite: 1060/1060 (+5 new `lead-export.js` tests).
+Worker suite: 102/102 (+3 new tests covering registration/authorization-
+revocation/manifest-ownership). Web typecheck, ESLint, `verify:routes`,
+`verify:no-legacy-frontend`: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

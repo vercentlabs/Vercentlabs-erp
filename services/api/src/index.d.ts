@@ -449,6 +449,7 @@ export function listThreadMessages(client: QueryClient, context: any, threadId: 
 export function updateSharedInboxThreadStatus(client: QueryClient, context: any, threadId: string, status: unknown): Promise<any>;
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
 export function createLeadScoringModel(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

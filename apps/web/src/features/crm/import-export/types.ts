@@ -40,3 +40,16 @@ export type LeadImportBatch = {
 
 export type LeadImportPreviewResult = { batch: LeadImportBatch; rows: LeadImportRowResult[]; idempotent: boolean };
 export type LeadImportRollbackResult = { rolledBack: number; protected: number };
+
+// tenant.background_jobs row for job_type='crm.leads.export' — see
+// getCrmLeadExportJob (lead-export.js). manifest never carries the CSV
+// itself (the status route strips it); only the download route does.
+export type LeadExportJob = {
+  id: string;
+  status: "pending" | "processing" | "completed" | "dead" | "cancelled";
+  progress: { rowCount?: number; truncated?: boolean; generatedAt?: string; expiresAt?: string; columns?: string[] };
+  manifest: { rowCount?: number; truncated?: boolean; generatedAt?: string; expiresAt?: string; columns?: string[] };
+  lastError: string | null;
+  createdAt: string;
+  completedAt: string | null;
+};

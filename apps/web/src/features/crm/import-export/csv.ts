@@ -1,7 +1,9 @@
-// A small RFC4180-style parser/writer (quoted fields, escaped "" inside
-// quotes, quoted fields spanning newlines). No third-party CSV dependency
-// was already in this workspace, and this feature's needs (a lead-import
-// file and a lead-export download) don't justify adding one.
+// A small RFC4180-style parser (quoted fields, escaped "" inside quotes,
+// quoted fields spanning newlines) for the lead-import file upload. F021
+// Stage A2 §9: the writer half (toCsv/downloadCsv) was removed from here
+// — it had no formula-injection protection and export now generates CSV
+// server-side via rowsToCsv/csvCell (@vercentlabs/reporting-engine, the
+// correctly-neutralizing shared writer), not client-side.
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -65,28 +67,4 @@ export function rowsToObjects(rows: string[][]): { headers: string[]; records: R
     return record;
   });
   return { headers, records };
-}
-
-function csvField(value: unknown): string {
-  const text = value === null || value === undefined ? "" : String(value);
-  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
-}
-
-export function toCsv(headers: string[], rows: Array<Record<string, unknown>>): string {
-  const lines = [headers.map(csvField).join(",")];
-  for (const row of rows) lines.push(headers.map((header) => csvField(row[header])).join(","));
-  return lines.join("\n");
-}
-
-export function downloadCsv(fileName: string, content: string) {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }

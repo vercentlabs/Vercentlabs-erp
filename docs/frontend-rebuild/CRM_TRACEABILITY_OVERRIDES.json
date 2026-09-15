@@ -27,9 +27,25 @@
       "F016",
       "F024",
       "F025",
-      "F030"
+      "F030",
+      "F021"
     ],
     "not_yet_populated": "All other F001-F030 rows remain governed by the CSV's own (stale, pre-rebuild) implementation_status until audited here or in Stage B."
+  },
+  "F021-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "lead-acquisition.js's previewLeadImport/commitLeadImport/rollbackLeadImport (pre-existing, real); CrmImportExportScreen.tsx's 4-step upload/map/preview/done wizard",
+    "notes": "Import already had a real preview/commit/rollback foundation — kept as-is per this prompt's own instruction, not rebuilt."
+  },
+  "F021-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "lead-export.js (enqueueCrmLeadExportJob/buildCrmLeadExportCsv/completeCrmLeadExportJob/getCrmLeadExportJob); crm-lead-export.js worker handler; /api/crm/leads/export routes; crm-lead-export-f021.test.mjs (5/5), worker crm-lead-export.test.mjs (3/3)",
+    "notes": "Stage A2 §9 closeout. Dry run: previewLeadImport already served this (a preview batch writes rows but commits nothing to crm_leads until commit). Upsert policy: commitLeadImport already supports create/update/skip via duplicateStrategy. Async/resume: import stays synchronous by design (bounded 5,000-row cap, existing tested behavior kept as foundation) but export was genuinely fully synchronous client-side with NO job/manifest/authorization/expiration architecture at all — now a real tenant.background_jobs job (job_type=crm.leads.export), reusing the same queue crm.leads.bulk_update already uses. Formula injection: found and fixed a REAL vulnerability — the client-side CSV writer (import-export/csv.ts's old toCsv/csvField) never neutralized a leading =/+/-/@, unlike packages/reporting-engine's csvCell (which existed in the repo but had ZERO consumers anywhere, confirmed by grep, despite an earlier audit incorrectly marking formula-injection PASS on the strength of the utility's mere existence). Export now generates CSV server-side via rowsToCsv/csvCell exclusively."
+  },
+  "F021-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "commitLeadImport calls createLead (the same governed creation path, including duplicate-policy enforcement); buildCrmLeadExportCsv calls listCrmRecords(\"leads\", filters) — the exact same governed, scoped read the interactive Leads list uses",
+    "notes": "Re-verified this pass, not carried forward. Export's row/field scope is identical to the interactive list by construction (same function call), not by parallel re-implementation."
   },
   "F017-CAP-001": {
     "status": "IMPLEMENTED",
