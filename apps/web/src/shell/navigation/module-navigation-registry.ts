@@ -130,7 +130,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Data",
         featureRange: "F027-F028",
         items: [
-          planned("Imports & Exports", "/crm/data/import-export"),
+          available("Imports & Exports", "/crm/data/import-export"),
           planned("Duplicate Management", "/crm/data/duplicates"),
         ],
       },
