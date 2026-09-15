@@ -1,10 +1,10 @@
 import { assertSameOriginOrMobile, createCrmRecord, isCrmResource, listCrmRecords } from "@vercentlabs/api";
-import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction, withClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { RESOURCE_MANAGE_PERMISSIONS } from "@/features/crm/shared/resource-permissions";
 
 const LIST_FILTER_KEYS = [
   "search",
@@ -36,20 +36,6 @@ function parseListFilters(url: URL) {
   if (offset) filters.offset = Number(offset);
   return filters;
 }
-
-// Checkpoint audit (Prompt 3 continuation): only leads/opportunities are
-// actually reachable through any UI built so far. This mapping covers
-// those two with their real manage permission; every other one of the 47
-// CRM_RESOURCE_KEYS falls back to requiring only module access (crm.view)
-// until it gets its own UI and this map is extended for it — a known,
-// recorded scope boundary (see CRM_CLEAN_REBUILD_REGISTER.md), not a
-// silent gap: closing "any authenticated org member can call any CRM
-// mutation with zero permission floor" (the actual severe bug) does not
-// require finishing a full 47-resource permission audit in the same pass.
-const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
-  leads: CRM_PERMISSIONS.leadsManage,
-  opportunities: CRM_PERMISSIONS.opportunitiesManage,
-};
 
 // Governed generic CRM resource boundary (Phase 5/6). Thin by design: this
 // route authenticates, resolves workspace + CRM context, validates the

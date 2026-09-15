@@ -1,18 +1,12 @@
 import { archiveCrmRecord, assertSameOriginOrMobile, getCrmRecord, isCrmResource, updateCrmRecord } from "@vercentlabs/api";
-import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction, withClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { RESOURCE_MANAGE_PERMISSIONS } from "@/features/crm/shared/resource-permissions";
 
 type RouteContext = { params: Promise<{ resource: string; id: string }> };
-
-// See ../route.ts for why this map only covers leads/opportunities today.
-const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
-  leads: CRM_PERMISSIONS.leadsManage,
-  opportunities: CRM_PERMISSIONS.opportunitiesManage,
-};
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
