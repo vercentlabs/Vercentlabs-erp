@@ -12,7 +12,7 @@ import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { listOpportunities, moveOpportunityStage, OpportunityApiError } from "@/features/crm/opportunities/api/opportunities-api";
 import type { Opportunity } from "@/features/crm/opportunities/types";
 
-type Stage = { id: string; name: string; sequence: number; pipelineId: string; probability: number };
+type Stage = { id: string; name: string; sequence: number; pipelineId: string; probability: number; isWon: boolean; isLost: boolean };
 
 export function PipelineBoardScreen() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export function PipelineBoardScreen() {
   const workspace = useWorkspaceContext();
   const [pipelineId, setPipelineId] = useState<string>("");
   const [moving, setMoving] = useState<Record<string, string>>({});
+  const [outcomeReasonId, setOutcomeReasonId] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<string | null>(null);
 
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
@@ -36,6 +37,11 @@ export function PipelineBoardScreen() {
     return rows.filter((row) => row.pipelineId === activePipelineId).sort((a, b) => a.sequence - b.sequence);
   }, [optionsQuery.data, activePipelineId]);
 
+  const lostReasonOptions: SelectOption[] = useMemo(() => {
+    const rows = optionsQuery.data?.options?.lostReasons ?? [];
+    return rows.map((row) => ({ value: String(row.id), label: String(row.name) }));
+  }, [optionsQuery.data]);
+
   const opportunitiesQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "opportunities", "pipeline", activePipelineId),
     queryFn: () => listOpportunities({ pipelineId: activePipelineId, status: "open", limit: 200 }),
@@ -47,10 +53,17 @@ export function PipelineBoardScreen() {
   }
 
   const moveMutation = useMutation({
-    mutationFn: ({ opportunity, stageId }: { opportunity: Opportunity; stageId: string }) =>
-      moveOpportunityStage(opportunity.id, { stageId, expectedUpdatedAt: opportunity.updatedAt, expectedStageId: opportunity.stageId }),
-    onSuccess: () => {
+    mutationFn: ({ opportunity, stageId, reasonId }: { opportunity: Opportunity; stageId: string; reasonId: string | null }) =>
+      moveOpportunityStage(opportunity.id, {
+        stageId,
+        expectedUpdatedAt: opportunity.updatedAt,
+        expectedStageId: opportunity.stageId,
+        outcomeReasonId: reasonId,
+      }),
+    onSuccess: (_, { opportunity }) => {
       setActionError(null);
+      setMoving((current) => { const next = { ...current }; delete next[opportunity.id]; return next; });
+      setOutcomeReasonId((current) => { const next = { ...current }; delete next[opportunity.id]; return next; });
       invalidate();
     },
     onError: (error: unknown) => {
@@ -98,35 +111,55 @@ export function PipelineBoardScreen() {
                 </div>
                 <p className="text-xs tabular-nums text-text-muted">{total ? total.toLocaleString() : "—"}</p>
                 <div className="flex flex-col gap-2">
-                  {cards.map((card) => (
-                    <div key={card.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface p-2.5">
-                      <button type="button" className="text-left text-sm font-medium text-text hover:underline" onClick={() => router.push(`/crm/opportunities/${card.id}`)}>
-                        {card.name}
-                      </button>
-                      <span className="text-xs text-text-muted">{card.partyName || "—"}{card.amount !== null ? ` · ${card.currencyCode || ""} ${card.amount}` : ""}</span>
-                      <div className="flex items-center gap-1.5">
-                        <Select
-                          aria-label={`Move ${card.name} to stage`}
-                          size="compact"
-                          options={stages.filter((s) => s.id !== stage.id).map((s) => ({ value: s.id, label: s.name }))}
-                          selectedKey={moving[card.id] ?? ""}
-                          onSelectionChange={(key) => setMoving((current) => ({ ...current, [card.id]: String(key ?? "") }))}
-                          placeholder="Move to…"
-                          className="flex-1"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="compact"
-                          aria-label={`Confirm move for ${card.name}`}
-                          isDisabled={!moving[card.id]}
-                          isLoading={moveMutation.isPending}
-                          onPress={() => moving[card.id] && moveMutation.mutate({ opportunity: card, stageId: moving[card.id] })}
-                        >
-                          <CheckCircle2 className="size-4" aria-hidden="true" />
-                        </Button>
+                  {cards.map((card) => {
+                    const targetStageId = moving[card.id] ?? "";
+                    const targetStage = stages.find((s) => s.id === targetStageId);
+                    const requiresOutcome = Boolean(targetStage?.isWon || targetStage?.isLost);
+                    const reasonId = outcomeReasonId[card.id] ?? "";
+                    const canConfirm = Boolean(targetStageId) && (!requiresOutcome || Boolean(reasonId));
+                    return (
+                      <div key={card.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface p-2.5">
+                        <button type="button" className="text-left text-sm font-medium text-text hover:underline" onClick={() => router.push(`/crm/opportunities/${card.id}`)}>
+                          {card.name}
+                        </button>
+                        <span className="text-xs text-text-muted">{card.partyName || "—"}{card.amount !== null ? ` · ${card.currencyCode || ""} ${card.amount}` : ""}</span>
+                        <div className="flex items-center gap-1.5">
+                          <Select
+                            aria-label={`Move ${card.name} to stage`}
+                            size="compact"
+                            options={stages.filter((s) => s.id !== stage.id).map((s) => ({ value: s.id, label: s.name }))}
+                            selectedKey={targetStageId}
+                            onSelectionChange={(key) => {
+                              setMoving((current) => ({ ...current, [card.id]: String(key ?? "") }));
+                              setOutcomeReasonId((current) => ({ ...current, [card.id]: "" }));
+                            }}
+                            placeholder="Move to…"
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            aria-label={`Confirm move for ${card.name}`}
+                            isDisabled={!canConfirm}
+                            isLoading={moveMutation.isPending}
+                            onPress={() => canConfirm && moveMutation.mutate({ opportunity: card, stageId: targetStageId, reasonId: reasonId || null })}
+                          >
+                            <CheckCircle2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                        {requiresOutcome && (
+                          <Select
+                            aria-label={`Outcome reason for ${card.name}`}
+                            size="compact"
+                            options={lostReasonOptions}
+                            selectedKey={reasonId}
+                            onSelectionChange={(key) => setOutcomeReasonId((current) => ({ ...current, [card.id]: String(key ?? "") }))}
+                            placeholder="Choose a reason…"
+                          />
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {cards.length === 0 && <p className="text-xs text-text-muted">No opportunities in this stage.</p>}
                 </div>
               </div>

@@ -153,6 +153,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             "crm.settings.manage",
           ),
           { ...available("Pipeline Stages", "/crm/settings/pipeline-stages"), requiredPermission: "crm.settings.manage" },
+          { ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Qualification / Playbooks",
             "/crm/settings/playbooks",

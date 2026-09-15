@@ -20,4 +20,6 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   tags: CRM_PERMISSIONS.settingsManage,
   "custom-object-definitions": CRM_PERMISSIONS.settingsManage,
   "custom-field-definitions": CRM_PERMISSIONS.settingsManage,
+  "lost-reasons": CRM_PERMISSIONS.settingsManage,
+  pipelines: CRM_PERMISSIONS.settingsManage,
 };
