@@ -96,6 +96,10 @@ export function buildFilters(
     // and a real cross-account data exposure over the wire.
     ["partyId", "party_id"],
     ["accountPlanId", "account_plan_id"],
+    // F003 Tranche F (Stage A) — same reasoning for communications scoped
+    // to a Contact rather than an Account (tenant.crm_communications has
+    // both party_id and contact_id columns).
+    ["contactId", "contact_id"],
   ]) {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;

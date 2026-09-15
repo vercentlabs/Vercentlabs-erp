@@ -13,6 +13,8 @@ import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { archiveContact, ContactApiError, getContact, reactivateContact } from "../api/contacts-api";
+import { ContactDuplicatesPanel } from "../components/ContactDuplicatesPanel";
+import { ContactCommunicationsPanel } from "../components/ContactCommunicationsPanel";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -110,6 +112,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
             {actionError}
           </p>
         )}
+        <ContactDuplicatesPanel contact={contact} canManage={canManage} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Email" value={contact.email} />
           <Field label="Phone" value={contact.phone} />
@@ -129,6 +132,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Attachments</p>
           <CrmAttachmentPanel entityType="contact" entityId={contactId} />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Communications</p>
+          <ContactCommunicationsPanel contactId={contactId} />
         </div>
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Custom fields</p>

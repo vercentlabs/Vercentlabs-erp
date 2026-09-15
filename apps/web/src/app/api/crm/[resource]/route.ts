@@ -26,6 +26,7 @@ const LIST_FILTER_KEYS = [
   "territoryId",
   "partyId",
   "accountPlanId",
+  "contactId",
 ] as const;
 
 function parseListFilters(url: URL) {

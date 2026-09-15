@@ -75,7 +75,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 |---|---|---|---|
 | F001 | Leads | IN_PROGRESS | List/360/create/edit/assign/stage/qualify/score/duplicates/convert all real. Missing: saved views, custom fields/tags rendering, notes/attachments/communications composed into the 360, enrichment-review UI (backend route exists), SLA UI, mobile audit, full negative-permission test pass, formal Playwright. |
 | F002 | Accounts / companies | IN_PROGRESS | List/360/create/edit on the real CRM-native governed layer (account-operations.js), plus Notes/Attachments/Custom-fields from Tranches A/B (`entityType="party"`). **Tranche E (Stage A) closed the rest**: `getAccountHierarchy`/`setAccountParent`/`previewAccountMergeForCaller`/`mergeAccountsGoverned` (`account-intelligence.js`) and `findAccountDuplicates` (`duplicate-matching.js`) were ALL already real, already-tested, already-cycle-guarded backend services (`business_parties.parent_party_id` has had a DB-trigger cycle guard since migration `029_crm_account_intelligence_privacy.sql` — the prior pass's "unclear if business_parties even models this" was wrong, corrected honestly here) with **zero frontend wiring** — confirmed by grep, not assumed. Built 3 new routes (`accounts/[id]/hierarchy`, `accounts/merge/preview`, `accounts/merge`) plus a duplicates route, and four new Account-360 sections: `AccountHierarchyPanel` (ancestor breadcrumb, child list, parent picker, history), `AccountDuplicatesPanel` (possible-duplicate banner + merge dialog with field-selection and impact preview), `AccountPlanPanel` (`crm_account_plans`/`crm_account_stakeholders` — also pre-existing, zero-wired resources), `AccountCommunicationsPanel` (read-only — `crm_communications` is sync-populated, not manually entered). Also added `partyId`/`accountPlanId` to `buildFilters` (mirroring `teamId`/`territoryId` from Tranche D) — without it, an account plan/stakeholder/communications list would have returned every account's rows across the organization. 4 new backend filter-scoping tests. The duplicate-check is post-creation (on the 360, same as Lead), not pre-submission on create — checked and found Lead has no pre-submission duplicate UI either (the prior register's own comparison was factually wrong), so this is genuine parity, not a new gap. |
-| F003 | Contacts | IN_PROGRESS | List/360/create/edit built (contact-operations.js): account linkage, primary flag, archive/reactivate. Missing: multi-account stakeholder roles, duplicate-check UI, notes/attachments/communications, merge. |
+| F003 | Contacts | IN_PROGRESS | List/360/create/edit built (contact-operations.js): account linkage, primary flag, archive/reactivate, plus Notes/Attachments/Custom-fields from Tranches A/B. **Tranche F (Stage A)**: wired `findContactDuplicates` + `previewContactMergeForCaller`/`mergeContactsGoverned` (`duplicate-matching.js`/`account-intelligence.js` — same already-tested, zero-frontend-wiring pattern as F002's Tranche E) via 3 new routes and a `ContactDuplicatesPanel` (possible-duplicate banner + merge dialog, mirroring `AccountDuplicatesPanel`); added a read-only `ContactCommunicationsPanel` (`crm_communications.contact_id`, new `contactId` filter key in `buildFilters`). **Genuine architecture gap, confirmed and deliberately NOT built this pass**: `tenant.contacts.party_id` is a single NOT-NULL FK (`001_business_data_foundation.sql`) — a Contact belongs to exactly ONE Account at the schema level. `tenant.crm_relationship_edges` is a generic influence graph (reports_to/knows/champions/blocks/etc), not an account-membership model, and repurposing it for "this Contact also represents Account Y" would be a real semantic misuse, not a legitimate reuse. Multi-account relationships with stakeholder roles and primary-relationship semantics would need a genuine new migration (a junction table) plus new service/UI — real, higher-risk schema work, correctly out of scope for a wiring-focused tranche; disclosed here and in the traceability override rather than silently claimed done or silently skipped. |
 | F004 | Lead sources | IN_PROGRESS | `/crm/settings/lead-sources` built (Prompt 3 Stage A). Real governed setup screen against the DEDICATED `lead-source-operations.js` module (`listCrmLeadSources`/`createCrmLeadSource`/`updateCrmLeadSource`/`setCrmLeadSourceActive`) — confirmed the generic `/api/crm/[resource]` boundary already redirects `"sources"` mutations to `CRM_LEAD_SOURCE_API_MOVED` (410) specifically so this richer module stays canonical (default-source uniqueness, lead-count-in-use, sort order), so the earlier register note ("likely exists via generic resource routes, unverified") was itself imprecise — corrected here. List + create + activate/deactivate; no edit-description/sort-order UI yet (disclosed gap). |
 | F005 | Lead assignment | IN_PROGRESS | Real eligible-list assignment + reason; no full policy-rule setup UI, no explain-trace UI, no out-of-directory override UI |
 | F006 | Lead qualification | IN_PROGRESS | Full decide/readiness/override/history UI this pass. No criteria/playbook setup UI. |
@@ -958,6 +958,43 @@ Not built this tranche: `getCustomer360` and the privacy-request/
 retention workflows (a separate, larger surface, not required by F002
 itself); Communications creation (deliberately out of scope — it is a
 sync target, not a user-entered record).
+
+## Tranche F: F003 Contacts deep closure (Stage A)
+
+Mirrors Tranche E almost exactly — `findContactDuplicates`,
+`previewContactMergeForCaller`, `mergeContactsGoverned` (same
+`duplicate-matching.js`/`account-intelligence.js` files, sibling
+functions to the Account versions used in Tranche E) were already real,
+already-tested, with zero frontend wiring, confirmed by grep. Built 3
+routes (`contacts/duplicates`, `contacts/merge/preview`,
+`contacts/merge`) and `ContactDuplicatesPanel.tsx` (duplicate banner +
+merge dialog with field selection and impact preview), plus a read-only
+`ContactCommunicationsPanel.tsx`, both composed into
+`ContactDetailScreen.tsx`. Added `contactId`→`contact_id` to
+`buildFilters` alongside Tranche E's `partyId`/`accountPlanId` (same
+reasoning: `tenant.crm_communications` has both columns).
+
+**Investigated and confirmed as a genuine, not-fixed-this-pass
+architecture gap**: multi-account Contact relationships. Checked
+`tenant.contacts`'s actual schema rather than assuming — `party_id` is a
+single `NOT NULL` foreign key (`001_business_data_foundation.sql`), so a
+Contact belongs to exactly one Account today. Checked whether
+`tenant.crm_relationship_edges` (a generic `reports_to`/`knows`/
+`champions`/`blocks`/etc influence graph, `005_crm_completion_pack.sql`)
+could stand in for this — it cannot without misusing it: it models
+person-to-person/entity influence, not "this Contact also formally
+represents Account Y with role Z and a primary flag," which is what the
+dossier's "multi-account relationships, stakeholder roles, primary
+relationship semantics" describes. Building this correctly needs a new
+migration (a `contact_account_relationships`-shaped junction table) plus
+new service functions and UI — real, higher-risk schema-design work,
+correctly out of scope for a tranche otherwise focused on wiring
+already-built services. Recorded honestly in the register and
+traceability override rather than silently built wrong or silently
+left unmentioned.
+
+Full `services/api` suite: 1038/1038 passing (1037 prior + 1 new). Web
+typecheck, ESLint, `verify:routes`: all clean.
 
 ## Mandatory-gap candidates
 

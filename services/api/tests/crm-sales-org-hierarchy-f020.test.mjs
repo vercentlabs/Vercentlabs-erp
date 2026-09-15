@@ -100,3 +100,14 @@ test("F002: a partyId filter has no effect on a resource with no party_id column
   const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_sales_teams"));
   assert.ok(!select.sql.includes("party_id ="), "partyId must only apply to resources that actually declare a party_id field");
 });
+
+// F003 Tranche F — communications scoped to a Contact rather than an
+// Account (tenant.crm_communications has both party_id and contact_id).
+test("F003: listing communications with contactId scopes the query to that contact", async () => {
+  const client = createClient();
+  const contactId = "77777777-7777-4777-8777-777777777777";
+  await listCrmRecords(client, context, "communications", { contactId });
+  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_communications"));
+  assert.ok(select.sql.includes("contact_id ="), "the SQL must filter on contact_id, not just organization_id");
+  assert.ok(select.values.includes(contactId), "contactId must be bound as a real parameter");
+});

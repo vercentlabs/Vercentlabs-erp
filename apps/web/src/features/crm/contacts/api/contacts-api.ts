@@ -1,6 +1,6 @@
 "use client";
 
-import type { Contact, ContactListFilters, ContactListResponse } from "../types";
+import type { Contact, ContactDuplicateMatch, ContactListFilters, ContactListResponse, ContactMergePreview } from "../types";
 
 export class ContactApiError extends Error {
   constructor(
@@ -62,6 +62,40 @@ export async function reactivateContact(id: string, expectedUpdatedAt: string): 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ expectedUpdatedAt }),
+  });
+  return parseResponse(response);
+}
+
+// F003 Tranche F — mirrors the Account duplicates/merge client exactly;
+// findContactDuplicates/mergeContactsGoverned were already real,
+// already-tested backend services with zero frontend wiring.
+export async function findContactDuplicates(input: Record<string, unknown>): Promise<{ duplicates: ContactDuplicateMatch[] }> {
+  const response = await fetch("/api/crm/contacts/duplicates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input }),
+  });
+  return parseResponse(response);
+}
+
+export async function previewContactMerge(sourceId: string, survivorId: string): Promise<ContactMergePreview> {
+  const response = await fetch("/api/crm/contacts/merge/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceId, survivorId }),
+  });
+  return parseResponse(response);
+}
+export async function mergeContacts(
+  sourceId: string,
+  survivorId: string,
+  reason: string | null,
+  fieldSelections: Record<string, "source" | "survivor">,
+): Promise<{ record: Record<string, unknown> }> {
+  const response = await fetch("/api/crm/contacts/merge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceId, survivorId, reason, fieldSelections }),
   });
   return parseResponse(response);
 }
