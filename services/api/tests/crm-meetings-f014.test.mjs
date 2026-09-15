@@ -59,7 +59,7 @@ test("F014: legacy server offline-sync cannot directly insert or complete Meetin
 });
 
 test("F014: Lead follow-up Meetings bridge into the governed Meeting service without claiming F016", () => {
-  const source = read("docs/frontend-rebuild/recovered-platform-code/apps/web/src/app/api/crm/leads/[id]/follow-up/route.ts");
+  const source = read("apps/web/src/app/api/crm/leads/[id]/follow-up/route.ts");
   assert.match(source, /createCrmMeeting/);
   assert.match(source, /input\.activityType === "meeting"/);
   assert.match(source, /startAt: input\.dueAt/);
@@ -98,7 +98,7 @@ test("F014: booking and Meeting evidence excludes attendee email, meeting URL an
   const source = service();
   const safePayload = source.match(/function safeEventPayload\(meeting, attendeeCount = 0\) \{([\s\S]*?)\n\}/)?.[1] || "";
   const eventInsert = source.match(/INSERT INTO tenant\.crm_meeting_events\(([\s\S]*?)\)\n\s*VALUES/)?.[1] || "";
-  const audit = read("docs/frontend-rebuild/recovered-platform-code/apps/web/src/modules/crm/crm-data-operations-and-customization/audit-events.ts");
+  const audit = read("apps/web/src/features/crm/shared/audit-events.ts");
   const auditSnapshot = audit.match(/export function crmMeetingAuditSnapshot[\s\S]*?\n\}/)?.[0] || "";
   for (const value of [safePayload, eventInsert, auditSnapshot]) {
     assert.doesNotMatch(value, /meetingUrl|meeting_url|description|attendee.*email|guestEmail|outcome\s*:/i);

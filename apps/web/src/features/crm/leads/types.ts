@@ -1,0 +1,69 @@
+// Shape returned by services/api's generic getCrmRecord/listCrmRecords for
+// the "leads" resource (camelized DB columns — see
+// services/api/src/modules/crm/crm-data-operations-and-customization/
+// resource-registry.js's `leads.fields` map — plus computed/projected
+// fields such as recordStatus). Left loose (many fields optional/unknown)
+// rather than asserting an exact shape this pass didn't independently
+// verify field-by-field against every projectCrmRecord code path.
+export type Lead = {
+  id: string;
+  code: string;
+  organizationId: string;
+  companyId: string | null;
+  branchId: string | null;
+  firstName: string;
+  lastName: string | null;
+  fullName?: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  companyName: string | null;
+  jobTitle: string | null;
+  website: string | null;
+  industry: string | null;
+  sourceId: string | null;
+  originalSourceId: string | null;
+  referrerName: string | null;
+  campaignId: string | null;
+  /** F007 pipeline status — a distinct axis from qualification and recordStatus. */
+  status: string;
+  /** F007 overall record lifecycle (e.g. active/converted/archived) — never a single merged enum with `status`. */
+  recordStatus?: string;
+  /** F006 qualification decision — a distinct axis from `status`. */
+  qualificationStatus?: string | null;
+  priority: "low" | "medium" | "high" | "urgent";
+  rating: "cold" | "warm" | "hot" | null;
+  ownerUserId: string | null;
+  ownerName?: string | null;
+  score: number | null;
+  grade?: string | null;
+  estimatedValue: number | null;
+  currencyCode: string | null;
+  city: string | null;
+  state: string | null;
+  countryCode: string | null;
+  productInterest: string | null;
+  nextFollowUpAt: string | null;
+  consentEmail: boolean;
+  consentSms: boolean;
+  consentWhatsapp: boolean;
+  doNotContact: boolean;
+  customData: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LeadListFilters = {
+  search?: string;
+  status?: string;
+  ownerId?: string;
+  sourceId?: string;
+  priority?: string;
+  rating?: string;
+  followup?: "overdue" | "today" | "upcoming" | "none" | "all";
+  qualification?: "not_reviewed" | "qualified" | "unqualified" | "all";
+  limit?: number;
+  offset?: number;
+};
+
+export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };

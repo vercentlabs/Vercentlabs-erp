@@ -99,7 +99,7 @@ test("F013: legacy server offline-sync cannot directly insert or complete Calls"
 });
 
 test("F013: Lead follow-up Calls bridge into the governed Call service", () => {
-  const source = read("docs/frontend-rebuild/recovered-platform-code/apps/web/src/app/api/crm/leads/[id]/follow-up/route.ts");
+  const source = read("apps/web/src/app/api/crm/leads/[id]/follow-up/route.ts");
   assert.match(source, /createCrmCall/);
   assert.match(source, /input\.activityType === "call"/);
   assert.match(source, /direction: "outbound"/);
@@ -108,7 +108,7 @@ test("F013: Lead follow-up Calls bridge into the governed Call service", () => {
 
 test("F013: audit/outbox/history evidence intentionally excludes phone numbers and free-text notes", () => {
   const service = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js");
-  const audit = read("docs/frontend-rebuild/recovered-platform-code/apps/web/src/modules/crm/crm-data-operations-and-customization/audit-events.ts");
+  const audit = read("apps/web/src/features/crm/shared/audit-events.ts");
   const safePayload = service.match(/function safeEventPayload\(call\) \{([\s\S]*?)\n\}/)?.[1] || "";
   const eventInsert = service.match(/INSERT INTO tenant\.crm_call_events\(([\s\S]*?)\)\n\s*VALUES/)?.[1] || "";
   const auditSnapshot = audit.match(/export function crmCallAuditSnapshot[\s\S]*?\n\}/)?.[0] || "";

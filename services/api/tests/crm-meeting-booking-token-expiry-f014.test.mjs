@@ -30,10 +30,10 @@ test("F014: crm_meeting_links.public_token (the durable booking-page link) is de
 });
 
 test("F014: the public booking cancel/reschedule route is the ONLY code path that resolves cancellation_token/reschedule_token — no bypass exists", () => {
-  const route = [
-    read("docs/frontend-rebuild/recovered-platform-code/apps/web/src/app/api/crm/public/meetings/bookings/[token]/route.ts"),
-    read("docs/frontend-rebuild/recovered-platform-code/apps/web/src/modules/crm/seller-activity-and-follow-up-workspace/route-handlers/public-meeting-booking-management.ts"),
-  ].join("\n");
+  // Prompt 3 (CRM clean-frontend rebuild): the previous two-file split (a
+  // thin route.ts delegating to a separate route-handlers module) was
+  // consolidated into this one file — still the sole call site.
+  const route = read("apps/web/src/app/api/crm/public/meetings/bookings/[token]/route.ts");
   assert.match(route, /crm_public_meeting_booking/);
   // A broader grep across the whole web+api tree for direct
   // cancellation_token/reschedule_token references is enforced by the
