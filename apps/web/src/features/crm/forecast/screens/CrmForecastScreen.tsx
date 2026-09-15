@@ -76,26 +76,28 @@ export function CrmForecastScreen() {
         {rows.length === 0 ? (
           <p className="text-sm text-text-muted">No open or won opportunities in scope.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-text-muted">
-                <th className="py-1.5 font-medium">Owner</th>
-                <th className="py-1.5 font-medium">Pipeline</th>
-                <th className="py-1.5 font-medium">Weighted</th>
-                <th className="py-1.5 font-medium">Won</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.owner} className="border-b border-border last:border-0">
-                  <td className="py-1.5 text-text">{row.owner}</td>
-                  <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.pipeline)}</td>
-                  <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.weighted)}</td>
-                  <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.won)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-text-muted">
+                  <th className="py-1.5 font-medium">Owner</th>
+                  <th className="py-1.5 font-medium">Pipeline</th>
+                  <th className="py-1.5 font-medium">Weighted</th>
+                  <th className="py-1.5 font-medium">Won</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.owner} className="border-b border-border last:border-0">
+                    <td className="py-1.5 text-text">{row.owner}</td>
+                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.pipeline)}</td>
+                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.weighted)}</td>
+                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.won)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

@@ -76,24 +76,26 @@ export function CrmDashboardScreen() {
           {stages.length === 0 ? (
             <p className="text-sm text-text-muted">No open pipeline.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-text-muted">
-                  <th className="py-1.5 font-medium">Stage</th>
-                  <th className="py-1.5 font-medium">Opportunities</th>
-                  <th className="py-1.5 font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stages.map((stage) => (
-                  <tr key={stage.id} className="border-b border-border last:border-0">
-                    <td className="py-1.5 text-text">{stage.name}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{stage.opportunityCount}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{money(metrics.currencyCode, stage.amount)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-text-muted">
+                    <th className="py-1.5 font-medium">Stage</th>
+                    <th className="py-1.5 font-medium">Opportunities</th>
+                    <th className="py-1.5 font-medium">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {stages.map((stage) => (
+                    <tr key={stage.id} className="border-b border-border last:border-0">
+                      <td className="py-1.5 text-text">{stage.name}</td>
+                      <td className="py-1.5 tabular-nums text-text-muted">{stage.opportunityCount}</td>
+                      <td className="py-1.5 tabular-nums text-text-muted">{money(metrics.currencyCode, stage.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -102,24 +104,26 @@ export function CrmDashboardScreen() {
           {sources.length === 0 ? (
             <p className="text-sm text-text-muted">No leads yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-text-muted">
-                  <th className="py-1.5 font-medium">Source</th>
-                  <th className="py-1.5 font-medium">Leads</th>
-                  <th className="py-1.5 font-medium">Converted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sources.map((source) => (
-                  <tr key={source.name} className="border-b border-border last:border-0">
-                    <td className="py-1.5 text-text">{source.name}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{source.leadCount}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{source.convertedCount}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-text-muted">
+                    <th className="py-1.5 font-medium">Source</th>
+                    <th className="py-1.5 font-medium">Leads</th>
+                    <th className="py-1.5 font-medium">Converted</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sources.map((source) => (
+                    <tr key={source.name} className="border-b border-border last:border-0">
+                      <td className="py-1.5 text-text">{source.name}</td>
+                      <td className="py-1.5 tabular-nums text-text-muted">{source.leadCount}</td>
+                      <td className="py-1.5 tabular-nums text-text-muted">{source.convertedCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

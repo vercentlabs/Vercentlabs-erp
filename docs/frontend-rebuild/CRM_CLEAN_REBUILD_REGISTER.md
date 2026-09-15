@@ -372,6 +372,86 @@ neither Saved Views nor URL-addressable state — a disclosed, deliberate
 scope boundary (Leads and Opportunities are this codebase's two most
 filter-heavy, highest-traffic lists), not an oversight.
 
+## Tranche 10: Mobile web + apps/mobile audit
+
+Confirmed `apps/mobile` calls the exact same `apps/web` Next.js API
+surface this session has been modifying all along —
+`apps/mobile/src/core/api/client.ts`'s `createMobileClient` targets
+`EXPO_PUBLIC_API_URL` (defaulting to `localhost:3001` in dev, the same
+port `apps/web` serves), and `packages/shared-sdk/src/mobile.js`
+prefixes every request with `/api`, matching this session's route
+paths exactly (`/crm/dashboard`, `/crm/[resource]`, `/crm/calls/...`,
+`/crm/opportunities/[id]/stage`, etc. — all real, all already carrying
+`requireCrmAccess` from this session's earlier authorization-gap fix).
+
+**Found and fixed, not just reviewed clean:**
+
+1. **A real missing route.** `apps/mobile/src/modules/crm/data/
+   offline-hardening.ts`'s `flushCrmOfflineBatch()` posts to
+   `/crm/offline-sync` — confirmed by direct filesystem search that no
+   `apps/web/src/app/api/crm/offline-sync/route.ts` existed anywhere;
+   this would have 404'd for every mobile user today. Wired it to the
+   already-implemented `applyOfflineBatch` (services/api's
+   offline-sync.js — pre-existing, this session did not write that
+   domain logic).
+
+2. **The same authorization-bypass class as Checkpoint #2, found via a
+   different entry point.** Grepped the entire `services/api/src/
+   modules/crm` tree for any internal permission check and found zero —
+   `applyOfflineMutation` (the per-mutation dispatcher inside
+   `applyOfflineBatch`) calls `createCrmRecord("leads",...)`/
+   `moveOpportunityStage`/`createCrmTask`/`createCrmFollowUp`/
+   `completeCrmTask`/`completeCrmFollowUp` directly, none of which
+   self-check an organizational manage-permission (consistent with
+   every other CRM domain function discovered this session). Unlike the
+   generic `/api/crm/[resource]` route, a single offline batch mixes
+   multiple resource types, so one flat permission doesn't fit. The
+   new route computes the distinct permissions actually required by the
+   resource/operation pairs present in the batch
+   (`leads:create`→`leadsManage`, `opportunities:stage`→
+   `opportunitiesManage`, `activities:create`/`activities:complete`→
+   `activitiesManage`) and checks all of them before calling
+   `applyOfflineBatch` at all, failing the whole request closed (403)
+   if any is missing — not a per-item partial success that could leak
+   an unauthorized mutation through inside the batch.
+   `applyOfflineMutation` itself already correctly redirects Call/
+   Meeting activity types to their governed mobile endpoints (410
+   `CRM_CALL_API_MOVED`/`CRM_MEETING_API_MOVED`) — that part was already
+   right, verified by reading it, not assumed.
+
+3. **Stale deep links in `CRM_MOBILE_FEATURES`**
+   (`apps/mobile/src/modules/crm/ui/crm-feature-registry.ts`), the
+   registry mobile's web-fallback screens use to open a built CRM
+   feature in the web view. F020 (Territories & Sales Teams) pointed at
+   `/crm/settings` (not a real page — the real one built this session
+   is `/crm/settings/territories`); F021 (Import/Export) pointed at
+   `/crm/data-management` (real: `/crm/data/import-export`); F028
+   (Custom Fields & Tags) pointed at the same wrong `/crm/data-
+   management` (real: `/crm/settings/custom-fields-and-tags`); F024
+   (Pipeline dashboard) pointed at the generic `/crm` home rather than
+   the real, more specific `/crm/dashboard` built this session. All
+   four corrected. Left every other `webPath` referencing a
+   genuinely-unbuilt feature (F004/F005/F007/F008/F012/F018/F026/F027)
+   unchanged — those are pointing nowhere real yet either way, a
+   pre-existing condition this pass didn't introduce and isn't the
+   right pass to resolve (that's each feature's own build, not a
+   link-correction task).
+
+4. **Mobile-safety pass on this session's plain `<table>` elements.**
+   Dashboard's stage/source breakdown tables and Forecast's by-owner
+   table had no `overflow-x-auto` wrapper (unlike the existing Pipeline
+   board, which already uses that pattern for its stage columns) —
+   wrapped all three so a narrow viewport scrolls the table internally
+   rather than pushing page width. This is a code-level responsive-class
+   check, not an actual browser/device screenshot at 390px — that
+   remains Tranche 14's job (Visual QA), not claimed as done here.
+
+**Not done in this pass** (disclosed, not silently skipped): no actual
+device/simulator run of `apps/mobile`, no live network trace confirming
+the offline-sync route works end-to-end against a real mobile client,
+no review of the mobile app's native screens themselves (leads/pipeline/
+activities tabs) beyond the feature-registry deep-link audit above.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
@@ -395,7 +475,7 @@ as a defect.
 7. Analytics (F024, F025, F030) — done
 8. CRM Home — done; global Search + Command Menu + Quick Create investigated and deliberately deferred to a cross-module platform prompt (see that section above) — not CRM-scoped work
 9. Saved views + URL state generalization — done for Leads and Opportunities (see the new section below); not yet composed into Accounts/Contacts/Tasks/Calls/Meetings/Follow-ups/Communications
-10. Mobile web + apps/mobile audit
+10. Mobile web + apps/mobile audit — done (see the new section below); a real missing route and stale mobile-side deep links found and fixed, not just reviewed clean
 11. Concurrency/offline audit across all new screens
 12. Security negative-test pass
 13. Formal Playwright + axe
