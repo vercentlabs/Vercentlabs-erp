@@ -19,6 +19,8 @@ export function FollowUpFormScreen({ canManage = true }: { canManage?: boolean }
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const [values, setValues] = useState<FormValues>(EMPTY);
+  const [reminderOffsetsText, setReminderOffsetsText] = useState("1440, 60, 0");
+  const [reminderChannel, setReminderChannel] = useState<"in_app" | "email">("in_app");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -43,7 +45,11 @@ export function FollowUpFormScreen({ canManage = true }: { canManage?: boolean }
         throw new Error("Review the highlighted fields.");
       }
       setFieldErrors({});
-      const input: Record<string, unknown> = { entityType: "general", ...values };
+      const reminderOffsets = reminderOffsetsText
+        .split(",")
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value) && value >= 0);
+      const input: Record<string, unknown> = { entityType: "general", ...values, reminderOffsets, reminderChannel };
       for (const key of Object.keys(input)) if (input[key] === "") input[key] = null;
       return createFollowUp(input);
     },
@@ -60,7 +66,7 @@ export function FollowUpFormScreen({ canManage = true }: { canManage?: boolean }
 
   return (
     <RecordFormPage
-      header={{ title: "New follow-up", description: "Reminders are scheduled automatically (24h before, 1h before, and at due time)." }}
+      header={{ title: "New follow-up", description: "Configure when and how you're reminded, below — defaults to a day before, an hour before, and at due time." }}
       banner={
         serverError ? (
           <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
@@ -95,6 +101,23 @@ export function FollowUpFormScreen({ canManage = true }: { canManage?: boolean }
         <TextField label="Due at" isRequired placeholder="YYYY-MM-DDTHH:mm" value={values.dueAt} onChange={(v) => set("dueAt", v)} errorMessage={fieldErrors.dueAt} />
       </div>
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TextField
+          label="Reminder offsets (minutes before due, comma-separated)"
+          description="e.g. 1440, 60, 0 for a day before, an hour before, and at due time."
+          value={reminderOffsetsText}
+          onChange={setReminderOffsetsText}
+        />
+        <Select
+          label="Reminder channel"
+          options={[
+            { value: "in_app", label: "In-app" },
+            { value: "email", label: "Email" },
+          ]}
+          selectedKey={reminderChannel}
+          onSelectionChange={(key) => setReminderChannel((key as "in_app" | "email") ?? "in_app")}
+        />
+      </div>
     </RecordFormPage>
   );
 }

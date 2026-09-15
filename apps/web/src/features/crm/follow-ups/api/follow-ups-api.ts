@@ -1,6 +1,6 @@
 "use client";
 
-import type { FollowUp, FollowUpListFilters, FollowUpListResponse } from "../types";
+import type { FollowUp, FollowUpHistoryEvent, FollowUpListFilters, FollowUpListResponse, FollowUpReminder } from "../types";
 
 export class FollowUpApiError extends Error {
   constructor(
@@ -64,3 +64,16 @@ async function action(id: string, path: string, input: Record<string, unknown> =
 export const snoozeFollowUp = (id: string, dueAt: string, expectedUpdatedAt?: string) => action(id, "snooze", { dueAt, expectedUpdatedAt });
 export const completeFollowUp = (id: string, expectedUpdatedAt?: string) => action(id, "complete", { expectedUpdatedAt });
 export const cancelFollowUp = (id: string, expectedUpdatedAt?: string) => action(id, "cancel", { expectedUpdatedAt });
+
+export async function listFollowUpReminders(id: string): Promise<{ rows: FollowUpReminder[] }> {
+  const response = await fetch(`/api/crm/follow-ups/${id}/reminders`);
+  return parseResponse(response);
+}
+export async function acknowledgeFollowUpReminder(id: string, reminderId: string): Promise<{ record: FollowUpReminder }> {
+  const response = await fetch(`/api/crm/follow-ups/${id}/reminders/${reminderId}/acknowledge`, { method: "POST" });
+  return parseResponse(response);
+}
+export async function listFollowUpHistory(id: string): Promise<{ rows: FollowUpHistoryEvent[] }> {
+  const response = await fetch(`/api/crm/follow-ups/${id}/history`);
+  return parseResponse(response);
+}

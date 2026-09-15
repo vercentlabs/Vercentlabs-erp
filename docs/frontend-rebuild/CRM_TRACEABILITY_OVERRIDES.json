@@ -2717,9 +2717,9 @@
     "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
   },
   "F016-NOTIF-001": {
-    "status": "NOT_STARTED",
-    "evidence": null,
-    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+    "status": "IMPLEMENTED",
+    "evidence": "services/worker/src/handlers/crm-follow-up-reminder-dispatch.js (in-app + email delivery, sent/failed outcome tracking); RemindersPanel in FollowUpDetailScreen.tsx (Stage A2, surfaces delivery status/failure reason/acknowledge)",
+    "notes": "Stage A2 correction: F016-AUDIT.md's 'GAP, confirmed' claim on delivery receipts was stale — a full dispatch worker (claimDueReminders/markReminderOutcome/escalateOverdueFollowUps, in-app via createInAppNotification, email via sendTransactionalEmail) already existed with real sent/failed/acknowledged tracking. Only the frontend visibility was missing; now built."
   },
   "F016-REP-001": {
     "status": "NOT_STARTED",
@@ -2782,19 +2782,19 @@
     "notes": "Deferred to Stage B."
   },
   "F016-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "FollowUpDetailScreen.tsx",
-    "notes": "Detail + edit built this pass; custom snooze duration and a full reminder/escalation event timeline remain disclosed, not-built gaps."
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (custom-duration Snooze dialog, RemindersPanel, HistoryPanel); FollowUpFormScreen.tsx (reminder-plan authoring at creation)",
+    "notes": "Stage A2 closeout: custom snooze duration and the reminder/escalation history timeline were the two remaining disclosed gaps; both now built. snoozeCrmFollowUp already accepted an arbitrary dueAt (no backend change needed for that); listCrmFollowUpHistory already existed with zero frontend consumer."
   },
   "F016-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Multi-reminder scheduling/business-hours delivery/escalation all real server-side (earlier pass); snooze/escalation state shown read-only, not the underlying event timeline."
+    "status": "IMPLEMENTED",
+    "evidence": "RemindersPanel (delivery status/failure reason/acknowledge); reminder-plan editor in FollowUpDetailScreen's EditFollowUpDialog + FollowUpFormScreen; updateCrmFollowUp now accepts reminderOffsets/reminderChannel (crm-follow-ups-f016.test.mjs, 2 new tests, 21/21)",
+    "notes": "Stage A2 re-audit against the dossier's own named list (multiple reminders, working hours, escalation, no-activity rules, delivery receipts, deduplication, timezone behavior): all were already real server-side except reminder-plan editing after creation, which updateCrmFollowUp genuinely didn't support (only regenerated with defaults on due-date change). Extended it to accept a caller-supplied plan, mirroring createCrmFollowUp's own existing stripping/validation pattern exactly — not new backend surface, closing a real asymmetry between create and update."
   },
   "F016-CAP-003": {
-    "status": "NOT_VERIFIED",
-    "evidence": null,
-    "notes": "Downstream consumers not re-audited this pass."
+    "status": "IMPLEMENTED",
+    "evidence": "crm-follow-ups-f016.test.mjs: \"the generic Activity create/update/archive/complete routes cannot bypass governed Follow-ups\"",
+    "notes": "Re-verified this pass — new routes (reminders, reminders/acknowledge, history) all call only follow-up-operations.js's own governed functions."
   },
   "F016-FR-002": {
     "status": "PARTIAL",

@@ -32,3 +32,27 @@ export type FollowUpListFilters = {
 };
 
 export type FollowUpListResponse = { rows: FollowUp[]; total: number; limit: number; offset: number };
+
+// tenant.crm_activity_reminders rows for one Follow-up (listRemindersForActivity).
+export type FollowUpReminder = {
+  id: string;
+  activityId: string;
+  offsetMinutes: number;
+  channel: "in_app" | "email";
+  fireAt: string;
+  status: "pending" | "dispatching" | "sent" | "failed" | "acknowledged" | "cancelled";
+  failureReason: string | null;
+  sentAt: string | null;
+  acknowledgedAt: string | null;
+};
+
+// tenant.crm_follow_up_events rows (listCrmFollowUpHistory) — covers the
+// lifecycle ledger including escalation.
+export type FollowUpHistoryEvent = {
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  metadata: Record<string, unknown>;
+  actorUserId: string | null;
+  occurredAt: string;
+};

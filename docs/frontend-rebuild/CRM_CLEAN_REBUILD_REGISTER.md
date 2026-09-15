@@ -1581,6 +1581,57 @@ No backend logic changed — every function this section wires was already
 real and already covered by `crm-tasks-f015.test.mjs` (40/40, re-run
 unmodified this pass). Web typecheck and ESLint: clean.
 
+### 7. F016 Follow-ups & reminders — delivery worker rediscovered; snooze/plan-editing/history UI built
+
+`F016-AUDIT.md` (dated 2026-09-05) flagged delivery-receipt tracking as
+"GAP, confirmed with the Grep tool" — re-grepping before writing anything
+found this stale: `services/worker/src/handlers/crm-follow-up-reminder-dispatch.js`
+already exists, already wired into `scheduler.js`, and is a careful,
+complete implementation — `claimDueReminders`/`markReminderOutcome` in
+separate short transactions (never holding the claim lock open across
+real network I/O), in-app delivery via `createInAppNotification`, email
+via `sendTransactionalEmail`, honest per-channel receipt semantics (in-app
+has no delivery confirmation beyond insertion, so it goes straight to
+`sent`; `acknowledged` is the one state a real user action proves), and
+`escalateOverdueFollowUps` called in the same tick. This is the same
+generic `crm_activity_reminders` engine wired into Meetings earlier this
+pass (§5) — Follow-ups was always its first and primary consumer.
+
+What was genuinely missing, confirmed by reading `FollowUpDetailScreen.tsx`'s
+own prior disclosure comment: custom snooze duration, reminder-plan
+editing, reminder delivery-status/retry-failure visibility, and an
+escalation/lifecycle history timeline. All four closed:
+
+- **Custom snooze**: `snoozeCrmFollowUp` already accepted an arbitrary
+  `dueAt` (no backend change) — the list screen's fixed "+1 day" quick
+  action is now joined by a full date/time Snooze dialog on the detail
+  screen, not a replacement for the quick action.
+- **Reminder-plan editing**: `updateCrmFollowUp` accepted core fields
+  only; `reminderOffsets`/`reminderChannel` could be set at creation
+  (`createCrmFollowUp`) but never changed afterward — a real create/update
+  asymmetry. Extended `updateCrmFollowUp` to accept the same two fields,
+  strip them the same way `createCrmFollowUp` already does, and
+  cancel-and-regenerate (also now correctly combining with a same-request
+  due-date change instead of the two independently racing to regenerate).
+  2 new tests (`crm-follow-ups-f016.test.mjs`, 21/21). UI: a "Change the
+  reminder plan" toggle in the edit dialog (opt-in, so an ordinary subject/
+  assignee edit never silently touches existing reminders), plus the same
+  offsets/channel fields at creation.
+- **Delivery-status/retry-failure visibility**: `listRemindersForActivity`/
+  `acknowledgeReminder` already existed with zero frontend consumer. Built
+  `GET /api/crm/follow-ups/[id]/reminders`,
+  `POST .../reminders/[reminderId]/acknowledge`, and a `RemindersPanel`
+  showing each reminder's channel/fire time/status/failure reason with an
+  Acknowledge action for `sent` reminders.
+- **Escalation/lifecycle history**: `listCrmFollowUpHistory` already
+  existed with zero frontend consumer — its ledger already includes the
+  `escalated` event `escalateOverdueFollowUps` writes, alongside
+  created/updated/snoozed/completed/cancelled. Built
+  `GET /api/crm/follow-ups/[id]/history` and a `HistoryPanel` timeline.
+
+Full `services/api` suite: 1054/1054 (1052 + 2 new `updateCrmFollowUp`
+reminder-plan tests). Web typecheck, ESLint, `verify:routes`: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
