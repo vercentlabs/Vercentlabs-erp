@@ -3,17 +3,22 @@ import { assertSameOriginOrMobile, decideLeadQualification, getLeadQualification
 import { tenantTransaction, withClient } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 // F006 qualification is a fully governed, independent axis from pipeline
 // stage (F007) and record status — decideLeadQualification (lead-
 // qualification.js) owns readiness criteria, override policy and history;
-// this route never re-derives any of that.
+// this route never re-derives any of that. decideLeadQualification already
+// checks crm.leads.manage internally (assertCanDecide); this route still
+// enforces the module-access layer for both GET and POST.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireWorkspace();
     const { id } = await context.params;
-    const qualification = await withClient((client) => getLeadQualification(client, crmContext(session), id));
+    const qualification = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return getLeadQualification(client, crmContext(session), id);
+    });
     return ok({ qualification });
   } catch (error) {
     return errorResponse(error);
@@ -26,9 +31,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const session = await requireWorkspace();
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const result = await tenantTransaction(session.organizationId, (client) =>
-      decideLeadQualification(client, crmContext(session), id, input),
-    );
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return decideLeadQualification(client, crmContext(session), id, input);
+    });
     return ok(result);
   } catch (error) {
     return errorResponse(error);

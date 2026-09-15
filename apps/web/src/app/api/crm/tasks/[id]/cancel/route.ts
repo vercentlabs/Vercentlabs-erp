@@ -1,9 +1,10 @@
 import { assertSameOriginOrMobile, cancelCrmTask } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -11,7 +12,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const session = await requireWorkspace();
     const { id } = await context.params;
     const input = (await readJson(request).catch(() => ({}))) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, (client) => cancelCrmTask(client, crmContext(session), id, input));
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return cancelCrmTask(client, crmContext(session), id, input);
+    });
     return ok({ record });
   } catch (error) {
     return errorResponse(error);

@@ -1,9 +1,10 @@
 import { assertSameOriginOrMobile, reactivateCrmContact } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -11,9 +12,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const session = await requireWorkspace();
     const { id } = await context.params;
     const body = (await readJson(request).catch(() => ({}))) as { expectedUpdatedAt?: string };
-    const record = await tenantTransaction(session.organizationId, (client) =>
-      reactivateCrmContact(client, crmContext(session), id, { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true }),
-    );
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      return reactivateCrmContact(client, crmContext(session), id, { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true });
+    });
     return ok({ record });
   } catch (error) {
     return errorResponse(error);

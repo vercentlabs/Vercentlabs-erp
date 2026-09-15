@@ -176,6 +176,88 @@ seemingly sound pattern) but not exhaustively verified since neither has
 any UI yet — re-audit when those tranches are built, don't assume this
 spot-check was exhaustive.
 
+## Checkpoint re-audit #2: systemic missing authorization at the route layer (found and fixed)
+
+While re-verifying task-operations.js's own comment ("gated by
+crm.activities.manage at the route level") during the Calls checkpoint,
+found that **every CRM API route built in this session — across all of
+Leads, Accounts, Contacts, Opportunities, Tasks, Calls — called only
+`requireWorkspace()` (authentication + org membership) and then went
+straight to the domain function**, with three narrow exceptions (the
+ported enrichment/sla/follow-up routes, which already called
+`requireSessionPermission` for their own specific permissions but still
+lacked the module-access layer below).
+
+Verified this was real, not assumed, by reading three layers:
+1. `resource-mutation-service.js`, `account-operations.js`,
+   `contact-operations.js`, `task-operations.js`, `call-operations.js`,
+   `opportunity-transitions.js` — none check a baseline
+   `crm.<x>.manage`-style permission (Lead's `assignLeadOwner`/
+   `decideLeadQualification` and the duplicate-override checks are the
+   only internal exceptions).
+2. `apps/web/src/core/session.ts`'s `requireWorkspace()` — confirmed it
+   is purely "authenticated + belongs to an organization," no module or
+   permission check at all.
+3. No `middleware.ts` exists, and `resolveWorkspaceContext()`'s module
+   list (`getAccessibleModules`) only feeds page-level navigation
+   through the `(workspace)` layout — API route handlers under `app/api/`
+   never pass through that layout, so it never ran for any API call.
+
+Net effect before this fix: **any authenticated member of any
+organization — regardless of role, regardless of whether their
+organization even has the CRM module enabled or entitled — could call
+any CRM mutation this session had built.** This is exactly the
+"authentication → organization → **module entitlement** → role/action
+permission → ..." chain's second and third links, both silently absent.
+
+Found the correct fix already documented and exported, just never
+called: `assertModuleAccessible(client, session, "crm", env)` in
+`module-entitlements.js`, whose own comment says "any server-side guard
+must call [this] rather than re-implement any part of this pipeline"
+(checks product-released → tenant-enabled → billing-entitled →
+`crm.view` permission, fails closed on any lookup error).
+
+**Fix**: added `requireCrmAccess(client, session, permission?)` to
+`apps/web/src/features/crm/shared/crm-context.ts` (calls
+`assertModuleAccessible` always, plus `requireSessionPermission` when a
+specific action permission is given) and called it as the first line
+inside the `withClient`/`tenantTransaction` callback of **every** CRM
+route (41 files) except the intentionally-public meeting-booking route.
+Permission choice per route: the domain function's own internal check
+where one exists (module-access only, layered on top); otherwise the
+resource's real manage permission (`crm.leads.manage`/
+`crm.opportunities.manage`/`crm.accounts.manage`/
+`crm.activities.manage`/`crm.reports.view`, per CRM_PERMISSIONS). The
+generic `/api/crm/[resource]` boundary only has a manage-permission
+mapping for `leads`/`opportunities` (the two resources actually exposed
+by any UI so far) — every other one of the 47 CRM_RESOURCE_KEYS
+currently falls back to module-access-only until it gets real UI; this
+is a recorded, intentional scope boundary, not a silent gap.
+
+**Side finding while fixing this**: the Lead follow-up route
+(`/api/crm/leads/[id]/follow-up`) accepted `activityType: "task"` and
+routed it through the generic `createCrmRecord("activities", ...)` path
+— which the Task-bypass fix from the previous checkpoint now correctly
+rejects. Fixed by routing "task" through `createCrmTask`, mirroring how
+"call"/"meeting" already route through their own governed functions.
+This branch had zero test coverage (confirmed by grep) and no UI
+currently calls it, so it was a real but currently-unreachable-by-UI
+latent bug, not an active regression.
+
+Verified: full `services/api` suite (984 tests) passes, `apps/web`
+typecheck/lint/build all clean, all directly-affected test files
+(`crm-calls-f013`, `crm-meetings-f014`, `crm-tasks-f015`,
+`crm-opportunities-f009`, `crm-lead-assignment-f005`,
+`crm-leads-record-detail-contract`) individually re-run and passing.
+
+**Not yet done**: no automated test exists yet that positively asserts
+"a session without crm.view/crm.<x>.manage gets 403 from route Y" for
+any of these 41 routes — the fix was verified by reading the code path
+and confirming zero regressions in existing tests, not by a new
+permission-denial test per route. That is exactly the job of Tranche 12
+(the comprehensive security negative-test pass) — do not skip it on the
+assumption this fix alone is sufficient evidence.
+
 ## Mandatory-gap candidates
 
 None identified yet — no canonical F001-F030 capability has been found

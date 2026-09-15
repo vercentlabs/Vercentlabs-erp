@@ -3,7 +3,7 @@ import { assertSameOriginOrMobile, assignLeadOwner } from "@vercentlabs/api";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -17,15 +17,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       override?: boolean;
       overrideReason?: string;
     };
-    const result = await tenantTransaction(session.organizationId, (client) =>
-      assignLeadOwner(client, crmContext(session), id, body.ownerUserId ?? null, {
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return assignLeadOwner(client, crmContext(session), id, body.ownerUserId ?? null, {
         reason: body.reason,
         expectedUpdatedAt: body.expectedUpdatedAt,
         requireVersion: true,
         override: body.override,
         overrideReason: body.overrideReason,
-      }),
-    );
+      });
+    });
     return ok(result);
   } catch (error) {
     return errorResponse(error);

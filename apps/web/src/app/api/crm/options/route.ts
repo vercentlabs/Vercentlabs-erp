@@ -3,7 +3,7 @@ import { getCrmOptions } from "@vercentlabs/api";
 import { withClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 // Dropdown/reference data (sources, sales stages, lost reasons, teams,
 // territories, ...) for every CRM screen — one call, not a per-field
@@ -11,7 +11,10 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 export async function GET() {
   try {
     const session = await requireWorkspace();
-    const options = await withClient((client) => getCrmOptions(client, crmContext(session)));
+    const options = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return getCrmOptions(client, crmContext(session));
+    });
     return ok({ options });
   } catch (error) {
     return errorResponse(error);

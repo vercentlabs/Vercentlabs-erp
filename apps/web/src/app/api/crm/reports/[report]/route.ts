@@ -1,9 +1,10 @@
 import { getCrmReport } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { withClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 const FILTER_KEYS = ["ownerId", "stageId", "sourceId", "campaignId", "from", "to", "period"] as const;
 
@@ -12,7 +13,8 @@ const FILTER_KEYS = ["ownerId", "stageId", "sourceId", "campaignId", "from", "to
 // conversion, sources, activities, forecast, campaigns, revenue-
 // operations, account-health, privacy, pipeline-intelligence, engagement-
 // intelligence, relationship-coverage, partner-pipeline, ai-governance) —
-// this route only forwards the report key and filters.
+// this route only forwards the report key and filters. getCrmReport does
+// not check crm.reports.view internally, so this route enforces it.
 export async function GET(request: Request, context: { params: Promise<{ report: string }> }) {
   try {
     const session = await requireWorkspace();
@@ -23,7 +25,10 @@ export async function GET(request: Request, context: { params: Promise<{ report:
       const value = url.searchParams.get(key);
       if (value) filters[key] = value;
     }
-    const result = await withClient((client) => getCrmReport(client, crmContext(session), report, filters));
+    const result = await withClient(async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.reportsView);
+      return getCrmReport(client, crmContext(session), report, filters);
+    });
     return ok({ report: result });
   } catch (error) {
     return errorResponse(error);

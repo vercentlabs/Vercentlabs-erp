@@ -1,9 +1,10 @@
 import { assertSameOriginOrMobile, createCrmRecord, isCrmResource, listCrmRecords } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction, withClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 const LIST_FILTER_KEYS = [
   "search",
@@ -36,6 +37,20 @@ function parseListFilters(url: URL) {
   return filters;
 }
 
+// Checkpoint audit (Prompt 3 continuation): only leads/opportunities are
+// actually reachable through any UI built so far. This mapping covers
+// those two with their real manage permission; every other one of the 47
+// CRM_RESOURCE_KEYS falls back to requiring only module access (crm.view)
+// until it gets its own UI and this map is extended for it — a known,
+// recorded scope boundary (see CRM_CLEAN_REBUILD_REGISTER.md), not a
+// silent gap: closing "any authenticated org member can call any CRM
+// mutation with zero permission floor" (the actual severe bug) does not
+// require finishing a full 47-resource permission audit in the same pass.
+const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
+  leads: CRM_PERMISSIONS.leadsManage,
+  opportunities: CRM_PERMISSIONS.opportunitiesManage,
+};
+
 // Governed generic CRM resource boundary (Phase 5/6). Thin by design: this
 // route authenticates, resolves workspace + CRM context, validates the
 // resource key, opens a tenant-scoped transaction, and delegates entirely
@@ -52,7 +67,10 @@ export async function GET(request: Request, context: { params: Promise<{ resourc
     if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
     const url = new URL(request.url);
     const filters = parseListFilters(url);
-    const result = await withClient((client) => listCrmRecords(client, crmContext(session), resource, filters));
+    const result = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return listCrmRecords(client, crmContext(session), resource, filters);
+    });
     return ok(result);
   } catch (error) {
     return errorResponse(error);
@@ -66,9 +84,10 @@ export async function POST(request: Request, context: { params: Promise<{ resour
     const { resource } = await context.params;
     if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, (client) =>
-      createCrmRecord(client, crmContext(session), resource, input),
-    );
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, RESOURCE_MANAGE_PERMISSIONS[resource]);
+      return createCrmRecord(client, crmContext(session), resource, input);
+    });
     return ok({ record }, 201);
   } catch (error) {
     return errorResponse(error);

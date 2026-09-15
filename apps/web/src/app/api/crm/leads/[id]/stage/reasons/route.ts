@@ -3,7 +3,7 @@ import { findApplicableTransitionReasons, getCrmRecord, getLeadStage } from "@ve
 import { withClient } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
 // F007: which reason codes are valid for the specific from-stage -> to-
 // stage move being attempted, resolved server-side from the Lead's actual
@@ -17,6 +17,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!toStageId) throw new HttpError(400, "A destination stage is required.");
     const ctx = crmContext(session);
     const reasons = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
       const lead = await getCrmRecord(client, ctx, "leads", id);
       const fromStage = await getLeadStage(client, ctx, lead.status);
       return findApplicableTransitionReasons(client, ctx, fromStage.id, toStageId);

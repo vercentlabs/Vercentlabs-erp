@@ -6,6 +6,7 @@ import {
   createCrmCall,
   createCrmMeeting,
   createCrmRecord,
+  createCrmTask,
   getCrmRecord,
   requireSessionPermission,
   updateCrmRecord,
@@ -15,7 +16,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 import { crmCallAuditSnapshot, crmMeetingAuditSnapshot } from "@/features/crm/shared/audit-events";
 
 const scheduleLeadFollowUpSchema = z.object({
@@ -45,6 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const crmApiContext = crmContext(session);
 
     const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
       const before = await getCrmRecord(client, crmApiContext, "leads", id);
       if (["converted", "archived"].includes(String(before.recordStatus))) {
         throw new HttpError(409, "Follow-ups cannot be scheduled for converted or archived leads.", "CRM_LEAD_FOLLOW_UP_CLOSED");
@@ -80,19 +82,37 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
                 endAt: new Date(Date.parse(input.dueAt) + 30 * 60_000).toISOString(),
                 locationType: "other",
               })
-            : await createCrmRecord(client, crmApiContext, "activities", {
-                companyId: before.companyId || null,
-                branchId: before.branchId || null,
-                entityType: "lead",
-                entityId: id,
-                activityType: input.activityType,
-                subject: input.subject,
-                description: input.description || null,
-                status: "planned",
-                priority: input.priority,
-                assignedTo: input.assignedTo || before.ownerUserId || session.userId,
-                dueAt: input.dueAt,
-              });
+            : // Checkpoint audit (Prompt 3 continuation): "task" must go through
+              // createCrmTask, exactly like call/meeting go through their own
+              // governed functions — the generic createCrmRecord("activities", ...)
+              // path below now rejects activityType:"task" outright (see the
+              // CRM_TASK_API_MOVED fix in resource-mutation-service.js). This branch
+              // was silently broken for a "task" follow-up until this fix.
+              input.activityType === "task"
+              ? await createCrmTask(client, crmApiContext, {
+                  companyId: before.companyId || null,
+                  branchId: before.branchId || null,
+                  entityType: "lead",
+                  entityId: id,
+                  subject: input.subject,
+                  description: input.description || null,
+                  priority: input.priority,
+                  assignedTo: input.assignedTo || before.ownerUserId || session.userId,
+                  dueAt: input.dueAt,
+                })
+              : await createCrmRecord(client, crmApiContext, "activities", {
+                  companyId: before.companyId || null,
+                  branchId: before.branchId || null,
+                  entityType: "lead",
+                  entityId: id,
+                  activityType: input.activityType,
+                  subject: input.subject,
+                  description: input.description || null,
+                  status: "planned",
+                  priority: input.priority,
+                  assignedTo: input.assignedTo || before.ownerUserId || session.userId,
+                  dueAt: input.dueAt,
+                });
 
       const lead = await updateCrmRecord(client, crmApiContext, "leads", id, { nextFollowUpAt: input.dueAt });
 
