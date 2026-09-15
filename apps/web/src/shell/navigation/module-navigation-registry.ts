@@ -140,6 +140,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F029-F030",
         items: [
           { ...available("Territories & Sales Teams", "/crm/settings/territories"), requiredPermission: "crm.settings.manage" },
+          { ...available("Custom Fields & Tags", "/crm/settings/custom-fields-and-tags"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Lead Sources",
             "/crm/settings/lead-sources",

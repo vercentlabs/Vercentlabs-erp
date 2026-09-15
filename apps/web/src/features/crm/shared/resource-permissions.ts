@@ -17,4 +17,7 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   "sales-team-members": CRM_PERMISSIONS.settingsManage,
   territories: CRM_PERMISSIONS.settingsManage,
   "territory-assignments": CRM_PERMISSIONS.settingsManage,
+  tags: CRM_PERMISSIONS.settingsManage,
+  "custom-object-definitions": CRM_PERMISSIONS.settingsManage,
+  "custom-field-definitions": CRM_PERMISSIONS.settingsManage,
 };
