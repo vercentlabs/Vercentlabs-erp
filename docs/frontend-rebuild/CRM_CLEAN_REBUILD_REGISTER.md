@@ -59,7 +59,7 @@ know before trusting a row:
 |---|---|---|---|
 | CRM-CAP-001 | Prospect and relationship master data | F001,F002,F003,F004,F008 | F001 mostly built; F002/F003 list+360+create+edit built this pass (hierarchy/stakeholders/plans/duplicate-check UI not yet); F004,F008(cross-entity workspace) not started |
 | CRM-CAP-002 | Lead lifecycle, qualification and prioritization | F005,F006,F007,F027 | Built into the Lead 360 (this pass) |
-| CRM-CAP-003 | Opportunity and pipeline governance | F009,F010,F011,F012,F026 | Not started |
+| CRM-CAP-003 | Opportunity and pipeline governance | F009,F010,F011,F012,F026 | F009-F011,F026 list/360/create/edit/stage/probability/won-lost-reason built this pass; F012 (pipeline/stage setup) not started |
 | CRM-CAP-004 | Seller activity and follow-up workspace | F013-F019 | Not started (F017/F019 partially reused via Lead timeline only) |
 | CRM-CAP-005 | Sales organization and coverage | F020 | Not started |
 | CRM-CAP-006 | CRM data operations and customization | F021,F028,F029 | F029 bulk engine wired for Leads only; F021/F028 not started |
@@ -81,24 +81,24 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F006 | Lead qualification | IN_PROGRESS | Full decide/readiness/override/history UI this pass. No criteria/playbook setup UI. |
 | F007 | Lead lifecycle | IN_PROGRESS | Governed "Move to stage", dwell, reason codes, history this pass. No stage/transition setup UI. |
 | F008 | Duplicate handling | IN_PROGRESS | Lead-only so far (dismiss/merge/override). Account/Contact duplicate workspace not started. |
-| F009 | Opportunities | NOT_STARTED | |
-| F010 | Pipeline | NOT_STARTED | |
-| F011 | Probability / expected revenue | NOT_STARTED | |
-| F012 | Sales stages | NOT_STARTED | |
+| F009 | Opportunities | IN_PROGRESS | List/360(Overview/Pipeline/Activity tabs)/create/edit built on the generic CRM resource boundary (opportunities IS a CRM_RESOURCE_KEYS resource, unlike Account/Contact). Missing: risks/intelligence panels, notes/attachments/communications, related quotation lineage display (F023 dependency). |
+| F010 | Pipeline | IN_PROGRESS | Real board (`/crm/pipeline`) grouped by actual configured pipeline/stage, non-drag "Move to stage…" per card (keyboard-operable Select+button, no drag-only path) — real amount totals per column. Missing: owner/team filters, per-stage aging/dwell indicators, won/lost outcome-reason capture from the board itself (only the Opportunity 360's Pipeline tab captures it; moving directly from the board into a won/lost stage does not yet prompt for a reason — a real, disclosed gap). |
+| F011 | Probability / expected revenue | IN_PROGRESS | Manual override wired to the real governed updateOpportunityProbability action with concurrency check; stage-default probability display exists via the stage's own probability field in options. History view not built. |
+| F012 | Sales stages | NOT_STARTED | (pipeline/stage governed setup screen — listSalesStages/createSalesStage/... already exist server-side per index.d.ts, unused by any UI yet) |
 | F013 | Calls | NOT_STARTED | |
 | F014 | Meetings | NOT_STARTED | |
 | F015 | Tasks | NOT_STARTED | |
 | F016 | Follow-ups | NOT_STARTED | (backend route for scheduling exists via Lead follow-up action; no dedicated UI) |
 | F017 | Notes / attachments | NOT_STARTED | |
 | F018 | Communications | NOT_STARTED | |
-| F019 | Timeline | IN_PROGRESS | Unified component built and used on Lead 360; not yet reused on other record types (none exist yet) |
+| F019 | Timeline | IN_PROGRESS | Unified component built and used on Lead 360 and Opportunity 360. |
 | F020 | Territories & sales teams | NOT_STARTED | |
 | F021 | Import/export | NOT_STARTED | |
 | F022 | Lead conversion | IN_PROGRESS | Conversion action + RelatedBusinessFlow result this pass. No pre-conversion review step (create vs reuse preview) |
 | F023 | Opportunity → quotation handoff | NOT_STARTED | |
 | F024 | Dashboard | NOT_STARTED | |
 | F025 | Forecast | NOT_STARTED | |
-| F026 | Won/lost reasons | NOT_STARTED | |
+| F026 | Won/lost reasons | IN_PROGRESS | Outcome-reason capture wired into the Opportunity 360's stage-move action when moving into a won/lost stage. Governed reason-list setup UI (create/edit won/lost reasons) not built; reasons are read-only from getCrmOptions().lostReasons. |
 | F027 | Lead scoring | IN_PROGRESS | Score/grade/breakdown/recalculate UI this pass. No model/rule setup UI. |
 | F028 | Custom fields & tags | NOT_STARTED | |
 | F029 | Bulk actions | IN_PROGRESS | Real server-governed bulk engine wired for Leads (priority/rating/source/follow-up). Not yet composed into any other list. |
@@ -120,8 +120,21 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 
 ## Discovered backend gaps (NOT yet fixed — named explicitly)
 
-- None confirmed blocking yet for F001-F008. Tranches 2+ have not been
-  audited yet.
+- `updateCrmRecord`'s generic resource-mutation-service.js blocks direct
+  `status`/`stage`/`stageId`/`stageCode`/`recordStatus` writes for
+  resource `"leads"` (forcing the governed transition action), but does
+  **not** apply the equivalent block for resource `"opportunities"` —
+  a caller with `crm.opportunities.manage` could, in principle, bypass
+  `moveOpportunityStage`'s won/lost-reason governance and dwell/history
+  tracking by PATCHing `stageId`/`status` directly through
+  `/api/crm/[resource]/[id]`. Not fixed this pass: the fix itself is
+  simple, but 748+ existing CRM tests were not re-audited to confirm none
+  intentionally rely on generic-PATCH stage writes for opportunities, and
+  changing shared resource-mutation-service.js without that audit risks a
+  regression outside this session's verification budget. The frontend
+  itself never exposes `stageId`/`status` in the Opportunity edit form,
+  so this gap is not reachable through the UI built this pass — only
+  through direct API use.
 
 ## Mandatory-gap candidates
 
