@@ -43,6 +43,13 @@ export async function createCrmRecord(client, context, resource, input) {
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
     if (activityType === "follow_up")
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
+    // Checkpoint audit (Prompt 3 continuation): task was not redirected here
+    // either — POST /api/crm/activities with {activityType:"task",...} would
+    // have inserted a crm_activities row directly, bypassing createCrmTask's
+    // own governance (status always 'planned', activityType/status rejected
+    // as caller-supplied input, recurrenceConfig validation).
+    if (activityType === "task")
+      throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
   if (resource === "stages")
     throw new CrmError(
@@ -400,11 +407,31 @@ export async function updateCrmRecord(
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
     if (before.activityType === "follow_up" || requestedActivityType === "follow_up")
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
+    // Checkpoint audit (Prompt 3 continuation): Tasks (activity_type='task')
+    // were the one activity kind NOT redirected here, even though
+    // task-operations.js is exactly as governed as Calls/Meetings/Follow-ups
+    // (claim-conflict handling, dependency-blocked completion, terminal-state
+    // read-only enforcement, recurrence generation) — a caller could PATCH
+    // /api/crm/activities/[taskId] with {status:"completed"} directly through
+    // this generic path and skip every one of those checks. Same fix shape
+    // as the other three activity kinds.
+    if (before.activityType === "task" || requestedActivityType === "task")
+      throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
   if (resource === "opportunities" && before.status === "archived")
     throw new CrmError(409, "Archived Opportunities are read-only.", "CRM_OPPORTUNITY_ARCHIVED");
   if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input || {}, "ownerUserId") && !input.ownerUserId && !canViewAllCrmRecords(context))
     throw new CrmError(403, "You do not have permission to leave this Opportunity unassigned.", "CRM_OPPORTUNITY_OWNER_REQUIRED");
+  // Checkpoint audit (Prompt 3 continuation): initially suspected Opportunities
+  // had no guard against stageId/status/probability/outcome fields being
+  // forged through this generic path. FALSE ALARM — record-policy.js's
+  // assertWritableScope already blocks the full controlled-field set
+  // (pipelineId/stageId/probability/forecastCategory/status/actualCloseDate/
+  // lostReasonId/lossNotes/outcomeReasonId/outcomeNotes) further down this
+  // same call chain, and crm-opportunities-f009.test.mjs already covers it
+  // ("outcome and stage-owned fields cannot be forged through generic
+  // PATCH"). Do not re-add a redundant/conflicting guard here — this was
+  // caught by re-running that test after an incorrect first attempt.
   if (
     resource === "leads" &&
     ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
@@ -561,6 +588,41 @@ export async function updateCrmRecord(
         409,
         "The selected parent would create a territory hierarchy cycle.",
         "CRM_TERRITORY_HIERARCHY_CYCLE",
+      );
+  }
+  if (
+    resource === "sales-teams" &&
+    Object.prototype.hasOwnProperty.call(prepared, "parentTeamId") &&
+    prepared.parentTeamId
+  ) {
+    // F020 Tranche D (Stage A): same self-parent/ancestor-cycle guard as
+    // territories immediately above, for sales-team hierarchy. Previously
+    // unguarded — any parent team could be assigned, including one that
+    // would make the team its own ancestor.
+    if (prepared.parentTeamId === id)
+      throw new CrmError(
+        409,
+        "A sales team cannot be its own parent.",
+        "CRM_SALES_TEAM_HIERARCHY_SELF_PARENT",
+      );
+    const teamCycle = await client.query(
+      `WITH RECURSIVE ancestors AS (
+         SELECT team.id, team.parent_team_id
+           FROM tenant.crm_sales_teams team
+          WHERE team.organization_id=$1 AND team.id=$2
+         UNION ALL
+         SELECT parent.id, parent.parent_team_id
+           FROM tenant.crm_sales_teams parent
+           JOIN ancestors child ON child.parent_team_id=parent.id
+          WHERE parent.organization_id=$1
+       ) SELECT 1 FROM ancestors WHERE id=$3 LIMIT 1`,
+      [context.organizationId, prepared.parentTeamId, id],
+    );
+    if (teamCycle.rows[0])
+      throw new CrmError(
+        409,
+        "The selected parent would create a sales-team hierarchy cycle.",
+        "CRM_SALES_TEAM_HIERARCHY_CYCLE",
       );
   }
   await assertGenericLeadLinkedTarget(client, context, resource, {
@@ -751,6 +813,11 @@ export async function archiveCrmRecord(
     throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
   if (resource === "activities" && before.activityType === "follow_up")
     throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
+  // Checkpoint audit (Prompt 3 continuation): task was not redirected here
+  // either — DELETE /api/crm/activities/[taskId] would have run the generic
+  // archive path instead of the governed cancelCrmTask transition.
+  if (resource === "activities" && before.activityType === "task")
+    throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 

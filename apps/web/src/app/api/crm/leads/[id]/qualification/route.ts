@@ -1,88 +1,42 @@
-import {
-  decideLeadQualification,
-  getLeadQualification,
-} from "@vercentlabs/api";
+import { assertSameOriginOrMobile, decideLeadQualification, getLeadQualification } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { tenantTransaction, withClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-type Params = { params: Promise<{ id: string }> };
-
-async function requestContext(id: string) {
-  const session = await getSessionContext();
-  if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-  requirePermissionFromSession(session, PERMISSIONS.crmView);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-  assertCrmIdentifier(id);
-  return { session, context: await crmApiContext(session) };
-}
-
-export async function GET(_request: Request, { params }: Params) {
+// F006 qualification is a fully governed, independent axis from pipeline
+// stage (F007) and record status — decideLeadQualification (lead-
+// qualification.js) owns readiness criteria, override policy and history;
+// this route never re-derives any of that. decideLeadQualification already
+// checks crm.leads.manage internally (assertCanDecide); this route still
+// enforces the module-access layer for both GET and POST.
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
-    const { context } = await requestContext(id);
-    const qualification = await tenantTransaction(
-      context.organizationId,
-      (client) => getLeadQualification(client, context, id),
-    );
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const qualification = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return getLeadQualification(client, crmContext(session), id);
+    });
     return ok({ qualification });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
-export async function POST(request: Request, { params }: Params) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    assertSameOrigin(request);
-    const { id } = await params;
-    const { session, context } = await requestContext(id);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-    await requireBillingWriteAccess(context.organizationId);
-    await incrementBillingUsage(context.organizationId, "api_requests_monthly");
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const result = await tenantTransaction(
-      context.organizationId,
-      async (client) => {
-        const changed = await decideLeadQualification(client, context, id, input);
-        if (changed.changed)
-          await audit({
-            organizationId: context.organizationId,
-            actorUserId: context.userId,
-            eventType:
-              changed.event.previousState === "unqualified" &&
-              changed.event.newState === "qualified"
-                ? "crm.leads.requalified"
-                : `crm.leads.${changed.event.newState}`,
-            entityType: "lead",
-            entityId: id,
-            beforeData: { qualificationState: changed.event.previousState },
-            afterData: {
-              qualificationState: changed.event.newState,
-              qualificationReasonCode: changed.event.reasonCode,
-            },
-            metadata: { qualificationEventId: changed.event.id },
-            request,
-            client,
-          });
-        return changed;
-      },
-    );
-    return ok({
-      message: result.changed
-        ? result.qualification.state === "qualified"
-          ? "Lead qualified."
-          : "Lead marked unqualified."
-        : "Qualification decision was already current.",
-      ...result,
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return decideLeadQualification(client, crmContext(session), id, input);
     });
+    return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

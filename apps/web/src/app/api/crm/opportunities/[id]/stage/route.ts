@@ -1,66 +1,40 @@
-import {
-  incrementBillingUsage,
-  requireBillingWriteAccess,
-} from "@/core/billing";
-import { moveOpportunityStage } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { moveStageSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
-import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
+import { assertSameOriginOrMobile, moveOpportunityStage } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+
 import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-export async function POST(
-  request: Request,
-  route: { params: Promise<{ id: string }> },
-) {
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+// F010/F012/F026. A governed won/lost outcome reason travels through the
+// same expectations bag moveOpportunityStage already accepts
+// (outcomeReasonId/outcomeNotes) — no separate "won/lost" endpoint.
+// moveOpportunityStage does not check a permission internally, so this
+// route enforces crm.opportunities.manage itself.
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmOpportunitiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const input = moveStageSchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(
-      context.organizationId,
-      async (client) => {
-        const moved = await moveOpportunityStage(
-          client,
-          context,
-          id,
-          input.stageId,
-          input.note,
-          {
-            expectedUpdatedAt: input.expectedUpdatedAt,
-            expectedStageId: input.expectedStageId,
-            outcomeReasonId: input.outcomeReasonId,
-            outcomeNotes: input.outcomeNotes,
-          },
-        );
-        await audit({
-          organizationId: context.organizationId,
-          actorUserId: session.userId,
-          eventType: "crm.opportunity.stage_changed",
-          entityType: "opportunity",
-          entityId: id,
-          afterData: moved,
-          request,
-          client,
-        });
-        return moved;
-      },
-    );
-    return ok({ message: "Opportunity stage updated.", record });
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const body = (await readJson(request)) as {
+      stageId: string;
+      note?: string | null;
+      expectedUpdatedAt?: string;
+      expectedStageId?: string | null;
+      outcomeReasonId?: string | null;
+      outcomeNotes?: string | null;
+    };
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage);
+      return moveOpportunityStage(client, crmContext(session), id, body.stageId, body.note ?? null, {
+        expectedUpdatedAt: body.expectedUpdatedAt,
+        expectedStageId: body.expectedStageId,
+        outcomeReasonId: body.outcomeReasonId,
+        outcomeNotes: body.outcomeNotes,
+      });
+    });
+    return ok({ record });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return errorResponse(error);
   }
 }

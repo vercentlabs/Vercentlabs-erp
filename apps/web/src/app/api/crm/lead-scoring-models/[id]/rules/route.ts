@@ -1,42 +1,24 @@
-import { createLeadScoringModelRule } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createLeadScoringModelRule } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function POST(request: Request, context: RouteContext) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const created = await createLeadScoringModelRule(client, context, id, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.lead_scoring_model_rule.created",
-        entityType: "lead_scoring_model_rule",
-        entityId: String(created.id),
-        afterData: created,
-        request,
-        client,
-      });
-      return created;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return createLeadScoringModelRule(client, crmContext(session), id, input);
     });
-    return ok({ message: "Rule created.", record }, 201);
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

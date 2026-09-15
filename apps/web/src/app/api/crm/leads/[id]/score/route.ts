@@ -1,68 +1,42 @@
-import { getLeadScoreExplanation, recalculateLeadScore } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, getLeadScoreExplanation, recalculateLeadScore } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOriginOrMobile, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { tenantTransaction, withClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function GET(_request: Request, { params }: Params) {
+// F027 scoring is read-only intelligence — it must never be treated as
+// lifecycle authority. Recalculation only re-derives score/grade from the
+// active model; it can never change status/qualificationStatus/recordStatus.
+// Both functions already check crm.leads.view_sensitive internally
+// (assertSensitiveLeadIntelligenceAccess); this route still enforces the
+// module-access layer.
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmView);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-    const { id } = await params;
-    assertCrmIdentifier(id);
-    const context = await crmApiContext(session);
-    return ok(
-      await tenantTransaction(context.organizationId, (client) =>
-        getLeadScoreExplanation(client, context, id),
-      ),
-    );
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const explanation = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return getLeadScoreExplanation(client, crmContext(session), id);
+    });
+    return ok({ explanation });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
-export async function POST(request: Request, { params }: Params) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    assertSameOriginOrMobile(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsManage);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-
-    const { id } = await params;
-    assertCrmIdentifier(id);
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const reason = String(input.reason || "Manual recalculation").trim().slice(0, 500) || "Manual recalculation";
-    const context = await crmApiContext(session);
-
-    const result = await tenantTransaction(context.organizationId, async (client) => {
-      const score = await recalculateLeadScore(client, context, id, reason);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: session.userId,
-        eventType: "crm.lead.score_recalculated",
-        entityType: "lead",
-        entityId: id,
-        afterData: score,
-        request,
-        client,
-      });
-      return score;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const input = (await readJson(request).catch(() => ({}))) as { reason?: string };
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return recalculateLeadScore(client, crmContext(session), id, input.reason || "Manual recalculation from Lead 360");
     });
-
-    return ok({ message: "Lead score recalculated.", ...result });
+    return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

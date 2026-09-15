@@ -1,45 +1,23 @@
-import { cancelCrmFollowUp, getCrmFollowUp } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmFollowUpAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
-import { followUpLifecycleSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { assertSameOriginOrMobile, cancelCrmFollowUp } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmActivitiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const input = followUpLifecycleSchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const before = await getCrmFollowUp(client, context, id);
-      const cancelled = await cancelCrmFollowUp(client, context, id, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.follow_up.cancelled",
-        entityType: "follow_up",
-        entityId: id,
-        beforeData: crmFollowUpAuditSnapshot(before),
-        afterData: crmFollowUpAuditSnapshot(cancelled),
-        request,
-        client,
-      });
-      return cancelled;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const input = (await readJson(request).catch(() => ({}))) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return cancelCrmFollowUp(client, crmContext(session), id, input);
     });
-    return ok({ message: "Follow-up cancelled.", record });
+    return ok({ record });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

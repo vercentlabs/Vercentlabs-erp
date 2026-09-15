@@ -1,98 +1,41 @@
 import { getCrmReport } from "@vercentlabs/api";
-import { rowsToCsv } from "@vercentlabs/reporting-engine";
-import { getSessionContext } from "@/core/auth";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { requireCrmReportView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok } from "@/core/http";
-function reportLabel(value: string) {
-  return value
-    .replaceAll("-", " ")
-    .replaceAll("_", " ")
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-function csvValue(value: unknown) {
-  if (value === null || value === undefined) return "";
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item ?? "")).join("; ");
-  }
-  if (typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, item]) => `${reportLabel(key)}: ${String(item ?? "")}`)
-      .join("; ");
-  }
-  return value;
-}
+import { withClient } from "@/core/db";
+import { errorResponse, ok } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-function csvFileName(report: string) {
-  const safeName =
-    report
-      .toLowerCase()
-      .replace(/[^a-z0-9-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "report";
-  return `crm-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
-}
+// getCrmReport only ever reads filters.from/filters.to (verified by reading
+// its body) — ownerId/stageId/sourceId/campaignId/period were previously
+// accepted here and silently dropped by the backend, which would have
+// misled a caller into thinking that filtering worked. Only forward what
+// the backend actually honors.
+const FILTER_KEYS = ["from", "to"] as const;
 
-export async function GET(
-  request: Request,
-  route: { params: Promise<{ report: string }> },
-) {
+// F030. Row/field scope, aggregation security and time basis are
+// getCrmReport's own authority for each of its ~14 report kinds (pipeline,
+// conversion, sources, activities, forecast, campaigns, revenue-
+// operations, account-health, privacy, pipeline-intelligence, engagement-
+// intelligence, relationship-coverage, partner-pipeline, ai-governance) —
+// this route only forwards the report key and filters. getCrmReport does
+// not check crm.reports.view internally, so this route enforces it.
+export async function GET(request: Request, context: { params: Promise<{ report: string }> }) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    const { report } = await route.params;
-    requireCrmReportView(session, report);
+    const session = await requireWorkspace();
+    const { report } = await context.params;
     const url = new URL(request.url);
-    const context = await crmApiContext(session);
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      getCrmReport(
-        client,
-        context,
-        report,
-        Object.fromEntries(url.searchParams.entries()),
-      ),
-    );
-    if (url.searchParams.get("format") === "csv") {
-      const rows = Array.isArray((result as { rows?: unknown }).rows)
-        ? ((result as { rows: Array<Record<string, unknown>> }).rows ?? [])
-        : [];
-      const keys = Array.from(
-        new Set(rows.flatMap((row) => Object.keys(row))),
-      );
-      const columns = keys.map((key) => ({
-        key,
-        label: reportLabel(key),
-      }));
-      const safeRows = rows.map((row) =>
-        Object.fromEntries(
-          Object.entries(row).map(([key, value]) => [key, csvValue(value)]),
-        ),
-      );
-      const csv = columns.length
-        ? rowsToCsv(columns, safeRows)
-        : "\uFEFFNo report data\r\n";
-
-      return new Response(csv, {
-        status: 200,
-        headers: {
-          "Cache-Control": "private, no-store",
-          "Content-Disposition": `attachment; filename="${csvFileName(report)}"`,
-          "Content-Type": "text/csv; charset=utf-8",
-          "X-Content-Type-Options": "nosniff",
-        },
-      });
+    const filters: Record<string, string> = {};
+    for (const key of FILTER_KEYS) {
+      const value = url.searchParams.get(key);
+      if (value) filters[key] = value;
     }
-
-    return ok(result);
+    const result = await withClient(async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.reportsView);
+      return getCrmReport(client, crmContext(session), report, filters);
+    });
+    return ok({ report: result });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return errorResponse(error);
   }
 }

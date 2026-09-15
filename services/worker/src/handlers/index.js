@@ -13,6 +13,7 @@ import { capturePipelineDailySnapshotHandler, JOB_TYPE as PIPELINE_SNAPSHOT_CAPT
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
 import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_TYPE, payloadSchema as meetingCalendarPushPayloadSchema } from "./crm-meeting-calendar-push.js";
 import { dispatchNurtureQueueNotificationsHandler, JOB_TYPE as NURTURE_QUEUE_DISPATCH_JOB_TYPE, payloadSchema as nurtureQueueDispatchPayloadSchema } from "./crm-nurture-queue-dispatch.js";
+import { leadExportHandler, JOB_TYPE as LEAD_EXPORT_JOB_TYPE, payloadSchema as leadExportPayloadSchema } from "./crm-lead-export.js";
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
@@ -122,5 +123,17 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // claimDueNurtureQueueItems() uses FOR UPDATE SKIP LOCKED and marks notified_at atomically in the same claim UPDATE, so an overlapping/re-run tick can never claim or re-notify an item another tick already claimed
     maxAttempts: 3,
+  });
+  registerJobHandler(LEAD_EXPORT_JOB_TYPE, {
+    schema: leadExportPayloadSchema,
+    handler: leadExportHandler,
+    backoff: internalJobBackoff,
+    // Re-running the same job id just regenerates and overwrites the same
+    // job row's own CSV/manifest — no side effect on any other data, so no
+    // caller-supplied idempotency key is required (unlike bulk-update,
+    // which mutates many other Leads).
+    idempotency: "NATURALLY_IDEMPOTENT",
+    maxAttempts: 3,
+    transactionMode: "managed",
   });
 }

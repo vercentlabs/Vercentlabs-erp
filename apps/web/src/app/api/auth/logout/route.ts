@@ -1,12 +1,23 @@
-import { clearSessionCookie, revokeCurrentSession } from "@/core/auth";
-import { errorResponse, ok } from "@/core/http";
-import { assertSameOrigin } from "@/core/security";
+import { cookies } from "next/headers";
 
-export async function POST(request: Request) {
+import { tokenHash, revokeSessionByTokenHash } from "@vercentlabs/api";
+
+import { withClient } from "@/core/db";
+import { errorResponse, ok } from "@/core/http";
+import { clearSessionCookie } from "@/core/session";
+
+const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "vercentlabs_session";
+
+export async function POST() {
   try {
-    assertSameOrigin(request);
-    await revokeCurrentSession("logout");
-    const response = ok({ message: "Signed out.", next: "/login" });
+    const store = await cookies();
+    const token = store.get(COOKIE_NAME)?.value;
+    if (token) {
+      await withClient((client) =>
+        revokeSessionByTokenHash(client, tokenHash(token), "logout"),
+      );
+    }
+    const response = ok({ message: "Signed out." });
     clearSessionCookie(response);
     return response;
   } catch (error) {

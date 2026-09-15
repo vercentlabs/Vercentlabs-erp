@@ -1,25 +1,25 @@
-import { getCrmFollowUp, listCrmFollowUpHistory } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok } from "@/core/http";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { listCrmFollowUpHistory } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-export async function GET(_request: Request, route: { params: Promise<{ id: string }> }) {
+import { withClient } from "@/core/db";
+import { errorResponse, ok } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+// F016 Stage A2 §7. listCrmFollowUpHistory already existed with no
+// frontend consumer — covers "escalation history" (escalateOverdueFollowUps
+// writes an 'escalated' event into the same ledger) alongside the rest of
+// the Follow-up's lifecycle events.
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const context = await crmApiContext(session);
-    const events = await tenantTransaction(context.organizationId, async (client) => {
-      await getCrmFollowUp(client, context, id);
-      return listCrmFollowUpHistory(client, context, id);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const rows = await withClient(async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return listCrmFollowUpHistory(client, crmContext(session), id);
     });
-    return ok({ events });
+    return ok({ rows });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

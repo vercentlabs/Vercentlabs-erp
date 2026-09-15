@@ -1,66 +1,39 @@
-import { getCrmFollowUp, listRemindersForActivity, updateCrmFollowUp } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, getCrmFollowUp, updateCrmFollowUp } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmFollowUpAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
-import { updateFollowUpSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { tenantTransaction, withClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-type Route = { params: Promise<{ id: string }> };
+type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: Request, route: Route) {
+export async function GET(_request: Request, context: RouteContext) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const context = await crmApiContext(session);
-    const result = await tenantTransaction(context.organizationId, async (client) => ({
-      record: await getCrmFollowUp(client, context, id),
-      reminders: await listRemindersForActivity(client, context, id),
-    }));
-    return ok(result);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const record = await withClient(async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return getCrmFollowUp(client, crmContext(session), id);
+    });
+    return ok({ record });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
-export async function PATCH(request: Request, route: Route) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmActivitiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const input = updateFollowUpSchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const before = await getCrmFollowUp(client, context, id);
-      const updated = await updateCrmFollowUp(client, context, id, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.follow_up.updated",
-        entityType: "follow_up",
-        entityId: id,
-        beforeData: crmFollowUpAuditSnapshot(before),
-        afterData: crmFollowUpAuditSnapshot(updated),
-        request,
-        client,
-      });
-      return updated;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return updateCrmFollowUp(client, crmContext(session), id, input);
     });
-    return ok({ message: "Follow-up updated.", record });
+    return ok({ record });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

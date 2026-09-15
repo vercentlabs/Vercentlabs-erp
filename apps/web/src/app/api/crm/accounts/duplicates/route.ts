@@ -1,30 +1,25 @@
 import { findAccountDuplicates } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
-import { crmApiContext } from "@/modules/crm";
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok } from "@/core/http";
 
-export async function GET(request: Request) {
+import { withClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+// F002 Tranche E (Stage A). findAccountDuplicates (duplicate-matching.js)
+// already existed, already tested, already used internally by lead
+// conversion's own duplicate check — but never reachable from a plain
+// GET/POST an Account-360 user could hit. Read-only, module-access-only,
+// same convention as /api/crm/leads/duplicates.
+export async function POST(request: Request) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmAccountsManage);
-    const input = Object.fromEntries(
-      new URL(request.url).searchParams.entries(),
-    );
-    const context = await crmApiContext(session);
-    const duplicates = await tenantTransaction(
-      context.organizationId,
-      (client) => findAccountDuplicates(client, context, input),
-    );
+    const session = await requireWorkspace();
+    const body = (await readJson(request)) as { input?: Record<string, unknown> };
+    const duplicates = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return findAccountDuplicates(client, crmContext(session), body.input ?? {});
+    });
     return ok({ duplicates });
   } catch (error) {
-    if (error && typeof error === "object" && "status" in error) {
-      const message =
-        "message" in error ? String(error.message) : "CRM request failed.";
-      return errorResponse(new HttpError(Number(error.status), message));
-    }
     return errorResponse(error);
   }
 }

@@ -1,51 +1,44 @@
-import { createLeadScoringModel, listLeadScoringModels } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createLeadScoringModel, listLeadScoringModels } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
+import { tenantTransaction, withClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
+// F027 Tranche I (Stage A). listLeadScoringModels/createLeadScoringModel/
+// etc (model-config.js) already governed the real scoring engine
+// (scoring-engine.js's activeModel() reads tenant.crm_lead_scoring_models
+// exclusively) — this module's own header comment explicitly documents
+// that it REPLACES the legacy generic "scoring-rules" resource
+// (tenant.crm_scoring_rules), which the engine has never read for actual
+// scoring. Confirmed by reading scoring-engine.js before wiring anything,
+// so as not to build a setup screen for a dead system. Module-access-only
+// at the route: assertSensitiveLeadIntelligenceAccess/assertConfigPermission
+// gate reads/writes internally.
 export async function GET() {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-    const context = await crmApiContext(session);
-    return ok({ records: await tenantTransaction(context.organizationId, (client) => listLeadScoringModels(client, context)) });
+    const session = await requireWorkspace();
+    const rows = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return listLeadScoringModels(client, crmContext(session));
+    });
+    return ok({ rows });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const created = await createLeadScoringModel(client, context, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.lead_scoring_model.created",
-        entityType: "lead_scoring_model",
-        entityId: String(created.id),
-        afterData: created,
-        request,
-        client,
-      });
-      return created;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return createLeadScoringModel(client, crmContext(session), input);
     });
-    return ok({ message: "Scoring model created.", record }, 201);
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

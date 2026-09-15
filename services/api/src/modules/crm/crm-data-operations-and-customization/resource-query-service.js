@@ -79,6 +79,31 @@ export function buildFilters(
     ["pipelineId", "pipeline_id"],
     ["sourceId", "source_id"],
     ["campaignId", "campaign_id"],
+    // F020 Tranche D (Stage A) — sales-team-members/territory-assignments
+    // are inherently parent-scoped (a membership belongs to exactly one
+    // team, an assignment to exactly one territory); listing either
+    // without this filter would return every membership/assignment across
+    // the organization, a real cross-team/cross-territory data exposure,
+    // not just a UX inconvenience.
+    ["teamId", "team_id"],
+    ["territoryId", "territory_id"],
+    // F002 Tranche E (Stage A) — same reasoning for account-plans/
+    // account-stakeholders/communications: each row belongs to exactly one
+    // Account (party_id) or, for stakeholders, one account plan
+    // (account_plan_id). Without these keys an Account 360's plan/
+    // stakeholder/communications panel would have had to list the whole
+    // organization's rows and filter client-side, which is both wasteful
+    // and a real cross-account data exposure over the wire.
+    ["partyId", "party_id"],
+    ["accountPlanId", "account_plan_id"],
+    // F003 Tranche F (Stage A) — same reasoning for communications scoped
+    // to a Contact rather than an Account (tenant.crm_communications has
+    // both party_id and contact_id columns).
+    ["contactId", "contact_id"],
+    // F025 Tranche K (Stage A) — forecast-submissions belongs to exactly
+    // one forecast period; without this, a period's submission list
+    // would return every period's rows across the organization.
+    ["periodId", "period_id"],
   ]) {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
@@ -216,6 +241,26 @@ export async function getSalesStageResourceRecord(client, context, id) {
 
 
 
+// F020 Stage A2 §8. The exact same "no effectively-active primary
+// assignment" predicate the CRM dashboard's uncovered_territories metric
+// already uses (analytics-service.js) — reused here, not re-derived, so
+// the aggregate count and this per-row detail can never silently drift
+// apart. A territory with only an 'overlay'/'shared'/'manager' assignment
+// still counts as uncovered; those roles supplement primary ownership,
+// they do not substitute for it.
+async function annotateTerritoryCoverage(client, context, rows) {
+  const ids = rows.map((row) => row.id);
+  if (!ids.length) return rows;
+  const { rows: covered } = await client.query(
+    `SELECT DISTINCT territory_id FROM tenant.crm_territory_assignments
+      WHERE organization_id=$1 AND territory_id = ANY($2::uuid[]) AND assignment_role='primary'
+        AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date)`,
+    [context.organizationId, ids],
+  );
+  const coveredIds = new Set(covered.map((row) => row.territory_id));
+  return rows.map((row) => ({ ...row, hasPrimaryCoverage: coveredIds.has(row.id) }));
+}
+
 export async function listCrmRecords(client, context, resource, filters = {}) {
   if (resource === "stages") return listSalesStageResourceRecords(client, context, filters);
   const definition = definitionFor(resource);
@@ -238,13 +283,10 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
     `SELECT record.* FROM ${definition.table} record WHERE ${where} ORDER BY ${definition.orderBy} LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
     parameters,
   );
+  let rows = result.rows.map((row) => camelizeRow(row));
+  if (resource === "territories") rows = await annotateTerritoryCoverage(client, context, rows);
   return {
-    rows: await projectCrmRecords(
-      client,
-      context,
-      resource,
-      result.rows.map((row) => camelizeRow(row)),
-    ),
+    rows: await projectCrmRecords(client, context, resource, rows),
     total,
     limit,
     offset,

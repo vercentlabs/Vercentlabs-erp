@@ -1,47 +1,27 @@
-import { activateLeadScoringModel } from "@vercentlabs/api";
+import { activateLeadScoringModel, assertSameOriginOrMobile } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { errorResponse, ok } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-export async function POST(request: Request, route: { params: Promise<{ id: string }> }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+// Activating a model retires the previously active one and enqueues a
+// bulk recalculation job (enqueueLeadScoreRecalcJob) so every existing
+// Lead is re-scored under the new model — both handled inside
+// activateLeadScoringModel itself, not duplicated here.
+export async function POST(request: Request, context: RouteContext) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const context = await crmApiContext(session);
-    const result = await tenantTransaction(context.organizationId, async (client) => {
-      const outcome = await activateLeadScoringModel(client, context, id);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.lead_scoring_model.activated",
-        entityType: "lead_scoring_model",
-        entityId: id,
-        afterData: { model: outcome.model, recalcJobId: outcome.recalcJob?.id ?? null },
-        request,
-        client,
-      });
-      return outcome;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return activateLeadScoringModel(client, crmContext(session), id);
     });
-    return ok({
-      message: result.recalcJob
-        ? `Model activated. Recalculating ${result.recalcJob.resultManifest?.requested ?? 0} Lead(s) in the background.`
-        : "Model activated.",
-      record: result.model,
-      recalcJob: result.recalcJob,
-    });
+    return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

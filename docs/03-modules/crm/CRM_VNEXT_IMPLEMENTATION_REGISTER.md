@@ -1,5 +1,14 @@
 # CRM vNext Implementation & Issue Register
 
+> **SUPERSEDED — historical evidence only, as of the `rebuild/clean-frontend`
+> effort (Prompt 3 of 15).** The frontend generation this document tracks
+> was deleted as part of the clean rebuild. Its "implemented"/"complete"
+> claims describe that deleted frontend, not the current one. The current
+> live authority for CRM frontend rebuild status is
+> `docs/frontend-rebuild/CRM_CLEAN_REBUILD_REGISTER.md`. Do not use this
+> document to judge current implementation status; it remains useful only
+> as a historical record of backend decisions and prior audits.
+
 Status: `LIVE — SOURCE OF TRUTH FOR PROMPTS 1–12`
 
 This is the permanent, continuously-updated source of truth for the CRM vNext

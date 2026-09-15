@@ -74,3 +74,68 @@ test("F020: clearing a parent (null) does not run the cycle check", async () => 
     false,
   );
 });
+
+// Tranche D (Stage A) — the same self-parent/ancestor-cycle guard as
+// territories above, mirrored for sales-team hierarchy (parentTeamId),
+// which had no such guard before this pass.
+const teamId = "55555555-5555-4555-8555-555555555555";
+const otherTeamId = "66666666-6666-4666-8666-666666666666";
+
+function salesTeamClient({ cycleExists = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    query: async (sql, values) => {
+      calls.push({ sql, values });
+      if (sql.includes("FROM tenant.crm_sales_teams record"))
+        return { rows: [{ id: teamId, name: "Enterprise", parent_team_id: null }] };
+      if (sql.includes("WITH RECURSIVE ancestors"))
+        return { rows: cycleExists ? [{ "?column?": 1 }] : [] };
+      if (sql.includes("UPDATE tenant.crm_sales_teams"))
+        return { rows: [{ id: teamId, name: "Enterprise", parent_team_id: otherTeamId }] };
+      return { rows: [] };
+    },
+  };
+}
+
+test("F020: a sales team cannot be assigned itself as parent", async () => {
+  await assert.rejects(
+    updateCrmRecord(salesTeamClient(), context, "sales-teams", teamId, {
+      parentTeamId: teamId,
+    }),
+    (error) => error.status === 409 && error.code === "CRM_SALES_TEAM_HIERARCHY_SELF_PARENT",
+  );
+});
+
+test("F020: assigning a descendant team as parent is rejected as a hierarchy cycle", async () => {
+  const client = salesTeamClient({ cycleExists: true });
+  await assert.rejects(
+    updateCrmRecord(client, context, "sales-teams", teamId, {
+      parentTeamId: otherTeamId,
+    }),
+    (error) => error.status === 409 && error.code === "CRM_SALES_TEAM_HIERARCHY_CYCLE",
+  );
+  assert.equal(
+    client.calls.some((call) => call.sql.includes("WITH RECURSIVE ancestors")),
+    true,
+  );
+});
+
+test("F020: a valid, non-cyclical sales-team parent assignment succeeds", async () => {
+  const client = salesTeamClient({ cycleExists: false });
+  const updated = await updateCrmRecord(client, context, "sales-teams", teamId, {
+    parentTeamId: otherTeamId,
+  });
+  assert.equal(updated.parentTeamId, otherTeamId);
+});
+
+test("F020: clearing a sales team's parent (null) does not run the cycle check", async () => {
+  const client = salesTeamClient();
+  await updateCrmRecord(client, context, "sales-teams", teamId, {
+    parentTeamId: null,
+  });
+  assert.equal(
+    client.calls.some((call) => call.sql.includes("WITH RECURSIVE ancestors")),
+    false,
+  );
+});

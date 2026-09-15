@@ -1,70 +1,35 @@
-import {
-  incrementBillingUsage,
-  requireBillingWriteAccess,
-} from "@/core/billing";
-import { updateOpportunityProbability } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { updateOpportunityProbabilitySchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
-import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
+import { assertSameOriginOrMobile, updateOpportunityProbability } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-export async function POST(
-  request: Request,
-  route: { params: Promise<{ id: string }> },
-) {
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+// F011. A manual override is distinct from the stage-configured default —
+// updateOpportunityProbability's own history table is the authority for
+// that distinction, not this route. It does not check a permission
+// internally, so this route enforces crm.opportunities.manage itself.
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmOpportunitiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
-    const input = updateOpportunityProbabilitySchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const updated = await updateOpportunityProbability(
-        client,
-        context,
-        id,
-        input.probability,
-        input.note,
-        {
-          expectedUpdatedAt: input.expectedUpdatedAt,
-          expectedProbability: input.expectedProbability,
-        },
-      );
-      if (!updated.replayed) {
-        await audit({
-          organizationId: context.organizationId,
-          actorUserId: session.userId,
-          eventType: "crm.opportunity.probability_changed",
-          entityType: "opportunity",
-          entityId: id,
-          afterData: {
-            probability: updated.probability,
-            expectedRevenue: updated.expectedRevenue,
-          },
-          request,
-          client,
-        });
-      }
-      return updated;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const body = (await readJson(request)) as {
+      probability: number;
+      note?: string | null;
+      expectedUpdatedAt?: string;
+      expectedProbability?: number | null;
+    };
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage);
+      return updateOpportunityProbability(client, crmContext(session), id, body.probability, body.note ?? null, {
+        expectedUpdatedAt: body.expectedUpdatedAt,
+        expectedProbability: body.expectedProbability,
+      });
     });
-    return ok({
-      message: record.replayed ? "Probability is already up to date." : "Probability updated.",
-      record,
-    });
+    return ok({ record });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return errorResponse(error);
   }
 }

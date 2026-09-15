@@ -339,6 +339,17 @@ export function assertEligibleLeadAssignee(
   userId: string,
   scope?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
+// F005 Stage A2 §3 — the type declaration for this function was missing
+// even though the runtime export already existed (lead-governance.js
+// re-exports assignment/index.js, already reachable via this file's own
+// "export * from lead-governance.js"); only the .d.ts surface needed
+// this hand-written signature, matching the sibling declarations below.
+export function explainLeadAssignmentCandidates(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  memberUserIds: string[],
+  input?: { companyId?: string; branchId?: string },
+): Promise<Array<{ userId: string; name: string | null; eligible: boolean; reasons: string[] }>>;
 export function listLeadAssignmentPolicies(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -386,6 +397,8 @@ export function clearLeadAssigneeAvailability(
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
 
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
+export * from "./modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -408,6 +421,8 @@ export * from "./modules/crm/prospect-and-relationship-master-data/account-intel
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
 export {
+  findAccountDuplicates,
+  findContactDuplicates,
   findLeadContactCrossMatches,
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,
@@ -434,6 +449,7 @@ export function listThreadMessages(client: QueryClient, context: any, threadId: 
 export function updateSharedInboxThreadStatus(client: QueryClient, context: any, threadId: string, status: unknown): Promise<any>;
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
 export function createLeadScoringModel(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
@@ -582,3 +598,27 @@ export * from "./core/document-numbering.js";
 export * from "./core/idempotency.js";
 export * from "./core/inventory-lock.js";
 export * from "./core/references.js";
+
+// Platform reactivation port (Prompt 2 of 15) — see
+// docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv.
+export * from "./core/access-control-runtime.js";
+export * from "./core/session.js";
+export * from "./core/access-administration.js";
+export * from "./core/entitlements.js";
+export * from "./core/module-entitlements.js";
+export * from "./core/audit-redaction.js";
+export * from "./core/security.js";
+export * from "./core/attachment-security.js";
+export * from "./core/password-policy.js";
+export * from "./core/auth-mailer.js";
+export * from "./core/api-keys.js";
+export * from "./core/oauth.js";
+export * from "./core/notification-preferences.js";
+export * from "./core/inbound-mail.js";
+export * from "./core/tags.js";
+export * from "./core/configuration.js";
+export * from "./core/privacy.js";
+export * from "./core/ai-governance.js";
+export * from "./core/approvals.js";
+export * from "./core/notifications.js";
+export * from "./core/background-jobs.js";

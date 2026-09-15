@@ -1,24 +1,22 @@
 import { getCrmOptions } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok } from "@/core/http";
+
+import { withClient } from "@/core/db";
+import { errorResponse, ok } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+// Dropdown/reference data (sources, sales stages, lost reasons, teams,
+// territories, ...) for every CRM screen — one call, not a per-field
+// browser-side fan-out.
 export async function GET() {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requireCrmView(session);
-    const context = await crmApiContext(session);
-    const options = await tenantTransaction(context.organizationId, (client) =>
-      getCrmOptions(client, context),
-    );
+    const session = await requireWorkspace();
+    const options = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return getCrmOptions(client, crmContext(session));
+    });
     return ok({ options });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return errorResponse(error);
   }
 }

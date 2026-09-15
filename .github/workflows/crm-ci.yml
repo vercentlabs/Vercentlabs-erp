@@ -1,13 +1,17 @@
-name: CRM CI
+name: CRM CI (backend/domain)
 
+# Scoped to CRM backend/domain verification only. The CRM web frontend does
+# not exist yet in the clean-slate rebuild (see docs/frontend-rebuild/README.md
+# and docs/ux/UI_REWRITE_TRACKER.md) — this workflow does not pretend it
+# does. When the CRM golden reference lands (planned at apps/web/src/app/
+# (workspace)/crm/** and apps/web/src/features/crm/**, per the rebuild
+# brief), add those paths back to the trigger list below and add real
+# frontend verification steps (typecheck/lint/test/build/E2E) to the job —
+# do not silently resurrect the old apps/web/src/app/(app)/crm/** /
+# apps/web/src/modules/crm/** paths, that architecture is retired.
 on:
   pull_request:
     paths:
-      - "apps/web/src/app/(app)/crm/**"
-      - "apps/web/src/app/api/crm/**"
-      - "apps/web/src/app/api/mobile/v1/crm/**"
-      - "apps/web/src/modules/crm/**"
-      - "apps/web/tests/crm*"
       - "apps/mobile/src/**/crm/**"
       - "services/api/src/modules/crm/**"
       - "services/api/tests/crm*"
@@ -22,9 +26,6 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/web/src/app/(app)/crm/**"
-      - "apps/web/src/app/api/crm/**"
-      - "apps/web/src/modules/crm/**"
       - "services/api/src/modules/crm/**"
       - "database/**/migrations/**crm**"
       - ".github/workflows/crm-ci.yml"
@@ -37,7 +38,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  crm-verification:
+  crm-backend-verification:
+    name: CRM backend/domain (architecture, DB structure, module contracts, CRM tests, full API suite)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -60,7 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Verify CRM
+      - name: Verify CRM backend/domain
         run: pnpm verify:crm
       - name: Dependency audit
         run: pnpm audit:dependencies

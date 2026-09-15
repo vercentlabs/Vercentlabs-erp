@@ -1,63 +1,48 @@
-import { createCrmFollowUp, listCrmFollowUps } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createCrmFollowUp, listCrmFollowUps } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { crmFollowUpAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
-import { createFollowUpSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { tenantTransaction, withClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
+// F016 Follow-ups & reminders. crm_activities with activity_type=
+// 'follow_up' — follow-up-operations.js is the ONE governed lifecycle
+// authority (multi-reminder scheduling, business-hours-aware delivery,
+// escalation). Matches Tasks/Calls/Meetings: no internal baseline
+// permission check, so this route enforces crm.activities.manage.
 export async function GET(request: Request) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const context = await crmApiContext(session);
-    const params = new URL(request.url).searchParams;
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      listCrmFollowUps(client, context, {
-        search: params.get("search") || "",
-        status: params.get("status") || "all",
-        due: params.get("due") || "all",
-        limit: params.get("limit") || 25,
-        offset: params.get("offset") || 0,
-      }),
-    );
+    const session = await requireWorkspace();
+    const url = new URL(request.url);
+    const filters = {
+      status: url.searchParams.get("status") || undefined,
+      due: url.searchParams.get("due") || undefined,
+      search: url.searchParams.get("search") || undefined,
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
+    };
+    const result = await withClient(async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return listCrmFollowUps(client, crmContext(session), filters);
+    });
     return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmActivitiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const input = createFollowUpSchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const created = await createCrmFollowUp(client, context, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.follow_up.created",
-        entityType: "follow_up",
-        entityId: String(created.id),
-        afterData: crmFollowUpAuditSnapshot(created),
-        request,
-        client,
-      });
-      return created;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return createCrmFollowUp(client, crmContext(session), input);
     });
-    return ok({ message: "Follow-up scheduled.", record }, 201);
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

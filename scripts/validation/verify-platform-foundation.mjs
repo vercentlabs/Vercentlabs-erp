@@ -56,17 +56,17 @@ if (
   ok("canonical 12-module catalogue");
 }
 
+// apps/web/src/{core,modules} and the core/*.ts security modules below were
+// required here against the old frontend architecture (deleted wholesale
+// in the clean-slate rebuild — see docs/frontend-rebuild/README.md; the
+// real logic that lived in the *.ts files was recovered, not lost, into
+// docs/frontend-rebuild/recovered-platform-code/ pending a real port). The
+// new apps/web uses src/{app,features,shell,platform,shared,server} per
+// the rebuild brief; re-add the real equivalents once they exist rather
+// than guessing the convention now.
 const required = [
   "apps/web/src/app",
-  "apps/web/src/core",
-  "apps/web/src/modules",
   "apps/web/src/shared",
-
-  "apps/web/src/core/auth.ts",
-  "apps/web/src/core/access-control.ts",
-  "apps/web/src/core/authorization.ts",
-  "apps/web/src/core/module-access.ts",
-  "apps/web/src/core/security.ts",
 
   "services/api/src/core",
   "services/api/src/modules",
@@ -88,7 +88,7 @@ const required = [
   "packages/observability",
   "packages/localization",
   "packages/shared-types",
-  "packages/shared-ui",
+  "packages/design-tokens",
   "packages/shared-sdk",
 
   "database/platform/migrations",
@@ -118,11 +118,10 @@ for (const relative of forbidden) {
   }
 }
 
+// Web-side per-module root deferred for the same reason as `required`
+// above; services/api's is real and unaffected.
 for (const moduleKey of moduleKeys) {
-  for (const relative of [
-    `apps/web/src/modules/${moduleKey}`,
-    `services/api/src/modules/${moduleKey}`,
-  ]) {
+  for (const relative of [`services/api/src/modules/${moduleKey}`]) {
     if (!fs.existsSync(path.join(root, relative))) {
       fail(`module root missing: ${relative}`);
     }

@@ -3,6 +3,7 @@ import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbo
 import { assertEligibleLeadAssignee } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 import { upsertMeetingCalendarEvent, markMeetingCalendarEventCancelling, enqueueCalendarPushJob } from "./communications.js";
+import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
@@ -528,6 +529,12 @@ export async function createCrmMeeting(client, context, input = {}) {
       meeting.calendarEventId = calendarEventId;
       await enqueueCalendarPushJob(client, context, meeting.id, "create", meeting.updatedAt);
     }
+    // F014 Stage A2 closeout: a scheduled Meeting joins the SAME shared
+    // reminder engine Follow-ups already uses (crm_activity_reminders,
+    // keyed generically by activity_id) — not a second reminder system.
+    // Never for "log" mode, since there is nothing forward-in-time to
+    // remind about.
+    await createRemindersForActivity(client, context, meeting.id, startAt);
   }
   await queueOutboxEvent(client, context, mode === "log" ? "crm.meeting.completed" : "crm.meeting.scheduled", "meeting", meeting.id, safeEventPayload(meeting, attendees.length));
   return meeting;
@@ -612,6 +619,10 @@ export async function updateCrmMeeting(client, context, id, input = {}) {
       await enqueueCalendarPushJob(client, context, id, "update", after.updatedAt);
     }
   }
+  if (rescheduled && after.startAt) {
+    await cancelPendingRemindersForActivity(client, context, id);
+    await createRemindersForActivity(client, context, id, after.startAt);
+  }
   await queueOutboxEvent(client, context, rescheduled ? "crm.meeting.rescheduled" : "crm.meeting.updated", "meeting", id, safeEventPayload(after, after.attendeeCount));
   return after;
 }
@@ -676,6 +687,7 @@ export async function completeCrmMeeting(client, context, id, input = {}) {
   }
   await touchParentOnCompletion(client, context, after);
   await recordEvent(client, context, id, "completed", before, after, after.attendeeCount);
+  await cancelPendingRemindersForActivity(client, context, id);
   await queueOutboxEvent(client, context, "crm.meeting.completed", "meeting", id, safeEventPayload(after, after.attendeeCount));
   return after;
 }
@@ -708,6 +720,7 @@ export async function cancelCrmMeeting(client, context, id, input = {}) {
     await markMeetingCalendarEventCancelling(client, context, after.calendarEventId);
     await enqueueCalendarPushJob(client, context, id, "cancel", after.updatedAt);
   }
+  await cancelPendingRemindersForActivity(client, context, id);
   await queueOutboxEvent(client, context, "crm.meeting.cancelled", "meeting", id, safeEventPayload(after, after.attendeeCount));
   return after;
 }

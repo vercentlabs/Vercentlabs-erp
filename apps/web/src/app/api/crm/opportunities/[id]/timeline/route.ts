@@ -1,42 +1,23 @@
 import { getCrmRecordTimelinePage } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { assertCrmIdentifier, requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok } from "@/core/http";
+import { withClient } from "@/core/db";
+import { errorResponse, ok } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-type Params = { params: Promise<{ id: string }> };
-
-type TimelineKind = "activity" | "communication" | "note" | "attachment";
-const KINDS = new Set<TimelineKind>(["activity", "communication", "note", "attachment"]);
-
-// F019 closeout — Opportunity previously had no dedicated timeline route
-// at all; its 360 page only ever rendered a static, unpaginated 40-row
-// activities+communications snapshot computed inline in page.tsx. This
-// route mirrors the Account/Contact timeline route exactly (same canonical
-// getCrmRecordTimelinePage projection, same cursor contract) rather than
-// adding a fourth hand-rolled implementation.
-export async function GET(request: Request, { params }: Params) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requireCrmView(session);
-    const { id } = await params;
-    assertCrmIdentifier(id);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
     const url = new URL(request.url);
     const cursor = url.searchParams.get("cursor") || undefined;
-    const limit = Number(url.searchParams.get("limit") || 30);
-    const kindsParam = url.searchParams.get("kinds");
-    const kinds = kindsParam
-      ? kindsParam.split(",").map((value) => value.trim()).filter((value): value is TimelineKind => KINDS.has(value as TimelineKind))
-      : undefined;
-    const context = await crmApiContext(session);
-    const page = await tenantTransaction(context.organizationId, (client) =>
-      getCrmRecordTimelinePage(client, context, "opportunity", id, { cursor, limit, kinds }),
-    );
-    return ok(page);
+    const limit = url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined;
+    const page = await withClient(async (client) => {
+      await requireCrmAccess(client, session);
+      return getCrmRecordTimelinePage(client, crmContext(session), "opportunity", id, { cursor: cursor ?? undefined, limit });
+    });
+    return ok({ page });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

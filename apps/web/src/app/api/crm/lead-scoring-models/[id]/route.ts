@@ -1,42 +1,24 @@
-import { updateLeadScoringModel } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, updateLeadScoringModel } from "@vercentlabs/api";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { assertCrmIdentifier } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-export async function PATCH(request: Request, route: { params: Promise<{ id: string }> }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const { id } = await route.params;
-    assertCrmIdentifier(id);
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const updated = await updateLeadScoringModel(client, context, id, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: "crm.lead_scoring_model.updated",
-        entityType: "lead_scoring_model",
-        entityId: id,
-        afterData: updated,
-        request,
-        client,
-      });
-      return updated;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return updateLeadScoringModel(client, crmContext(session), id, input);
     });
-    return ok({ message: "Scoring model updated.", record });
+    return ok({ record });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
