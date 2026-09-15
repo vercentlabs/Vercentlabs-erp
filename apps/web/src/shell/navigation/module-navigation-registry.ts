@@ -143,11 +143,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Custom Fields & Tags", "/crm/settings/custom-fields-and-tags"), requiredPermission: "crm.settings.manage" },
           { ...available("Custom Record Fields", "/crm/settings/record-fields"), requiredPermission: "crm.settings.manage" },
           { ...available("Lead Sources", "/crm/settings/lead-sources"), requiredPermission: "crm.settings.manage" },
-          adminOnly(
-            "Assignment & Territories",
-            "/crm/settings/assignment",
-            "crm.settings.manage",
-          ),
+          { ...available("Assignment Rules", "/crm/settings/assignment"), requiredPermission: "crm.settings.manage" },
+          { ...available("Lead Lifecycle Stages", "/crm/settings/lead-lifecycle"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Lead Scoring",
             "/crm/settings/lead-scoring",

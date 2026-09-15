@@ -32,3 +32,11 @@ export async function archiveOutcomeReason(id: string, expectedUpdatedAt: string
   const response = await fetch(`/api/crm/lost-reasons/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
   return parseResponse(response);
 }
+export async function updateOutcomeReason(id: string, input: Record<string, unknown>, expectedUpdatedAt: string): Promise<{ record: CrmOutcomeReason }> {
+  const response = await fetch(`/api/crm/lost-reasons/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input, expectedUpdatedAt }),
+  });
+  return parseResponse(response);
+}

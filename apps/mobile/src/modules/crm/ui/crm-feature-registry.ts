@@ -27,7 +27,7 @@ export const CRM_MOBILE_FEATURES: readonly CrmMobileFeature[] = [
   { id: "F002", label: "Accounts", group: "Customers", support: "web-workspace", description: "Company and relationship records.", webPath: "/crm/accounts" },
   { id: "F003", label: "Contacts", group: "Customers", support: "web-workspace", description: "People and account relationships.", webPath: "/crm/contacts" },
   { id: "F004", label: "Lead sources", group: "Setup", support: "web-workspace", description: "Govern acquisition sources.", webPath: "/crm/sources" },
-  { id: "F005", label: "Lead assignment", group: "Setup", support: "web-workspace", description: "Ownership and routing rules.", webPath: "/crm/assignment-rules" },
+  { id: "F005", label: "Lead assignment", group: "Setup", support: "web-workspace", description: "Ownership and routing rules.", webPath: "/crm/settings/assignment" },
   { id: "F006", label: "Lead qualification", group: "Customers", support: "web-workspace", description: "Commercial-readiness decisions.", webPath: "/crm/qualification-criteria" },
   { id: "F007", label: "Lead lifecycle", group: "Setup", support: "web-workspace", description: "Lifecycle stages and transitions.", webPath: "/crm/lead-lifecycle" },
   { id: "F008", label: "Duplicate management", group: "Data", support: "web-workspace", description: "Detect, review and merge duplicate records.", webPath: "/crm/data/duplicates" },
