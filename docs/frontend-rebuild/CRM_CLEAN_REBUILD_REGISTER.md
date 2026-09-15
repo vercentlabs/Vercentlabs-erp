@@ -709,6 +709,54 @@ tests were needed for F017 as a result. Lesson applied immediately
 afterward for F028's own new test file: existence checked with a plain
 `test -f` before `Write`.
 
+## Tranche M: offline sync mechanics — dedicated backend tests (Stage A)
+
+`applyOfflineBatch`/`applyOfflineMutation`
+(`crm-data-operations-and-customization/offline-sync.js`) previously had
+only incidental coverage — exercised indirectly inside F007/F009 test
+files, plus a source-text regression guard in
+`crm-offline-sync-follow-up-parity.test.mjs` that checks the module
+routes through the governed Task/Follow-up commands rather than a raw
+UPDATE, but never actually calls the batch/mutation functions
+themselves. Confirmed this via grep before writing new tests, per this
+pass's own discipline.
+
+Added `services/api/tests/crm-offline-sync-mechanics.test.mjs` (5 new
+tests, existence-checked with `test -f` first — see the near-miss
+lesson above), covering the batch/mutation mechanics specifically
+(not per-resource routing, which the other files already cover):
+
+- `applyOfflineBatch` rejects a batch over 50 mutations before running
+  any query.
+- `applyOfflineBatch` processes each mutation independently — one
+  `leads:create` failing validation (`CRM_OFFLINE_LEAD_INVALID`) and
+  one `activities:complete` targeting a nonexistent activity
+  (`CRM_OFFLINE_TARGET_NOT_FOUND`) both appear in `results[]` with
+  their own distinct error codes, proving the batch never
+  short-circuits or collapses failures into a shared state.
+- `applyOfflineMutation` replays an existing mutation for a repeated
+  idempotency key instead of re-applying it (no `INSERT INTO
+  tenant.crm_leads` on replay).
+- A stale `baseUpdatedAt` against the current record's `updated_at`
+  records a real conflict row and never reaches the underlying
+  resource UPDATE.
+- A resource/operation combination outside the fixed allow-list
+  (`leads:create` / `opportunities:stage` / `activities:create` /
+  `activities:complete`) is rejected by `normalizeOfflineMutation`
+  with `CRM_OFFLINE_MUTATION_UNSUPPORTED` before any query runs at
+  all — not `CRM_OFFLINE_TARGET_NOT_FOUND` (that code is only
+  reachable for an allow-listed combination whose dispatch runs but
+  never sets a result row, e.g. the not-found case above).
+
+Full `services/api` suite: 1014/1014 passing (1009 prior + 5 new).
+
+Not built this tranche (out of scope for "mechanics" tests): true
+per-resource-command failure paths inside a batch (e.g. permission
+denial deep inside `createCrmRecord` for `leads:create`) — those
+already have their own dedicated coverage in each resource's own test
+file, and duplicating them here would test the resource command again
+rather than the batch/mutation mechanics this tranche targeted.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
