@@ -772,9 +772,9 @@
     "notes": "Deferred to Stage B."
   },
   "F003-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "ContactDuplicatesPanel.tsx, ContactCommunicationsPanel.tsx + NotesPanel/CrmAttachmentPanel/CustomFieldsRuntimePanel on ContactDetailScreen.tsx",
-    "notes": "Duplicates, merge, notes, attachments, custom fields, communications all wired. Multi-account relationships/stakeholder roles are NOT implemented — confirmed tenant.contacts.party_id is a single NOT NULL FK, a genuine schema gap, not a wiring gap."
+    "status": "IMPLEMENTED",
+    "evidence": "ContactRelationshipsPanel.tsx, AccountContactRelationshipsPanel.tsx, ContactDuplicatesPanel.tsx, ContactCommunicationsPanel.tsx + NotesPanel/CrmAttachmentPanel/CustomFieldsRuntimePanel",
+    "notes": "Stage A2 correction: multiple relationship roles + stakeholder role are real, wired to tenant.crm_contact_account_relationships (migration 088, already built, already tested, zero prior UI) — not a schema gap as the prior pass incorrectly disclosed. Multiple concurrent Account memberships work via this junction; effective-dating deliberately excluded per the schema's own design comment and no atomic row requiring it."
   },
   "F003-CAP-002": {
     "status": "PARTIAL",
@@ -782,9 +782,9 @@
     "notes": "Duplicate/merge coverage real; no formal role-visibility matrix audit."
   },
   "F003-CAP-003": {
-    "status": "NOT_STARTED",
-    "evidence": null,
-    "notes": "Multi-account relationships with stakeholder roles and primary-relationship semantics: confirmed genuinely absent at the schema level (tenant.contacts has a single party_id FK, not a junction table). Would require a new migration + service + UI, deliberately not attempted this pass."
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_contact_account_relationships + ContactRelationshipsPanel.tsx/AccountContactRelationshipsPanel.tsx",
+    "notes": "Stage A2 correction of a prior-pass error: this was wrongly marked NOT_STARTED with an incorrect claim that a new migration was needed. The junction table already existed (migration 088), fully tested, merge-reconciliation-safe (verified wired into mergeContactsGoverned/mergeAccountsGoverned) — only the frontend was missing. Closed this pass."
   },
   "F003-FR-001": {
     "status": "PARTIAL",
@@ -832,9 +832,9 @@
     "notes": null
   },
   "F003-DATA-001": {
-    "status": "PARTIAL",
-    "evidence": "tenant.contacts (001_business_data_foundation.sql)",
-    "notes": "Base contact data model governed; no multi-account relationship data model exists (see F003-CAP-003)."
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.contacts (001_business_data_foundation.sql) + tenant.crm_contact_account_relationships (088_f003_contact_account_relationships.sql)",
+    "notes": "Stage A2 correction: the multi-account relationship data model does exist (see F003-CAP-003) — the prior PARTIAL status was based on an incomplete schema search that missed contact-relationships.js/its migration."
   },
   "F003-DATA-002": {
     "status": "IMPLEMENTED",

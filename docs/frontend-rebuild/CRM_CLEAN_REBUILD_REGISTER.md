@@ -1294,6 +1294,60 @@ left unchallenged. This is a closed audit, not a deferred build: there
 is no future dossier-driven trigger to revisit unless a canonical
 requirement changes.
 
+## Stage A2 (Prompt 3 continuation): residual classification + closure
+
+Per Stage A2's explicit instruction, every residual from the prior
+report's §22 list was re-classified against its dossier + atomic
+`SUBREQUIREMENT_REGISTER.csv` rows before any code was written —
+`MANDATORY_NOW` / `ALREADY_SATISFIED` / `NOT_REQUIRED_BY_CANONICAL_SCOPE`
+/ `CROSS_MODULE_BLOCKED`. Sections are logged as they close.
+
+### 1. F003 Contact relationship semantics — corrected, not rebuilt
+
+The prior pass's own disclosure ("would need a new migration") was
+**wrong**, and Stage A2 caught it before repeating the mistake: read
+`F003-CAP-002`'s exact text — "multiple relationship **roles** ...
+stakeholder role" — never "multiple Account **memberships**." Then
+found the actual backend: `tenant.crm_contact_account_relationships`
+(migration `088_f003_contact_account_relationships.sql`) is an
+**already-built, already-tested** (`crm-contact-account-relationships-
+f003.test.mjs` predates this pass) proper junction model — organization
+scope, contact, party, `relationship_type`/`stakeholder_role`,
+`is_primary` (kept in sync with the legacy `contacts.party_id`/
+`is_primary` fields via `syncPrimaryContactPointer`, so no existing
+caller desyncs), status/lifecycle, audit, concurrency-safe uniqueness,
+and full merge reconciliation for both Contact-merge and Account-merge
+(already wired into `mergeContactsGoverned`/`mergeAccountsGoverned`,
+verified, not assumed) — with **zero frontend consumer**, confirmed by
+grep. This is the F012/F017 pattern again, at its largest scale yet: a
+complete enterprise relationship engine, unwired.
+
+Classification: **MANDATORY_NOW** (wiring, not schema). No new
+migration was added — one would have duplicated an already-correct,
+already-tested system.
+
+Built: 4 new routes (`contacts/[id]/relationships` GET/POST,
+`.../relationships/[relationshipId]` PATCH/DELETE,
+`.../relationships/[relationshipId]/primary` POST,
+`accounts/[id]/contact-relationships` GET read-only reverse view).
+`ContactRelationshipsPanel.tsx` on Contact 360 (list/add/set-primary/
+remove, account picker, relationship-type + stakeholder-role selects)
+and `AccountContactRelationshipsPanel.tsx` on Account 360 (read-only
+reverse list — one governed edit surface per relationship, not two
+competing ones). The legacy "View linked account" link is left
+untouched, not removed — it still works, now visibly consistent with
+the richer panel below it.
+
+Effective-dating was deliberately not added: the existing schema's own
+header comment states "no effective-dating" as a design decision, and
+no atomic row explicitly requires start/end-dated employment history —
+confirmed, not assumed.
+
+Full `services/api` suite: 1051/1051 (no backend logic touched — pure
+route wiring over an already-tested service). Web typecheck, ESLint,
+`verify:routes`, `verify:no-legacy-frontend`, `verify:architecture`:
+all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

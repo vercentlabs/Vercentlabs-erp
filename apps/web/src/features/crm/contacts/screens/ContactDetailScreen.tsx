@@ -15,6 +15,7 @@ import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRunt
 import { archiveContact, ContactApiError, getContact, reactivateContact } from "../api/contacts-api";
 import { ContactDuplicatesPanel } from "../components/ContactDuplicatesPanel";
 import { ContactCommunicationsPanel } from "../components/ContactCommunicationsPanel";
+import { ContactRelationshipsPanel } from "../components/ContactRelationshipsPanel";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -125,6 +126,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
             View linked account
           </button>
         )}
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Account relationships</p>
+          <ContactRelationshipsPanel contactId={contactId} canManage={canManage} />
+        </div>
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Notes</p>
           <NotesPanel entityType="contact" entityId={contactId} />
