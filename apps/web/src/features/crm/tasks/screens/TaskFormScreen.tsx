@@ -9,6 +9,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { createTask, listMyTaskTeams, TaskApiError } from "../api/tasks-api";
+import { RecurrenceBuilder } from "../components/RecurrenceBuilder";
+import type { RecurrenceConfig } from "../types";
 
 type FormValues = { subject: string; description: string; priority: string; assignedTo: string; teamId: string; dueAt: string; reminderAt: string };
 
@@ -19,6 +21,7 @@ export function TaskFormScreen({ canManage = true }: { canManage?: boolean }) {
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const [values, setValues] = useState<FormValues>(EMPTY);
+  const [recurrenceConfig, setRecurrenceConfig] = useState<RecurrenceConfig | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -42,7 +45,7 @@ export function TaskFormScreen({ canManage = true }: { canManage?: boolean }) {
         throw new Error("Review the highlighted fields.");
       }
       setFieldErrors({});
-      const input: Record<string, unknown> = { entityType: "general", ...values };
+      const input: Record<string, unknown> = { entityType: "general", ...values, recurrenceConfig };
       for (const key of Object.keys(input)) if (input[key] === "") input[key] = null;
       return createTask(input);
     },
@@ -94,6 +97,7 @@ export function TaskFormScreen({ canManage = true }: { canManage?: boolean }) {
         <TextField label="Reminder at" placeholder="YYYY-MM-DDTHH:mm" value={values.reminderAt} onChange={(v) => set("reminderAt", v)} />
       </div>
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
+      <RecurrenceBuilder value={recurrenceConfig} onChange={setRecurrenceConfig} />
     </RecordFormPage>
   );
 }

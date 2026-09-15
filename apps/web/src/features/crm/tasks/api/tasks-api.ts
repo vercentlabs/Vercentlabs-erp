@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task, TaskListFilters, TaskListResponse } from "../types";
+import type { Task, TaskDependency, TaskListFilters, TaskListResponse } from "../types";
 
 export class TaskApiError extends Error {
   constructor(
@@ -69,5 +69,22 @@ export const releaseTask = (id: string, expectedUpdatedAt?: string) => action(id
 
 export async function listMyTaskTeams(): Promise<{ teams: Array<{ id: string; name: string }> }> {
   const response = await fetch("/api/crm/tasks/teams");
+  return parseResponse(response);
+}
+
+export async function listTaskDependencies(taskId: string): Promise<{ rows: TaskDependency[] }> {
+  const response = await fetch(`/api/crm/tasks/${taskId}/dependencies`);
+  return parseResponse(response);
+}
+export async function addTaskDependency(taskId: string, dependsOnTaskId: string): Promise<{ record: TaskDependency }> {
+  const response = await fetch(`/api/crm/tasks/${taskId}/dependencies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dependsOnTaskId }),
+  });
+  return parseResponse(response);
+}
+export async function removeTaskDependency(taskId: string, dependsOnTaskId: string): Promise<{ removed: boolean }> {
+  const response = await fetch(`/api/crm/tasks/${taskId}/dependencies/${dependsOnTaskId}`, { method: "DELETE" });
   return parseResponse(response);
 }

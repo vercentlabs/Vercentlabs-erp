@@ -1538,6 +1538,49 @@ reminder wiring, source-assertion style matching this file's own existing
 convention). Web typecheck, ESLint, and the `resource-permissions`
 regression test: all clean.
 
+### 6. F015 Tasks — dependency and recurrence UI built; team/queue re-confirmed already real
+
+`F015-AUDIT.md` (dated 2026-09-05) claimed three CAP-002 gaps: no
+recurrence engine, no task dependencies, no team/queue assignment. Re-
+reading current `task-operations.js` in full before writing anything (per
+this prompt's own instruction) found the audit doc stale on two of the
+three:
+
+- **Team/queue tasks**: `claimCrmTask`/`releaseCrmTask`/`listMyTaskTeams`/
+  `listTeamMembers` already exist, already tested (11 of
+  `crm-tasks-f015.test.mjs`'s 40 tests), and — re-checking the frontend
+  before assuming a gap — `TaskListScreen.tsx` and `TaskFormScreen.tsx`
+  **already had** a Team/queue picker, a scope selector (mine/team
+  queue/all), and claim/release row actions, all wired to real endpoints.
+  No work needed here; the audit's "no team/queue assignment" claim was
+  wrong at the time this prompt started.
+- **Recurrence**: `recurrenceConfig` (`{freq, interval, count?, until?,
+  byWeekday?}`, validated by `normalizeRecurrenceConfig`) is the real,
+  already-authoritative machine-readable contract
+  `generateNextTaskOccurrence` reads — `recurringRule` (free text) is a
+  separate, deliberately-kept human label, not the engine. Genuinely no
+  authoring UI existed. Built `RecurrenceBuilder.tsx`, a small component
+  mapping directly to that exact shape (frequency/interval, optional
+  weekday selection for weekly, ends-never/after-N/on-date) — not an
+  invented cron/RRULE syntax — used in both `TaskFormScreen.tsx`
+  (creation) and `TaskDetailScreen.tsx`'s edit dialog.
+- **Dependencies**: `addTaskDependency`/`removeTaskDependency`/
+  `listTaskDependencies` already exist and already enforce, server-side,
+  every rule this prompt names explicitly: cycle prevention
+  (`assertNoDependencyCycle`, `CRM_TASK_DEPENDENCY_CYCLE`), self-
+  dependency rejection (`CRM_TASK_DEPENDENCY_INVALID`), and completion
+  blocked while a dependency is incomplete (`CRM_TASK_DEPENDENCY_BLOCKED`,
+  checked inside `updateCrmTask`'s completion path). Built three new API
+  routes (`GET/POST /api/crm/tasks/[id]/dependencies`,
+  `DELETE .../dependencies/[dependsOnTaskId]`) and a `TaskDependenciesPanel`
+  on `TaskDetailScreen.tsx` (add via a Task picker, list with live
+  blocking-status badges, remove) — the panel surfaces the server's own
+  rules, it does not re-implement them.
+
+No backend logic changed — every function this section wires was already
+real and already covered by `crm-tasks-f015.test.mjs` (40/40, re-run
+unmodified this pass). Web typecheck and ESLint: clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

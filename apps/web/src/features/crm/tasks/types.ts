@@ -37,3 +37,23 @@ export type TaskListFilters = {
 };
 
 export type TaskListResponse = { rows: Task[]; total: number; limit: number; offset: number };
+
+// tenant.crm_task_dependencies rows, joined with the blocking Task's
+// current status/subject (see listTaskDependencies).
+export type TaskDependency = {
+  id: string;
+  taskId: string;
+  dependsOnTaskId: string;
+  dependsOnStatus: Task["status"];
+  dependsOnSubject: string;
+  createdAt: string;
+};
+
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+export type RecurrenceConfig = {
+  freq: RecurrenceFrequency;
+  interval: number;
+  count?: number;
+  until?: string;
+  byWeekday?: number[];
+};

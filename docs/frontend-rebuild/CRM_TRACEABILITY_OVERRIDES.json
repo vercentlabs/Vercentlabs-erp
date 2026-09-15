@@ -2597,19 +2597,19 @@
     "notes": "Deferred to Stage B."
   },
   "F015-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "TaskDetailScreen.tsx",
-    "notes": "Detail + edit built this pass; dependency-management UI and a recurrence-config builder remain disclosed, not-built gaps."
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (TaskDependenciesPanel, RecurrenceBuilder in EditTaskDialog); TaskFormScreen.tsx (RecurrenceBuilder at creation)",
+    "notes": "Stage A2 closeout: both gaps this row previously flagged are closed. addTaskDependency/removeTaskDependency/listTaskDependencies and recurrenceConfig already existed, fully tested (crm-tasks-f015.test.mjs, 40/40), with zero frontend consumer — now wired, not rebuilt. No backend changes needed."
   },
   "F015-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Work-queue/claim/release lifecycle real (earlier pass); recurrence exists as a backend field (recurringRule/recurrenceConfig) with no authoring UI."
+    "status": "IMPLEMENTED",
+    "evidence": "TaskListScreen.tsx (team/queue filter + claim/release, already built an earlier pass, re-verified not stale); TaskDependenciesPanel; RecurrenceBuilder",
+    "notes": "Stage A2 re-audit against the dossier's own named list (recurrence, team/queue tasks, dependencies, generated tasks, overdue derivation, linked-record privacy, idempotent recurrence): team/queue tasks and overdue derivation were already fully built (F015-AUDIT.md's claim of 'no team/queue assignment' was stale — claimCrmTask/releaseCrmTask/listMyTaskTeams and TaskListScreen's claim/release buttons already existed). Recurrence and dependencies were the two genuinely unwired items; both now have real UI mapping directly to the existing recurrenceConfig/crm_task_dependencies contracts, not invented syntax."
   },
   "F015-CAP-003": {
-    "status": "NOT_VERIFIED",
-    "evidence": null,
-    "notes": "Downstream consumers not re-audited this pass."
+    "status": "IMPLEMENTED",
+    "evidence": "crm-tasks-f015.test.mjs: \"generic Activity create/update/archive/complete cannot bypass governed Tasks\"",
+    "notes": "Re-verified this pass — the new dependency/recurrence UI calls only task-operations.js's own governed functions (addTaskDependency/removeTaskDependency/updateCrmTask), never the generic resource path."
   },
   "F015-FR-002": {
     "status": "PARTIAL",
