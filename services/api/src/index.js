@@ -48,6 +48,8 @@ export * from "./modules/crm/prospect-and-relationship-master-data/account-intel
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
 export {
+  findAccountDuplicates,
+  findContactDuplicates,
   findLeadContactCrossMatches,
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,

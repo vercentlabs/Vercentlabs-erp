@@ -106,6 +106,28 @@ export async function convertLead(id: string, input: Record<string, unknown> = {
   return parseResponse<{ result: unknown }>(response);
 }
 
+// F022 pre-conversion review. Raw rows from findAccountDuplicates/
+// findContactDuplicates — deliberately NOT camelized server-side (see
+// duplicate-matching.js), so this stays snake_case to match the real
+// response, not an assumed shape.
+export type LeadConversionCandidate = {
+  id: string;
+  code?: string;
+  display_name?: string;
+  legal_name?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  match_score: number;
+  matched_signals: string[];
+  classification: "exact" | "probable" | "none";
+};
+
+export async function getLeadConversionPreview(id: string): Promise<{ accountCandidates: LeadConversionCandidate[]; contactCandidates: LeadConversionCandidate[] }> {
+  const response = await fetch(`/api/crm/leads/${id}/convert/preview`);
+  return parseResponse(response);
+}
+
 // F008: findCrmDuplicates returns a lightweight match projection, not a
 // full Lead — a `restricted` match deliberately carries no identifier or
 // PII (see duplicate-search.js/lead-duplicates.js's `safeMatch`).

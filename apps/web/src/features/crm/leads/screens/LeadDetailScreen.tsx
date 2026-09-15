@@ -8,6 +8,7 @@ import {
   Button,
   Checkbox,
   ConflictBanner,
+  Dialog,
   ErrorState,
   PermissionState,
   RecordDetailsPage,
@@ -38,6 +39,7 @@ import {
   findLeadDuplicates,
   getCrmOptions,
   getLead,
+  getLeadConversionPreview,
   getLeadQualificationDetail,
   getLeadScoreDetail,
   getLeadStageDetail,
@@ -85,6 +87,19 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
 
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [convertPreviewOpen, setConvertPreviewOpen] = useState(false);
+  const [convertPartyId, setConvertPartyId] = useState<string>("");
+  const [convertContactId, setConvertContactId] = useState<string>("");
+  const [convertAutoSelected, setConvertAutoSelected] = useState(false);
+
+  function handleConvertPreviewOpenChange(open: boolean) {
+    setConvertPreviewOpen(open);
+    if (!open) {
+      setConvertPartyId("");
+      setConvertContactId("");
+      setConvertAutoSelected(false);
+    }
+  }
   const [pendingStageId, setPendingStageId] = useState<string>("");
   const [pendingReasonCode, setPendingReasonCode] = useState<string>("");
   const [pendingNote, setPendingNote] = useState<string>("");
@@ -194,10 +209,24 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     onError: handleActionError,
   });
 
+  const convertPreviewQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "convert-preview"),
+    queryFn: () => getLeadConversionPreview(leadId),
+    enabled: convertPreviewOpen,
+  });
+
   const convertMutation = useMutation({
-    mutationFn: () => convertLead(leadId),
+    mutationFn: () =>
+      convertLead(leadId, {
+        ...(convertPartyId ? { partyId: convertPartyId } : {}),
+        ...(convertContactId ? { contactId: convertContactId } : {}),
+      }),
     onSuccess: () => {
       setActionError(null);
+      setConvertPreviewOpen(false);
+      setConvertPartyId("");
+      setConvertContactId("");
+      setConvertAutoSelected(false);
       invalidateLead();
     },
     onError: handleActionError,
@@ -318,7 +347,38 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         ]
       : null;
 
+  const accountCandidates = convertPreviewQuery.data?.accountCandidates ?? [];
+  const contactCandidates = convertPreviewQuery.data?.contactCandidates ?? [];
+
+  // Pre-select an exact match once, matching convertCrmLead's own default
+  // (auto-reuse only an "exact" match) — adjusting state during render
+  // (guarded to run once per preview open) rather than an effect, same
+  // pattern as SavedViewsBar's default-view selection.
+  if (!convertAutoSelected && convertPreviewOpen && convertPreviewQuery.isSuccess) {
+    setConvertAutoSelected(true);
+    const exactAccount = accountCandidates.find((row) => row.classification === "exact");
+    const exactContact = contactCandidates.find((row) => row.classification === "exact");
+    if (exactAccount) setConvertPartyId(exactAccount.id);
+    if (exactContact) setConvertContactId(exactContact.id);
+  }
+
+  const accountChoiceOptions: SelectOption[] = [
+    { value: "", label: "Create a new Account" },
+    ...accountCandidates.map((row) => ({
+      value: row.id,
+      label: `${row.display_name || row.legal_name || row.id} (${row.classification === "exact" ? "exact match" : "possible match"})`,
+    })),
+  ];
+  const contactChoiceOptions: SelectOption[] = [
+    { value: "", label: "Create a new Contact" },
+    ...contactCandidates.map((row) => ({
+      value: row.id,
+      label: `${row.first_name || ""} ${row.last_name || ""}`.trim() + (row.email ? ` · ${row.email}` : "") + (row.classification === "exact" ? " (exact match)" : " (possible match)"),
+    })),
+  ];
+
   return (
+    <>
     <RecordDetailsPage
       header={{
         title: lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim(),
@@ -337,7 +397,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         ) : undefined,
         secondaryActions:
           canManageLeads && !isClosed ? (
-            <Button variant="primary" onPress={() => convertMutation.mutate()} isLoading={convertMutation.isPending}>
+            <Button variant="primary" onPress={() => setConvertPreviewOpen(true)}>
               <Repeat className="size-4" aria-hidden="true" />
               Convert
             </Button>
@@ -669,5 +729,30 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     >
       <div />
     </RecordDetailsPage>
+    <Dialog isOpen={convertPreviewOpen} onOpenChange={handleConvertPreviewOpenChange} title="Convert this Lead">
+      <div className="flex flex-col gap-4">
+        {convertPreviewQuery.isLoading ? (
+          <p className="text-sm text-text-secondary">Checking for existing Accounts and Contacts…</p>
+        ) : (
+          <>
+            <p className="text-sm text-text-secondary">
+              Review any existing Account/Contact this Lead might match before converting. An exact match is pre-selected; choose &ldquo;Create a new&hellip;&rdquo; to make a new record instead.
+            </p>
+            <Select label="Account" options={accountChoiceOptions} selectedKey={convertPartyId} onSelectionChange={(key) => setConvertPartyId(String(key ?? ""))} />
+            <Select label="Contact" options={contactChoiceOptions} selectedKey={convertContactId} onSelectionChange={(key) => setConvertContactId(String(key ?? ""))} />
+          </>
+        )}
+        {actionError && (
+          <p role="alert" className="text-sm text-danger">{actionError}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={() => handleConvertPreviewOpenChange(false)}>Cancel</Button>
+          <Button variant="primary" onPress={() => convertMutation.mutate()} isLoading={convertMutation.isPending} isDisabled={convertPreviewQuery.isLoading}>
+            Convert
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+    </>
   );
 }
