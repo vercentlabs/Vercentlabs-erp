@@ -64,7 +64,7 @@ know before trusting a row:
 | CRM-CAP-005 | Sales organization and coverage | F020 | Built this pass — the one capability group whose backend directory was genuinely empty (only a README) before this pass; both Teams and Territories are generic CRM_RESOURCE_KEYS resources, so no new domain module was needed |
 | CRM-CAP-006 | CRM data operations and customization | F021,F028,F029 | F029 bulk engine wired for Leads only; F021/F028 not started |
 | CRM-CAP-007 | CRM conversion and sales handoff | F022,F023 | F022 (Lead conversion) built; F023 investigated and deliberately deferred to Prompt 4 — see F023's own row for the real architectural reason (not a gap, a genuine module boundary) |
-| CRM-CAP-008 | Pipeline analytics and forecasting | F024,F025,F030 | F024 (Dashboard) built this pass; F025's backend manager-team-hierarchy gap fixed this pass but no Forecast UI yet; F030 (Reports) not started |
+| CRM-CAP-008 | Pipeline analytics and forecasting | F024,F025,F030 | F024 (Dashboard) and F030 (Reports) built this pass; F025's backend manager-team-hierarchy gap fixed this pass but no Forecast UI yet |
 
 ## Feature status (F001-F030)
 
@@ -102,7 +102,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F027 | Lead scoring | IN_PROGRESS | Score/grade/breakdown/recalculate UI this pass. No model/rule setup UI. |
 | F028 | Custom fields & tags | NOT_STARTED | |
 | F029 | Bulk actions | IN_PROGRESS | Real server-governed bulk engine wired for Leads (priority/rating/source/follow-up). Not yet composed into any other list. |
-| F030 | Reports | NOT_STARTED | |
+| F030 | Reports | IN_PROGRESS | `/crm/reports` built this pass: a report picker across all 14 of `getCrmReport`'s real report kinds (pipeline, conversion, sources, activities, forecast, campaigns, revenue-operations, account-health, privacy, pipeline-intelligence, engagement-intelligence, relationship-coverage, partner-pipeline, ai-governance) plus From/To date filters, rendered as a single generic table whose columns are derived from whatever the backend actually returns for that report (each of the 14 has its own shape — not worth 14 bespoke screens). While building this, found and fixed a real route-contract mismatch: `/api/crm/reports/[report]` accepted `ownerId`/`stageId`/`sourceId`/`campaignId`/`period` query params and forwarded them, but `getCrmReport`'s own body only ever reads `filters.from`/`filters.to` — the other four were silently dropped server-side, which would have misled a caller into thinking that filtering worked. Trimmed the route's forwarded keys to `from`/`to` only, matching backend reality. Missing: no drill-down from a report row into the underlying records, no CSV/export action, no saved report configurations. |
 
 ## Discovered backend gaps (fixed this pass)
 

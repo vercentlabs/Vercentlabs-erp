@@ -6,7 +6,12 @@ import { errorResponse, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-const FILTER_KEYS = ["ownerId", "stageId", "sourceId", "campaignId", "from", "to", "period"] as const;
+// getCrmReport only ever reads filters.from/filters.to (verified by reading
+// its body) — ownerId/stageId/sourceId/campaignId/period were previously
+// accepted here and silently dropped by the backend, which would have
+// misled a caller into thinking that filtering worked. Only forward what
+// the backend actually honors.
+const FILTER_KEYS = ["from", "to"] as const;
 
 // F030. Row/field scope, aggregation security and time basis are
 // getCrmReport's own authority for each of its ~14 report kinds (pipeline,

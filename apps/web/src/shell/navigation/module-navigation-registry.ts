@@ -122,7 +122,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F024-F026",
         items: [
           available("Dashboard", "/crm/dashboard"),
-          planned("Reports", "/crm/reports"),
+          available("Reports", "/crm/reports"),
         ],
       },
       {
