@@ -90,3 +90,25 @@ export async function getOpportunityTimeline(id: string, cursor?: string) {
   const response = await fetch(`/api/crm/opportunities/${id}/timeline${params}`);
   return parseResponse<{ page: { rows: CrmTimelineEntry[]; hasMore: boolean; nextCursor: string | null } }>(response);
 }
+
+// F029 governed bulk edit — only ownerUserId/forecastCategory/
+// expectedCloseDate/nextStep are supported (see opportunity-operations.js's
+// OPPORTUNITY_BULK_FIELDS); stage/status/probability/outcome remain
+// single-record governed actions. Unlike Lead's sync result, Opportunity's
+// sync path has no per-record applied/conflict/skipped/failed manifest —
+// only an aggregate updated count (see the bulk route's own comment).
+export type OpportunityBulkSyncResult = { mode: "synchronous"; requested: number; updated: number; rows: Array<Record<string, unknown>> };
+export type OpportunityBulkJobResult = { mode: "asynchronous"; deduped: boolean; job: { id: string; status: string; progress: Record<string, unknown>; resultManifest: Record<string, unknown> } };
+
+export async function bulkUpdateOpportunitiesRequest(
+  ids: string[],
+  changes: Record<string, unknown>,
+  idempotencyKey?: string,
+): Promise<OpportunityBulkSyncResult | OpportunityBulkJobResult> {
+  const response = await fetch("/api/crm/opportunities/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, changes, idempotencyKey }),
+  });
+  return parseResponse(response);
+}

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import {
@@ -15,6 +15,7 @@ import {
   SearchField,
   Select,
   StatusBadge,
+  TextField,
   type ActiveFilter,
   type SelectOption,
 } from "@vercentlabs/design-system";
@@ -23,10 +24,25 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
-import { listOpportunities, OpportunityApiError } from "../api/opportunities-api";
+import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError } from "../api/opportunities-api";
 import type { Opportunity, OpportunityListFilters } from "../types";
 
 const PAGE_SIZE = 25;
+
+const BULK_FIELD_OPTIONS: SelectOption[] = [
+  { value: "ownerUserId", label: "Owner" },
+  { value: "forecastCategory", label: "Forecast category" },
+  { value: "expectedCloseDate", label: "Expected close date" },
+  { value: "nextStep", label: "Next step" },
+];
+
+const FORECAST_CATEGORY_OPTIONS: SelectOption[] = [
+  { value: "omitted", label: "Omitted" },
+  { value: "pipeline", label: "Pipeline" },
+  { value: "best_case", label: "Best case" },
+  { value: "committed", label: "Committed" },
+  { value: "closed", label: "Closed" },
+];
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   open: "info",
@@ -39,11 +55,17 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
 export function OpportunityListScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
 
   const [filters, setFilters] = useState<OpportunityListFilters>({ limit: PAGE_SIZE, offset: 0, status: "open" });
   const [searchInput, setSearchInput] = useState("");
+  const [selection, setSelection] = useState<Record<string, boolean>>({});
+  const [bulkField, setBulkField] = useState<string>("ownerUserId");
+  const [bulkValue, setBulkValue] = useState<string>("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "opportunities", filters),
@@ -56,6 +78,11 @@ export function OpportunityListScreen() {
   const stageOptions: SelectOption[] = useMemo(() => {
     const rows = (optionsQuery.data?.options?.stages ?? []) as Array<{ id: string; name: string }>;
     return [{ value: "all", label: "Any stage" }, ...rows.map((row) => ({ value: row.id, label: row.name }))];
+  }, [optionsQuery.data]);
+
+  const ownerOptions: SelectOption[] = useMemo(() => {
+    const rows = (optionsQuery.data?.options?.users ?? []) as Array<{ id: string; fullName?: string; name?: string }>;
+    return rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }));
   }, [optionsQuery.data]);
 
   function updateFilter<K extends keyof OpportunityListFilters>(key: K, value: OpportunityListFilters[K]) {
@@ -75,6 +102,31 @@ export function OpportunityListScreen() {
   const pageIndex = Math.floor((filters.offset ?? 0) / PAGE_SIZE);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters = Boolean(filters.search || filters.stageId || (filters.status && filters.status !== "open"));
+  const selectedIds = Object.keys(selection).filter((id) => selection[id]);
+
+  async function runBulkUpdate() {
+    if (!bulkValue) return;
+    setBulkBusy(true);
+    setBulkResult(null);
+    try {
+      const result = await bulkUpdateOpportunitiesRequest(
+        selectedIds,
+        { [bulkField]: bulkValue },
+        `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      );
+      if (result.mode === "synchronous") {
+        setBulkResult(`${result.updated} of ${result.requested} opportunities updated (open opportunities only; a row outside your scope or already closed is silently not included).`);
+      } else {
+        setBulkResult(`Large selection queued as background job ${result.job.id} (status: ${result.job.status}).`);
+      }
+    } catch (error) {
+      setBulkResult(error instanceof OpportunityApiError ? error.message : "The bulk update could not be completed.");
+    } finally {
+      setBulkBusy(false);
+      setSelection({});
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunities") });
+    }
+  }
 
   const columns: ColumnDef<Opportunity, unknown>[] = useMemo(
     () => [
@@ -165,7 +217,31 @@ export function OpportunityListScreen() {
         onRemove: (id) => setFilters((current) => ({ ...current, [id]: undefined, offset: 0 })),
         onClearAll: activeFilters.length > 0 ? () => { setSearchInput(""); setFilters({ limit: PAGE_SIZE, offset: 0, status: "open" }); } : undefined,
       }}
+      bulkActionBar={{
+        selectedCount: selectedIds.length,
+        onClearSelection: () => setSelection({}),
+        actions: (
+          <>
+            <Select aria-label="Bulk field" size="compact" options={BULK_FIELD_OPTIONS} selectedKey={bulkField} onSelectionChange={(key) => { setBulkField(String(key)); setBulkValue(""); }} />
+            {bulkField === "ownerUserId" ? (
+              <Select aria-label="New owner" size="compact" options={ownerOptions} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
+            ) : bulkField === "forecastCategory" ? (
+              <Select aria-label="New forecast category" size="compact" options={FORECAST_CATEGORY_OPTIONS} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
+            ) : (
+              <TextField aria-label="New value" size="compact" placeholder={bulkField === "expectedCloseDate" ? "YYYY-MM-DD" : "Next step"} value={bulkValue} onChange={setBulkValue} className="w-40" />
+            )}
+            <Button variant="secondary" size="compact" onPress={runBulkUpdate} isLoading={bulkBusy} isDisabled={!canManage || !bulkValue}>
+              Apply to selected
+            </Button>
+          </>
+        ),
+      }}
     >
+      {bulkResult && (
+        <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+          {bulkResult}
+        </p>
+      )}
       <EnterpriseDataGrid<Opportunity>
         aria-label="Opportunities"
         columns={columns}
@@ -177,6 +253,9 @@ export function OpportunityListScreen() {
         noResultsContent={<NoResultsState title="No opportunities match these filters" action={{ label: "Clear filters", onPress: () => { setSearchInput(""); setFilters({ limit: PAGE_SIZE, offset: 0, status: "open" }); } }} />}
         errorContent={<ErrorState title="Could not load opportunities" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Opportunities" />}
+        enableRowSelection
+        rowSelection={selection}
+        onRowSelectionChange={setSelection}
         pageIndex={pageIndex}
         pageSize={PAGE_SIZE}
         pageCount={pageCount}
