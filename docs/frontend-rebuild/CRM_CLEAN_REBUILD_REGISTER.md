@@ -62,7 +62,7 @@ know before trusting a row:
 | CRM-CAP-003 | Opportunity and pipeline governance | F009,F010,F011,F012,F026 | F009-F011 list/360/create/edit/stage/probability built; F012 (pipeline/stage setup) built this pass, closing a real missing-package-export gap found along the way; F026 (won/lost reasons) still read-only, no setup UI |
 | CRM-CAP-004 | Seller activity and follow-up workspace | F013-F019 | All 7 features have real, tested UI now: F013 Calls, F014 Meetings, F015 Tasks, F016 Follow-ups, F017 Notes AND Attachments (both built), F018 Communications (read-only), F019 Timeline (via Lead/Opportunity 360s — Timeline already merges `public.attachments` as a source per its own design comment, so uploaded files now surface there automatically with zero additional Timeline change needed). No feature in this capability group is at NOT_STARTED anymore, though several have disclosed sub-scope gaps (see each row). |
 | CRM-CAP-005 | Sales organization and coverage | F020 | Built this pass — the one capability group whose backend directory was genuinely empty (only a README) before this pass; both Teams and Territories are generic CRM_RESOURCE_KEYS resources, so no new domain module was needed |
-| CRM-CAP-006 | CRM data operations and customization | F021,F028,F029 | F029 bulk engine now wired for Leads and Opportunities; F028's tag/custom-object/custom-field definitions library built (see F028's own row for the real architectural gap found and deliberately not closed); F021 Lead import/export built (see F021's own row for its disclosed zero-test-coverage gap) |
+| CRM-CAP-006 | CRM data operations and customization | F021,F028,F029 | F029 bulk engine wired for Leads and Opportunities; F028 now closes the runtime custom-field gap (built-in entities have real, validated, governed custom fields, not just a disconnected definitions library — see F028's own row); F021 Lead import/export built (see F021's own row for its disclosed zero-test-coverage gap) |
 | CRM-CAP-007 | CRM conversion and sales handoff | F022,F023 | F022 (Lead conversion) built; F023 investigated and deliberately deferred to Prompt 4 — see F023's own row for the real architectural reason (not a gap, a genuine module boundary) |
 | CRM-CAP-008 | Pipeline analytics and forecasting | F024,F025,F030 | F024 (Dashboard), F025 (Forecast) and F030 (Reports) all have real UI now — Tranche 7 complete |
 
@@ -100,7 +100,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F025 | Forecast | IN_PROGRESS | `/crm/forecast` built this pass, reusing `getCrmReport(..., "forecast")` via the same `/api/crm/reports/[report]` boundary the Reports screen uses (no separate backend route). Total pipeline/weighted/won MetricStrip (client-side sums of the backend's own per-owner rows, not a fabricated statistic) plus a by-owner breakdown table, From/To date filters. Backend gap also fixed this pass (see Checkpoint re-audit #3): a sales manager without `crm.records.view_all` now sees their own deals plus their active team's via the new `ownerVisibleForForecast()`, not just their own. While building this, confirmed and fixed a real response-shape issue affecting both this screen and the just-built Dashboard: every `::numeric`-cast SQL aggregate (pipeline/weighted/won here; pipelineValue/weightedPipeline/stage.amount on the Dashboard) is returned by node-postgres as a **string at runtime**, not a `number` — no type-parser override exists anywhere in the codebase (checked `apps/web/src/core/db.ts`, `packages/database`). Not a crash (`String.prototype.toLocaleString()` is a harmless no-op) but silently dropped thousands-separator formatting. Added a shared `apps/web/src/features/crm/shared/format.ts`'s `money()` that coerces defensively, used by both screens; corrected both screens' `number` field types to `number \| string`. **Note: the same latent mistyping likely exists on `Opportunity.amount` and other pre-existing `::numeric` fields built earlier in this session** (e.g. `OpportunityListScreen`/`OpportunityDetailScreen`, which happen to be safe only because they interpolate the raw value into a template string rather than calling a number method on it) — not retrofitted in this pass to avoid a wide, risky change to already-shipped, working screens under this tranche's time budget; flagged here for a dedicated follow-up sweep, not silently left undiscovered. Missing: no export, no quota/attainment display (that's `revenue-operations`, a separate report), no per-stage forecast breakdown. |
 | F026 | Won/lost reasons | IN_PROGRESS | Outcome-reason capture wired into the Opportunity 360's stage-move action. **Re-audited the Pipeline board's stage-move per the mega-prompt's explicit instruction and confirmed a real, user-blocking bug, not just a disclosed gap**: the board calls the same governed `moveOpportunityStage` as the Opportunity 360, and that function fails closed with `CRM_OUTCOME_REASON_REQUIRED` (opportunity-transitions.js) when no `outcomeReasonId` is supplied for a won/lost transition — but the board never supplied one. This meant a user selecting a Won/Lost stage directly from the board hit a raw, unexplained error with no way to complete the action; they had to know to go to the Opportunity 360 instead. Fixed by adding an outcome-reason prompt to the board itself (see PipelineBoardScreen.tsx) — the board's move action now asks for the reason when the target stage is terminal, exactly the same governed call, same validation, same outcome-reason permission surface. `/crm/settings/lost-reasons` also built this pass: real list/create/archive against the generic `/api/crm/[resource]` boundary (`lost-reasons` has no governance redirect, confirmed by reading `resource-mutation-service.js`). Missing: edit form for reasons (create/archive only), sequence reordering UI. |
 | F027 | Lead scoring | IN_PROGRESS | Score/grade/breakdown/recalculate UI this pass. No model/rule setup UI. |
-| F028 | Custom fields & tags | IN_PROGRESS | `/crm/settings/custom-fields-and-tags` built this pass: real list/create/archive for Tags (`tenant.crm_tags`), Custom Objects (`tenant.crm_custom_object_definitions`) and Custom Fields (`tenant.crm_custom_field_definitions`), all reusing the generic `/api/crm/[resource]` boundary — no new backend routes. **Real, disclosed architectural finding while investigating this**: the dossier's own "verified code evidence" claim (`apps/web/src/app/api/crm/leads/[id]/custom-fields/route.ts`) is false — that file does not exist, confirmed by direct filesystem search. The actual mechanism for "custom data on a Lead/Opportunity" is a separate, pre-existing `custom_data` JSONB column already wired into `createLead`/`updateLead`/`createOpportunity`/`updateOpportunity`, but with **zero validation against `crm_custom_field_definitions`** — the two systems (the schema/definition builder built this pass, and Lead/Opportunity's own freeform JSONB bag) are architecturally disconnected. `custom-field-definitions.objectDefinitionId` only references `custom-object-definitions` (tenant-defined custom entity types), never a built-in Lead/Opportunity/Account/Contact. Deliberately did not attempt to bind them this pass — that would mean adding schema validation to already-shipped, tested Lead/Opportunity mutation commands, real risk-sensitive backend work, not frontend wiring. Also deliberately did not build tag-**assignment** UI (attaching a tag to a record): only `crm_lead_tags` (a lead-only junction table, used solely by lead-conversion's copy-on-convert) exists, with zero governed assign/remove function anywhere in the codebase — building that would mean inventing new backend commands, out of scope for a settings-definitions pass. |
+| F028 | Custom fields & tags | IN_PROGRESS | `/crm/settings/custom-fields-and-tags` (tag/custom-object/custom-field definitions library, prior pass) plus **`/crm/settings/record-fields` built this Stage A pass** — real, governed, validated custom fields bound to BUILT-IN entities (Lead/Opportunity/Account/Contact), closing the architectural disconnect the prior pass disclosed. Uses the platform-level `custom_field_definitions`/`custom_field_values` tables (`002_platform_foundation.sql`) — confirmed by direct search that these had **zero service layer anywhere in the codebase** before this pass (unlike other "gaps" found this session, this one genuinely required new backend code, not just a missing export). New `custom-field-runtime.js` module: definition CRUD with real validation (duplicate field key, invalid data type, select fields require options), and `getCustomFieldValues`/`setCustomFieldValues` with per-field-type coercion (text/textarea/number/currency/percentage/boolean/date/datetime/select/multi_select), all-or-nothing validation (a partially-invalid submission writes nothing), unknown-field rejection, and the same `resolveCrmEntityAccess` parent-record authorization Notes/Attachments/Timeline already use. Deliberately does **not** touch Lead/Opportunity's existing `customData` JSONB column or their governed create/update commands — this is a new, additive, independently-validated system, not a retrofit of already-shipped, tested mutation paths (a scoped, risk-reducing choice, not an oversight). New `CustomFieldsRuntimePanel` (schema-driven — one renderer, not one component per field) composed into all four 360s. 14 new backend tests (`crm-custom-field-runtime-f028.test.mjs`), written properly this time — file existence checked first (see the Attachments near-miss below). Tag **assignment** (attaching a tag to a record) remains not built — only `crm_lead_tags` (lead-only junction table) exists, with zero governed assign/remove function anywhere; would mean inventing new backend commands, still out of scope. |
 | F029 | Bulk actions | IN_PROGRESS | Real server-governed bulk engine now wired for both Leads (priority/rating/source/follow-up) and Opportunities (owner/forecast category/expected close date/next step — the exact `OPPORTUNITY_BULK_FIELDS` allowlist, stage/status/probability/outcome deliberately excluded since those remain single-record governed actions). The Opportunity backend (`bulkUpdateOpportunities`, `enqueueOpportunityBulkUpdateJob`, `getOpportunityBulkJob`) was already fully implemented and tested (`crm-opportunity-bulk-*-f029.test.mjs`) before this pass, with zero UI — this pass only added the two routes (`/api/crm/opportunities/bulk`, `/api/crm/opportunities/bulk/jobs/[jobId]`) and wired selection/apply into `OpportunityListScreen`. **Disclosed real difference from Lead's bulk**: Opportunity's synchronous path is a single mass `UPDATE ... RETURNING`, not Lead's per-record applied/conflict/skipped/failed manifest — a row outside scope or not `status='open'` is silently excluded from the count with no per-ID reason, and the UI's result message says so plainly rather than implying detail that doesn't exist. Not yet composed into Calls/Meetings/Tasks/Follow-ups/Accounts/Contacts lists. |
 | F030 | Reports | IN_PROGRESS | `/crm/reports` built this pass: a report picker across all 14 of `getCrmReport`'s real report kinds (pipeline, conversion, sources, activities, forecast, campaigns, revenue-operations, account-health, privacy, pipeline-intelligence, engagement-intelligence, relationship-coverage, partner-pipeline, ai-governance) plus From/To date filters, rendered as a single generic table whose columns are derived from whatever the backend actually returns for that report (each of the 14 has its own shape — not worth 14 bespoke screens). While building this, found and fixed a real route-contract mismatch: `/api/crm/reports/[report]` accepted `ownerId`/`stageId`/`sourceId`/`campaignId`/`period` query params and forwarded them, but `getCrmReport`'s own body only ever reads `filters.from`/`filters.to` — the other four were silently dropped server-side, which would have misled a caller into thinking that filtering worked. Trimmed the route's forwarded keys to `from`/`to` only, matching backend reality. Missing: no drill-down from a report row into the underlying records, no CSV/export action, no saved report configurations. |
 
@@ -646,6 +646,68 @@ sidebar exactly as before. Not independently re-verified in a live
 browser this pass (no working session/login credentials available in
 this environment) — verified by reading the exact CSS/DOM mechanics
 instead; flagged as owed for the next real browser QA pass.
+
+## Checkpoint re-audit #4: two earlier "missing export" claims in this file were WRONG — a second, nested package index exists
+
+While investigating F028, discovered `services/api/src/modules/crm/index.js` +
+`index.d.ts` — a SECOND, nested "stable public CRM API boundary" file
+(pre-existing, not written this session), which the top-level
+`services/api/src/index.js` re-exports via `export * from "./modules/crm/index.js"`.
+Most `crm-data-operations-and-customization/` and
+`seller-activity-and-follow-up-workspace/` files are routed through
+THIS nested, hand-curated file with selective named exports, not the
+top-level file's per-capability-directory `export *` lines.
+
+This means two earlier entries in this register were **wrong**:
+
+- **F012 (Sales Stages)**: `listSalesStages`/`createSalesStage`/etc. were
+  **already fully exported and typed** via this nested index (both
+  `index.js` lines 17-26 and `index.d.ts` lines 181-188) *before this
+  session touched anything* — confirmed via `git log`, these lines
+  predate this session. The claimed "never exported from `@vercentlabs/api`
+  at all... no `.d.ts` file of its own" was incorrect; the standalone
+  `sales-stage-operations.d.ts` this session wrote and the redundant
+  top-level `export *` line are harmless (ESM re-exporting the same
+  underlying binding via two paths is not an error) but were unnecessary.
+  Left in place rather than unwound, since the risk of touching an
+  already-shipped, already-tested commit outweighs the cosmetic benefit
+  of removing a harmless duplicate.
+- **F017 (Attachments)**: partially wrong. The RUNTIME export
+  (`createCrmAttachment` etc.) already existed via this same nested
+  `index.js` (lines 95-102, also pre-existing) — but the nested
+  `index.d.ts` did **not** declare these functions' types, so the
+  standalone `attachments-operations.d.ts` this session wrote (and the
+  top-level `.d.ts` line pulling it in) was a genuine, necessary fix —
+  just for TYPES only, not the runtime binding the original claim
+  described.
+
+**For F022 (`findAccountDuplicates`/`findContactDuplicates`), the
+original "missing export" claim was verified correct** — confirmed
+absent from both index files before this session's fix, unlike the two
+above.
+
+**Lesson applied for F028's own new module**: exported via the nested
+`modules/crm/index.js`/`index.d.ts` (the file this codebase actually
+uses for `crm-data-operations-and-customization/`), not a redundant
+top-level line — checked which convention applied before wiring, rather
+than repeating the same research gap that produced the two wrong claims
+above.
+
+## Near-miss: this pass's own agent almost destroyed pre-existing test coverage
+
+While building F017 Attachments' backend tests, used the Write tool on
+`services/api/tests/crm-attachments-f017.test.mjs` without first
+checking whether it already existed — it did (20 tests, committed in an
+earlier prompt pass, well before this session). This silently replaced
+real, thorough, already-passing coverage with a smaller, redundant set.
+Caught immediately when the full suite's reported count dropped from
+985 to 979 instead of rising after adding tests — a real, deliberate
+checkpoint discipline catching a real mistake, not luck. `git checkout
+<earlier-commit> -- <path>` restored the original file exactly before
+anything was pushed; verified the count returned to 985. No new backend
+tests were needed for F017 as a result. Lesson applied immediately
+afterward for F028's own new test file: existence checked with a plain
+`test -f` before `Write`.
 
 ## Mandatory-gap candidates
 

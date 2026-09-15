@@ -32,6 +32,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import {
   assignLead,
   convertLead,
@@ -414,6 +415,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             <Tab id="activity">Activity</Tab>
             <Tab id="notes">Notes</Tab>
             <Tab id="attachments">Attachments</Tab>
+            <Tab id="custom-fields">Custom Fields</Tab>
           </TabList>
 
           <TabPanel id="overview">
@@ -730,6 +732,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           <TabPanel id="attachments">
             <div className="py-4">
               <CrmAttachmentPanel entityType="lead" entityId={leadId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="custom-fields">
+            <div className="py-4">
+              <CustomFieldsRuntimePanel entityType="lead" entityId={leadId} />
             </div>
           </TabPanel>
         </Tabs>

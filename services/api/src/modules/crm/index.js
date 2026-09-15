@@ -101,6 +101,20 @@ export {
   listCrmAttachmentVersions,
 } from "./seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
 
+// F028 (Prompt 3 Stage A) — runtime custom fields bound to built-in CRM
+// entities, using the platform-level custom_field_definitions/
+// custom_field_values tables (002_platform_foundation.sql), which had
+// zero service layer anywhere in the codebase before this — confirmed by
+// direct search, not assumed missing the way sales-stage-operations.js
+// turned out to already be reachable via this same file.
+export {
+  createCustomFieldDefinition,
+  getCustomFieldValues,
+  listCustomFieldDefinitions,
+  setCustomFieldDefinitionActive,
+  setCustomFieldValues,
+} from "./crm-data-operations-and-customization/custom-field-runtime.js";
+
 export {
   acknowledgeReminder,
   cancelCrmFollowUp,

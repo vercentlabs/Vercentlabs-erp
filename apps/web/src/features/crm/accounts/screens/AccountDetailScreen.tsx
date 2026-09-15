@@ -11,6 +11,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { AccountApiError, archiveAccount, getAccount } from "../api/accounts-api";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -120,6 +121,10 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Attachments</p>
           <CrmAttachmentPanel entityType="party" entityId={accountId} />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Custom fields</p>
+          <CustomFieldsRuntimePanel entityType="party" entityId={accountId} />
         </div>
       </div>
     </RecordDetailsPage>

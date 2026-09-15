@@ -141,6 +141,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Territories & Sales Teams", "/crm/settings/territories"), requiredPermission: "crm.settings.manage" },
           { ...available("Custom Fields & Tags", "/crm/settings/custom-fields-and-tags"), requiredPermission: "crm.settings.manage" },
+          { ...available("Custom Record Fields", "/crm/settings/record-fields"), requiredPermission: "crm.settings.manage" },
           { ...available("Lead Sources", "/crm/settings/lead-sources"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Assignment & Territories",

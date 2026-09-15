@@ -29,6 +29,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { archiveOpportunity, getOpportunity, getOpportunityTimeline, moveOpportunityStage, OpportunityApiError, updateOpportunityProbability } from "../api/opportunities-api";
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
@@ -201,6 +202,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
             <Tab id="activity">Activity</Tab>
             <Tab id="notes">Notes</Tab>
             <Tab id="attachments">Attachments</Tab>
+            <Tab id="custom-fields">Custom Fields</Tab>
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-6 py-4">
@@ -268,6 +270,12 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
           <TabPanel id="attachments">
             <div className="py-4">
               <CrmAttachmentPanel entityType="opportunity" entityId={opportunityId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="custom-fields">
+            <div className="py-4">
+              <CustomFieldsRuntimePanel entityType="opportunity" entityId={opportunityId} />
             </div>
           </TabPanel>
         </Tabs>
