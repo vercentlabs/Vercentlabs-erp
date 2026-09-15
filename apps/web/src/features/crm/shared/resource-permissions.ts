@@ -22,4 +22,14 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   "custom-field-definitions": CRM_PERMISSIONS.settingsManage,
   "lost-reasons": CRM_PERMISSIONS.settingsManage,
   pipelines: CRM_PERMISSIONS.settingsManage,
+  // Tranche E (F002) shipped AccountPlanPanel/stakeholder UI reachable by
+  // any org member with crm.view — this map was not extended at the time,
+  // a real gap (not a redirect-governed resource like "stages", so it
+  // silently fell through to module-access-only). Fixed here, retroactively,
+  // per this file's own documented policy.
+  "account-plans": CRM_PERMISSIONS.accountsManage,
+  "account-stakeholders": CRM_PERMISSIONS.accountsManage,
+  // Tranche I (F006/F027) — qualification-criteria/playbooks setup UI.
+  "qualification-criteria": CRM_PERMISSIONS.settingsManage,
+  playbooks: CRM_PERMISSIONS.settingsManage,
 };
