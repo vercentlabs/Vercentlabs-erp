@@ -1264,6 +1264,36 @@ Full `services/api` suite: 1051/1051 passing (1050 prior + 1 new
 ESLint, `verify:routes`, `apps/mobile` typecheck,
 `verify:no-legacy-frontend`, `verify:architecture`: all clean throughout.
 
+## Tranche L: saved-view requirement audit (Stage A) — confirmed, no changes
+
+Re-read `[SPEC-SEARCH]` ("Search, filters, sorting and saved views") in
+every dossier for the six candidate lists Tranche 9's own note left
+undecided: F002 (Accounts), F003 (Contacts), F013 (Calls), F014
+(Meetings), F015 (Tasks), F016 (Follow-ups). Found the section text is
+**byte-identical boilerplate across all six** ("Search uses normalized
+indexed fields and stable sort tie-breakers. Filters expose explicit
+operators, URL/deep-link state where safe, personal/shared saved views
+with permission checks, and no counts/facets for inaccessible
+records.") — the same sentence, unmodified, in every one. This provides
+zero differentiating signal for which of the six (if any) has a
+stronger canonical requirement than the others; the boilerplate is
+template noise, not feature-specific evidence, matching the same
+pattern already correctly identified for `[SPEC-DETAIL]`/`[SPEC-EDIT]`
+elsewhere this session.
+
+Per the mega-prompt's own explicit instruction — "add saved views + URL
+state ONLY where canonical requirements require them; do not
+mechanically spread everywhere" — the audit's conclusion is: **no
+dossier evidence justifies extending Saved Views or URL-addressable
+state to any of the six**, so none were added. Tranche 9's original
+prioritization rationale (Leads and Opportunities are this codebase's
+two most filter-heavy, highest-traffic lists — 9 and a comparably large
+filter-dimension count, vs. 3-6 for the others) remains the best
+available signal and is hereby independently re-confirmed, not merely
+left unchallenged. This is a closed audit, not a deferred build: there
+is no future dossier-driven trigger to revisit unless a canonical
+requirement changes.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
@@ -1282,11 +1312,11 @@ as a defect.
 2. Accounts (F002) + Contacts (F003) + Lead sources (F004) + cross-entity duplicates (F008) — done
 3. Opportunities (F009-F012, F026) + Pipeline board + Sales handoff (F023) — done except F023 (deliberately deferred)
 4. Seller activity workspace (F013-F019) — done
-5. Sales organization & CRM Setup (F020, plus setup UIs for F005-F007/F027/F028) — F020 done; the F005-F007/F027/F028 setup UIs not built
+5. Sales organization & CRM Setup (F020, plus setup UIs for F005-F007/F027/F028) — F020 done; **F005/F006/F007/F027 setup UIs built in Stage A Tranche I** (see that section); F028's runtime custom-fields/tags built in Stage A Tranches B/C
 6. Data operations (F021) + Bulk (F029) generalization + Custom fields & tags (F028) — done: F021 Lead import/export, F028's definitions library, F029 now covers Leads and Opportunities
 7. Analytics (F024, F025, F030) — done
 8. CRM Home — done; global Search + Command Menu + Quick Create investigated and deliberately deferred to a cross-module platform prompt (see that section above) — not CRM-scoped work
-9. Saved views + URL state generalization — done for Leads and Opportunities (see the new section below); not yet composed into Accounts/Contacts/Tasks/Calls/Meetings/Follow-ups/Communications
+9. Saved views + URL state generalization — done for Leads and Opportunities; **Stage A Tranche L independently re-audited extending this to Accounts/Contacts/Tasks/Calls/Meetings/Follow-ups and confirmed no dossier evidence justifies it (byte-identical boilerplate across all six dossiers) — a closed audit, not a deferred build**
 10. Mobile web + apps/mobile audit — done (see the new section below); a real missing route and stale mobile-side deep links found and fixed, not just reviewed clean
 11. Concurrency/offline audit across all new screens — done (see the new section below); real fixes applied, not just reviewed clean
 12. Security negative-test pass — partially done (see the new section below): a real, permanent structural regression test now exists; true behavioral per-route 403 tests still not built
