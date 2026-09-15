@@ -206,6 +206,7 @@ export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: s
 
 
 export * from "./crm-data-operations-and-customization/custom-field-runtime.js";
+export * from "./crm-data-operations-and-customization/tag-assignment.js";
 
 export function listCrmTasks(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmTask(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean }): Promise<any>;

@@ -115,6 +115,17 @@ export {
   setCustomFieldValues,
 } from "./crm-data-operations-and-customization/custom-field-runtime.js";
 
+// F028 Tranche C (Prompt 3 Stage A) — tag ASSIGNMENT over the existing
+// tenant.crm_lead_tags junction. Tag definitions already flow through
+// the generic resource-mutation-service ("tags" in resource-registry.js);
+// this closes the gap that tag definitions alone did not let anyone
+// actually put a tag on a record.
+export {
+  assignRecordTag,
+  listRecordTags,
+  removeRecordTag,
+} from "./crm-data-operations-and-customization/tag-assignment.js";
+
 export {
   acknowledgeReminder,
   cancelCrmFollowUp,

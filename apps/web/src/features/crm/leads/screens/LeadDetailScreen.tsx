@@ -33,6 +33,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
+import { LeadTagsPanel } from "@/features/crm/shared/LeadTagsPanel";
 import {
   assignLead,
   convertLead,
@@ -437,6 +438,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   This Lead is archived and read-only.
                 </p>
               )}
+
+              <LeadTagsPanel leadId={leadId} canManage={canManageLeads && !isClosed} />
 
               {duplicatesQuery.data && duplicatesQuery.data.duplicates.length > 0 && (
                 <div className="flex flex-col gap-3 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-3">
