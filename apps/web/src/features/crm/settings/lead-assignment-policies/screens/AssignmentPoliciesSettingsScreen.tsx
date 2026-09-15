@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Plus, Power } from "lucide-react";
+import { HelpCircle, Pencil, Plus, Power } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -25,6 +25,7 @@ import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import {
   AssignmentPolicyApiError,
   createLeadAssignmentPolicy,
+  explainAssignmentPolicy,
   listLeadAssignmentPolicies,
   setLeadAssignmentPolicyStatus,
   updateLeadAssignmentPolicy,
@@ -65,6 +66,7 @@ export function AssignmentPoliciesSettingsScreen() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<LeadAssignmentPolicy | null>(null);
+  const [explainingPolicy, setExplainingPolicy] = useState<LeadAssignmentPolicy | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-assignment-policies"), queryFn: listLeadAssignmentPolicies });
@@ -145,10 +147,17 @@ export function AssignmentPoliciesSettingsScreen() {
               >
                 <Power className="size-4" aria-hidden="true" />
               </IconButton>
+              {(row.mode === "round_robin" || row.mode === "workload" || row.mode === "fixed") && (
+                <IconButton aria-label={`Explain eligible owners for ${row.name}`} size="compact" variant="outline" onPress={() => setExplainingPolicy(row)}>
+                  <HelpCircle className="size-4" aria-hidden="true" />
+                </IconButton>
+              )}
             </span>
           )}
         />
       </EnterpriseListPage>
+
+      <ExplainDialog policy={explainingPolicy} onOpenChange={(open) => !open && setExplainingPolicy(null)} />
 
       <PolicyDialog
         isOpen={createOpen || Boolean(editingPolicy)}
@@ -260,6 +269,47 @@ function PolicyDialog({
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
             {policy ? "Save changes" : "Create rule"}
           </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// F005-CAP-001's own canonical sentence: "route a lead to the best
+// eligible owner and explain why that owner won." explainLeadAssignment-
+// Candidates already computed exactly this (per-candidate eligible/
+// reasons) inside resolveLeadAssignment's own round_robin/workload
+// resolution — this dialog is the first place a human can see it
+// directly, not a new decision engine.
+function ExplainDialog({ policy, onOpenChange }: { policy: LeadAssignmentPolicy | null; onOpenChange: (open: boolean) => void }) {
+  const query = useQuery({
+    queryKey: ["crm", "assignment-policy-explain", policy?.id],
+    queryFn: () => explainAssignmentPolicy(policy!.id),
+    enabled: Boolean(policy),
+  });
+  const rows = query.data?.rows ?? [];
+
+  return (
+    <Dialog isOpen={Boolean(policy)} onOpenChange={onOpenChange} title={policy ? `Why would ${policy.name} choose this owner?` : "Explain"}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-text-secondary">
+          {policy?.mode === "fixed" ? "This rule always assigns to a single fixed owner." : "Every member below is evaluated in order; the first eligible member wins."}
+        </p>
+        {query.isLoading && <p className="text-sm text-text-secondary">Loading…</p>}
+        {!query.isLoading && rows.length === 0 && <p className="text-sm text-text-muted">No members configured on this rule.</p>}
+        <ul className="flex flex-col gap-2">
+          {rows.map((row) => (
+            <li key={row.userId} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm">
+              <span className="text-text">{row.name || row.userId}</span>
+              <span className="flex items-center gap-2">
+                <StatusBadge tone={row.eligible ? "success" : "neutral"}>{row.eligible ? "Eligible" : "Ineligible"}</StatusBadge>
+                {row.reasons.length > 0 && <span className="text-xs text-text-muted">{row.reasons.join(", ")}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-end">
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>Close</Button>
         </div>
       </div>
     </Dialog>

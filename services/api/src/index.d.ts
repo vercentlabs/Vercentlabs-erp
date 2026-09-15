@@ -339,6 +339,17 @@ export function assertEligibleLeadAssignee(
   userId: string,
   scope?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
+// F005 Stage A2 §3 — the type declaration for this function was missing
+// even though the runtime export already existed (lead-governance.js
+// re-exports assignment/index.js, already reachable via this file's own
+// "export * from lead-governance.js"); only the .d.ts surface needed
+// this hand-written signature, matching the sibling declarations below.
+export function explainLeadAssignmentCandidates(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  memberUserIds: string[],
+  input?: { companyId?: string; branchId?: string },
+): Promise<Array<{ userId: string; name: string | null; eligible: boolean; reasons: string[] }>>;
 export function listLeadAssignmentPolicies(
   client: QueryClient,
   context: CrmFoundationContext,

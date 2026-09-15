@@ -1348,6 +1348,59 @@ route wiring over an already-tested service). Web typecheck, ESLint,
 `verify:routes`, `verify:no-legacy-frontend`, `verify:architecture`:
 all clean.
 
+### 2. F008 duplicate operations scale — ALREADY_SATISFIED, no changes
+
+Read every `F008-*` atomic row (`SUBREQUIREMENT_REGISTER.csv`) plus the
+flow/state-transition rows plus the dossier prose for "queue"/
+"scheduled"/"proactive"/"background scan"/"batch detect" language.
+Found **zero** occurrences of any of those outside generic boilerplate
+("work queue" appears only in the universal `SPEC-ENTRY-POINTS`/
+`SPEC-LIST` template text every dossier shares, not an F008-specific
+mandate). No atomic row requires proactive/scheduled duplicate-candidate
+generation. Classification: **ALREADY_SATISFIED** — the existing
+search-driven `/crm/data/duplicates` workspace (Tranche G) meets the
+canonical contract as written. No O(N²) pairwise scan or background job
+was built; none is required.
+
+### 3. F005 assignment explainability + override
+
+`F005-CAP-001`'s literal text — the feature's own canonical-label-
+defining sentence, repeated verbatim across `CAP-001`/`FR-001`/`US-001`/
+`E2E-001` — is "route a lead to the best eligible owner **and explain
+why that owner won**." This is not boilerplate; it is what the feature
+IS. Classification: **MANDATORY_NOW**.
+
+`explainLeadAssignmentCandidates` (`eligibility.js`) was already called
+internally by `resolveLeadAssignment` for round_robin/workload owner
+selection, already tested
+(`crm-lead-assignment-explainability-f005.test.mjs`), and — correcting
+the prior pass's own wrong claim — **was already exported at the
+package level** (`lead-governance.js` re-exports `assignment/index.js`,
+already reachable via `index.js`'s `export * from lead-governance.js`).
+What was genuinely missing was only the **type declaration** in
+`index.d.ts` (the same class of gap found and fixed for F017
+attachments earlier this session) — added by hand, matching the
+existing sibling declarations' style, not a blanket `export *`.
+
+Built: `GET /api/crm/lead-assignment-policies/[id]/explain` and an
+"Explain" dialog on each round_robin/workload/fixed policy row in
+`AssignmentPoliciesSettingsScreen.tsx`, showing per-member eligibility
+and human-readable reasons ("Inactive user", "No CRM access", "Outside
+branch/territory scope", "Out of office") — the exact same computation
+the real assignment engine already uses, not a second decision engine.
+
+Out-of-directory manual override: `F005-APP-001`'s "elevated overrides
+... MUST require explicit permission/approval policy and reason" is
+conditional (*if* an override exists, gate it), not itself a mandate to
+build manual override. No atomic row requires assigning outside the
+configured eligible pool — the governed policy engine (fixed/
+round_robin/workload/territory, Tranche I) already IS the mechanism.
+Classification: **NOT_REQUIRED_BY_CANONICAL_SCOPE**.
+
+Full `services/api` suite: 1051/1051 (no backend logic changed — a
+type-declaration addition plus route wiring over an already-tested
+function). Web typecheck, ESLint, `verify:routes`: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

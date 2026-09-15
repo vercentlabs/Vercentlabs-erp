@@ -1247,9 +1247,9 @@
     "notes": "Policy CRUD (fixed/round_robin/workload/territory), criteria, sequence — wired this pass."
   },
   "F005-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Policy configuration real; explain-trace UI not built (explainLeadAssignmentCandidates not exported past its own module)."
+    "status": "IMPLEMENTED",
+    "evidence": "ExplainDialog in AssignmentPoliciesSettingsScreen.tsx; GET /api/crm/lead-assignment-policies/[id]/explain",
+    "notes": "Stage A2 correction: explain-trace UI built this pass. explainLeadAssignmentCandidates was already exported at the package level (the prior pass wrongly claimed it was not) — only its index.d.ts type declaration was missing, now added. Out-of-directory manual override classified NOT_REQUIRED_BY_CANONICAL_SCOPE (F005-APP-001 is conditional, not a mandate)."
   },
   "F005-CAP-003": {
     "status": "NOT_VERIFIED",
