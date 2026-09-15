@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -24,10 +24,24 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError } from "../api/opportunities-api";
 import type { Opportunity, OpportunityListFilters } from "../types";
 
 const PAGE_SIZE = 25;
+
+function filtersFromSearchParams(params: URLSearchParams): OpportunityListFilters {
+  const filters: OpportunityListFilters = { limit: PAGE_SIZE, offset: 0, status: "open" };
+  const search = params.get("search");
+  const stageId = params.get("stageId");
+  const status = params.get("status");
+  const offset = params.get("offset");
+  if (search) filters.search = search;
+  if (stageId) filters.stageId = stageId;
+  if (status) filters.status = status;
+  if (offset) filters.offset = Number(offset) || 0;
+  return filters;
+}
 
 const BULK_FIELD_OPTIONS: SelectOption[] = [
   { value: "ownerUserId", label: "Owner" },
@@ -55,17 +69,28 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
 export function OpportunityListScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
 
-  const [filters, setFilters] = useState<OpportunityListFilters>({ limit: PAGE_SIZE, offset: 0, status: "open" });
-  const [searchInput, setSearchInput] = useState("");
+  const [filters, setFilters] = useState<OpportunityListFilters>(() => filtersFromSearchParams(searchParams));
+  const [searchInput, setSearchInput] = useState(() => filtersFromSearchParams(searchParams).search ?? "");
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [bulkField, setBulkField] = useState<string>("ownerUserId");
   const [bulkValue, setBulkValue] = useState<string>("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+
+  // URL-addressable list state (Tranche 9), same pattern as Leads.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== "" && value !== "all" && key !== "limit" && !(key === "status" && value === "open")) params.set(key, String(value));
+    }
+    router.replace(`/crm/opportunities${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "opportunities", filters),
@@ -103,6 +128,13 @@ export function OpportunityListScreen() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters = Boolean(filters.search || filters.stageId || (filters.status && filters.status !== "open"));
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
+  const hasExplicitFilters = searchParams.toString().length > 0;
+  const filtersWithoutPaging: OpportunityListFilters = useMemo(() => {
+    const rest = { ...filters };
+    delete rest.limit;
+    delete rest.offset;
+    return rest;
+  }, [filters]);
 
   async function runBulkUpdate() {
     if (!bulkValue) return;
@@ -237,6 +269,13 @@ export function OpportunityListScreen() {
         ),
       }}
     >
+      <SavedViewsBar
+        resource="opportunities"
+        baseFilters={{ limit: PAGE_SIZE, offset: 0, status: "open" } as OpportunityListFilters}
+        currentFilters={filtersWithoutPaging}
+        hasExplicitFilters={hasExplicitFilters}
+        onApply={(next) => setFilters(next)}
+      />
       {bulkResult && (
         <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
           {bulkResult}

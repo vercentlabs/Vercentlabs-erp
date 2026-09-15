@@ -24,6 +24,7 @@ import {
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import {
   archiveLead,
@@ -194,6 +195,13 @@ export function LeadListScreen() {
 
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
   const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification);
+  const hasExplicitFilters = searchParams.toString().length > 0;
+  const filtersWithoutPaging: LeadListFilters = useMemo(() => {
+    const rest = { ...filters };
+    delete rest.limit;
+    delete rest.offset;
+    return rest;
+  }, [filters]);
 
   async function runBulkUpdate() {
     if (!bulkValue && bulkField !== "nextFollowUpAt") return;
@@ -365,6 +373,13 @@ export function LeadListScreen() {
         ),
       }}
     >
+      <SavedViewsBar
+        resource="leads"
+        baseFilters={{ limit: PAGE_SIZE, offset: 0 } as LeadListFilters}
+        currentFilters={filtersWithoutPaging}
+        hasExplicitFilters={hasExplicitFilters}
+        onApply={(next) => setFilters(next)}
+      />
       {rowError && (
         <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {rowError}

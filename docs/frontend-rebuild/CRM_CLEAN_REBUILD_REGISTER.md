@@ -336,6 +336,42 @@ mirroring how F023 (Opportunity → quotation) was deferred to the Sales
 prompt for the same reason: a real architectural boundary, not an
 oversight.
 
+## Tranche 9: Saved views + URL state generalization
+
+Built a shared `SavedViewsBar` (`features/crm/shared/SavedViewsBar.tsx`) wrapping
+design-system's `SavedViewBar` (pure selection UI, no persistence of its own)
+with real create/list/delete against the generic `tenant.crm_saved_views`
+resource, composed into Leads and Opportunities. `record-policy.js`'s
+`recordScope` already hard-scopes every saved-views read/write to
+`record.user_id = context.userId` at the SQL level, and
+`resource-mutation-service.js` forces `userId = context.userId` on create
+and strips any client-supplied `userId` on update — this is inherently a
+personal, self-scoped resource, so it was deliberately **not** added to
+`resource-permissions.ts`'s `RESOURCE_MANAGE_PERMISSIONS` map; the generic
+route's module-access-only fallback (`crm.view`) is the correct floor,
+not a gap.
+
+A saved view marked `isDefault` auto-applies once on first load, but only
+when the caller didn't already navigate in with explicit URL filters —
+never silently overrides an explicit link. Found the generic list route's
+`LIST_FILTER_KEYS` has no `resource` filter key to select "this user's
+saved views for the Leads screen vs. the Opportunities screen" — rather
+than widen that shared filter list (touching every other
+`CRM_RESOURCE_KEYS` entry that reads it), `listSavedViews` fetches all of
+the caller's saved views (a small, personal dataset) and filters by the
+row's own `resource` column client-side; documented in
+`saved-views-api.ts` as a deliberate, minimal-touch choice.
+
+**URL state generalization**: Opportunities had no URL-addressable list
+state at all before this pass (only Leads did, from an earlier tranche).
+Added the identical pattern (`filtersFromSearchParams` + a `router.replace`
+sync effect) to `OpportunityListScreen`, so a saved link, browser back, or
+a reload now restores the exact same Opportunities view too. Accounts,
+Contacts, Tasks, Calls, Meetings, Follow-ups and Communications still have
+neither Saved Views nor URL-addressable state — a disclosed, deliberate
+scope boundary (Leads and Opportunities are this codebase's two most
+filter-heavy, highest-traffic lists), not an oversight.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
@@ -358,7 +394,7 @@ as a defect.
 6. Data operations (F021) + Bulk (F029) generalization + Custom fields & tags (F028) — done: F021 Lead import/export, F028's definitions library, F029 now covers Leads and Opportunities
 7. Analytics (F024, F025, F030) — done
 8. CRM Home — done; global Search + Command Menu + Quick Create investigated and deliberately deferred to a cross-module platform prompt (see that section above) — not CRM-scoped work
-9. Saved views + URL state generalization
+9. Saved views + URL state generalization — done for Leads and Opportunities (see the new section below); not yet composed into Accounts/Contacts/Tasks/Calls/Meetings/Follow-ups/Communications
 10. Mobile web + apps/mobile audit
 11. Concurrency/offline audit across all new screens
 12. Security negative-test pass
