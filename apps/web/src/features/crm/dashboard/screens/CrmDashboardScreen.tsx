@@ -12,6 +12,30 @@ import type { CrmDashboardActivity } from "../types";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
+// F024 Tranche K — a metric that drills into a pre-filtered list when a
+// safe, verified filter mapping exists (confirmed against the exact SQL
+// predicate getCrmDashboard uses for that count, and against what the
+// Lead/Opportunity list's own filter actually queries server-side —
+// e.g. Lead's "status" filter is a STAGE filter, not record_status, so
+// "open leads" is deliberately NOT drilled here to avoid a plausible-
+// looking but subtly wrong link). Metrics with no such mapping render
+// as a plain, non-interactive MetricCard-style block instead of a fake
+// disabled-looking button.
+function DrillMetric({ label, value, onPress }: { label: string; value: number; onPress?: () => void }) {
+  const content = (
+    <>
+      <p className="text-xs font-medium text-text-muted">{label}</p>
+      <p className="text-2xl font-semibold tabular-nums text-text">{value.toLocaleString()}</p>
+    </>
+  );
+  if (!onPress) return <div className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4">{content}</div>;
+  return (
+    <button type="button" onClick={onPress} className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-left hover:border-brand-border hover:bg-brand-soft">
+      {content}
+    </button>
+  );
+}
+
 function activityHref(activity: CrmDashboardActivity): string | null {
   if (activity.entityType === "lead" && activity.entityId) return `/crm/leads/${activity.entityId}`;
   if (activity.entityType === "opportunity" && activity.entityId) return `/crm/opportunities/${activity.entityId}`;
@@ -57,17 +81,18 @@ export function CrmDashboardScreen() {
       />
 
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-text">Needs attention</h2>
-        <MetricStrip
-          metrics={[
-            { label: "Unassigned leads", value: metrics.unassignedLeads.toLocaleString() },
-            { label: "Dwell-breached leads", value: metrics.dwellBreachedLeads.toLocaleString() },
-            { label: "Stalled opportunities", value: metrics.stalledOpportunities.toLocaleString() },
-            { label: "Not yet qualified", value: metrics.needsQualificationLeads.toLocaleString() },
-            { label: "High-priority leads", value: metrics.highPriorityLeads.toLocaleString() },
-            { label: "Uncovered territories", value: metrics.uncoveredTerritories.toLocaleString() },
-          ]}
-        />
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-text">Needs attention</h2>
+          <span className="text-xs text-text-muted">Unassigned and not-yet-qualified drill into a filtered Lead list; the rest have no matching list filter yet (disclosed, not built this pass).</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <DrillMetric label="Unassigned leads" value={metrics.unassignedLeads} onPress={() => router.push("/crm/leads?ownerId=unassigned")} />
+          <DrillMetric label="Dwell-breached leads" value={metrics.dwellBreachedLeads} />
+          <DrillMetric label="Stalled opportunities" value={metrics.stalledOpportunities} />
+          <DrillMetric label="Not yet qualified" value={metrics.needsQualificationLeads} onPress={() => router.push("/crm/leads?qualification=not_reviewed")} />
+          <DrillMetric label="High-priority leads" value={metrics.highPriorityLeads} />
+          <DrillMetric label="Uncovered territories" value={metrics.uncoveredTerritories} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -88,7 +113,11 @@ export function CrmDashboardScreen() {
                 <tbody>
                   {stages.map((stage) => (
                     <tr key={stage.id} className="border-b border-border last:border-0">
-                      <td className="py-1.5 text-text">{stage.name}</td>
+                      <td className="py-1.5 text-text">
+                        <button type="button" className="text-left hover:underline" onClick={() => router.push(`/crm/opportunities?stageId=${stage.id}`)}>
+                          {stage.name}
+                        </button>
+                      </td>
                       <td className="py-1.5 tabular-nums text-text-muted">{stage.opportunityCount}</td>
                       <td className="py-1.5 tabular-nums text-text-muted">{money(metrics.currencyCode, stage.amount)}</td>
                     </tr>

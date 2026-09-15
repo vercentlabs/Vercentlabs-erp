@@ -34,6 +34,7 @@ import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { LeadTagsPanel } from "@/features/crm/shared/LeadTagsPanel";
+import { money } from "@/features/crm/shared/format";
 import {
   assignLead,
   convertLead,
@@ -480,7 +481,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                 <Field label="Company" value={lead.companyName} />
                 <Field label="Job title" value={lead.jobTitle} />
                 <Field label="Industry" value={lead.industry} />
-                <Field label="Estimated value" value={lead.estimatedValue !== null ? `${lead.currencyCode || ""} ${lead.estimatedValue}`.trim() : null} />
+                <Field label="Estimated value" value={lead.estimatedValue !== null ? money(lead.currencyCode, lead.estimatedValue) : null} />
                 <Field label="Product interest" value={lead.productInterest} />
                 <Field label="City" value={lead.city} />
                 <Field label="Country" value={lead.countryCode} />

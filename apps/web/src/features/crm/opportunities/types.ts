@@ -22,10 +22,14 @@ export type Opportunity = {
   ownerName?: string | null;
   name: string;
   description: string | null;
-  amount: number | null;
+  // numeric(18,2)/numeric(5,2) — node-postgres returns these as strings
+  // at runtime (no type-parser override exists); typed honestly here
+  // rather than as `number` so every call site must go through
+  // money()/toNumber() (shared/format.ts) instead of assuming a number.
+  amount: number | string | null;
   currencyCode: string | null;
-  probability: number | null;
-  expectedRevenue: number | null;
+  probability: number | string | null;
+  expectedRevenue: number | string | null;
   expectedCloseDate: string | null;
   actualCloseDate: string | null;
   /** open | won | lost | archived — governed exclusively via the stage

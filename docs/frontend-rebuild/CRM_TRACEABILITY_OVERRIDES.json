@@ -8,7 +8,7 @@
       "NOT_APPLICABLE",
       "NOT_VERIFIED"
     ],
-    "last_updated_commit": "f55d34a5",
+    "last_updated_commit": "940e1651",
     "populated_features": [
       "F002",
       "F003",
@@ -24,7 +24,10 @@
       "F013",
       "F014",
       "F015",
-      "F016"
+      "F016",
+      "F024",
+      "F025",
+      "F030"
     ],
     "not_yet_populated": "All other F001-F030 rows remain governed by the CSV's own (stale, pre-rebuild) implementation_status until audited here or in Stage B."
   },
@@ -2802,5 +2805,560 @@
     "status": "IMPLEMENTED",
     "evidence": "CRM_FOLLOW_UP_READ_ONLY surfaced; Edit button conditionally hidden once completed/cancelled",
     "notes": null
+  },
+  "F024-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass."
+  },
+  "F024-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated manager/ops audit view beyond the screen itself."
+  },
+  "F024-FLOW-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No record lifecycle state machine for this feature's own surface (dashboards/reports read other entities' lifecycles)."
+  },
+  "F024-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": "Loading/error/permission states present."
+  },
+  "F024-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Single governed backend aggregation reused; the screen computes nothing itself."
+  },
+  "F024-BR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly aggregation surface; no historical record this feature itself owns to rewrite."
+  },
+  "F024-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Aggregates real tenant CRM tables; no independent data model of its own beyond that."
+  },
+  "F024-DATA-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No system-derived/externally-sourced value distinct from the underlying records it aggregates."
+  },
+  "F024-VAL-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no create/update command of its own to validate (forecast submissions are the one exception, covered under F025)."
+  },
+  "F024-VAL-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited this pass beyond the existing 403/404 error paths."
+  },
+  "F024-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Deterministic SQL aggregation; verified numeric-string handling this tranche (see the Tranche K sweep)."
+  },
+  "F024-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F024-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "companyVisible/branchVisible/ownerVisible predicates baked into the aggregation SQL itself (not a post-hoc filter)."
+  },
+  "F024-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for this specific screen written this pass."
+  },
+  "F024-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation surface for this feature."
+  },
+  "F024-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no elevated-approval policy applicable."
+  },
+  "F024-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's own events."
+  },
+  "F024-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F024-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F024-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F024-API-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Predominantly a read/query surface; see API-002."
+  },
+  "F024-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F024-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F024-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "DrillMetric components; stage-row drill in CrmDashboardScreen.tsx",
+    "notes": "Drill-down built for unassigned/not-yet-qualified leads and pipeline-by-stage rows only — every mapping individually verified against both the dashboard's own SQL predicate and the target list's real filter semantics; dwell-breached/stalled/high-priority/uncovered-territories/source-breakdown have no safe existing filter mapping and are not drilled (disclosed, not faked)."
+  },
+  "F024-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Metric formulas/currency real; no cache-freshness indicator, no target-coverage display, no configurable filters (getCrmDashboard takes none)."
+  },
+  "F024-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No further sub-capability text beyond CAP-001/002 found for F024."
+  },
+  "F024-FR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Dashboard is a live read of current state, not a mutation with its own history to record."
+  },
+  "F024-API-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "GET /api/crm/dashboard",
+    "notes": "Single aggregated read; no pagination needed for its own fixed metric set."
+  },
+  "F025-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass."
+  },
+  "F025-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated manager/ops audit view beyond the screen itself."
+  },
+  "F025-FLOW-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No record lifecycle state machine for this feature's own surface (dashboards/reports read other entities' lifecycles)."
+  },
+  "F025-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": "Loading/error/permission states present."
+  },
+  "F025-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic resource-mutation-service.js reused for periods/submissions; no UI-only duplicate logic",
+    "notes": null
+  },
+  "F025-BR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly aggregation surface; no historical record this feature itself owns to rewrite."
+  },
+  "F025-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_forecast_periods/crm_forecast_submissions (003_crm_enterprise_core.sql)",
+    "notes": null
+  },
+  "F025-DATA-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No system-derived/externally-sourced value distinct from the underlying records it aggregates."
+  },
+  "F025-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic resource-mutation-service.js field validation on forecast-submissions",
+    "notes": null
+  },
+  "F025-VAL-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited this pass beyond the existing 403/404 error paths."
+  },
+  "F025-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Deterministic SQL aggregation; verified numeric-string handling this tranche (see the Tranche K sweep)."
+  },
+  "F025-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F025-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "ownerField scoping on forecast-submissions (fixed in an earlier pass) + crm.settings.manage/crm.opportunities.manage via RESOURCE_MANAGE_PERMISSIONS (added this pass, proactively)",
+    "notes": null
+  },
+  "F025-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for this specific screen written this pass."
+  },
+  "F025-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation surface for this feature."
+  },
+  "F025-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no elevated-approval policy applicable."
+  },
+  "F025-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's own events."
+  },
+  "F025-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F025-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F025-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F025-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic /api/crm/forecast-periods, /api/crm/forecast-submissions routes, now with a periodId scoping filter",
+    "notes": null
+  },
+  "F025-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F025-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F025-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "MySubmissionSection, PeriodsDialog in CrmForecastScreen.tsx",
+    "notes": "Submit/roll-up real this pass. Manager adjustment UI, snapshot/reproduce of a past period, and deal drill-down from a forecast number remain not built — disclosed as separate, larger pieces (manager-adjustment specifically needs crm_sales_team_members-aware visibility beyond the existing owner-scoping)."
+  },
+  "F025-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Categories (pipeline/best-case/commit/closed) and quotas/targets fields exist on crm_forecast_submissions; hierarchy-permission rollup partially real (ownerVisibleForForecast, earlier pass); accuracy/backtesting and predictive confidence not built."
+  },
+  "F025-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No further sub-capability text beyond CAP-001/002 found for F025."
+  },
+  "F025-FR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "updated_at on crm_forecast_submissions; optimistic concurrency on update",
+    "notes": "Submission edit history is the row's own updated_at, not a full event log — acceptable for a single-owner-editable row, not a full audit trail."
+  },
+  "F025-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "limit=100/200 caps, no pagination UI."
+  },
+  "F030-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass."
+  },
+  "F030-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated manager/ops audit view beyond the screen itself."
+  },
+  "F030-FLOW-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No record lifecycle state machine for this feature's own surface (dashboards/reports read other entities' lifecycles)."
+  },
+  "F030-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": "Loading/error/permission states present."
+  },
+  "F030-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Single governed backend aggregation reused; the screen computes nothing itself."
+  },
+  "F030-BR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly aggregation surface; no historical record this feature itself owns to rewrite."
+  },
+  "F030-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Aggregates real tenant CRM tables; no independent data model of its own beyond that."
+  },
+  "F030-DATA-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No system-derived/externally-sourced value distinct from the underlying records it aggregates."
+  },
+  "F030-VAL-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no create/update command of its own to validate (forecast submissions are the one exception, covered under F025)."
+  },
+  "F030-VAL-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited this pass beyond the existing 403/404 error paths."
+  },
+  "F030-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "formatCell's strict numeric-string regex (this pass)",
+    "notes": "Deterministic formatting; underlying aggregation SQL is each report kind's own, unmodified this pass."
+  },
+  "F030-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F030-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "companyVisible/branchVisible/ownerVisible predicates baked into the aggregation SQL itself (not a post-hoc filter)."
+  },
+  "F030-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for this specific screen written this pass."
+  },
+  "F030-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation surface for this feature."
+  },
+  "F030-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no elevated-approval policy applicable."
+  },
+  "F030-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's own events."
+  },
+  "F030-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F030-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F030-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F030-API-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Predominantly a read/query surface; see API-002."
+  },
+  "F030-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F030-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F030-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "CrmReportsScreen.tsx (14 report kinds); formatCell numeric-string fix this pass",
+    "notes": "Run real (14 report kinds via one generic table). Save/drill/export not built — disclosed as a larger, separate undertaking given 14 different report shapes with no uniform record-identity column to drill from generically."
+  },
+  "F030-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Dimensions/measures real per report kind; row/field security baked into each report's own SQL (companyVisible/branchVisible/ownerVisible); no scheduled delivery, no formula versioning, no custom builder, no NL query."
+  },
+  "F030-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No further sub-capability text beyond CAP-001/002 found for F030."
+  },
+  "F030-FR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-only report surface; no mutation of its own to record history for."
+  },
+  "F030-API-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "GET /api/crm/reports/[report]?from&to",
+    "notes": "From/To date filters real; the route's own forwarded-key mismatch (ownerId/stageId/sourceId/campaignId/period silently dropped server-side) was fixed in an earlier pass."
+  },
+  "F024-REP-001": {
+    "status": "PARTIAL",
+    "evidence": "CrmDashboardScreen.tsx metrics",
+    "notes": "Formula/currency real per metric; no explicit freshness indicator, no drill-down reconciliation statement, partial drill-down coverage (see F024-CAP-001)."
+  },
+  "F025-REP-001": {
+    "status": "PARTIAL",
+    "evidence": "CrmForecastScreen.tsx",
+    "notes": "Formula/dimensions/currency real; no freshness indicator; drill-down reconciliation not built."
+  },
+  "F030-REP-001": {
+    "status": "PARTIAL",
+    "evidence": "CrmReportsScreen.tsx (14 report kinds)",
+    "notes": "Formula/dimensions/currency real per report kind (each ownership in its own analytics-service.js query); no freshness indicator across any report kind; drill-down reconciliation not built."
   }
 }

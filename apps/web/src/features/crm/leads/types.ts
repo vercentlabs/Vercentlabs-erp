@@ -39,7 +39,10 @@ export type Lead = {
   ownerName?: string | null;
   score: number | null;
   grade?: string | null;
-  estimatedValue: number | null;
+  // numeric(18,2) — node-postgres returns this as a string at runtime;
+  // typed honestly so call sites go through money()/toNumber() instead
+  // of assuming a number (see shared/format.ts).
+  estimatedValue: number | string | null;
   currencyCode: string | null;
   city: string | null;
   state: string | null;

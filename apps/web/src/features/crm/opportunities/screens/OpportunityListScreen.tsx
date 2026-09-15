@@ -24,6 +24,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { money } from "@/features/crm/shared/format";
 import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError } from "../api/opportunities-api";
 import type { Opportunity, OpportunityListFilters } from "../types";
@@ -174,7 +175,7 @@ export function OpportunityListScreen() {
       {
         id: "amount",
         header: "Amount",
-        accessorFn: (row) => (row.amount !== null ? `${row.currencyCode || ""} ${row.amount}`.trim() : "—"),
+        accessorFn: (row) => (row.amount !== null ? money(row.currencyCode, row.amount) : "—"),
       },
       { id: "probability", header: "Probability", accessorFn: (row) => (row.probability !== null ? `${row.probability}%` : "—") },
       { id: "owner", header: "Owner", accessorFn: (row) => row.ownerName || "Unassigned" },
@@ -307,7 +308,7 @@ export function OpportunityListScreen() {
               <span className="font-medium text-text">{row.name}</span>
               <StatusBadge tone={statusTone[row.status] ?? "neutral"}>{row.status}</StatusBadge>
             </div>
-            <span className="text-xs text-text-muted">{row.stageName || "—"} · {row.amount !== null ? `${row.currencyCode || ""} ${row.amount}` : "—"}</span>
+            <span className="text-xs text-text-muted">{row.stageName || "—"} · {row.amount !== null ? money(row.currencyCode, row.amount) : "—"}</span>
           </button>
         )}
       />

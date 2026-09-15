@@ -10,6 +10,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { createOpportunity, OpportunityApiError, updateOpportunity } from "../api/opportunities-api";
 import type { Opportunity } from "../types";
+import { toNumber } from "@/features/crm/shared/format";
 
 type FormValues = {
   name: string;
@@ -31,7 +32,11 @@ function toForm(opportunity: Opportunity): FormValues {
     partyId: opportunity.partyId ?? "",
     contactId: opportunity.contactId ?? "",
     pipelineId: opportunity.pipelineId,
-    amount: opportunity.amount,
+    // opportunity.amount is typed number but numeric(18,2) columns come
+    // back from node-postgres as strings — NumberField would render the
+    // raw string wrong. Coerce at the form boundary (same fix as Lead's
+    // estimatedValue and Opportunity's probability NumberField).
+    amount: opportunity.amount === null ? null : toNumber(opportunity.amount),
     currencyCode: opportunity.currencyCode ?? "",
     expectedCloseDate: opportunity.expectedCloseDate ?? "",
     nextStep: opportunity.nextStep ?? "",

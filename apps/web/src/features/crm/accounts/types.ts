@@ -113,7 +113,8 @@ export type AccountPlan = {
   renewalDate: string | null;
   annualRevenue: number | string | null;
   potentialRevenue: number | string | null;
-  healthScore: number | null;
+  // numeric(5,2) — same string-at-runtime caveat as annualRevenue/potentialRevenue.
+  healthScore: number | string | null;
   healthStatus: string | null;
   status: "active" | "inactive";
   createdAt: string;

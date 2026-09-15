@@ -16,9 +16,27 @@ function titleCase(key: string) {
     .replace(/^./, (char) => char.toUpperCase());
 }
 
+// F030 Tranche K numeric sweep — getCrmReport's rows carry dynamic,
+// per-report-kind keys (revenue-operations/forecast/partner-pipeline
+// aggregates especially), several of which are ::numeric-cast SQL sums
+// (target/allocated/actual_won_amount/quota/pipeline/best_case/
+// committed/won/expected_value — see analytics-service.js/opportunity-
+// revenue-intelligence.js). node-postgres returns NUMERIC/DECIMAL as
+// strings, so `typeof value === "number"` alone silently skipped
+// thousands-separator formatting for every one of them — the same
+// class of gap the Dashboard/Forecast money() fix closed, now closed
+// here too. A strict "is this string entirely numeric" regex avoids
+// misformatting a genuinely textual value that happens to start with a
+// digit (e.g. a code or period label).
+const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
+
 function formatCell(value: string | number | null) {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "number") return value.toLocaleString();
+  if (NUMERIC_STRING.test(value)) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric.toLocaleString();
+  }
   return String(value);
 }
 

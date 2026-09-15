@@ -21,6 +21,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { createLead, getCrmOptions, LeadApiError, updateLead } from "../api/leads-api";
 import { leadFormDefaults, leadFormSchema, leadFormValuesToInput, type LeadFormValues } from "../schemas/lead-schema";
 import type { Lead } from "../types";
+import { toNumber } from "@/features/crm/shared/format";
 
 const PRIORITY_OPTIONS: SelectOption[] = [
   { value: "low", label: "Low" },
@@ -51,7 +52,12 @@ function leadToFormValues(lead: Lead): LeadFormValues {
     campaignId: lead.campaignId ?? "",
     priority: lead.priority,
     rating: lead.rating ?? "",
-    estimatedValue: lead.estimatedValue,
+    // lead.estimatedValue is typed number but numeric(18,2) columns come
+    // back from node-postgres as strings — z.number() in leadFormSchema
+    // would reject the raw value untouched, and NumberField would render
+    // it wrong. Coerce at the form boundary, the same pattern as
+    // Opportunity/Dashboard/Forecast's money()/toNumber() fixes.
+    estimatedValue: lead.estimatedValue === null ? null : toNumber(lead.estimatedValue),
     currencyCode: lead.currencyCode ?? "",
     city: lead.city ?? "",
     state: lead.state ?? "",

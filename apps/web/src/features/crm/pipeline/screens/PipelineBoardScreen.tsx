@@ -11,6 +11,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { listOpportunities, moveOpportunityStage, OpportunityApiError } from "@/features/crm/opportunities/api/opportunities-api";
 import type { Opportunity } from "@/features/crm/opportunities/types";
+import { money, toNumber } from "@/features/crm/shared/format";
 
 type Stage = { id: string; name: string; sequence: number; pipelineId: string; probability: number; isWon: boolean; isLost: boolean };
 
@@ -102,7 +103,7 @@ export function PipelineBoardScreen() {
         <div className="flex gap-4 overflow-x-auto pb-4">
           {stages.map((stage) => {
             const cards = opportunitiesByStage.get(stage.id) ?? [];
-            const total = cards.reduce((sum, card) => sum + (card.amount ?? 0), 0);
+            const total = cards.reduce((sum, card) => sum + toNumber(card.amount), 0);
             return (
               <div key={stage.id} className="flex w-72 shrink-0 flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between">
@@ -122,7 +123,7 @@ export function PipelineBoardScreen() {
                         <button type="button" className="text-left text-sm font-medium text-text hover:underline" onClick={() => router.push(`/crm/opportunities/${card.id}`)}>
                           {card.name}
                         </button>
-                        <span className="text-xs text-text-muted">{card.partyName || "—"}{card.amount !== null ? ` · ${card.currencyCode || ""} ${card.amount}` : ""}</span>
+                        <span className="text-xs text-text-muted">{card.partyName || "—"}{card.amount !== null ? ` · ${money(card.currencyCode, card.amount)}` : ""}</span>
                         <div className="flex items-center gap-1.5">
                           <Select
                             aria-label={`Move ${card.name} to stage`}

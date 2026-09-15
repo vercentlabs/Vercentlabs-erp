@@ -12,3 +12,17 @@ export function money(currencyCode: string | null | undefined, value: number | s
   const formatted = Number.isFinite(numeric) ? numeric.toLocaleString() : String(value);
   return `${currencyCode || ""} ${formatted}`.trim();
 }
+
+// F024/F025/F030 Tranche K numeric sweep — the same coercion boundary as
+// money(), for call sites that need the actual number (arithmetic,
+// sorting) rather than a currency-prefixed display string. Coercing
+// `card.amount ?? 0` in a reduce() WITHOUT this was a real, live bug on
+// the Pipeline board (not just a latent risk): `0 + "5000.00"` is
+// JavaScript STRING concatenation, not addition, once amount is a
+// numeric-column string — the accumulator silently became a garbled
+// string across the whole reduce, not a sum.
+export function toNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}

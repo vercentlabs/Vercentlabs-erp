@@ -32,4 +32,12 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // Tranche I (F006/F027) — qualification-criteria/playbooks setup UI.
   "qualification-criteria": CRM_PERMISSIONS.settingsManage,
   playbooks: CRM_PERMISSIONS.settingsManage,
+  // Tranche K (F025) — forecast-periods is admin-configured; forecast-
+  // submissions is rep-authored (own Opportunity-derived numbers), so it
+  // reuses crm.opportunities.manage rather than crm.settings.manage —
+  // this resource already has ownerField scoping (see its own registry
+  // comment), so a plain manage permission plus that scoping is the
+  // correct floor for a rep submitting their own forecast.
+  "forecast-periods": CRM_PERMISSIONS.settingsManage,
+  "forecast-submissions": CRM_PERMISSIONS.opportunitiesManage,
 };

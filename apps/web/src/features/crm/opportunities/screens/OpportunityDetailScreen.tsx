@@ -27,6 +27,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { money, toNumber } from "@/features/crm/shared/format";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
@@ -117,7 +118,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
   });
 
   const probabilityMutation = useMutation({
-    mutationFn: () => updateOpportunityProbability(opportunityId, { probability: pendingProbability ?? 0, expectedUpdatedAt: opportunity!.updatedAt, expectedProbability: opportunity!.probability }),
+    mutationFn: () => updateOpportunityProbability(opportunityId, { probability: pendingProbability ?? 0, expectedUpdatedAt: opportunity!.updatedAt, expectedProbability: opportunity!.probability === null ? null : toNumber(opportunity!.probability) }),
     onSuccess: () => {
       setActionError(null);
       invalidate();
@@ -176,7 +177,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
         fields: [
           { label: "Account", value: opportunity.partyName || "—" },
           { label: "Stage", value: opportunity.stageName || "—" },
-          { label: "Amount", value: opportunity.amount !== null ? `${opportunity.currencyCode || ""} ${opportunity.amount}`.trim() : "—" },
+          { label: "Amount", value: opportunity.amount !== null ? money(opportunity.currencyCode, opportunity.amount) : "—" },
           { label: "Owner", value: opportunity.ownerName || "Unassigned" },
         ],
         primaryAction:
@@ -217,7 +218,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
                 <Field label="Next step" value={opportunity.nextStep} />
                 <Field label="Contact" value={opportunity.contactName} />
                 <Field label="Forecast category" value={opportunity.forecastCategory} />
-                <Field label="Expected revenue" value={opportunity.expectedRevenue} />
+                <Field label="Expected revenue" value={opportunity.expectedRevenue !== null ? money(opportunity.currencyCode, opportunity.expectedRevenue) : "—"} />
                 <Field label="Expected close" value={opportunity.expectedCloseDate} />
                 {opportunity.status !== "open" && <Field label="Actual close" value={opportunity.actualCloseDate} />}
                 {opportunity.status === "lost" && <Field label="Loss notes" value={opportunity.lossNotes || opportunity.outcomeNotes} />}
@@ -230,7 +231,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
                 <div className="flex flex-col gap-3 border-t border-border pt-4">
                   <p className="text-sm font-semibold text-text">Probability override</p>
                   <div className="flex flex-wrap items-end gap-3">
-                    <NumberField label="Probability %" size="compact" value={pendingProbability ?? opportunity.probability ?? 0} onChange={setPendingProbability} minValue={0} maxValue={100} className="max-w-[160px]" />
+                    <NumberField label="Probability %" size="compact" value={pendingProbability ?? toNumber(opportunity.probability)} onChange={setPendingProbability} minValue={0} maxValue={100} className="max-w-[160px]" />
                     <Button variant="secondary" size="compact" onPress={() => probabilityMutation.mutate()} isLoading={probabilityMutation.isPending}>
                       Update probability
                     </Button>

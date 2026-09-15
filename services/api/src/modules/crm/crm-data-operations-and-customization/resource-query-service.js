@@ -100,6 +100,10 @@ export function buildFilters(
     // to a Contact rather than an Account (tenant.crm_communications has
     // both party_id and contact_id columns).
     ["contactId", "contact_id"],
+    // F025 Tranche K (Stage A) — forecast-submissions belongs to exactly
+    // one forecast period; without this, a period's submission list
+    // would return every period's rows across the organization.
+    ["periodId", "period_id"],
   ]) {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;

@@ -111,3 +111,13 @@ test("F003: listing communications with contactId scopes the query to that conta
   assert.ok(select.sql.includes("contact_id ="), "the SQL must filter on contact_id, not just organization_id");
   assert.ok(select.values.includes(contactId), "contactId must be bound as a real parameter");
 });
+
+// F025 Tranche K — forecast-submissions belongs to exactly one forecast period.
+test("F025: listing forecast-submissions with periodId scopes the query to that period", async () => {
+  const client = createClient();
+  const periodId = "88888888-8888-4888-8888-888888888888";
+  await listCrmRecords(client, context, "forecast-submissions", { periodId });
+  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_forecast_submissions"));
+  assert.ok(select.sql.includes("period_id ="), "the SQL must filter on period_id, not just organization_id");
+  assert.ok(select.values.includes(periodId), "periodId must be bound as a real parameter");
+});
