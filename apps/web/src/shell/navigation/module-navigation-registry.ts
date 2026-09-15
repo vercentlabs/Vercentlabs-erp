@@ -3,13 +3,19 @@
 // per-module section, and (in a later prompt) the command menu must all
 // read from this file — none may define a parallel nav list.
 //
-// STATUS HONESTY: every item below is PLANNED except each module's own
-// "Overview"/root item, which is the one real screen built so far (a
-// ModuleFoundationPage — see apps/web/src/app/(workspace)/<module>/page.tsx).
-// PLANNED items render in the secondary sidebar disabled, for orientation,
-// never as a clickable link — see SecondarySidebar.tsx. Flipping an item to
-// AVAILABLE is the responsibility of the prompt that actually builds its
-// screen; do not flip it here speculatively.
+// STATUS HONESTY: an item is AVAILABLE only once the prompt that built its
+// screen flips it here — do not flip one speculatively. For every module
+// other than CRM, every item is still PLANNED except each module's own
+// "Overview"/root item (a ModuleFoundationPage — see
+// apps/web/src/app/(workspace)/<module>/page.tsx). CRM's clean rebuild
+// (Prompt 3) has flipped its built screens (Leads/Accounts/Contacts/
+// Opportunities/Pipeline/Tasks/Calls/Meetings/Follow-ups/Communications/
+// Dashboard/Territories & Sales Teams) to AVAILABLE as each was verified
+// working end-to-end; CRM items still PLANNED (Forecast UI, Reports UI,
+// Imports & Exports, Duplicate Management, and the remaining Setup screens)
+// genuinely have no screen yet. PLANNED items render in the secondary
+// sidebar disabled, for orientation, never as a clickable link — see
+// SecondarySidebar.tsx.
 //
 // VALIDATION NOTE: sections are grouped around the user's work model (per
 // Phase 2's instruction), not a literal F-id-per-item mapping, and are
@@ -78,9 +84,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Customers",
         featureRange: "F001-F008",
         items: [
-          planned("Leads", "/crm/leads"),
-          planned("Accounts", "/crm/accounts"),
-          planned("Contacts", "/crm/contacts"),
+          available("Leads", "/crm/leads"),
+          available("Accounts", "/crm/accounts"),
+          available("Contacts", "/crm/contacts"),
         ],
       },
       {
@@ -88,8 +94,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Pipeline",
         featureRange: "F009-F015",
         items: [
-          planned("Opportunities", "/crm/opportunities"),
-          planned("Pipeline", "/crm/pipeline"),
+          available("Opportunities", "/crm/opportunities"),
+          available("Pipeline", "/crm/pipeline"),
           planned("Forecast", "/crm/forecast"),
         ],
       },
@@ -98,24 +104,24 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Work",
         featureRange: "F016-F020",
         items: [
-          planned("Tasks", "/crm/tasks"),
-          planned("Calls", "/crm/calls"),
-          planned("Meetings", "/crm/meetings"),
-          planned("Follow-ups", "/crm/follow-ups"),
+          available("Tasks", "/crm/tasks"),
+          available("Calls", "/crm/calls"),
+          available("Meetings", "/crm/meetings"),
+          available("Follow-ups", "/crm/follow-ups"),
         ],
       },
       {
         id: "engagement",
         label: "Engagement",
         featureRange: "F021-F023",
-        items: [planned("Communications", "/crm/communications")],
+        items: [available("Communications", "/crm/communications")],
       },
       {
         id: "insights",
         label: "Insights",
         featureRange: "F024-F026",
         items: [
-          planned("Dashboard", "/crm/dashboard"),
+          available("Dashboard", "/crm/dashboard"),
           planned("Reports", "/crm/reports"),
         ],
       },
@@ -133,6 +139,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Setup",
         featureRange: "F029-F030",
         items: [
+          { ...available("Territories & Sales Teams", "/crm/settings/territories"), requiredPermission: "crm.settings.manage" },
           adminOnly(
             "Lead Sources",
             "/crm/settings/lead-sources",

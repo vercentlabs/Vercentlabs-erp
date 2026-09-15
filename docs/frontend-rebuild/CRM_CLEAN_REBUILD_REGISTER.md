@@ -64,7 +64,7 @@ know before trusting a row:
 | CRM-CAP-005 | Sales organization and coverage | F020 | Built this pass — the one capability group whose backend directory was genuinely empty (only a README) before this pass; both Teams and Territories are generic CRM_RESOURCE_KEYS resources, so no new domain module was needed |
 | CRM-CAP-006 | CRM data operations and customization | F021,F028,F029 | F029 bulk engine wired for Leads only; F021/F028 not started |
 | CRM-CAP-007 | CRM conversion and sales handoff | F022,F023 | F022 (Lead conversion) built; F023 investigated and deliberately deferred to Prompt 4 — see F023's own row for the real architectural reason (not a gap, a genuine module boundary) |
-| CRM-CAP-008 | Pipeline analytics and forecasting | F024,F025,F030 | Not started |
+| CRM-CAP-008 | Pipeline analytics and forecasting | F024,F025,F030 | F024 (Dashboard) built this pass; F025's backend manager-team-hierarchy gap fixed this pass but no Forecast UI yet; F030 (Reports) not started |
 
 ## Feature status (F001-F030)
 
@@ -96,8 +96,8 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F021 | Import/export | NOT_STARTED | |
 | F022 | Lead conversion | IN_PROGRESS | Conversion action + RelatedBusinessFlow result this pass. No pre-conversion review step (create vs reuse preview) |
 | F023 | Opportunity → quotation handoff | NOT_STARTED | **Investigated, deliberately not built** — not an oversight. `sales/index.js`'s real `createQuotation(client, context, input)` already accepts `input.opportunityId` (stored as `source_opportunity_id`, confirming the cross-module link exists), but requires `requirePermission(context, "sales.quotation.create")` (a Sales-namespace permission, not a CRM one) AND `previewSalesDocument` throws "Add at least one item line" if `input.lines` is empty — a quotation cannot exist with zero line items. Opportunities in this rebuild have a single `amount` field, not structured line items, so a genuine "create quotation from this Opportunity" action would require building an item/pricing picker — that IS Sales' own editing surface, and the prompt's own instruction is explicit: "do NOT build a fake Sales editor (Prompt 4 builds Sales)." Also confirmed no valid Sales route exists yet to link to (`/sales` is still the foundation placeholder), so even a read-only "view the linked quotation" display would link nowhere real. Recommendation: build F023 properly in Prompt 4 once Sales' own quotation UI (and its real line-item entry surface) exists, exposed as an action ON that surface that CRM's Opportunity 360 can then deep-link to — not as CRM-side work. |
-| F024 | Dashboard | NOT_STARTED | |
-| F025 | Forecast | NOT_STARTED | |
+| F024 | Dashboard | IN_PROGRESS | `/crm/dashboard` built this pass, reusing the already-existing (and already-secured) `getCrmDashboard`/`GET /api/crm/dashboard`. KPI strip (open leads/opportunities, pipeline value/weighted pipeline, overdue/due-today activities) via design-system's MetricStrip/MetricCard, a second "Needs attention" strip (unassigned/dwell-breached/stalled/not-qualified/high-priority leads, uncovered territories), stage and source breakdown tables, and an upcoming-activities list linking into the owning Lead/Opportunity/Account/Contact. Every number is the backend's own aggregation — this screen computes nothing itself. Missing: no date-range/owner filter controls (the backend function takes none), no drill-down from a metric into its filtered list. |
+| F025 | Forecast | NOT_STARTED | Backend gap fixed this pass (see checkpoint note below): `getCrmReport(..., "forecast")` now includes a sales-manager's team rollup via a new `ownerVisibleForForecast()`, not just their own deals. No Forecast UI built yet — next in this tranche. |
 | F026 | Won/lost reasons | IN_PROGRESS | Outcome-reason capture wired into the Opportunity 360's stage-move action when moving into a won/lost stage. Governed reason-list setup UI (create/edit won/lost reasons) not built; reasons are read-only from getCrmOptions().lostReasons. |
 | F027 | Lead scoring | IN_PROGRESS | Score/grade/breakdown/recalculate UI this pass. No model/rule setup UI. |
 | F028 | Custom fields & tags | NOT_STARTED | |
@@ -257,6 +257,45 @@ and confirming zero regressions in existing tests, not by a new
 permission-denial test per route. That is exactly the job of Tranche 12
 (the comprehensive security negative-test pass) — do not skip it on the
 assumption this fix alone is sufficient evidence.
+
+## Checkpoint re-audit #3: forecast manager-hierarchy gap (fixed) + navigation registry correction (fixed)
+
+Re-audited F025 per the mega-prompt's explicit callout that a sales
+manager without the broad `crm.records.view_all` grant could only ever
+forecast their own deals, never their team's, even though
+`crm_sales_teams`/`crm_sales_team_members` (already used by Tasks' team
+queue, F015/F020) model a real manager→team relationship. Confirmed by
+reading `getCrmReport`'s `"forecast"` branch: it used the same binary
+`ownerVisible()` as every other report, with no team tier at all — a
+real, previously undetected gap, not a false alarm. **Fix**: added
+`ownerVisibleForForecast()` (services/api/.../analytics-service.js),
+scoped to the `"forecast"` report only — deliberately not retrofitted
+into the shared `ownerVisible()` every other report/dashboard metric
+still uses, since that would be a much larger, less targeted change for
+a gap only named for this one report. New regression test in
+`crm-record-scope.test.mjs` asserts the generated SQL for a
+team-manager context (rep permissions only, no `view_all`) includes the
+`crm_sales_team_members`/`crm_sales_teams` join. Full suite verified
+green (985/985, up from 984) before and after this specific commit was
+pushed.
+
+Separately, re-reading `module-navigation-registry.ts` (part of the
+mandated navigation audit) found every CRM item this session has built —
+Leads, Accounts, Contacts, Opportunities, Pipeline, Tasks, Calls,
+Meetings, Follow-ups, Communications — was still marked `PLANNED`
+(rendered disabled in the secondary sidebar) despite being real,
+reachable, working screens. Also found the Setup section's five items
+(`Lead Sources`, `Assignment & Territories`, `Lead Scoring`, `Pipeline
+Stages`, `Playbooks`) point at routes that were never built, while the
+one Setup screen that *was* built this session (`/crm/settings/territories`)
+had no nav entry at all. **Fixed**: flipped every genuinely-built item to
+`available()` (verified each route exists in the actual build output
+first, not from memory), added a new Territories & Sales Teams entry,
+and left Forecast/Reports/Import-Export/Duplicate-Management/the five
+unbuilt Setup screens as `PLANNED` since they genuinely have no screen
+yet. Re-verified with a full `apps/web` typecheck + lint + build after
+the change (all clean, `/crm/dashboard` confirmed present in the route
+tree).
 
 ## Mandatory-gap candidates
 
