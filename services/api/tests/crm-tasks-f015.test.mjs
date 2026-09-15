@@ -506,3 +506,38 @@ test("F015: listCrmTasks scopes an unclaimed queue Task to that Team's active me
   };
   await listCrmTasks(client, context, {});
 });
+
+// --- generic Activity create/update/archive/complete cannot bypass Tasks --
+//
+// Checkpoint re-audit (Prompt 3 continuation, clean-frontend rebuild):
+// Calls/Meetings/Follow-ups were each already redirected away from the
+// generic CRM resource path in all four surfaces below (createCrmRecord,
+// updateCrmRecord, archiveCrmRecord, completeCrmActivity) — Task was the
+// one activity kind missing from every one of them, meaning
+// /api/crm/activities (generic POST/PATCH/DELETE) and completeCrmActivity()
+// could each bypass createCrmTask/updateCrmTask's own governance
+// (server-owned status/activityType, dependency-blocked completion,
+// recurrence generation, terminal-state read-only enforcement). Mirrors the
+// exact pattern crm-calls-f013.test.mjs already asserts for Calls.
+test("F015: generic Activity create/update/archive/complete cannot bypass governed Tasks", () => {
+  const source = [
+    fs.readFileSync(new URL("../src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js", import.meta.url), "utf8"),
+  ].join("\n");
+  assert.match(
+    source,
+    /if \(activityType === "task"\)\s*throw new CrmError\(410, "Use the governed Tasks operations\.", "CRM_TASK_API_MOVED"\);/,
+  );
+  assert.match(
+    source,
+    /if \(before\.activityType === "task" \|\| requestedActivityType === "task"\)\s*throw new CrmError\(410, "Use the governed Tasks operations\.", "CRM_TASK_API_MOVED"\);/,
+  );
+  assert.match(
+    source,
+    /if \(resource === "activities" && before\.activityType === "task"\)\s*throw new CrmError\(410, "Use the governed Tasks operations\.", "CRM_TASK_API_MOVED"\);/,
+  );
+  assert.match(
+    source,
+    /if \(current\.activity_type === "task"\)\s*throw new CrmError\(410, "Use the governed Task completion action\.", "CRM_TASK_API_MOVED"\);/,
+  );
+});

@@ -118,23 +118,63 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
   (the real backend column is `qualification_state`) — the qualification
   badge always silently showed the fallback value. Fixed.
 
-## Discovered backend gaps (NOT yet fixed — named explicitly)
+## Checkpoint re-audit (this entry corrects an earlier wrong claim in this file)
 
-- `updateCrmRecord`'s generic resource-mutation-service.js blocks direct
-  `status`/`stage`/`stageId`/`stageCode`/`recordStatus` writes for
-  resource `"leads"` (forcing the governed transition action), but does
-  **not** apply the equivalent block for resource `"opportunities"` —
-  a caller with `crm.opportunities.manage` could, in principle, bypass
-  `moveOpportunityStage`'s won/lost-reason governance and dwell/history
-  tracking by PATCHing `stageId`/`status` directly through
-  `/api/crm/[resource]/[id]`. Not fixed this pass: the fix itself is
-  simple, but 748+ existing CRM tests were not re-audited to confirm none
-  intentionally rely on generic-PATCH stage writes for opportunities, and
-  changing shared resource-mutation-service.js without that audit risks a
-  regression outside this session's verification budget. The frontend
-  itself never exposes `stageId`/`status` in the Opportunity edit form,
-  so this gap is not reachable through the UI built this pass — only
-  through direct API use.
+A prior version of this register claimed the generic `/api/crm/[resource]/[id]`
+PATCH path had no guard against forging Opportunity `stageId`/`status`.
+**That claim was wrong** — re-reading `record-policy.js` (a file the
+original check missed) found `assertWritableScope` already blocks the
+full controlled-field set for Opportunities (`pipelineId`, `stageId`,
+`probability`, `forecastCategory`, `status`, `actualCloseDate`,
+`lostReasonId`, `lossNotes`, `outcomeReasonId`, `outcomeNotes`) with the
+message "Use governed Opportunity actions..." — a *stronger* guard than
+what was proposed. `crm-opportunities-f009.test.mjs`'s
+`"outcome and stage-owned fields cannot be forged through generic PATCH"`
+test already certifies this. A first attempt at "fixing" this added a
+second, conflicting guard in `resource-mutation-service.js` and broke
+that passing test; caught immediately by re-running it, then reverted.
+**Lesson applied going forward: verify a claimed gap by running the
+existing targeted test for it before writing a fix, not just by grepping
+one file.**
+
+The same audit pass found a **real, previously-unfixed instance of this
+same bypass class for Tasks (F015)**, confirmed absent in all four
+surfaces that already redirect Calls/Meetings/Follow-ups away from the
+generic path:
+- `createCrmRecord`'s `resource === "activities"` block (POST
+  `/api/crm/activities`)
+- `updateCrmRecord`'s `resource === "activities"` block (PATCH)
+- `archiveCrmRecord`'s equivalent block (DELETE)
+- `completeCrmActivity` in `activity-commands.js` (a separate generic
+  "complete any activity" command, not currently called by any route but
+  exported from `@vercentlabs/api`)
+
+Each would have bypassed `task-operations.js`'s governance (server-owned
+status/activityType at creation, dependency-blocked completion,
+recurrence generation, terminal-state read-only enforcement). Fixed all
+four to redirect `activityType === "task"` to `CRM_TASK_API_MOVED`,
+mirroring the exact Call/Meeting/Follow-up pattern. Verified NOT a false
+alarm this time: no existing test covered this combination, the fix adds
+a new regression test (`crm-tasks-f015.test.mjs`,
+`"generic Activity create/update/archive/complete cannot bypass governed
+Tasks"`, source-matching the same way the equivalent Calls test does),
+and the full suite (984 tests, up from 983) passes with zero regressions
+elsewhere. `offline-sync.js` was also checked and was already correct —
+it already routes task creation/completion through
+`createCrmTask`/`completeCrmTask`.
+
+Swept Leads/Accounts/Contacts/Bulk for the same bypass class: Leads
+already fully guarded (pre-existing); Accounts/Contacts are not part of
+the generic CRM_RESOURCE_KEYS system at all (account-operations.js/
+contact-operations.js are the only mutation path, and both already
+self-guard `status`); Lead bulk (`normalizeLeadBulkChanges`) and
+Opportunity bulk (`OPPORTUNITY_BULK_FIELDS` allowlist) both already
+restrict bulk changes to safe fields only, no stage/status exposure.
+Forecast submissions and custom-field-definitions were spot-checked
+(both use inline governance in the generic path itself, a different but
+seemingly sound pattern) but not exhaustively verified since neither has
+any UI yet — re-audit when those tranches are built, don't assume this
+spot-check was exhaustive.
 
 ## Mandatory-gap candidates
 
