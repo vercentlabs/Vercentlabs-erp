@@ -79,7 +79,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F004 | Lead sources | IN_PROGRESS | `/crm/settings/lead-sources` built (Prompt 3 Stage A). Real governed setup screen against the DEDICATED `lead-source-operations.js` module (`listCrmLeadSources`/`createCrmLeadSource`/`updateCrmLeadSource`/`setCrmLeadSourceActive`) — confirmed the generic `/api/crm/[resource]` boundary already redirects `"sources"` mutations to `CRM_LEAD_SOURCE_API_MOVED` (410) specifically so this richer module stays canonical (default-source uniqueness, lead-count-in-use, sort order), so the earlier register note ("likely exists via generic resource routes, unverified") was itself imprecise — corrected here. List + create + activate/deactivate; no edit-description/sort-order UI yet (disclosed gap). |
 | F005 | Lead assignment | IN_PROGRESS | Real eligible-list assignment + reason. **Tranche I (Stage A)** built the policy-rule setup UI: `/crm/settings/assignment` against `listLeadAssignmentPolicies`/`saveLeadAssignmentPolicy`/`setLeadAssignmentPolicyStatus`/`archiveLeadAssignmentPolicy` (`assignment-engine.js`) — already real, already-tested (`crm-lead-assignment-f005.test.mjs`, `crm-lead-assignment-explainability-f005.test.mjs` predate this pass), zero setup UI before this pass. **Important correction while investigating**: the already-registered generic `assignment-rules` resource (`tenant.crm_assignment_rules`) is a DIFFERENT, unused table — the real engine (`lead-governance.js`) reads `tenant.crm_lead_assignment_policies` exclusively. Building a settings screen against the generic resource would have produced a fully-functional-looking UI that silently did nothing; confirmed which table the engine actually reads before wiring anything. Still missing: an explain-trace UI (`explainLeadAssignmentCandidates` in `eligibility.js` is not even exported past its own module — would need new export + route + UI, a separate piece of work) and an out-of-directory override UI. |
 | F006 | Lead qualification | IN_PROGRESS | Full decide/readiness/override/history UI (earlier pass). **Tranche I (Stage A)** built `/crm/settings/playbooks` ("Qualification / Playbooks"): qualification-criteria setup (real — confirmed `evaluateLeadQualificationReadiness` reads the exact same table/columns the generic resource already governed) plus a simple playbooks list/create/archive (`tenant.crm_playbooks`, a generic pipeline-scoped resource, not actually consumed by any Lead-qualification logic — included only because the nav registry's pre-existing placeholder grouped both together, not fabricated as Lead-specific). Found and fixed a real gap while building this: `RESOURCE_MANAGE_PERMISSIONS` (`resource-permissions.ts`) had no entry for `qualification-criteria`/`playbooks` (or, discovered simultaneously, `account-plans`/`account-stakeholders` from Tranche E) — meaning their generic-resource mutations fell through to module-access-only (`crm.view`), not `crm.settings.manage`/`crm.accounts.manage`. Fixed all four retroactively; added a new frontend regression test (`resource-permissions.test.ts`, `apps/web`'s own `node --test` convention) asserting every resource with shipped UI has a map entry, so a future screen shipped without updating this map fails a test instead of shipping silently under-permissioned. |
-| F007 | Lead lifecycle | IN_PROGRESS | Governed "Move to stage", dwell, reason codes, history this pass. No stage/transition setup UI. |
+| F007 | Lead lifecycle | IN_PROGRESS | Governed "Move to stage", dwell, reason codes, history (earlier pass). **Tranche I (Stage A)** built `/crm/settings/lead-lifecycle`: stage create/edit/deactivate(-with-migration)/reactivate, transition add/remove, transition-reason create/toggle — against `stage-catalog.js`/`transition-graph.js`/`stage-migration.js`, the SAME `crm_lead_stages` the Lead 360's own "Move to stage" UI already reads (`getLeadTransitionGraph`), already real, already-tested (`crm-lead-lifecycle-directed-graph-f007.test.mjs` predates this pass), zero setup UI before this pass. Deactivation surfaces the governed "N active Leads on this stage, choose a replacement" block (`CRM_LEAD_STAGE_HAS_ACTIVE_LEADS`) with a migrate-to-stage picker rather than failing silently or unconditionally blocking. |
 | F008 | Duplicate handling | IN_PROGRESS | Per-record duplicate banners now exist on all three entities (Lead: dismiss/merge, pre-existing; Account/Contact: merge, built in Tranches E/F). **Tranche G (Stage A)** adds the standalone workspace the dossier's `F008-UX-001` calls for: `/crm/data/duplicates` (previously `planned` in the nav registry, now `available`) — pick a record type, search, select a record, resolve its duplicates from one dedicated screen, reusing the exact same governed engine and resolution panels (no fuzzy-matching logic duplicated in the browser). Found and fixed a real stale mobile deep link: `apps/mobile/.../crm-feature-registry.ts`'s F008 entry pointed `webPath` at `/crm/duplicate-rules`, a route that has never existed — corrected to the real `/crm/data/duplicates`. Candidate discovery is search-driven (find a record, see its candidates), not a full-database pairwise scan — no backend function for the latter exists, and building one is a materially larger, separate capability, not a wiring gap; disclosed rather than silently substituted. |
 | F009 | Opportunities | IN_PROGRESS | List/360(Overview/Pipeline/Activity tabs)/create/edit built on the generic CRM resource boundary (opportunities IS a CRM_RESOURCE_KEYS resource, unlike Account/Contact). Missing: risks/intelligence panels, notes/attachments/communications, related quotation lineage display (F023 dependency). |
 | F010 | Pipeline | IN_PROGRESS | Real board (`/crm/pipeline`) grouped by actual configured pipeline/stage, non-drag "Move to stage…" per card (keyboard-operable Select+button, no drag-only path) — real amount totals per column. **Fixed this pass, per the mega-prompt's explicit instruction**: moving a card directly into a Won/Lost stage now prompts inline for the outcome reason (same governed `moveOpportunityStage` call, same `CRM_OUTCOME_REASON_REQUIRED` server-side rule as the Opportunity 360) — previously this was a real bug, not just a disclosed gap: the board called the same governed function without a reason, which the backend already rejected, so a user selecting a terminal stage from the board hit an unexplained error with no way to complete it. Missing: owner/team filters, per-stage aging/dwell indicators. |
@@ -1035,6 +1035,87 @@ user searching for a starting record first) — no backend aggregation
 function for this exists; would be a materially larger, separate
 capability than "wire an existing engine into a dedicated screen,"
 disclosed rather than faked with a client-side full-list scan.
+
+## Tranche I: remaining Setup features — F005/F006/F007/F026/F027 (Stage A)
+
+The single biggest discovery this tranche: **three separate, fully-built,
+already-tested backend admin services existed with zero frontend
+wiring**, each governing a table the real runtime engine actually reads
+— and **two separate, already-registered generic CRUD resources exist
+that LOOK like the right settings surface but are legacy/dead tables the
+real engine never reads**:
+
+| Feature | Real engine table | Real admin service | Decoy generic resource (NOT used) |
+|---|---|---|---|
+| F005 | `crm_lead_assignment_policies` | `assignment-engine.js` | `assignment-rules` (`crm_assignment_rules`) |
+| F027 | `crm_lead_scoring_models` + `_model_rules` | `model-config.js` | `scoring-rules` (`crm_scoring_rules`, explicitly documented as a retired "System B" in `scoring-engine.js`'s own header) |
+| F007 | `crm_lead_stages` + `_transitions` + `_transition_reasons` | `stage-catalog.js`/`transition-graph.js`/`stage-migration.js` | *(none — same table the read-side UI already used)* |
+| F006 | `crm_lead_qualification_criteria` | *(generic resource itself, confirmed genuine)* | *(none)* |
+
+Every decoy was confirmed, not assumed, by reading the real engine's own
+source (`lead-governance.js`, `scoring-engine.js`) before wiring
+anything — building a settings screen against either decoy would have
+produced a fully-functional-looking UI that silently governed nothing.
+
+Built this tranche:
+- **F005** `/crm/settings/assignment` — assignment-policy CRUD (fixed/
+  round_robin/workload/territory modes, criteria on source/country/
+  industry/product-interest/grade), against `assignment-engine.js`.
+- **F027** `/crm/settings/lead-scoring` — scoring-model create/edit
+  (draft only)/activate, rule create/toggle, against `model-config.js`.
+  Activation enforces "≥1 active rule" and auto-enqueues a bulk
+  recalculation job, both inside the existing service.
+- **F006** `/crm/settings/playbooks` ("Qualification / Playbooks") —
+  qualification-criteria setup (genuine) plus a simple playbooks CRUD
+  (generic resource, not actually Lead-qualification logic — included
+  only because the pre-existing nav placeholder grouped both together).
+- **F007** `/crm/settings/lead-lifecycle` — stage create/edit/deactivate-
+  with-migration/reactivate, transition add/remove, transition-reason
+  create/toggle, against `stage-catalog.js`/`transition-graph.js`/
+  `stage-migration.js`.
+- **F026** — closed its own prior-pass disclosed gap: `lost-reasons` now
+  has an edit dialog and an editable sequence/order field.
+
+**Real permission gap found and fixed while extending
+`RESOURCE_MANAGE_PERMISSIONS`** (`resource-permissions.ts`) for this
+tranche's two new generic-resource screens (`qualification-criteria`,
+`playbooks`): discovered simultaneously that Tranche E's `account-plans`/
+`account-stakeholders` screens had shipped WITHOUT an entry in this map,
+meaning their create/update/archive mutations fell through to
+module-access-only (`crm.view`) rather than `crm.accounts.manage` — any
+authenticated org member, not just accounts managers, could mutate them.
+Fixed retroactively (4 new entries total: `account-plans`,
+`account-stakeholders`, `qualification-criteria`, `playbooks`). Added
+`apps/web/src/features/crm/shared/resource-permissions.test.ts` (using
+`apps/web`'s own pre-existing `node --test` convention, confirmed via
+`src/core/http-errors.test.ts`) asserting every resource with shipped UI
+has a map entry, so this class of gap fails a test on the next screen
+that forgets to extend the map, instead of shipping silently
+under-permissioned.
+
+**Route-path correction found while wiring nav**: the mobile deep-link
+registry's F005/F006/F007/F027 `webPath` values did not match the web
+app's own `/crm/settings/*` convention used by every other Setup screen
+(`territories`, `custom-fields-and-tags`, `record-fields`, `lead-sources`,
+`pipeline-stages`, `lost-reasons`) — they pointed at flat paths like
+`/crm/assignment-rules` that were never going to be real routes. Built
+every new page under the consistent `/crm/settings/*` convention instead
+and corrected all four mobile entries to match, continuing the F008
+mobile-deep-link-correction pattern from Tranche G.
+
+**Explain-trace UI (F005) and Communications/Playbook depth remain
+disclosed, not built this tranche**: `explainLeadAssignmentCandidates`
+(`eligibility.js`) is not even exported past its own module — building
+this would mean a new export + route + UI, a separate piece of work with
+its own design questions (what does "why did every other candidate not
+win" look like for a REP, not a MGR/ADMIN persona) beyond this tranche's
+remaining budget.
+
+Full `services/api` suite: 1038/1038 passing throughout (no backend
+logic files touched this tranche — only thin new routes wrapping
+already-tested services). `apps/web` `node --test`: 9/9 (8 prior + 1
+new). Web typecheck, ESLint, `verify:routes`, `apps/mobile` typecheck,
+`verify:no-legacy-frontend`, `verify:architecture`: all clean throughout.
 
 ## Mandatory-gap candidates
 
