@@ -56,6 +56,11 @@ async function action(id: string, path: string, input: Record<string, unknown> =
   return parseResponse(response);
 }
 
+export async function getCall(id: string): Promise<{ record: Call }> {
+  const response = await fetch(`/api/crm/calls/${id}`);
+  return parseResponse(response);
+}
+
 export const startCall = (id: string, expectedUpdatedAt?: string) => action(id, "start", { expectedUpdatedAt });
 export const completeCall = (id: string, outcomeCode: string, outcome?: string, expectedUpdatedAt?: string) =>
   action(id, "complete", { outcomeCode, outcome, expectedUpdatedAt });

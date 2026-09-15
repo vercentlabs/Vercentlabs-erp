@@ -29,6 +29,20 @@ export async function listFollowUps(filters: FollowUpListFilters): Promise<Follo
   return parseResponse(response);
 }
 
+export async function getFollowUp(id: string): Promise<{ record: FollowUp }> {
+  const response = await fetch(`/api/crm/follow-ups/${id}`);
+  return parseResponse(response);
+}
+
+export async function updateFollowUp(id: string, input: Record<string, unknown>): Promise<{ record: FollowUp }> {
+  const response = await fetch(`/api/crm/follow-ups/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return parseResponse(response);
+}
+
 export async function createFollowUp(input: Record<string, unknown>): Promise<{ record: FollowUp }> {
   const response = await fetch("/api/crm/follow-ups", {
     method: "POST",

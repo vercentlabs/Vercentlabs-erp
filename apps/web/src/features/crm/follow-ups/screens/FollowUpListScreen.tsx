@@ -174,6 +174,7 @@ export function FollowUpListScreen() {
         columns={columns}
         data={rows}
         getRowId={(row) => row.id}
+        onRowClick={(row) => router.push(`/crm/follow-ups/${row.id}`)}
         state={gridState}
         loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading follow-ups…</p>}
         emptyContent={<NoResultsState title="No follow-ups here" description="Nothing matches this scope right now." />}

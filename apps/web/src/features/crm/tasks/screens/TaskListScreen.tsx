@@ -196,6 +196,7 @@ export function TaskListScreen() {
         columns={columns}
         data={rows}
         getRowId={(row) => row.id}
+        onRowClick={(row) => router.push(`/crm/tasks/${row.id}`)}
         state={gridState}
         loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading tasks…</p>}
         emptyContent={<NoResultsState title="No tasks here" description="Nothing matches this scope right now." />}

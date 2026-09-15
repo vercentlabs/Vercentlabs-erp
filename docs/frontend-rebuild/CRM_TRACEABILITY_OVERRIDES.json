@@ -8,7 +8,7 @@
       "NOT_APPLICABLE",
       "NOT_VERIFIED"
     ],
-    "last_updated_commit": "60b81d41",
+    "last_updated_commit": "f55d34a5",
     "populated_features": [
       "F002",
       "F003",
@@ -20,7 +20,11 @@
       "F006",
       "F007",
       "F026",
-      "F027"
+      "F027",
+      "F013",
+      "F014",
+      "F015",
+      "F016"
     ],
     "not_yet_populated": "All other F001-F030 rows remain governed by the CSV's own (stale, pre-rebuild) implementation_status until audited here or in Stage B."
   },
@@ -2058,5 +2062,745 @@
     "status": "PARTIAL",
     "evidence": null,
     "notes": "No pagination; model/rule counts are small by nature."
+  },
+  "F013-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": null
+  },
+  "F013-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F013-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": null
+  },
+  "F013-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F013-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "call-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F013-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "call-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F013-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F013-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F013-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F013-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "call-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F013-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F013-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F013-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": null
+  },
+  "F013-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F013-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F013-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F013-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F013-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F013-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F013-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+  },
+  "F013-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F013-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F013-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F013-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F013-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F013-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F013-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F013-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F013-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "CallDetailScreen.tsx",
+    "notes": "Detail + edit built this pass. Outcome-capture prompt on list quick-complete remains a disclosed UX shortcut (completeCrmCall still validates whatever outcome is sent, not a governance gap)."
+  },
+  "F013-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Core call lifecycle (schedule/log/start/complete/cancel/edit) real; no call-recording/telephony-integration surface (out of this pass's scope)."
+  },
+  "F013-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers (Timeline, dashboards) of call detail not re-audited this pass."
+  },
+  "F013-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_events / outbox",
+    "notes": "Lifecycle events recorded server-side; detail view does not surface a dedicated change-history timeline yet."
+  },
+  "F013-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_CALL_READ_ONLY surfaced; Edit button conditionally hidden outside planned/overdue",
+    "notes": null
+  },
+  "F014-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": null
+  },
+  "F014-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F014-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": null
+  },
+  "F014-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F014-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "meeting-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F014-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "meeting-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F014-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F014-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F014-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F014-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "meeting-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F014-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F014-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F014-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": null
+  },
+  "F014-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F014-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F014-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F014-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F014-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F014-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F014-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+  },
+  "F014-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F014-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F014-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F014-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F014-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F014-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F014-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F014-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F014-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "MeetingDetailScreen.tsx",
+    "notes": "Detail + edit built this pass; attendees remain plain-text (no real contact-picker), public booking not built."
+  },
+  "F014-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Core meeting lifecycle real; calendar-push/booking-token surfaces exist from an earlier pass (crm-meeting-calendar-push-f014.test.mjs, crm-meeting-booking-token-expiry-f014.test.mjs) but are separate from this tranche's detail/edit work."
+  },
+  "F014-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers not re-audited this pass."
+  },
+  "F014-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_events / outbox",
+    "notes": "Lifecycle events recorded; no dedicated change-history timeline in the detail view."
+  },
+  "F014-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_MEETING_READ_ONLY surfaced; Edit button conditionally hidden outside planned/overdue",
+    "notes": null
+  },
+  "F015-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": null
+  },
+  "F015-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F015-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": null
+  },
+  "F015-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F015-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "task-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F015-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "task-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F015-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F015-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F015-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F015-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "task-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F015-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F015-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F015-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": null
+  },
+  "F015-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F015-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F015-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F015-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F015-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F015-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F015-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+  },
+  "F015-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F015-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F015-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F015-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F015-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F015-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F015-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F015-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F015-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "TaskDetailScreen.tsx",
+    "notes": "Detail + edit built this pass; dependency-management UI and a recurrence-config builder remain disclosed, not-built gaps."
+  },
+  "F015-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Work-queue/claim/release lifecycle real (earlier pass); recurrence exists as a backend field (recurringRule/recurrenceConfig) with no authoring UI."
+  },
+  "F015-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers not re-audited this pass."
+  },
+  "F015-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_events / outbox",
+    "notes": "Lifecycle events recorded; no dedicated change-history timeline in the detail view."
+  },
+  "F015-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_TASK_READ_ONLY surfaced; Edit button conditionally hidden once completed/cancelled",
+    "notes": null
+  },
+  "F016-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": null
+  },
+  "F016-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F016-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": null
+  },
+  "F016-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F016-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "follow-up-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F016-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "follow-up-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F016-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F016-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F016-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F016-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "follow-up-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F016-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F016-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F016-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": null
+  },
+  "F016-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F016-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F016-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F016-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F016-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F016-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F016-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+  },
+  "F016-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F016-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F016-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F016-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F016-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F016-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F016-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F016-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F016-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "FollowUpDetailScreen.tsx",
+    "notes": "Detail + edit built this pass; custom snooze duration and a full reminder/escalation event timeline remain disclosed, not-built gaps."
+  },
+  "F016-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Multi-reminder scheduling/business-hours delivery/escalation all real server-side (earlier pass); snooze/escalation state shown read-only, not the underlying event timeline."
+  },
+  "F016-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers not re-audited this pass."
+  },
+  "F016-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_reminders (earlier pass)",
+    "notes": "Reminder dispatch events recorded server-side; detail view surfaces snoozeCount/escalatedAt summary fields, not the full event list."
+  },
+  "F016-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_FOLLOW_UP_READ_ONLY surfaced; Edit button conditionally hidden once completed/cancelled",
+    "notes": null
   }
 }

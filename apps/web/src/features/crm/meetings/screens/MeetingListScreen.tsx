@@ -179,6 +179,7 @@ export function MeetingListScreen() {
         columns={columns}
         data={rows}
         getRowId={(row) => row.id}
+        onRowClick={(row) => router.push(`/crm/meetings/${row.id}`)}
         state={gridState}
         loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading meetings…</p>}
         emptyContent={<NoResultsState title="No meetings yet" action={canManage ? { label: "New meeting", onPress: () => router.push("/crm/meetings/new") } : undefined} />}

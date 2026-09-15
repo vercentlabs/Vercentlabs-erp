@@ -29,6 +29,11 @@ export async function listTasks(filters: TaskListFilters): Promise<TaskListRespo
   return parseResponse(response);
 }
 
+export async function getTask(id: string): Promise<{ record: Task }> {
+  const response = await fetch(`/api/crm/tasks/${id}`);
+  return parseResponse(response);
+}
+
 export async function createTask(input: Record<string, unknown>): Promise<{ record: Task }> {
   const response = await fetch("/api/crm/tasks", {
     method: "POST",

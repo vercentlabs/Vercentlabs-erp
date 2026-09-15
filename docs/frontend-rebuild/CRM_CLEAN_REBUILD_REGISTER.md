@@ -85,10 +85,10 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F010 | Pipeline | IN_PROGRESS | Real board (`/crm/pipeline`) grouped by actual configured pipeline/stage, non-drag "Move to stage…" per card (keyboard-operable Select+button, no drag-only path) — real amount totals per column. **Fixed this pass, per the mega-prompt's explicit instruction**: moving a card directly into a Won/Lost stage now prompts inline for the outcome reason (same governed `moveOpportunityStage` call, same `CRM_OUTCOME_REASON_REQUIRED` server-side rule as the Opportunity 360) — previously this was a real bug, not just a disclosed gap: the board called the same governed function without a reason, which the backend already rejected, so a user selecting a terminal stage from the board hit an unexplained error with no way to complete it. Missing: owner/team filters, per-stage aging/dwell indicators. |
 | F011 | Probability / expected revenue | IN_PROGRESS | Manual override wired to the real governed updateOpportunityProbability action with concurrency check; stage-default probability display exists via the stage's own probability field in options. History view not built. |
 | F012 | Sales stages | IN_PROGRESS | `/crm/settings/pipeline-stages` built (Prompt 3 Stage A). **Real, previously-unreported backend-wiring gap found and fixed**: `sales-stage-operations.js` (`listSalesStagePipelines`/`listSalesStages`/`createSalesStage`/`updateSalesStage`/`setSalesStageActive`/`reorderSalesStages`) existed and was fully implemented but was **not exported from `@vercentlabs/api` at all** — missing from both `services/api/src/index.js` and `index.d.ts`, confirmed by grep before this pass, so no `apps/web` code could have imported it even if someone tried; also had no `.d.ts` file of its own. Added the export line to both index files and wrote `sales-stage-operations.d.ts` from scratch (matching the module's real function signatures, read line-by-line, not guessed). Pipelines reuse the generic `/api/crm/[resource]` boundary (no governance redirect exists for `"pipelines"`, unlike `"stages"`); Stages use 4 new dedicated routes (`/api/crm/pipeline-stages`, `.../[id]`, `.../[id]/active`, `.../reorder`). Reordering uses up/down buttons (a real, non-drag-required alternative), not drag-and-drop. Missing: stage edit form (create + activate/deactivate + reorder only), stage history view (`listSalesStageHistory` exists server-side, no UI). |
-| F013 | Calls | IN_PROGRESS | List (status/direction/due filters) with inline start/complete/cancel actions, wired to the governed call-operations.js backend. Create form supports both "schedule" (future call) and "log" (retroactively record a completed call with duration/outcome) modes. Missing: dedicated call detail view, outcome-capture prompt on the list's quick-complete action (defaults to "connected" — a real UX shortcut, not a governance gap, since completeCrmCall still validates/records whatever outcome is sent), edit form. |
-| F014 | Meetings | IN_PROGRESS | List (status/due filters) with inline start/complete/cancel, wired to the governed meeting-operations.js backend. Create form supports "schedule"/"log" modes, location type (online/in-person/phone/other), and attendees — but attendees this pass are plain-text email lines, not a real contact-picker UI (a disclosed simplification). Public meeting booking (external prospect-facing scheduling) is a separate, larger capability not built this pass. Missing: dedicated meeting detail view, edit form. |
-| F015 | Tasks | IN_PROGRESS | Work-queue-style list (`/crm/tasks`) with mine/team-queue/all scope, status/due filters, and real inline lifecycle actions (claim/release/start/complete/cancel) wired to the governed task-operations.js backend; create form. Missing: dedicated task detail view, dependency management UI, recurrence configuration UI (recurrenceConfig accepted by backend, no UI to set it), edit form. |
-| F016 | Follow-ups | IN_PROGRESS | List (due/status filters, defaults to overdue) with inline snooze (+1 day)/complete/cancel, wired to the governed follow-up-operations.js backend (multi-reminder scheduling, business-hours-aware delivery, escalation all stay server-side). Create form uses the default 3-stage reminder plan (24h/1h/at-due) rather than exposing custom reminder configuration UI. Missing: dedicated follow-up detail view showing reminder/escalation history, custom snooze duration (fixed at 1 day from the list), edit form. |
+| F013 | Calls | IN_PROGRESS | List with inline start/complete/cancel, create form (earlier pass). **Tranche J (Stage A)** built `CallDetailScreen.tsx` (`/crm/calls/[id]`) + an inline Edit dialog, against `getCrmCall`/`updateCrmCall` (already real, already routed, zero frontend consumer before this pass — confirmed by grep). Edit is only offered when `status` is `planned`/`overdue` (`EDITABLE_STATUSES`), matching `updateCrmCall`'s own governed rejection (`CRM_CALL_READ_ONLY`) — the button is hidden rather than offering an action the backend would reject. Added 3 new backend tests (`crm-activity-detail-view-f013-f016.test.mjs`) — `getCrmCall`/`updateCrmCall` had ZERO real function-level test coverage anywhere in the suite before this pass (confirmed by grep for actual invocations, not just comment mentions). Still missing: outcome-capture prompt on the list's quick-complete action (disclosed UX shortcut, not a governance gap). |
+| F014 | Meetings | IN_PROGRESS | List with inline start/complete/cancel, create form with attendees-as-plain-text (earlier pass). **Tranche J (Stage A)** built `MeetingDetailScreen.tsx` (`/crm/meetings/[id]`) + an inline Edit dialog, against `getCrmMeeting`/`updateCrmMeeting` (zero frontend consumer before this pass). Shows attendees + response status read-only; Edit is only offered when `status` is `planned`/`overdue`, matching `updateCrmMeeting`'s own `CRM_MEETING_READ_ONLY` rejection. Added 3 new backend tests. Still missing: a real contact-picker for attendees (disclosed simplification, unchanged this pass), public meeting booking (a separate, larger capability). |
+| F015 | Tasks | IN_PROGRESS | Work-queue list with claim/release/start/complete/cancel, create form (earlier pass). **Tranche J (Stage A)** built `TaskDetailScreen.tsx` (`/crm/tasks/[id]`) + an inline Edit dialog, against `getCrmTask`/`updateCrmTask` (zero frontend consumer before this pass). Edit is hidden once `status` is `completed`/`cancelled` (`TERMINAL`), matching `updateCrmTask`'s own `CRM_TASK_READ_ONLY` rejection — otherwise available across `planned`/`in_progress`/`overdue` (a broader editable window than Calls/Meetings). Shows `recurringRule` read-only. Added 3 new backend tests. Still missing: dependency management UI, a recurrence-config builder (`recurrenceConfig` is backend-writable but genuine RRULE-authoring UX is a separate, larger piece of work than this edit dialog's scope). |
+| F016 | Follow-ups | IN_PROGRESS | List with snooze(+1 day)/complete/cancel, create form with the default 3-stage reminder plan (earlier pass). **Tranche J (Stage A)** built `FollowUpDetailScreen.tsx` (`/crm/follow-ups/[id]`) + an inline Edit dialog, against `getCrmFollowUp`/`updateCrmFollowUp` (zero frontend consumer before this pass — `updateCrmFollowUp` itself did have real test coverage from an earlier pass, unlike the other three types' update functions). Shows snooze count/escalation timestamp/escalate-after-minutes read-only. Edit is hidden once `status` is `completed`/`cancelled`, matching `CRM_FOLLOW_UP_READ_ONLY`. Added 3 new backend tests for `getCrmFollowUp` specifically (previously untested). Still missing: custom snooze duration (fixed at 1 day from the list, unchanged this pass), a full reminder/escalation event timeline (snooze count and escalation timestamp are shown, but not the underlying `crm_activity_reminders` event history). |
 | F017 | Notes / attachments | IN_PROGRESS | Notes: real, composed into Lead/Opportunity 360s (as a tab) and Account/Contact 360s (as a section). Reuses design-system's CommentThread. **Attachments built this Stage A pass** — composed into all four 360s the same way (Lead/Opportunity as a tab, Account/Contact as a section). Governed entirely by the real, pre-existing `attachments-operations.js` (parent-record authorization via `resolveCrmEntityAccess`, versioning, current-version promotion on delete, audit/outbox — none of it re-derived), layered with `@vercentlabs/document-engine`'s `validateAttachment`/`sha256`/`attachmentStorageKey` and `attachment-security.js`'s `scanAttachmentForUpload` exactly as those primitives are designed to be used — nothing bypassed, nothing re-implemented. Upload is synchronous validate-then-scan-then-persist, so a rejected file is never written at all (no "quarantined" row is ever visible in this UI, because none is ever created). Four new routes under `/api/crm/attachments/[entityType]/[entityId]/...` (a static-prefixed subtree, deliberately not nested under `/api/crm/[resource]` to avoid a Next.js conflicting-dynamic-siblings error). New `CrmAttachmentPanel` component: list/upload/replace(new version)/version-history dialog/download/delete, with each state (loading/empty/permission-denied/error) handled. **Two real, previously-unreported package-wiring gaps found and fixed**, same class as F012/F022 earlier this pass: `attachments-operations.js` was fully implemented but not exported from `@vercentlabs/api` (fixed, plus wrote its missing `.d.ts`); `@vercentlabs/document-engine` was not a dependency of `apps/web` at all (added). **Also found (and restored) a real, previously-existing, thorough backend test file** (`crm-attachments-f017.test.mjs`, 20 tests, committed in an earlier prompt pass) that this pass's own agent nearly overwrote by using the Write tool on that path without checking it already existed first — caught immediately when the full test count dropped from 985 to 979 instead of rising; `git checkout` restored the original file exactly before anything was pushed. Lesson recorded: always Read/check a path before Write, even under this session's checkpoint discipline. As a result, no new backend tests were needed — 20 pre-existing tests plus 6 pre-existing attachment-security/document-engine tests (26 total) already cover this domain thoroughly. Missing: no inline image/PDF preview (downloads force `application/octet-stream` deliberately, for security — see the routes' own comments), no bulk upload. |
 | F018 | Communications | IN_PROGRESS | Read-only list (`/crm/communications`) reusing the generic `/api/crm/[resource]` boundary (communications IS a real CRM_RESOURCE_KEYS entry) — no new backend route needed. Verified the strict-participant-visibility requirement is genuinely enforced: `record-policy.js`'s `projectCrmRecord` masks subject/body/participants to metadata-only (channel/direction/status/occurredAt) unless the caller is the sender or holds `crm.leads.view_sensitive` — confirmed by reading the actual projection function, not assumed. Full content remains available only through the dedicated per-record Timeline (already in Lead/Opportunity 360s). Missing: composing/sending a real communication (needs the OAuth/provider-send infrastructure — out of scope), shared-inbox thread view, calendar-sync surfaces — all explicitly deferred, not overlooked. |
 | F019 | Timeline | IN_PROGRESS | Unified component built and used on Lead 360 and Opportunity 360. |
@@ -1116,6 +1116,73 @@ logic files touched this tranche — only thin new routes wrapping
 already-tested services). `apps/web` `node --test`: 9/9 (8 prior + 1
 new). Web typecheck, ESLint, `verify:routes`, `apps/mobile` typecheck,
 `verify:no-legacy-frontend`, `verify:architecture`: all clean throughout.
+
+## Tranche J: seller activity depth — F013-F016 detail/edit (Stage A)
+
+The mega-prompt's own instruction was to determine whether missing
+detail/edit views are mandatory `DIRECT_UI` requirements before building
+them — checked each dossier's `[SPEC-DETAIL]`/`[SPEC-EDIT]` sections
+first (`F013-calls.md` read in full as the representative sample; the
+text is the same universal boilerplate present in every dossier this
+session has read for this section, not a Calls-specific mandate, but
+the boilerplate itself is unambiguous: every record type needs a detail
+workspace and governed edit). Confirmed the backend was already 100%
+ready before writing any UI: `getCrmCall`/`updateCrmCall`,
+`getCrmMeeting`/`updateCrmMeeting`, `getCrmTask`/`updateCrmTask`,
+`getCrmFollowUp`/`updateCrmFollowUp` were all already implemented and
+already routed (`/api/crm/{calls,meetings,tasks,follow-ups}/[id]`
+GET/PATCH) — this was purely a frontend gap, the same F012/F017-shaped
+pattern as several earlier tranches this session, confirmed by grep
+before writing anything.
+
+Built four detail screens (`CallDetailScreen.tsx`, `MeetingDetailScreen.tsx`,
+`TaskDetailScreen.tsx`, `FollowUpDetailScreen.tsx`) at `/crm/{calls,
+meetings,tasks,follow-ups}/[id]`, each with an inline Edit dialog rather
+than a separate edit route or a reuse of the existing create-form
+component — the create forms' own "schedule vs log" mode toggle has no
+meaning for an already-existing record, so extending them would have
+tangled two different concerns into one component. Wired `onRowClick`
+on all four list screens' `EnterpriseDataGrid` to navigate to the new
+detail route (existing `rowActions` quick-action buttons already
+`stopPropagation`, confirmed before adding this, so no click-handler
+conflict).
+
+**Correctness finding applied across all four**: each backend module
+gates editing to a specific status window — `EDITABLE_STATUSES`
+(`planned`/`overdue` only) for Calls/Meetings, `TERMINAL`-exclusion
+(anything except `completed`/`cancelled`) for Tasks/Follow-ups. Checked
+this before building rather than after: the Edit button is conditionally
+hidden per record's own status in all four screens, matching each
+service's real rejection rule (`CRM_CALL_READ_ONLY`/
+`CRM_MEETING_READ_ONLY`/`CRM_TASK_READ_ONLY`/`CRM_FOLLOW_UP_READ_ONLY`)
+— never offering an action the backend would reject.
+
+**Real test gap found and closed**: grepped every `services/api/tests/
+*.mjs` file for actual invocations (not comment mentions) of the eight
+functions this tranche now depends on — `getCrmCall`/`updateCrmCall`
+and `getCrmMeeting`/`updateCrmMeeting` had ZERO real function-level test
+coverage anywhere (the existing `crm-calls-f013.test.mjs`/
+`crm-meetings-f014.test.mjs` files are source-text/architecture
+regression guards, not behavioral tests); `getCrmTask`/`updateCrmTask`
+and `getCrmFollowUp` were also untested (`updateCrmFollowUp` was the one
+exception, tested from an earlier pass). Added
+`crm-activity-detail-view-f013-f016.test.mjs` (12 new tests: get-found/
+get-404/update-rejected-in-terminal-status × 4 types) before considering
+this tranche's UI safe to ship on top of — a UI consuming untested
+backend read/update paths would have been exactly the "no half-finished
+implementations" risk this pass is meant to avoid.
+
+Full `services/api` suite: 1050/1050 passing (1038 prior + 12 new). Web
+typecheck, ESLint, `verify:routes`, `apps/mobile` typecheck,
+`verify:no-legacy-frontend`, `verify:architecture`: all clean.
+
+Not built this tranche (disclosed, not silently skipped): outcome-
+capture prompt on Calls' list quick-complete (a UX shortcut, not a
+governance gap); a real contact-picker for Meeting attendees; public
+meeting booking; Task dependency-management UI; a recurrence-config
+builder for Tasks (real RRULE authoring UX, not exposed via this
+tranche's edit dialog); custom snooze duration for Follow-ups; a full
+reminder/escalation event timeline for Follow-ups.
 
 ## Mandatory-gap candidates
 

@@ -192,6 +192,7 @@ export function CallListScreen() {
         columns={columns}
         data={rows}
         getRowId={(row) => row.id}
+        onRowClick={(row) => router.push(`/crm/calls/${row.id}`)}
         state={gridState}
         loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading calls…</p>}
         emptyContent={<NoResultsState title="No calls yet" action={canManage ? { label: "New call", onPress: () => router.push("/crm/calls/new") } : undefined} />}

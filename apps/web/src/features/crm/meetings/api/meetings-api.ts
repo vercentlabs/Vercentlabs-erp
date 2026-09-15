@@ -38,12 +38,26 @@ export async function createMeeting(input: Record<string, unknown>): Promise<{ r
   return parseResponse(response);
 }
 
+export async function updateMeeting(id: string, input: Record<string, unknown>): Promise<{ record: Meeting }> {
+  const response = await fetch(`/api/crm/meetings/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return parseResponse(response);
+}
+
 async function action(id: string, path: string, input: Record<string, unknown> = {}): Promise<{ record: Meeting }> {
   const response = await fetch(`/api/crm/meetings/${id}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+  return parseResponse(response);
+}
+
+export async function getMeeting(id: string): Promise<{ record: Meeting }> {
+  const response = await fetch(`/api/crm/meetings/${id}`);
   return parseResponse(response);
 }
 
