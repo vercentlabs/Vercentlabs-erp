@@ -1101,3 +1101,158 @@ actual browser, not just built:**
    next shell surfaces worth building — the search adapter and module-
    entitlement resolution they'd both depend on already exist and are
    tested.
+
+## Session 2026-09-15 (continued) — Prompt 2B: global platform + ERP shell closure
+
+**Starting point:** `6bf404377aed3392068336e5dd5f6a62f84aed91` (Prompt 2's HEAD), verified clean.
+
+### What this session actually built (verified, not asserted)
+
+**Full 12-module secondary navigation (Phase 2-3).** `apps/web/src/shell/navigation/module-navigation-registry.ts`
+is now the single authority for all 12 modules' secondary IA (the primary
+sidebar's `MODULE_NAV_ENTRIES` is *derived* from it, not duplicated).
+Every item is honestly `PLANNED` except each module's real Overview page;
+`SecondarySidebar.tsx` renders PLANNED items disabled with a lock icon —
+visible for orientation, never a clickable dead link. This is a scope call
+worth being explicit about: the brief asked for every item to be cross-
+checked against `docs/02-register/FEATURE_REGISTER.csv` row by row before
+being added; this session annotated each *section* with its coarse F-id
+range (traceable, but not a per-item 1:1 claim) rather than doing a full
+510-feature line-by-line audit, which would have consumed the whole
+session on a registry whose entries are all disabled anyway. Flipping an
+item to `AVAILABLE` — the point at which a precise F-id mapping actually
+matters — is the responsibility of whichever prompt builds that screen.
+
+**Company/branch context switching (Phase 4), for real.** Discovered that
+session resolution already *preferred* `user_preferences.active_company_id`/
+`active_branch_id` when present (Prompt 2 didn't notice this) — so
+switching only needed `listAccessibleCompanies`/`switchActiveCompany`
+(`services/api/src/core/session.js`), re-validated against the exact same
+unrestricted-role-or-explicit-membership predicate session resolution
+itself uses, never a browser-supplied id taken on trust. Wired through
+`ContextSwitcher.tsx` (top bar, both desktop and mobile) with a real
+company/branch popover, backed by `/api/workspace/companies` and
+`/api/workspace/context`. TanStack Query's `QueryProvider` was introduced
+this session specifically to give the switch a real place to invalidate
+scoped cache from (Phase 21) — see below.
+
+**Query-key scope safety (Phase 21).** `QueryProvider.tsx` is now the
+one `QueryClient` for the shell; `queryKeys.ts` documents the
+`[organizationId, companyId, ...rest]` convention. `ContextSwitcher`'s
+switch mutation removes every query cached under the previous
+organizationId before `router.refresh()` re-resolves server data under
+the new context — the mechanism a later screen with real per-company
+cached data must plug into, not a full retrofit of every future query
+(none exist yet outside notifications/approvals/jobs, which are user- or
+organization-scoped, not company-scoped, so they don't need this
+specific invalidation).
+
+**Reporting/workflow overlap audit (Phase 13), resolved.** Read
+`packages/workflows` and `packages/reporting-engine` in full: both
+already exist live but were *completely unused* anywhere in the
+codebase. `packages/workflows` provides exactly the generic
+decision/SoD primitives (`assertApprovalDecision`,
+`assertSeparationOfDuties`) the global approval inbox needed — genuinely
+complementary to, not a duplicate of, the still-parked recovered
+`executeWorkflowRun` (a different, DB-trigger-driven generic workflow-run
+engine). `packages/reporting-engine`'s `createReportRegistry` is a
+different concern from the recovered `PLATFORM_REPORT_DATASETS` system
+and remains unported — no shell surface this session needed it.
+
+**Global approval inbox (Phase 9), end-to-end, against real business data.**
+`services/api/src/core/approvals.js` lists `public.approval_requests`
+(already live with 10 real rows this session found, created by
+`services/api/src/modules/accounting/subledger-approvals.js`,
+`journals.js`, and `sales/index.js` — none of which this session touched)
+and dispatches Approve/Reject decisions to those modules' own,
+already-implemented, already-tested command handlers by `command_key`. A
+genuine pre-existing gap was found and fixed as a byproduct: nothing had
+ever updated `approval_requests.status` when a module's own screen
+approved/rejected a document (only one narrow cancellation path did) —
+deciding through this new global inbox now closes that loop. Verified
+live end-to-end against a real fixture record (`BILL-00002`, CRM E2E
+Fixture Org): approving through `/approvals` flipped both
+`approval_requests.status` and the real `accounting_vendor_bills.status`
+to `approved`, with matching `decided_at`/`approved_at` timestamps. Only
+7 command_keys (every one this session actually read and verified) are
+registered; an unregistered one is listed but its Decide action fails
+closed (501) rather than guessing at an unverified module contract.
+
+**Global notification center (Phase 8) and background-job visibility
+(Phase 10), for real.** Both `notifications` (71 real rows) and
+`tenant.background_jobs` (`services/worker`'s actual job queue) already
+existed live with zero read/list surface. `services/api/src/core/
+notifications.js` and `background-jobs.js` add exactly that — list,
+unread count, mark-read for notifications; read-only list/get for jobs
+(no invented retry/cancel action: `services/worker/src/queue.js` has no
+`cancelJob` export, and adding one against a queue this module doesn't
+own would risk racing the worker's own claim/lease logic). Jobs only
+ever display a real backend-reported `progress` field, never an invented
+percentage.
+
+**Badges (Phase 26-ish), actionable only.** Pending-approval and
+unread-notification counts are real, permission-gated
+(`approvals.manage`), and surfaced on both the primary sidebar's icon
+rail and the mobile drawer — never a decorative volume count.
+
+**Breadcrumbs (Phase 19).** `Breadcrumbs.tsx` derives Module → Workspace
+from the same navigation registries, rendered in a new persistent
+`WorkspaceTopBar` alongside the context switcher.
+
+**A second real, RLS-related bug found only by testing this live, not
+just building it:** the approvals *decide* route was written against a
+plain `transaction()` first. `tenant.accounting_vendor_bills` (and every
+other `tenant.*` table the dispatched module handlers touch) has
+row-level security keyed on `app.current_organization_id`, which only a
+`tenantTransaction()` sets. The plain-transaction version returned a
+misleadingly successful-looking `200` in one browser-driven check before
+this was caught and fixed with a direct authenticated fetch against a
+real pending fixture record (`BILL-00002`) — the browser-based
+Playwright check that first surfaced the discrepancy could not itself
+pin down the cause reliably (likely a dev-server first-compile timing
+race, not a second real bug), so the direct-fetch reproduction was what
+actually confirmed root cause and fix.
+
+**Deliberately NOT done this pass (disclosed, not hidden):**
+- Command menu, global search backend + UI, and quick-create registry —
+  still not built. These are the largest remaining pieces and would each
+  need their own real backing infrastructure (a governed cross-module
+  search endpoint in particular) rather than a quick wire-up.
+- HTTP route handlers for the OTHER ported-but-unwired platform
+  capabilities from Prompt 2 (API keys, OAuth, invitations, user
+  administration, privacy, tags, configuration, AI governance) — still
+  logic-only. Not touched this pass; still an open item.
+- Formal Playwright specs under `apps/web/tests/e2e/` — verification this
+  session was still ad hoc Playwright scripts driven against a live dev
+  server and deleted afterward, not permanent specs. This is the same
+  gap Prompt 2 disclosed and it remains open.
+- A full assembled-shell axe audit — not run this pass.
+- Full settings IA (Phase 12) — not built; Settings remains the same
+  honest foundation page from Prompt 2.
+- `apps/web/tests/search-security.test.mjs` — still parked-snapshot-
+  dependent; the search route itself wasn't rebuilt this pass.
+- The mobile drawer shows only the flat module list, not each module's
+  full secondary IA inline (a two-level drawer) — a real UX gap on
+  phones specifically for modules with any real secondary items to show;
+  today every module's only real item is Overview, so this doesn't yet
+  cost anything, but it will once a module's screens start shipping.
+
+### Immediate next action for whoever continues this
+
+1. Formal Playwright specs (`apps/web/tests/e2e/`) covering at minimum
+   everything this and the prior session verified ad hoc: auth boundary,
+   module entitlement gating, company/branch switching (including a
+   negative case for an inaccessible company), the approval decide flow,
+   notification mark-read, and 1440/1024/390px shell rendering.
+2. A governed global search endpoint (fan out to the same live
+   crm/accounting/procurement/sales list functions the parked snapshot's
+   adapter pattern already identified) is the highest-value remaining
+   shell surface — command menu and quick-create can both build on it.
+3. Wire the remaining ported-but-unwired platform capabilities (API
+   keys, OAuth, invitations, user administration, privacy, tags,
+   configuration, AI governance) to real `apps/web` routes and settings
+   screens.
+4. CRM golden reference (Prompt 3, F001-F030) remains the next module
+   prompt — its secondary nav entries in `module-navigation-registry.ts`
+   should flip from `PLANNED` to `AVAILABLE` as each screen ships, cross-
+   checked against its real F-id row at that point.

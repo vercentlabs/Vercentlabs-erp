@@ -1,12 +1,9 @@
-import { PlatformFoundationPage } from "@/shell/module-foundation/PlatformFoundationPage";
+import { requireWorkspace } from "@/core/session";
+import { NotificationsClient } from "./notifications-client";
 
 export const metadata = { title: "Notifications" };
 
-export default function NotificationsPage() {
-  return (
-    <PlatformFoundationPage
-      label="Notifications"
-      description="Notification preferences are ported and live (services/api/src/core/notification-preferences.js). The notification center itself (unread/read/deep-link feed) is the next step."
-    />
-  );
+export default async function NotificationsPage() {
+  await requireWorkspace();
+  return <NotificationsClient />;
 }

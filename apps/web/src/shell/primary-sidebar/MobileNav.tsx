@@ -34,6 +34,7 @@ function DrawerRow({
   disabledReason,
   active,
   onNavigate,
+  badgeCount,
 }: {
   href: string;
   label: string;
@@ -42,6 +43,7 @@ function DrawerRow({
   disabledReason?: string;
   active: boolean;
   onNavigate: () => void;
+  badgeCount?: number;
 }) {
   if (disabled) {
     return (
@@ -66,7 +68,12 @@ function DrawerRow({
       ].join(" ")}
     >
       {icon}
-      {label}
+      <span className="flex-1">{label}</span>
+      {badgeCount ? (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-text-inverse">
+          {badgeCount > 99 ? "99+" : badgeCount}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -75,18 +82,36 @@ function DrawerRow({
 // this breakpoint (PrimarySidebar has `hidden lg:flex`) in favor of this
 // top bar + full-label drawer, per Phase 2's explicit "never just squeeze
 // both sidebars into 390px" instruction.
+const BADGE_SOURCE_VALUE: Record<
+  string,
+  (counts: {
+    pendingApprovalCount: number;
+    unreadNotificationCount: number;
+  }) => number
+> = {
+  pendingApprovals: (counts) => counts.pendingApprovalCount,
+  unreadNotifications: (counts) => counts.unreadNotificationCount,
+};
+
 export function MobileNav({
   organizationName,
   accessibleModules,
+  permissions,
+  pendingApprovalCount,
+  unreadNotificationCount,
 }: {
   organizationName: string | null;
   accessibleModules: ModuleAccess[];
+  permissions: string[];
+  pendingApprovalCount: number;
+  unreadNotificationCount: number;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const accessByModuleKey = new Map(
     accessibleModules.map((access) => [access.moduleId, access]),
   );
+  const counts = { pendingApprovalCount, unreadNotificationCount };
 
   return (
     <div className="flex lg:hidden">
@@ -148,7 +173,11 @@ export function MobileNav({
 
             <div aria-hidden="true" className="my-2 h-px bg-border" />
 
-            {GLOBAL_NAV_BOTTOM.map((entry) => (
+            {GLOBAL_NAV_BOTTOM.filter(
+              (entry) =>
+                !entry.requiredPermission ||
+                permissions.includes(entry.requiredPermission),
+            ).map((entry) => (
               <DrawerRow
                 key={entry.key}
                 href={entry.href}
@@ -156,6 +185,11 @@ export function MobileNav({
                 icon={<entry.icon aria-hidden="true" className="size-4" />}
                 active={isActive(pathname, entry.href)}
                 onNavigate={close}
+                badgeCount={
+                  entry.badgeSource
+                    ? BADGE_SOURCE_VALUE[entry.badgeSource](counts)
+                    : undefined
+                }
               />
             ))}
 

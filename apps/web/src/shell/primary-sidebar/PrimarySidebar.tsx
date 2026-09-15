@@ -19,20 +19,38 @@ const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
   not_permitted: "You don't have permission for this module",
 };
 
+const BADGE_SOURCE_VALUE: Record<
+  string,
+  (counts: {
+    pendingApprovalCount: number;
+    unreadNotificationCount: number;
+  }) => number
+> = {
+  pendingApprovals: (counts) => counts.pendingApprovalCount,
+  unreadNotifications: (counts) => counts.unreadNotificationCount,
+};
+
 export function PrimarySidebar({
   organizationName,
   fullName,
   email,
   accessibleModules,
+  permissions,
+  pendingApprovalCount,
+  unreadNotificationCount,
 }: {
   organizationName: string | null;
   fullName: string;
   email: string;
   accessibleModules: ModuleAccess[];
+  permissions: string[];
+  pendingApprovalCount: number;
+  unreadNotificationCount: number;
 }) {
   const accessByModuleKey = new Map(
     accessibleModules.map((access) => [access.moduleId, access]),
   );
+  const counts = { pendingApprovalCount, unreadNotificationCount };
 
   return (
     <nav
@@ -93,12 +111,21 @@ export function PrimarySidebar({
           className="my-2 h-px w-8 shrink-0 bg-white/10"
         />
 
-        {GLOBAL_NAV_BOTTOM.map((entry) => (
+        {GLOBAL_NAV_BOTTOM.filter(
+          (entry) =>
+            !entry.requiredPermission ||
+            permissions.includes(entry.requiredPermission),
+        ).map((entry) => (
           <PrimaryNavItem
             key={entry.key}
             href={entry.href}
             label={entry.label}
             icon={<entry.icon aria-hidden="true" className="size-5" />}
+            badgeCount={
+              entry.badgeSource
+                ? BADGE_SOURCE_VALUE[entry.badgeSource](counts)
+                : undefined
+            }
           />
         ))}
       </div>

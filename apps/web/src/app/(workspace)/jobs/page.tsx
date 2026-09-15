@@ -1,12 +1,9 @@
-import { PlatformFoundationPage } from "@/shell/module-foundation/PlatformFoundationPage";
+import { requireWorkspace } from "@/core/session";
+import { JobsClient } from "./jobs-client";
 
 export const metadata = { title: "Background Jobs" };
 
-export default function JobsPage() {
-  return (
-    <PlatformFoundationPage
-      label="Background Jobs"
-      description="A global job-visibility surface is planned once the current background-job/import-job status source is confirmed."
-    />
-  );
+export default async function JobsPage() {
+  await requireWorkspace();
+  return <JobsClient />;
 }

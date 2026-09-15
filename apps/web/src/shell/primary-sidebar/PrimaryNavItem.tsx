@@ -28,12 +28,15 @@ export function PrimaryNavItem({
   icon,
   disabled = false,
   disabledReason,
+  badgeCount,
 }: {
   href: string;
   label: string;
   icon: ReactNode;
   disabled?: boolean;
   disabledReason?: string;
+  /** Only ever an actionable count (pending approvals, unread notifications) — never a decorative volume count. */
+  badgeCount?: number;
 }) {
   const pathname = usePathname();
   const active = isActive(pathname, href);
@@ -64,6 +67,14 @@ export function PrimaryNavItem({
           aria-hidden="true"
           className="absolute -bottom-0.5 -right-0.5 size-3 text-navigation-muted"
         />
+      ) : null}
+      {!disabled && badgeCount ? (
+        <span
+          aria-hidden="true"
+          className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-text-inverse"
+        >
+          {badgeCount > 99 ? "99+" : badgeCount}
+        </span>
       ) : null}
     </span>
   );
@@ -97,7 +108,7 @@ export function PrimaryNavItem({
     <span className="group relative flex">
       <Link
         href={href}
-        aria-label={label}
+        aria-label={badgeCount ? `${label} (${badgeCount})` : label}
         aria-current={active ? "page" : undefined}
         className="flex"
       >

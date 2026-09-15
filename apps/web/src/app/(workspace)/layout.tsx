@@ -8,7 +8,12 @@ export default async function WorkspaceLayout({
 }: {
   children: ReactNode;
 }) {
-  const { session, accessibleModules } = await resolveWorkspaceContext();
+  const {
+    session,
+    accessibleModules,
+    pendingApprovalCount,
+    unreadNotificationCount,
+  } = await resolveWorkspaceContext();
 
   return (
     <AppShell
@@ -30,6 +35,8 @@ export default async function WorkspaceLayout({
           .filter((m) => m.accessible)
           .map((m) => m.moduleId),
         accessibleModules,
+        pendingApprovalCount,
+        unreadNotificationCount,
       }}
     >
       {children}
