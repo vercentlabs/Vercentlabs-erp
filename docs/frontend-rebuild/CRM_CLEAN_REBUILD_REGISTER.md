@@ -57,7 +57,7 @@ know before trusting a row:
 
 | ID | Name | Features | Status |
 |---|---|---|---|
-| CRM-CAP-001 | Prospect and relationship master data | F001,F002,F003,F004,F008 | F001 mostly built; F002-F004,F008(setup) not started |
+| CRM-CAP-001 | Prospect and relationship master data | F001,F002,F003,F004,F008 | F001 mostly built; F002/F003 list+360+create+edit built this pass (hierarchy/stakeholders/plans/duplicate-check UI not yet); F004,F008(cross-entity workspace) not started |
 | CRM-CAP-002 | Lead lifecycle, qualification and prioritization | F005,F006,F007,F027 | Built into the Lead 360 (this pass) |
 | CRM-CAP-003 | Opportunity and pipeline governance | F009,F010,F011,F012,F026 | Not started |
 | CRM-CAP-004 | Seller activity and follow-up workspace | F013-F019 | Not started (F017/F019 partially reused via Lead timeline only) |
@@ -74,8 +74,8 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | Feature | Name | Status | Notes |
 |---|---|---|---|
 | F001 | Leads | IN_PROGRESS | List/360/create/edit/assign/stage/qualify/score/duplicates/convert all real. Missing: saved views, custom fields/tags rendering, notes/attachments/communications composed into the 360, enrichment-review UI (backend route exists), SLA UI, mobile audit, full negative-permission test pass, formal Playwright. |
-| F002 | Accounts / companies | NOT_STARTED | |
-| F003 | Contacts | NOT_STARTED | |
+| F002 | Accounts / companies | IN_PROGRESS | List/360/create/edit built on the real CRM-native governed layer (account-operations.js): search/industry/country/status filters, sensitive-field projection, optimistic concurrency, archive. Missing: hierarchy (parent/children/cycle prevention — unclear if business_parties even models this; needs dossier re-check), stakeholders, account plans, duplicate-check-on-create UI (create-time exact-duplicate block exists server-side but no pre-submission warning UI like Lead has), notes/attachments/communications, merge. |
+| F003 | Contacts | IN_PROGRESS | List/360/create/edit built (contact-operations.js): account linkage, primary flag, archive/reactivate. Missing: multi-account stakeholder roles, duplicate-check UI, notes/attachments/communications, merge. |
 | F004 | Lead sources | NOT_STARTED | (governed setup screen; backend CRUD likely exists via generic resource routes, unverified) |
 | F005 | Lead assignment | IN_PROGRESS | Real eligible-list assignment + reason; no full policy-rule setup UI, no explain-trace UI, no out-of-directory override UI |
 | F006 | Lead qualification | IN_PROGRESS | Full decide/readiness/override/history UI this pass. No criteria/playbook setup UI. |

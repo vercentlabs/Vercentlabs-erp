@@ -178,14 +178,9 @@ export async function getLeadTimeline(id: string, cursor?: string) {
   return parseResponse<{ page: { rows: CrmTimelineEntry[]; hasMore: boolean; nextCursor: string | null } }>(response);
 }
 
-// Shape mirrors services/api's getCrmOptions (resource-options.js) — over
-// 30 differently-shaped reference lists (companies/leadStages/users/tags/
-// ...), so this is intentionally left as `any[]` per key rather than
-// asserting one shared row shape across all of them.
-export async function getCrmOptions(): Promise<{ options: Record<string, Array<Record<string, unknown>>> }> {
-  const response = await fetch("/api/crm/options");
-  return parseResponse(response);
-}
+// getCrmOptions moved to ../../shared/crm-options-api.ts — it's used by
+// every CRM feature area (Leads/Accounts/Contacts/...), not just Leads.
+export { getCrmOptions } from "../../shared/crm-options-api";
 
 // F007: dwell/SLA context + transition history for the current stage.
 export type LeadStageDwell = { enteredAt: string; elapsedHours: number; warningHours: number | null; breachHours: number | null; status: "ok" | "warning" | "breached" };
