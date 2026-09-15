@@ -10,6 +10,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
+import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { archiveContact, ContactApiError, getContact, reactivateContact } from "../api/contacts-api";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -123,6 +124,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-text">Notes</p>
           <NotesPanel entityType="contact" entityId={contactId} />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Attachments</p>
+          <CrmAttachmentPanel entityType="contact" entityId={contactId} />
         </div>
       </div>
     </RecordDetailsPage>

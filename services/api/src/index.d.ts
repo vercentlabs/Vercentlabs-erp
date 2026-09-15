@@ -387,6 +387,7 @@ export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lea
 
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
+export * from "./modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 

@@ -31,6 +31,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
+import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import {
   assignLead,
   convertLead,
@@ -412,6 +413,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             <Tab id="intelligence">Intelligence</Tab>
             <Tab id="activity">Activity</Tab>
             <Tab id="notes">Notes</Tab>
+            <Tab id="attachments">Attachments</Tab>
           </TabList>
 
           <TabPanel id="overview">
@@ -722,6 +724,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           <TabPanel id="notes">
             <div className="py-4">
               <NotesPanel entityType="lead" entityId={leadId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="attachments">
+            <div className="py-4">
+              <CrmAttachmentPanel entityType="lead" entityId={leadId} />
             </div>
           </TabPanel>
         </Tabs>

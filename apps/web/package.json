@@ -26,6 +26,7 @@
     "@vercentlabs/database": "workspace:*",
     "@vercentlabs/design-system": "workspace:*",
     "@vercentlabs/design-tokens": "workspace:*",
+    "@vercentlabs/document-engine": "workspace:*",
     "@vercentlabs/permissions": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*",
     "class-variance-authority": "0.7.1",
