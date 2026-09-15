@@ -1,13 +1,9 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { requireWorkspace } from "@/core/session";
+import { CrmHomeScreen } from "@/features/crm/home/screens/CrmHomeScreen";
 
 export const metadata = { title: "CRM" };
 
-export default function CrmPage() {
-  return (
-    <ModuleFoundationPage
-      moduleKey="crm"
-      moduleLabel="CRM"
-      nextPromptNote="CRM's real screens (leads, accounts, opportunities) are built in the next rebuild prompt."
-    />
-  );
+export default async function CrmPage() {
+  await requireWorkspace();
+  return <CrmHomeScreen />;
 }

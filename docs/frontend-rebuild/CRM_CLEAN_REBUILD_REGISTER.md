@@ -297,6 +297,45 @@ yet. Re-verified with a full `apps/web` typecheck + lint + build after
 the change (all clean, `/crm/dashboard` confirmed present in the route
 tree).
 
+## CRM Home (module command center) — built this pass
+
+`/crm` was still `ModuleFoundationPage` (the generic "not built yet"
+placeholder every other module still uses) despite 12 real CRM screens
+existing underneath it. Replaced with a real `CrmHomeScreen`: a greeting,
+a quick-create action row (Lead/Account/Contact/Opportunity/Call/
+Meeting/Follow-up/Task — each linking to a `/new` route confirmed
+present in the actual build output, not assumed), a 5-metric KPI strip
+(reusing `getCrmDashboardData`, the same call the Dashboard screen
+makes), a "My work today" list filtered to `activity.assignedTo ===
+workspace.userId` from that same dashboard payload, and a quick-links
+grid generated directly from `MODULE_NAVIGATION`'s `crm` entry, filtered
+to `status === "AVAILABLE"` — this means the grid can never drift out of
+sync with the navigation registry the way a hand-maintained duplicate
+list would.
+
+## Global Search / Command Menu / Quick Create — investigated, deliberately deferred
+
+Re-audited whether these (named in this session's own Tranche 8 plan)
+belong in a CRM-scoped prompt. Found the `/search` page's own
+description text made a **false claim**: it said a backend search
+adapter already existed at `apps/web/src/app/api/search/route.ts` for
+CRM/Sales/Procurement/Accounting. That file does not exist — verified
+with a direct filesystem search, not assumed from the claim. No
+Command Menu (Ctrl/Cmd+K) component and no Quick Create registry exist
+anywhere in `apps/web/src/shell` either. Fixed the false claim in the
+placeholder text (it now states plainly that no adapter exists yet).
+
+Recommendation: these three are genuinely cross-module platform-shell
+features — a real global search needs a backend adapter spanning every
+module (most of which, per the route tree, are still their own
+`ModuleFoundationPage` placeholders), not a CRM-only one. Building them
+here would mean either faking cross-module search results or building
+real infrastructure far outside this prompt's CRM F001-F030 mandate.
+Deferred to whichever prompt owns cross-module platform shell work,
+mirroring how F023 (Opportunity → quotation) was deferred to the Sales
+prompt for the same reason: a real architectural boundary, not an
+oversight.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
@@ -318,7 +357,7 @@ as a defect.
 5. Sales organization & CRM Setup (F020, plus setup UIs for F005-F007/F027/F028) — F020 done; the F005-F007/F027/F028 setup UIs not built
 6. Data operations (F021) + Bulk (F029) generalization — not started (F021 NOT_STARTED, F029 still Leads-only)
 7. Analytics (F024, F025, F030) — done
-8. CRM Home + global Search + Command Menu + Quick Create — next
+8. CRM Home — done; global Search + Command Menu + Quick Create investigated and deliberately deferred to a cross-module platform prompt (see that section above) — not CRM-scoped work
 9. Saved views + URL state generalization
 10. Mobile web + apps/mobile audit
 11. Concurrency/offline audit across all new screens
