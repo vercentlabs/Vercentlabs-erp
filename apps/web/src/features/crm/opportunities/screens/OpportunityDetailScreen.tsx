@@ -27,6 +27,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { archiveOpportunity, getOpportunity, getOpportunityTimeline, moveOpportunityStage, OpportunityApiError, updateOpportunityProbability } from "../api/opportunities-api";
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
@@ -197,6 +198,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
             <Tab id="overview">Overview</Tab>
             <Tab id="pipeline">Pipeline</Tab>
             <Tab id="activity">Activity</Tab>
+            <Tab id="notes">Notes</Tab>
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-6 py-4">
@@ -252,6 +254,12 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
           <TabPanel id="activity">
             <div className="py-4">
               {timelineQuery.isLoading ? <p className="text-sm text-text-secondary">Loading activity…</p> : <Timeline entries={timelineEntries} emptyMessage="No activity recorded yet." />}
+            </div>
+          </TabPanel>
+
+          <TabPanel id="notes">
+            <div className="py-4">
+              <NotesPanel entityType="opportunity" entityId={opportunityId} />
             </div>
           </TabPanel>
         </Tabs>

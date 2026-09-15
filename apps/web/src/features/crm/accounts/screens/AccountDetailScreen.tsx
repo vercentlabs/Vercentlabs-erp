@@ -9,6 +9,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { AccountApiError, archiveAccount, getAccount } from "../api/accounts-api";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -110,6 +111,10 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           <button type="button" className="text-sm text-brand hover:underline" onClick={() => router.push(`/crm/contacts?accountId=${accountId}`)}>
             View {account.relationships?.contacts ?? 0} contact{account.relationships?.contacts === 1 ? "" : "s"} for this account
           </button>
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-text">Notes</p>
+          <NotesPanel entityType="party" entityId={accountId} />
         </div>
       </div>
     </RecordDetailsPage>

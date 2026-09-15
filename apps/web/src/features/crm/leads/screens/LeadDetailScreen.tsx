@@ -29,6 +29,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import {
   assignLead,
   convertLead,
@@ -350,6 +351,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             <Tab id="pipeline">Pipeline</Tab>
             <Tab id="intelligence">Intelligence</Tab>
             <Tab id="activity">Activity</Tab>
+            <Tab id="notes">Notes</Tab>
           </TabList>
 
           <TabPanel id="overview">
@@ -654,6 +656,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               ) : (
                 <Timeline entries={timelineEntries} emptyMessage="No activity recorded for this Lead yet." />
               )}
+            </div>
+          </TabPanel>
+
+          <TabPanel id="notes">
+            <div className="py-4">
+              <NotesPanel entityType="lead" entityId={leadId} />
             </div>
           </TabPanel>
         </Tabs>
