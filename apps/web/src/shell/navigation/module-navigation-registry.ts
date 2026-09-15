@@ -96,7 +96,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Opportunities", "/crm/opportunities"),
           available("Pipeline", "/crm/pipeline"),
-          planned("Forecast", "/crm/forecast"),
+          available("Forecast", "/crm/forecast"),
         ],
       },
       {

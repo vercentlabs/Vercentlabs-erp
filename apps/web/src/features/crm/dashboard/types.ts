@@ -7,8 +7,11 @@ export type CrmDashboardMetrics = {
   openLeads: number;
   qualifiedLeads: number;
   openOpportunities: number;
-  pipelineValue: number;
-  weightedPipeline: number;
+  // ::numeric-cast SQL aggregates — node-postgres returns these as strings
+  // at runtime (see shared/format.ts's money()), unlike the plain
+  // count(*)::int fields on this type, which really are numbers.
+  pipelineValue: number | string;
+  weightedPipeline: number | string;
   overdueActivities: number;
   dueToday: number;
   leadsThisMonth: number;
@@ -26,7 +29,7 @@ export type CrmDashboardStage = {
   name: string;
   sequence: number;
   opportunityCount: number;
-  amount: number;
+  amount: number | string;
 };
 
 export type CrmDashboardSource = {

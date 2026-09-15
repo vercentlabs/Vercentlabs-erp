@@ -6,14 +6,11 @@ import { ErrorState, MetricStrip, PageHeader, PermissionState, StatusBadge } fro
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { money } from "@/features/crm/shared/format";
 import { CrmDashboardApiError, getCrmDashboardData } from "../api/dashboard-api";
 import type { CrmDashboardActivity } from "../types";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-function money(currencyCode: string | null, value: number) {
-  return `${currencyCode || ""} ${value.toLocaleString()}`.trim();
-}
 
 function activityHref(activity: CrmDashboardActivity): string | null {
   if (activity.entityType === "lead" && activity.entityId) return `/crm/leads/${activity.entityId}`;
