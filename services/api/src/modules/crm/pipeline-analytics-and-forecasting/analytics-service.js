@@ -135,6 +135,27 @@ export async function getCrmReport(client, context, report, filters = {}) {
   // none of those resources were given per-record ownership scope.
   const ownerVisible = (alias, column) =>
     `($7::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $8)`;
+  // Checkpoint audit (Prompt 3 continuation, F025 re-audit explicitly
+  // requested by the mega-prompt): the plain ownerVisible() above is
+  // binary — either the caller's own records only, or (view-all) every
+  // record in scope. There was no middle tier for "a sales manager sees
+  // their own team's rollup" anywhere in the codebase; a manager without
+  // the broad crm.records.view_all grant could only ever forecast their
+  // own deals, not their team's, even though crm_sales_teams/
+  // crm_sales_team_members (already used by Tasks' team-queue feature)
+  // model exactly that relationship. Scoped to the "forecast" report only
+  // — the one place this was explicitly called out — rather than
+  // retrofitting every report/dashboard metric with a new visibility tier
+  // in the same pass, which would be a much larger, riskier change to
+  // the shared ownerVisible() every other report/dashboard metric still
+  // uses unchanged.
+  const ownerVisibleForForecast = (alias, column) =>
+    `($7::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $8 OR ${alias}.${column} IN (
+        SELECT member.user_id FROM tenant.crm_sales_team_members member
+          JOIN tenant.crm_sales_teams team ON team.id = member.team_id AND team.organization_id = member.organization_id
+         WHERE team.organization_id = $1 AND team.manager_user_id = $8 AND member.status = 'active'
+           AND member.effective_from <= now() AND (member.effective_to IS NULL OR member.effective_to >= now())
+      ))`;
   let sql;
   if (report === "pipeline")
     sql = `SELECT stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.expected_revenue),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status='open' ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
@@ -145,7 +166,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
   else if (report === "activities")
     sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
-    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open'),0)::numeric AS pipeline, COALESCE(sum(opportunity.expected_revenue) FILTER (WHERE opportunity.status='open'),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
+    sql = `SELECT COALESCE(user_account.full_name,'Unassigned') AS owner, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open'),0)::numeric AS pipeline, COALESCE(sum(opportunity.expected_revenue) FILTER (WHERE opportunity.status='open'),0)::numeric AS weighted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id WHERE opportunity.organization_id=$1 ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisibleForForecast("opportunity", "owner_user_id")} GROUP BY user_account.full_name ORDER BY weighted DESC`;
   else if (report === "campaigns")
     sql = `SELECT campaign.name, campaign.status, campaign.budget, campaign.actual_cost, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_status IN ('responded','attended','converted'))::int AS responses, count(member.id) FILTER (WHERE member.member_status='converted')::int AS conversions FROM tenant.crm_campaigns campaign LEFT JOIN tenant.crm_campaign_members member ON member.campaign_id=campaign.id AND member.organization_id=campaign.organization_id WHERE campaign.organization_id=$1 ${dateClause("campaign.created_at")} AND ${companyVisible("campaign")} GROUP BY campaign.id ORDER BY campaign.created_at DESC`;
   else if (report === "revenue-operations")
