@@ -1401,6 +1401,66 @@ Full `services/api` suite: 1051/1051 (no backend logic changed — a
 type-declaration addition plus route wiring over an already-tested
 function). Web typecheck, ESLint, `verify:routes`: all clean.
 
+### 4. F006 playbook questions/responses — NOT_REQUIRED_BY_CANONICAL_SCOPE, no changes
+
+`F006-CAP-002` lists "configurable criteria/playbooks, exception
+override, disqualification reasons, evidence timestamps and strict
+separation from F027 scoring" as its enterprise-completeness checklist,
+and `F006-DATA-001` names "qualification configuration/playbook data"
+among the feature's authoritative entities — giving playbooks nominal
+textual presence in F006's own atomic rows. This required a real
+determination, not an assumption, before classifying.
+
+Investigation: grepped every `services/api/src/modules/crm/**` file for
+`playbook` (case-insensitive). Only four files reference it:
+`resource-registry.js`/`resource-mutation-service.js`/
+`resource-options.js` (generic CRUD/config infrastructure for
+`playbooks`/`playbook-questions`/`playbook-responses` as ordinary
+versioned resources) and `opportunity-transitions.js`, which reads
+`crm_playbook_questions`/`crm_playbook_responses` to gate
+`moveOpportunityStage` — its own comment states this is "the same
+governed playbook infrastructure used elsewhere... not a parallel
+system," i.e. an F012 mechanism. No `lead-qualification.js` or any
+other Lead-qualification code path reads or writes
+`crm_playbook_responses` at all — confirmed by the same grep sweep
+turning up zero matches in that file.
+
+The `crm_playbook_responses` table's generic resource-registry entry
+does expose both `opportunityId` and `leadId` fields, which could
+suggest dual Lead/Opportunity use — but no business logic anywhere
+reads or writes the `leadId` column; it is schema surface with no
+consumer, not evidence of a Lead-side requirement. The frontend
+qualification screen itself already documents the same finding from an
+earlier pass (`QualificationAndPlaybooksSettingsScreen.tsx`'s own
+comment): playbooks are "a separate, generic, pipeline-scoped resource
+not actually consumed by any Lead-qualification logic... included here
+only because the nav registry's pre-existing placeholder groups both
+under one destination."
+
+F006-CAP-001's own canonical sentence — "review evidence, close
+qualification gaps and record a defensible qualification decision" —
+is already fully satisfied without playbooks, by the existing
+criteria + decide/readiness/override/history mechanism (earlier pass).
+"Exception override" and "disqualification reasons" are covered by
+that same existing decide/override flow; "evidence timestamps" by
+`F006-DATA-002`; "strict separation from F027 scoring" is structural
+(separate tables, separate features, confirmed earlier this session).
+The only remaining checklist phrase, "configurable criteria/playbooks,"
+is satisfied as **configuration** by the existing criteria CRUD plus
+the existing playbook name/framework/description CRUD — both already
+built and wired to real tables.
+
+Building a Lead-side interactive playbook question/response workflow
+(question builder + Lead response capture, persisted server-side) would
+duplicate F012's own governed mechanism against a capability whose
+canonical scope is already met, which is exactly the feature-bloat this
+prompt warns against. Classification: **NOT_REQUIRED_BY_CANONICAL_SCOPE**
+for new Lead-side playbook execution UI within F006. No code changes.
+`F006-CAP-002` traceability corrected from PARTIAL to IMPLEMENTED with
+this evidence (the prior PARTIAL was scored against an assumed-missing
+question/response builder that was never actually part of F006's own
+canonical scope).
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

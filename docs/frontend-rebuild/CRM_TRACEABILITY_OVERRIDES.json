@@ -1432,9 +1432,9 @@
     "notes": "Criteria setup real (confirmed same table the qualification engine reads); playbooks CRUD is generic and not actually Lead-qualification logic, included only per the pre-existing nav grouping."
   },
   "F006-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Criteria configuration real; playbooks have no question/response builder wired (playbook-questions resource exists but unused this pass)."
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx (criteria + playbook CRUD); opportunity-transitions.js (playbook question/response execution, gates moveOpportunityStage)",
+    "notes": "Stage A2 correction: prior PARTIAL scored against an assumed-missing Lead-side playbook question/response builder. Re-audit (grep every services/api/src/modules/crm file for 'playbook') found zero Lead-qualification consumers of crm_playbook_responses; its only real consumer is opportunity-transitions.js, an F012 mechanism ('the same governed playbook infrastructure used elsewhere... not a parallel system', per that file's own comment). crm_playbook_responses.leadId exists in the generic resource schema but has no reader/writer anywhere — vestigial, not a requirement signal. 'Configurable criteria/playbooks' is satisfied as configuration by existing CRUD; exception override/disqualification reasons/evidence timestamps/F027 separation all already satisfied per F006-CAP-001. Building a new Lead-side playbook execution workflow would duplicate F012 against an already-met canonical scope. Classification: NOT_REQUIRED_BY_CANONICAL_SCOPE for that workflow."
   },
   "F006-CAP-003": {
     "status": "NOT_APPLICABLE",
