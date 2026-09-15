@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MenuTrigger,
   Menu,
@@ -20,6 +21,23 @@ export function ProfileMenu({
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  // Portaled, not inline next to the trigger — see PrimaryNavItem.tsx's
+  // comment (same fix, same reason: an absolutely-positioned flyout
+  // tooltip inside a container with any non-"visible" overflow on either
+  // axis contributes to that container's scrollable area regardless of
+  // its opacity, which is what caused the primary sidebar to scroll
+  // horizontally).
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+
+  function showTooltip() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltipPosition({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  }
+  function hideTooltip() {
+    setTooltipPosition(null);
+  }
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -41,7 +59,7 @@ export function ProfileMenu({
 
   return (
     <MenuTrigger>
-      <span className="group relative flex">
+      <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
         <IconButton
           aria-label={`Account menu for ${fullName}`}
           variant="ghost"
@@ -49,12 +67,18 @@ export function ProfileMenu({
         >
           {initials}
         </IconButton>
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text opacity-0 shadow-panel transition-opacity duration-100 group-hover:opacity-100 group-focus-visible:opacity-100"
-        >
-          {fullName}
-        </span>
+        {tooltipPosition && typeof document !== "undefined"
+          ? createPortal(
+              <span
+                role="tooltip"
+                style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
+                className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text shadow-panel"
+              >
+                {fullName}
+              </span>,
+              document.body,
+            )
+          : null}
       </span>
       {/* id (not React's `key`) is what react-aria-components' collection
           system passes back to onAction — `key` is React's own list-

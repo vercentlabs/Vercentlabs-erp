@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
@@ -22,6 +23,20 @@ function isActive(pathname: string, href: string) {
 // next/link `<Link>` in React Aria's TooltipTrigger breaks navigation
 // (TooltipTrigger's PressResponder expects a usePress-compatible child;
 // next/link isn't one, and the click silently stopped navigating).
+//
+// Portaled to document.body rather than rendered inline next to the
+// trigger: visual QA found the primary sidebar scrolling horizontally.
+// The sidebar's icon rail (PrimarySidebar.tsx) has overflow-y-auto for
+// its vertical scroll, which — per the CSS spec — computes overflow-x to
+// auto too (a container can't have one axis scrolling and the other
+// literally "visible"). Every tooltip span, absolutely positioned at
+// left-full + whitespace-nowrap, extended well past the rail's 64px
+// width regardless of its opacity (opacity doesn't remove an element
+// from overflow/layout computation, only display:none does), so the
+// rail always had horizontal scrollable content. Portaling removes the
+// tooltip from the rail's DOM subtree entirely, so it can no longer
+// contribute to the rail's own scrollable area, while still visually
+// flying out past the sidebar the way it's meant to.
 export function PrimaryNavItem({
   href,
   label,
@@ -43,6 +58,18 @@ export function PrimaryNavItem({
   const tooltipText = disabled
     ? disabledReason || `${label} is unavailable`
     : label;
+
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+
+  function showTooltip() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltipPosition({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  }
+  function hideTooltip() {
+    setTooltipPosition(null);
+  }
 
   const iconChrome = (
     <span
@@ -79,18 +106,23 @@ export function PrimaryNavItem({
     </span>
   );
 
-  const tooltip = (
-    <span
-      role="tooltip"
-      className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text opacity-0 shadow-panel transition-opacity duration-100 group-hover:opacity-100 group-focus-visible:opacity-100"
-    >
-      {tooltipText}
-    </span>
-  );
+  const tooltip =
+    tooltipPosition && typeof document !== "undefined"
+      ? createPortal(
+          <span
+            role="tooltip"
+            style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
+            className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text shadow-panel"
+          >
+            {tooltipText}
+          </span>,
+          document.body,
+        )
+      : null;
 
   if (disabled) {
     return (
-      <span className="group relative flex">
+      <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
         <button
           type="button"
           aria-disabled="true"
@@ -105,7 +137,7 @@ export function PrimaryNavItem({
   }
 
   return (
-    <span className="group relative flex">
+    <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
       <Link
         href={href}
         aria-label={badgeCount ? `${label} (${badgeCount})` : label}

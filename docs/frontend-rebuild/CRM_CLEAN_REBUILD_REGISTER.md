@@ -613,6 +613,40 @@ to exercise `next/headers`-dependent code, since that also cannot be
 unit-tested outside a real Next.js request context) remains future
 work, tracked under Stage B.
 
+## Visual QA finding: primary sidebar scrolling horizontally (found and fixed)
+
+User-reported: the primary sidebar (`shell/primary-sidebar/PrimarySidebar.tsx`,
+the 64px-wide module-icon rail on the far left, shared across every module
+including CRM) was scrolling horizontally. Root cause, confirmed by
+reading the actual CSS, not guessed: the rail's vertically-scrolling
+middle region has `overflow-y-auto`; per the CSS spec, setting either
+overflow axis to a non-`visible` value forces the *other* axis to compute
+as `auto` too if it was left as `visible` (a container can't have one
+axis literally "visible" while the other scrolls). Every nav item
+(`PrimaryNavItem.tsx`) rendered its hover/focus tooltip as an absolutely-
+positioned `left-full` + `whitespace-nowrap` span *inside* that scrolling
+region — always present in the DOM (only hidden via `opacity-0`, which
+does not remove an element from layout/overflow computation, unlike
+`display:none`) and always extending well past the rail's 64px width.
+That gave the rail permanent horizontal scrollable content, regardless of
+whether any tooltip was actually visible.
+
+**Fixed** in both `PrimaryNavItem.tsx` and `ProfileMenu.tsx` (same
+anti-pattern, found by grepping for the same `left-full`/`group-hover:
+opacity-100` signature — `ProfileMenu`'s instance sits outside the
+scrolling region so it wasn't the reported bug's cause, but was the same
+latent risk and fixed for consistency): tooltips are now portaled to
+`document.body` via `createPortal`, positioned with `position: fixed` +
+coordinates computed from the trigger's `getBoundingClientRect()` on
+hover/focus, rather than rendered as a DOM descendant of the scrolling
+rail. A portaled/fixed-position element does not contribute to any
+ancestor's scrollable-overflow computation, so the rail's horizontal
+scroll is gone while the tooltip still visually flies out past the 64px
+sidebar exactly as before. Not independently re-verified in a live
+browser this pass (no working session/login credentials available in
+this environment) — verified by reading the exact CSS/DOM mechanics
+instead; flagged as owed for the next real browser QA pass.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
