@@ -128,8 +128,36 @@ function checkDynamicSiblings(dir) {
 
 checkDynamicSiblings(appRoot);
 
+// --- Check 4: every CRM API route calls requireCrmAccess -------------------
+// Formalizes the manual `grep -L requireCrmAccess` sweep run by hand at
+// every checkpoint during the CRM clean rebuild (Prompt 3) into a
+// permanent, CI-enforceable check — see docs/frontend-rebuild/
+// CRM_CLEAN_REBUILD_REGISTER.md's "Checkpoint re-audit #2" for the real,
+// session-wide authorization gap this sweep originally caught (every CRM
+// route checked only authentication + org membership, never module
+// entitlement or action permission). Static text search only — this does
+// NOT prove a session without the permission actually receives a 403 at
+// runtime (that needs real request/DB-backed behavioral tests, tracked
+// separately), only that the route calls the shared gate at all. The one
+// deliberately public route (external prospect-facing meeting booking) is
+// excluded by design, not by oversight.
+let crmRoutesChecked = 0;
+const PUBLIC_CRM_ROUTE_MARKER = `${path.sep}crm${path.sep}public${path.sep}`;
+walk(appRoot, (file, name) => {
+  if (name !== "route.ts") return;
+  if (!file.includes(`${path.sep}api${path.sep}crm${path.sep}`)) return;
+  if (file.includes(PUBLIC_CRM_ROUTE_MARKER)) return;
+  crmRoutesChecked += 1;
+  const source = fs.readFileSync(file, "utf8");
+  if (!/requireCrmAccess\s*\(/.test(source)) {
+    fail(
+      `${relative(file)}: no requireCrmAccess(...) call found — this CRM route would only check authentication + organization membership, not module entitlement or action permission`,
+    );
+  }
+});
+
 console.log(
-  `Checked ${pagesChecked} page.tsx and ${routesChecked} route.ts file(s) under src/app.`,
+  `Checked ${pagesChecked} page.tsx, ${routesChecked} route.ts (${crmRoutesChecked} CRM) file(s) under src/app.`,
 );
 if (failures > 0) {
   console.error(`\nverify:routes summary — ${failures} failing check(s).`);

@@ -502,6 +502,58 @@ loss banner (`OfflineBanner`) was added anywhere in the CRM screens
 this session touched; every screen still shows a generic error message
 for a network failure rather than a dedicated "you're offline" state.
 
+## Tranche 12: Security negative-test pass (partial — honest scope below)
+
+Investigated what a genuine "403 without permission" test suite would
+require before building anything, since `apps/web` has **zero existing
+tests** of any kind (`find apps/web -iname "*.test.ts*"` returns
+nothing) — this would mean bootstrapping request/session/DB-client
+mocking infrastructure entirely from scratch for 55+ routes, a
+multi-hour undertaking in its own right. Before assuming that was the
+only path, checked whether the actual authorization MECHANISM every
+one of those routes shares was already independently tested elsewhere
+— it is: `services/api/tests/platform-module-entitlements.test.mjs`
+already behaviorally proves, using `"crm"` as its own test module, that
+`resolveModuleAccess`/`assertModuleAccessible` correctly denies a
+session missing `crm.view` (`"enabled + entitled but missing the view
+permission is not_permitted"`), and
+`services/api/tests/platform-access-control-runtime.test.mjs` already
+proves `requireSessionPermission` throws a 403 `PermissionDeniedError`
+for a denied permission and fails closed for a null/undefined session.
+`apps/web`'s `requireCrmAccess` (`features/crm/shared/crm-context.ts`)
+is a two-line pass-through calling exactly these two already-proven
+primitives — not independently re-tested here, since doing so would
+mean rebuilding a QueryClient/session mock harness to re-verify logic
+that already has real behavioral coverage.
+
+What was genuinely missing, and what this pass actually built: nothing
+proved that all 55+ CRM route files *actually call* `requireCrmAccess`
+at all — that was previously only verified by hand, via a `grep -L`
+sweep re-run manually at every checkpoint this session. Formalized that
+sweep into **Check 4** of `apps/web/scripts/verify-routes.mjs` (the
+pre-existing static route-validation script, already wired to
+`pnpm verify:routes` — extended it rather than inventing a parallel
+script): walks every `apps/web/src/app/api/crm/**/route.ts` file
+(excluding the one deliberately public meeting-booking route) and
+fails if `requireCrmAccess(...)` doesn't appear in its source. Run
+clean against the current 60 CRM route files, zero failures. This is
+now a **permanent, CI-enforceable regression test** — a future route
+that forgets the call (exactly the class of bug Checkpoint #2 found
+session-wide) fails this check immediately, rather than waiting for
+another manual sweep to catch it.
+
+**Honestly still missing, not implied by the above**: a true behavioral
+test that sends a request as a session lacking a specific permission
+and asserts the route actually returns HTTP 403 (proving the *correct*
+permission is checked per route, not just *a* call to
+`requireCrmAccess` with any argument) does not exist for any of the 55+
+routes. The structural check above proves the gate is called; it
+cannot prove the gate is called with the *right* permission for that
+specific route, nor that the response the caller receives is actually
+403 end-to-end. Building that properly is a larger, separate
+undertaking (request/session/DB mocking infrastructure `apps/web` does
+not yet have) and remains owed.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
@@ -527,7 +579,7 @@ as a defect.
 9. Saved views + URL state generalization — done for Leads and Opportunities (see the new section below); not yet composed into Accounts/Contacts/Tasks/Calls/Meetings/Follow-ups/Communications
 10. Mobile web + apps/mobile audit — done (see the new section below); a real missing route and stale mobile-side deep links found and fixed, not just reviewed clean
 11. Concurrency/offline audit across all new screens — done (see the new section below); real fixes applied, not just reviewed clean
-12. Security negative-test pass
+12. Security negative-test pass — partially done (see the new section below): a real, permanent structural regression test now exists; true behavioral per-route 403 tests still not built
 13. Formal Playwright + axe
 14. Visual QA at 1440/1024/390
 15. Exact navigation correction
