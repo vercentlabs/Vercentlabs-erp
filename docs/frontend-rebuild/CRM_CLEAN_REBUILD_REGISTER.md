@@ -63,7 +63,7 @@ know before trusting a row:
 | CRM-CAP-004 | Seller activity and follow-up workspace | F013-F019 | All 7 features have real, tested UI now: F013 Calls, F014 Meetings, F015 Tasks, F016 Follow-ups, F017 Notes (Attachments explicitly deferred), F018 Communications (read-only), F019 Timeline (via Lead/Opportunity 360s). No feature in this capability group is at NOT_STARTED anymore, though several have disclosed sub-scope gaps (see each row). |
 | CRM-CAP-005 | Sales organization and coverage | F020 | Built this pass — the one capability group whose backend directory was genuinely empty (only a README) before this pass; both Teams and Territories are generic CRM_RESOURCE_KEYS resources, so no new domain module was needed |
 | CRM-CAP-006 | CRM data operations and customization | F021,F028,F029 | F029 bulk engine wired for Leads only; F021/F028 not started |
-| CRM-CAP-007 | CRM conversion and sales handoff | F022,F023 | F022 (Lead conversion) built; F023 not started |
+| CRM-CAP-007 | CRM conversion and sales handoff | F022,F023 | F022 (Lead conversion) built; F023 investigated and deliberately deferred to Prompt 4 — see F023's own row for the real architectural reason (not a gap, a genuine module boundary) |
 | CRM-CAP-008 | Pipeline analytics and forecasting | F024,F025,F030 | Not started |
 
 ## Feature status (F001-F030)
@@ -95,7 +95,7 @@ Legend: IMPLEMENTED (real UI + real backend + tested), IN_PROGRESS
 | F020 | Territories & sales teams | IN_PROGRESS | `/crm/settings/territories` — real list + create dialog + archive for both Sales Teams and Territories, reusing the generic `/api/crm/[resource]` boundary (`sales-teams`/`sales-team-members`/`territories`/`territory-assignments` are all genuine CRM_RESOURCE_KEYS entries; `sales-organization-and-coverage/` was an empty placeholder directory before this pass — no dedicated domain module exists or was needed). Extended `resource-permissions.ts`'s manage-permission map to cover these four resources with `crm.settings.manage` (they previously fell through to module-access-only, a real gap this same edit closed before any UI could exploit it). Missing: team hierarchy (parentTeamId) UI, team membership management, territory hierarchy/parent picker, territory assignment rules editor, edit forms (create/archive only). |
 | F021 | Import/export | NOT_STARTED | |
 | F022 | Lead conversion | IN_PROGRESS | Conversion action + RelatedBusinessFlow result this pass. No pre-conversion review step (create vs reuse preview) |
-| F023 | Opportunity → quotation handoff | NOT_STARTED | |
+| F023 | Opportunity → quotation handoff | NOT_STARTED | **Investigated, deliberately not built** — not an oversight. `sales/index.js`'s real `createQuotation(client, context, input)` already accepts `input.opportunityId` (stored as `source_opportunity_id`, confirming the cross-module link exists), but requires `requirePermission(context, "sales.quotation.create")` (a Sales-namespace permission, not a CRM one) AND `previewSalesDocument` throws "Add at least one item line" if `input.lines` is empty — a quotation cannot exist with zero line items. Opportunities in this rebuild have a single `amount` field, not structured line items, so a genuine "create quotation from this Opportunity" action would require building an item/pricing picker — that IS Sales' own editing surface, and the prompt's own instruction is explicit: "do NOT build a fake Sales editor (Prompt 4 builds Sales)." Also confirmed no valid Sales route exists yet to link to (`/sales` is still the foundation placeholder), so even a read-only "view the linked quotation" display would link nowhere real. Recommendation: build F023 properly in Prompt 4 once Sales' own quotation UI (and its real line-item entry surface) exists, exposed as an action ON that surface that CRM's Opportunity 360 can then deep-link to — not as CRM-side work. |
 | F024 | Dashboard | NOT_STARTED | |
 | F025 | Forecast | NOT_STARTED | |
 | F026 | Won/lost reasons | IN_PROGRESS | Outcome-reason capture wired into the Opportunity 360's stage-move action when moving into a won/lost stage. Governed reason-list setup UI (create/edit won/lost reasons) not built; reasons are read-only from getCrmOptions().lostReasons. |
@@ -260,9 +260,16 @@ assumption this fix alone is sufficient evidence.
 
 ## Mandatory-gap candidates
 
-None identified yet — no canonical F001-F030 capability has been found
-genuinely absent from the dossiers. (Re-evaluate as later tranches are
-audited.)
+No canonical F001-F030 capability has been found genuinely absent from
+the dossiers — F023 (Opportunity → quotation handoff) is NOT a mandatory
+gap in that sense; its capability exists and its backend function
+(`createQuotation`) is real and complete. It is unbuilt in the CRM
+frontend this pass for a legitimate cross-module boundary reason (see
+F023's own row): it requires Sales' own line-item entry surface, which
+this Prompt (3) is explicitly scoped to not build ("do NOT build a fake
+Sales editor — Prompt 4 builds Sales"). This is a scheduling/ordering
+decision, not a missing requirement — recorded here for visibility, not
+as a defect.
 
 ## Next tranches (in order)
 
