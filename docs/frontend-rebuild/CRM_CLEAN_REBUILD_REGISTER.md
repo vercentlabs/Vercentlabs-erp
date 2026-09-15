@@ -554,6 +554,65 @@ specific route, nor that the response the caller receives is actually
 undertaking (request/session/DB mocking infrastructure `apps/web` does
 not yet have) and remains owed.
 
+## Platform-wide bug found and fixed while building the behavioral route-test harness
+
+While investigating how to build a genuine behavioral test proving a
+route returns the right HTTP status for an unauthenticated/unverified/
+org-less caller (explicitly demanded by the mega-prompt, not optional),
+found a real, previously undetected bug affecting **every API route in
+`apps/web`, not just CRM's 67**: `requireWorkspace()`/`requireUser()`/
+`requireVerifiedUser()` (`core/session.ts`) call Next.js's `redirect()`
+— designed for Server Components/Pages, where a framework-level
+boundary turns the thrown `NEXT_REDIRECT` error into an actual HTTP
+redirect. Every route wraps its call to these in its own
+`try { ... } catch (error) { return errorResponse(error); }`, so that
+redirect throw is caught by the route's own catch block *before* it
+ever reaches Next's boundary. `errorResponse()` had no special case for
+it, so it fell through to the generic 500 branch — meaning **every
+unauthenticated, email-unverified, or organization-less API request
+across the entire app returned an opaque "The request could not be
+completed." (500) instead of a real 401**. Confirmed this was real, not
+assumed, by reading Next's own `redirect.js` source
+(`node_modules/next/dist/client/components/redirect.js`): it throws
+`Object.defineProperty(new Error("NEXT_REDIRECT"), ...)` with a
+`.digest` of `NEXT_REDIRECT;{type};{url};{statusCode};` — a perfectly
+normal, catchable JS exception.
+
+**Fixed**: `errorResponse()` now detects this exact digest shape and
+maps it to a real 401 with a specific code
+(`AUTH_REQUIRED`/`AUTH_EMAIL_UNVERIFIED`/`AUTH_NO_ORGANIZATION`,
+derived from which redirect target the digest encodes), rather than a
+generic 500. Split the pure classification logic into a new
+`core/http-errors.ts` (no `next/server` import) so it's actually
+unit-testable — `next/server`'s package `exports` map isn't resolvable
+under plain `node --test` outside Next's own bundler, which would have
+made this logic untestable if it stayed in `http.ts` (every route
+imports `NextResponse` through that file). Also removed `HttpError`'s
+TypeScript parameter-property constructor (Node's native
+`--experimental-strip-types`, which `node --test` uses to run `.test.ts`
+files without a build step, only erases type syntax — it cannot
+generate the assignment code a parameter property needs, and fails
+with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`) — same public behavior,
+spelled out explicitly instead.
+
+**This is `apps/web`'s first-ever automated test** (`core/http-errors.test.ts`,
+8 tests, all passing, verified via both `node --test` directly and
+`pnpm --filter @vercentlabs/web test`) — proving the redirect→401 fix,
+that `HttpError`/ported-platform-error/`ZodError` classification is
+unaffected, and that a genuinely unknown error still returns a generic
+500 without leaking internals. This is real behavioral proof for the
+shared function literally every route in the app funnels its
+authentication/authorization failures through, which is a different
+(and arguably more foundational) kind of coverage than a per-route
+integration test would give — but it is NOT a per-route integration
+test, and does not by itself prove any individual route's `try/catch`
+still correctly reaches `errorResponse()` for every one of its own
+failure paths. A broader per-route behavioral suite (via Playwright's
+`request` fixture against a real running server — the only reliable way
+to exercise `next/headers`-dependent code, since that also cannot be
+unit-tested outside a real Next.js request context) remains future
+work, tracked under Stage B.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

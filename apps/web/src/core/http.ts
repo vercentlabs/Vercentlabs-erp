@@ -1,21 +1,8 @@
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
 
-// Normalizes both this route layer's own validation errors and the
-// per-module Error subclasses @vercentlabs/api's ported platform code
-// throws (ApiKeyError, OAuthError, EntitlementError, ModuleAccessError,
-// AccessAdministrationError, SecurityError, etc. — each carries `status`
-// and, where relevant, `code`) into one consistent JSON response shape.
-export class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly code?: string,
-    public readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
-  }
-}
+import { classifyError, HttpError } from "./http-errors.ts";
+
+export { HttpError };
 
 export function ok(data: Record<string, unknown>, status = 200) {
   return NextResponse.json(
@@ -35,18 +22,6 @@ export function fail(
   );
 }
 
-function hasHttpErrorShape(
-  error: unknown,
-): error is { status: number; message: string; code?: string } {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    typeof (error as { status: unknown }).status === "number" &&
-    "message" in error
-  );
-}
-
 export async function readJson(request: Request): Promise<unknown> {
   const maximumBytes = 100_000;
   const length = Number(request.headers.get("content-length") || "0");
@@ -59,37 +34,15 @@ export async function readJson(request: Request): Promise<unknown> {
   }
 }
 
+// Normalizes both this route layer's own validation errors and the
+// per-module Error subclasses @vercentlabs/api's ported platform code
+// throws (ApiKeyError, OAuthError, EntitlementError, ModuleAccessError,
+// AccessAdministrationError, SecurityError, etc.), plus a redirect() throw
+// from requireWorkspace()/requireUser() caught before it reaches Next's
+// own redirect boundary — see http-errors.ts's classifyError() for the
+// actual decision logic (kept there so it's unit-testable without
+// next/server's module resolution getting in the way).
 export function errorResponse(error: unknown) {
-  if (error instanceof HttpError) {
-    return fail(
-      error.message,
-      error.status,
-      error.code || error.details
-        ? {
-            ...(error.code ? { code: error.code } : {}),
-            ...(error.details || {}),
-          }
-        : undefined,
-    );
-  }
-  if (error instanceof ZodError) {
-    return fail("Review the submitted fields.", 400, {
-      errors: error.flatten().fieldErrors,
-    });
-  }
-  // Any ported @vercentlabs/api error class (ApiKeyError, OAuthError,
-  // EntitlementError, ModuleAccessError, AccessAdministrationError,
-  // SecurityError, PrivacyError, AiGovernanceError, ...) — all share this
-  // {status, message, code?} shape by convention.
-  if (hasHttpErrorShape(error)) {
-    return fail(
-      error.message,
-      error.status,
-      "code" in error && error.code
-        ? { code: (error as { code?: string }).code }
-        : undefined,
-    );
-  }
-  console.error("request_failed", error);
-  return fail("The request could not be completed.", 500);
+  const classified = classifyError(error);
+  return fail(classified.message, classified.status, classified.details);
 }
