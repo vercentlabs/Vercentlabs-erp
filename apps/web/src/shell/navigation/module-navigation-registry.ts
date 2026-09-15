@@ -149,6 +149,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Pipeline Stages", "/crm/settings/pipeline-stages"), requiredPermission: "crm.settings.manage" },
           { ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"), requiredPermission: "crm.settings.manage" },
           { ...available("Qualification / Playbooks", "/crm/settings/playbooks"), requiredPermission: "crm.settings.manage" },
+          { ...available("Meeting Links", "/crm/settings/meeting-links"), requiredPermission: "crm.settings.manage" },
         ],
       },
     ],

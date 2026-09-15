@@ -12,6 +12,7 @@ import {
   resolveCallerParticipantCommunicationIds,
   resolveCommunicationParticipants,
 } from "./communications/communication-projection.js";
+import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
 
 // Same one-line check every other CRM domain module in this codebase
 // already carries locally (index.js's recordScope, timeline.js, task-
@@ -1585,6 +1586,11 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
   // comment. A no-op (not an error) when the host has no connected
   // outbound-capable account.
   await enqueueCalendarPushJob(client, context, meetingActivity.rows[0].id, "create", meetingActivity.rows[0].updated_at);
+  // F014 Stage A2 closeout: a publicly-booked Meeting joins the same
+  // shared reminder engine an internally-scheduled one does (see
+  // createCrmMeeting) — the host still gets reminded even though no
+  // authenticated user scheduled it.
+  await createRemindersForActivity(client, context, meetingActivity.rows[0].id, desiredStart);
   return {
     ...booking.rows[0],
     calendar_event_id: calendarEventId,
@@ -2194,6 +2200,7 @@ export async function cancelMeetingBooking(
         activity.rows[0].meeting_location_type, Number(attendeeCount.rows[0]?.total || 0), context.userId],
     );
     await enqueueCalendarPushJob(client, context, activity.rows[0].id, "cancel", activity.rows[0].updated_at);
+    await cancelPendingRemindersForActivity(client, context, activity.rows[0].id);
   }
   return result.rows[0];
 }
@@ -2289,6 +2296,8 @@ export async function rescheduleMeetingBooking(
         activity.rows[0].meeting_location_type, Number(attendeeCount.rows[0]?.total || 0), context.userId],
     );
     await enqueueCalendarPushJob(client, context, activity.rows[0].id, "update", activity.rows[0].updated_at);
+    await cancelPendingRemindersForActivity(client, context, activity.rows[0].id);
+    await createRemindersForActivity(client, context, activity.rows[0].id, desiredStart);
   }
   return result.rows[0];
 }

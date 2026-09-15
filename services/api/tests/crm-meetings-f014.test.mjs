@@ -153,3 +153,31 @@ test("F014: booking reschedule serializes on the Meeting Link and refuses non-ed
   assert.match(block, /\["planned", "overdue"\]\.includes/);
   assert.match(block, /CRM_MEETING_BOOKING_RESCHEDULE_INVALID/);
 });
+
+// F014 Stage A2 closeout: reminders were dossier-named ("reminders" in
+// F014-CAP-002) but not wired to any Meeting lifecycle path. Meetings now
+// join the SAME shared crm_activity_reminders engine Follow-ups (F016)
+// already uses, imported from follow-up-operations.js, not a second
+// reminder system.
+test("F014: scheduled/booked Meetings join the shared reminder engine on schedule, reschedule and cancel/complete", () => {
+  const meeting = service();
+  const communication = communications();
+  assert.match(meeting, /import \{ createRemindersForActivity, cancelPendingRemindersForActivity \} from "\.\/follow-ups\/follow-up-operations\.js"/);
+  const createBlock = meeting.match(/export async function createCrmMeeting[\s\S]*?\n\}\n\nexport async function updateCrmMeeting/)?.[0] || "";
+  assert.match(createBlock, /if \(mode === "schedule"\) \{[\s\S]*await createRemindersForActivity\(client, context, meeting\.id, startAt\);[\s\S]*\n  \}/);
+  const updateBlock = meeting.match(/export async function updateCrmMeeting[\s\S]*?\n\}\n\nexport async function startCrmMeeting/)?.[0] || "";
+  assert.match(updateBlock, /if \(rescheduled && after\.startAt\) \{\s*\n\s*await cancelPendingRemindersForActivity\(client, context, id\);\s*\n\s*await createRemindersForActivity\(client, context, id, after\.startAt\);/);
+  const completeBlock = meeting.match(/export async function completeCrmMeeting[\s\S]*?\n\}\n\nexport async function cancelCrmMeeting/)?.[0] || "";
+  assert.match(completeBlock, /await cancelPendingRemindersForActivity\(client, context, id\);/);
+  const cancelBlock = meeting.match(/export async function cancelCrmMeeting[\s\S]*$/)?.[0] || "";
+  assert.match(cancelBlock, /await cancelPendingRemindersForActivity\(client, context, id\);/);
+
+  assert.match(communication, /import \{ createRemindersForActivity, cancelPendingRemindersForActivity \} from "\.\/follow-ups\/follow-up-operations\.js"/);
+  const bookBlock = communication.match(/export async function bookMeeting[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(bookBlock, /await createRemindersForActivity\(client, context, meetingActivity\.rows\[0\]\.id, desiredStart\);/);
+  const cancelBookingBlock = communication.match(/export async function cancelMeetingBooking[\s\S]*?export async function rescheduleMeetingBooking/)?.[0] || "";
+  assert.match(cancelBookingBlock, /await cancelPendingRemindersForActivity\(client, context, activity\.rows\[0\]\.id\);/);
+  const rescheduleBookingBlock = communication.match(/export async function rescheduleMeetingBooking[\s\S]*?export async function getCommunicationTimeline/)?.[0] || "";
+  assert.match(rescheduleBookingBlock, /await cancelPendingRemindersForActivity\(client, context, activity\.rows\[0\]\.id\);/);
+  assert.match(rescheduleBookingBlock, /await createRemindersForActivity\(client, context, activity\.rows\[0\]\.id, desiredStart\);/);
+});

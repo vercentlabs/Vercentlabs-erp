@@ -40,4 +40,8 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // correct floor for a rep submitting their own forecast.
   "forecast-periods": CRM_PERMISSIONS.settingsManage,
   "forecast-submissions": CRM_PERMISSIONS.opportunitiesManage,
+  // Stage A2 §5 (F014) — meeting-links config (availability/duration/
+  // buffers/provider) is what a public booking page is generated from,
+  // so only settings-manage should create/edit one.
+  "meeting-links": CRM_PERMISSIONS.settingsManage,
 };

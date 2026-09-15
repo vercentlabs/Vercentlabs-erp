@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, PermissionState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, MultiSelect, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { createMeeting, MeetingApiError } from "../api/meetings-api";
 
 type FormValues = {
@@ -21,6 +22,7 @@ type FormValues = {
   occurredAt: string;
   durationMinutes: number | null;
   outcomeCode: string;
+  contactAttendeeIds: string[];
   attendeesText: string;
 };
 
@@ -36,15 +38,17 @@ const EMPTY: FormValues = {
   occurredAt: "",
   durationMinutes: null,
   outcomeCode: "held",
+  contactAttendeeIds: [],
   attendeesText: "",
 };
 
-// Checkpoint scope note: attendees is a real backend field (name/email/
-// contactId per crm_activity_attendees), but this pass only supports
-// entering plain email addresses (one per line) rather than a full
-// contact-picker UI — a deliberate, disclosed simplification, not a
-// silent gap (see CRM_CLEAN_REBUILD_REGISTER.md).
-function parseAttendees(text: string) {
+// F014 Stage A2 §5 closeout: replaces the prior plain-text-only attendee
+// entry with a real Contact picker (contactId per crm_activity_attendees
+// — normalizeAttendees in meeting-operations.js already resolves and
+// validates it). Free-text email entry is kept alongside it for external
+// guests who aren't a CRM Contact, not removed — both are real, distinct
+// attendee sources, not a fallback for one being unbuilt.
+function parseExternalAttendees(text: string) {
   return text
     .split("\n")
     .map((line) => line.trim())
@@ -64,6 +68,16 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  const contactsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "contacts", "meeting-attendee-candidates"),
+    queryFn: () => listContacts({ status: "active", limit: 200 }),
+  });
+  const contactsById = useMemo(() => new Map((contactsQuery.data?.rows ?? []).map((row) => [row.id, row])), [contactsQuery.data]);
+  const contactOptions: SelectOption[] = useMemo(
+    () => (contactsQuery.data?.rows ?? []).map((row) => ({ value: row.id, label: [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || row.id })),
+    [contactsQuery.data],
+  );
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!values.subject.trim()) {
@@ -79,7 +93,13 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         locationType: values.locationType,
         location: values.location || null,
         meetingUrl: values.meetingUrl || null,
-        attendees: parseAttendees(values.attendeesText),
+        attendees: [
+          ...values.contactAttendeeIds.map((contactId) => {
+            const contact = contactsById.get(contactId);
+            return { contactId, name: contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null };
+          }),
+          ...parseExternalAttendees(values.attendeesText),
+        ],
       };
       if (values.mode === "schedule") {
         input.startAt = values.startAt || null;
@@ -168,7 +188,18 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         )}
       </div>
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
-      <TextArea label="Attendee emails (one per line)" value={values.attendeesText} onChange={(v) => set("attendeesText", v)} />
+      <MultiSelect
+        label="Contacts to invite"
+        options={contactOptions}
+        value={values.contactAttendeeIds}
+        onChange={(next) => set("contactAttendeeIds", next)}
+      />
+      <TextArea
+        label="Other attendee emails (one per line)"
+        description="For guests who aren't a CRM Contact."
+        value={values.attendeesText}
+        onChange={(v) => set("attendeesText", v)}
+      />
     </RecordFormPage>
   );
 }

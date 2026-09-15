@@ -2347,9 +2347,9 @@
     "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
   },
   "F014-NOTIF-001": {
-    "status": "NOT_STARTED",
-    "evidence": null,
-    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+    "status": "IMPLEMENTED",
+    "evidence": "createRemindersForActivity/cancelPendingRemindersForActivity wired into meeting-operations.js and communications.js (Stage A2)",
+    "notes": "Stage A2 correction: reminders were the one dossier-named CAP-002 item genuinely unwired for Meetings. Now real, via the shared activity reminder engine (claimDueReminders/crm_activity_reminders), not a separate edit-event notification."
   },
   "F014-REP-001": {
     "status": "NOT_STARTED",
@@ -2412,19 +2412,19 @@
     "notes": "Deferred to Stage B."
   },
   "F014-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "MeetingDetailScreen.tsx",
-    "notes": "Detail + edit built this pass; attendees remain plain-text (no real contact-picker), public booking not built."
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx; MeetingFormScreen.tsx (real Contact MultiSelect attendee picker, Stage A2); BookMeetingScreen.tsx + /api/crm/public/meetings/links/[token]/* (public booking, Stage A2)",
+    "notes": "Stage A2 closeout: both gaps this row previously flagged are closed. Attendees now offer a real Contact picker (contactId, resolved server-side by the already-tested normalizeAttendees) alongside free-text external-guest emails, not a replacement for either. Public booking was a genuine, confirmed gap — tenant.crm_public_meeting_link(token) (migration 031) existed and was fully tested but had zero callers; now wired end-to-end (link info, availability, booking) reusing getMeetingAvailability/bookMeeting exactly, no second slot-computation path."
   },
   "F014-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Core meeting lifecycle real; calendar-push/booking-token surfaces exist from an earlier pass (crm-meeting-calendar-push-f014.test.mjs, crm-meeting-booking-token-expiry-f014.test.mjs) but are separate from this tranche's detail/edit work."
+    "status": "IMPLEMENTED",
+    "evidence": "crm-meeting-calendar-push-f014.test.mjs; crm-meeting-booking-token-expiry-f014.test.mjs; meeting-operations.js/communications.js reminder wiring (Stage A2, crm-meetings-f014.test.mjs's new reminder test); ManageBookingScreen.tsx (reschedule/cancel by token)",
+    "notes": "Stage A2 re-audit against the dossier's own named list (availability, booking token expiry, calendar sync, reschedule/no-show, reminders, DST, provider reconciliation, external privacy): all confirmed present or newly wired. Calendar sync/provider reconciliation and booking-token expiry were already real (earlier pass, re-verified not stale by reading the current source, not assumed from the old audit doc). Reminders were the one genuinely unwired item — Meetings now join the same crm_activity_reminders engine Follow-ups (F016) already uses on schedule/reschedule/cancel/complete, for both the internal and public booking paths, not a second reminder system."
   },
   "F014-CAP-003": {
-    "status": "NOT_VERIFIED",
-    "evidence": null,
-    "notes": "Downstream consumers not re-audited this pass."
+    "status": "IMPLEMENTED",
+    "evidence": "Public routes only ever touch crm_meeting_bookings/crm_calendar_attendees, never crm_leads/crm_contacts directly (re-confirmed by reading bookMeeting in full this pass); BookMeetingScreen/ManageBookingScreen expose only name/duration/timezone/owner display name, no organization/company internals",
+    "notes": "Re-verified this pass while building the public UI that actually calls these boundaries, not assumed from the prior pass's note."
   },
   "F014-FR-002": {
     "status": "PARTIAL",

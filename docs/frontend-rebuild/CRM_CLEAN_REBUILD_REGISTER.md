@@ -1461,6 +1461,83 @@ this evidence (the prior PARTIAL was scored against an assumed-missing
 question/response builder that was never actually part of F006's own
 canonical scope).
 
+### 5. F014 Meetings — public booking, reminders and a real Contact picker built; MANDATORY_NOW closed
+
+Backend re-audit (before writing anything, per this prompt's own
+instruction) found `F014-AUDIT.md` partly stale: calendar sync/provider
+reconciliation (`pushProviderCalendarEvent`/`enqueueCalendarPushJob`) and
+booking-token expiry (migration `105_f014_booking_token_expiry.sql`) were
+already real, built in a pass after that audit was written — confirmed by
+reading current source, not assumed from the old doc. Two genuine gaps
+remained against `F014-CAP-001`/`CAP-002`'s own named list:
+
+**Public booking** — `tenant.crm_public_meeting_link(token)` (migration
+`031_crm_communications_calendar.sql`) already existed, resolving a
+meeting link's public config (duration/buffers/timezone/availability/
+provider) by its durable `public_token` — but had **zero callers**
+anywhere in the codebase (confirmed by grep before building). The
+sibling booking-management function (`crm_public_meeting_booking`) was
+already wired to a real route; the link-lookup half was not. This is the
+literal second half of F014-CAP-001's own canonical sentence
+("schedule **or book** a meeting"), so: **MANDATORY_NOW**. Built:
+`GET /api/crm/public/meetings/links/[token]` (link info),
+`GET .../availability?date=` (delegates to the existing
+`getMeetingAvailability`, no second slot engine), `POST .../book`
+(delegates to the existing `bookMeeting`, which already re-validates
+availability under a row lock at commit time), and
+`BookMeetingScreen.tsx` at `/book/[token]` — a genuinely public,
+unauthenticated route outside both `(auth)` and `(workspace)` route
+groups. Slot times are computed server-side in UTC and rendered here via
+`Intl`/`toLocaleString` in the guest's own detected zone, never
+re-computed client-side. A companion `meeting-links` settings screen
+(`/crm/settings/meeting-links`, generic-resource-backed — confirmed no
+dedicated module exists for it) lets a rep create/archive a link and
+copy its public URL; added `"meeting-links": crm.settings.manage` to
+`RESOURCE_MANAGE_PERMISSIONS` (previously falling through to
+module-access-only, the same class of gap fixed for `account-plans` in
+an earlier tranche).
+
+Also built, since the same token-resolution/manage half of the booking
+lifecycle had no UI either: `GET /api/crm/public/meetings/bookings/[token]`
+(booking detail, added to the existing PATCH-only route) and
+`ManageBookingScreen.tsx` at `/book/manage/[token]`, so a guest can
+actually use the existing, already-tested `cancelMeetingBooking`/
+`rescheduleMeetingBooking` reschedule/cancel functions — the token's own
+`token_type` (`cancel` vs `reschedule`) determines which action the UI
+offers, never guessed.
+
+**Reminders** — `F014-CAP-002` names "reminders" explicitly. Grepped for
+any meeting-specific reminder code: none existed. Found instead that
+`createRemindersForActivity`/`cancelPendingRemindersForActivity`
+(`follow-ups/follow-up-operations.js`) are a fully generic,
+`activity_id`-keyed engine (`crm_activity_reminders`, idempotent by a
+real `(organization_id,activity_id,offset_minutes,channel)` unique
+constraint) — not Follow-up-specific despite living in that file. Only
+`follow-up-operations.js` itself called it; `meeting-operations.js` and
+`communications.js` never did, so a scheduled or publicly-booked Meeting
+never got a reminder. Wired both files into the same shared engine (not
+a second one): `createCrmMeeting` (schedule mode only) and `bookMeeting`
+create reminders on the meeting's `startAt`; `updateCrmMeeting` and
+`rescheduleMeetingBooking` cancel-and-recreate on a real reschedule;
+`completeCrmMeeting`/`cancelCrmMeeting`/`cancelMeetingBooking` cancel
+pending reminders. This is exactly the "keep dispatch authority
+server-side" pattern this prompt asks F016 to have — reused here, not
+duplicated.
+
+**Real Contact/participant picker** — `MeetingFormScreen.tsx` previously
+only accepted plain-text emails for attendees, a disclosed simplification
+from an earlier pass despite `normalizeAttendees` (meeting-operations.js)
+already validating a real `contactId` per attendee. Added a `MultiSelect`
+of active Contacts (mirroring the same bulk-list-then-select pattern used
+for the Account picker in `ContactRelationshipsPanel.tsx`, not a new async
+search infrastructure) alongside — not replacing — the free-text field for
+external guests who aren't a CRM Contact.
+
+Full `services/api` suite: 1052/1052 (1051 + one new test covering the
+reminder wiring, source-assertion style matching this file's own existing
+convention). Web typecheck, ESLint, and the `resource-permissions`
+regression test: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
