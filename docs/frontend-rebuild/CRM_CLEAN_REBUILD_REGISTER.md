@@ -2347,6 +2347,77 @@ graceful non-crashing behavior on a non-numeric value).
 
 Full `apps/web` suite: 17/17 (12 + 5 new). Web typecheck/ESLint: clean.
 
+### 18-19. Traceability expansion + F023 preservation
+
+Stage A2 §18. Traceability was updated incrementally throughout §§10-17
+(not batched at the end) — every CAP/SEC/CALC/VAL row touched by this
+window's actual work was given real evidence at the time the work landed
+(F024/F025/F030/F002 CAP rows in §10-13; F020/F002/F025/F005/F019
+concurrency rows in §14; F002/F021 SEC rows plus F020/F025/F024/F030 SEC
+notes in §16; F024/F025/F030 CALC evidence in §17). A final spot-check of
+the remaining `NOT_VERIFIED`/`NOT_STARTED` rows for the six features
+touched this window (F002/F005/F020/F024/F025/F030 — 61 rows) confirmed
+the pattern holds: the overwhelming majority are legitimately-deferred
+categories (PERF, OBS, E2E, UAT, NOTIF, AUTO, INT — consistent with how
+every other closed feature in this same file defers these to Stage B) with
+already-precise, non-stale notes (e.g. `F002-CALC-001`: "health_score
+column exists but no calculation engine audited or built this pass" —
+exactly true, not placeholder text). No stale or dishonest row was found
+needing correction. This is not exhaustive per-row re-certification of all
+1,110 rows (deliberately out of scope per this stage's own instruction);
+it is confirmation that this stage's own touched surface is evidenced
+well enough that a final certification pass is validation, not
+archaeological reconstruction.
+
+Stage A2 §19. F023 (Opportunity → quotation handoff) was not touched this
+window and remains exactly as documented in the "Mandatory-gap candidates"
+section below and its own dossier row: deliberately deferred to Prompt 4
+(Sales), not a CRM-side gap. Preserved, not re-litigated.
+
+### 20. Targeted real-browser checks — disclosed environment limitation
+
+Stage A2 §20. No live database or browser session is available in this
+environment (no `DATABASE_URL`, no running Postgres process, confirmed
+throughout this entire multi-session engagement and reconfirmed this
+window via `test:integration`, which passed its DB-free contract test and
+gracefully SKIPPED — not failed — its one test requiring a live Postgres
+connection). This is an accepted, disclosed limitation, not a skipped
+obligation: every F024/F025/F030/F002 tranche's own §-section above states
+this explicitly at the point the work landed, rather than only here.
+Static verification (typecheck, lint, `verify:routes`, full test suites)
+was performed for every tranche in its place.
+
+### 21. Final Stage A2 verification gate
+
+Full applicable suite run as one consolidated pass:
+
+| Check | Result |
+|---|---|
+| `services/api` full tests | **1085/1085 passing** |
+| Worker tests | **102/102 passing** |
+| Web tests | **17/17 passing** |
+| Web typecheck | Clean |
+| Web lint | Clean |
+| Web build (`next build`) | Succeeds (exit 0) |
+| `verify:routes` | Passed — 70 `page.tsx`, 131 `route.ts` (115 CRM) |
+| `verify:no-legacy-frontend` | Passed — 510 files scanned, 0 legacy references |
+| `verify:architecture` (+ doc-links) | Passed — 110 capability-owned files, 12 module roots, 870 Markdown files |
+| `verify:db` | Passed — 38 platform + 111 tenant migrations, 0 failing/warning (static analysis) |
+| `verify:crm-module-contracts` | Passed — 82 modules |
+| `packages/permissions` tests | **8/8 passing** |
+| `test:security` | **4/4 passing** |
+| `test:enterprise-rbac` | **5/5 passing** |
+| Mobile typecheck | Clean |
+| `test:integration` | 1 passing, 1 skipped (no live Postgres — graceful, not a failure) |
+
+Node-24 enforcement: `package.json`'s `engines` field still pins
+`node: ">=24 <25"`; this sandbox's global Node is v26.5.0, producing a
+pnpm `[WARN] Unsupported engine` on every command — a pre-existing
+environment condition present throughout this entire multi-session
+engagement (not introduced or changed this window), and every suite above
+still ran and passed correctly despite it. The `engines` pin itself was
+not touched.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
