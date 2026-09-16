@@ -2293,6 +2293,60 @@ fixture throughout).
 Full `services/api` suite: 1085/1085 (1082 + 3 new). Full `apps/web` suite:
 12/12 (9 + 3 new). Web typecheck/ESLint: clean.
 
+### 17. Numeric-contract sweep continuation
+
+Stage A2 §17. Continued the node-postgres NUMERIC audit with attention to
+dashboard aggregates, quota values, forecast amounts, manager adjustments,
+accuracy metrics, and report measures — verifying normalization happens at
+the domain/API/client boundary, not via scattered emergency `Number()`
+casts in JSX.
+
+Audited and confirmed already correctly normalized (no bug found,
+no change needed):
+- **Dashboard aggregates**: integer counts (`count(*)::int`) come back as
+  real JS numbers from pg's own type parser and are rendered directly;
+  `::numeric` sums (`pipelineValue`, `weightedPipeline`, per-stage
+  `amount`) are all rendered through `money()`, never raw-interpolated.
+- **Quota/forecast amounts and manager adjustments**: `CrmForecastScreen.tsx`
+  renders every amount field (`pipelineAmount`/`bestCaseAmount`/
+  `commitAmount`/`managerAdjustment`/`confidencePercent`) through `money()`/
+  `toNumber()` consistently, including the manager-adjustment input and
+  the "By owner" table — no raw arithmetic on an unconverted API field
+  anywhere in the screen.
+- **Accuracy/backtesting metrics**: `getForecastCalibration`
+  (`opportunity-revenue-intelligence.js`) explicitly wraps
+  `predicted_amount`/`actual_won_amount` in `Number(...)` before computing
+  `errorAmount`/`errorPercent` — arithmetic happens on real numbers, not
+  numeric-column strings, and the frontend renders both through
+  `money()`/`toNumber()` too.
+- **Predictive-forecast/quota-seasonality calculation**:
+  `calculatePredictiveForecast`/`allocateQuotaSeasonality` both go through
+  this file's own `number()`/`round2()` coercion helpers for every
+  opportunity/quota amount read from a `::numeric` column before any
+  arithmetic.
+- **Report measures**: `CrmReportsScreen.tsx`'s `formatCell` already
+  matches a strict numeric-string regex before calling `Number(...)` and
+  `.toLocaleString()` (from an earlier F030 pass) — no display-only string
+  concatenation risk.
+
+**Real gap found and fixed**: `apps/web/src/features/crm/shared/format.ts`
+— the single shared coercion boundary every one of the screens above
+depends on (`money()`/`toNumber()`), and the exact function whose own
+comment documents a REAL, previously-live bug (`0 + "5000.00"` is string
+concatenation, not addition, once a value is a numeric-column string) —
+had **no test file of its own** despite being the single point of failure
+for that entire bug class across F024/F025/F030. Added
+`format.test.ts` (5 cases): numeric-string coercion, fail-closed on
+null/non-numeric, a literal regression test reducing three numeric-column-
+string rows and asserting the sum is `9250.5` (a real number), not the
+concatenated string `"05000.003000.001250.50"`, and two `money()` cases
+(grouped formatting via a locale-independent assertion — `toLocaleString()`
+grouping is locale-dependent, en-IN vs en-US, so the test checks the
+coercion happened rather than one locale's exact separator placement — and
+graceful non-crashing behavior on a non-numeric value).
+
+Full `apps/web` suite: 17/17 (12 + 5 new). Web typecheck/ESLint: clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

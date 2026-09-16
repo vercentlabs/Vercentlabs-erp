@@ -2884,7 +2884,7 @@
   },
   "F024-CALC-001": {
     "status": "IMPLEMENTED",
-    "evidence": null,
+    "evidence": "apps/web/src/features/crm/shared/format.test.ts (Stage A2 §17: 5 real regression tests, including a literal reduce()-sum test that would catch the documented string-concatenation bug class)",
     "notes": "Deterministic SQL aggregation; verified numeric-string handling this tranche (see the Tranche K sweep)."
   },
   "F024-UX-001": {
@@ -3064,7 +3064,7 @@
   },
   "F025-CALC-001": {
     "status": "IMPLEMENTED",
-    "evidence": null,
+    "evidence": "apps/web/src/features/crm/shared/format.test.ts (same §17 evidence); getForecastCalibration explicitly Number()-coerces predicted/actual before computing errorAmount/errorPercent",
     "notes": "Deterministic SQL aggregation; verified numeric-string handling this tranche (see the Tranche K sweep)."
   },
   "F025-UX-001": {
@@ -3245,7 +3245,7 @@
   "F030-CALC-001": {
     "status": "IMPLEMENTED",
     "evidence": "formatCell's strict numeric-string regex (this pass)",
-    "notes": "Deterministic formatting; underlying aggregation SQL is each report kind's own, unmodified this pass."
+    "notes": "Deterministic formatting; underlying aggregation SQL is each report kind's own, unmodified this pass. Stage A2 §17: format.ts (money()/toNumber(), the shared coercion boundary this formatCell pattern also follows) now has its own regression test suite (format.test.ts), previously untested despite being the single point of failure for the whole numeric-contract bug class."
   },
   "F030-UX-001": {
     "status": "IMPLEMENTED",
