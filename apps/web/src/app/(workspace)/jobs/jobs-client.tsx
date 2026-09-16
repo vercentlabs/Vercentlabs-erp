@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ListTodo } from "lucide-react";
 
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+
 type BackgroundJob = {
   id: string;
   job_type: string;
@@ -50,9 +53,10 @@ function statusBadgeClass(status: string) {
 }
 
 export function JobsClient() {
+  const workspace = useWorkspaceContext();
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>("all");
   const query = useQuery({
-    queryKey: ["background-jobs", status],
+    queryKey: scopedQueryKey(workspace, "background-jobs", status),
     queryFn: () => fetchJobs(status),
   });
 

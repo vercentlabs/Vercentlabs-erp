@@ -5,6 +5,9 @@ import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
 import { Button } from "@vercentlabs/design-system";
 
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+
 type Notification = {
   id: string;
   type: string;
@@ -27,32 +30,50 @@ async function fetchNotifications(): Promise<Notification[]> {
   return payload.notifications ?? [];
 }
 
+// Checkpoint audit (ERP completion gap register, Phase 6): both mutations
+// below used to fire onSuccess (invalidate + refetch, as if the mutation
+// had actually happened) whenever fetch() itself resolved, regardless of
+// the response status — a 403/404/500 from the API was silently treated
+// as a successful "mark read". Throwing here for a non-ok response is
+// what makes TanStack Query actually run onError instead.
+async function markNotificationReadRequest(id: string) {
+  const response = await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(payload.message || "Could not mark this notification as read.");
+  }
+}
+
+async function markAllNotificationsReadRequest() {
+  const response = await fetch("/api/notifications", { method: "PATCH" });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(payload.message || "Could not mark all notifications as read.");
+  }
+}
+
 const dateFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
   timeStyle: "short",
 });
 
 export function NotificationsClient() {
+  const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
+  const queryKey = scopedQueryKey(workspace, "notifications");
   const query = useQuery({
-    queryKey: ["notifications"],
+    queryKey,
     queryFn: fetchNotifications,
   });
 
   const markRead = useMutation({
-    mutationFn: async (id: string) => {
-      await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+    mutationFn: markNotificationReadRequest,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
   const markAllRead = useMutation({
-    mutationFn: async () => {
-      await fetch("/api/notifications", { method: "PATCH" });
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+    mutationFn: markAllNotificationsReadRequest,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
   if (query.isLoading) {
@@ -75,6 +96,11 @@ export function NotificationsClient() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      {markRead.isError || markAllRead.isError ? (
+        <p role="alert" className="text-sm text-danger">
+          {(markRead.error as Error | null)?.message || (markAllRead.error as Error | null)?.message}
+        </p>
+      ) : null}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-text">Notifications</h1>
         {unreadCount > 0 ? (

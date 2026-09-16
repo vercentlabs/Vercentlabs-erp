@@ -42,6 +42,48 @@ test("notifications: list, mark-one-read and mark-all-read all still work end-to
   }
 });
 
+test("notifications: a failed mark-read request surfaces an error and does not update the UI as if it had succeeded", async ({ page }) => {
+  // Regression guard for a real bug found during the ERP completion gap
+  // audit (Phase 6): notifications-client.tsx's markRead/markAllRead
+  // mutationFn awaited fetch() but never checked response.ok, so
+  // TanStack Query's onSuccess (invalidate + refetch, i.e. "this
+  // succeeded") fired regardless of whether the server actually returned
+  // an error. Mocks both the list (so this test doesn't depend on real,
+  // order-sensitive unread-notification state left behind by earlier
+  // specs in this file) and the read endpoint (forced to fail), then
+  // proves the fixed client surfaces the failure instead of silently
+  // treating it as success.
+  const fakeNotification = {
+    id: "11111111-1111-1111-1111-111111111111",
+    type: "test",
+    title: "E2E synthetic notification",
+    message: "Used only to exercise the mark-read failure path.",
+    href: null,
+    read_at: null,
+    created_at: new Date().toISOString(),
+  };
+  await page.route("**/api/notifications", (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, notifications: [fakeNotification] }) });
+  });
+  await page.route("**/api/notifications/*/read", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, message: "Simulated failure" }) }),
+  );
+
+  await page.goto("/notifications", { waitUntil: "networkidle" });
+  await expect(page.getByText("E2E synthetic notification")).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark read" }).click();
+  // Not getByRole("alert") alone — Next's own route announcer
+  // (#__next-route-announcer__) also carries role="alert" and matches.
+  await expect(page.getByText("Simulated failure")).toBeVisible();
+  // The mocked list never changes (still returns read_at: null every
+  // time), so if the fix regressed and onSuccess fired anyway, the "Mark
+  // read" button would disappear on refetch — asserting it's still there
+  // is the observable proof the UI didn't treat the failure as success.
+  await expect(page.getByRole("button", { name: "Mark read" })).toBeVisible();
+});
+
 test("approvals: list still works end-to-end after the same-origin check was added to decide", async ({ page }) => {
   await page.goto("/approvals", { waitUntil: "networkidle" });
   const result = await page.evaluate(async () => {

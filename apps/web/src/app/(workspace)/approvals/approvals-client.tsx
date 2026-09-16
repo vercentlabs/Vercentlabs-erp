@@ -5,6 +5,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckSquare, Check, X } from "lucide-react";
 import { Button, TextField } from "@vercentlabs/design-system";
 
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+
 type Approval = {
   id: string;
   entity_type: string;
@@ -121,15 +124,20 @@ function ApprovalRow({
 }
 
 export function ApprovalsClient() {
+  const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>("pending");
   const query = useQuery({
-    queryKey: ["approvals", status],
+    queryKey: scopedQueryKey(workspace, "approvals", status),
     queryFn: () => fetchApprovals(status),
   });
 
   function refetchAll() {
-    queryClient.invalidateQueries({ queryKey: ["approvals"] });
+    // Invalidate every status tab's cached query for THIS org/company
+    // scope, not the bare "approvals" key — matching scopedQueryKey's
+    // [organizationId, companyId, ...rest] shape lets a prefix match still
+    // invalidate all of them without touching another scope's cache.
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "approvals") });
   }
 
   return (
