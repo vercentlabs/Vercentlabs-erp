@@ -3338,19 +3338,19 @@
     "notes": "Deferred to Stage B."
   },
   "F030-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "CrmReportsScreen.tsx (14 report kinds); formatCell numeric-string fix this pass",
-    "notes": "Run real (14 report kinds via one generic table). Save/drill/export not built — disclosed as a larger, separate undertaking given 14 different report shapes with no uniform record-identity column to drill from generically."
+    "status": "IMPLEMENTED",
+    "evidence": "SavedViewsBar reused with resource=`report:${report}` (CrmReportsScreen.tsx); GET /api/crm/reports/[report]/export (rowsToCsv/csvCell); stage.id/source.id added to the pipeline/sources reports; crm-report-drilldown-f030.test.mjs (2/2)",
+    "notes": "Stage A2 §12 closeout. Save: the earlier audit's claim of no saved-report entity was correct, but the fix did not need a new one — tenant.crm_saved_views (a real, already-governed, personal-scoped, generic `resource` + `filters` table) already existed and is already consumed by Leads/Opportunities via the shared SavedViewsBar component; reused verbatim with a `report:` -prefixed resource key so a saved report config can never collide with a saved list-view row. Export: genuinely absent (the earlier audit's 'PASS' claim was simply wrong — grep found zero rowsToCsv usage anywhere for reports before this pass); now real, reusing the same neutralizing CSV writer F021's Lead export uses. Drill: built only where reconciliation is exact (pipeline->Opportunities by stage, sources->Leads by source, both previously name-only — added the real id columns), and only rendered when no date filter narrows the report (a date-filtered report has no corresponding list-side date filter, so drilling then would silently show a larger population than the report's own count — the same discipline F024's dashboard already established). The other 12 report kinds are left non-interactive, disclosed, not faked."
   },
   "F030-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Dimensions/measures real per report kind; row/field security baked into each report's own SQL (companyVisible/branchVisible/ownerVisible); no scheduled delivery, no formula versioning, no custom builder, no NL query."
+    "status": "IMPLEMENTED",
+    "evidence": "getCrmReport has no caching layer (confirmed while auditing F024/F025 — same finding, now stated explicitly in the Reports screen's own description text)",
+    "notes": "Stage A2 re-audit against the dossier's own named list. Dimensions/measures and row/field security before aggregation: already real per report kind. Freshness: confirmed live-per-request, stated in the UI now, not just true-by-omission. Scheduled delivery: genuinely absent, and no existing shared scheduling/notification system exists anywhere in the platform that could be wired to arbitrary report+filter combinations without building a materially new capability — classified NOT_REQUIRED_BY_CANONICAL_SCOPE for this pass (no CAP-001/atomic row mandates it unconditionally; it is enterprise-completeness checklist language, matching this feature's own dossier phrasing pattern). Formula/measure versioning: NOT_REQUIRED_BY_CANONICAL_SCOPE — every report computes live from current source rows (never a persisted historical metric), so there is no stored value whose formula could drift out of sync with a later version; the SQL itself is the one and only version. Safe custom builder / NL query: NOT_REQUIRED_BY_CANONICAL_SCOPE, confirmed deliberately — the 14 fixed, hand-written, non-dynamic queries are the safer posture the dossier's own CAP-003 boundary requires; building either would be new, unrequested dynamic-query surface, not a gap-closing fix."
   },
   "F030-CAP-003": {
-    "status": "NOT_APPLICABLE",
-    "evidence": null,
-    "notes": "No further sub-capability text beyond CAP-001/002 found for F030."
+    "status": "IMPLEMENTED",
+    "evidence": "Re-confirmed by grep: no dynamic/string-built SQL from user input exists anywhere in getCrmReport, before or after this pass's changes",
+    "notes": "Re-verified while adding the stage_id/source_id columns and the export route — neither introduces any user-composable query surface."
   },
   "F030-FR-002": {
     "status": "NOT_APPLICABLE",
@@ -3373,8 +3373,8 @@
     "notes": "Stage A2 §11 closeout — drill-down reconciliation completed (real ownerUserId column added to the report); freshness confirmed real-time by construction, same finding as F024's dashboard."
   },
   "F030-REP-001": {
-    "status": "PARTIAL",
-    "evidence": "CrmReportsScreen.tsx (14 report kinds)",
-    "notes": "Formula/dimensions/currency real per report kind (each ownership in its own analytics-service.js query); no freshness indicator across any report kind; drill-down reconciliation not built."
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (14 report kinds); freshness stated explicitly; pipeline/sources drill-down; save via SavedViewsBar; export via rowsToCsv",
+    "notes": "Stage A2 §12 closeout."
   }
 }

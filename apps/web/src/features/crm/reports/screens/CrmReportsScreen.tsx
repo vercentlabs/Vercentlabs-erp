@@ -1,12 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Download } from "lucide-react";
 import { Button, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, Select, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { CrmReportApiError, getCrmReportData } from "../api/reports-api";
 import { CRM_REPORT_OPTIONS, type CrmReportRow } from "../types";
 
@@ -40,7 +43,21 @@ function formatCell(value: string | number | null) {
   return String(value);
 }
 
+// F030 Stage A2 §12 — drill-down is only offered where reconciliation is
+// exact: pipeline/sources rows now carry a real stage/source id
+// (previously name-only), AND only when no date filter narrows the
+// report — a date-filtered report has no corresponding date filter on
+// the Opportunities/Leads list, so a drill link there would silently
+// show a different, larger population than the report's own count. This
+// mirrors F024's dashboard discipline: no clickable metric unless the
+// target list can reproduce its exact population.
+const DRILL_CONFIG: Record<string, { idKey: string; buildHref: (id: string) => string }> = {
+  pipeline: { idKey: "stageId", buildHref: (id) => `/crm/opportunities?stageId=${id}&status=open` },
+  sources: { idKey: "sourceId", buildHref: (id) => `/crm/leads?sourceId=${id}` },
+};
+
 export function CrmReportsScreen() {
+  const router = useRouter();
   const workspace = useWorkspaceContext();
   const [report, setReport] = useState<string>(CRM_REPORT_OPTIONS[0].value);
   const [from, setFrom] = useState("");
@@ -53,17 +70,31 @@ export function CrmReportsScreen() {
   });
 
   const rows: CrmReportRow[] = useMemo(() => query.data?.report.rows ?? [], [query.data]);
+  const drillable = !appliedFilters.from && !appliedFilters.to ? DRILL_CONFIG[report] : undefined;
 
   const columns: ColumnDef<CrmReportRow, unknown>[] = useMemo(() => {
     const first = rows[0];
     if (!first) return [];
-    return Object.keys(first).map((key) => ({
-      id: key,
-      header: titleCase(key),
-      accessorFn: (row: CrmReportRow) => row[key],
-      cell: ({ getValue }: { getValue: () => unknown }) => formatCell(getValue() as string | number | null),
-    }));
-  }, [rows]);
+    return Object.keys(first)
+      .filter((key) => !(drillable && key === drillable.idKey))
+      .map((key) => ({
+        id: key,
+        header: titleCase(key),
+        accessorFn: (row: CrmReportRow) => row[key],
+        cell: ({ getValue, row }: { getValue: () => unknown; row: { original: CrmReportRow } }) => {
+          const formatted = formatCell(getValue() as string | number | null);
+          const idValue = drillable ? row.original[drillable.idKey] : null;
+          if (drillable && idValue && key === Object.keys(first).find((k) => k !== drillable.idKey)) {
+            return (
+              <button type="button" className="text-left hover:underline" onClick={() => router.push(drillable.buildHref(String(idValue)))}>
+                {formatted}
+              </button>
+            );
+          }
+          return formatted;
+        },
+      }));
+  }, [rows, drillable, router]);
 
   const gridState = query.isLoading
     ? "loading"
@@ -75,9 +106,15 @@ export function CrmReportsScreen() {
           ? "empty"
           : "ready";
 
+  const exportParams = new URLSearchParams();
+  if (appliedFilters.from) exportParams.set("from", appliedFilters.from);
+  if (appliedFilters.to) exportParams.set("to", appliedFilters.to);
+  const exportQuery = exportParams.toString();
+  const exportHref = `/api/crm/reports/${encodeURIComponent(report)}/export${exportQuery ? `?${exportQuery}` : ""}`;
+
   return (
     <EnterpriseListPage
-      header={{ title: "Reports", description: "Pipeline, conversion, forecast and coverage reports — scoped to what you can see." }}
+      header={{ title: "Reports", description: "Pipeline, conversion, forecast and coverage reports — scoped to what you can see. Every figure is computed live, on this request — there is no cache to go stale." }}
       actionBar={{
         start: (
           <div className="flex flex-wrap items-end gap-2">
@@ -96,6 +133,29 @@ export function CrmReportsScreen() {
             >
               Apply
             </Button>
+            {/* F030 Stage A2 §12 — "save" reuses the same generic,
+                already-governed tenant.crm_saved_views resource (and the
+                shared SavedViewsBar component) Leads/Opportunities already
+                use, prefixed "report:<key>" so a saved report configuration
+                never collides with a saved list-view row. */}
+            <SavedViewsBar
+              resource={`report:${report}`}
+              baseFilters={{}}
+              currentFilters={appliedFilters}
+              hasExplicitFilters={false}
+              onApply={(filters) => {
+                setFrom(filters.from ?? "");
+                setTo(filters.to ?? "");
+                setAppliedFilters(filters);
+              }}
+            />
+            <a
+              href={exportHref}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-muted"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Export CSV
+            </a>
           </div>
         ),
       }}

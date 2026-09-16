@@ -230,6 +230,7 @@ export function seedBusinessDataFoundation(
   client: QueryClient,
   context: Pick<BusinessDataContext, "organizationId" | "userId">,
 ): Promise<void>;
+export * from "@vercentlabs/reporting-engine";
 export * from "./modules/crm/index.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/account-operations.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-operations.js";

@@ -1921,6 +1921,62 @@ Full `services/api` suite: 1077/1077 (+14: 7 review-guard tests, 4
 period-lock tests, 3 owner-scope hierarchy tests). Web typecheck, ESLint,
 `verify:routes`: all clean.
 
+### 12. F030 CRM Reports — save/export built; drill-down where it reconciles exactly
+
+`F030-AUDIT.md` correctly found "no save" and "no scheduled delivery"
+real, but was flatly **wrong** about export: it claimed "Export: PASS —
+CSV export reuses `rowsToCsv`," which grep disproved outright — zero
+usages of `rowsToCsv` existed anywhere for reports before this pass. The
+audit also under-sold "save" as needing a whole new entity; it didn't.
+
+- **Save**: `tenant.crm_saved_views` — a real, already-governed,
+  personal-scoped (`user_id = context.userId`, enforced in
+  `recordScope`) generic `{resource, name, filters, sort, columns,
+  isDefault}` table — already existed and is already consumed by Leads/
+  Opportunities via the shared `SavedViewsBar` component. Reused
+  verbatim in `CrmReportsScreen.tsx` with `resource={`report:${report}`}`
+  — no new schema, no new component, just a new `resource` string
+  namespace so a saved report config can never collide with a saved
+  list-view row.
+- **Export**: genuinely absent, confirmed by grep before building
+  anything. New `GET /api/crm/reports/[report]/export` reuses the exact
+  same `getCrmReport` call the interactive screen uses (identical row/
+  field scope by construction) and `rowsToCsv`/`csvCell`
+  (`@vercentlabs/reporting-engine`) — the same formula-injection-
+  neutralizing writer wired into F021's Lead export, now also
+  re-exported from `@vercentlabs/api`'s top level so `apps/web` doesn't
+  need a direct workspace dependency on the reporting-engine package.
+- **Drill**: built only for `pipeline` (by stage) and `sources` (by lead
+  source) — the two reports whose grouping key already exists as a real
+  filter on an authorized list (`stageId` on Opportunities, `sourceId`
+  on Leads). Both previously returned only a display **name**, not a
+  safe filter key — added `stage.id`/`source.id` to their `SELECT`/
+  `GROUP BY` (proven by 2 new tests,
+  `crm-report-drilldown-f030.test.mjs`). Critically, the drill link is
+  only rendered when **no date filter is applied** — a date-filtered
+  report has no corresponding date filter on the Opportunities/Leads
+  list screens, so drilling with an active date range would silently
+  show a larger, non-reconciling population. This is the exact same
+  "no clickable metric unless the target list can reproduce its exact
+  population" discipline F024's dashboard fix already established. The
+  other 12 report kinds remain non-interactive — disclosed, not faked.
+- **Freshness**: confirmed (not merely assumed) `getCrmReport` has no
+  caching layer, same finding as F024/F025 — now stated explicitly in
+  the Reports screen's own header text instead of being true only by
+  omission.
+- **Scheduled delivery / formula versioning / custom builder / NL
+  query**: classified `NOT_REQUIRED_BY_CANONICAL_SCOPE`, each with its
+  own reasoning (see the traceability entry) — no atomic row
+  unconditionally mandates any of the four, no existing shared
+  scheduling/notification system exists to "wire" for scheduled
+  delivery (inventing one would be new capability, not a fix), reports
+  compute live so there is no persisted value whose formula could drift
+  out of version, and the 14-fixed-query design is the deliberately
+  safer posture CAP-003 itself requires over a dynamic builder.
+
+Full `services/api` suite: 1079/1079 (+2 drill-down reconciliation
+tests). Web typecheck, ESLint, `verify:routes`: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

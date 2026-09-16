@@ -1,3 +1,4 @@
+export * from "@vercentlabs/reporting-engine";
 export * from "./core/master-data.js";
 export * from "./core/document-numbering.js";
 export * from "./core/idempotency.js";
