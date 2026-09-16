@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@vercentlabs/design-system";
@@ -58,6 +59,9 @@ export function LoginForm() {
         value={password}
         onChange={setPassword}
       />
+      <Link href="/forgot-password" className="self-end text-sm font-medium text-brand hover:underline">
+        Forgot password?
+      </Link>
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}

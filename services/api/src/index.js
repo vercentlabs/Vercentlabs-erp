@@ -127,6 +127,7 @@ export * from "./core/security.js";
 export * from "./core/attachment-security.js";
 export * from "./core/password-policy.js";
 export * from "./core/auth-mailer.js";
+export * from "./core/auth-lifecycle.js";
 export * from "./core/api-keys.js";
 export * from "./core/oauth.js";
 export * from "./core/notification-preferences.js";
