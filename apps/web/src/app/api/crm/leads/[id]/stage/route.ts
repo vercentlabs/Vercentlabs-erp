@@ -1,7 +1,7 @@
 import { assertSameOriginOrMobile, getLeadStageDwell, listLeadStageHistory, transitionLeadStage } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     // Sequential, not Promise.all — concurrent queries on one shared
     // pg client/connection are unsafe (see opportunity-revenue-
     // intelligence.js's documented fix for the same hazard).
-    const { dwell, history } = await withClient(async (client) => {
+    const { dwell, history } = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       const dwell = await getLeadStageDwell(client, ctx, id);
       const history = await listLeadStageHistory(client, ctx, id);

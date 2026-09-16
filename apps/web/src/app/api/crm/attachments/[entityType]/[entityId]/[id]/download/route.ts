@@ -1,6 +1,6 @@
 import { getCrmAttachmentContent } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ entity
   try {
     const session = await requireWorkspace();
     const { entityType, entityId, id } = await context.params;
-    const attachment = await withClient(async (client) => {
+    const attachment = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return getCrmAttachmentContent(client, crmContext(session), entityType as never, entityId, id);
     });

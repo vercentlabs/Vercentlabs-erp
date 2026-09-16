@@ -1,6 +1,6 @@
 import { findApplicableTransitionReasons, getCrmRecord, getLeadStage } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -16,7 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const toStageId = url.searchParams.get("toStageId");
     if (!toStageId) throw new HttpError(400, "A destination stage is required.");
     const ctx = crmContext(session);
-    const reasons = await withClient(async (client) => {
+    const reasons = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       const lead = await getCrmRecord(client, ctx, "leads", id);
       const fromStage = await getLeadStage(client, ctx, lead.status);

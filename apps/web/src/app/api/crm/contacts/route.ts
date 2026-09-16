@@ -1,7 +1,7 @@
 import { assertSameOriginOrMobile, createCrmContact, listCrmContacts } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
       offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
     };
-    const result = await withClient(async (client) => {
+    const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return listCrmContacts(client, crmContext(session), options);
     });

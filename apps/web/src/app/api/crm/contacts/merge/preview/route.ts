@@ -1,6 +1,6 @@
 import { previewContactMergeForCaller } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const body = (await readJson(request)) as { sourceId?: string; survivorId?: string };
     if (!body.sourceId || !body.survivorId) throw new HttpError(400, "Both sourceId and survivorId are required.");
-    const preview = await withClient(async (client) => {
+    const preview = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return previewContactMergeForCaller(client, crmContext(session), body.sourceId!, body.survivorId!);
     });

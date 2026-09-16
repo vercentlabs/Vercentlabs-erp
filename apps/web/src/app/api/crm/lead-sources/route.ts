@@ -1,7 +1,7 @@
 import { assertSameOriginOrMobile, createCrmLeadSource, listCrmLeadSources } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -16,7 +16,7 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 export async function GET() {
   try {
     const session = await requireWorkspace();
-    const result = await withClient(async (client) => {
+    const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return listCrmLeadSources(client, crmContext(session), { status: "all", limit: 200 });
     });

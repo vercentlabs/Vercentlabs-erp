@@ -1,7 +1,7 @@
 import { assertSameOriginOrMobile, getAccountHierarchy, setAccountParent } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const session = await requireWorkspace();
     const { id } = await context.params;
-    const hierarchy = await withClient(async (client) => {
+    const hierarchy = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return getAccountHierarchy(client, crmContext(session), id);
     });

@@ -1,7 +1,7 @@
 import { explainLeadAssignmentCandidates, listLeadAssignmentPolicies } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -27,7 +27,7 @@ export async function GET(request: Request, context: RouteContext) {
     const url = new URL(request.url);
     const companyId = url.searchParams.get("companyId") || undefined;
     const branchId = url.searchParams.get("branchId") || undefined;
-    const rows = await withClient(async (client) => {
+    const rows = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
       // listLeadAssignmentPolicies returns RAW snake_case rows (assignment-
       // engine.js does not camelize — confirmed this session, see

@@ -1,7 +1,7 @@
 import { findAccountDuplicates, findContactDuplicates, getCrmRecord } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const session = await requireWorkspace();
     const { id } = await context.params;
-    const result = await withClient(async (client) => {
+    const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
       const lead = (await getCrmRecord(client, crmContext(session), "leads", id)) as Record<string, unknown>;
       const [accountCandidates, contactCandidates] = await Promise.all([

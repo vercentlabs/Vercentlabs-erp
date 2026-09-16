@@ -156,6 +156,37 @@ walk(appRoot, (file, name) => {
   }
 });
 
+// --- Check 5: no CRM API route reads tenant data through withClient -------
+// Formalizes the Prompt 3 live-browser QA discovery: `withClient()` (src/
+// core/db.ts) opens a bare pool connection and never sets Postgres's
+// `app.current_organization_id` session variable, which every tenant-
+// schema table's RLS policy (`organization_id = tenant.
+// current_organization_id()`) is keyed on. Every services/api test that
+// exercised this codebase before this pass used a mocked `client.query`
+// that has no concept of RLS, so this was invisible until a real browser
+// hit a real Postgres database: `getCrmDashboard`, the generic `[resource]`
+// list/get boundary, and 57 other CRM read routes silently returned EMPTY
+// results for every tenant with real data — with_client's own bare
+// connection was denied every row by RLS, not by any application-level
+// filter. Fixed by switching every CRM route to `tenantTransaction(session.
+// organizationId, ...)`, the same helper already used for CRM writes
+// (which is why writes always worked and reads never did). withClient()
+// itself remains legitimate for routes reading ONLY non-RLS platform-
+// schema tables (auth/login, workspace/companies, notifications,
+// approvals, and this app's own /api/privacy/* routes, which wire the
+// platform privacy tables that deliberately have no RLS) — this check is
+// scoped to api/crm/ specifically, not a blanket ban on withClient.
+walk(appRoot, (file, name) => {
+  if (name !== "route.ts") return;
+  if (!file.includes(`${path.sep}api${path.sep}crm${path.sep}`)) return;
+  const source = fs.readFileSync(file, "utf8");
+  if (/\bwithClient\s*\(/.test(source)) {
+    fail(
+      `${relative(file)}: uses withClient() for a CRM (tenant-schema) route — this never sets Postgres's app.current_organization_id, so every RLS-protected query silently returns zero rows against a real database. Use tenantTransaction(session.organizationId, ...) instead.`,
+    );
+  }
+});
+
 console.log(
   `Checked ${pagesChecked} page.tsx, ${routesChecked} route.ts (${crmRoutesChecked} CRM) file(s) under src/app.`,
 );

@@ -1,6 +1,6 @@
 import { listLeadStageTransitions } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -11,7 +11,7 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 export async function GET() {
   try {
     const session = await requireWorkspace();
-    const transitions = await withClient(async (client) => {
+    const transitions = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return listLeadStageTransitions(client, crmContext(session));
     });

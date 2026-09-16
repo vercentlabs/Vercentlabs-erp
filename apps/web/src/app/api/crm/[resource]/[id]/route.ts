@@ -1,6 +1,6 @@
 import { archiveCrmRecord, assertSameOriginOrMobile, getCrmRecord, isCrmResource, updateCrmRecord } from "@vercentlabs/api";
 
-import { tenantTransaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const session = await requireWorkspace();
     const { resource, id } = await context.params;
     if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
-    const record = await withClient(async (client) => {
+    const record = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return getCrmRecord(client, crmContext(session), resource, id);
     });

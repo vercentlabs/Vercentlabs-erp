@@ -1,6 +1,6 @@
 import { assertSameOriginOrMobile, createCrmNote, listCrmNotes } from "@vercentlabs/api";
 
-import { tenantTransaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const entityId = url.searchParams.get("entityId");
     if (!entityType || !entityId) throw new HttpError(400, "entityType and entityId are required.");
     const includeArchived = url.searchParams.get("includeArchived") === "true";
-    const notes = await withClient(async (client) => {
+    const notes = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
       return listCrmNotes(client, crmContext(session), entityType, entityId, { includeArchived });
     });
