@@ -1,16 +1,15 @@
 import { assertSameOriginOrMobile, transitionPrivacyRequest } from "@vercentlabs/api";
-import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { transaction } from "@/core/db";
 import { requireWorkspace } from "@/core/session";
+import { assertPrivacyManage } from "@/core/privacy-authorization";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
-    if (!session.permissions?.includes(CORE_PERMISSIONS.platformPrivacyManage))
-      throw new HttpError(403, "You do not have permission to manage privacy requests.");
+    assertPrivacyManage(session);
     const { id } = await context.params;
     const input = (await readJson(request)) as { status?: string; resultPayload?: unknown };
     const status = input.status;

@@ -1,9 +1,9 @@
 import { assertSameOriginOrMobile, createPrivacyRequest, listPrivacyRequests } from "@vercentlabs/api";
-import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { errorResponse, ok, readJson } from "@/core/http";
 import { transaction, withClient } from "@/core/db";
 import { requireWorkspace } from "@/core/session";
+import { assertPrivacyManage } from "@/core/privacy-authorization";
 
 // F002 Stage A2 §13. Wires the shared PLATFORM privacy authority
 // (services/api/src/core/privacy.js — a real, already-built, org-scoped
@@ -16,11 +16,6 @@ import { requireWorkspace } from "@/core/session";
 // packages/permissions/src/roles.js) so an ordinary CRM manager with
 // crm.accounts.manage does not also gain privacy-administration
 // authority just by being able to view an Account.
-function assertPrivacyManage(session: { permissions?: string[] }) {
-  if (!session.permissions?.includes(CORE_PERMISSIONS.platformPrivacyManage))
-    throw new HttpError(403, "You do not have permission to manage privacy requests.");
-}
-
 export async function GET() {
   try {
     const session = await requireWorkspace();

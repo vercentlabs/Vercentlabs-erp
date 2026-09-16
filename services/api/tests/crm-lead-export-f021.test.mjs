@@ -71,6 +71,38 @@ test("F021: getCrmLeadExportJob allows a view_all holder to read someone else's 
   assert.equal(job.id, jobId);
 });
 
+// Stage A2 §16 (SEC-002): a real cross-tenant negative test. Unlike the
+// two tests above (whose mock ignores `values` entirely and always
+// returns the fixture job regardless of organization_id), this mock
+// actually evaluates the SQL's own organization_id=$1 predicate — proving
+// a job that genuinely exists, but for a DIFFERENT organization than the
+// caller's session, is rejected the same way a truly nonexistent job
+// would be (404 "Export job not found"), even for that other org's own
+// requester/view_all holder — never leaking that the id is real.
+test("F021: getCrmLeadExportJob 404s (does not leak existence) for a job belonging to a different organization, even for its own requester", async () => {
+  const otherOrg = "77777777-7777-4777-8777-777777777777";
+  const jobRow = { id: jobId, organization_id: org, job_type: LEAD_EXPORT_JOB_TYPE, requested_by: requester, status: "completed" };
+  const client = {
+    async query(sql, values = []) {
+      if (sql.includes("FROM tenant.background_jobs")) {
+        const [organizationId, id] = values;
+        if (organizationId === jobRow.organization_id && id === jobRow.id) return { rows: [jobRow] };
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const crossOrgContext = { ...context, organizationId: otherOrg, userId: requester };
+  await assert.rejects(
+    () => getCrmLeadExportJob(client, crossOrgContext, jobId),
+    (error) => error.status === 404 && /not found/.test(error.message),
+  );
+  // Sanity check the mock is a real predicate, not a tautology: the
+  // legitimate owning organization's requester can still read it.
+  const job = await getCrmLeadExportJob(client, context, jobId);
+  assert.equal(job.id, jobId);
+});
+
 test("F021: buildCrmLeadExportCsv reuses listCrmRecords's real query shape, resolves owner display names, and neutralizes a formula-injection payload via the shared csvCell writer", async () => {
   const client = createClient({
     leadRows: [

@@ -1,14 +1,9 @@
 import { assertSameOriginOrMobile, listRetentionPolicies, writeRetentionPolicy } from "@vercentlabs/api";
-import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { errorResponse, ok, readJson } from "@/core/http";
 import { transaction, withClient } from "@/core/db";
 import { requireWorkspace } from "@/core/session";
-
-function assertPrivacyManage(session: { permissions?: string[] }) {
-  if (!session.permissions?.includes(CORE_PERMISSIONS.platformPrivacyManage))
-    throw new HttpError(403, "You do not have permission to manage retention policies.");
-}
+import { assertPrivacyManage } from "@/core/privacy-authorization";
 
 export async function GET() {
   try {

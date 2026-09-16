@@ -31,6 +31,7 @@ const RESOURCES_WITH_SHIPPED_UI = [
   "opportunities",
   "forecast-periods",
   "forecast-submissions",
+  "quota-plans",
 ];
 
 test("resource-permissions: every generic resource with a shipped settings/record screen has a manage-permission entry", () => {

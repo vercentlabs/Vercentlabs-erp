@@ -2187,6 +2187,112 @@ Full `services/api` suite: 1082/1082 (no regressions from the ORDER BY
 change — no test asserted an exact orderBy string; the widened `id`
 tiebreaker was added to the test suite itself, not discovered breaking it).
 
+### 16. SEC-002 negative-test audit — real behavioral tests, not source-code grep
+
+Stage A2 §16. Audited the 13 named newly-wired-or-touched surfaces for
+REAL behavioral negative tests (a test that actually calls the function/
+route and asserts a rejection for wrong org/tenant, wrong company,
+view-only-vs-manage, missing permission, restricted field/aggregate/
+export, existence leakage, or cross-scope download) — a source-grep
+confirming a permission check exists in the code does not count. An
+Explore-agent research pass first inventoried existing coverage per
+surface against `services/api/tests/*.mjs`; findings and fixes below.
+
+**Fixed this pass:**
+- **Privacy/retention** (the one entirely new surface from §13): had ZERO
+  tests, as flagged when §13 explicitly deferred this. `assertPrivacyManage`
+  existed as three near-identical private copies (one per route file,
+  slightly different messages) — extracted to one shared, exported,
+  directly-testable module, `apps/web/src/core/privacy-authorization.ts`
+  (imports `http-errors.ts`/relative paths, not `http.ts`/the `@/` alias,
+  so it stays testable under plain `node --test`, matching this
+  directory's existing convention). New test:
+  `privacy-authorization.test.ts` (3 cases) — a caller holding every other
+  CRM permission, including the CRM-department-tier `crm.privacy.manage`,
+  is still rejected; a caller with no permissions array at all is rejected;
+  a caller who actually holds `platform.privacy.manage` is allowed. Also
+  added a real cross-tenant test to `platform-privacy.test.mjs`:
+  `transitionPrivacyRequest` 404s (not a leak) for a request that
+  genuinely exists but belongs to a different organization, verified with
+  a mock that evaluates the SQL's own `organization_id` predicate rather
+  than returning canned rows regardless of the caller — with a sanity
+  check that the same mock lets the real owning organization through, so
+  the test is a real predicate, not a tautology.
+- **Async export download / Lead export** (§9/§13 combined): the two
+  existing `getCrmLeadExportJob` tests already covered same-org
+  missing-permission, but their mock ignored `organization_id` entirely.
+  New test in `crm-lead-export-f021.test.mjs`: a job that exists for org A
+  is 404'd (not "you do not have access" — no existence leak) when fetched
+  with org B's context, using a mock that actually checks both SQL
+  parameters, with the same real-predicate sanity check.
+- **quota-plans** added to the `RESOURCES_WITH_SHIPPED_UI` regression-guard
+  list (`resource-permissions.test.ts`) — it had shipped UI (§8/F020) but
+  was missing from this pre-existing test's allowlist, an omission that
+  would have let its `RESOURCE_MANAGE_PERMISSIONS` entry silently regress
+  to module-access-only without failing anything.
+
+**Confirmed already covered (no action needed):** custom fields/role
+visibility (`crm-custom-fields-f028.test.mjs` — restricted-field redaction
+and rejection, real behavioral); forecast-submissions (self-review/
+self-adjustment-forbidden, team-manager scoping — real, from §14/§11).
+
+**Disclosed, not fixed this pass — architectural, not a hole:** Team/
+territory config, quota/forecast-periods, and Account/Contact merge
+(`mergeAccountsGoverned`/`mergeContactsGoverned`) enforce permissions
+exclusively at the `apps/web` route layer via `requireCrmAccess` →
+`requireSessionPermission`, consistent with how every generic CRM resource
+in this codebase is gated (`resource-mutation-service.js` itself has no
+per-resource permission check anywhere, by design). That shared gate IS
+behaviorally tested generically
+(`platform-access-control-runtime.test.mjs`: throws `PermissionDeniedError`
+403 for a session lacking the permission), and each route's specific
+permission mapping was verified by direct code read this pass (e.g.
+`accounts/merge/route.ts` → `CRM_PERMISSIONS.accountsManage`). What's
+missing is a route-specific behavioral test proving THIS route wires the
+correct permission (a copy-paste error wiring the wrong permission to one
+route wouldn't be caught) — real test-coverage debt, not a live
+vulnerability, given the consistent architecture and confirmed-correct
+wiring.
+
+**Disclosed, not fixed this pass — requires a live database:** Dashboard
+aggregates (`getCrmDashboard`) and Reports (`getCrmReport`) enforce their
+row-level company/branch/owner scoping entirely inside large, single-query
+raw SQL (`companyVisible`/`branchVisible`/`ownerVisible` predicates
+embedded in the SQL string itself, parameterized by
+`canViewAllCrmRecords(context)`/`context.userId`). A genuinely behavioral
+proof that a restricted caller's aggregate actually excludes records they
+cannot see requires executing that SQL against real data — a JS mock that
+merely returns canned rows regardless of the query (the existing
+`crm-record-scope.test.mjs` tests, which openly document this limitation
+in their own comments) only proves parameter-threading, not the actual
+filtering effect, and writing a mock that re-implements the real predicate
+logic against fixture rows (as done for the forecast-submission
+`recordScope` fix and the two cross-org tests above) is tractable for a
+simple `WHERE org=$1 AND id=$2` shape but not for this scale of combined
+multi-CTE aggregate SQL. This environment has no live Postgres available
+(disclosed since the start of this engagement — no `DATABASE_URL`, no
+running Postgres process). Report export inherits the same limitation
+since it reads through `getCrmReport` directly. The existing SQL-predicate
+evidence (confirmed present, matching `recordScope`'s established
+convention) remains the best available evidence without a live DB.
+- **Meeting public booking** is in the same "no live DB" category, but for
+  a different reason: token resolution runs entirely inside a Postgres
+  `SECURITY DEFINER` function (`tenant.crm_public_meeting_link`/
+  `..._booking`) called directly from the Next.js route with no JS
+  wrapper to unit-test — the existing "test" (`crm-meeting-booking-token-
+  expiry-f014.test.mjs`) is pure source/migration-file regex matching, not
+  a behavioral test, and this pass did not add a JS wrapper only to make
+  it testable (that would be new architecture, not a test-coverage fix).
+
+**Deprioritized given remaining Stage A2 scope, not fixed this pass:**
+Lead import missing-permission test (`lead-import.js` commit/rollback);
+Attachments/Accounts/Contacts explicit wrong-org variant (existing tests
+cover missing-permission and restricted-field well, using a single-org
+fixture throughout).
+
+Full `services/api` suite: 1085/1085 (1082 + 3 new). Full `apps/web` suite:
+12/12 (9 + 3 new). Web typecheck/ESLint: clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

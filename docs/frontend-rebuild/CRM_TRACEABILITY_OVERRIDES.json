@@ -523,9 +523,9 @@
     "notes": null
   },
   "F020-SEC-002": {
-    "status": "NOT_STARTED",
+    "status": "PARTIAL",
     "evidence": null,
-    "notes": "No dedicated negative-test suite for team/territory visibility written this pass."
+    "notes": "Stage A2 §16: confirmed architectural, not a hole — sales-teams/territories/territory-assignments/quota-plans permission enforcement lives entirely at the apps/web route layer (requireCrmAccess -> requireSessionPermission), consistent with every generic CRM resource in this codebase (resource-mutation-service.js has no per-resource permission check by design). That shared gate is behaviorally tested generically (platform-access-control-runtime.test.mjs). Each route's specific permission mapping was verified correct by direct code read this pass. Missing: a route-specific behavioral test that would catch a copy-paste error wiring the wrong permission to one route — real test-coverage debt, not a live vulnerability."
   },
   "F020-AUTO-001": {
     "status": "NOT_APPLICABLE",
@@ -2910,7 +2910,7 @@
   "F024-SEC-002": {
     "status": "NOT_VERIFIED",
     "evidence": null,
-    "notes": "No dedicated negative-test suite for this specific screen written this pass."
+    "notes": "Stage A2 §16: getCrmDashboard enforces row-level company/branch/owner scoping entirely inside one large raw-SQL query (companyVisible/branchVisible/ownerVisible predicates parameterized by canViewAllCrmRecords/userId). A genuinely behavioral proof requires executing that SQL against real data; a JS mock returning canned rows regardless of the query (the existing crm-record-scope.test.mjs tests, which document this limitation in their own comments) only proves parameter-threading. This environment has no live Postgres available (disclosed since the start of this engagement). Source-level predicate-presence evidence remains the best available without a live DB."
   },
   "F024-AUTO-001": {
     "status": "NOT_APPLICABLE",
@@ -3088,9 +3088,9 @@
     "notes": null
   },
   "F025-SEC-002": {
-    "status": "NOT_VERIFIED",
-    "evidence": null,
-    "notes": "No dedicated negative-test suite for this specific screen written this pass."
+    "status": "PARTIAL",
+    "evidence": "crm-forecast-review-guards-f025.test.mjs (self-review/self-adjustment-forbidden, real); crm-forecast-submission-owner-scope-f025.test.mjs (team-manager visibility scoping, real)",
+    "notes": "Stage A2 §16: forecast-submissions is genuinely well-covered. forecast-periods and quota-plans have no permission-specific test — same disclosed architectural gap as F020-SEC-002 (route-layer-only enforcement, generic gate proven, per-route wiring verified by code read but not independently tested)."
   },
   "F025-AUTO-001": {
     "status": "NOT_APPLICABLE",
@@ -3270,7 +3270,7 @@
   "F030-SEC-002": {
     "status": "NOT_VERIFIED",
     "evidence": null,
-    "notes": "No dedicated negative-test suite for this specific screen written this pass."
+    "notes": "Stage A2 §16: same live-DB limitation as F024-SEC-002 — getCrmReport's row-level scoping lives entirely in raw SQL, and report export (GET /api/crm/reports/[report]/export) reads through it directly, inheriting the same gap."
   },
   "F030-AUTO-001": {
     "status": "NOT_APPLICABLE",
@@ -3386,5 +3386,15 @@
     "status": "IMPLEMENTED",
     "evidence": "scoring-rules added to GENERIC_VERSIONED_RESOURCES (resource-validation.js)",
     "notes": "Stage A2 §14: lead-scoring configuration (genuinely consumed by scoring-engine.js/model-config.js) had no server-side concurrency check on the generic mutation path. Now enforced."
+  },
+  "F002-SEC-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "apps/web/src/core/privacy-authorization.ts + .test.ts (3 real behavioral tests); platform-privacy.test.mjs cross-org transitionPrivacyRequest test",
+    "notes": "Stage A2 §16 closeout of the gap explicitly deferred at §13. Real tests prove: a caller holding every other CRM permission (including crm.privacy.manage) is still rejected without platform.privacy.manage; a request belonging to a different organization 404s rather than leaking existence, verified with a mock that evaluates the real organization_id predicate (not canned rows)."
+  },
+  "F021-SEC-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm-lead-export-f021.test.mjs: cross-organization getCrmLeadExportJob test using a mock that evaluates the real organization_id/id predicate",
+    "notes": "Stage A2 §16: the two pre-existing getCrmLeadExportJob tests covered same-org missing-permission but their mock ignored organization_id entirely. New test proves a job from a different org 404s (not a 403 that would leak existence), with a sanity check that the legitimate owning org can still read it."
   }
 }
