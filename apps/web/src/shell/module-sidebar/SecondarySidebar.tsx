@@ -52,7 +52,18 @@ export function SecondarySidebar() {
                 const permitted =
                   !item.requiredPermission ||
                   permissions.includes(item.requiredPermission);
-                if (available) {
+                // Checkpoint audit (ERP completion gap register, Phase 6):
+                // this used to check only `available`, rendering a real,
+                // clickable Link for any built feature regardless of
+                // `permitted` — a user lacking item.requiredPermission
+                // still saw and could follow a live link to it in the
+                // nav, landing on whatever error state the page itself
+                // produces instead of the already-written, already-styled
+                // disabled/locked state two lines below (which existed,
+                // and was correctly worded for this exact case, but was
+                // unreachable — every AVAILABLE item took the Link branch
+                // no matter what `permitted` evaluated to).
+                if (available && permitted) {
                   const active = isActiveRoute(pathname, item.route);
                   return (
                     <Link

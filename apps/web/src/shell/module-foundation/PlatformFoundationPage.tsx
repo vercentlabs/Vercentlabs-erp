@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { hasSessionPermission } from "@vercentlabs/api";
 import { AlertTriangle, Construction } from "lucide-react";
 
@@ -11,10 +12,15 @@ export async function PlatformFoundationPage({
   label,
   requiredPermission,
   description,
+  quickLinks,
 }: {
   label: string;
   requiredPermission?: string;
   description?: string;
+  // For a foundation surface with at least one real sub-page already
+  // built (e.g. Settings > Profile) — surfaces it instead of leaving the
+  // one working destination reachable only by typing its URL directly.
+  quickLinks?: { href: string; label: string }[];
 }) {
   const session = await requireWorkspace();
 
@@ -43,6 +49,19 @@ export async function PlatformFoundationPage({
       <p className="max-w-[420px] text-sm text-text-secondary">
         {description || `${label} is being connected to its backing API.`}
       </p>
+      {quickLinks && quickLinks.length > 0 ? (
+        <div className="flex flex-wrap justify-center gap-2">
+          {quickLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm font-medium text-brand hover:bg-surface-muted"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Menu as MenuIcon, Lock } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut, Menu as MenuIcon, Lock, User } from "lucide-react";
 import { Drawer, IconButton } from "@vercentlabs/design-system";
 import type { ModuleAccess } from "@vercentlabs/api";
 
@@ -24,6 +24,35 @@ const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+// Checkpoint audit (ERP completion gap register, Phase 6): ProfileMenu
+// (the sign-out entry point) lives in PrimarySidebar, which is
+// `hidden lg:flex` — below 1024px there was no sign-out control
+// anywhere in the app at all. DrawerRow's Link-only shape can't express
+// an action, so this is a small, separate row type for it.
+function DrawerActionRow({
+  label,
+  icon,
+  onPress,
+  isLoading,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+  isLoading?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      disabled={isLoading}
+      className="flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-left text-sm text-text transition-colors hover:bg-surface-muted disabled:opacity-60"
+    >
+      {icon}
+      <span className="flex-1">{isLoading ? "Signing out…" : label}</span>
+    </button>
+  );
 }
 
 function DrawerRow({
@@ -107,11 +136,23 @@ export function MobileNav({
   unreadNotificationCount: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const accessByModuleKey = new Map(
     accessibleModules.map((access) => [access.moduleId, access]),
   );
   const counts = { pendingApprovalCount, unreadNotificationCount };
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="flex lg:hidden">
@@ -209,6 +250,17 @@ export function MobileNav({
                 onNavigate={close}
               />
             ))}
+
+            <div aria-hidden="true" className="my-2 h-px bg-border" />
+
+            <DrawerRow
+              href="/settings/profile"
+              label="Profile"
+              icon={<User aria-hidden="true" className="size-4" />}
+              active={isActive(pathname, "/settings/profile")}
+              onNavigate={close}
+            />
+            <DrawerActionRow label="Sign out" icon={<LogOut aria-hidden="true" className="size-4" />} onPress={handleSignOut} isLoading={signingOut} />
           </nav>
         )}
       </Drawer>
