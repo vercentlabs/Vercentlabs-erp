@@ -25,6 +25,7 @@ import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
 import { setTenantContext } from "../../packages/database/src/index.js";
+import { listCrmRecords } from "../../services/api/src/modules/crm/index.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 const appConnectionString = process.env.DATABASE_URL || "";
@@ -123,6 +124,79 @@ test("CRM tenant RLS: the restricted runtime role sees a lead only after setTena
   } finally {
     await admin.query(`DELETE FROM tenant.crm_leads WHERE id=$1`, [leadId]).catch(() => undefined);
     await admin.query(`DELETE FROM tenant.crm_lead_stages WHERE organization_id=$1`, [organizationId]).catch(() => undefined);
+    await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [organizationId]).catch(() => undefined);
+    await admin.query(`DELETE FROM public.users WHERE id=$1`, [userId]).catch(() => undefined);
+    await app.end();
+    await admin.end();
+  }
+});
+
+test("CRM Communications: listCrmRecords does not throw \"could not determine data type of parameter\" for an organization_owner/allowAllCompanies caller", async (t) => {
+  // Real Prompt 3 live-browser QA discovery, found immediately after fixing
+  // the RLS bug above (the Communications page 500'd on its very first
+  // real request): communicationVisibilitySql (communication-projection.js)
+  // interpolated a bare boolean placeholder (`OR $N OR`, no cast) into the
+  // audience predicate, and communicationParentScopeSql (record-policy.js)
+  // pushed context.activeCompanyId onto the parameters array even when
+  // allowAllCompanies made it unused in the returned SQL text — both leave
+  // Postgres unable to infer a parameter's type, and BOTH only manifest for
+  // an organization_owner/view_all caller (the common case), never for a
+  // caller who instead hits recordScope's other branches. Neither is
+  // reachable from a mocked client.query, which never parses SQL at all.
+  const admin = await connectOrNull(adminConnectionString);
+  if (!admin) {
+    t.skip("No reachable Postgres connection (MIGRATION_DATABASE_URL) -- run `pnpm infra:up && pnpm db:setup` first.");
+    return;
+  }
+  const app = await connectOrNull(appConnectionString);
+  if (!app) {
+    await admin.end();
+    t.skip("No reachable Postgres connection as the restricted runtime role (DATABASE_URL) -- run `pnpm db:setup` first.");
+    return;
+  }
+
+  const organizationId = randomUUID();
+  const userId = randomUUID();
+  const companyId = randomUUID();
+  try {
+    await admin.query(
+      `INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at)
+       VALUES($1,$2,'CRM Comms Param Test User','not-a-real-hash','active',now())`,
+      [userId, `crm-comms-param-test-${userId}@test.invalid`],
+    );
+    await admin.query(
+      `INSERT INTO public.organizations(id,name,slug,country_code,timezone,base_currency,created_by)
+       VALUES($1,'CRM Comms Param Test Org',$2,'IN','Asia/Kolkata','INR',$3)`,
+      [organizationId, `crm-comms-param-test-${organizationId}`, userId],
+    );
+    await admin.query(
+      `INSERT INTO public.companies(id,organization_id,name,legal_name,country_code,base_currency,is_primary,code)
+       VALUES($1,$2,'Comms Test Co','Comms Test Co Pvt Ltd','IN','INR',true,'CTC')`,
+      [companyId, organizationId],
+    );
+
+    const context = {
+      organizationId,
+      userId,
+      activeCompanyId: companyId,
+      activeBranchId: null,
+      allowAllCompanies: true,
+      permissions: ["crm.view"],
+      roleSlugs: ["organization_owner"],
+    };
+
+    await app.query("BEGIN");
+    await setTenantContext(app, organizationId);
+    // No fixture communications rows are needed — the bug was a query-
+    // construction-time type-inference failure, thrown before any row is
+    // evaluated, so an empty result set is a fully valid, successful proof.
+    const result = await listCrmRecords(app, context, "communications", { limit: 25, offset: 0 });
+    await app.query("COMMIT");
+    assert.deepEqual(result.rows, []);
+    assert.equal(result.total, 0);
+  } finally {
+    await app.query("ROLLBACK").catch(() => undefined);
+    await admin.query(`DELETE FROM public.companies WHERE id=$1`, [companyId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [organizationId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.users WHERE id=$1`, [userId]).catch(() => undefined);
     await app.end();

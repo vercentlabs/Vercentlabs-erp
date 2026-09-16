@@ -151,7 +151,13 @@ function visibilityPredicate(kind, context, values) {
   if (kind === "note") {
     const userIdParam = add(values, context.userId);
     const viewAllParam = add(values, canViewAllCrmRecords(context));
-    return `(visibility<>'private' OR created_by=${userIdParam} OR ${viewAllParam})`;
+    // ::boolean is required, not cosmetic — see communication-projection.js's
+    // communicationVisibilitySql for the full explanation (found via
+    // live-browser Prompt 3 QA against a real database): without it,
+    // Postgres cannot infer this bare `OR $N` placeholder's type and
+    // rejects the whole UNION query with "could not determine data type
+    // of parameter $N".
+    return `(visibility<>'private' OR created_by=${userIdParam} OR ${viewAllParam}::boolean)`;
   }
   if (kind === "communication") {
     // F018 final closeout — reuses the SAME canonical audience fragment

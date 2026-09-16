@@ -45,9 +45,18 @@ function addParam(values, value) {
 // contact/standalone) — that part differs per call site and stays there.
 export function communicationVisibilitySql(context, values, alias = "communication") {
   const userIdParam = addParam(values, context.userId);
+  // ::boolean is required, not cosmetic: node-postgres's extended query
+  // protocol sends parameter values before Postgres has parsed enough of
+  // the query to infer this placeholder's type from a bare `OR $N OR`
+  // position, producing a real, reproducible "could not determine data
+  // type of parameter" 500 on every call (found via live-browser Prompt 3
+  // QA against a real database — every prior test here used a mocked
+  // client.query, which never parses/type-checks SQL at all). Every other
+  // boolean parameter in this codebase (e.g. getCrmDashboard's
+  // allowAllCompanies) already casts explicitly for the same reason.
   const viewAllParam = addParam(values, canViewAllCrmRecords(context));
   const orgIdParam = addParam(values, context.organizationId);
-  return `(${alias}.visibility='team' OR ${alias}.created_by=${userIdParam} OR ${viewAllParam} OR (${alias}.visibility='participant' AND EXISTS(
+  return `(${alias}.visibility='team' OR ${alias}.created_by=${userIdParam} OR ${viewAllParam}::boolean OR (${alias}.visibility='participant' AND EXISTS(
     SELECT 1 FROM tenant.crm_communication_participants participant
      WHERE participant.organization_id=${orgIdParam} AND participant.communication_id=${alias}.id AND participant.user_id=${userIdParam}
   )))`;

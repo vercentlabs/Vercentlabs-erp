@@ -83,13 +83,21 @@ function communicationParentScopeSql(context, parameters, alias) {
     parameters,
     "opportunity",
   );
-  const partyCompanyParam = context.activeCompanyId
-    ? addParameter(parameters, context.activeCompanyId)
-    : null;
+  // allowAllCompanies is checked FIRST, before touching `parameters` at
+  // all: a real, reproducible bug (found via live-browser Prompt 3 QA
+  // against a real database, invisible to every mocked-client unit test)
+  // previously called addParameter(parameters, context.activeCompanyId)
+  // unconditionally whenever activeCompanyId was set, then discarded it in
+  // favor of the literal "true" whenever allowAllCompanies was also true —
+  // leaving a bound parameter that appears nowhere in the returned SQL
+  // text. Postgres cannot infer that orphaned placeholder's type at parse
+  // time and rejects the whole query with "could not determine data type
+  // of parameter $N", for every organization_owner/view_all caller (i.e.
+  // most real usage) hitting the Communications resource.
   const partyVisible = context.allowAllCompanies
     ? "true"
-    : partyCompanyParam
-      ? `(party.company_id IS NULL OR party.company_id = ${partyCompanyParam})`
+    : context.activeCompanyId
+      ? `(party.company_id IS NULL OR party.company_id = ${addParameter(parameters, context.activeCompanyId)})`
       : "false";
   const standaloneVisible = context.allowAllCompanies ? "true" : "false";
   return ` AND (
