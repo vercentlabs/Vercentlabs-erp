@@ -78,6 +78,19 @@ function crmClient({ leadRow = ownedLead, table = "crm_leads", ownerColumn = "ow
       if (hasRecordWhere(sql, table)) {
         return { rows: visible(sql, params) ? [leadRow] : [] };
       }
+      // Stage A2 Prompt 3 live-browser QA fix: listCrmRecords/getCrmRecord
+      // now batch-resolve stageName/partyName/contactName/ownerName for
+      // "opportunities" (resource-query-service.js's
+      // annotateOpportunityRelations) — real, read-only lookups this shared
+      // mock factory's opportunity-shaped tests now also receive.
+      if (
+        sql.startsWith("SELECT id, name FROM tenant.crm_pipeline_stages") ||
+        sql.startsWith("SELECT id, display_name FROM tenant.business_parties") ||
+        sql.startsWith("SELECT id, first_name, last_name FROM tenant.contacts") ||
+        sql.startsWith("SELECT id, full_name FROM public.users")
+      ) {
+        return { rows: [] };
+      }
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

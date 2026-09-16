@@ -311,6 +311,57 @@ async function annotateTerritoryCoverage(client, context, rows) {
   return rows.map((row) => ({ ...row, hasPrimaryCoverage: coveredIds.has(row.id) }));
 }
 
+// Stage A2 Prompt 3 live-browser QA discovery: apps/web's Opportunity
+// types.ts has carried stageName/partyName/contactName/ownerName fields
+// since an earlier pass, with an honest comment admitting "this pass has
+// not independently verified field-by-field" that the backend actually
+// projects them — it never did. The base query is a plain
+// `SELECT record.*`, no joins, so every Opportunity list row and every
+// Opportunity 360 page showed "Stage —"/"Account —" even for opportunities
+// with a real, non-null stage_id/party_id/contact_id/owner_user_id —
+// confirmed directly against the real database (118/118 opportunities in
+// a live fixture org have a non-null stage_id, all rendering blank).
+// Batch-resolved here (one query per related table, not N+1) rather than
+// joined into the base SELECT, to avoid reshaping every other resource's
+// shared query path for a fix that only opportunities needs.
+async function annotateOpportunityRelations(client, context, rows) {
+  if (!rows.length) return rows;
+  const stageIds = [...new Set(rows.map((row) => row.stageId).filter(Boolean))];
+  const partyIds = [...new Set(rows.map((row) => row.partyId).filter(Boolean))];
+  const contactIds = [...new Set(rows.map((row) => row.contactId).filter(Boolean))];
+  const ownerIds = [...new Set(rows.map((row) => row.ownerUserId).filter(Boolean))];
+  // Sequential, not Promise.all: node-postgres's Client (as opposed to a
+  // Pool) processes concurrent query() calls on the same connection via an
+  // internal queue that is explicitly deprecated ("will be removed in
+  // pg@9.0") — this codebase has no other same-client concurrent-query
+  // call site to match, so this stays on the supported, forward-compatible
+  // pattern rather than introducing a first one that pg's own next major
+  // version would break.
+  const stages = stageIds.length
+    ? await client.query(`SELECT id, name FROM tenant.crm_pipeline_stages WHERE organization_id=$1 AND id = ANY($2::uuid[])`, [context.organizationId, stageIds])
+    : { rows: [] };
+  const parties = partyIds.length
+    ? await client.query(`SELECT id, display_name FROM tenant.business_parties WHERE organization_id=$1 AND id = ANY($2::uuid[])`, [context.organizationId, partyIds])
+    : { rows: [] };
+  const contacts = contactIds.length
+    ? await client.query(`SELECT id, first_name, last_name FROM tenant.contacts WHERE organization_id=$1 AND id = ANY($2::uuid[])`, [context.organizationId, contactIds])
+    : { rows: [] };
+  const owners = ownerIds.length
+    ? await client.query(`SELECT id, full_name FROM public.users WHERE id = ANY($1::uuid[])`, [ownerIds])
+    : { rows: [] };
+  const stageNames = new Map(stages.rows.map((row) => [row.id, row.name]));
+  const partyNames = new Map(parties.rows.map((row) => [row.id, row.display_name]));
+  const contactNames = new Map(contacts.rows.map((row) => [row.id, [row.first_name, row.last_name].filter(Boolean).join(" ")]));
+  const ownerNames = new Map(owners.rows.map((row) => [row.id, row.full_name]));
+  return rows.map((row) => ({
+    ...row,
+    stageName: row.stageId ? (stageNames.get(row.stageId) ?? null) : null,
+    partyName: row.partyId ? (partyNames.get(row.partyId) ?? null) : null,
+    contactName: row.contactId ? (contactNames.get(row.contactId) ?? null) : null,
+    ownerName: row.ownerUserId ? (ownerNames.get(row.ownerUserId) ?? null) : null,
+  }));
+}
+
 export async function listCrmRecords(client, context, resource, filters = {}) {
   if (resource === "stages") return listSalesStageResourceRecords(client, context, filters);
   const definition = definitionFor(resource);
@@ -335,6 +386,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   );
   let rows = result.rows.map((row) => camelizeRow(row));
   if (resource === "territories") rows = await annotateTerritoryCoverage(client, context, rows);
+  if (resource === "opportunities") rows = await annotateOpportunityRelations(client, context, rows);
   return {
     rows: await projectCrmRecords(client, context, resource, rows),
     total,
@@ -482,5 +534,7 @@ export async function getCrmRecord(client, context, resource, id) {
     parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
-  return projectCrmRecord(client, context, resource, camelizeRow(result.rows[0]));
+  let row = camelizeRow(result.rows[0]);
+  if (resource === "opportunities") [row] = await annotateOpportunityRelations(client, context, [row]);
+  return projectCrmRecord(client, context, resource, row);
 }

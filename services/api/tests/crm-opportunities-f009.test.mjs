@@ -6,6 +6,8 @@ import test from "node:test";
 import {
   archiveCrmRecord,
   createCrmRecord,
+  getCrmRecord,
+  listCrmRecords,
   updateCrmRecord,
 } from "../src/modules/crm/index.js";
 import {
@@ -68,6 +70,23 @@ function currentOpportunity(overrides = {}) {
     loss_notes: null,
     ...overrides,
   };
+}
+
+// Stage A2 Prompt 3 live-browser QA fix: getCrmRecord/listCrmRecords now
+// batch-resolve stageName/partyName/contactName/ownerName for opportunities
+// (resource-query-service.js's annotateOpportunityRelations) — a real gap
+// found and closed this pass, not a test-only concern. Every mock below
+// that reads an opportunity now also receives these 4 lookup queries;
+// this shared matcher lets each mock opt in with one line rather than
+// repeating the same 4 branches. Returns null (not a response) when the
+// SQL doesn't match one of the 4 new queries, so callers can fall through
+// to their own "Unexpected query" throw for anything genuinely unexpected.
+function opportunityRelationMockResponse(sql) {
+  if (sql.startsWith("SELECT id, name FROM tenant.crm_pipeline_stages")) return { rows: [] };
+  if (sql.startsWith("SELECT id, display_name FROM tenant.business_parties")) return { rows: [] };
+  if (sql.startsWith("SELECT id, first_name, last_name FROM tenant.contacts")) return { rows: [] };
+  if (sql.startsWith("SELECT id, full_name FROM public.users")) return { rows: [] };
+  return null;
 }
 
 function read(relative) {
@@ -199,6 +218,8 @@ test("F009: archived Opportunities are read-only", async () => {
   const client = {
     async query(sql) {
       if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return { rows: [currentOpportunity({ status: "archived" })] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -219,6 +240,8 @@ test("F009: outcome and stage-owned fields cannot be forged through generic PATC
     const client = {
       async query(sql) {
         if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return { rows: [currentOpportunity()] };
+        const related = opportunityRelationMockResponse(sql);
+        if (related) return related;
         throw new Error(`Unexpected query: ${sql}`);
       },
     };
@@ -233,6 +256,8 @@ test("F009: restricted rep cannot make an Opportunity unowned", async () => {
   const client = {
     async query(sql) {
       if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return { rows: [currentOpportunity()] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -243,17 +268,24 @@ test("F009: restricted rep cannot make an Opportunity unowned", async () => {
 });
 
 test("F009: repeated archive is idempotent and emits no second event", async () => {
-  let calls = 0;
+  // getCrmRecord's "before" fetch now also batch-resolves stageName/
+  // ownerName (annotateOpportunityRelations) for every opportunity read,
+  // archived or not — real, read-only SELECTs, not the UPDATE/outbox this
+  // test is actually about. Tracked separately so the assertion stays
+  // precise to its own stated intent rather than an incidental call count.
+  let mutatingCalls = 0;
   const client = {
     async query(sql) {
-      calls += 1;
       if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return { rows: [currentOpportunity({ status: "archived" })] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
+      if (sql.startsWith("UPDATE") || sql.startsWith("INSERT")) mutatingCalls += 1;
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
   const result = await archiveCrmRecord(client, manager, "opportunities", opportunity);
   assert.equal(result.status, "archived");
-  assert.equal(calls, 1, "idempotent archive must not issue an UPDATE/outbox on replay");
+  assert.equal(mutatingCalls, 0, "idempotent archive must not issue an UPDATE/outbox on replay");
 });
 
 test("F009: changing scope revalidates existing Account relationships", async () => {
@@ -264,6 +296,8 @@ test("F009: changing scope revalidates existing Account relationships", async ()
         return { rows: [currentOpportunity({ party_id: party })] };
       if (sql.includes("FROM tenant.business_parties"))
         return { rows: [{ id: party, company_id: company, status: "active" }] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -280,6 +314,8 @@ test("F009: Account cannot be cleared while its Contact remains linked", async (
         return { rows: [currentOpportunity({ party_id: party, contact_id: contact })] };
       if (sql.includes("FROM tenant.contacts c") && sql.includes("JOIN tenant.business_parties p"))
         return { rows: [{ id: contact, party_id: party, status: "active", company_id: company, party_status: "active" }] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -295,6 +331,8 @@ test("F009: ordinary descriptive edits do not revalidate unchanged relationships
     async query(sql) {
       if (sql.includes("FROM tenant.crm_opportunities record WHERE"))
         return { rows: [currentOpportunity({ party_id: party, contact_id: contact })] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
       if (sql.includes("FROM tenant.contacts c") || sql.includes("FROM tenant.business_parties")) {
         relationshipQueries += 1;
         throw new Error("relationship validation should not run for a description-only update");
@@ -308,6 +346,59 @@ test("F009: ordinary descriptive edits do not revalidate unchanged relationships
   const updated = await updateCrmRecord(client, manager, "opportunities", opportunity, { description: "Updated" });
   assert.equal(updated.description, "Updated");
   assert.equal(relationshipQueries, 0);
+});
+
+test("Stage A2 Prompt 3: getCrmRecord/listCrmRecords resolve stageName/partyName/contactName/ownerName for opportunities, not just the raw *Id columns", async () => {
+  // Real gap found via live-browser QA: apps/web's Opportunity types.ts had
+  // carried these fields since an earlier pass with an honest "not
+  // independently verified" comment — the backend never actually projected
+  // them, so every Opportunity list row and 360 page showed "Stage —"/
+  // "Account —" even when stage_id/party_id were genuinely set. This test
+  // proves the fix: a mock that returns real name rows for the 4 new
+  // batch-lookup queries must produce populated *Name fields, not raw ids.
+  const stageName = "Qualification";
+  const partyName = "Acme Corp";
+  const contactName = "Jane Doe";
+  const ownerName = "Priya Rep";
+  const client = {
+    async query(sql, params = []) {
+      if (sql.includes("FROM tenant.crm_opportunities record WHERE"))
+        return { rows: [currentOpportunity({ party_id: party, contact_id: contact })] };
+      if (sql.startsWith("SELECT id, name FROM tenant.crm_pipeline_stages")) return { rows: [{ id: stage, name: stageName }] };
+      if (sql.startsWith("SELECT id, display_name FROM tenant.business_parties")) return { rows: [{ id: party, display_name: partyName }] };
+      if (sql.startsWith("SELECT id, first_name, last_name FROM tenant.contacts")) return { rows: [{ id: contact, first_name: "Jane", last_name: "Doe" }] };
+      if (sql.startsWith("SELECT id, full_name FROM public.users")) return { rows: [{ id: user, full_name: ownerName }] };
+      if (sql.includes("count(*)::int AS total")) return { rows: [{ total: 1 }] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const record = await getCrmRecord(client, manager, "opportunities", opportunity);
+  assert.equal(record.stageName, stageName);
+  assert.equal(record.partyName, partyName);
+  assert.equal(record.contactName, contactName);
+  assert.equal(record.ownerName, ownerName);
+
+  const list = await listCrmRecords(client, manager, "opportunities", {});
+  assert.equal(list.rows[0].stageName, stageName);
+  assert.equal(list.rows[0].ownerName, ownerName);
+});
+
+test("Stage A2 Prompt 3: a null stageId/partyId/contactId/ownerUserId resolves to a null *Name, never a lookup for a nonexistent id", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes("FROM tenant.crm_opportunities record WHERE"))
+        return { rows: [currentOpportunity({ party_id: null, contact_id: null, owner_user_id: null })] };
+      if (sql.startsWith("SELECT id, name FROM tenant.crm_pipeline_stages")) return { rows: [{ id: stage, name: "Qualification" }] };
+      // No business_parties/contacts/users branch: a null id must never be
+      // batched into the ANY($N::uuid[]) lookup for that table at all.
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const record = await getCrmRecord(client, manager, "opportunities", opportunity);
+  assert.equal(record.stageName, "Qualification");
+  assert.equal(record.partyName, null);
+  assert.equal(record.contactName, null);
+  assert.equal(record.ownerName, null);
 });
 
 test("F009 migration enforces stage/pipeline coherence without introducing a new subsystem", () => {
