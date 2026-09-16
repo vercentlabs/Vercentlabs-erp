@@ -2,7 +2,16 @@ import "server-only";
 
 import { assertModuleAccessible, requireSessionPermission } from "@vercentlabs/api";
 
+// Relative, not the "@/" alias: that alias is a tsconfig-only path that
+// only Next's bundler resolves, not plain `node --test`. This file starts
+// with `import "server-only"` (throws unconditionally outside Next's
+// server runtime) so it can never itself be imported by a plain-node
+// test — resolveCrmMutationPermission below is the actual deny-by-default
+// decision logic, kept pure and alias-free in resource-permissions.ts
+// specifically so it's unit-testable; this function is a thin wrapper.
+import { HttpError } from "../../../core/http-errors.ts";
 import type { WorkspaceSessionContext } from "@/core/session";
+import { resolveCrmMutationPermission } from "./resource-permissions.ts";
 
 type QueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }> };
 
@@ -26,6 +35,31 @@ type QueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: un
 export async function requireCrmAccess(client: QueryClient, session: WorkspaceSessionContext, permission?: string) {
   await assertModuleAccessible(client, session, "crm", process.env);
   if (permission) requireSessionPermission(session, permission);
+}
+
+// Checkpoint audit (ERP completion gap register, SEC-CRM-001): the
+// mutating generic routes (POST /api/crm/[resource], PATCH/DELETE
+// /api/crm/[resource]/[id]) called requireCrmAccess(client, session,
+// RESOURCE_MANAGE_PERMISSIONS[resource]) directly — for any of the ~40
+// CRM_RESOURCE_KEYS entries with no map entry, that argument is
+// `undefined`, and requireCrmAccess's `if (permission)` guard above skips
+// the permission check entirely, leaving only the crm.view module-access
+// floor. Any CRM member — including a restricted, read-only viewer —
+// could mutate an unmapped resource (e.g. communications, custom-records,
+// dashboards, ai-feedback, ...) by calling the endpoint directly, whether
+// or not any UI exposed that action. This is the single required call for
+// a mutating generic-resource route: it fails closed for anything not
+// explicitly mapped or explicitly self-scoped, instead of silently
+// falling through.
+export async function requireCrmMutationAccess(client: QueryClient, session: WorkspaceSessionContext, resource: string) {
+  await assertModuleAccessible(client, session, "crm", process.env);
+  const resolution = resolveCrmMutationPermission(resource);
+  if (resolution.kind === "self-scoped") return;
+  if (resolution.kind === "requires-permission") {
+    requireSessionPermission(session, resolution.permission);
+    return;
+  }
+  throw new HttpError(403, "You do not have permission to modify this CRM resource.", "PERMISSION_DENIED");
 }
 
 // Builds the CrmContext shape services/api/src/modules/crm/*.js functions

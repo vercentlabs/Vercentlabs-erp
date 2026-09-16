@@ -3,8 +3,7 @@ import { assertSameOriginOrMobile, createCrmRecord, isCrmResource, listCrmRecord
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
-import { RESOURCE_MANAGE_PERMISSIONS } from "@/features/crm/shared/resource-permissions";
+import { crmContext, requireCrmAccess, requireCrmMutationAccess } from "@/features/crm/shared/crm-context";
 
 const LIST_FILTER_KEYS = [
   "search",
@@ -80,7 +79,7 @@ export async function POST(request: Request, context: { params: Promise<{ resour
     if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
     const input = (await readJson(request)) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, RESOURCE_MANAGE_PERMISSIONS[resource]);
+      await requireCrmMutationAccess(client, session, resource);
       return createCrmRecord(client, crmContext(session), resource, input);
     });
     return ok({ record }, 201);
