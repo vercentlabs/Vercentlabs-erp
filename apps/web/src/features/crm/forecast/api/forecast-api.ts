@@ -1,6 +1,6 @@
 "use client";
 
-import type { CrmForecastFilters, CrmForecastRow, CrmListResponse, ForecastPeriod, ForecastSubmission } from "../types";
+import type { CrmForecastFilters, CrmForecastRow, CrmListResponse, ForecastCalibrationRow, ForecastPeriod, ForecastSubmission, PredictiveForecastResult } from "../types";
 
 export class CrmForecastApiError extends Error {
   constructor(
@@ -54,5 +54,21 @@ export async function createForecastSubmission(input: Record<string, unknown>): 
 }
 export async function updateForecastSubmission(id: string, input: Record<string, unknown>, expectedUpdatedAt?: string): Promise<{ record: ForecastSubmission }> {
   const response = await fetch(`/api/crm/forecast-submissions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input, expectedUpdatedAt }) });
+  return parseResponse(response);
+}
+
+// F025 Stage A2 §11 — accuracy/backtesting (getForecastCalibration) and
+// predictive confidence (capturePredictiveForecast) already existed,
+// fully built and tested, with zero frontend consumer.
+export async function getForecastCalibration(limit?: number): Promise<{ rows: ForecastCalibrationRow[] }> {
+  const response = await fetch(`/api/crm/forecast/calibration${limit ? `?limit=${limit}` : ""}`);
+  return parseResponse(response);
+}
+export async function capturePredictiveSnapshot(forecastPeriodId?: string): Promise<PredictiveForecastResult> {
+  const response = await fetch("/api/crm/forecast/predictive-snapshot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ forecastPeriodId }),
+  });
   return parseResponse(response);
 }

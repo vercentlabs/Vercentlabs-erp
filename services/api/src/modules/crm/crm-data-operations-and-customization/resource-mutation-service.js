@@ -32,7 +32,26 @@ const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
   "sourceId",
 ]);
 
-
+// F025 Stage A2 §11 — "locked/closed period behavior" was a genuine gap:
+// nothing cross-referenced a forecast-submission against its own
+// tenant.crm_forecast_periods.status, so a submission could be created or
+// edited against an already-closed period through the generic path.
+// 'frozen' is deliberately still mutable — resource-options.js's own
+// period picker already includes 'frozen' alongside 'planned'/'open'
+// when offering periods to submit against, an established convention
+// this reuses rather than inventing a stricter interpretation.
+async function assertForecastPeriodMutable(client, context, periodId) {
+  const result = await client.query(
+    `SELECT status FROM tenant.crm_forecast_periods WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, periodId],
+  );
+  if (result.rows[0]?.status === "closed")
+    throw new CrmError(
+      409,
+      "This forecast period is closed and can no longer be submitted or adjusted.",
+      "CRM_FORECAST_PERIOD_CLOSED",
+    );
+}
 
 export async function createCrmRecord(client, context, resource, input) {
   if (resource === "activities") {
@@ -72,6 +91,8 @@ export async function createCrmRecord(client, context, resource, input) {
       "Use the governed Lead Source operations.",
       "CRM_LEAD_SOURCE_API_MOVED",
     );
+  if (resource === "forecast-submissions" && input?.periodId)
+    await assertForecastPeriodMutable(client, context, input.periodId);
   const definition = definitionFor(resource);
   assertLeadLinkedContentAllowed(context, resource, input);
   if (resource === "leads") {
@@ -376,6 +397,8 @@ export async function updateCrmRecord(
     resource === "leads"
       ? await getLeadRecordForUpdate(client, context, id)
       : await getCrmRecord(client, context, resource, id);
+  if (resource === "forecast-submissions" && before.periodId)
+    await assertForecastPeriodMutable(client, context, before.periodId);
   assertLeadLinkedContentAllowed(context, resource, input, before);
   if (resource === "leads")
     assertLeadExpectedVersion(
@@ -470,7 +493,7 @@ export async function updateCrmRecord(
       "Expected revenue is calculated automatically from amount and probability.",
       "CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED",
     );
-  assertLifecycleUpdate(resource, before, input);
+  assertLifecycleUpdate(resource, before, input, context);
   const prepared =
     resource === "leads"
       ? normalizeLeadRecordInput(input)

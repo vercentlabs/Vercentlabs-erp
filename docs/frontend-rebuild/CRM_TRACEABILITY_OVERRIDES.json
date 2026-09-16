@@ -3158,19 +3158,19 @@
     "notes": "Deferred to Stage B."
   },
   "F025-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "MySubmissionSection, PeriodsDialog in CrmForecastScreen.tsx",
-    "notes": "Submit/roll-up real this pass. Manager adjustment UI, snapshot/reproduce of a past period, and deal drill-down from a forecast number remain not built — disclosed as separate, larger pieces (manager-adjustment specifically needs crm_sales_team_members-aware visibility beyond the existing owner-scoping)."
+    "status": "IMPLEMENTED",
+    "evidence": "MySubmissionSection (draft save + real Submit-for-review action), TeamReviewSection (approve/reject + manager adjustment), CrmForecastScreen.tsx By-owner table (real ownerUserId drill to /crm/opportunities), recordScope forecast-submissions hierarchy branch",
+    "notes": "Stage A2 §11 closeout. Submit: MySubmissionSection previously only ever saved a draft — assertLifecycleUpdate's real draft->submitted transition was never called from the UI; now a real 'Submit for review' action. Roll up/manager review: forecast-submissions had no team-hierarchy visibility at all (an ordinary rep with crm.revenue.manage could not see, and a manager could not review, anyone else's submission) — recordScope now reuses F020's crm_sales_teams.manager_user_id/crm_sales_team_members verbatim (mirroring the forecast REPORT's own existing ownerVisibleForForecast pattern, confirmed already built in an earlier pass). Manager adjustment: TeamReviewSection lets a reviewer set it; two new server-side guards (CRM_FORECAST_SELF_REVIEW_FORBIDDEN, CRM_FORECAST_SELF_ADJUSTMENT_FORBIDDEN) stop a rep self-approving or self-adjusting through the same generic PATCH they use to edit their own draft — a real gap the hierarchy fix would otherwise have reopened. Reproduce a forecast period: satisfied by the submission lifecycle's own append-only guarantee (approved only ever moves to superseded, never back to draft/submitted) — reading past submissions for a period IS reproducing it; no separate snapshot table was invented. Deal drill-down: the forecast report's 'By owner' rows now carry a real ownerUserId (previously name-only) and link to an authorized, owner-filtered Opportunities list."
   },
   "F025-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Categories (pipeline/best-case/commit/closed) and quotas/targets fields exist on crm_forecast_submissions; hierarchy-permission rollup partially real (ownerVisibleForForecast, earlier pass); accuracy/backtesting and predictive confidence not built."
+    "status": "IMPLEMENTED",
+    "evidence": "forecast_category best_case/commit columns added to the forecast report; assertForecastPeriodMutable (CRM_FORECAST_PERIOD_CLOSED); CalibrationSection (getForecastCalibration, accuracy/backtesting); predictive-snapshot capture (capturePredictiveForecast); quota/target fields pre-existing on crm_forecast_submissions",
+    "notes": "Stage A2 re-audit against the dossier's own named list. Categories: pipeline/best_case/commit breakdown now visible per-owner, not just on the submission form. Locked/closed period behavior was a genuine, confirmed gap — nothing cross-referenced a submission against its own period's status; closed periods now reject create/update (frozen stays mutable, matching the existing period-picker convention in resource-options.js). Accuracy/backtesting and predictive confidence were BOTH already fully built and tested (getForecastCalibration/capturePredictiveForecast, opportunity-revenue-intelligence.js) with zero frontend consumer — an earlier audit wrongly marked accuracy/backtesting a genuine missing capability; now wired via two new routes and a real UI section. Governed export: not duplicated here — the 'forecast' report is one of getCrmReport's report keys, so F030's own export mechanism (Stage A2 §12) covers it without a second export path."
   },
   "F025-CAP-003": {
-    "status": "NOT_APPLICABLE",
-    "evidence": null,
-    "notes": "No further sub-capability text beyond CAP-001/002 found for F025."
+    "status": "IMPLEMENTED",
+    "evidence": "grep confirms no write path from forecast-submissions code (record-policy.js/resource-mutation-service.js) into tenant.crm_opportunities anywhere; managerAdjustment is a column on crm_forecast_submissions only",
+    "notes": "Re-verified this pass while adding the review/adjustment guards. F020 hierarchy consumed via recordScope's new forecast-submissions branch and the forecast report's pre-existing ownerVisibleForForecast — never a second/independent hierarchy."
   },
   "F025-FR-002": {
     "status": "IMPLEMENTED",
@@ -3368,9 +3368,9 @@
     "notes": "Stage A2 §10 closeout — drill-down coverage completed, each mapping test-verified against the dashboard's own predicate."
   },
   "F025-REP-001": {
-    "status": "PARTIAL",
-    "evidence": "CrmForecastScreen.tsx",
-    "notes": "Formula/dimensions/currency real; no freshness indicator; drill-down reconciliation not built."
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx — By-owner table now drills to /crm/opportunities?ownerId=; getCrmDashboard/getCrmReport have no caching layer (confirmed while auditing F024)",
+    "notes": "Stage A2 §11 closeout — drill-down reconciliation completed (real ownerUserId column added to the report); freshness confirmed real-time by construction, same finding as F024's dashboard."
   },
   "F030-REP-001": {
     "status": "PARTIAL",

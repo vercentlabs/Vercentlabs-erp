@@ -1830,6 +1830,97 @@ Full `services/api` suite: 1063/1063 (+4 new drill-down reconciliation
 tests, net -1 from removing the orphaned dead-code test). Web typecheck,
 ESLint: clean.
 
+### 11. F025 Sales Forecast — submit/review/adjust workflow, accuracy/predictions, closed-period lock
+
+`F025-AUDIT.md`'s one confirmed gap ("no accuracy/backtesting function
+exists") was itself stale: `getForecastCalibration` (opportunity-revenue-
+intelligence.js) already existed, fully tested
+(`crm-forecast-calibration-integrity.test.mjs`), joined against a real
+predictive-model snapshot table (`crm_predictive_forecast_snapshots`,
+`model_version`/`predicted_amount`/`confidence_percent`) — with zero
+frontend consumer. Re-reading the actual frontend (not the audit) found
+several further genuine gaps the audit didn't reach, since it only read
+backend code:
+
+- **Submit was never wired**: `MySubmissionSection` could only ever
+  save a draft — `assertLifecycleUpdate`'s real `draft→submitted`
+  transition existed and was tested, but nothing in the UI ever sent
+  `status`. Added a real "Submit for review" action.
+- **No manager review/hierarchy existed for submissions AT ALL**: unlike
+  the forecast *report* (which already had a team-hierarchy rollup from
+  an earlier pass, `ownerVisibleForForecast`), `forecast-submissions`
+  itself had no such branch — an ordinary rep with `crm.revenue.manage`
+  could see every other rep's number, and a manager without org-wide
+  `crm.records.view_all` could see nobody's but their own, contradicting
+  the dossier's own named "rep sees own → manager sees team → exec sees
+  org" rollup (disclosed by an earlier pass as "a separate, larger
+  enhancement — not attempted"). `recordScope` now has a
+  `forecast-submissions` branch reusing F020's own
+  `crm_sales_teams.manager_user_id`/`crm_sales_team_members` verbatim —
+  the identical mechanism the report already used, applied to the table
+  that was missing it.
+- **That hierarchy fix immediately created a new risk**: once a manager
+  could see (and therefore PATCH) a report's row, nothing stopped a rep
+  from self-approving their own submission or setting their own manager
+  adjustment through the exact same generic PATCH they use to edit their
+  draft. Added two server-side guards
+  (`CRM_FORECAST_SELF_REVIEW_FORBIDDEN`, `CRM_FORECAST_SELF_ADJUSTMENT_FORBIDDEN`)
+  in `assertLifecycleUpdate`, proven by 7 new tests
+  (`crm-forecast-review-guards-f025.test.mjs`) — a rep can still submit/
+  revise their own draft, but only a different caller (in practice, per
+  the scope fix, their team's manager or a view_all holder) may approve/
+  reject/adjust it.
+- **Locked/closed period behavior didn't exist**: nothing cross-
+  referenced a submission against its own period's status
+  (`planned`/`open`/`frozen`/`closed`) — a submission could be created or
+  edited against an already-closed period through the generic path.
+  Added `assertForecastPeriodMutable`, called from both
+  `createCrmRecord`/`updateCrmRecord` for this resource; `frozen` stays
+  mutable, matching the existing period-picker convention
+  `resource-options.js` already established. 4 new tests
+  (`crm-forecast-period-locked-f025.test.mjs`).
+- **A genuine, severe pre-existing bug**: `MySubmissionSection` filtered
+  periods on `status === "active"` — a value the real DB CHECK constraint
+  (`planned`/`open`/`frozen`/`closed`) never produces. This section had
+  been rendering "No open forecast period to submit against yet."
+  *regardless of actual period state* since it was built. Fixed the
+  filter to the same set the closed-period guard now enforces. The
+  `ForecastPeriod`/`ForecastSubmission` TypeScript types had the same
+  wrong `"active" | "inactive"` status union — corrected to the real
+  enum values (also catching a UI status-badge bug that showed "success"
+  for every period regardless of state).
+- **Accuracy/backtesting and predictive confidence wired**: new
+  `GET /api/crm/forecast/calibration` and
+  `POST /api/crm/forecast/predictive-snapshot` routes, and a new
+  "Forecast accuracy & predictions" section showing predicted-vs-actual
+  for closed periods (never recalculating current data and labeling it
+  historical — it reads the real, already-persisted snapshot) plus a
+  manager-triggered predictive-forecast capture (mirroring F010's manual
+  pipeline-snapshot pattern, not a background job).
+- **Deal drill-down**: the forecast report's "By owner" rows previously
+  carried only a display name — not a safe filter key. Added
+  `opportunity.owner_user_id` to the report's `SELECT`/`GROUP BY` so each
+  row can link to a real, authorized `/crm/opportunities?ownerId=`
+  list, rather than approximating a match on name.
+- **Category breakdown**: added `best_case`/`commit` amount columns to
+  the same report query (the dossier's own named "categories"
+  enterprise-completeness item), not a second query or report key.
+- **Reproduce a forecast period**: satisfied by the submission
+  lifecycle's own append-only guarantee — an `approved` submission can
+  only ever move to `superseded`, never back to `draft`, so reading past
+  submissions for a period already IS reproducing it faithfully. No
+  separate snapshot table was invented; this deliberately avoids the
+  "recalculate current data and label it historical" trap this prompt
+  warns against.
+- **Governed export**: deliberately NOT duplicated here — `"forecast"`
+  is one of `getCrmReport`'s existing report keys, so F030's own export
+  mechanism (§12) covers it without a second, forecast-specific export
+  path.
+
+Full `services/api` suite: 1077/1077 (+14: 7 review-guard tests, 4
+period-lock tests, 3 owner-scope hierarchy tests). Web typecheck, ESLint,
+`verify:routes`: all clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
