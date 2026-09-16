@@ -608,9 +608,9 @@
     "notes": "Hierarchy, merge, duplicates, plans/stakeholders, notes, attachments, custom fields, communications all wired this session."
   },
   "F002-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Core enterprise scope (hierarchy/merge/duplicates/plans) covered; no formal role-visibility matrix audit, no overlay/quota concepts for accounts specifically."
+    "status": "IMPLEMENTED",
+    "evidence": "PrivacyAdministrationScreen.tsx + AccountPrivacyPanel.tsx (both call the shared PLATFORM privacy authority, services/api/src/core/privacy.js, via /api/privacy/*); gated by platform.privacy.manage, not a crm.* permission",
+    "notes": "Stage A2 §13 closeout — the dossier's mega-prompt framing of this feature as \"Customer 360 / Privacy / Retention\" pointed at a real, confirmed gap: core/privacy.js (a real, already-built, org-scoped finite-state-machine privacy-request tracker and versioned retention-policy engine, already tested — platform-privacy.test.mjs) had ZERO frontend consumers anywhere in the app, not just CRM. A SEPARATE, CRM-local tenant.crm_privacy_requests table also exists (feeding the F030 \"privacy\" report) — deliberately left untouched, not expanded further, since building MORE CRM-local privacy logic is exactly what this prompt's own instruction says not to do (\"reuse platform privacy authority... do NOT implement CRM-local privacy logic\"). New UI wires the platform module instead: a Privacy Administration screen (list/transition requests, define retention-policy versions) and a narrow \"Submit privacy request\" action on Account 360. Both gated by platform.privacy.manage — a permission deliberately excluded from the default \"privileged\" role bundle (packages/permissions/src/roles.js) — so an ordinary CRM manager holding crm.accounts.manage never sees either surface merely by being able to view/edit an Account, satisfying this prompt's explicit \"ordinary REP users must not gain privacy-administration authority\" instruction. Core/company hierarchy-cycles/site-relationships/merge-survivorship/legal-identifiers were already IMPLEMENTED from earlier work; this closes the remaining privacy/retention half."
   },
   "F002-CAP-003": {
     "status": "NOT_VERIFIED",

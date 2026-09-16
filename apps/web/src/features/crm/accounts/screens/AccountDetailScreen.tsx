@@ -18,6 +18,7 @@ import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
 import { AccountPlanPanel } from "../components/AccountPlanPanel";
 import { AccountContactRelationshipsPanel } from "../components/AccountContactRelationshipsPanel";
 import { AccountCommunicationsPanel } from "../components/AccountCommunicationsPanel";
+import { AccountPrivacyPanel } from "../components/AccountPrivacyPanel";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -148,6 +149,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           <p className="text-sm font-semibold text-text">Custom fields</p>
           <CustomFieldsRuntimePanel entityType="party" entityId={accountId} />
         </div>
+        <AccountPrivacyPanel accountId={accountId} accountName={account.displayName} />
       </div>
     </RecordDetailsPage>
   );

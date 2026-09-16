@@ -150,6 +150,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"), requiredPermission: "crm.settings.manage" },
           { ...available("Qualification / Playbooks", "/crm/settings/playbooks"), requiredPermission: "crm.settings.manage" },
           { ...available("Meeting Links", "/crm/settings/meeting-links"), requiredPermission: "crm.settings.manage" },
+          // F002 Stage A2 §13 — deliberately gated by the PLATFORM privacy
+          // permission, not a crm.* one: an ordinary CRM settings manager
+          // must not also gain privacy-administration authority.
+          { ...available("Privacy Administration", "/crm/settings/privacy"), requiredPermission: "platform.privacy.manage" },
         ],
       },
     ],

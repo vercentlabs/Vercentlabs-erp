@@ -1977,6 +1977,76 @@ audit also under-sold "save" as needing a whole new entity; it didn't.
 Full `services/api` suite: 1079/1079 (+2 drill-down reconciliation
 tests). Web typecheck, ESLint, `verify:routes`: all clean.
 
+### 13. F002 Customer 360 / Privacy / Retention — wires the platform privacy authority, not CRM-local logic
+
+Account/Company 360 itself (hierarchy, merge, duplicates, plans,
+communications, notes, attachments, custom fields) was already
+`IMPLEMENTED` from earlier work — this section closed the specific
+"Privacy / Retention" half this prompt's own framing named.
+
+Found, before writing anything, that there are genuinely **two separate
+privacy systems** in this codebase:
+
+- `tenant.crm_privacy_requests` / `tenant.crm_privacy_retention_policies`
+  — a CRM-tenant-schema, company-scoped resource, already registered
+  generically (`resource-registry.js`), already feeding F030's
+  `"privacy"` report — but with **zero frontend consumer** for the
+  resource itself (no create/review UI ever existed for it).
+- `services/api/src/core/privacy.js` — a real, already-built,
+  **platform-schema**, org-scoped finite-state-machine privacy-request
+  tracker (`received→verified/rejected/cancelled→in_progress→completed`,
+  enforced inside a row-locked transaction, not just at the API
+  boundary) and a versioned retention-policy engine
+  (`writeRetentionPolicy`, advisory-lock-protected version creation,
+  never an in-place edit of a historical version) — already tested
+  (`platform-privacy.test.mjs`, 4/4) — with **zero frontend consumer
+  anywhere in the entire app**, not just CRM.
+
+Per this prompt's own explicit instruction ("reuse platform privacy
+authority... do NOT implement CRM-local privacy logic"), all new UI
+wires the **platform** module, not the CRM-local one. The pre-existing
+CRM-local resource was left exactly as it was — not expanded, not
+removed (removing working, tested, already-integrated backend code
+purely for architectural tidiness was judged out of proportion for this
+pass; it's recorded here as a discovered duplication for a future
+consolidation decision, not a live defect).
+
+Built:
+
+- `GET/POST /api/privacy/requests`, `POST /api/privacy/requests/[id]/transition`,
+  `GET/POST /api/privacy/retention-policies` — deliberately **outside**
+  `/api/crm/` and gated by `platform.privacy.manage` (`CORE_PERMISSIONS`,
+  not `CRM_PERMISSIONS`), since this is a platform capability CRM's UI
+  merely surfaces. `platform.privacy.manage` is itself already deliberately
+  excluded from the default "privileged" role bundle
+  (`packages/permissions/src/roles.js`) — a genuinely rare, elevated
+  permission, not something an ordinary admin role holds by default.
+- `PrivacyAdministrationScreen.tsx` (`/crm/settings/privacy`) — lists
+  requests with only the FSM's own legal next-transitions offered as
+  buttons (mirrors `PRIVACY_TRANSITIONS` from `core/privacy.js` exactly,
+  never inventing a client-side legality check), and lists/creates
+  retention-policy versions.
+- `AccountPrivacyPanel.tsx` — a single "Submit privacy request" action
+  on Account 360, referencing the account as `subjectReference`. Hidden
+  entirely (not merely disabled) for anyone without
+  `platform.privacy.manage` — an ordinary CRM manager holding
+  `crm.accounts.manage` does not see this action just by being able to
+  view/edit the Account, directly satisfying this prompt's "ordinary
+  REP users must not gain privacy-administration authority merely
+  because they can view an Account" instruction.
+- `@vercentlabs/reporting-engine` re-exported from `@vercentlabs/api`'s
+  own top level (unrelated to privacy directly, but landed alongside
+  this section's route work) so `rowsToCsv`/`csvCell` are reachable from
+  `apps/web` without a second direct workspace dependency.
+
+Full `services/api` suite: 1079/1079 (no backend logic changed — pure
+routing/UI over already-tested `core/privacy.js` functions). Web
+typecheck, ESLint, `verify:routes`: all clean. A real SEC-002 negative
+test for the new permission gate (wrong caller without
+`platform.privacy.manage` gets 403) is deferred to §16, where every
+newly-wired sensitive surface gets the same treatment in one pass rather
+than piecemeal.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
