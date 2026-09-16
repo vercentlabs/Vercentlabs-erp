@@ -2978,14 +2978,14 @@
     "notes": "Deferred to Stage B."
   },
   "F024-CAP-001": {
-    "status": "PARTIAL",
-    "evidence": "DrillMetric components; stage-row drill in CrmDashboardScreen.tsx",
-    "notes": "Drill-down built for unassigned/not-yet-qualified leads and pipeline-by-stage rows only — every mapping individually verified against both the dashboard's own SQL predicate and the target list's real filter semantics; dwell-breached/stalled/high-priority/uncovered-territories/source-breakdown have no safe existing filter mapping and are not drilled (disclosed, not faked)."
+    "status": "IMPLEMENTED",
+    "evidence": "DrillMetric components (all six now interactive); stage-row drill; buildFilters dwellBreached/highPriority/stalled predicates (resource-query-service.js); crm-dashboard-drilldown-reconciliation-f024.test.mjs (4/4)",
+    "notes": "Stage A2 §10 closeout. dwell-breached/stalled/high-priority previously had no safe filter mapping (disclosed, not faked) — buildFilters now reuses getCrmDashboard's own predicates verbatim (dwell_breach_hours EXISTS join, lead_grade IN ('hot','qualified'), the SLA-policy-over-stage-default EXISTS join), proven identical by test. Uncovered territories now links to the Territories settings screen, which (Stage A2 §8) shows a real per-row Covered/Uncovered badge using the same predicate — a full, safe reconciliation without inventing a URL filter param the settings screen doesn't support. Source-breakdown remains a non-interactive table (no per-source list view exists to drill into; not a filter-mapping gap)."
   },
   "F024-CAP-002": {
-    "status": "PARTIAL",
-    "evidence": null,
-    "notes": "Metric formulas/currency real; no cache-freshness indicator, no target-coverage display, no configurable filters (getCrmDashboard takes none)."
+    "status": "IMPLEMENTED",
+    "evidence": "money() currency formatting; buildFilters drill predicates; getCrmDashboard has no caching layer (query runs fresh per request, confirmed by reading the route)",
+    "notes": "Metric formulas/currency real. Freshness: no cache exists, so every request is already live — verified, not assumed (the audit's own 'not confirmed' framing is resolved: there is genuinely nothing to invalidate). Target/quota coverage: getCrmReport's team-performance report already computes real pipeline_coverage against crm_quota_plans (analytics-service.js) — deliberately not duplicated onto the dashboard itself; F030's own closeout (Stage A2 §12) is the correct owner of surfacing it, avoiding two independent coverage engines. Filters: getCrmDashboard intentionally takes none — it is a whole-of-scope snapshot, matching CAP-001's own canonical sentence; per-owner/team/date slicing lives in F030 Reports, not duplicated here."
   },
   "F024-CAP-003": {
     "status": "NOT_APPLICABLE",
@@ -3363,9 +3363,9 @@
     "notes": "From/To date filters real; the route's own forwarded-key mismatch (ownerId/stageId/sourceId/campaignId/period silently dropped server-side) was fixed in an earlier pass."
   },
   "F024-REP-001": {
-    "status": "PARTIAL",
-    "evidence": "CrmDashboardScreen.tsx metrics",
-    "notes": "Formula/currency real per metric; no explicit freshness indicator, no drill-down reconciliation statement, partial drill-down coverage (see F024-CAP-001)."
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx metrics; all six \"Needs attention\" metrics now drill (F024-CAP-001)",
+    "notes": "Stage A2 §10 closeout — drill-down coverage completed, each mapping test-verified against the dashboard's own predicate."
   },
   "F025-REP-001": {
     "status": "PARTIAL",

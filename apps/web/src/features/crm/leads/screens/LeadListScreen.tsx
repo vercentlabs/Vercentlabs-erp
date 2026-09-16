@@ -96,6 +96,8 @@ function filtersFromSearchParams(params: URLSearchParams): LeadListFilters {
   const rating = params.get("rating");
   const followup = params.get("followup");
   const qualification = params.get("qualification");
+  const dwellBreached = params.get("dwellBreached");
+  const highPriority = params.get("highPriority");
   const offset = params.get("offset");
   if (search) filters.search = search;
   if (status) filters.status = status;
@@ -105,6 +107,8 @@ function filtersFromSearchParams(params: URLSearchParams): LeadListFilters {
   if (rating) filters.rating = rating;
   if (followup) filters.followup = followup as LeadListFilters["followup"];
   if (qualification) filters.qualification = qualification as LeadListFilters["qualification"];
+  if (dwellBreached === "true") filters.dwellBreached = "true";
+  if (highPriority === "true") filters.highPriority = "true";
   if (offset) filters.offset = Number(offset) || 0;
   return filters;
 }
@@ -174,6 +178,8 @@ export function LeadListScreen() {
     if (filters.rating) active.push({ id: "rating", label: `Rating: ${filters.rating}` });
     if (filters.followup) active.push({ id: "followup", label: `Follow-up: ${filters.followup}` });
     if (filters.qualification) active.push({ id: "qualification", label: `Qualification: ${filters.qualification}` });
+    if (filters.dwellBreached) active.push({ id: "dwellBreached", label: "Dwell-breached" });
+    if (filters.highPriority) active.push({ id: "highPriority", label: "High priority" });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
   }, [filters]);
@@ -194,7 +200,7 @@ export function LeadListScreen() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
-  const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification);
+  const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification || filters.dwellBreached || filters.highPriority);
   const hasExplicitFilters = searchParams.toString().length > 0;
   const filtersWithoutPaging: LeadListFilters = useMemo(() => {
     const rest = { ...filters };

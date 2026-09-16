@@ -73,6 +73,11 @@ export type LeadListFilters = {
   rating?: string;
   followup?: "overdue" | "today" | "upcoming" | "none" | "all";
   qualification?: "not_reviewed" | "qualified" | "unqualified" | "all";
+  // F024 Stage A2 §10 — mirrors getCrmDashboard's exact "dwell-breached"/
+  // "high-priority" predicates, so a drilled list's count always
+  // reconciles to the dashboard's own metric.
+  dwellBreached?: "true";
+  highPriority?: "true";
   limit?: number;
   offset?: number;
 };

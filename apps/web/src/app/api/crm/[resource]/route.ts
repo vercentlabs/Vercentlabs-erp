@@ -28,6 +28,9 @@ const LIST_FILTER_KEYS = [
   "accountPlanId",
   "contactId",
   "periodId",
+  "dwellBreached",
+  "highPriority",
+  "stalled",
 ] as const;
 
 function parseListFilters(url: URL) {

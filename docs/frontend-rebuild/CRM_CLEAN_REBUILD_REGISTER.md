@@ -1766,6 +1766,70 @@ Worker suite: 102/102 (+3 new tests covering registration/authorization-
 revocation/manifest-ownership). Web typecheck, ESLint, `verify:routes`,
 `verify:no-legacy-frontend`: all clean.
 
+### 10. F024 Pipeline Dashboard — all six "needs attention" metrics now drill-reconcile
+
+`F024-AUDIT.md` correctly found the dashboard's aggregate security
+excellent (a documented prior hardening pass, not incidental
+correctness) but left "stale/risk signals... target coverage... drilldown
+reconciliation" not fully confirmed. `CrmDashboardScreen.tsx`'s own prior
+comment was explicit and honest about the gap it was disclosing: four of
+six "needs attention" metrics (dwell-breached leads, stalled
+opportunities, high-priority leads, uncovered territories) had "no
+matching list filter" and rendered as plain, non-interactive blocks
+rather than a fake or approximated drill-down — exactly the discipline
+this prompt asks for, just not yet closed.
+
+Closed all four, each by reusing `getCrmDashboard`'s own predicate
+verbatim in `buildFilters` (`resource-query-service.js`), never a
+semantically different approximation:
+
+- `leads?dwellBreached=true` — the identical `crm_lead_stages
+  .dwell_breach_hours` EXISTS join the dashboard metric uses.
+- `leads?highPriority=true` — the identical `lead_grade IN ('hot',
+  'qualified')` predicate (a genuinely different column from the Lead
+  list's existing `priority`/`rating` filters — confirmed by reading the
+  resource-registry field map before building this, not assumed).
+- `opportunities?stalled=true` — the identical SLA-policy-over-stage-
+  default-with-COALESCE predicate `crm-dashboard-stalled-opportunities-
+  f024.test.mjs` already proved the dashboard metric itself uses.
+- **Uncovered territories** — linked to the Territories settings screen
+  rather than inventing a new list-filter query param it doesn't support;
+  Stage A2 §8 already added a real per-row Covered/Uncovered badge there
+  using the identical predicate, so this is a full, safe reconciliation
+  (a manager sees exactly which territories are uncovered), not a lesser
+  substitute.
+
+New test file `crm-dashboard-drilldown-reconciliation-f024.test.mjs`
+(4/4) proves each new list filter's SQL is byte-identical in structure
+to the dashboard's own predicate, and that the filters are additive
+(absent when not requested), not always-on.
+
+**Housekeeping** (the audit's own recommendation): deleted
+`getOpportunityDashboard`/`buildPipelineSummary`
+(`opportunity-operations.js`) — a confusingly-named, unused duplicate of
+the real dashboard. Re-checking before deleting found the audit's "not
+scoped at all" claim was itself stale: an F009 security-fix pass had
+already added `recordScope` to it and a passing regression test
+(`crm-opportunity-scope-f009.test.mjs`) proved it. Removed that one
+now-orphaned test alongside the function; the other five tests in that
+file (covering `getOpportunityTimeline`/`bulkUpdateOpportunities`/
+`captureForecastSnapshot`/`saveOpportunityRevenueSplits`/the offline-sync
+stage-move path) are untouched and still pass.
+
+**Target/quota coverage**: `getCrmReport`'s team-performance report
+already computes real `pipeline_coverage` against `crm_quota_plans`
+(`analytics-service.js`) — deliberately not duplicated onto the
+dashboard; F030's own closeout (§12) is the correct place to surface it,
+avoiding two independent coverage engines for the same number.
+
+**Cache freshness**: confirmed, not assumed — `getCrmDashboard` has no
+caching layer anywhere in its call path, so every request is already
+live; there is genuinely nothing to invalidate.
+
+Full `services/api` suite: 1063/1063 (+4 new drill-down reconciliation
+tests, net -1 from removing the orphaned dead-code test). Web typecheck,
+ESLint: clean.
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

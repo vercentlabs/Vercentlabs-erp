@@ -12,15 +12,19 @@ import type { CrmDashboardActivity } from "../types";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
-// F024 Tranche K — a metric that drills into a pre-filtered list when a
-// safe, verified filter mapping exists (confirmed against the exact SQL
-// predicate getCrmDashboard uses for that count, and against what the
-// Lead/Opportunity list's own filter actually queries server-side —
-// e.g. Lead's "status" filter is a STAGE filter, not record_status, so
-// "open leads" is deliberately NOT drilled here to avoid a plausible-
-// looking but subtly wrong link). Metrics with no such mapping render
-// as a plain, non-interactive MetricCard-style block instead of a fake
-// disabled-looking button.
+// F024 Tranche K, closed out Stage A2 §10 — a metric drills into a
+// pre-filtered list only when a safe, verified filter mapping exists
+// (confirmed against the exact SQL predicate getCrmDashboard uses for
+// that count, and against what the Lead/Opportunity list's own filter
+// actually queries server-side — e.g. Lead's "status" filter is a STAGE
+// filter, not record_status, so "open leads" is deliberately NOT drilled
+// here to avoid a plausible-looking but subtly wrong link). Dwell-
+// breached/stalled/high-priority previously had no such mapping and
+// rendered non-interactive; buildFilters (resource-query-service.js) now
+// reuses getCrmDashboard's own predicates verbatim for each, so every
+// metric below is a real drill-down. A metric with genuinely no safe
+// mapping would still render as a plain, non-interactive block, never a
+// fake disabled-looking button.
 function DrillMetric({ label, value, onPress }: { label: string; value: number; onPress?: () => void }) {
   const content = (
     <>
@@ -83,15 +87,19 @@ export function CrmDashboardScreen() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text">Needs attention</h2>
-          <span className="text-xs text-text-muted">Unassigned and not-yet-qualified drill into a filtered Lead list; the rest have no matching list filter yet (disclosed, not built this pass).</span>
+          <span className="text-xs text-text-muted">Every metric here drills into a list that reconciles to the exact same count.</span>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           <DrillMetric label="Unassigned leads" value={metrics.unassignedLeads} onPress={() => router.push("/crm/leads?ownerId=unassigned")} />
-          <DrillMetric label="Dwell-breached leads" value={metrics.dwellBreachedLeads} />
-          <DrillMetric label="Stalled opportunities" value={metrics.stalledOpportunities} />
+          <DrillMetric label="Dwell-breached leads" value={metrics.dwellBreachedLeads} onPress={() => router.push("/crm/leads?dwellBreached=true")} />
+          <DrillMetric label="Stalled opportunities" value={metrics.stalledOpportunities} onPress={() => router.push("/crm/opportunities?stalled=true")} />
           <DrillMetric label="Not yet qualified" value={metrics.needsQualificationLeads} onPress={() => router.push("/crm/leads?qualification=not_reviewed")} />
-          <DrillMetric label="High-priority leads" value={metrics.highPriorityLeads} />
-          <DrillMetric label="Uncovered territories" value={metrics.uncoveredTerritories} />
+          <DrillMetric label="High-priority leads" value={metrics.highPriorityLeads} onPress={() => router.push("/crm/leads?highPriority=true")} />
+          <DrillMetric
+            label="Uncovered territories"
+            value={metrics.uncoveredTerritories}
+            onPress={() => router.push("/crm/settings/territories")}
+          />
         </div>
       </div>
 

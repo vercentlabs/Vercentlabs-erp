@@ -36,10 +36,12 @@ function filtersFromSearchParams(params: URLSearchParams): OpportunityListFilter
   const search = params.get("search");
   const stageId = params.get("stageId");
   const status = params.get("status");
+  const stalled = params.get("stalled");
   const offset = params.get("offset");
   if (search) filters.search = search;
   if (stageId) filters.stageId = stageId;
   if (status) filters.status = status;
+  if (stalled === "true") filters.stalled = "true";
   if (offset) filters.offset = Number(offset) || 0;
   return filters;
 }
@@ -119,6 +121,7 @@ export function OpportunityListScreen() {
     const active: ActiveFilter[] = [];
     if (filters.status && filters.status !== "open") active.push({ id: "status", label: `Status: ${filters.status}` });
     if (filters.stageId) active.push({ id: "stageId", label: "Stage filter" });
+    if (filters.stalled) active.push({ id: "stalled", label: "Stalled" });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
   }, [filters]);

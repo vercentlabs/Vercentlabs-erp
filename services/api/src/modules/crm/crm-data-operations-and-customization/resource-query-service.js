@@ -138,6 +138,38 @@ export function buildFilters(
     if (followup === "upcoming")
       sql += ` AND ${alias}.next_follow_up_at >= now()`;
     if (followup === "none") sql += ` AND ${alias}.next_follow_up_at IS NULL`;
+    // F024 Stage A2 §10 — the CRM dashboard's "dwell-breached"/"high-
+    // priority" Lead counts previously had no matching list filter, so
+    // neither metric could safely drill down (CrmDashboardScreen.tsx's
+    // own prior disclosure comment). These reuse the EXACT predicates
+    // getCrmDashboard already uses (analytics-service.js), never a
+    // semantically different approximation, so the drilled list's count
+    // always reconciles to the dashboard's own number.
+    if (String(filters.dwellBreached) === "true")
+      sql += ` AND EXISTS (
+        SELECT 1 FROM tenant.crm_lead_stages dwell_stage
+         WHERE dwell_stage.organization_id=${alias}.organization_id AND dwell_stage.code=${alias}.status
+           AND dwell_stage.dwell_breach_hours IS NOT NULL
+           AND ${alias}.stage_entered_at <= now() - (dwell_stage.dwell_breach_hours || ' hours')::interval
+      )`;
+    if (String(filters.highPriority) === "true")
+      sql += ` AND ${alias}.lead_grade IN ('hot','qualified')`;
+  }
+  if (definition.table === "tenant.crm_opportunities") {
+    // F024 Stage A2 §10 — same reasoning as the Lead filters above: reuses
+    // getCrmDashboard's exact "stalled" predicate (per-stage SLA policy,
+    // falling back to the stage's own stale_after_days) so the drilled
+    // Opportunity list's count always reconciles to the dashboard number.
+    if (String(filters.stalled) === "true")
+      sql += ` AND EXISTS (
+        SELECT 1 FROM tenant.crm_pipeline_stages stale_stage
+        LEFT JOIN tenant.crm_opportunity_stage_sla_policies stale_policy
+          ON stale_policy.organization_id=${alias}.organization_id AND stale_policy.pipeline_id=${alias}.pipeline_id
+         AND stale_policy.stage_id=${alias}.stage_id AND stale_policy.status='active'
+         WHERE stale_stage.organization_id=${alias}.organization_id AND stale_stage.id=${alias}.stage_id
+           AND COALESCE(stale_policy.maximum_days, stale_stage.stale_after_days) IS NOT NULL
+           AND ${alias}.stage_entered_at <= now() - (COALESCE(stale_policy.maximum_days, stale_stage.stale_after_days) || ' days')::interval
+      )`;
   }
   if (definition.table === "tenant.crm_activities") {
     const activityType = String(filters.activityType || "all");
