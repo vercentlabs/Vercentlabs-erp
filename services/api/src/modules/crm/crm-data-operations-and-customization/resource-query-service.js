@@ -43,6 +43,24 @@ export function buildSearch(
 
 
 
+// Stage A2 §15 pagination/enterprise-scale audit: every generic resource's
+// orderBy (resource-registry.js) sorts on business columns (name, status,
+// timestamps, priority CASE expressions, ...) with no unique tiebreaker.
+// None of those are guaranteed unique — two territories can share a name,
+// two activities can share a timestamp at bulk-insert precision — so plain
+// OFFSET pagination over a non-unique sort key can silently skip or repeat
+// rows as data changes between page fetches (classic large-list gap).
+// Appending the primary key as a final, always-unique tiebreaker fixes this
+// for every resource at once, with no change to each resource's own
+// registry entry. `id` is unqualified in orderBy strings today (there is
+// only ever one table in this query, so it is unambiguous either way).
+function stableOrderBy(definition) {
+  const orderBy = definition.orderBy || "id";
+  return /\bid\s+(ASC|DESC)\s*$/i.test(orderBy.trim()) ? orderBy : `${orderBy}, id ASC`;
+}
+
+
+
 export function buildFilters(
   definition,
   filters,
@@ -312,7 +330,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   );
   const total = Number(countResult.rows[0]?.total || 0);
   const result = await client.query(
-    `SELECT record.* FROM ${definition.table} record WHERE ${where} ORDER BY ${definition.orderBy} LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
+    `SELECT record.* FROM ${definition.table} record WHERE ${where} ORDER BY ${stableOrderBy(definition)} LIMIT ${addParameter(parameters, limit)} OFFSET ${addParameter(parameters, offset)}`,
     parameters,
   );
   let rows = result.rows.map((row) => camelizeRow(row));

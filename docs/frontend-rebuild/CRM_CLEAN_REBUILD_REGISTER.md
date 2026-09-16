@@ -2131,6 +2131,62 @@ ESLint: clean (required updating `archiveLeadAssignmentPolicy`/
 `setLeadAssignmentPolicyStatus`'s type declarations in `services/api/src/
 index.d.ts` to accept the new optional `expectedUpdatedAt` parameter).
 
+### 15. Pagination / enterprise-scale audit
+
+Stage A2 §15. Audited every real list added/exercised during this CRM
+rebuild against: server pagination/cursor, bounded limits, stable sorting,
+authorization-safe total/count, a large-result job path where applicable,
+and a mobile alternative.
+
+- **Server pagination + bounded limits**: every generic CRM list already
+  goes through one shared function, `listCrmRecords`
+  (`resource-query-service.js`), which clamps `limit` to 1-500
+  (`limitValue`, default 100) and `offset` to a sane non-negative bound —
+  no generic resource can silently load everything. Confirmed, not fixed
+  (this was already correct infrastructure).
+- **Authorization-safe total/count**: the `count(*)` query reuses the exact
+  same `WHERE` clause (including `recordScope`'s company/branch/owner
+  predicates and any resource-specific filters) as the row query — a
+  restricted caller's "total" can never leak a count of records they
+  cannot see. Confirmed, not fixed.
+- **Stable sorting — real gap, fixed**: every resource's `orderBy`
+  (`resource-registry.js`) sorts on business columns (name, status,
+  timestamps, priority `CASE` expressions, …) with no unique tiebreaker.
+  None of those columns are guaranteed unique — two Territories can share a
+  name, two Activities can share a timestamp at bulk-insert precision — so
+  plain `OFFSET` pagination over a non-unique sort key can silently skip or
+  repeat rows as data changes between page fetches, at any list size large
+  enough to paginate. Fixed once, centrally: `listCrmRecords` now builds its
+  `ORDER BY` through a new `stableOrderBy(definition)` helper that appends
+  `, id ASC` to every resource's orderBy unless it already ends in an `id`
+  column (the `leads` resource already did) — the primary key is always
+  unique, so this closes the gap for every resource at once with zero
+  changes to `resource-registry.js` itself. Test:
+  `crm-leads-record-list-contract.test.mjs` gained a case asserting the
+  generated SQL both gains the tiebreaker (territories) and does not double
+  one up when the resource already has one (leads).
+- **Large-result job path**: the one CRM export surface built this stage
+  (F021 Lead export) already uses a real async worker job with a downloadable
+  result rather than a synchronous bulk response (Stage A2 §9). Dashboard/
+  Forecast/Report screens are aggregate/summary surfaces, not raw record
+  dumps, so no equivalent job path applies to them — their own drill-down
+  targets (Lead/Opportunity lists) are themselves paginated by the same
+  shared mechanism.
+- **Mobile alternative**: not a gap — already an explicit, pre-existing
+  product decision. `apps/mobile/src/modules/crm/ui/crm-feature-registry.ts`
+  declares each feature's mobile support tier; F020 (Territories/Teams),
+  F025 (Forecast) and F030 (Reports) are honestly marked
+  `support: "web-workspace"` (no native screen, by design), while F024
+  (Pipeline dashboard) has a real native-read screen. Mobile's own
+  high-volume lists (Leads/Opportunities/Activities) go through the same
+  bounded backend endpoints; `apps/mobile/.../data/sync.ts` is an outbound
+  offline-mutation-queue flusher, not a bulk list-download mechanism, so
+  there is no unbounded on-device dataset being built.
+
+Full `services/api` suite: 1082/1082 (no regressions from the ORDER BY
+change — no test asserted an exact orderBy string; the widened `id`
+tiebreaker was added to the test suite itself, not discovered breaking it).
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
