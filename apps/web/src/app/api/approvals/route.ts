@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const status = url.searchParams.get("status") || "pending";
     const approvals = await withClient((client) =>
-      listApprovals(client, session.organizationId, { status }),
+      listApprovals(client, session, { status }),
     );
     return ok({ approvals });
   } catch (error) {

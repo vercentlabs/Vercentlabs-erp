@@ -1,4 +1,4 @@
-import { listNotifications, markAllNotificationsRead } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, listNotifications, markAllNotificationsRead } from "@vercentlabs/api";
 
 import { withClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
@@ -20,8 +20,9 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PATCH() {
+export async function PATCH(request: Request) {
   try {
+    assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const result = await withClient((client) =>
       markAllNotificationsRead(client, session),

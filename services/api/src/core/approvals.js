@@ -23,6 +23,8 @@
 // everywhere it would require touching modules out of this pass's scope.
 import { assertApprovalDecision, assertSeparationOfDuties, WorkflowConflictError } from "@vercentlabs/workflows";
 
+import { hasSessionPermission } from "./access-control-runtime.js";
+
 import {
   approveVendorBill, rejectVendorBillApproval,
   approveVendorPayment, rejectVendorPaymentApproval,
@@ -95,16 +97,29 @@ const COMMAND_DISPATCH = Object.freeze({
   },
 });
 
-export async function listApprovals(client, organizationId, { status = "pending", limit = 100 } = {}) {
+// Checkpoint audit (ERP completion gap register, SEC-APPROVAL-002): this
+// used to take a bare organizationId and return every pending approval
+// org-wide to any authenticated member with no further check — GET
+// /api/approvals only calls requireWorkspace() (auth + org membership),
+// nothing role- or assignment-specific. A junior rep with no approval
+// authority could see every in-flight approval across the whole
+// organization (amounts, requester, entity), including ones from modules
+// they have no access to at all. Now takes the full session and, unless
+// the caller holds org-wide approvals.manage, scopes results to requests
+// they requested or are the assigned approver for — the same visibility
+// a person needs to act on their own inbox, no more.
+export async function listApprovals(client, session, { status = "pending", limit = 100 } = {}) {
   const bounded = Math.min(250, Math.max(1, Number(limit) || 100));
+  const canManage = hasSessionPermission(session, "approvals.manage");
   const result = await client.query(
     `SELECT id, entity_type, entity_id, title, status, requested_by, assigned_to,
             requested_at, decided_at, decided_by, decision_note, command_key, version
        FROM public.approval_requests
       WHERE organization_id = $1 AND ($2::text IS NULL OR status = $2)
+        AND ($3::boolean OR requested_by = $4 OR assigned_to = $4)
       ORDER BY requested_at DESC
-      LIMIT $3`,
-    [organizationId, status === "all" ? null : status, bounded],
+      LIMIT $5`,
+    [session.organizationId, status === "all" ? null : status, canManage, session.userId, bounded],
   );
   return result.rows;
 }
@@ -145,6 +160,19 @@ export async function decideApproval(client, session, approvalId, { decision, no
       }
       throw error;
     }
+  } else if (approval.requested_by !== session.userId && !hasSessionPermission(session, "approvals.manage")) {
+    // Checkpoint audit (ERP completion gap register, SEC-APPROVAL-001):
+    // "approved"/"rejected" dispatch into a module handler that calls its
+    // own requirePermission internally (subledger-approvals.js, journals.js,
+    // sales/index.js) — genuinely gated. "cancelled" dispatches nowhere (it
+    // only flips approval_requests.status, per the comment below) and was
+    // skipped by the SoD check above by design, since the requester
+    // cancelling their own request is the normal case — but that left
+    // ANY authenticated org member free to cancel ANY OTHER user's pending
+    // approval with no check at all, not just their own. Only the original
+    // requester, or someone holding org-wide approvals.manage, may cancel
+    // someone else's request.
+    throw new ApprovalError(403, "Only the requester or an approvals manager can cancel this request.", "CANCEL_NOT_PERMITTED");
   }
 
   // "cancelled" withdraws the approval REQUEST itself (e.g. the requester

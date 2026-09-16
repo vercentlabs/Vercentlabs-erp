@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { decideApproval } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, decideApproval } from "@vercentlabs/api";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -16,6 +16,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const { id } = await context.params;
     const body = decideSchema.parse(await readJson(request));

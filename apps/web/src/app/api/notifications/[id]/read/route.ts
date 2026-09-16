@@ -1,4 +1,4 @@
-import { markNotificationRead } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, markNotificationRead } from "@vercentlabs/api";
 
 import { withClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
@@ -9,6 +9,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const { id } = await context.params;
     const result = await withClient((client) =>
