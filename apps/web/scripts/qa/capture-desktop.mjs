@@ -63,6 +63,31 @@ for (const [slug, route, label] of ROUTES) {
   try {
     await page.goto(`${BASE_URL}${route}`, { waitUntil: "networkidle", timeout: 20000 });
     await page.waitForTimeout(2000);
+    // The app shell scrolls its main content region internally
+    // (`overflow-y-auto` on a flex child), not the document body, so
+    // page.screenshot({ fullPage: true }) silently truncates any page
+    // taller than the viewport. Neutralize that clipping before
+    // capturing — but only for "a bit more content below the fold"
+    // (a few hundred/thousand px). A handful of containers (grid rows,
+    // kanban columns) are DELIBERATELY capped/virtualized so a
+    // 79-card column doesn't render 9000+px tall for a real user;
+    // unclipping those wouldn't reveal real content faithfully, it'd
+    // produce a screenshot no user would ever actually see. Cap what
+    // we'll unclip so we only touch genuine "shell is slightly taller
+    // than viewport" clipping, not deliberately-bounded lists.
+    await page.evaluate(() => {
+      const MAX_REVEAL_PX = 2000;
+      for (const el of document.querySelectorAll("*")) {
+        const style = getComputedStyle(el);
+        if ((style.overflowY === "auto" || style.overflowY === "scroll") && el.scrollHeight > el.clientHeight + 2) {
+          if (el.scrollHeight - el.clientHeight > MAX_REVEAL_PX) continue;
+          el.style.overflow = "visible";
+          el.style.height = "auto";
+          el.style.maxHeight = "none";
+        }
+      }
+    });
+    await page.waitForTimeout(300);
     await page.screenshot({ path: filePath, fullPage: true });
     inventory.push({ route, label, file: filePath, url: page.url(), consoleErrors: [...consoleErrors] });
     console.log(`OK   ${route}`);

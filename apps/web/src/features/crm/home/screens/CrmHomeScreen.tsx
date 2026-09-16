@@ -122,7 +122,7 @@ export function CrmHomeScreen() {
         {sections.map((section) => (
           <div key={section.id} className="flex flex-col gap-2">
             <h2 className="text-xs font-medium uppercase tracking-wide text-text-muted">{section.label}</h2>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,280px))] gap-2">
               {section.items.map((item) => (
                 <Link
                   key={item.id}
