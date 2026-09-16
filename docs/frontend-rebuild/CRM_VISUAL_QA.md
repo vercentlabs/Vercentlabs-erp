@@ -196,6 +196,48 @@ going forward.
 **Status**: **Fixed and verified** — both pages pass axe's
 `wcag2a`/`wcag2aa` rule sets with 0 critical/serious violations.
 
+### DEFECT-006 — P2 — Home/Dashboard metric and nav-link grids left large empty space when the item count didn't divide evenly by 4
+
+**Route/component**: `packages/design-system/src/enterprise/MetricStrip.tsx`
+(used by CRM Home, Dashboard, Forecast) and
+`apps/web/src/features/crm/home/screens/CrmHomeScreen.tsx`'s per-section
+nav-link grid.
+**Viewport**: all (a CSS grid-track issue, not viewport-specific,
+though most visible at desktop width where more columns fit).
+**Observed**: both components used a fixed `grid-cols-4` (or
+`sm:grid-cols-3 lg:grid-cols-4`) regardless of how many items were
+passed. CRM Home's stats row has 5 metrics — row 1 filled 4, row 2 had
+1 card ("Due today") with 3 empty column-tracks visibly trailing it.
+Home's Engagement section has exactly 1 nav link, rendered as a
+1-of-4-filled ghost grid (75% of the row empty); Insights and Data
+sections (2 items) were 50% empty. Dashboard's stats row has 6
+metrics — row 2 had 2 filled, 2 empty.
+**Root cause**: `grid-template-columns` was a fixed count, not
+responsive to child count — CSS grid doesn't collapse a partially-empty
+final row on its own.
+**Expected**: a row with fewer items than the column count shouldn't
+render visible empty grid cells.
+**Severity**: P2 — real, visible layout defect on two of the most-
+visited screens (Home, Dashboard), not blocking any workflow.
+**Fix**: both grids switched to
+`grid-cols-[repeat(auto-fit,minmax(200px,280px))]` — `auto-fit`
+collapses tracks with no content instead of rendering them empty, and
+the `280px` cap keeps card width the same as before rather than
+stretching a lone card to fill the row. Verified visually: Home's 5
+stats now render 3+2 instead of 4+1; Dashboard's 6 now render a
+perfect 3+3.
+**Status**: **Fixed and verified.** Commit `ead8b207`.
+**How this was missed in Phase 7**: the stats row itself was above the
+fold and visible in the Phase 7 screenshots, but the reviewer didn't
+scrutinize the grid math closely enough to flag the orphaned card. The
+Engagement/Insights/Data instances of the same bug genuinely were
+missed for a second reason — Phase 7's screenshots were captured via
+`page.screenshot({ fullPage: true })` against a shell that scrolls its
+main content internally (`overflow-y-auto` on a flex child, not the
+document body); `fullPage` only follows document scroll height, so it
+silently truncated most pages below ~900px. Both gaps are addressed in
+Phase 8.
+
 ### Non-defect — dev-mode cold-compilation false positive
 
 Several screenshots in the first capture pass showed permanently-stuck
@@ -290,3 +332,29 @@ cold-compilation false positive above.
   and nowhere else. One investigated-and-ruled-out false positive
   documented above (`fullPage` vs. `EnterpriseDataGrid`'s inner scroll).
   Screenshots: `apps/web/scripts/qa/artifacts/screenshots/*__desktop.png`.
+  **Correction (see Phase 8): the "0 new defects" conclusion above was
+  reached on an incomplete view of most pages and was wrong — a real
+  defect (DEFECT-006, documented above with DEFECT-001–005) was on two
+  of these screens.**
+- **Phase 8 (correcting Phase 7's screenshot methodology + DEFECT-006)**:
+  done, prompted by the user pushing back on the Phase 7 "0 new
+  defects" conclusion — correctly: that pass's `fullPage` screenshots
+  were silently truncated by a nested `overflow-y-auto` shell container
+  (see the "Non-defect" entry above for `EnterpriseDataGrid`'s
+  *deliberate* version of the same mechanism — this one wasn't
+  deliberate, it was the ordinary page shell). Fixed
+  `capture-desktop.mjs` to neutralize that clipping before capturing,
+  capped at 2000px of revealed height so genuinely-bounded containers
+  (grid virtualization, kanban columns) aren't force-unclipped into a
+  screenshot no real user would ever see — verified by first getting
+  this wrong too (an uncapped version of the fix produced a 9632px
+  screenshot of the Pipeline board's Qualification column) before
+  adding the cap. Re-reviewed all 25 screens against the corrected
+  captures and found DEFECT-006, above. Also re-examined and ruled out
+  (with precise, measured gaps, not visual impression) a second
+  suspected defect — inconsistent-looking section spacing on Account
+  360 — which turned out to be an artifact of varying body-content
+  length between section headings, not inconsistent CSS: three
+  single-line sections (Contact relationships→Hierarchy, Communications
+  →Custom fields, Custom fields→Privacy) measured 68px, 68px, 77px
+  apart respectively, within normal rounding.
