@@ -215,6 +215,24 @@ sensitive QA pass should run against a production build
 (`next build && next start`), not `next dev`, to avoid re-diagnosing this
 same false-positive class.
 
+### Non-defect — `fullPage` screenshots clip `EnterpriseDataGrid`'s inner scroll region
+
+The Phase 7 desktop re-capture initially looked like it had a clipped
+last row on the Account List (and, by the same mechanism, unexplained
+blank space below the table on other list screens). Investigated
+directly: `EnterpriseDataGrid`'s scroll container is
+`max-h-[70vh] overflow-auto` by design (so the column header can stay
+sticky — this is the documented `HCI_STANDARD.md` Tables pattern, not
+an accident). `scrollHeight` (1610px) exceeds `clientHeight` (630px) on
+a 25-row page; Playwright's `page.screenshot({ fullPage: true })` only
+extends to the outer document's scroll height, it does not expand a
+nested `overflow: auto` container, so rows past ~10 never appear in the
+capture. Confirmed the true behavior directly: the "clipped" row
+(`isVisible: true`) is fully reachable by scrolling the grid, exactly
+as a real user would. **Not a defect** — a screenshot-tooling
+limitation, same class as the already-documented dev-mode
+cold-compilation false positive above.
+
 ## Phase status
 
 - **Phase 1 (environment)**: done — see Environment section above.
@@ -256,3 +274,19 @@ same false-positive class.
     coverage was left out of this suite rather than worked around; run
     `node scripts/qa/set-qa-password.mjs e2e-restricted@crm-e2e-fixture.test`
     to fix it before adding restricted-role specs.
+- **Phase 7 (full desktop visual QA re-pass)**: done. Re-captured all 25
+  desktop (1440×900) screens with `apps/web/scripts/qa/capture-desktop.mjs`
+  (fresh login, no stale storage state) and read every one against
+  `HCI_STANDARD.md`'s checklist — primary/secondary action weighting,
+  danger-action styling (`Archive` used correctly instead of `Delete` on
+  Account/Contact/Opportunity 360), empty vs. no-results states,
+  cross-page numeric consistency (Home/Dashboard/Forecast/Reports/
+  Pipeline all agree: 147 open leads, 98 open opportunities, 79/19 split
+  across Qualification/Needs analysis), contextual disabling (e.g.
+  "New field" disabled until a custom object exists). **Result: 0 new
+  defects.** DEFECT-001/002/003's fixes hold up visually (real Stage/
+  Account/Communications data render correctly); the already-deferred
+  DEFECT-004 currency inconsistency is visible exactly where expected
+  and nowhere else. One investigated-and-ruled-out false positive
+  documented above (`fullPage` vs. `EnterpriseDataGrid`'s inner scroll).
+  Screenshots: `apps/web/scripts/qa/artifacts/screenshots/*__desktop.png`.
