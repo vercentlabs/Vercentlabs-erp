@@ -23,27 +23,29 @@ export interface SavedViewBarProps {
  * the query, it doesn't switch page content. */
 export function SavedViewBar({ className, views, activeViewId, onSelect, onCreateView }: SavedViewBarProps) {
   return (
-    <div className={cn("flex items-center gap-1 overflow-x-auto", className)} role="tablist" aria-label="Saved views">
-      {views.map((view) => {
-        const isActive = view.id === activeViewId;
-        return (
-          <button
-            key={view.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onSelect(view.id)}
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm font-medium outline-none",
-              "data-[focus-visible]:ring-2 data-[focus-visible]:ring-brand",
-              isActive ? "bg-brand-soft text-brand-active" : "text-text-secondary hover:bg-surface-muted hover:text-text",
-            )}
-          >
-            {view.label}
-            {view.count !== undefined && <span className="tabular-nums text-xs text-text-muted">{view.count}</span>}
-          </button>
-        );
-      })}
+    <div className={cn("flex items-center gap-1 overflow-x-auto", className)}>
+      <div className="flex items-center gap-1" role="tablist" aria-label="Saved views">
+        {views.map((view) => {
+          const isActive = view.id === activeViewId;
+          return (
+            <button
+              key={view.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onSelect(view.id)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm font-medium outline-none",
+                "data-[focus-visible]:ring-2 data-[focus-visible]:ring-brand",
+                isActive ? "bg-brand-soft text-brand-active" : "text-text-secondary hover:bg-surface-muted hover:text-text",
+              )}
+            >
+              {view.label}
+              {view.count !== undefined && <span className="tabular-nums text-xs text-text-muted">{view.count}</span>}
+            </button>
+          );
+        })}
+      </div>
       {onCreateView && (
         <IconButton aria-label="Save current filters as a view" size="compact" onPress={onCreateView}>
           <Plus className="size-4" aria-hidden="true" />

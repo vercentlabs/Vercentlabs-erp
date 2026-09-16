@@ -169,6 +169,33 @@ a broader look at every other place `currencyCode` is optional (Leads,
 Quota Plans, etc. use the same bare-`TextField` convention). Recommend a
 dedicated pass.
 
+### DEFECT-005 — P2 — SavedViewBar's "save current view" button broke the ARIA tablist contract
+
+**Route/component**: `packages/design-system/src/enterprise/SavedViewBar.tsx`,
+composed into `/crm/leads` and `/crm/opportunities` via
+`apps/web/src/features/crm/shared/SavedViewsBar.tsx`.
+**Viewport**: all (accessibility-tree issue, not viewport-specific).
+**Observed**: axe-core (`aria-required-children`, critical) on both Lead
+List and Opportunity List: the saved-views row's `role="tablist"`
+container had a plain `<button aria-label="Save current filters as a
+view">` as a direct child alongside the `role="tab"` buttons — a
+`tablist` may only contain `tab` children, so this element's exposed
+semantics are broken for assistive-technology users, e.g. that button is
+liable to be skipped or mis-announced depending on the screen reader.
+**Root cause**: the "create view" `IconButton` was rendered as a sibling
+of the mapped `role="tab"` buttons but still inside the div carrying
+`role="tablist"`.
+**Expected**: `role="tablist"` contains only `role="tab"` children (WCAG
+2.1 A, 1.3.1 Info and Relationships).
+**Severity**: P2 — real assistive-technology defect, not a blocker for
+sighted mouse/keyboard use.
+**Fix**: wrapped the mapped tab buttons in their own inner div carrying
+`role="tablist"`; the create-view `IconButton` is now a sibling outside
+it, same visual layout. Covered by `apps/web/e2e/accessibility.spec.ts`
+going forward.
+**Status**: **Fixed and verified** — both pages pass axe's
+`wcag2a`/`wcag2aa` rule sets with 0 critical/serious violations.
+
 ### Non-defect — dev-mode cold-compilation false positive
 
 Several screenshots in the first capture pass showed permanently-stuck
@@ -200,3 +227,32 @@ same false-positive class.
   tested (backend suite 1087/1087), and verified against the real
   database and a real browser. DEFECT-004 (P2) deliberately deferred with
   reasoning above, not silently dropped.
+- **Phase 6 (permanent regression suite + functional/accessibility
+  pass)**: done. Replaced the ad hoc `apps/web/scripts/qa/*.mjs` scripts
+  with a permanent Playwright suite (`apps/web/playwright.config.ts`,
+  `apps/web/e2e/`, run via `pnpm --filter @vercentlabs/web test:e2e`):
+  - `auth.setup.ts` — one real login, storage state reused by every spec.
+  - `crm-regression.spec.ts` — a standing guard for DEFECT-001/002/003:
+    5 list routes load with zero console errors; the Opportunity 360
+    header renders a real Stage value (`stage_id` is `NOT NULL` by
+    schema) and, for a list row that actually has one, a real Account
+    value (`party_id` is nullable — deliberately not asserted on every
+    row); the Activity and Notes tabs load without a 5xx.
+  - `opportunity-stage-transition.spec.ts` — first functional (not just
+    visual) workflow test: opens the Opportunity 360 Pipeline tab, picks
+    an open non-current destination stage from the real "Destination
+    stage" listbox, submits via the real `POST
+    /api/crm/opportunities/{id}/stage` endpoint, and confirms the
+    Overview tab reflects the new stage. Passing end-to-end confirms the
+    stage-transition governance path (optimistic concurrency, Won/Lost
+    outcome-reason requirement, stage-exit playbook gate) works for the
+    plain open-to-open case; those guardrails themselves are already
+    covered by `services/api`'s own test suite, not re-tested here.
+  - `accessibility.spec.ts` — `@axe-core/playwright` (`wcag2a`/`wcag2aa`)
+    across 9 pages incl. Opportunity 360; found and fixed DEFECT-005.
+  - All 20 tests pass. The restricted-viewer fixture user's password is
+    currently stale (predates this pass; not set by
+    `scripts/qa/set-qa-password.mjs` for that email) — restricted-role
+    coverage was left out of this suite rather than worked around; run
+    `node scripts/qa/set-qa-password.mjs e2e-restricted@crm-e2e-fixture.test`
+    to fix it before adding restricted-role specs.
