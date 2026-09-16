@@ -82,10 +82,13 @@ export function AssignmentPoliciesSettingsScreen() {
   }
   function handleError(err: unknown) {
     setError(err instanceof AssignmentPolicyApiError ? err.message : "This action could not be completed.");
+    // A stale-write conflict means the row's local updated_at is already
+    // wrong — refetch so the next attempt uses current data.
+    if (err instanceof AssignmentPolicyApiError && err.code === "CRM_STALE_WRITE") invalidate();
   }
 
   const toggleMutation = useMutation({
-    mutationFn: (row: LeadAssignmentPolicy) => setLeadAssignmentPolicyStatus(row.id, row.status === "active" ? "inactive" : "active"),
+    mutationFn: (row: LeadAssignmentPolicy) => setLeadAssignmentPolicyStatus(row.id, row.status === "active" ? "inactive" : "active", row.updated_at),
     onSuccess: invalidate,
     onError: handleError,
   });
@@ -238,7 +241,7 @@ function PolicyDialog({
     },
   };
   const mutation = useMutation({
-    mutationFn: () => (policy ? updateLeadAssignmentPolicy(policy.id, input) : createLeadAssignmentPolicy(input)),
+    mutationFn: () => (policy ? updateLeadAssignmentPolicy(policy.id, input, policy.updated_at) : createLeadAssignmentPolicy(input)),
     onSuccess: () => {
       onSaved();
       onOpenChange(false);

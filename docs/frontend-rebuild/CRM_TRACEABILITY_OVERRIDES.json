@@ -463,9 +463,9 @@
     "notes": null
   },
   "F020-FLOW-002": {
-    "status": "PARTIAL",
-    "evidence": "CRM_SALES_TEAM_HIERARCHY_* / CRM_TERRITORY_HIERARCHY_* errors surfaced in dialogs",
-    "notes": "Validation/auth/error visibility real; optimistic-concurrency (expectedUpdatedAt) is NOT actually enforced server-side for these 4 resources — none are in GENERIC_VERSIONED_RESOURCES, so a stale write currently succeeds silently rather than conflicting. Disclosed, not fixed this pass (a broader concurrency-policy change, out of this tranche's scope)."
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_SALES_TEAM_HIERARCHY_*/CRM_TERRITORY_HIERARCHY_* errors surfaced in dialogs; GENERIC_VERSIONED_RESOURCES now includes sales-teams/sales-team-members/territories/territory-assignments/quota-plans",
+    "notes": "Stage A2 §14 closeout: optimistic concurrency now real for all 4 resources named here (previously disclosed as a gap). A stale PATCH/DELETE is rejected with CRM_STALE_WRITE (409) instead of silently succeeding."
   },
   "F020-BR-001": {
     "status": "IMPLEMENTED",
@@ -563,9 +563,9 @@
     "notes": "No external integration surface for this feature."
   },
   "F020-API-001": {
-    "status": "PARTIAL",
-    "evidence": "Generic /api/crm/[resource] and /api/crm/[resource]/[id] routes",
-    "notes": "Auth/schema real; optimistic concurrency not enforced server-side for these 4 resources (see F020-FLOW-002)."
+    "status": "IMPLEMENTED",
+    "evidence": "Generic /api/crm/[resource] and /api/crm/[resource]/[id] routes; GENERIC_VERSIONED_RESOURCES widened (resource-validation.js)",
+    "notes": "Stage A2 §14 closeout: optimistic concurrency now enforced server-side for these 4 resources (see F020-FLOW-002)."
   },
   "F020-API-002": {
     "status": "PARTIAL",
@@ -648,9 +648,9 @@
     "notes": null
   },
   "F002-FLOW-002": {
-    "status": "PARTIAL",
-    "evidence": "CRM_ACCOUNT_HIERARCHY_SELF_PARENT/_CYCLE, CRM_MERGE_RELATIONSHIP_CONFLICT surfaced in dialogs",
-    "notes": "Accounts themselves DO enforce optimistic concurrency (account-operations.js, requireVersion:true, pre-existing). account-plans/account-stakeholders go through the generic mutation service and are NOT in GENERIC_VERSIONED_RESOURCES — same disclosed gap as F020's sales-teams/territories."
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_ACCOUNT_HIERARCHY_SELF_PARENT/_CYCLE, CRM_MERGE_RELATIONSHIP_CONFLICT surfaced in dialogs; account-plans/account-stakeholders added to GENERIC_VERSIONED_RESOURCES",
+    "notes": "Stage A2 §14 closeout: account-plans/account-stakeholders now enforce optimistic concurrency the same way Accounts themselves already did. Previously disclosed gap closed."
   },
   "F002-BR-001": {
     "status": "IMPLEMENTED",
@@ -748,9 +748,9 @@
     "notes": "No external integration surface for hierarchy/merge/plans; communications is sync-populated but that sync pipeline predates and is outside this pass."
   },
   "F002-API-001": {
-    "status": "PARTIAL",
-    "evidence": "3 new hierarchy/merge routes + duplicates route",
-    "notes": "Hierarchy/merge routes have real auth; concurrency not enforced for account-plans/account-stakeholders (see F002-FLOW-002)."
+    "status": "IMPLEMENTED",
+    "evidence": "3 hierarchy/merge routes + duplicates route; account-plans/account-stakeholders now version-checked via GENERIC_VERSIONED_RESOURCES",
+    "notes": "Stage A2 §14 closeout: concurrency now enforced for account-plans/account-stakeholders (see F002-FLOW-002)."
   },
   "F002-API-002": {
     "status": "PARTIAL",
@@ -1304,8 +1304,8 @@
   },
   "F005-VAL-002": {
     "status": "IMPLEMENTED",
-    "evidence": "CRM_ASSIGNMENT_RULE_INVALID/DUPLICATE codes",
-    "notes": null
+    "evidence": "assignment-engine.js: saveLeadAssignmentPolicy (update branch) and setLeadAssignmentPolicyStatus (activate/deactivate/archive) now require+verify expectedUpdatedAt with a millisecond-truncation-safe date_trunc comparison; CRM_ASSIGNMENT_RULE_VERSION_REQUIRED/_INVALID, CRM_STALE_WRITE",
+    "notes": "Stage A2 §14: the REAL, engine-consumed lead-assignment-policy table (tenant.crm_lead_assignment_policies) had NO optimistic-concurrency check at all — a real gap, not disclosed before this pass since it is not part of the generic resource registry. Routes and frontend client/screen updated to thread expectedUpdatedAt through. Tests: crm-lead-assignment-f005.test.mjs (3 new cases + 1 updated)."
   },
   "F005-CALC-001": {
     "status": "NOT_APPLICABLE",
@@ -3058,9 +3058,9 @@
     "notes": null
   },
   "F025-VAL-002": {
-    "status": "NOT_VERIFIED",
-    "evidence": null,
-    "notes": "Not specifically audited this pass beyond the existing 403/404 error paths."
+    "status": "IMPLEMENTED",
+    "evidence": "forecast-periods/forecast-submissions added to GENERIC_VERSIONED_RESOURCES (resource-validation.js)",
+    "notes": "Stage A2 §14: both resources previously had no optimistic-concurrency check at all despite the generic route already sending expectedUpdatedAt/requireVersion:true. Now enforced; a concurrent edit is rejected with CRM_STALE_WRITE (409)."
   },
   "F025-CALC-001": {
     "status": "IMPLEMENTED",
@@ -3376,5 +3376,15 @@
     "status": "IMPLEMENTED",
     "evidence": "CrmReportsScreen.tsx (14 report kinds); freshness stated explicitly; pipeline/sources drill-down; save via SavedViewsBar; export via rowsToCsv",
     "notes": "Stage A2 §12 closeout."
+  },
+  "F030-API-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": "tenant.crm_report_definitions (report-definitions resource) has zero frontend/backend consumers",
+    "notes": "Stage A2 §14 discovery: F030's real 'governed report definitions save/update' requirement is met by reusing saved-views (resource=report:${report}), not this table — a legitimate architectural choice, already reflected in F030-CAP-001's evidence, not a false claim needing correction. This generic-CRUD table was still added to GENERIC_VERSIONED_RESOURCES for defense-in-depth in case a future/API caller uses it directly."
+  },
+  "F019-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "scoring-rules added to GENERIC_VERSIONED_RESOURCES (resource-validation.js)",
+    "notes": "Stage A2 §14: lead-scoring configuration (genuinely consumed by scoring-engine.js/model-config.js) had no server-side concurrency check on the generic mutation path. Now enforced."
   }
 }

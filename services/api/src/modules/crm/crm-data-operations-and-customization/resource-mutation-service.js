@@ -957,11 +957,24 @@ export async function archiveCrmRecord(
 
   const statusParameter = addParameter(parameters, status);
   const userParameter = addParameter(parameters, context.userId);
+  // Stage A2 §14: derive the archive-path version check from the same
+  // GENERIC_VERSIONED_RESOURCES map as the PATCH path above, rather than a
+  // second hand-maintained resource list — a resource added to that map for
+  // edit-concurrency protection now also gets it on archive, with no risk of
+  // the two lists drifting apart.
   const archiveVersionChecked =
-    (resource === "opportunities" || resource === "lost-reasons") &&
+    (resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource])) &&
     Boolean(expectations.expectedUpdatedAt);
+  // Same millisecond-truncation fix as the PATCH versionGuard above (line
+  // ~701): `before.updatedAt` can only ever carry millisecond precision (it
+  // came back through pg's default Date parser), while the stored
+  // `updated_at` is a full-microsecond-precision timestamptz — an untruncated
+  // `=` here would reject almost every archive as a false CRM_STALE_WRITE
+  // even with zero real concurrent writes. Widening this path (Stage A2
+  // §14) to many more resources made this latent bug reachable far more
+  // often, so it is fixed here rather than shipped forward.
   const archiveVersionGuard = archiveVersionChecked
-    ? ` AND record.updated_at = ${addParameter(parameters, before.updatedAt)}`
+    ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";
   const result = await client.query(
     `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
@@ -971,7 +984,7 @@ export async function archiveCrmRecord(
     if (archiveVersionChecked)
       throw new CrmError(
         409,
-        `This ${resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES["lost-reasons"].entityLabel} changed after you loaded it. Refresh and try again.`,
+        `This ${resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES[resource].entityLabel} changed after you loaded it. Refresh and try again.`,
         "CRM_STALE_WRITE",
       );
     throw new CrmError(404, "CRM record not found.");

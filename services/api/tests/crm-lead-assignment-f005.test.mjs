@@ -441,11 +441,78 @@ test("F005: deactivation is soft and never rewrites existing Leads", async () =>
     manager,
     policyId,
     "inactive",
+    "2024-01-01T00:00:00.000Z",
   );
   assert.equal(result.status, "inactive");
   assert.equal(
     calls.some((call) => call.sql.includes("UPDATE tenant.crm_leads")),
     false,
+  );
+});
+
+test("F005 (Stage A2 §14): updating an existing assignment policy without expectedUpdatedAt is rejected", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.startsWith("SELECT updated_at FROM tenant.crm_lead_assignment_policies"))
+        return { rows: [{ updated_at: new Date("2024-01-01T00:00:00.000Z") }] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  await assert.rejects(
+    saveLeadAssignmentPolicy(client, manager, {
+      id: policyId,
+      name: "Default assignment",
+      mode: "fixed",
+      assigneeUserId: ownerA,
+    }),
+    (error) => error.code === "CRM_ASSIGNMENT_RULE_VERSION_REQUIRED",
+  );
+});
+
+test("F005 (Stage A2 §14): a concurrently-changed assignment policy is rejected as a stale write, not silently overwritten", async () => {
+  const calls = [];
+  const client = {
+    async query(sql, values = []) {
+      calls.push({ sql, values });
+      if (sql.startsWith("SELECT updated_at FROM tenant.crm_lead_assignment_policies"))
+        return { rows: [{ updated_at: new Date("2024-01-01T00:00:00.000Z") }] };
+      if (sql.includes("FROM public.organization_memberships membership"))
+        return { rows: [{ id: ownerA, name: "Priya", email: "priya@example.com" }] };
+      if (sql.includes("pg_advisory_xact_lock")) return { rows: [{}] };
+      if (sql.startsWith("SELECT id FROM tenant.crm_lead_assignment_policies")) return { rows: [] };
+      // Simulates a concurrent editor having already changed the row: the
+      // UPDATE's own date_trunc guard finds no matching row.
+      if (sql.startsWith("UPDATE tenant.crm_lead_assignment_policies")) return { rows: [] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  await assert.rejects(
+    saveLeadAssignmentPolicy(client, manager, {
+      id: policyId,
+      name: "Default assignment",
+      sequence: 100,
+      criteria: {},
+      mode: "fixed",
+      assigneeUserId: ownerA,
+      expectedUpdatedAt: "2024-01-01T00:00:00.000Z",
+    }),
+    (error) => error.status === 409 && error.code === "CRM_STALE_WRITE",
+  );
+  const updateCall = calls.find((call) => call.sql.startsWith("UPDATE tenant.crm_lead_assignment_policies"));
+  assert.ok(updateCall.sql.includes("date_trunc"));
+});
+
+test("F005 (Stage A2 §14): activating/deactivating an assignment policy without expectedUpdatedAt is rejected", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.startsWith("SELECT * FROM tenant.crm_lead_assignment_policies"))
+        return { rows: [{ id: policyId, mode: "fixed", assignee_user_id: ownerA }] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  await assert.rejects(
+    setLeadAssignmentPolicyStatus(client, manager, policyId, "inactive"),
+    (error) => error.code === "CRM_ASSIGNMENT_RULE_VERSION_REQUIRED",
   );
 });
 

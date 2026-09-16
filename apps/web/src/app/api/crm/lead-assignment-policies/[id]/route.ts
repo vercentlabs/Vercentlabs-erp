@@ -32,10 +32,10 @@ export async function POST(request: Request, context: RouteContext) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const { id } = await context.params;
-    const body = (await readJson(request)) as { status?: "active" | "inactive" };
+    const body = (await readJson(request)) as { status?: "active" | "inactive"; expectedUpdatedAt?: string };
     const record = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
-      return setLeadAssignmentPolicyStatus(client, crmContext(session), id, body.status === "active" ? "active" : "inactive");
+      return setLeadAssignmentPolicyStatus(client, crmContext(session), id, body.status === "active" ? "active" : "inactive", body.expectedUpdatedAt);
     });
     return ok({ record });
   } catch (error) {
@@ -48,9 +48,11 @@ export async function DELETE(request: Request, context: RouteContext) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const { id } = await context.params;
+    const url = new URL(request.url);
+    const expectedUpdatedAt = url.searchParams.get("expectedUpdatedAt") ?? undefined;
     const record = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
-      return archiveLeadAssignmentPolicy(client, crmContext(session), id);
+      return archiveLeadAssignmentPolicy(client, crmContext(session), id, expectedUpdatedAt);
     });
     return ok({ record });
   } catch (error) {

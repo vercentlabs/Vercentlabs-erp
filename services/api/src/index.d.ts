@@ -364,12 +364,14 @@ export function archiveLeadAssignmentPolicy(
   client: QueryClient,
   context: CrmFoundationContext,
   policyId: string,
+  expectedUpdatedAt?: string,
 ): Promise<Record<string, unknown>>;
 export function setLeadAssignmentPolicyStatus(
   client: QueryClient,
   context: CrmFoundationContext,
   policyId: string,
   status: "active" | "inactive",
+  expectedUpdatedAt?: string,
 ): Promise<Record<string, unknown>>;
 export function getLeadAssignmentFallback(
   client: QueryClient,

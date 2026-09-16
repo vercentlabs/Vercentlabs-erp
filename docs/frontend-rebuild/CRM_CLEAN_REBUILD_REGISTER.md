@@ -2047,6 +2047,90 @@ test for the new permission gate (wrong caller without
 newly-wired sensitive surface gets the same treatment in one pass rather
 than piecemeal.
 
+### 14. Cross-cutting optimistic-concurrency audit — table-driven, server-enforced
+
+Stage A2 §14. Audited every named editable CRM aggregate/configuration
+resource against the actual mutation code (not the audit docs), classified
+each A (dedicated version check already enforced) / B (append-only or has
+no post-creation edit surface — precondition not applicable) / C (mutable
+and, until this pass, unprotected), and fixed every class-C resource
+server-side, since the requirement is that the server rejects a stale
+write, not merely that the UI shows a version.
+
+Mechanism found while investigating: the generic web PATCH route
+(`apps/web/.../api/crm/[resource]/[id]/route.ts`) already sends
+`expectedUpdatedAt`/`requireVersion: true` on **every** request regardless
+of resource, and the frontend feature API clients for every resource below
+already required and threaded a real `expectedUpdatedAt`/`updatedAt`
+argument through their `update*`/`archive*` functions. The only thing
+missing was server-side enforcement: `updateCrmRecord`/`archiveCrmRecord`
+(`resource-mutation-service.js`) only checked the version for a resource if
+it appeared in the tiny `GENERIC_VERSIONED_RESOURCES` map
+(`resource-validation.js`) — two resources, `qualification-criteria` and
+`lost-reasons`, from an earlier integrity-closeout pass. Every other
+generic resource's `requireVersion: true` was silently ignored: two admins
+editing the same Quota Plan, Territory, or Forecast Period could overwrite
+each other with zero rejection, even though both the route and the
+frontend already behaved as if the protection existed.
+
+| Resource | Class (before) | Fix |
+|---|---|---|
+| Sales teams (`sales-teams`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Team memberships (`sales-team-members`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Territories (`territories`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Territory assignments (`territory-assignments`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Quota plans (`quota-plans`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Account plans (`account-plans`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Account stakeholders (`account-stakeholders`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Forecast periods (`forecast-periods`) | C | Added to `GENERIC_VERSIONED_RESOURCES` |
+| Forecast submissions (`forecast-submissions`) | C | Added to `GENERIC_VERSIONED_RESOURCES` (distinct from the F025 owner/team-manager `recordScope` fix, which controls *who* can see/touch a row, not staleness) |
+| Report definitions (`report-definitions`) | C | Added to `GENERIC_VERSIONED_RESOURCES`. Note: this generic-CRUD table has zero frontend/backend consumers — F030's real "governed report definitions" requirement is met by reusing `saved-views` (`resource=report:${report}`), a legitimate, already-documented architectural choice (see F030-CAP-001 evidence), not a false claim needing correction. Fixed anyway since any future/API caller of this table deserves the same protection. |
+| Assignment rules (`assignment-rules`, `tenant.crm_assignment_rules`) | C | Added to `GENERIC_VERSIONED_RESOURCES`. This table is itself dead (confirmed unused by the real assignment engine in an earlier pass — see the module comment in `lead-assignment-policies/types.ts`); fixed for defense-in-depth only. |
+| Scoring configuration (`scoring-rules`) | C | Added to `GENERIC_VERSIONED_RESOURCES`. Genuinely consumed by `scoring-engine.js`/`model-config.js`, so this one closes a real gap. |
+| Pipelines (`pipelines`) | C | Added to `GENERIC_VERSIONED_RESOURCES`. No PATCH UI currently calls update on this resource (only create/archive), so this closes the gap at the API boundary ahead of any future editor UI. |
+| Pipeline stages (`stages` / `pipeline-stages`) | A | Already enforced — `updateSalesStage` (`sales-stage-operations.js`) unconditionally requires and checks `expectedUpdatedAt` before any UPDATE. No change needed. |
+| Lead sources (`sources` / `lead-sources`) | A | Already enforced — `updateCrmLeadSource` (`lead-source-operations.js`) is called with `requireVersion: true` from its own dedicated route. No change needed. |
+| Qualification configuration (`qualification-criteria`) | A | Already enforced (pre-existing `GENERIC_VERSIONED_RESOURCES` entry). No change needed. |
+| Won/Lost configuration (`lost-reasons`) | A | Already enforced (pre-existing `GENERIC_VERSIONED_RESOURCES` entry). No change needed. |
+| **Lead assignment policies** (`tenant.crm_lead_assignment_policies` — the REAL, engine-consumed assignment-policy table; distinct from the dead `assignment-rules` above) | **C** | Not part of the generic registry at all — routed through its own dedicated `assignment-engine.js`. `saveLeadAssignmentPolicy`'s UPDATE branch, and `setLeadAssignmentPolicyStatus` (used by both the activate/deactivate toggle and archive), had **no version check whatsoever**. Fixed directly in `assignment-engine.js`: both now require and verify `expectedUpdatedAt` against the stored row before writing, using the same millisecond-truncation-safe `date_trunc` comparison as the generic path, and reject a concurrent change with `CRM_STALE_WRITE` (409) rather than a silent overwrite. Routes (`/api/crm/lead-assignment-policies/[id]`) and the frontend API client/screen were updated to thread `expectedUpdatedAt` through (the type already carried `updated_at`, so no new data was needed). |
+
+Also fixed while widening the map: `archiveCrmRecord`'s own version-check
+gate was a second, independently-hardcoded resource list
+(`resource === "opportunities" || resource === "lost-reasons"`) instead of
+reading `GENERIC_VERSIONED_RESOURCES` — meant a resource added for
+PATCH-concurrency protection would NOT automatically get the same
+protection on archive/DELETE. Unified both gates onto the one map. Also
+found and fixed a latent, previously-dormant bug in that same archive
+guard: it compared `record.updated_at` with plain `=` instead of the
+millisecond-truncated comparison the PATCH path already uses, which would
+have produced a false `CRM_STALE_WRITE` on almost every archive of a newly
+class-C-protected resource (same root cause as the documented PATCH
+precision bug: a JS `Date` can only carry millisecond precision, while the
+stored `timestamptz` carries microseconds).
+
+Scope note: this audit is intentionally limited to the resources named in
+this stage's instruction. Other generic CRM resources not on that list
+(campaigns, communications, tags, sequences, etc.) were not touched and
+remain in whatever concurrency state they were already in — expanding the
+map further was out of scope here since they are not aggregates/
+configuration resources this stage was asked to protect.
+
+Tests added: `crm-lead-assignment-f005.test.mjs` gained 3 new cases
+(missing-version-on-update rejected, concurrent-change-on-update rejected
+as a stale write with a real `date_trunc` guard in the SQL, missing-version
+on activate/deactivate rejected) plus one existing test
+("deactivation is soft…") updated to supply a version, since the check is
+now real. No new tests were needed for the `GENERIC_VERSIONED_RESOURCES`
+widening itself — it reuses the exact mechanism already covered by the
+existing `qualification-criteria`/`lost-reasons` tests and the F024/F025
+suites that already exercise `updateCrmRecord` end-to-end for several of
+the newly-added resources.
+
+Full `services/api` suite: 1082/1082 (1079 + 3 new). Web typecheck and
+ESLint: clean (required updating `archiveLeadAssignmentPolicy`/
+`setLeadAssignmentPolicyStatus`'s type declarations in `services/api/src/
+index.d.ts` to accept the new optional `expectedUpdatedAt` parameter).
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from

@@ -80,9 +80,39 @@ export function assertLeadExpectedVersion(record, expectedUpdatedAt, required = 
 // version-checked operation files and are NOT routed through here.
 // Qualification criteria has no archive/DELETE transition defined
 // (archiveStatuses below), so it is PATCH-only.
+//
+// Stage A2 §14 concurrency audit: the same class of gap existed for every
+// other mutable CRM configuration/aggregate resource that only ever went
+// through this generic path — the web PATCH route (apps/web .../[resource]/
+// [id]/route.ts) already sent `expectedUpdatedAt`/`requireVersion: true` on
+// every request regardless of resource, but updateCrmRecord/archiveCrmRecord
+// silently ignored both unless the resource appeared in this map, so two
+// concurrent editors of, say, a Quota Plan or Territory could overwrite each
+// other with no server-side rejection. Widened to cover every resource in
+// the audited list that is genuinely editable post-creation (has real
+// fields a second editor could race on) rather than append-only: sales
+// teams, team memberships, territories, territory assignments, quota
+// plans, account plans, account stakeholders, forecast periods, forecast
+// submissions, report definitions, assignment rules, scoring rules, and
+// pipelines. (Pipeline Stages and Lead Sources already had their own
+// dedicated, already-enforced version checks — see sales-stage-operations.js
+// and lead-source-operations.js — so they are deliberately not added here.)
 export const GENERIC_VERSIONED_RESOURCES = {
   "qualification-criteria": { entityLabel: "Qualification criterion", codePrefix: "CRM_QUALIFICATION_CRITERIA" },
   "lost-reasons": { entityLabel: "Won/Lost reason", codePrefix: "CRM_LOST_REASON" },
+  "sales-teams": { entityLabel: "Sales team", codePrefix: "CRM_SALES_TEAM" },
+  "sales-team-members": { entityLabel: "Team membership", codePrefix: "CRM_TEAM_MEMBERSHIP" },
+  territories: { entityLabel: "Territory", codePrefix: "CRM_TERRITORY" },
+  "territory-assignments": { entityLabel: "Territory assignment", codePrefix: "CRM_TERRITORY_ASSIGNMENT" },
+  "quota-plans": { entityLabel: "Quota plan", codePrefix: "CRM_QUOTA_PLAN" },
+  "account-plans": { entityLabel: "Account plan", codePrefix: "CRM_ACCOUNT_PLAN" },
+  "account-stakeholders": { entityLabel: "Account stakeholder", codePrefix: "CRM_ACCOUNT_STAKEHOLDER" },
+  "forecast-periods": { entityLabel: "Forecast period", codePrefix: "CRM_FORECAST_PERIOD" },
+  "forecast-submissions": { entityLabel: "Forecast submission", codePrefix: "CRM_FORECAST_SUBMISSION" },
+  "report-definitions": { entityLabel: "Report definition", codePrefix: "CRM_REPORT_DEFINITION" },
+  "assignment-rules": { entityLabel: "Assignment rule", codePrefix: "CRM_ASSIGNMENT_RULE" },
+  "scoring-rules": { entityLabel: "Scoring rule", codePrefix: "CRM_SCORING_RULE" },
+  pipelines: { entityLabel: "Pipeline", codePrefix: "CRM_PIPELINE" },
 };
 
 

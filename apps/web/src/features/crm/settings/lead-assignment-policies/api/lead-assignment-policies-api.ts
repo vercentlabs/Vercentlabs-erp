@@ -28,16 +28,16 @@ export async function createLeadAssignmentPolicy(input: Record<string, unknown>)
   const response = await fetch("/api/crm/lead-assignment-policies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
   return parseResponse(response);
 }
-export async function updateLeadAssignmentPolicy(id: string, input: Record<string, unknown>): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+export async function updateLeadAssignmentPolicy(id: string, input: Record<string, unknown>, expectedUpdatedAt: string): Promise<{ record: LeadAssignmentPolicy }> {
+  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, expectedUpdatedAt }) });
   return parseResponse(response);
 }
-export async function setLeadAssignmentPolicyStatus(id: string, status: "active" | "inactive"): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+export async function setLeadAssignmentPolicyStatus(id: string, status: "active" | "inactive", expectedUpdatedAt: string): Promise<{ record: LeadAssignmentPolicy }> {
+  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, expectedUpdatedAt }) });
   return parseResponse(response);
 }
-export async function archiveLeadAssignmentPolicy(id: string): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, { method: "DELETE" });
+export async function archiveLeadAssignmentPolicy(id: string, expectedUpdatedAt: string): Promise<{ record: LeadAssignmentPolicy }> {
+  const response = await fetch(`/api/crm/lead-assignment-policies/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
   return parseResponse(response);
 }
 
