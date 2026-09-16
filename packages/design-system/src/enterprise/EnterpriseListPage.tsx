@@ -27,13 +27,24 @@ export interface EnterpriseListPageProps {
  * this component has no knowledge of any specific record type.
  */
 export function EnterpriseListPage({ header, savedViews, actionBar, filterBar, bulkActionBar, children }: EnterpriseListPageProps) {
+  const hasToolbar = Boolean(savedViews || actionBar || bulkActionBar || filterBar);
   return (
-    <Stack gap={4}>
+    // The header sits on the page canvas as its own chrome, deliberately
+    // more separated (gap-6) from the work area below than that work
+    // area's own internal rhythm (gap-3) — the toolbar card and the grid
+    // read as one connected surface, not three independent blocks.
+    <Stack gap={6}>
       <PageHeader {...header} />
-      {savedViews && <SavedViewBar {...savedViews} />}
-      {bulkActionBar && bulkActionBar.selectedCount > 0 ? <BulkActionBar {...bulkActionBar} /> : actionBar ? <ActionBar {...actionBar} /> : null}
-      {filterBar && <FilterBar {...filterBar} />}
-      {children}
+      <Stack gap={3}>
+        {hasToolbar ? (
+          <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-subtle)]">
+            {savedViews && <SavedViewBar {...savedViews} />}
+            {bulkActionBar && bulkActionBar.selectedCount > 0 ? <BulkActionBar {...bulkActionBar} /> : actionBar ? <ActionBar {...actionBar} /> : null}
+            {filterBar && <FilterBar {...filterBar} />}
+          </div>
+        ) : null}
+        {children}
+      </Stack>
     </Stack>
   );
 }

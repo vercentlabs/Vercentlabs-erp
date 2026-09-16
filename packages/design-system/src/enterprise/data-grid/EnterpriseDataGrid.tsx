@@ -167,7 +167,15 @@ export function EnterpriseDataGrid<TRow>({
   const table_ = (
     <div className={cn("overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface", className)}>
       <div ref={scrollRef} className="max-h-[70vh] overflow-auto" tabIndex={0} role="group" aria-label={gridId}>
-        <table className="w-full border-collapse text-sm" style={{ width: table.getTotalSize() }}>
+        {/* Fixed pixel widths (getTotalSize/getSize) only matter once
+            column resizing is actually enabled — otherwise TanStack's
+            150px-per-column default forces horizontal scroll even for
+            narrow content (a Priority badge, a Score number). Left to the
+            browser's normal table layout, columns size to their content. */}
+        <table
+          className="w-full border-collapse text-sm"
+          style={enableColumnResizing ? { width: table.getTotalSize() } : undefined}
+        >
           <thead className="sticky top-0 z-[var(--z-sticky)] bg-surface-raised">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-border">
@@ -177,8 +185,8 @@ export function EnterpriseDataGrid<TRow>({
                   return (
                     <th
                       key={header.id}
-                      style={{ width: header.getSize() }}
-                      className="relative px-3 py-2 text-left text-xs font-semibold text-text-secondary"
+                      style={enableColumnResizing ? { width: header.getSize() } : undefined}
+                      className="relative px-4 py-2.5 text-left text-[11px] font-semibold tracking-wide text-text-muted uppercase"
                     >
                       {header.isPlaceholder ? null : canSort ? (
                         <button
@@ -291,18 +299,23 @@ function VirtualOrPlainBody<TRow>({
 }
 
 function GridRow<TRow>({ row, onRowClick, rowPaddingClass }: { row: Row<TRow>; onRowClick?: (row: TRow) => void; rowPaddingClass: string }) {
+  const resizable = row.getVisibleCells().some((cell) => cell.column.getCanResize());
   return (
     <tr
       data-selected={row.getIsSelected() || undefined}
       onClick={onRowClick ? () => onRowClick(row.original) : undefined}
       className={cn(
-        "border-b border-border last:border-b-0",
+        "border-b border-border last:border-b-0 transition-colors",
         "hover:bg-surface-muted data-[selected]:bg-brand-soft",
         onRowClick && "cursor-pointer",
       )}
     >
       {row.getVisibleCells().map((cell) => (
-        <td key={cell.id} className={cn("px-3 text-text", rowPaddingClass)} style={{ width: cell.column.getSize() }}>
+        <td
+          key={cell.id}
+          className={cn("px-4 text-text", rowPaddingClass)}
+          style={resizable ? { width: cell.column.getSize() } : undefined}
+        >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </td>
       ))}

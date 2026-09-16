@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, Plus, Users } from "lucide-react";
+import { Archive, Plus, SlidersHorizontal, Users } from "lucide-react";
 import {
   Badge,
   Button,
@@ -14,6 +14,8 @@ import {
   IconButton,
   NoResultsState,
   PermissionState,
+  Popover,
+  PopoverTrigger,
   SearchField,
   Select,
   StatusBadge,
@@ -199,6 +201,12 @@ export function LeadListScreen() {
   const pageIndex = Math.floor((filters.offset ?? 0) / PAGE_SIZE);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // Qualification/Priority/Rating/Follow-up are real but less-used filters
+  // (UI refinement addendum #5) — kept out of the always-visible toolbar
+  // and grouped behind "More filters" so the default surface stays compact;
+  // Stage/Owner/Search are the ones people reach for on every visit.
+  const secondaryFilterCount = [filters.qualification, filters.priority, filters.rating, filters.followup].filter(Boolean).length;
+
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
   const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification || filters.dwellBreached || filters.highPriority);
   const hasExplicitFilters = searchParams.toString().length > 0;
@@ -349,11 +357,26 @@ export function LeadListScreen() {
               className="min-w-[240px]"
             />
             <Select aria-label="Stage" size="compact" options={stageOptions} selectedKey={filters.status ?? "all"} onSelectionChange={(key) => updateFilter("status", key === "all" ? undefined : String(key))} />
-            <Select aria-label="Qualification" size="compact" options={QUALIFICATION_OPTIONS} selectedKey={filters.qualification ?? "all"} onSelectionChange={(key) => updateFilter("qualification", key === "all" ? undefined : (String(key) as LeadListFilters["qualification"]))} />
             <Select aria-label="Owner" size="compact" options={ownerOptions} selectedKey={filters.ownerId ?? "all"} onSelectionChange={(key) => updateFilter("ownerId", key === "all" ? undefined : String(key))} />
-            <Select aria-label="Priority" size="compact" options={PRIORITY_OPTIONS} selectedKey={filters.priority ?? "all"} onSelectionChange={(key) => updateFilter("priority", key === "all" ? undefined : (String(key) as LeadListFilters["priority"]))} />
-            <Select aria-label="Rating" size="compact" options={RATING_OPTIONS} selectedKey={filters.rating ?? "all"} onSelectionChange={(key) => updateFilter("rating", key === "all" ? undefined : String(key))} />
-            <Select aria-label="Follow-up" size="compact" options={FOLLOWUP_OPTIONS} selectedKey={filters.followup ?? "all"} onSelectionChange={(key) => updateFilter("followup", key === "all" ? undefined : (String(key) as LeadListFilters["followup"]))} />
+            <PopoverTrigger>
+              <Button variant="secondary" size="compact">
+                <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+                More filters
+                {secondaryFilterCount > 0 && (
+                  <span className="flex size-4 items-center justify-center rounded-[var(--radius-pill)] bg-brand text-[10px] font-semibold text-white">
+                    {secondaryFilterCount}
+                  </span>
+                )}
+              </Button>
+              <Popover placement="bottom start">
+                <div className="flex w-64 flex-col gap-3">
+                  <Select label="Qualification" size="compact" options={QUALIFICATION_OPTIONS} selectedKey={filters.qualification ?? "all"} onSelectionChange={(key) => updateFilter("qualification", key === "all" ? undefined : (String(key) as LeadListFilters["qualification"]))} />
+                  <Select label="Priority" size="compact" options={PRIORITY_OPTIONS} selectedKey={filters.priority ?? "all"} onSelectionChange={(key) => updateFilter("priority", key === "all" ? undefined : (String(key) as LeadListFilters["priority"]))} />
+                  <Select label="Rating" size="compact" options={RATING_OPTIONS} selectedKey={filters.rating ?? "all"} onSelectionChange={(key) => updateFilter("rating", key === "all" ? undefined : String(key))} />
+                  <Select label="Follow-up" size="compact" options={FOLLOWUP_OPTIONS} selectedKey={filters.followup ?? "all"} onSelectionChange={(key) => updateFilter("followup", key === "all" ? undefined : (String(key) as LeadListFilters["followup"]))} />
+                </div>
+              </Popover>
+            </PopoverTrigger>
           </>
         ),
         end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,

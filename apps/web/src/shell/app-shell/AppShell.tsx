@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import type { ModuleAccess } from "@vercentlabs/api";
 
-import { PrimarySidebar } from "@/shell/primary-sidebar/PrimarySidebar";
 import { MobileNav } from "@/shell/primary-sidebar/MobileNav";
-import { SecondarySidebar } from "@/shell/module-sidebar/SecondarySidebar";
+import { ModuleRail } from "@/shell/module-sidebar/ModuleRail";
 import { QueryProvider } from "@/shell/workspace-context/QueryProvider";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import {
@@ -40,7 +39,7 @@ export function AppShell({
       <WorkspaceContextProvider value={contextValue}>
         <div className="flex h-dvh w-full bg-canvas">
           <div className="hidden lg:flex">
-            <PrimarySidebar
+            <ModuleRail
               organizationName={contextValue.organizationName}
               fullName={contextValue.fullName}
               email={contextValue.email}
@@ -50,7 +49,6 @@ export function AppShell({
               unreadNotificationCount={unreadNotificationCount}
             />
           </div>
-          <SecondarySidebar />
           <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
             <MobileNav
               organizationName={contextValue.organizationName}
@@ -60,7 +58,7 @@ export function AppShell({
               unreadNotificationCount={unreadNotificationCount}
             />
             <WorkspaceTopBar />
-            <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+            <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">{children}</main>
           </div>
         </div>
       </WorkspaceContextProvider>
