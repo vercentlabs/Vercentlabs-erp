@@ -56,13 +56,14 @@ import {
   transitionLeadStage,
 } from "../api/leads-api";
 
+// F007: the five Lead pipeline stage codes (stable codes; human-facing
+// labels come from the live stage catalogue via stageNameByCode below).
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   new: "info",
+  attempting: "info",
   contacted: "info",
-  qualified: "success",
-  unqualified: "neutral",
-  converted: "success",
-  archived: "neutral",
+  working: "warning",
+  nurturing: "neutral",
 };
 
 const timelineTone: Record<string, TimelineEntry["tone"]> = {
@@ -297,6 +298,13 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     ];
   }, [optionsQuery.data]);
 
+  // F007: the primary status badge must show the configured human-facing
+  // stage label ("Attempting Contact"), never the raw stable code.
+  const stageNameByCode = useMemo(() => {
+    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ code: string; name: string }>;
+    return Object.fromEntries(rows.map((row) => [row.code, row.name]));
+  }, [optionsQuery.data]);
+
   // F007: only legal next stages from the Lead's current stage — never
   // every active pipeline stage — per the governed transition graph.
   const legalStageOptions: SelectOption[] = useMemo(() => {
@@ -386,7 +394,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     <RecordDetailsPage
       header={{
         title: lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim(),
-        status: <StatusBadge tone={statusTone[lead.status] ?? "neutral"}>{lead.status}</StatusBadge>,
+        status: <StatusBadge tone={statusTone[lead.status] ?? "neutral"}>{stageNameByCode[lead.status] ?? lead.status}</StatusBadge>,
         fields: [
           { label: "Owner", value: lead.ownerName || "Unassigned" },
           { label: "Priority", value: lead.priority },

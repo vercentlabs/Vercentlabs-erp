@@ -78,13 +78,14 @@ const BULK_FIELD_OPTIONS: SelectOption[] = [
   { value: "nextFollowUpAt", label: "Next follow-up date" },
 ];
 
+// F007: the five Lead pipeline stage codes (stable codes; human-facing
+// labels come from the live stage catalogue, not from this map).
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   new: "info",
+  attempting: "info",
   contacted: "info",
-  qualified: "success",
-  unqualified: "neutral",
-  converted: "success",
-  archived: "neutral",
+  working: "warning",
+  nurturing: "neutral",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
@@ -174,9 +175,18 @@ export function LeadListScreen() {
     return [{ value: "all", label: "Any stage" }, ...rows.filter((row) => row.status === "active").map((row) => ({ value: row.code, label: row.name }))];
   }, [optionsQuery.data]);
 
+  // F007: the stage column/cards/filter chip must show the configured
+  // human-facing label ("Attempting Contact"), never the raw stable code
+  // ("attempting") — includes inactive stages so a Lead parked on a
+  // since-deactivated stage still renders its real name, not its code.
+  const stageNameByCode = useMemo(() => {
+    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ code: string; name: string }>;
+    return Object.fromEntries(rows.map((row) => [row.code, row.name]));
+  }, [optionsQuery.data]);
+
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.status) active.push({ id: "status", label: `Stage: ${filters.status}` });
+    if (filters.status) active.push({ id: "status", label: `Stage: ${stageNameByCode[filters.status] ?? filters.status}` });
     if (filters.ownerId) active.push({ id: "ownerId", label: "Owner filter" });
     if (filters.priority) active.push({ id: "priority", label: `Priority: ${filters.priority}` });
     if (filters.rating) active.push({ id: "rating", label: `Rating: ${filters.rating}` });
@@ -186,7 +196,7 @@ export function LeadListScreen() {
     if (filters.highPriority) active.push({ id: "highPriority", label: "High priority" });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
-  }, [filters]);
+  }, [filters, stageNameByCode]);
 
   function removeFilter(id: string) {
     if (id === "search") setSearchInput("");
@@ -282,7 +292,10 @@ export function LeadListScreen() {
         id: "status",
         header: "Stage",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => {
+          const code = String(getValue());
+          return <StatusBadge tone={statusTone[code] ?? "neutral"}>{stageNameByCode[code] ?? code}</StatusBadge>;
+        },
       },
       {
         id: "qualificationState",
@@ -325,7 +338,7 @@ export function LeadListScreen() {
         cell: ({ getValue }) => dateFormatter.format(new Date(getValue() as string)),
       },
     ],
-    [],
+    [stageNameByCode],
   );
 
   const gridState = query.isLoading
@@ -516,7 +529,7 @@ export function LeadListScreen() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-text">{row.fullName || `${row.firstName} ${row.lastName || ""}`.trim()}</span>
-                <StatusBadge tone={statusTone[row.status] ?? "neutral"}>{row.status}</StatusBadge>
+                <StatusBadge tone={statusTone[row.status] ?? "neutral"}>{stageNameByCode[row.status] ?? row.status}</StatusBadge>
               </div>
               <div className="flex items-center gap-2 text-xs text-text-muted">
                 <Users className="size-3.5" aria-hidden="true" />
