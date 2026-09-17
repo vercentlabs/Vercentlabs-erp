@@ -55,6 +55,33 @@ export async function removeLeadStageTransition(fromStageId: string, toStageId: 
   return parseResponse(response);
 }
 
+export type LeadStageTemplatePreview = {
+  stagesToCreate: Array<{ code: string; name: string; description: string }>;
+  labelsToChange: unknown[];
+  edgesToAdd: Array<{ fromCode: string; toCode: string }>;
+  edgesToRemove: unknown[];
+  affectedLeadCount: number;
+  requiresLeadMigration: boolean;
+  conflicts: Array<{ code: string; issue: string }>;
+};
+
+export async function previewLeadStageTemplateUpgrade(): Promise<LeadStageTemplatePreview> {
+  const response = await fetch("/api/crm/lead-stages/recommended-template");
+  return parseResponse(response);
+}
+export async function applyLeadStageTemplateUpgrade(): Promise<{
+  applied: boolean;
+  stagesCreated: Array<{ code: string; name: string; description: string }>;
+  edgesAdded: Array<{ fromCode: string; toCode: string }>;
+}> {
+  const response = await fetch("/api/crm/lead-stages/recommended-template", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: true }),
+  });
+  return parseResponse(response);
+}
+
 export async function listLeadStageTransitionReasons(): Promise<{ rows: LeadStageTransitionReason[] }> {
   const response = await fetch("/api/crm/lead-stage-transition-reasons");
   return parseResponse(response);
