@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, Trash2, X } from "lucide-react";
-import { Button, ComboBox, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Minus, Pause, Plus, Trash2, X } from "lucide-react";
+import { Button, ComboBox, Dialog, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
 import type { PosCart } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -17,6 +17,8 @@ import {
   completePosCart,
   createPosCart,
   getPosCart,
+  holdPosCart,
+  listHeldPosCarts,
   lookupPosBarcode,
   listPosShifts,
   listPosStores,
@@ -24,6 +26,7 @@ import {
   PosApiError,
   removePosCartLine,
   removePosCoupon,
+  resumePosCart,
   searchPosCustomers,
   searchPosProducts,
   setPosCartCustomer,
@@ -62,6 +65,8 @@ export function PosCheckoutScreen() {
   const [completing, setCompleting] = useState(false);
   const [confirmation, setConfirmation] = useState<{ receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [heldCartsOpen, setHeldCartsOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
   const terminalsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "terminals"), queryFn: listPosTerminals });
@@ -161,6 +166,49 @@ export function PosCheckoutScreen() {
     run(() => setPosCartCustomer(cart.id, customer?.id ?? null, cart.version));
   }
 
+  // F287: hold releases this terminal's active-cart slot (the checkout
+  // effect above re-creates/resumes a cart on this terminal the next time
+  // it mounts with nothing else active), so a cashier can start a new sale
+  // immediately after holding this one.
+  async function holdCurrentCart() {
+    if (!cart) return;
+    setLoading(true);
+    try {
+      await holdPosCart(cart.id, cart.version);
+      setError(null);
+      setCart(null);
+      setSelectedCustomer(null);
+      setCouponCode("");
+      setIdempotencyKey(crypto.randomUUID());
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "held-carts") });
+      await startFreshCart();
+    } catch (err) {
+      setError(err instanceof PosApiError ? err.message : "The sale could not be held.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // F288: resuming while a different cart is already active on this
+  // terminal is rejected server-side (POS_TERMINAL_CART_CONFLICT) -- the
+  // cashier must hold or complete that one first, surfaced as an ordinary
+  // error rather than silently overwriting anything.
+  async function resumeHeldCart(heldCartId: string) {
+    setLoading(true);
+    try {
+      const result = await resumePosCart(heldCartId);
+      setCart(result.cart);
+      setSelectedCustomer(null);
+      setError(null);
+      setHeldCartsOpen(false);
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "held-carts") });
+    } catch (err) {
+      setError(err instanceof PosApiError ? err.message : "This held sale could not be resumed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function completeSale() {
     if (!cart) return;
     setCompleting(true);
@@ -186,6 +234,22 @@ export function PosCheckoutScreen() {
     }
   }
 
+  // Extracted because the mount effect above only fires on myOpenShift.id
+  // changing, not on `cart` becoming null again -- without this, both
+  // "New sale" and "Hold sale" would clear the cart and then leave the
+  // screen with nothing to add lines to until a full page reload (a
+  // pre-existing gap in "New sale" this pass also fixes while adding
+  // hold's identical need for it).
+  async function startFreshCart() {
+    if (!myOpenShift) return;
+    try {
+      const result = await createPosCart({ storeId: myOpenShift.store_id, terminalId: myOpenShift.terminal_id, shiftId: myOpenShift.id });
+      setCart(result.cart);
+    } catch (err) {
+      setError(err instanceof PosApiError ? err.message : "The cart could not be started.");
+    }
+  }
+
   function startNewSale() {
     setConfirmation(null);
     setCashTendered(0);
@@ -195,6 +259,7 @@ export function PosCheckoutScreen() {
     setCouponCode("");
     setIdempotencyKey(crypto.randomUUID());
     setCart(null);
+    startFreshCart();
   }
 
   if (!myOpenShift) {
@@ -228,6 +293,13 @@ export function PosCheckoutScreen() {
   return (
     <div className="flex h-full flex-col gap-4 p-4 lg:flex-row">
       <div className="flex flex-1 flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-text">Checkout</h1>
+          <Button variant="secondary" size="compact" onPress={() => setHeldCartsOpen(true)}>
+            <Pause className="size-4" aria-hidden="true" />
+            Held sales
+          </Button>
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <SearchField label="Search products" placeholder="Search by name, code, barcode…" value={searchTerm} onChange={setSearchTerm} className="flex-1" />
           <div className="flex items-end gap-2">
@@ -383,11 +455,64 @@ export function PosCheckoutScreen() {
         >
           Complete cash sale
         </Button>
+        <Button variant="secondary" onPress={holdCurrentCart} isDisabled={!cart?.lines?.length} isLoading={loading}>
+          <Pause className="size-4" aria-hidden="true" />
+          Hold sale
+        </Button>
         <Button variant="ghost" onPress={() => cart && run(() => cancelPosCart(cart.id).then((r) => ({ cart: r.cart })))}>
           Cancel sale
         </Button>
       </div>
+
+      {heldCartsOpen && <HeldCartsDialog onClose={() => setHeldCartsOpen(false)} onResume={resumeHeldCart} currency={currency} />}
     </div>
+  );
+}
+
+function HeldCartsDialog({ onClose, onResume, currency }: { onClose: () => void; onResume: (id: string) => void; currency: string }) {
+  const workspace = useWorkspaceContext();
+  const [search, setSearch] = useState("");
+  const query = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "held-carts", search),
+    queryFn: () => listHeldPosCarts(search || undefined),
+    refetchInterval: 15000,
+  });
+  const rows = query.data?.rows ?? [];
+
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Held sales">
+      <div className="flex flex-col gap-3">
+        <SearchField label="Search held sales" placeholder="Store, terminal, or customer…" value={search} onChange={setSearch} />
+        {query.isLoading ? (
+          <p className="p-4 text-center text-sm text-text-secondary">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="p-4 text-center text-sm text-text-muted">No held sales right now.</p>
+        ) : (
+          <ul className="flex max-h-96 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-panel)] border border-border">
+            {rows.map((row) => (
+              <li key={row.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-text">
+                    {row.customer_name ?? "Walk-in"} · {row.line_count} item{row.line_count === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {row.store_name} / {row.terminal_name} · held {new Date(row.held_at).toLocaleTimeString()} · {money(currency, row.grand_total)}
+                  </p>
+                </div>
+                <Button variant="secondary" size="compact" onPress={() => onResume(row.id)}>
+                  Resume
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex justify-end">
+          <Button variant="ghost" onPress={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

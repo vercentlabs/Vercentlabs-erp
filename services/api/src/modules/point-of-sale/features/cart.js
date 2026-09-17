@@ -65,6 +65,7 @@ async function assertPosStoreAccess(client, context, storeId) {
 }
 
 const OPEN_STATUSES = ["draft", "priced"];
+const HELD_CART_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 async function loadPolicy(client, context) {
   const result = await client.query(
@@ -97,6 +98,18 @@ async function lockCart(client, context, cartId, { requireOpen = true } = {}) {
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
   await assertPosStoreAccess(client, context, cart.store_id);
   if (cart.expires_at && new Date(cart.expires_at).getTime() < Date.now() && OPEN_STATUSES.includes(cart.status)) {
+    await client.query(`UPDATE tenant.pos_carts SET status='expired' WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
+    cart.status = "expired";
+  }
+  // F287/F288: an abandoned held cart must not sit forever with no
+  // resolution -- holdPosCart clears expires_at (a held cart isn't subject
+  // to the ordinary draft/priced expiry window), so it needs its own,
+  // longer-lived policy. Same lazy/on-read convention as the open-cart
+  // check above: no background sweep, checked the next time anything
+  // touches this row. Not yet a configurable per-organization setting
+  // (would need its own pos_settings column) -- disclosed as a fixed
+  // default rather than invented per-tenant configuration.
+  if (cart.status === "held" && cart.held_at && Date.now() - new Date(cart.held_at).getTime() > HELD_CART_EXPIRY_MS) {
     await client.query(`UPDATE tenant.pos_carts SET status='expired' WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
     cart.status = "expired";
   }
@@ -321,6 +334,10 @@ export async function getPosCart(client, context, cartId) {
   const cart = cartResult.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
   await assertPosStoreAccess(client, context, cart.store_id);
+  if (cart.status === "held" && cart.held_at && Date.now() - new Date(cart.held_at).getTime() > HELD_CART_EXPIRY_MS) {
+    await client.query(`UPDATE tenant.pos_carts SET status='expired' WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
+    cart.status = "expired";
+  }
   const lines = await loadLines(client, context, cartId);
   return { ...cart, lines };
 }
@@ -711,10 +728,29 @@ export async function holdPosCart(client, context, cartId, input = {}) {
   return getPosCart(client, context, cartId);
 }
 
+// F287/F288: resume stays on the SAME terminal/shift the cart was held on
+// -- cross-terminal transfer would mean rewriting terminal_id/shift_id on
+// an already-priced cart, which needs its own authorization-checked
+// claim/transfer operation (ownership, active-shift, inventory, conflict
+// checks) that the canonical dossier does not clearly require; deferred
+// rather than built as an unsafe shortcut. pos_carts_one_active_per_terminal_uidx
+// means resuming can collide with a DIFFERENT cart the cashier started on
+// this terminal after holding this one -- checked explicitly here so that
+// shows up as a clear conflict, not a raw unique-constraint 500. reprice()
+// (below) fully recomputes pricing/promotions/coupon eligibility from
+// scratch, the same as any other cart mutation -- there is no stale
+// snapshot left over from when it was held.
 export async function resumePosCart(client, context, cartId) {
   requirePermission(context, "pos.sale.create");
   const cart = await lockCart(client, context, cartId, { requireOpen: false });
   if (cart.status !== "held") throw posError(409, "Only a held cart can be resumed.", "POS_CART_NOT_HELD");
+  const conflict = await client.query(
+    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND terminal_id=$3 AND status IN ('draft','priced') AND id<>$4`,
+    [context.organizationId, context.companyId, cart.terminal_id, cartId],
+  );
+  if (conflict.rows[0]) {
+    throw posError(409, "This terminal already has another active cart. Hold or complete it before resuming this one.", "POS_TERMINAL_CART_CONFLICT");
+  }
   const policy = await loadPolicy(client, context);
   await client.query(
     `UPDATE tenant.pos_carts SET status='priced',version=version+1,expires_at=now()+make_interval(mins=>$4),updated_at=now(),updated_by=$5
@@ -722,6 +758,45 @@ export async function resumePosCart(client, context, cartId) {
     [context.organizationId, context.companyId, cartId, policy.cart_expiry_minutes, context.userId],
   );
   return reprice(client, context, { ...cart, status: "priced" }, policy);
+}
+
+// F287/F288: the held-cart queue an operator browses to pick up a
+// suspended sale. Store-access-scoped the same way every other cart read
+// is (assertPosStoreAccess, via getPosCart's per-row check would be
+// wasteful here -- filtered directly in the query instead since this is a
+// list, not a single-row lookup).
+export async function listHeldPosCarts(client, context, { search } = {}) {
+  requirePermission(context, "pos.view");
+  const configured = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND company_id=$2 LIMIT 1`, [
+    context.organizationId,
+    context.companyId,
+  ]);
+  const bypass = context.roleSlugs?.includes("organization_owner") || context.roleSlugs?.includes("system_administrator") || context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage");
+  let storeFilter = "";
+  const values = [context.organizationId, context.companyId];
+  if (configured.rows[0] && !bypass) {
+    values.push(context.userId);
+    storeFilter = ` AND cart.store_id IN (SELECT store_id FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$${values.length})`;
+  }
+  let searchFilter = "";
+  if (search && String(search).trim()) {
+    values.push(`%${String(search).trim().toLowerCase()}%`);
+    searchFilter = ` AND (lower(store.name) LIKE $${values.length} OR lower(terminal.name) LIKE $${values.length} OR lower(coalesce(party.display_name,'')) LIKE $${values.length})`;
+  }
+  const result = await client.query(
+    `SELECT cart.id, cart.store_id, cart.terminal_id, cart.customer_id, cart.grand_total, cart.held_at, cart.version, cart.cashier_user_id,
+            store.name AS store_name, terminal.name AS terminal_name, party.display_name AS customer_name,
+            (SELECT count(*)::int FROM tenant.pos_cart_lines line WHERE line.organization_id=cart.organization_id AND line.cart_id=cart.id) AS line_count
+       FROM tenant.pos_carts cart
+       JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
+       JOIN tenant.pos_terminals terminal ON terminal.organization_id=cart.organization_id AND terminal.id=cart.terminal_id
+       LEFT JOIN tenant.business_parties party ON party.organization_id=cart.organization_id AND party.id=cart.customer_id
+      WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.status='held' AND cart.held_at > now() - interval '24 hours'${storeFilter}${searchFilter}
+      ORDER BY cart.held_at DESC
+      LIMIT 100`,
+    values,
+  );
+  return result.rows;
 }
 
 // F281: attaching a coupon reserves it against this cart (does not touch

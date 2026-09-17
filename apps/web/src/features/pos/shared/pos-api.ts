@@ -121,6 +121,21 @@ export const applyPosCoupon = (id: string, code: string, expectedVersion?: numbe
 export const removePosCoupon = (id: string, expectedVersion?: number) =>
   del<{ cart: PosCart }>(`/carts/${id}/coupon${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`);
 export const holdPosCart = (id: string, expectedVersion?: number) => post<{ cart: PosCart }>(`/carts/${id}/hold`, { expectedVersion });
+export const resumePosCart = (id: string) => post<{ cart: PosCart }>(`/carts/${id}/resume`, {});
+export type PosHeldCart = {
+  id: string;
+  store_id: string;
+  terminal_id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  grand_total: string;
+  held_at: string;
+  version: number;
+  store_name: string;
+  terminal_name: string;
+  line_count: number;
+};
+export const listHeldPosCarts = (search?: string) => request<{ rows: PosHeldCart[] }>(`/carts/held${search ? `?q=${encodeURIComponent(search)}` : ""}`);
 export const cancelPosCart = (id: string, reason?: string) => post<{ cart: PosCart }>(`/carts/${id}/cancel`, { reason });
 export const completePosCart = (id: string, input: Record<string, unknown>) => post<{ sale: Record<string, unknown> }>(`/carts/${id}/complete`, input);
 

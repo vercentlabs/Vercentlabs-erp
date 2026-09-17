@@ -126,6 +126,21 @@ export declare function applyPosCartCoupon(client: any, context: PointOfSaleCont
 export declare function removePosCartCoupon(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
 export declare function holdPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
 export declare function resumePosCart(client: any, context: PointOfSaleContext, cartId: string): Promise<PosCart>;
+export type PosHeldCart = {
+  id: string;
+  store_id: string;
+  terminal_id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  grand_total: string;
+  held_at: string;
+  version: number;
+  cashier_user_id: string;
+  store_name: string;
+  terminal_name: string;
+  line_count: number;
+};
+export declare function listHeldPosCarts(client: any, context: PointOfSaleContext, options?: { search?: string }): Promise<PosHeldCart[]>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
 export declare function completePosCart(client: any, context: PointOfSaleContext, cartId: string, input: { idempotencyKey: string; payments: Array<{ method: string; amount: number }>; expectedVersion?: number; expectedGrandTotal?: string }): Promise<any>;
 
