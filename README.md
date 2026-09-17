@@ -101,9 +101,15 @@ npm
 # Build command
 npm run build
 
-# Entry file / start command
-node server.js
+# Output directory
+dist
+
+# Entry file
+server.js
 ```
+
+The build copies the complete Next.js standalone runtime into `dist` and
+creates `dist/server.js` as the Hostinger entry point.
 
 Use Node.js 24 for this project. Selecting npm prevents Hostinger from invoking
 its stale Corepack pnpm cache during its automatic dependency step. The build
