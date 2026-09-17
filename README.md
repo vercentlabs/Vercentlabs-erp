@@ -87,6 +87,28 @@ the ERP product builds. Use the explicit names instead:
 - `pnpm build:erp` (= `pnpm build:web`) — the authenticated ERP web app
 - `pnpm build:all` — landing + ERP web
 
+## Hostinger landing deploy
+
+Hostinger deploys the landing site from the repository root. If dependency
+installation fails with a missing Corepack cache path like
+`~/.cache/node/corepack/v1/pnpm/.../bin/pnpm.cjs`, configure the Hostinger app
+commands explicitly:
+
+```bash
+# Install command
+sh scripts/deploy/hostinger-install.sh
+
+# Build command
+pnpm build
+
+# Start command
+node server.js
+```
+
+Use Node.js 24 for this project. The install script globally installs the
+repository-pinned `pnpm@11.21.0` before running `pnpm install --frozen-lockfile`,
+so Hostinger does not depend on its stale Corepack pnpm cache.
+
 ## ERP verification
 
 ```bash
