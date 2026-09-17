@@ -2418,6 +2418,165 @@ engagement (not introduced or changed this window), and every suite above
 still ran and passed correctly despite it. The `engines` pin itself was
 not touched.
 
+## F007 addendum (2026-09-17): default Lead pipeline is now five operational stages
+
+**Decision, recorded verbatim for future reference:** DEFAULT LEAD PIPELINE
+= FIVE OPERATIONAL STAGES (New, Attempting Contact, Connected, Working /
+Discovery, Nurturing). QUALIFICATION IS A SEPARATE AXIS
+(`qualification_state`: not_reviewed/qualified/unqualified, F006-owned).
+CONVERSION/ARCHIVAL IS A SEPARATE RECORD-STATUS AXIS (`record_status`:
+active/converted/archived). The three axes were already independent
+columns on `tenant.crm_leads` before this change (confirmed against
+`F001-leads.md`'s SPEC-STATE-MACHINE and the migration 063 column
+comments) — this addendum changes the *default stage catalogue and its
+labels*, not the lifecycle model itself. Opportunity pipeline stages
+(`crm_pipeline_stages`) were explicitly out of scope and were not touched.
+
+Stable codes (never renamed merely for prettier naming — only the
+human-facing label changes where a code is preserved):
+
+| Order | Stable code | Label | Note |
+|---|---|---|---|
+| 1 | `new` | New | unchanged |
+| 2 | `attempting` | Attempting Contact | new code |
+| 3 | `contacted` | Connected | code preserved, label changed |
+| 4 | `working` | Working / Discovery | code preserved, label changed |
+| 5 | `nurturing` | Nurturing | new code |
+
+Default directed graph for a brand-new organization (a 5-edge cycle, not
+all-to-all, not the historical bidirectional adjacency):
+`new → attempting → contacted → working → nurturing → attempting`.
+
+**Existing-organization classification** (`classifyLeadStageCustomization`
+in `stage-catalog.js`): an org is `UNTOUCHED_STANDARD_3_STAGE` only if its
+stage set is exactly `{new, contacted, working}` with unmodified
+names/descriptions/dwell settings and its transition graph is a subset of
+either historical default shape — migration 063's original 4-edge
+bidirectional seed, or migration 093's 2-edge unidirectional seed (both
+still live in production depending on org age; both are recognized).
+Every other org — anything with added/renamed/deactivated stages, an
+altered graph, or evidence of a prior stage migration — is `CUSTOMIZED`.
+Untouched orgs are safely auto-upgraded to the five-stage template
+(existing Leads keep their current stage code and full immutable history;
+only the two new stages and the missing graph edges are added; the old
+graph is replaced by the new cycle). Customized orgs are never
+auto-touched; they are offered an explicit, additive-only "Check
+recommended template" → preview → confirm → apply workflow in
+`/crm/settings/lead-lifecycle` (new `GET`/`POST`
+`/api/crm/lead-stages/recommended-template` route, gated on
+`crm.settings.manage`), which never renames or removes anything that
+already exists and never moves a Lead.
+
+**A real, previously-undetected bug found and fixed along the way**: a
+truly fresh organization (zero `crm_lead_stages` rows) failed its very
+first Lead creation with a `crm_leads_lifecycle_stage_fkey` violation,
+because the stage seed was previously triggered only by visiting the
+Settings screen's stage list, never by Lead creation itself.
+`ensureDefaultLeadStages` is now also called from `createCrmRecord`'s
+`leads` branch (`resource-mutation-service.js`), positioned after input
+validation so the existing "pure in-memory validation must fail before
+any DB access" guarantee (`crm-leads-f001-hardening.test.mjs`) still
+holds.
+
+**Automation audit (no automatic stage-advance was built)**: F007, F013
+(calls), F014 (meetings), F016 (follow-ups/reminders) and F018 (email
+history) were re-read for `[SPEC-AUTOMATION]`/`[SPEC-INTEGRATIONS]`
+requirements before considering HubSpot-style New→Attempting /
+Attempting→Connected activity-triggered auto-advancement. None of the
+five dossiers specify or require deterministic Lead-stage automation —
+only generic "approved automation may act through normal domain
+commands" boilerplate identical across many other dossiers this
+engagement has read. Per the task's own fallback instruction, this is
+recorded here as a benchmark-parity enhancement candidate for a future,
+separately-scoped prompt, not invented in this pass.
+
+**Kanban**: no new Lead board was created. The existing Lead Kanban
+(`LeadKanbanBoard`, driven by the live stage catalogue via
+`optionsQuery.data.options.leadStages`) already renders whatever stages
+exist for the org with zero hardcoded assumptions, confirmed by direct
+reading — it now shows five columns for an upgraded org without any code
+change.
+
+**Reporting/dwell/exports**: a dedicated audit (dashboard/report queries
+in `analytics-service.js`, dwell computation in `dwell-scan.js`/
+`getLeadStageDwell`, stage-transition history, Lead CSV export/saved
+filters) confirmed every one of these is driven by joining
+`tenant.crm_lead_stages`/`_stage_transitions` dynamically (by id/code),
+never by array position or a hardcoded 3-stage list. The only literal
+`new`/`contacted`/`working`/count-of-3 references left anywhere in
+`services/api/src` are inside `classifyLeadStageCustomization` itself
+(intentional — that is the legacy-seed detector) and in this change's own
+tests.
+
+**Frontend label fix**: `LeadListScreen.tsx` (stage column, mobile card,
+active-filter chip) and `LeadDetailScreen.tsx` (primary status badge) were
+rendering `row.status`/`lead.status` directly — the raw stable code —
+instead of the org's configured human-facing label. The stage filter
+dropdown and the Kanban columns were already catalogue-driven; this
+closed the same gap in the remaining display sites via a `stageNameByCode`
+lookup built from `optionsQuery.data.options.leadStages`. The Lead 360
+"only legal next stages, never every stage" requirement
+(`legalStageOptions` in `LeadDetailScreen.tsx`, filtering
+`transitionGraphQuery` edges by the Lead's current stage) was already
+correctly implemented before this pass — confirmed, not rebuilt.
+
+**Test coverage added** (permanent, not the throwaway verification scripts
+used during development): `tests/integration/crm-lead-five-stage-default-f007.test.mjs`
+(real PostgreSQL — fresh-org seed + idempotency, both legacy graph shapes
+safely upgraded with Lead/history preservation, customized-org protection,
+full preview/apply/confirm-required workflow) and
+`services/api/tests/crm-lead-five-stage-graph-transitions-f007.test.mjs`
+(mocked-client — each of the five default-graph edges legal through the
+governed `transitionLeadStage` command; stage-skipping and backward moves
+rejected).
+
+**Verification results**:
+
+| Check | Result |
+|---|---|
+| `services/api` full tests | **1112/1112 passing** |
+| `test:integration` (real Postgres, `DATABASE_URL` = restricted `vercent_app` role) | **10/10 passing** |
+| `test:security` | **4/4 passing** |
+| `test:enterprise-rbac` | **5/5 passing** |
+| `test:web` | **21/21 passing** |
+| Web typecheck | Clean |
+| Web lint | Clean |
+| Web build (`next build`) | Succeeds |
+| `verify:routes` | Passed — 76 `page.tsx`, 154 `route.ts` (116 CRM) |
+| `verify:db` | Passed — 39 platform + 112 tenant migrations |
+| `verify:no-legacy-frontend` | Passed — 552 files, 0 legacy references |
+| `verify:crm-module-contracts` | Passed — 82 modules |
+| Playwright `crm-authorization.spec.ts` + `crm-regression.spec.ts` | **13/13 passing**, including `/crm/leads loads with no console errors` |
+| Playwright `opportunity-stage-transition.spec.ts` | 1 failing — pre-existing, Opportunity pipeline only (out of this task's scope; no Opportunity code was touched), not a regression from this change |
+
+**Real-browser QA** (not certified from unit tests alone): run against the
+real local dev server and the real, already-heavily-customized e2e
+fixture organization (it has ~23 leftover `deactivation_test_*` stages
+from prior engagement sessions — a genuinely messy real org, not a clean
+fixture). `classifyLeadStageCustomization` correctly identified it as
+`CUSTOMIZED` and did not auto-touch it. Clicking "Check recommended
+template" in the real Settings UI correctly previewed the two missing
+stages and four missing edges without altering any existing stage's
+label; clicking "Apply recommended template" persisted them (verified
+directly against Postgres afterward) while leaving every pre-existing
+customization (including the org's own non-standard `contacted↔working`
+edges) untouched; re-opening the preview afterward correctly reported
+"nothing to add" (idempotent in the live UI, not just in tests). Two real
+Leads were then created and governed-transitioned into `attempting` and
+`nurturing`; both rendered their correct human-facing labels ("Attempting
+Contact", "Nurturing") on the Lead 360 page. `/crm/leads` and the Lead 360
+page loaded with zero console errors at 1440×900, 1024×768 and 390×844.
+Keyboard Tab focus was confirmed functional on the Lead 360 page. One
+unrelated pre-existing SSR/hydration console warning was observed on the
+Lead list's search input (a `caret-color` style mismatch inside the
+shared `SearchField`/react-aria component, unrelated to Lead stages or
+this change) — disclosed here, not fixed, as out of scope.
+
+Commits: `4df8013d` (backend: stage catalogue rewrite + fresh-org bug fix
++ type declarations), `898c4398` (frontend: Settings screen recommended-
+template workflow + help text + new route), `aa295cf7` (permanent test
+coverage), `c7e475ae` (stage-label display fix in Lead list/detail).
+
 ## Mandatory-gap candidates
 
 No canonical F001-F030 capability has been found genuinely absent from
