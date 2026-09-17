@@ -743,10 +743,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "returns",
         label: "Returns",
-        featureRange: "F283-F286",
+        featureRange: "F291-F293",
         items: [
-          planned("Returns", "/pos/returns"),
-          planned("Refunds", "/pos/refunds"),
+          available("Returns", "/pos/returns"),
           planned("Exchanges", "/pos/exchanges"),
         ],
       },

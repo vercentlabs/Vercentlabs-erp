@@ -54,6 +54,7 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     setPosCartDiscount,
     cancelPosCart,
     getPosSaleReceipt,
+    findPosSaleForReturn,
   } = await import("../../services/api/src/index.js");
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
@@ -412,6 +413,19 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       await assert.rejects(
         () => tx((c) => getPosSaleReceipt(c, { ...cashierContext, permissions: [] }, sale.id)),
         (error) => error.code === "FORBIDDEN",
+      );
+    });
+
+    await t.test("F291/F292: findPosSaleForReturn finds an eligible sale by receipt number and reports the real remaining-returnable quantity", async () => {
+      const found = await tx((c) => findPosSaleForReturn(c, supervisorContext, { receiptNumber: sale.receipt_number }));
+      assert.equal(found.sale.id, sale.id);
+      assert.equal(found.lines.length, 1);
+      assert.equal(found.lines[0].returned_quantity, "0.000000");
+      assert.equal(found.lines[0].remaining_quantity, found.lines[0].quantity);
+
+      await assert.rejects(
+        () => tx((c) => findPosSaleForReturn(c, supervisorContext, { receiptNumber: "NO-SUCH-RECEIPT" })),
+        (error) => error.code === "POS_RETURN_SALE_NOT_FOUND",
       );
     });
 
