@@ -16,29 +16,45 @@ const GLOBAL_ENTRIES = [
   ...UTILITY_NAV,
 ];
 
+function matchesRoute(pathname: string, route: string): boolean {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+// Picks the LONGEST matching route, not just the first one encountered —
+// the module's own "Home" item is always registered with the module's
+// bare root route (e.g. "/crm"), which prefix-matches every one of that
+// module's sub-pages too. Taking the first match in array order (as this
+// used to) meant "Home" won for every single CRM sub-page before its own,
+// more specific item (e.g. "/crm/leads") was ever checked, collapsing
+// every breadcrumb in the module down to just the module name.
+function bestRouteMatch<T extends { route: string }>(
+  items: readonly T[],
+  pathname: string,
+): T | undefined {
+  return items
+    .filter((item) => matchesRoute(pathname, item.route))
+    .sort((a, b) => b.route.length - a.route.length)[0];
+}
+
 function crumbsForPathname(pathname: string): string[] {
   const activeModule = MODULE_NAVIGATION.find((entry) =>
     entry.sections.some((section) =>
-      section.items.some(
-        (item) =>
-          pathname === item.route || pathname.startsWith(`${item.route}/`),
-      ),
+      section.items.some((item) => matchesRoute(pathname, item.route)),
     ),
   );
   if (activeModule) {
-    const item = activeModule.sections
-      .flatMap((section) => section.items)
-      .find(
-        (entry) =>
-          pathname === entry.route || pathname.startsWith(`${entry.route}/`),
-      );
+    const item = bestRouteMatch(
+      activeModule.sections.flatMap((section) => section.items),
+      pathname,
+    );
     // Module → Workspace, no redundant repetition — the module's own
     // Overview item never repeats the module label twice.
     if (!item || item.id === "home") return [activeModule.label];
     return [activeModule.label, item.label];
   }
-  const global = GLOBAL_ENTRIES.find(
-    (entry) => pathname === entry.href || pathname.startsWith(`${entry.href}/`),
+  const global = bestRouteMatch(
+    GLOBAL_ENTRIES.map((entry) => ({ ...entry, route: entry.href })),
+    pathname,
   );
   return global && global.href !== "/" ? [global.label] : [];
 }
