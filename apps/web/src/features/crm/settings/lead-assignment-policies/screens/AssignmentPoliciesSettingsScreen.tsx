@@ -285,8 +285,9 @@ function PolicyDialog({
 // resolution — this dialog is the first place a human can see it
 // directly, not a new decision engine.
 function ExplainDialog({ policy, onOpenChange }: { policy: LeadAssignmentPolicy | null; onOpenChange: (open: boolean) => void }) {
+  const workspace = useWorkspaceContext();
   const query = useQuery({
-    queryKey: ["crm", "assignment-policy-explain", policy?.id],
+    queryKey: scopedQueryKey(workspace, "crm", "assignment-policy-explain", policy?.id),
     queryFn: () => explainAssignmentPolicy(policy!.id),
     enabled: Boolean(policy),
   });

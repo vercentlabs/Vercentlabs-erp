@@ -1,4 +1,4 @@
-import { findContactDuplicates } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, findContactDuplicates } from "@vercentlabs/api";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -10,6 +10,7 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // /api/crm/accounts/duplicates exactly.
 export async function POST(request: Request) {
   try {
+    assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const body = (await readJson(request)) as { input?: Record<string, unknown> };
     const duplicates = await tenantTransaction(session.organizationId, async (client) => {

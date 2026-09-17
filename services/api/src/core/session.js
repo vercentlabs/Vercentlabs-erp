@@ -153,6 +153,47 @@ export async function revokeSessionByTokenHash(client, hash, reason = "logout") 
   );
 }
 
+// Self-service session/device listing (SESSION-DEVICE-UI). Scoped to the
+// caller's own userId only — this is a "manage your own devices" surface,
+// not an admin tool, so there is no separate permission check: being the
+// owner of the row IS the authorization.
+export async function listSessionsForUser(client, userId) {
+  const rows = await client.query(
+    `SELECT id, device_name, ip_address, user_agent, session_type,
+            created_at, last_seen_at, expires_at
+       FROM sessions
+      WHERE user_id = $1
+        AND revoked_at IS NULL
+        AND expires_at > now()
+      ORDER BY last_seen_at DESC`,
+    [userId],
+  );
+  return rows.rows.map((row) => ({
+    id: row.id,
+    deviceName: row.device_name || "Unknown device",
+    ipAddress: row.ip_address,
+    userAgent: row.user_agent,
+    sessionType: row.session_type,
+    createdAt: row.created_at,
+    lastSeenAt: row.last_seen_at,
+    expiresAt: row.expires_at,
+  }));
+}
+
+// Revoking by (userId, sessionId) rather than a bare sessionId is the
+// entire access control here — a user can only ever revoke a row that is
+// already theirs, so there's no cross-user revocation path to guard
+// against separately.
+export async function revokeSessionById(client, userId, sessionId, reason = "user_revoked") {
+  const rows = await client.query(
+    `UPDATE sessions SET revoked_at = now(), revoked_reason = $3
+      WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+      RETURNING id`,
+    [sessionId, userId, reason],
+  );
+  return Boolean(rows.rows[0]);
+}
+
 export class ContextSwitchError extends Error {
   constructor(status, message, code) {
     super(message);

@@ -74,11 +74,12 @@ export function ContactDuplicatesPanel({ contact, canManage }: { contact: Contac
 }
 
 function ContactMergeDialog({ sourceId, survivorId, onClose, onMerged }: { sourceId: string; survivorId: string; onClose: () => void; onMerged: () => void }) {
+  const workspace = useWorkspaceContext();
   const [error, setError] = useState<string | null>(null);
   const [fieldSelections, setFieldSelections] = useState<Record<string, "source" | "survivor">>({});
 
   const previewQuery = useQuery({
-    queryKey: ["crm", "contact-merge-preview", sourceId, survivorId],
+    queryKey: scopedQueryKey(workspace, "crm", "contact-merge-preview", sourceId, survivorId),
     queryFn: () => previewContactMerge(sourceId, survivorId),
   });
 

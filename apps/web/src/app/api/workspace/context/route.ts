@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { switchActiveCompany } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, switchActiveCompany } from "@vercentlabs/api";
 
 import { withClient } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -13,6 +13,7 @@ const switchSchema = z.object({
 
 export async function PATCH(request: Request) {
   try {
+    assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const body = switchSchema.parse(await readJson(request));
     const result = await withClient((client) =>

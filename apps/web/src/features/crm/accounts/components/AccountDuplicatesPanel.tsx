@@ -77,11 +77,12 @@ export function AccountDuplicatesPanel({ account, canManage }: { account: Accoun
 }
 
 function AccountMergeDialog({ sourceId, survivorId, onClose, onMerged }: { sourceId: string; survivorId: string; onClose: () => void; onMerged: () => void }) {
+  const workspace = useWorkspaceContext();
   const [error, setError] = useState<string | null>(null);
   const [fieldSelections, setFieldSelections] = useState<Record<string, "source" | "survivor">>({});
 
   const previewQuery = useQuery({
-    queryKey: ["crm", "account-merge-preview", sourceId, survivorId],
+    queryKey: scopedQueryKey(workspace, "crm", "account-merge-preview", sourceId, survivorId),
     queryFn: () => previewAccountMerge(sourceId, survivorId),
   });
 

@@ -1,4 +1,4 @@
-import { previewContactMergeForCaller } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, previewContactMergeForCaller } from "@vercentlabs/api";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
@@ -10,6 +10,7 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // caller's own sensitive-content permissions before this reaches the browser.
 export async function POST(request: Request) {
   try {
+    assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const body = (await readJson(request)) as { sourceId?: string; survivorId?: string };
     if (!body.sourceId || !body.survivorId) throw new HttpError(400, "Both sourceId and survivorId are required.");
