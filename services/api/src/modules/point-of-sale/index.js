@@ -4,6 +4,8 @@ import { requireCompanyRecord } from "../../core/references.js";
 
 import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
 
+export * from "./features/assortment.js";
+
 const TABLES = Object.freeze({
   stores: "pos_stores",
   terminals: "pos_terminals",

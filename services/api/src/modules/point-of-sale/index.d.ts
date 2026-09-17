@@ -16,3 +16,15 @@ export declare function createPointOfSaleReturn(client: any, context: PointOfSal
 export declare function approvePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
 export declare function completePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
 export declare function closeShift(client: any, context: PointOfSaleContext, shiftId: string, input: Record<string, any>): Promise<any>;
+
+export type PointOfSaleProductMatch = {
+  itemId: string;
+  variantId: string | null;
+  name: string;
+  code: string;
+  barcode: string | null;
+  salesPrice: string;
+  availableQuantity: number;
+};
+export declare function searchPointOfSalePosProducts(client: any, context: PointOfSaleContext, storeId: string, input?: Record<string, any>): Promise<PointOfSaleProductMatch[]>;
+export declare function lookupPointOfSaleBarcode(client: any, context: PointOfSaleContext, storeId: string, barcode: string): Promise<PointOfSaleProductMatch>;
