@@ -53,6 +53,7 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     decideApproval,
     setPosCartDiscount,
     cancelPosCart,
+    getPosSaleReceipt,
   } = await import("../../services/api/src/index.js");
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
@@ -390,6 +391,28 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       assert.equal(couponRow.rows[0].committed_count, 1);
       const promoRow = await admin.query(`SELECT usage_count FROM tenant.pos_promotions WHERE organization_id=$1 AND id=$2`, [orgId, promotion.id]);
       assert.equal(promoRow.rows[0].usage_count, 1);
+    });
+
+    await t.test("F289: the receipt is built entirely from persisted sale facts and reflects the real promotion/coupon/tax evidence", async () => {
+      const receipt = await tx((c) => getPosSaleReceipt(c, cashierContext, sale.id));
+      assert.equal(receipt.sale.id, sale.id);
+      assert.equal(receipt.sale.receipt_number, sale.receipt_number);
+      assert.equal(receipt.sale.grand_total, sale.grand_total);
+      assert.equal(receipt.sale.coupon_code, "SAVE5");
+      assert.ok(receipt.lines.length >= 1);
+      assert.equal(receipt.payments.length, 1);
+      assert.equal(receipt.payments[0].payment_method, "cash");
+      assert.ok(receipt.promotionEvidence.some((row) => row.code === "PROMO10"), "the receipt must show real promotion evidence, not a client-side guess");
+      assert.equal(receipt.returns.length, 0, "no returns exist yet for this sale");
+
+      // A different store's cashier (no store access configured for this
+      // org, so this is really just proving store-access still applies to
+      // reads it shares with the rest of cart.js) must not silently bypass
+      // this -- reuse the existing FORBIDDEN-on-missing-permission check.
+      await assert.rejects(
+        () => tx((c) => getPosSaleReceipt(c, { ...cashierContext, permissions: [] }, sale.id)),
+        (error) => error.code === "FORBIDDEN",
+      );
     });
 
     await t.test("F277: completing an already-completed cart with a different idempotency key is rejected, not double-completed", async () => {

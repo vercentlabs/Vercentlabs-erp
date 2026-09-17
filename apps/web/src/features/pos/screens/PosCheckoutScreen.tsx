@@ -63,7 +63,7 @@ export function PosCheckoutScreen() {
   const [cartDiscountReason, setCartDiscountReason] = useState("");
   const [cashTendered, setCashTendered] = useState(0);
   const [completing, setCompleting] = useState(false);
-  const [confirmation, setConfirmation] = useState<{ receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ saleId: string; receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [heldCartsOpen, setHeldCartsOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -219,8 +219,8 @@ export function PosCheckoutScreen() {
         expectedVersion: cart.version,
         expectedGrandTotal: cart.grand_total,
       });
-      const sale = result.sale as { receipt_number: string; grand_total: string; change_total: string };
-      setConfirmation({ receiptNumber: sale.receipt_number, grandTotal: sale.grand_total, changeTotal: sale.change_total });
+      const sale = result.sale as { id: string; receipt_number: string; grand_total: string; change_total: string };
+      setConfirmation({ saleId: sale.id, receiptNumber: sale.receipt_number, grandTotal: sale.grand_total, changeTotal: sale.change_total });
       setError(null);
     } catch (err) {
       if (err instanceof PosApiError && (err.code === "POS_CART_VERSION_CONFLICT" || err.code === "POS_PRICE_CONFLICT")) {
@@ -281,9 +281,14 @@ export function PosCheckoutScreen() {
         <h1 className="text-2xl font-semibold text-text">Receipt {confirmation.receiptNumber}</h1>
         <p className="text-lg text-text">Total: {money(currency, confirmation.grandTotal)}</p>
         <p className="text-lg text-text">Change due: {money(currency, confirmation.changeTotal)}</p>
-        <Button variant="primary" onPress={startNewSale}>
-          New sale
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onPress={() => router.push(`/pos/receipts/${confirmation.saleId}?original=1`)}>
+            View / print receipt
+          </Button>
+          <Button variant="primary" onPress={startNewSale}>
+            New sale
+          </Button>
+        </div>
       </div>
     );
   }

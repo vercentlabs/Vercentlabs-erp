@@ -141,6 +141,15 @@ export type PosHeldCart = {
   line_count: number;
 };
 export declare function listHeldPosCarts(client: any, context: PointOfSaleContext, options?: { search?: string }): Promise<PosHeldCart[]>;
+
+// F289 receipts
+export declare function getPosSaleReceipt(client: any, context: PointOfSaleContext, saleId: string): Promise<{
+  sale: Record<string, any>;
+  lines: Record<string, any>[];
+  payments: Record<string, any>[];
+  returns: Record<string, any>[];
+  promotionEvidence: Record<string, any>[];
+}>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
 export declare function completePosCart(client: any, context: PointOfSaleContext, cartId: string, input: { idempotencyKey: string; payments: Array<{ method: string; amount: number }>; expectedVersion?: number; expectedGrandTotal?: string }): Promise<any>;
 
