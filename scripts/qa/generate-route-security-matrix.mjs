@@ -1,0 +1,108 @@
+// Phase 8 (ERP Checkpoint D): a machine-readable inventory of every
+// mutation-capable route handler under apps/web/src/app/api, checked
+// against the app's actual authentication/authorization/origin
+// primitives — not a bare "does this file contain a string" grep.
+// Detection requires both an import of the primitive from
+// "@vercentlabs/api" AND a real call site (`name(`) in the same file, so
+// a route that imports something unrelated but happens to share a
+// substring can't produce a false positive.
+import fs from "node:fs";
+import path from "node:path";
+
+const API_DIR = "apps/web/src/app/api";
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+const AUTH_PRIMITIVES = ["requireUser", "requireVerifiedUser", "requireWorkspace", "requireApiWorkspace"];
+const ORIGIN_PRIMITIVES = ["assertSameOrigin", "assertSameOriginOrMobile"];
+const AUTHORIZATION_PRIMITIVES = [
+  "requireCrmAccess",
+  "requireCrmMutationAccess",
+  "requireSessionPermission",
+  "assertPrivacyManage",
+  "assertSensitiveLeadIntelligenceAccess",
+];
+
+// Routes whose absence of the usual authenticated/same-origin pattern is
+// a deliberate, reviewed design choice, not an oversight — each entry
+// must name the actual alternative protection so this list can never
+// silently grow into "things nobody checked".
+const DOCUMENTED_EXCEPTIONS = {
+  "api/auth/login/route.ts": "Pre-authentication: there is no session yet to protect; assertSameOrigin still applies to the login POST itself.",
+  "api/auth/logout/route.ts": "Deliberately reads the session cookie directly rather than calling requireUser()/requireWorkspace() — logout must work even for an unverified or org-less session, which those helpers would redirect away from instead of processing. Idempotent/safe with no cookie at all. assertSameOriginOrMobile still applies.",
+  "api/auth/forgot-password/route.ts": "Public by design (account-enumeration-safe); assertSameOrigin applies, rate-limited, identical response regardless of registration state.",
+  "api/auth/verify-email/route.ts": "Token-bearer authentication (proof of mailbox control IS the credential); assertSameOrigin applies.",
+  "api/auth/reset-password/route.ts": "Token-bearer authentication; assertSameOrigin applies.",
+  "api/auth/invitations/[token]/route.ts": "GET only, public token lookup — no mutation.",
+  "api/auth/invitations/[token]/accept/route.ts": "Token-bearer for a new account; an existing account additionally requires a matching authenticated session (see acceptOrganizationInvitation's authenticatedUserId parameter). assertSameOrigin applies.",
+  "api/crm/public/meetings/links/[token]/book/route.ts": "Public by design (prospect booking a slot) — access control is the opaque per-link token, never a session cookie, so same-origin/session checks don't apply.",
+  "api/crm/public/meetings/bookings/[token]/route.ts": "Public by design (prospect managing their own booking) — same token-based model as the link-booking route above.",
+  "api/test-support/email-capture/route.ts": "Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here.",
+};
+
+function readFile(filePath) {
+  return fs.readFileSync(filePath, "utf8");
+}
+
+function hasPrimitive(source, name) {
+  const importPattern = new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from`, "s");
+  const callPattern = new RegExp(`\\b${name}\\s*\\(`);
+  return importPattern.test(source) && callPattern.test(source);
+}
+
+function detectMethods(source) {
+  return HTTP_METHODS.filter((method) => new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\s*\\(`).test(source));
+}
+
+function walk(dir, files = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, files);
+    else if (entry.name === "route.ts") files.push(full);
+  }
+  return files;
+}
+
+const routeFiles = walk(API_DIR).sort();
+const rows = [];
+
+for (const filePath of routeFiles) {
+  const source = readFile(filePath);
+  const methods = detectMethods(source);
+  const mutationMethods = methods.filter((m) => MUTATION_METHODS.has(m));
+  if (mutationMethods.length === 0) continue; // read-only routes are out of scope for this matrix
+
+  const relativePath = filePath.replaceAll("\\", "/").replace(/^apps\/web\/src\/app\//, "");
+  const hasAuth = AUTH_PRIMITIVES.some((name) => hasPrimitive(source, name));
+  const hasOrigin = ORIGIN_PRIMITIVES.some((name) => hasPrimitive(source, name));
+  const hasAuthorization = AUTHORIZATION_PRIMITIVES.some((name) => hasPrimitive(source, name));
+  const exceptionReason = DOCUMENTED_EXCEPTIONS[relativePath];
+
+  rows.push({
+    route: relativePath,
+    mutationMethods: mutationMethods.join(","),
+    hasAuth,
+    hasOrigin,
+    hasAuthorization,
+    documentedException: exceptionReason ?? "",
+  });
+}
+
+const header = ["route", "mutation_methods", "has_auth", "has_origin_check", "has_authorization_check", "documented_exception"];
+function csvField(value) {
+  const s = String(value ?? "");
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+const lines = [header.join(",")];
+for (const row of rows) {
+  lines.push(
+    [row.route, row.mutationMethods, row.hasAuth, row.hasOrigin, row.hasAuthorization, row.documentedException]
+      .map(csvField)
+      .join(","),
+  );
+}
+
+const outPath = "docs/frontend-rebuild/ROUTE_SECURITY_MATRIX.csv";
+fs.writeFileSync(outPath, lines.join("\n") + "\n");
+console.log(`Wrote ${rows.length} mutation-capable routes to ${outPath}.`);

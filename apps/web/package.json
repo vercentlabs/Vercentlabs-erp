@@ -13,6 +13,8 @@
     "format:check": "prettier --check .",
     "test": "node --test",
     "test:e2e": "playwright test",
+    "test:e2e:crm": "playwright test crm-authorization.spec.ts crm-regression.spec.ts opportunity-stage-transition.spec.ts",
+    "test:e2e:erp": "playwright test",
     "verify:tokens": "node ../../scripts/design/generate-tailwind-theme.mjs --check",
     "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs",
     "verify:routes": "node scripts/verify-routes.mjs"
