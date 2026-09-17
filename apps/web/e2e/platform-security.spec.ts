@@ -150,10 +150,28 @@ test("sessions: revoking a specific other session and revoking all other session
   // on ever got rate-limited itself, breaking every later spec in the
   // same run). "other" and "third" are the only fresh logins needed, since
   // they're the sessions meant to actually get revoked.
+  // "load" for /login, domcontentloaded for /crm afterward — not
+  // networkidle for either: this test opens 2-3 concurrent browser
+  // contexts against the Next.js DEV server, whose persistent Turbopack/
+  // HMR websocket connection means "network idle" can be slow or
+  // unpredictable to reach under concurrent load (a real, reproduced
+  // cause of this test occasionally timing out on a plain page.goto with
+  // the page itself already fully loaded and interactive — confirmed via
+  // a failure screenshot showing a completely normal, rendered page).
+  // domcontentloaded is NOT safe for /login specifically, also confirmed
+  // by reproducing it: it can fire before React finishes hydrating the
+  // login form's onSubmit handler, so Playwright's click can trigger a
+  // plain native form POST instead (wrong content-type/body encoding),
+  // and the API route's JSON body parsing then 400s. "load" (waits for
+  // the initial page's own scripts to finish loading, not for ongoing
+  // background traffic) is the reliable middle ground. Every call after
+  // landing on /crm is a page.evaluate(fetch(...)) that only needs a live
+  // JS context, never rendered content or hydration, so domcontentloaded
+  // is fine there.
   async function freshLogin() {
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
-    await page.goto("/login", { waitUntil: "networkidle" });
+    await page.goto("/login", { waitUntil: "load" });
     await page.getByLabel(/email/i).fill(fixtures.ownerEmail);
     await page.getByLabel(/password/i).fill(fixtures.ownerPassword);
     const [loginResponse] = await Promise.all([
@@ -165,13 +183,13 @@ test("sessions: revoking a specific other session and revoking all other session
     // every downstream revoke assertion misreporting a 401 as if it were
     // the revocation behavior under test.
     expect(loginResponse.status(), "login must succeed (not rate-limited) for this test's assertions to mean anything").toBe(200);
-    await page.goto("/crm", { waitUntil: "networkidle" });
+    await page.goto("/crm", { waitUntil: "domcontentloaded" });
     return { context, page };
   }
 
   const currentContext = await browser.newContext({ storageState: "e2e/.auth/owner.json" });
   const currentPage = await currentContext.newPage();
-  await currentPage.goto("/crm", { waitUntil: "networkidle" });
+  await currentPage.goto("/crm", { waitUntil: "domcontentloaded" });
   const other = await freshLogin();
 
   try {

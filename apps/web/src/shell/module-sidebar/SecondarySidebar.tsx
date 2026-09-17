@@ -65,7 +65,18 @@ export function SecondarySidebar() {
               // the flyout during its open animation). Closed state moves
               // the whole box off past the rail's left edge instead of
               // fading it — off-screen, not see-through.
-              "absolute left-16 top-0 bottom-0 z-20 flex w-[240px] flex-col overflow-y-auto border-r border-border bg-surface py-4 shadow-[var(--shadow-subtle)]",
+              //
+              // z-[var(--z-drawer)] (40), not z-20: the page content this
+              // flyout overlays can contain its OWN positioned elements —
+              // EnterpriseDataGrid's sticky table header is z-[var(--z-sticky)]
+              // (also 20). Equal z-index ties break by DOM order, and the
+              // table (rendered later, inside the main content sibling)
+              // was winning, painting its sticky header's checkbox/label
+              // cell literally on top of this flyout (reported via
+              // screenshot: a lead-list column header bleeding into the
+              // sidebar). This flyout is conceptually a drawer overlay, so
+              // it must always outrank ordinary in-page sticky content.
+              "absolute left-16 top-0 bottom-0 z-[var(--z-drawer)] flex w-[240px] flex-col overflow-y-auto border-r border-border bg-surface py-4 shadow-[var(--shadow-subtle)]",
               "transition-transform duration-150 ease-out",
               open ? "translate-x-0" : "pointer-events-none -translate-x-[calc(100%+4rem)]",
             ].join(" ")

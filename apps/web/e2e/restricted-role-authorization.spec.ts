@@ -26,10 +26,19 @@ import { fixtures } from "./fixtures";
  * behavior under test.
  */
 
+// "load" for /login, domcontentloaded for /crm — see platform-security
+// .spec.ts's freshLogin for why: concurrent contexts against the Next.js
+// dev server's persistent HMR websocket make "network idle" unpredictable
+// to reach, but domcontentloaded is unsafe specifically for /login (it
+// can fire before React hydrates the form's onSubmit handler, so a click
+// triggers a native, non-JSON form POST that 400s server-side — found by
+// reproducing it directly). Every call after landing on /crm is a
+// page.evaluate(fetch(...)) that needs a live JS context only, never
+// hydration, so domcontentloaded is fine there.
 async function login(browser: Browser, email: string, password: string): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
-  await page.goto("/login", { waitUntil: "networkidle" });
+  await page.goto("/login", { waitUntil: "load" });
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/password/i).fill(password);
   const [loginResponse] = await Promise.all([
@@ -37,7 +46,7 @@ async function login(browser: Browser, email: string, password: string): Promise
     page.getByRole("button", { name: /sign in|log in/i }).click(),
   ]);
   expect(loginResponse.status(), `login for ${email} must succeed (not rate-limited) for this spec's assertions to mean anything`).toBe(200);
-  await page.goto("/crm", { waitUntil: "networkidle" });
+  await page.goto("/crm", { waitUntil: "domcontentloaded" });
   return { context, page };
 }
 
@@ -96,7 +105,7 @@ test.describe.serial("restricted role authorization", () => {
     // that session, so sharing it is safe for whatever spec runs next.
     const ownerContext = await browser.newContext({ storageState: "e2e/.auth/owner.json" });
     const ownerPage = await ownerContext.newPage();
-    await ownerPage.goto("/crm", { waitUntil: "networkidle" });
+    await ownerPage.goto("/crm", { waitUntil: "domcontentloaded" });
     try {
       const ownerSessionId = await ownerPage.evaluate(async () => {
         const resp = await fetch("/api/settings/sessions");
