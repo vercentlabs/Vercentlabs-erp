@@ -135,26 +135,43 @@ test("sessions: revoking a specific other session and revoking all other session
   // Phase 3 (SP006): DELETE /api/settings/sessions/[id] and DELETE
   // /api/settings/sessions (revoke-others) both revoke real, live
   // sessions server-side, not just DB rows the caller can't otherwise
-  // reach. Uses its own fresh logins throughout (storageState: undefined),
-  // not the shared e2e/.auth/owner.json fixture, for the same reason the
-  // logout spec above does — revoking "all other sessions" would revoke
-  // that shared fixture's own session too. Regenerates it at the end so
-  // later specs in the same run are unaffected.
+  // reach.
+  //
+  // "current" reuses the shared e2e/.auth/owner.json storage state
+  // directly rather than a fresh login — it is the one session in this
+  // test that revoke-others must NOT touch, so there is nothing to
+  // regenerate afterward and no extra login-rate-limit spend (login is
+  // 10/300s/IP; an earlier version of this test did 4 fresh logins
+  // including a same-user "current", which both burned rate-limit budget
+  // this suite doesn't have to spare and — because revoke-others
+  // necessarily revokes the shared fixture's OWN live session too, being
+  // "other" relative to that fresh "current" — left owner.json pointing
+  // at a permanently revoked session if the regeneration login it relied
+  // on ever got rate-limited itself, breaking every later spec in the
+  // same run). "other" and "third" are the only fresh logins needed, since
+  // they're the sessions meant to actually get revoked.
   async function freshLogin() {
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
     await page.goto("/login", { waitUntil: "networkidle" });
     await page.getByLabel(/email/i).fill(fixtures.ownerEmail);
     await page.getByLabel(/password/i).fill(fixtures.ownerPassword);
-    await Promise.all([
+    const [loginResponse] = await Promise.all([
       page.waitForResponse((res) => res.url().includes("/api/auth/login")),
       page.getByRole("button", { name: /sign in|log in/i }).click(),
     ]);
+    // Assert explicitly so a rate-limit hit under a full suite run fails
+    // loudly here instead of silently leaving the page logged out and
+    // every downstream revoke assertion misreporting a 401 as if it were
+    // the revocation behavior under test.
+    expect(loginResponse.status(), "login must succeed (not rate-limited) for this test's assertions to mean anything").toBe(200);
     await page.goto("/crm", { waitUntil: "networkidle" });
     return { context, page };
   }
 
-  const current = await freshLogin();
+  const currentContext = await browser.newContext({ storageState: "e2e/.auth/owner.json" });
+  const currentPage = await currentContext.newPage();
+  await currentPage.goto("/crm", { waitUntil: "networkidle" });
   const other = await freshLogin();
 
   try {
@@ -167,7 +184,7 @@ test("sessions: revoking a specific other session and revoking all other session
     // A cannot revoke B's session by a random/foreign id — this only
     // works because "current" and "other" are the same fixture user here;
     // ownership (not identity of caller vs target session) is the gate.
-    const specificRevoke = await current.page.evaluate(async (id) => {
+    const specificRevoke = await currentPage.evaluate(async (id) => {
       const resp = await fetch(`/api/settings/sessions/${id}`, { method: "DELETE" });
       return { status: resp.status, body: await resp.json() };
     }, otherSessionId);
@@ -178,7 +195,7 @@ test("sessions: revoking a specific other session and revoking all other session
 
     // Revoke-all-others: current survives, a brand-new third session does not.
     const third = await freshLogin();
-    const revokeOthers = await current.page.evaluate(async () => {
+    const revokeOthers = await currentPage.evaluate(async () => {
       const resp = await fetch("/api/settings/sessions", { method: "DELETE" });
       return { status: resp.status, body: await resp.json() };
     });
@@ -187,16 +204,11 @@ test("sessions: revoking a specific other session and revoking all other session
 
     const thirdAfterRevokeOthers = await third.page.evaluate(async () => (await fetch("/api/notifications")).status);
     expect(thirdAfterRevokeOthers).toBe(401);
-    const currentStillWorks = await current.page.evaluate(async () => (await fetch("/api/notifications")).status);
+    const currentStillWorks = await currentPage.evaluate(async () => (await fetch("/api/notifications")).status);
     expect(currentStillWorks).toBe(200);
     await third.context.close();
   } finally {
-    // Regenerate the shared fixture — revoke-others above also revoked
-    // whatever session e2e/.auth/owner.json was carrying.
-    const replacement = await freshLogin();
-    await replacement.context.storageState({ path: "e2e/.auth/owner.json" });
-    await replacement.context.close();
-    await current.context.close();
+    await currentContext.close();
     await other.context.close();
   }
 });
