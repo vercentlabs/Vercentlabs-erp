@@ -91,23 +91,24 @@ the ERP product builds. Use the explicit names instead:
 
 Hostinger deploys the landing site from the repository root. If dependency
 installation fails with a missing Corepack cache path like
-`~/.cache/node/corepack/v1/pnpm/.../bin/pnpm.cjs`, configure the Hostinger app
-commands explicitly:
+`~/.cache/node/corepack/v1/pnpm/.../bin/pnpm.cjs`, open **Settings & Redeploy**
+and configure the app as follows:
 
 ```bash
-# Install command
-sh scripts/deploy/hostinger-install.sh
+# Package manager
+npm
 
 # Build command
-pnpm build
+sh scripts/deploy/hostinger-build.sh
 
-# Start command
+# Entry file / start command
 node server.js
 ```
 
-Use Node.js 24 for this project. The install script globally installs the
-repository-pinned `pnpm@11.21.0` before running `pnpm install --frozen-lockfile`,
-so Hostinger does not depend on its stale Corepack pnpm cache.
+Use Node.js 24 for this project. Selecting npm prevents Hostinger from invoking
+its stale Corepack pnpm cache during its automatic dependency step. The build
+script then runs the repository-pinned `pnpm@11.21.0` through npm's `npx`,
+installs the full workspace, and builds the landing application.
 
 ## ERP verification
 
