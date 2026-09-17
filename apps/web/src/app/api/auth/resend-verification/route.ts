@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const session = await requireUser();
     await withClient((client) => enforceRateLimit(client, `resend-verification:${clientIp(request, process.env)}`, 5, 300));
     const result = await withClient((client) => createEmailVerificationToken(client, session.userId));
-    return ok({ alreadyVerified: result.alreadyVerified });
+    return ok({ alreadyVerified: result.alreadyVerified, delivered: result.delivered ?? false });
   } catch (error) {
     return errorResponse(error);
   }

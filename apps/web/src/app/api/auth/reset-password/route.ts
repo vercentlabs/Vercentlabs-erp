@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { assertSameOrigin, clientIp, enforceRateLimit, passwordPolicyIssues, resetPasswordWithToken } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { transaction, withClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 
 const schema = z.object({ token: z.string().min(1).max(500), password: z.string().min(1).max(200) });
@@ -16,7 +16,12 @@ export async function POST(request: Request) {
     const issues = passwordPolicyIssues(body.password);
     if (issues.length > 0) throw new HttpError(422, issues[0], "AUTH_PASSWORD_POLICY", { issues });
 
-    const result = await withClient((client) => resetPasswordWithToken(client, body.token, body.password));
+    // transaction(), not withClient() — token consumption, the password
+    // update, and session revocation must commit or roll back together
+    // (2C: a crash between steps must never leave a token marked used
+    // with the password unchanged, or a password changed with old
+    // sessions still live).
+    const result = await transaction((client) => resetPasswordWithToken(client, body.token, body.password));
     return ok({ reset: true, userId: result.userId });
   } catch (error) {
     return errorResponse(error);

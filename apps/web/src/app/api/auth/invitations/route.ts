@@ -24,9 +24,10 @@ export async function POST(request: Request) {
         invitedByUserId: session.userId,
         email: body.email,
         roleId: body.roleId,
+        inviter: { roleSlugs: session.roleSlugs, permissions: session.permissions },
       }),
     );
-    return ok({ invitationId: result.invitationId }, 201);
+    return ok({ invitationId: result.invitationId, delivered: result.delivered }, 201);
   } catch (error) {
     return errorResponse(error);
   }

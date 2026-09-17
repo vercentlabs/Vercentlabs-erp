@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { assertSameOrigin, clientIp, enforceRateLimit, requestPasswordReset } from "@vercentlabs/api";
+import { assertSameOrigin, clientIp, enforceRateLimit, isAuthMailerConfigured, requestPasswordReset } from "@vercentlabs/api";
 
 import { withClient } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -17,7 +17,11 @@ export async function POST(request: Request) {
     // or it reintroduces the account-enumeration hole the function itself
     // was written to avoid.
     await withClient((client) => requestPasswordReset(client, body.email));
-    return ok({ requested: true });
+    // deliveryConfigured reflects a deployment-wide fact (is any transport
+    // configured at all), not this specific request's delivery outcome —
+    // identical for every caller regardless of the target email, so it
+    // cannot be used to infer whether an address is registered.
+    return ok({ requested: true, deliveryConfigured: isAuthMailerConfigured(process.env) });
   } catch (error) {
     return errorResponse(error);
   }

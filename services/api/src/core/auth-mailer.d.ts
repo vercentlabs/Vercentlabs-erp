@@ -7,3 +7,5 @@ export declare function deliverAuthMessage(
   },
   env?: any,
 ): Promise<boolean>;
+
+export declare function isAuthMailerConfigured(env?: any): boolean;

@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 
 import { hashPassword, createOpaqueToken, tokenHash } from "./session.js";
 import { deliverAuthMessage } from "./auth-mailer.js";
+import { validateRoleSelection } from "./access-administration.js";
 
 export class AuthLifecycleError extends Error {
   constructor(status, message, code) {
@@ -26,6 +27,20 @@ export class AuthLifecycleError extends Error {
 function tokenUrl(env, path, token) {
   const base = (env.APP_URL || "http://localhost:3001").replace(/\/$/, "");
   return `${base}${path}?token=${encodeURIComponent(token)}`;
+}
+
+// Invitations are the one token flow whose frontend route takes the token
+// as a path segment (apps/web/src/app/(auth)/invitations/[token]/page.tsx)
+// rather than a query string like verify-email/reset-password
+// (both real Next.js searchParams pages) — tokenUrl()'s ?token= format
+// silently produced a dead /invitations?token=... link here until this was
+// caught, since the app's own accept-invitation E2E test navigated to
+// /invitations/${token} directly instead of following the mailer's actual
+// generated URL. Named separately, not folded into tokenUrl(), so the two
+// query-string flows can never regress the same way.
+function pathTokenUrl(env, path, token) {
+  const base = (env.APP_URL || "http://localhost:3001").replace(/\/$/, "");
+  return `${base}${path}/${encodeURIComponent(token)}`;
 }
 
 // ---------------------------------------------------------------------
@@ -54,20 +69,32 @@ export async function createEmailVerificationToken(client, userId, env = process
 
 export async function consumeEmailVerificationToken(client, token) {
   const hash = tokenHash(token);
-  const row = (
+  // A single atomic UPDATE...WHERE used_at IS NULL...RETURNING is the
+  // claim itself — Postgres row-locking during the UPDATE guarantees only
+  // one of two concurrent requests presenting the same still-valid token
+  // can ever see a returned row, unlike the previous SELECT-then-UPDATE
+  // (two concurrent SELECTs could both observe used_at IS NULL before
+  // either UPDATE committed). The lookup below only fires to build an
+  // accurate error message once the claim has already failed closed.
+  const claimed = (
     await client.query(
-      `SELECT id, user_id, expires_at, used_at FROM email_verification_tokens WHERE token_hash = $1`,
+      `UPDATE email_verification_tokens
+          SET used_at = now()
+        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+        RETURNING id, user_id`,
       [hash],
     )
   ).rows[0];
-  if (!row) throw new AuthLifecycleError(400, "This verification link is invalid.", "AUTH_TOKEN_INVALID");
-  if (row.used_at) throw new AuthLifecycleError(400, "This verification link has already been used.", "AUTH_TOKEN_USED");
-  if (new Date(row.expires_at).getTime() < Date.now()) {
+  if (!claimed) {
+    const existing = (
+      await client.query(`SELECT used_at, expires_at FROM email_verification_tokens WHERE token_hash = $1`, [hash])
+    ).rows[0];
+    if (!existing) throw new AuthLifecycleError(400, "This verification link is invalid.", "AUTH_TOKEN_INVALID");
+    if (existing.used_at) throw new AuthLifecycleError(400, "This verification link has already been used.", "AUTH_TOKEN_USED");
     throw new AuthLifecycleError(400, "This verification link has expired. Request a new one.", "AUTH_TOKEN_EXPIRED");
   }
-  await client.query(`UPDATE email_verification_tokens SET used_at = now() WHERE id = $1`, [row.id]);
-  await client.query(`UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [row.user_id]);
-  return { userId: row.user_id };
+  await client.query(`UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [claimed.user_id]);
+  return { userId: claimed.user_id };
 }
 
 // ---------------------------------------------------------------------
@@ -95,20 +122,29 @@ export async function requestPasswordReset(client, email, env = process.env) {
 
 export async function resetPasswordWithToken(client, token, newPassword) {
   const hash = tokenHash(token);
-  const row = (
+  // Atomic claim — see consumeEmailVerificationToken's comment for why
+  // this must be one UPDATE...WHERE used_at IS NULL...RETURNING rather
+  // than a SELECT followed by a separate UPDATE.
+  const claimed = (
     await client.query(
-      `SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = $1`,
+      `UPDATE password_reset_tokens
+          SET used_at = now()
+        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+        RETURNING id, user_id`,
       [hash],
     )
   ).rows[0];
-  if (!row) throw new AuthLifecycleError(400, "This reset link is invalid.", "AUTH_TOKEN_INVALID");
-  if (row.used_at) throw new AuthLifecycleError(400, "This reset link has already been used.", "AUTH_TOKEN_USED");
-  if (new Date(row.expires_at).getTime() < Date.now()) {
+  if (!claimed) {
+    const existing = (
+      await client.query(`SELECT used_at, expires_at FROM password_reset_tokens WHERE token_hash = $1`, [hash])
+    ).rows[0];
+    if (!existing) throw new AuthLifecycleError(400, "This reset link is invalid.", "AUTH_TOKEN_INVALID");
+    if (existing.used_at) throw new AuthLifecycleError(400, "This reset link has already been used.", "AUTH_TOKEN_USED");
     throw new AuthLifecycleError(400, "This reset link has expired. Request a new one.", "AUTH_TOKEN_EXPIRED");
   }
+  const row = claimed;
 
   const passwordHash = await hashPassword(newPassword);
-  await client.query(`UPDATE password_reset_tokens SET used_at = now() WHERE id = $1`, [row.id]);
   await client.query(
     `UPDATE users SET password_hash = $2, password_changed_at = now(), email_verified_at = COALESCE(email_verified_at, now())
       WHERE id = $1`,
@@ -134,11 +170,31 @@ export async function resetPasswordWithToken(client, token, newPassword) {
 
 const INVITATION_TOKEN_TTL_DAYS = 7;
 
-export async function createOrganizationInvitation(client, { organizationId, invitedByUserId, email, roleId }, env = process.env) {
+export async function createOrganizationInvitation(client, { organizationId, invitedByUserId, email, roleId, inviter }, env = process.env) {
   const role = (
     await client.query(`SELECT id, name FROM roles WHERE id = $1 AND organization_id = $2 AND status = 'active'`, [roleId, organizationId])
   ).rows[0];
   if (!role) throw new AuthLifecycleError(422, "That role does not exist in this organization.", "AUTH_ROLE_NOT_FOUND");
+
+  // SP008 grant-ceiling/SoD enforcement (access-administration.js) already
+  // exists and is used for role assignment, but this issuance path never
+  // called it — an admin could invite someone into a role carrying
+  // permissions beyond their own, bypassing the control entirely. Reusing
+  // validateRoleSelection (built for multi-role assignment) with a single
+  // roleId as both the selection and the primary role gets the same
+  // ceiling + SoD checks for free, including its own organization_owner
+  // exemption via allowOwnerRole (kept false here — owner transfer has its
+  // own controlled flow, an invitation must never grant it). `inviter` is
+  // required, not optional — this must never be silently skippable by a
+  // caller that forgets to pass it.
+  if (!inviter) throw new AuthLifecycleError(500, "Invitation issuance requires the inviter's role context.", "AUTH_INVITER_CONTEXT_MISSING");
+  await validateRoleSelection(client, {
+    organizationId,
+    roleIds: [roleId],
+    primaryRoleId: roleId,
+    actor: inviter,
+    allowOwnerRole: false,
+  });
 
   const organization = (await client.query(`SELECT id, name FROM organizations WHERE id = $1`, [organizationId])).rows[0];
   if (!organization) throw new AuthLifecycleError(404, "Organization not found.", "AUTH_ORG_NOT_FOUND");
@@ -182,11 +238,11 @@ export async function createOrganizationInvitation(client, { organizationId, inv
     );
   }
 
-  await deliverAuthMessage(
-    { type: "organization-invitation", email, url: tokenUrl(env, "/invitations", token), organizationName: organization.name },
+  const delivered = await deliverAuthMessage(
+    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name },
     env,
   );
-  return { invitationId };
+  return { invitationId, delivered };
 }
 
 export async function getInvitationByToken(client, token) {
@@ -221,7 +277,21 @@ export async function getInvitationByToken(client, token) {
 // Proving control of the invited mailbox by clicking the link is the same
 // proof email verification requires, so acceptance verifies the email
 // too — same reasoning as resetPasswordWithToken above.
-export async function acceptOrganizationInvitation(client, token, { fullName, password }) {
+//
+// That reasoning holds ONLY for a brand-new account: there, "clicked the
+// link" is the only identity claim being made, and it's the same bar
+// email verification already clears. For an EXISTING account, clicking an
+// invitation link is not equivalent to proving you control that account —
+// an org admin who doesn't know the invitee's password can generate the
+// link, so mailbox access to the invitation email is a weaker proof than
+// the invited account's own password. `authenticatedUserId` is the
+// caller's OWN already-established session identity (resolved server-side
+// from their session cookie, never client-supplied) — an existing account
+// is only ever joined to the new organization when that already-
+// authenticated session already belongs to the invited account. This also
+// closes the password-overwrite hole: an existing user's password_hash is
+// never written by this function, under any input, full stop.
+export async function acceptOrganizationInvitation(client, token, { fullName, password }, authenticatedUserId = null) {
   const hash = tokenHash(token);
   const invitation = (
     await client.query(
@@ -239,15 +309,23 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
 
   let user = (await client.query(`SELECT id, password_hash FROM users WHERE lower(email) = lower($1)`, [invitation.email])).rows[0];
   let userId;
+  let mintNewSession;
   if (user) {
     userId = user.id;
-    // An existing account (already invited to a different organization
-    // earlier) authenticates with their existing password — a bare
-    // invitation link must not silently reset a real password, and a
-    // brand-new account needs one supplied.
-    if (!password && !user.password_hash) {
-      throw new AuthLifecycleError(422, "A password is required to activate this account.", "AUTH_PASSWORD_REQUIRED");
+    // Existing account: the invitation link alone is never sufficient
+    // proof of ownership. The caller must already be authenticated AS
+    // this exact account (a real login, which does check the password) —
+    // if a password-less account somehow exists (e.g. a future SSO-only
+    // user), the same "must already be this account's session" rule still
+    // applies; there is no path here that sets or changes a password.
+    if (authenticatedUserId !== userId) {
+      throw new AuthLifecycleError(
+        401,
+        "Sign in to this existing account first, then open the invitation link again to accept it.",
+        "AUTH_INVITATION_REQUIRES_SIGN_IN",
+      );
     }
+    mintNewSession = false;
   } else {
     if (!password) throw new AuthLifecycleError(422, "A password is required to create this account.", "AUTH_PASSWORD_REQUIRED");
     if (!fullName?.trim()) throw new AuthLifecycleError(422, "A name is required to create this account.", "AUTH_NAME_REQUIRED");
@@ -258,12 +336,9 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
        VALUES ($1, $2, $3, $4, now())`,
       [userId, invitation.email, fullName.trim(), passwordHash],
     );
+    mintNewSession = true;
   }
 
-  if (user && password) {
-    const passwordHash = await hashPassword(password);
-    await client.query(`UPDATE users SET password_hash = $2, password_changed_at = now() WHERE id = $1`, [userId, passwordHash]);
-  }
   await client.query(`UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [userId]);
 
   await client.query(
@@ -284,7 +359,7 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
   }
   await client.query(`UPDATE organization_invitations SET accepted_at = now() WHERE id = $1`, [invitation.id]);
 
-  return { userId, organizationId: invitation.organization_id };
+  return { userId, organizationId: invitation.organization_id, mintNewSession };
 }
 
 export async function listPendingInvitationsForEmail(client, email) {

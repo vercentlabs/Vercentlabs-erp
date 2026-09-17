@@ -28,9 +28,15 @@ export declare function resetPasswordWithToken(
 
 export declare function createOrganizationInvitation(
   client: any,
-  input: { organizationId: string; invitedByUserId: string; email: string; roleId: string },
+  input: {
+    organizationId: string;
+    invitedByUserId: string;
+    email: string;
+    roleId: string;
+    inviter: { roleSlugs: string[]; permissions: string[] };
+  },
   env?: any,
-): Promise<{ invitationId: string }>;
+): Promise<{ invitationId: string; delivered: boolean }>;
 
 export declare function getInvitationByToken(
   client: any,
@@ -51,7 +57,8 @@ export declare function acceptOrganizationInvitation(
   client: any,
   token: string,
   input: { fullName?: string; password?: string },
-): Promise<{ userId: string; organizationId: string }>;
+  authenticatedUserId?: string | null,
+): Promise<{ userId: string; organizationId: string; mintNewSession: boolean }>;
 
 export declare function listPendingInvitationsForEmail(
   client: any,

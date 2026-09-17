@@ -1,11 +1,20 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button, TextField } from "@vercentlabs/design-system";
 
-export function AcceptInvitationForm({ token, requiresPassword }: { token: string; requiresPassword: boolean }) {
+export function AcceptInvitationForm({
+  token,
+  hasExistingAccount,
+  alreadySignedInAsInvitee,
+}: {
+  token: string;
+  hasExistingAccount: boolean;
+  alreadySignedInAsInvitee: boolean;
+}) {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -13,25 +22,16 @@ export function AcceptInvitationForm({ token, requiresPassword }: { token: strin
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const requiresPassword = !hasExistingAccount;
+
+  async function submitAcceptance(body: Record<string, unknown>) {
     setError(null);
-    if (requiresPassword) {
-      if (!fullName.trim()) {
-        setError("Enter your name.");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match.");
-        return;
-      }
-    }
     setSubmitting(true);
     try {
       const response = await fetch(`/api/auth/invitations/${encodeURIComponent(token)}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requiresPassword ? { fullName, password } : {}),
+        body: JSON.stringify(body),
       });
       const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!response.ok || payload.ok === false) {
@@ -47,25 +47,80 @@ export function AcceptInvitationForm({ token, requiresPassword }: { token: strin
     }
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (requiresPassword) {
+      if (!fullName.trim()) {
+        setError("Enter your name.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+    }
+    await submitAcceptance(requiresPassword ? { fullName, password } : {});
+  }
+
+  // An invitation link is proof someone can read this mailbox — it is not
+  // proof they control this existing account's password. Accepting here
+  // is only ever wired to the caller's own already-authenticated session,
+  // never to anything typed into this form for an existing account.
+  if (hasExistingAccount && !alreadySignedInAsInvitee) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-text-secondary">
+          An account already exists for this email. Sign in to accept this invitation, then return to this page.
+        </p>
+        {error ? (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        ) : null}
+        <Link href="/login">
+          <Button type="button" variant="primary" size="standard" className="w-full">
+            Sign in
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (hasExistingAccount && alreadySignedInAsInvitee) {
+    return (
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submitAcceptance({});
+        }}
+      >
+        <p className="text-sm text-text-secondary">You&apos;re signed in as this account. Accept to join this organisation.</p>
+        {error ? (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" variant="primary" size="standard" isLoading={submitting} className="mt-2">
+          Accept invitation
+        </Button>
+      </form>
+    );
+  }
+
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-      {requiresPassword ? (
-        <>
-          <TextField label="Full name" autoComplete="name" isRequired value={fullName} onChange={setFullName} />
-          <TextField label="Password" type="password" autoComplete="new-password" isRequired value={password} onChange={setPassword} />
-          <TextField
-            label="Confirm password"
-            type="password"
-            autoComplete="new-password"
-            isRequired
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-          />
-          <p className="text-xs text-text-muted">At least 12 characters, including a letter and a number.</p>
-        </>
-      ) : (
-        <p className="text-sm text-text-secondary">You already have an account — accept with your existing sign-in.</p>
-      )}
+      <TextField label="Full name" autoComplete="name" isRequired value={fullName} onChange={setFullName} />
+      <TextField label="Password" type="password" autoComplete="new-password" isRequired value={password} onChange={setPassword} />
+      <TextField
+        label="Confirm password"
+        type="password"
+        autoComplete="new-password"
+        isRequired
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+      />
+      <p className="text-xs text-text-muted">At least 12 characters, including a letter and a number.</p>
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}

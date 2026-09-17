@@ -168,3 +168,12 @@ export async function deliverAuthMessage(input, env = process.env) {
   if (deliveredWithSmtp) return true;
   return deliverWithWebhook(input, env);
 }
+
+// A deployment-wide fact (is ANY transport configured at all), not a
+// per-request delivery outcome — safe to expose on public/anonymous
+// endpoints (forgot-password) without leaking whether a specific email is
+// registered, since it's identical for every caller regardless of the
+// target address.
+export function isAuthMailerConfigured(env = process.env) {
+  return Boolean(getSmtpConfiguration(env)) || Boolean(env.AUTH_EMAIL_WEBHOOK_URL?.trim());
+}
