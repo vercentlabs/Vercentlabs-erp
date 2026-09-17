@@ -453,6 +453,26 @@ export async function completePointOfSale(client, context, input) {
     throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
   }
 
+  // F276: reference the authoritative CRM/Sales customer master
+  // (tenant.business_parties) rather than trusting a free-text/unvalidated
+  // id — a customer record can be organization-shared (company_id IS NULL)
+  // or company-specific, matching how Sales/CRM already resolve it, so this
+  // is not a plain company_id=$2 equality check like requireCompanyRecord's
+  // other kinds. Found via audit: this previously accepted any UUID (or
+  // none) with zero validation, alongside an always-trusted free-text
+  // customerName.
+  if (input.customerId) {
+    const customer = await client.query(
+      `SELECT id FROM tenant.business_parties
+       WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2)
+         AND id=$3 AND party_type IN ('customer','both') AND status='active'`,
+      [context.organizationId, context.companyId, input.customerId],
+    );
+    if (!customer.rows[0]) {
+      throw posError(404, "Selected customer was not found or is not an active customer for this company.", "POS_CUSTOMER_NOT_FOUND");
+    }
+  }
+
   const receiptNumber = input.receiptNumber || await nextDocumentNumber(client, context, {
     documentType: `pos_receipt:${shift.terminal_id}`,
     prefix: safeDocumentPrefix(shift.receipt_prefix, "POS"),
