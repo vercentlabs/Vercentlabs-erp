@@ -1,143 +1,50 @@
+import "server-only";
+
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { setTenantContext } from "@vercentlabs/database";
-import { databaseConfig } from "@vercentlabs/config";
-import { Pool, PoolClient, QueryResultRow } from "pg";
 
-declare global {
-  var __vercentlabsPool: Pool | undefined;
-  var __vercentlabsDbRoleVerification: Promise<void> | undefined;
-}
+// The one connection pool for the ERP web server process (Next.js Route
+// Handlers / Server Components — never imported by a Client Component,
+// enforced by the `server-only` sentinel above). Business/security LOGIC
+// lives in @vercentlabs/api as framework-agnostic, client-injected
+// functions (see docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv); this
+// module only owns the actual database connection those functions are
+// handed.
+let pool: Pool | null = null;
 
-function createPool() {
-  const config = databaseConfig(process.env);
-
-  return new Pool({
-    connectionString: config.connectionString,
-    max: config.poolMaximum,
-    idleTimeoutMillis: config.idleTimeoutMilliseconds,
-    connectionTimeoutMillis: config.connectionTimeoutMilliseconds,
-    query_timeout: config.queryTimeoutMilliseconds,
-    application_name: "vercentlabs-web-runtime",
-    statement_timeout: config.statementTimeoutMilliseconds,
-    ssl:
-      process.env.NODE_ENV === "production" &&
-      !config.connectionString.includes("localhost")
-        ? { rejectUnauthorized: true }
-        : undefined,
-  });
-}
-
-export function getPool() {
-  if (!global.__vercentlabsPool) global.__vercentlabsPool = createPool();
-  return global.__vercentlabsPool;
-}
-
-async function verifyRuntimeRole() {
-  if (
-    process.env.NODE_ENV !== "production" &&
-    process.env.ENFORCE_RESTRICTED_DB_ROLE !== "true"
-  ) {
-    return;
-  }
-
-  const result = await getPool().query<{
-    role_name: string;
-    is_superuser: boolean;
-    bypasses_rls: boolean;
-    inherits_roles: boolean;
-    can_create_database: boolean;
-    can_create_roles: boolean;
-    can_replicate: boolean;
-    owns_relations: boolean;
-    can_create_schema_objects: boolean;
-    has_dangerous_membership: boolean;
-  }>(
-    `
-      SELECT
-        current_user AS role_name,
-        role.rolsuper AS is_superuser,
-        role.rolbypassrls AS bypasses_rls,
-        role.rolinherit AS inherits_roles,
-        role.rolcreatedb AS can_create_database,
-        role.rolcreaterole AS can_create_roles,
-        role.rolreplication AS can_replicate,
-        EXISTS (
-          SELECT 1
-          FROM pg_class AS relation
-          JOIN pg_namespace AS namespace
-            ON namespace.oid = relation.relnamespace
-          WHERE relation.relowner = role.oid
-            AND namespace.nspname IN ('public', 'tenant')
-            AND relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
-        ) AS owns_relations,
-        EXISTS (
-          SELECT 1
-          FROM pg_namespace AS namespace
-          WHERE namespace.nspname IN ('public', 'tenant')
-            AND has_schema_privilege(current_user, namespace.oid, 'CREATE')
-        ) AS can_create_schema_objects,
-        EXISTS (
-          SELECT 1
-          FROM pg_auth_members AS membership
-          JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
-          WHERE membership.member = role.oid
-            AND (
-              granted_role.rolsuper
-              OR granted_role.rolbypassrls
-              OR granted_role.rolcreatedb
-              OR granted_role.rolcreaterole
-              OR granted_role.rolreplication
-            )
-        ) AS has_dangerous_membership
-      FROM pg_roles AS role
-      WHERE role.rolname = current_user
-    `,
-  );
-  const current = result.rows[0];
-  if (
-    !current ||
-    current.is_superuser ||
-    current.bypasses_rls ||
-    current.inherits_roles ||
-    current.can_create_database ||
-    current.can_create_roles ||
-    current.can_replicate ||
-    current.owns_relations ||
-    current.can_create_schema_objects ||
-    current.has_dangerous_membership
-  ) {
-    throw new Error(
-      "DATABASE_URL must use a restricted NOINHERIT, NOSUPERUSER, NOBYPASSRLS, non-owner runtime role without CREATE privileges or privileged role memberships.",
-    );
-  }
-}
-
-async function ensureRuntimeRole() {
-  if (!global.__vercentlabsDbRoleVerification) {
-    global.__vercentlabsDbRoleVerification = verifyRuntimeRole().catch((error) => {
-      global.__vercentlabsDbRoleVerification = undefined;
-      throw error;
+function getPool() {
+  if (!pool) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("DATABASE_URL is not configured.");
+    }
+    pool = new Pool({
+      connectionString,
+      max: Number(process.env.DATABASE_POOL_MAX || "10"),
+      ssl:
+        process.env.DATABASE_SSL === "true"
+          ? { rejectUnauthorized: false }
+          : undefined,
     });
   }
-  await global.__vercentlabsDbRoleVerification;
+  return pool;
 }
 
-export async function query<T extends QueryResultRow>(
+export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  values: unknown[] = [],
-): Promise<T[]> {
-  await ensureRuntimeRole();
+  values?: unknown[],
+) {
   const result = await getPool().query<T>(text, values);
   return result.rows;
 }
 
 export async function transaction<T>(
-  work: (client: PoolClient) => Promise<T>,
+  handler: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  await ensureRuntimeRole();
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
-    const result = await work(client);
+    const result = await handler(client);
     await client.query("COMMIT");
     return result;
   } catch (error) {
@@ -148,12 +55,26 @@ export async function transaction<T>(
   }
 }
 
+// Row-level-security-scoped variant — every handler touching tenant data
+// through a request must use this, not the bare `transaction()` above, so
+// Postgres RLS policies keyed on app.current_organization_id apply.
 export async function tenantTransaction<T>(
   organizationId: string,
-  work: (client: PoolClient) => Promise<T>,
+  handler: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   return transaction(async (client) => {
     await setTenantContext(client, organizationId);
-    return work(client);
+    return handler(client);
   });
+}
+
+export async function withClient<T>(
+  handler: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    return await handler(client);
+  } finally {
+    client.release();
+  }
 }

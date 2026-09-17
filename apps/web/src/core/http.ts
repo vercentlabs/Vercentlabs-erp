@@ -1,27 +1,13 @@
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
-import { createLogger } from "@vercentlabs/observability";
 
-const logger = createLogger("vercentlabs-web");
+import { classifyError, HttpError } from "./http-errors.ts";
 
-export class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly code?: string,
-    public readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
-  }
-}
+export { HttpError };
 
 export function ok(data: Record<string, unknown>, status = 200) {
   return NextResponse.json(
     { ok: true, ...data },
-    {
-      status,
-      headers: { "Cache-Control": "no-store" },
-    },
+    { status, headers: { "Cache-Control": "no-store" } },
   );
 }
 
@@ -32,20 +18,7 @@ export function fail(
 ) {
   return NextResponse.json(
     { ok: false, message, ...details },
-    {
-      status,
-      headers: { "Cache-Control": "no-store" },
-    },
-  );
-}
-
-export function failWithCode(error: HttpError) {
-  return fail(
-    error.message,
-    error.status,
-    error.code || error.details
-      ? { ...(error.code ? { code: error.code } : {}), ...(error.details || {}) }
-      : undefined,
+    { status, headers: { "Cache-Control": "no-store" } },
   );
 }
 
@@ -54,45 +27,22 @@ export async function readJson(request: Request): Promise<unknown> {
   const length = Number(request.headers.get("content-length") || "0");
   if (length > maximumBytes)
     throw new HttpError(413, "The request is too large.");
-
-  const reader = request.body?.getReader();
-  if (!reader) throw new HttpError(400, "Invalid JSON request.");
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > maximumBytes) {
-        await reader.cancel();
-        throw new HttpError(413, "The request is too large.");
-      }
-      chunks.push(value);
-    }
-
-    const body = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      body.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return JSON.parse(new TextDecoder().decode(body)) as unknown;
+    return await request.json();
   } catch {
-    if (totalBytes > maximumBytes)
-      throw new HttpError(413, "The request is too large.");
     throw new HttpError(400, "Invalid JSON request.");
   }
 }
 
+// Normalizes both this route layer's own validation errors and the
+// per-module Error subclasses @vercentlabs/api's ported platform code
+// throws (ApiKeyError, OAuthError, EntitlementError, ModuleAccessError,
+// AccessAdministrationError, SecurityError, etc.), plus a redirect() throw
+// from requireWorkspace()/requireUser() caught before it reaches Next's
+// own redirect boundary — see http-errors.ts's classifyError() for the
+// actual decision logic (kept there so it's unit-testable without
+// next/server's module resolution getting in the way).
 export function errorResponse(error: unknown) {
-  if (error instanceof HttpError) return failWithCode(error);
-  if (error instanceof ZodError) {
-    return fail("Review the submitted fields.", 400, {
-      errors: error.flatten().fieldErrors,
-    });
-  }
-  logger.error("request_failed", { error });
-  return fail("The request could not be completed.", 500);
+  const classified = classifyError(error);
+  return fail(classified.message, classified.status, classified.details);
 }

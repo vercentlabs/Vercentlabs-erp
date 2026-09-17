@@ -1,8 +1,26 @@
 import { nextDocumentNumber } from "../../core/document-numbering.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { requireCompanyRecord } from "../../core/references.js";
+import { add, sub, mul, div, percent, max, roundMoney, asDatabaseDecimal, decimal } from "../../core/decimal.js";
+import { resolveTaxRateComponents } from "../../core/tax-engine.js";
 
 import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
+
+export * from "./features/assortment.js";
+export * from "./features/cart.js";
+export * from "./features/promotions.js";
+export * from "./features/coupons.js";
+export { priceCartLines } from "./features/cart-pricing.js";
+import {
+  normalizedDiscountAmount,
+  resolveCurrencyDecimalPlaces,
+  resolveSellerStateCode,
+  resolveBuyerStateCode,
+} from "./features/cart-pricing.js";
+import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines } from "./features/cart.js";
+import { priceCartLines } from "./features/cart-pricing.js";
+import { commitPosPromotionApplications } from "./features/promotions.js";
+import { commitPosCouponRedemption, releasePosCouponRedemptionForFullReturn } from "./features/coupons.js";
 
 const TABLES = Object.freeze({
   stores: "pos_stores",
@@ -373,22 +391,79 @@ export async function completePointOfSale(client, context, input) {
     allow_price_override: false,
   };
 
-  let subtotal = 0;
-  let discountTotal = 0;
-  let taxTotal = 0;
+  // F276: reference the authoritative CRM/Sales customer master
+  // (tenant.business_parties) rather than trusting a free-text/unvalidated
+  // id — a customer record can be organization-shared (company_id IS NULL)
+  // or company-specific, matching how Sales/CRM already resolve it, so this
+  // is not a plain company_id=$2 equality check like requireCompanyRecord's
+  // other kinds. Found via audit: this previously accepted any UUID (or
+  // none) with zero validation, alongside an always-trusted free-text
+  // customerName. Validated before the line loop so the resolved customer
+  // can also supply the buyer's state code for tax-jurisdiction resolution
+  // below.
+  if (input.customerId) {
+    const customer = await client.query(
+      `SELECT id FROM tenant.business_parties
+       WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2)
+         AND id=$3 AND party_type IN ('customer','both') AND status='active'`,
+      [context.organizationId, context.companyId, input.customerId],
+    );
+    if (!customer.rows[0]) {
+      throw posError(404, "Selected customer was not found or is not an active customer for this company.", "POS_CUSTOMER_NOT_FOUND");
+    }
+  }
+
+  // F278/PHASE 4: tax is ALWAYS derived server-side from tenant.tax_rates
+  // via the same resolveTaxRateComponents helper Sales' calculateLine
+  // uses (services/api/src/core/tax-engine.js) — a client-supplied
+  // taxAmount is never persisted as-is; if one is present it is only
+  // compared against the authoritative figure and rejected as a conflict
+  // when it disagrees (POS_PRICE_CONFLICT), never silently trusted and
+  // never silently coerced to zero. Discounts are policy-validated
+  // (reason required, bounded by pos_settings.max_line_discount_percent)
+  // via the same normalizedDiscountAmount cart-pricing.js also uses,
+  // closing the "no policy-driven discount evaluation" gap for this
+  // legacy flat-lines path too, without requiring every existing caller
+  // to migrate to the full cart aggregate in this same pass.
+  const decimalPlaces = await resolveCurrencyDecimalPlaces(client, context, shift.currency_code);
+  const sellerStateCode = await resolveSellerStateCode(client, context);
+  const buyerStateCode = await resolveBuyerStateCode(client, context, input.customerId, sellerStateCode);
+  const priceList = shift.price_list_id
+    ? await client.query(`SELECT tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND status='active'`, [
+        context.organizationId,
+        shift.price_list_id,
+      ])
+    : { rows: [] };
+  const taxInclusive = Boolean(priceList.rows[0]?.tax_inclusive);
+
+  let subtotal = decimal(0);
+  let discountTotal = decimal(0);
+  let taxTotal = decimal(0);
   const normalizedLines = [];
+
+  // pos_sale_lines.description is NOT NULL (receipts must show a real line
+  // description, not a blank line) — a caller reasonably won't always
+  // override it, so batch-resolve each item's own name/tax category as the
+  // default rather than requiring every checkout call to repeat it. Found
+  // via direct PostgreSQL testing: the prior code passed line.description
+  // straight through and only ever worked because the one existing test
+  // happened to always supply one.
+  const itemIds = [...new Set(input.lines.map((line) => line.itemId))];
+  const itemRows = await client.query(
+    `SELECT id,name,tax_category_id FROM tenant.items WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
+    [context.organizationId, itemIds],
+  );
+  const itemById = new Map(itemRows.rows.map((row) => [row.id, row]));
 
   for (const [index, line] of input.lines.entries()) {
     const quantity = Number(line.quantity);
-    const discountAmount = Number(line.discountAmount || 0);
-    const taxAmount = Number(line.taxAmount || 0);
     if (!(quantity > 0) || !Number.isFinite(quantity)) {
       throw posError(400, "POS sale quantity must be greater than zero.", "POS_SALE_QUANTITY_INVALID");
     }
-    if (discountAmount < 0 || !Number.isFinite(discountAmount) || taxAmount < 0 || !Number.isFinite(taxAmount)) {
-      throw posError(400, "POS discount and tax amounts cannot be negative.", "POS_SALE_AMOUNT_INVALID");
+    if (!itemById.has(line.itemId)) {
+      throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
     }
-    if (discountAmount > 0) requirePermission(context, "pos.discount.apply");
+    const item = itemById.get(line.itemId);
 
     const warehouseId = line.warehouseId || shift.warehouse_id;
     const available = await stockAvailable(client, context, line.itemId, warehouseId);
@@ -398,45 +473,106 @@ export async function completePointOfSale(client, context, input) {
       throw error;
     }
 
-    const unitPrice = await resolvePointOfSaleUnitPrice(client, context, shift, policy, {
-      ...line,
-      quantity,
-    });
-    const lineSubtotal = quantity * unitPrice;
-    if (discountAmount > lineSubtotal) {
-      throw posError(400, "Discount cannot exceed the line subtotal.", "POS_DISCOUNT_INVALID");
+    const unitPrice = decimal(
+      await resolvePointOfSaleUnitPrice(client, context, shift, policy, { ...line, quantity }),
+    );
+    const lineSubtotal = roundMoney(mul(decimal(quantity), unitPrice), decimalPlaces);
+
+    let discountAmount = decimal(0);
+    if (line.discountAmount != null && Number(line.discountAmount) > 0) {
+      requirePermission(context, "pos.discount.apply");
+      if (!line.discountReason || !String(line.discountReason).trim()) {
+        throw posError(400, `Line ${index + 1} discount requires a reason.`, "POS_DISCOUNT_REASON_REQUIRED");
+      }
+      discountAmount = normalizedDiscountAmount(
+        { type: "amount", value: line.discountAmount, reason: line.discountReason },
+        lineSubtotal,
+        policy.max_line_discount_percent ?? 100,
+        `Line ${index + 1}`,
+      );
     }
-    const lineTotal = lineSubtotal - discountAmount + taxAmount;
-    subtotal += lineSubtotal;
-    discountTotal += discountAmount;
-    taxTotal += taxAmount;
+    const taxableAmount = max(0, sub(lineSubtotal, discountAmount));
+    const { taxRate, components } = await resolveTaxRateComponents(client, {
+      organizationId: context.organizationId,
+      companyId: context.companyId,
+      taxCategoryId: item.tax_category_id,
+      sellerStateCode,
+      buyerStateCode,
+      exempt: false,
+    });
+    let taxableBase = taxableAmount;
+    let taxAmount = decimal(0);
+    if (taxInclusive && taxRate > 0n) {
+      taxableBase = roundMoney(div(mul(taxableAmount, 100), add(100, taxRate)), decimalPlaces);
+      taxAmount = sub(taxableAmount, taxableBase);
+    } else if (taxRate > 0n) {
+      taxAmount = roundMoney(percent(taxableAmount, taxRate), decimalPlaces);
+    }
+    if (line.taxAmount != null) {
+      const expected = decimal(line.taxAmount);
+      const diff = expected > taxAmount ? expected - taxAmount : taxAmount - expected;
+      if (diff > decimal("0.01")) {
+        throw posError(
+          409,
+          `The tax you expected (${line.taxAmount}) does not match the authoritative server-calculated tax (${asDatabaseDecimal(taxAmount)}) for line ${index + 1}.`,
+          "POS_PRICE_CONFLICT",
+        );
+      }
+    }
+    const lineTotal = add(taxableBase, taxAmount);
+    subtotal = add(subtotal, lineSubtotal);
+    discountTotal = add(discountTotal, discountAmount);
+    taxTotal = add(taxTotal, taxAmount);
     normalizedLines.push({
       ...line,
       lineNumber: index + 1,
       quantity,
-      unitPrice,
-      discountAmount,
-      taxAmount,
-      lineTotal,
+      unitPrice: asDatabaseDecimal(unitPrice),
+      discountAmount: asDatabaseDecimal(discountAmount),
+      taxAmount: asDatabaseDecimal(taxAmount),
+      taxComponents: components.map((component) => ({
+        type: component.type,
+        label: component.label,
+        rate: asDatabaseDecimal(component.rate),
+        taxableAmount: asDatabaseDecimal(taxableBase),
+      })),
+      lineTotal: asDatabaseDecimal(lineTotal),
       warehouseId,
+      description: line.description || item.name,
     });
   }
 
-  const roundingAdjustment = Number(input.roundingAdjustment || 0);
-  if (!Number.isFinite(roundingAdjustment)) {
-    throw posError(400, "Rounding adjustment is invalid.", "POS_ROUNDING_INVALID");
+  // A client-supplied roundingAdjustment is a legitimate cashier action
+  // (rounding physical cash to the nearest coin denomination available),
+  // never an authoritative total override — bounded to strictly less than
+  // one currency unit so it can never be used to smuggle an arbitrary
+  // discount past the policy checks above.
+  const roundingAdjustment = decimal(input.roundingAdjustment || 0);
+  if (roundingAdjustment >= decimal(1) || roundingAdjustment <= decimal(-1)) {
+    throw posError(400, "Rounding adjustment must be less than one currency unit.", "POS_ROUNDING_INVALID");
   }
-  const grandTotal = subtotal - discountTotal + taxTotal + roundingAdjustment;
-  if (!(grandTotal >= 0) || !Number.isFinite(grandTotal)) {
+  const grandTotal = add(sub(subtotal, discountTotal), add(taxTotal, roundingAdjustment));
+  if (grandTotal < 0n) {
     throw posError(400, "Calculated POS sale total is invalid.", "POS_TOTAL_INVALID");
   }
-  const paidTotal = input.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const paidTotal = input.payments.reduce((sum, payment) => add(sum, decimal(payment.amount)), decimal(0));
   if (paidTotal < grandTotal) {
     throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
   }
 
+  // Receipt numbers are unique per ORGANIZATION (pos_sales_organization_id_
+  // receipt_number_key), not per terminal -- a per-terminal sequence key
+  // here was a real, previously-undetected bug: two terminals sharing the
+  // schema's own default receipt_prefix ('POS') would each independently
+  // count from 1, so their first sale would collide on "POS-000001" and
+  // fail with a raw, unhandled unique-constraint violation. Found via
+  // genuine real-Postgres/real-browser testing this session (two real
+  // terminals in the same org), not by inspection. The sequence is now
+  // shared per company, matching the constraint's actual scope; a
+  // terminal's own receipt_prefix still lets it produce visually distinct
+  // numbers if configured, but correctness no longer depends on that.
   const receiptNumber = input.receiptNumber || await nextDocumentNumber(client, context, {
-    documentType: `pos_receipt:${shift.terminal_id}`,
+    documentType: "pos_receipt",
     prefix: safeDocumentPrefix(shift.receipt_prefix, "POS"),
   });
 
@@ -459,13 +595,13 @@ export async function completePointOfSale(client, context, input) {
       input.customerId || null,
       input.customerName || null,
       input.currencyCode || shift.currency_code,
-      String(subtotal),
-      String(discountTotal),
-      String(taxTotal),
-      String(roundingAdjustment),
-      String(grandTotal),
-      String(paidTotal),
-      String(paidTotal - grandTotal),
+      asDatabaseDecimal(subtotal),
+      asDatabaseDecimal(discountTotal),
+      asDatabaseDecimal(taxTotal),
+      asDatabaseDecimal(roundingAdjustment),
+      asDatabaseDecimal(grandTotal),
+      asDatabaseDecimal(paidTotal),
+      asDatabaseDecimal(sub(paidTotal, grandTotal)),
       input.idempotencyKey,
       context.userId,
     ],
@@ -493,15 +629,17 @@ export async function completePointOfSale(client, context, input) {
 
     await client.query(
       `INSERT INTO tenant.pos_sale_lines
-        (organization_id,sale_id,line_number,item_id,description,quantity,
+        (organization_id,sale_id,line_number,item_id,variant_id,description,quantity,
          unit_price,discount_amount,tax_amount,line_total,warehouse_id,
-         warehouse_location_id,batch_id,serial_id,stock_movement_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+         warehouse_location_id,batch_id,serial_id,stock_movement_id,
+         manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,0,0,$18::jsonb)`,
       [
         context.organizationId,
         sale.rows[0].id,
         line.lineNumber,
         line.itemId,
+        line.variantId || null,
         line.description,
         String(line.quantity),
         String(line.unitPrice),
@@ -513,6 +651,8 @@ export async function completePointOfSale(client, context, input) {
         line.batchId || null,
         line.serialId || null,
         stockMovement.id,
+        String(line.discountAmount),
+        JSON.stringify(line.taxComponents || []),
       ],
     );
   }
@@ -528,7 +668,7 @@ export async function completePointOfSale(client, context, input) {
         context.companyId,
         sale.rows[0].id,
         input.shiftId,
-        String(payment.amount),
+        asDatabaseDecimal(decimal(payment.amount)),
         context.userId,
       ],
     );
@@ -537,7 +677,7 @@ export async function completePointOfSale(client, context, input) {
   // Cash tender may exceed the sale total when change is returned. The till
   // retains only the authoritative sale total, so record one net sale cash
   // movement rather than one movement per tender line.
-  if (grandTotal > 0) {
+  if (grandTotal > 0n) {
     const cashMovementNumber = await nextDocumentNumber(client, context, {
       documentType: "pos_cash_movement",
       prefix: "CASH",
@@ -552,7 +692,7 @@ export async function completePointOfSale(client, context, input) {
         context.companyId,
         input.shiftId,
         cashMovementNumber,
-        String(grandTotal),
+        asDatabaseDecimal(grandTotal),
         sale.rows[0].id,
         context.userId,
       ],
@@ -561,7 +701,7 @@ export async function completePointOfSale(client, context, input) {
 
   await event(client, context, "sale", sale.rows[0].id, "pos.sale.completed", {
     receiptNumber,
-    grandTotal,
+    grandTotal: asDatabaseDecimal(grandTotal),
   });
   const response = { ...sale.rows[0], replayed: false };
   await completeIdempotentOperation(client, context, idempotency, {
@@ -569,6 +709,232 @@ export async function completePointOfSale(client, context, input) {
     aggregateType: "pos_sale",
     aggregateId: sale.rows[0].id,
   });
+  return response;
+}
+
+// F277 PHASE 10 — the primary, cart-based sale-completion path. Every
+// monetary figure is recomputed fresh (via the same priceCartLines used
+// by every cart mutation) INSIDE this transaction, under the cart row's
+// own lock, so a price/promotion/coupon config change between the last
+// preview and this exact moment can never silently ship a stale total —
+// and a client-supplied expectedGrandTotal is only ever compared for
+// conflict, never trusted as the figure to charge.
+export async function completePosCart(client, context, cartId, input = {}) {
+  requirePermission(context, "pos.sale.create");
+  if (!Array.isArray(input.payments) || input.payments.length === 0) {
+    throw posError(400, "At least one payment is required.", "POS_PAYMENT_REQUIRED");
+  }
+  for (const payment of input.payments) {
+    const amount = decimal(payment.amount);
+    if (amount <= 0n) throw posError(400, "POS payment amount must be greater than zero.", "POS_PAYMENT_AMOUNT_INVALID");
+    if (payment.method !== "cash") {
+      throw posError(
+        409,
+        `Payment method ${payment.method} is not available until an authoritative provider adapter is configured.`,
+        "POS_PAYMENT_PROVIDER_NOT_CONFIGURED",
+      );
+    }
+  }
+
+  const idempotency = await beginIdempotentOperation(client, context, {
+    operation: "pos.sale.complete",
+    key: input.idempotencyKey,
+    payload: { cartId, ...input, idempotencyKey: undefined },
+    required: true,
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+
+  const cartResult = await client.query(
+    `SELECT cart.*,store.warehouse_id,store.currency_code,store.price_list_id,store.active AS store_active,
+            terminal.receipt_prefix,terminal.status AS terminal_status,shift.status AS shift_status
+     FROM tenant.pos_carts cart
+     JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
+     JOIN tenant.pos_terminals terminal ON terminal.organization_id=cart.organization_id AND terminal.id=cart.terminal_id
+     JOIN tenant.pos_shifts shift ON shift.organization_id=cart.organization_id AND shift.id=cart.shift_id
+     WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.id=$3
+     FOR UPDATE OF cart`,
+    [context.organizationId, context.companyId, cartId],
+  );
+  const cart = cartResult.rows[0];
+  if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
+  if (cart.status !== "priced") {
+    throw posError(409, `This cart is ${cart.status} and cannot be completed.`, "POS_CART_NOT_PRICED");
+  }
+  if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(cart.version)) {
+    throw posError(409, "This cart changed since you last loaded it. Refresh and try again.", "POS_CART_VERSION_CONFLICT");
+  }
+  if (cart.shift_status !== "open") {
+    throw posError(409, "An open POS shift with a valid store and terminal is required.", "POS_SHIFT_NOT_OPEN");
+  }
+  if (!cart.store_active || cart.terminal_status !== "active") {
+    throw posError(409, "An open POS shift with a valid store and terminal is required.", "POS_SHIFT_NOT_OPEN");
+  }
+
+  const existingLines = await loadPosCartLines(client, context, cartId);
+  if (!existingLines.length) throw posError(400, "At least one sale line is required.", "POS_SALE_LINES_REQUIRED");
+
+  const policy = await loadPosSettingsPolicy(client, context);
+  for (const line of existingLines) {
+    const available = await stockAvailable(client, context, line.item_id, line.warehouse_id);
+    if (!policy.allow_negative_stock && available < Number(line.quantity)) {
+      const error = posError(409, "Insufficient stock for POS sale.", "INSUFFICIENT_STOCK");
+      error.itemId = line.item_id;
+      throw error;
+    }
+  }
+
+  const store = { id: cart.store_id, warehouse_id: cart.warehouse_id, currency_code: cart.currency_code, price_list_id: cart.price_list_id };
+  const cartDiscount = cart.cart_discount_type
+    ? { type: cart.cart_discount_type, value: cart.cart_discount_value, reason: cart.cart_discount_reason }
+    : null;
+  const priced = await priceCartLines(client, context, {
+    store,
+    policy,
+    customerId: cart.customer_id,
+    lines: toPosCartPricingInputLines(existingLines),
+    cartDiscount,
+    couponCode: cart.coupon_code,
+    expectedTotals: input.expectedGrandTotal != null ? { grandTotal: input.expectedGrandTotal } : undefined,
+  });
+
+  const paidTotal = input.payments.reduce((sum, payment) => add(sum, decimal(payment.amount)), decimal(0));
+  if (paidTotal < decimal(priced.totals.grandTotal)) {
+    throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
+  }
+
+  // See the matching comment in completePointOfSale: shared per-company,
+  // not per-terminal, to match pos_sales_organization_id_receipt_number_key.
+  const receiptNumber = await nextDocumentNumber(client, context, {
+    documentType: "pos_receipt",
+    prefix: safeDocumentPrefix(cart.receipt_prefix, "POS"),
+  });
+
+  const sale = await client.query(
+    `INSERT INTO tenant.pos_sales
+      (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
+       customer_id,currency_code,subtotal,discount_total,tax_total,rounding_adjustment,
+       grand_total,paid_total,change_total,status,idempotency_key,created_by,completed_at,
+       cart_id,coupon_code)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'completed',$16,$17,now(),$18,$19)
+     RETURNING *`,
+    [
+      context.organizationId,
+      context.companyId,
+      cart.store_id,
+      cart.terminal_id,
+      cart.shift_id,
+      receiptNumber,
+      cart.customer_id,
+      cart.currency_code,
+      priced.totals.subtotal,
+      priced.totals.discountTotal,
+      priced.totals.taxTotal,
+      priced.totals.roundingAdjustment,
+      priced.totals.grandTotal,
+      asDatabaseDecimal(paidTotal),
+      asDatabaseDecimal(sub(paidTotal, decimal(priced.totals.grandTotal))),
+      input.idempotencyKey,
+      context.userId,
+      cart.id,
+      cart.coupon_code,
+    ],
+  );
+  const saleId = sale.rows[0].id;
+
+  const saleLineIdByLineNumber = new Map();
+  for (const line of priced.lines) {
+    const stockMovement = await postCanonicalStockMovement(
+      client,
+      { ...context, permissions: [...new Set([...(context.permissions || []), "stock.issue"])] },
+      {
+        movementType: "issue",
+        itemId: line.itemId,
+        warehouseId: line.warehouseId,
+        warehouseLocationId: line.warehouseLocationId,
+        batchId: line.batchId,
+        serialId: line.serialId,
+        quantity: line.quantity,
+        unitCost: line.standardCost || 0,
+        referenceType: "pos_sale",
+        referenceId: saleId,
+        reason: "POS sale issue",
+        idempotencyKey: `${input.idempotencyKey}:line:${line.lineNumber}`,
+      },
+    );
+    const totalLineDiscount = asDatabaseDecimal(
+      add(
+        add(decimal(line.manualDiscountAmount), decimal(line.promotionDiscountAmount)),
+        add(decimal(line.couponDiscountAmount), decimal(line.cartDiscountAmount)),
+      ),
+    );
+    const saleLine = await client.query(
+      `INSERT INTO tenant.pos_sale_lines
+        (organization_id,sale_id,line_number,item_id,variant_id,description,quantity,unit_price,
+         discount_amount,tax_amount,line_total,warehouse_id,warehouse_location_id,batch_id,serial_id,
+         stock_movement_id,manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb)
+       RETURNING id`,
+      [
+        context.organizationId,
+        saleId,
+        line.lineNumber,
+        line.itemId,
+        line.variantId,
+        line.description,
+        line.quantity,
+        line.unitPrice,
+        totalLineDiscount,
+        line.taxAmount,
+        line.lineTotal,
+        line.warehouseId,
+        line.warehouseLocationId,
+        line.batchId,
+        line.serialId,
+        stockMovement.id,
+        line.manualDiscountAmount,
+        line.promotionDiscountAmount,
+        line.couponDiscountAmount,
+        JSON.stringify(line.taxComponents || []),
+      ],
+    );
+    saleLineIdByLineNumber.set(line.lineNumber, saleLine.rows[0].id);
+  }
+
+  for (const payment of input.payments) {
+    await client.query(
+      `INSERT INTO tenant.pos_payments
+        (organization_id,company_id,sale_id,shift_id,payment_method,amount,status,captured_at,created_by)
+       VALUES ($1,$2,$3,$4,'cash',$5,'captured',now(),$6)`,
+      [context.organizationId, context.companyId, saleId, cart.shift_id, asDatabaseDecimal(decimal(payment.amount)), context.userId],
+    );
+  }
+
+  if (decimal(priced.totals.grandTotal) > 0n) {
+    const cashMovementNumber = await nextDocumentNumber(client, context, { documentType: "pos_cash_movement", prefix: "CASH" });
+    await client.query(
+      `INSERT INTO tenant.pos_cash_movements
+        (organization_id,company_id,shift_id,movement_number,movement_type,amount,reference_type,reference_id,created_by)
+       VALUES ($1,$2,$3,$4,'sale',$5,'pos_sale',$6,$7)`,
+      [context.organizationId, context.companyId, cart.shift_id, cashMovementNumber, priced.totals.grandTotal, saleId, context.userId],
+    );
+  }
+
+  if (priced.promotionApplications.length) {
+    await commitPosPromotionApplications(client, context, saleId, saleLineIdByLineNumber, priced.promotionApplications, cart.customer_id);
+  }
+  if (priced.coupon) {
+    await commitPosCouponRedemption(client, context, cartId, saleId, priced.coupon.amount);
+  }
+
+  await client.query(
+    `UPDATE tenant.pos_carts SET status='completed',completed_sale_id=$3,completed_at=now(),version=version+1,updated_at=now(),updated_by=$4
+     WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, cartId, saleId, context.userId],
+  );
+
+  await event(client, context, "sale", saleId, "pos.sale.completed", { receiptNumber, grandTotal: priced.totals.grandTotal, cartId });
+  const response = { ...sale.rows[0], replayed: false };
+  await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_sale", aggregateId: saleId });
   return response;
 }
 
@@ -663,8 +1029,8 @@ export async function createPointOfSaleReturn(client, context, input) {
       (organization_id,company_id,store_id,terminal_id,shift_id,sale_id,
        return_number,reason,status,refund_total,requested_by,
        approved_by,approved_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
-       CASE WHEN $9='approved' THEN $11 ELSE NULL END,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::uuid,
+       CASE WHEN $9='approved' THEN $11::uuid ELSE NULL END,
        CASE WHEN $9='approved' THEN now() ELSE NULL END)
      RETURNING *`,
     [
@@ -901,6 +1267,14 @@ export async function completePointOfSaleReturn(client, context, returnId, input
     [context.organizationId, context.companyId, returnRecord.sale_id, nextSaleStatus],
   );
 
+  // F281 reversal dependency (PHASE 9): a coupon redeemed on this sale is
+  // released back to the pool only when the ENTIRE sale is returned — see
+  // coupons.js's own comment for why a partial return is left PARTIAL
+  // rather than inventing an unspecified fractional-usage-credit model.
+  if (fullyReturned) {
+    await releasePosCouponRedemptionForFullReturn(client, context, returnRecord.sale_id);
+  }
+
   const refundTotal = Number(returnRecord.refund_total);
   if (refundTotal > 0) {
     const cashMovementNumber = await nextDocumentNumber(client, context, {
@@ -966,7 +1340,7 @@ export async function closeShift(client, context, shiftId, input) {
        AND status='open' FOR UPDATE`,
     [context.organizationId, context.companyId, shiftId],
   );
-  if (!shift.rows[0]) throw new Error("Open shift not found.");
+  if (!shift.rows[0]) throw posError(404, "Open shift not found.", "POS_SHIFT_NOT_OPEN");
 
   const cash = await client.query(
     `SELECT coalesce(sum(amount),0)::text AS expected_cash

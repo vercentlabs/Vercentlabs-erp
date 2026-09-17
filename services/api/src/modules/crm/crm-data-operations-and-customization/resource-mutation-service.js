@@ -1,4 +1,5 @@
 import { assertNoQualificationMutation } from "../lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
+import { ensureDefaultLeadStages } from "../lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
 import { normalizeLeadRecordInput, validateLeadRecord } from "../lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
 import { normalizeOpportunityRecordInput, opportunityChangedFields, validateOpportunityRecord } from "../opportunity-and-pipeline-governance/opportunity-record-validation.js";
 import { assertLeadDuplicatePolicy, hasLeadDuplicateIdentityChange, recordLeadDuplicateOverride } from "../prospect-and-relationship-master-data/lead-duplicates.js";
@@ -32,7 +33,26 @@ const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
   "sourceId",
 ]);
 
-
+// F025 Stage A2 §11 — "locked/closed period behavior" was a genuine gap:
+// nothing cross-referenced a forecast-submission against its own
+// tenant.crm_forecast_periods.status, so a submission could be created or
+// edited against an already-closed period through the generic path.
+// 'frozen' is deliberately still mutable — resource-options.js's own
+// period picker already includes 'frozen' alongside 'planned'/'open'
+// when offering periods to submit against, an established convention
+// this reuses rather than inventing a stricter interpretation.
+async function assertForecastPeriodMutable(client, context, periodId) {
+  const result = await client.query(
+    `SELECT status FROM tenant.crm_forecast_periods WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, periodId],
+  );
+  if (result.rows[0]?.status === "closed")
+    throw new CrmError(
+      409,
+      "This forecast period is closed and can no longer be submitted or adjusted.",
+      "CRM_FORECAST_PERIOD_CLOSED",
+    );
+}
 
 export async function createCrmRecord(client, context, resource, input) {
   if (resource === "activities") {
@@ -43,6 +63,13 @@ export async function createCrmRecord(client, context, resource, input) {
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
     if (activityType === "follow_up")
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
+    // Checkpoint audit (Prompt 3 continuation): task was not redirected here
+    // either — POST /api/crm/activities with {activityType:"task",...} would
+    // have inserted a crm_activities row directly, bypassing createCrmTask's
+    // own governance (status always 'planned', activityType/status rejected
+    // as caller-supplied input, recurrenceConfig validation).
+    if (activityType === "task")
+      throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
   if (resource === "stages")
     throw new CrmError(
@@ -65,6 +92,8 @@ export async function createCrmRecord(client, context, resource, input) {
       "Use the governed Lead Source operations.",
       "CRM_LEAD_SOURCE_API_MOVED",
     );
+  if (resource === "forecast-submissions" && input?.periodId)
+    await assertForecastPeriodMutable(client, context, input.periodId);
   const definition = definitionFor(resource);
   assertLeadLinkedContentAllowed(context, resource, input);
   if (resource === "leads") {
@@ -135,6 +164,17 @@ export async function createCrmRecord(client, context, resource, input) {
         validationErrorDetails(leadErrors),
       );
     }
+    // Pure in-memory validation must fail before any DB access — only
+    // reachable here once the input is already known to be well-formed.
+    // A truly brand-new organization has no crm_lead_stages rows at all
+    // yet (nothing seeds them at organization-creation time — only
+    // listLeadStages/getLeadStages ever did, until now) — without this,
+    // the very first Lead any such organization ever creates would violate
+    // crm_leads_lifecycle_stage_fkey, since no ('org','new') row would
+    // exist for it to reference. ensureDefaultLeadStages is idempotent
+    // (a no-op once stages already exist), so this is safe to call on
+    // every creation, not just the first.
+    await ensureDefaultLeadStages(client, context);
     if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
       await assertLeadSourceAssignment(client, context, prepared.sourceId);
   }
@@ -369,6 +409,8 @@ export async function updateCrmRecord(
     resource === "leads"
       ? await getLeadRecordForUpdate(client, context, id)
       : await getCrmRecord(client, context, resource, id);
+  if (resource === "forecast-submissions" && before.periodId)
+    await assertForecastPeriodMutable(client, context, before.periodId);
   assertLeadLinkedContentAllowed(context, resource, input, before);
   if (resource === "leads")
     assertLeadExpectedVersion(
@@ -400,11 +442,31 @@ export async function updateCrmRecord(
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
     if (before.activityType === "follow_up" || requestedActivityType === "follow_up")
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
+    // Checkpoint audit (Prompt 3 continuation): Tasks (activity_type='task')
+    // were the one activity kind NOT redirected here, even though
+    // task-operations.js is exactly as governed as Calls/Meetings/Follow-ups
+    // (claim-conflict handling, dependency-blocked completion, terminal-state
+    // read-only enforcement, recurrence generation) — a caller could PATCH
+    // /api/crm/activities/[taskId] with {status:"completed"} directly through
+    // this generic path and skip every one of those checks. Same fix shape
+    // as the other three activity kinds.
+    if (before.activityType === "task" || requestedActivityType === "task")
+      throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
   if (resource === "opportunities" && before.status === "archived")
     throw new CrmError(409, "Archived Opportunities are read-only.", "CRM_OPPORTUNITY_ARCHIVED");
   if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input || {}, "ownerUserId") && !input.ownerUserId && !canViewAllCrmRecords(context))
     throw new CrmError(403, "You do not have permission to leave this Opportunity unassigned.", "CRM_OPPORTUNITY_OWNER_REQUIRED");
+  // Checkpoint audit (Prompt 3 continuation): initially suspected Opportunities
+  // had no guard against stageId/status/probability/outcome fields being
+  // forged through this generic path. FALSE ALARM — record-policy.js's
+  // assertWritableScope already blocks the full controlled-field set
+  // (pipelineId/stageId/probability/forecastCategory/status/actualCloseDate/
+  // lostReasonId/lossNotes/outcomeReasonId/outcomeNotes) further down this
+  // same call chain, and crm-opportunities-f009.test.mjs already covers it
+  // ("outcome and stage-owned fields cannot be forged through generic
+  // PATCH"). Do not re-add a redundant/conflicting guard here — this was
+  // caught by re-running that test after an incorrect first attempt.
   if (
     resource === "leads" &&
     ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
@@ -443,7 +505,7 @@ export async function updateCrmRecord(
       "Expected revenue is calculated automatically from amount and probability.",
       "CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED",
     );
-  assertLifecycleUpdate(resource, before, input);
+  assertLifecycleUpdate(resource, before, input, context);
   const prepared =
     resource === "leads"
       ? normalizeLeadRecordInput(input)
@@ -561,6 +623,41 @@ export async function updateCrmRecord(
         409,
         "The selected parent would create a territory hierarchy cycle.",
         "CRM_TERRITORY_HIERARCHY_CYCLE",
+      );
+  }
+  if (
+    resource === "sales-teams" &&
+    Object.prototype.hasOwnProperty.call(prepared, "parentTeamId") &&
+    prepared.parentTeamId
+  ) {
+    // F020 Tranche D (Stage A): same self-parent/ancestor-cycle guard as
+    // territories immediately above, for sales-team hierarchy. Previously
+    // unguarded — any parent team could be assigned, including one that
+    // would make the team its own ancestor.
+    if (prepared.parentTeamId === id)
+      throw new CrmError(
+        409,
+        "A sales team cannot be its own parent.",
+        "CRM_SALES_TEAM_HIERARCHY_SELF_PARENT",
+      );
+    const teamCycle = await client.query(
+      `WITH RECURSIVE ancestors AS (
+         SELECT team.id, team.parent_team_id
+           FROM tenant.crm_sales_teams team
+          WHERE team.organization_id=$1 AND team.id=$2
+         UNION ALL
+         SELECT parent.id, parent.parent_team_id
+           FROM tenant.crm_sales_teams parent
+           JOIN ancestors child ON child.parent_team_id=parent.id
+          WHERE parent.organization_id=$1
+       ) SELECT 1 FROM ancestors WHERE id=$3 LIMIT 1`,
+      [context.organizationId, prepared.parentTeamId, id],
+    );
+    if (teamCycle.rows[0])
+      throw new CrmError(
+        409,
+        "The selected parent would create a sales-team hierarchy cycle.",
+        "CRM_SALES_TEAM_HIERARCHY_CYCLE",
       );
   }
   await assertGenericLeadLinkedTarget(client, context, resource, {
@@ -751,6 +848,11 @@ export async function archiveCrmRecord(
     throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
   if (resource === "activities" && before.activityType === "follow_up")
     throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
+  // Checkpoint audit (Prompt 3 continuation): task was not redirected here
+  // either — DELETE /api/crm/activities/[taskId] would have run the generic
+  // archive path instead of the governed cancelCrmTask transition.
+  if (resource === "activities" && before.activityType === "task")
+    throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 
@@ -867,11 +969,24 @@ export async function archiveCrmRecord(
 
   const statusParameter = addParameter(parameters, status);
   const userParameter = addParameter(parameters, context.userId);
+  // Stage A2 §14: derive the archive-path version check from the same
+  // GENERIC_VERSIONED_RESOURCES map as the PATCH path above, rather than a
+  // second hand-maintained resource list — a resource added to that map for
+  // edit-concurrency protection now also gets it on archive, with no risk of
+  // the two lists drifting apart.
   const archiveVersionChecked =
-    (resource === "opportunities" || resource === "lost-reasons") &&
+    (resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource])) &&
     Boolean(expectations.expectedUpdatedAt);
+  // Same millisecond-truncation fix as the PATCH versionGuard above (line
+  // ~701): `before.updatedAt` can only ever carry millisecond precision (it
+  // came back through pg's default Date parser), while the stored
+  // `updated_at` is a full-microsecond-precision timestamptz — an untruncated
+  // `=` here would reject almost every archive as a false CRM_STALE_WRITE
+  // even with zero real concurrent writes. Widening this path (Stage A2
+  // §14) to many more resources made this latent bug reachable far more
+  // often, so it is fixed here rather than shipped forward.
   const archiveVersionGuard = archiveVersionChecked
-    ? ` AND record.updated_at = ${addParameter(parameters, before.updatedAt)}`
+    ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";
   const result = await client.query(
     `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
@@ -881,7 +996,7 @@ export async function archiveCrmRecord(
     if (archiveVersionChecked)
       throw new CrmError(
         409,
-        `This ${resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES["lost-reasons"].entityLabel} changed after you loaded it. Refresh and try again.`,
+        `This ${resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES[resource].entityLabel} changed after you loaded it. Refresh and try again.`,
         "CRM_STALE_WRITE",
       );
     throw new CrmError(404, "CRM record not found.");

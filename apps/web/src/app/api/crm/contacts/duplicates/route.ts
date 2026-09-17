@@ -1,30 +1,24 @@
-import { findContactDuplicates } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
-import { crmApiContext } from "@/modules/crm";
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok } from "@/core/http";
+import { assertSameOriginOrMobile, findContactDuplicates } from "@vercentlabs/api";
 
-export async function GET(request: Request) {
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+// F003 Tranche F (Stage A). findContactDuplicates (duplicate-matching.js)
+// already existed, already tested, with zero frontend wiring. Mirrors
+// /api/crm/accounts/duplicates exactly.
+export async function POST(request: Request) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmAccountsManage);
-    const input = Object.fromEntries(
-      new URL(request.url).searchParams.entries(),
-    );
-    const context = await crmApiContext(session);
-    const duplicates = await tenantTransaction(
-      context.organizationId,
-      (client) => findContactDuplicates(client, context, input),
-    );
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const body = (await readJson(request)) as { input?: Record<string, unknown> };
+    const duplicates = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return findContactDuplicates(client, crmContext(session), body.input ?? {});
+    });
     return ok({ duplicates });
   } catch (error) {
-    if (error && typeof error === "object" && "status" in error) {
-      const message =
-        "message" in error ? String(error.message) : "CRM request failed.";
-      return errorResponse(new HttpError(Number(error.status), message));
-    }
     return errorResponse(error);
   }
 }

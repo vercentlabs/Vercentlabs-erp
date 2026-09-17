@@ -1,0 +1,3400 @@
+{
+  "_meta": {
+    "purpose": "Incremental, real-evidence overlay for docs/frontend-rebuild/CRM_REQUIREMENT_TRACEABILITY.csv (1,110 rows). Populated per closed feature as Stage A tranches land, so the final Stage B certification pass does not need to reconstruct evidence from git history. NOT itself the certification — a row here is this session's honest, code-verified assessment, not a substitute for the formal Playwright/axe/UAT pass still owed for E2E/UAT rows.",
+    "status_values": [
+      "IMPLEMENTED",
+      "PARTIAL",
+      "NOT_STARTED",
+      "NOT_APPLICABLE",
+      "NOT_VERIFIED"
+    ],
+    "last_updated_commit": "3705a90f",
+    "populated_features": [
+      "F002",
+      "F003",
+      "F008",
+      "F017",
+      "F020",
+      "F028",
+      "F005",
+      "F006",
+      "F007",
+      "F026",
+      "F027",
+      "F013",
+      "F014",
+      "F015",
+      "F016",
+      "F024",
+      "F025",
+      "F030",
+      "F021"
+    ],
+    "not_yet_populated": "All other F001-F030 rows remain governed by the CSV's own (stale, pre-rebuild) implementation_status until audited here or in Stage B."
+  },
+  "F021-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "lead-acquisition.js's previewLeadImport/commitLeadImport/rollbackLeadImport (pre-existing, real); CrmImportExportScreen.tsx's 4-step upload/map/preview/done wizard",
+    "notes": "Import already had a real preview/commit/rollback foundation — kept as-is per this prompt's own instruction, not rebuilt."
+  },
+  "F021-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "lead-export.js (enqueueCrmLeadExportJob/buildCrmLeadExportCsv/completeCrmLeadExportJob/getCrmLeadExportJob); crm-lead-export.js worker handler; /api/crm/leads/export routes; crm-lead-export-f021.test.mjs (5/5), worker crm-lead-export.test.mjs (3/3)",
+    "notes": "Stage A2 §9 closeout. Dry run: previewLeadImport already served this (a preview batch writes rows but commits nothing to crm_leads until commit). Upsert policy: commitLeadImport already supports create/update/skip via duplicateStrategy. Async/resume: import stays synchronous by design (bounded 5,000-row cap, existing tested behavior kept as foundation) but export was genuinely fully synchronous client-side with NO job/manifest/authorization/expiration architecture at all — now a real tenant.background_jobs job (job_type=crm.leads.export), reusing the same queue crm.leads.bulk_update already uses. Formula injection: found and fixed a REAL vulnerability — the client-side CSV writer (import-export/csv.ts's old toCsv/csvField) never neutralized a leading =/+/-/@, unlike packages/reporting-engine's csvCell (which existed in the repo but had ZERO consumers anywhere, confirmed by grep, despite an earlier audit incorrectly marking formula-injection PASS on the strength of the utility's mere existence). Export now generates CSV server-side via rowsToCsv/csvCell exclusively."
+  },
+  "F021-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "commitLeadImport calls createLead (the same governed creation path, including duplicate-policy enforcement); buildCrmLeadExportCsv calls listCrmRecords(\"leads\", filters) — the exact same governed, scoped read the interactive Leads list uses",
+    "notes": "Re-verified this pass, not carried forward. Export's row/field scope is identical to the interactive list by construction (same function call), not by parallel re-implementation."
+  },
+  "F017-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "services/api/.../attachments-operations.js; apps/web/src/features/crm/shared/CrmAttachmentPanel.tsx",
+    "notes": "Upload/list/download/replace/version-history/delete composed into Lead/Account/Contact/Opportunity 360s this pass."
+  },
+  "F017-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": "public.attachments (lifecycle_status/scan_status columns, migrations 033/035/038)",
+    "notes": "Lifecycle/versioning/malware-scan real; no dedicated attachment search/indexing surface."
+  },
+  "F017-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "resolveCrmEntityAccess (timeline.js), reused unchanged by attachments-operations.js",
+    "notes": "Parent-record authorization gates every read/write."
+  },
+  "F017-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAttachmentPanel.tsx",
+    "notes": "Success/empty/upload-error/permission/scan-state UI all present."
+  },
+  "F017-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "queueOutboxEvent calls in attachments-operations.js",
+    "notes": "Outbox events recorded; no operator-visible attachment history/audit view built."
+  },
+  "F017-FR-003": {
+    "status": "PARTIAL",
+    "evidence": "apps/web/src/app/api/crm/attachments/[entityType]/[entityId]/route.ts GET",
+    "notes": "listCrmAttachments has no pagination/virtualization; acceptable at current per-record attachment volumes, not verified at enterprise scale."
+  },
+  "F017-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAttachmentPanel.tsx composed into all four 360s",
+    "notes": null
+  },
+  "F017-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops attachment-audit screen exists."
+  },
+  "F017-FLOW-001": {
+    "status": "PARTIAL",
+    "evidence": "createCrmAttachment (lifecycle_status hardcoded 'clean' post-scan)",
+    "notes": "Synchronous validate-then-scan-then-persist path is real; no async quarantine/DRAFT->ACTIVE->DEPRECATED->ARCHIVED admin transition UI."
+  },
+  "F017-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAttachmentPanel.tsx error/permission/scan-state branches",
+    "notes": null
+  },
+  "F017-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "attachments-operations.js is the sole reused service; no second validation system introduced",
+    "notes": null
+  },
+  "F017-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "logical_id/version/is_current versioning never deletes/overwrites a prior version row",
+    "notes": null
+  },
+  "F017-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "public.attachments (033_attachment_content.sql, 038_attachment_versioning.sql)",
+    "notes": null
+  },
+  "F017-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "content_sha256, storage_key, uploaded_by columns",
+    "notes": null
+  },
+  "F017-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "validateAttachment (document-engine) + scanAttachmentForUpload (attachment-security.js)",
+    "notes": null
+  },
+  "F017-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmError-shaped errors; download route forces application/octet-stream + nosniff, never inline-renders",
+    "notes": null
+  },
+  "F017-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface in this feature."
+  },
+  "F017-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAttachmentPanel.tsx",
+    "notes": null
+  },
+  "F017-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAttachmentPanel.tsx",
+    "notes": null
+  },
+  "F017-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass (no working login session in this environment); disclosed, not silently assumed."
+  },
+  "F017-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "resolveCrmEntityAccess org/company/branch scope baked into parameterized SQL",
+    "notes": null
+  },
+  "F017-SEC-002": {
+    "status": "PARTIAL",
+    "evidence": "services/api/tests/crm-attachments-f017.test.mjs (20 pre-existing tests, unmodified)",
+    "notes": "Parent-record auth reused; no attachments-specific negative test proving unauthorized inference via search/counts (that suite predates this session's audit)."
+  },
+  "F017-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently triggers attachment mutations."
+  },
+  "F017-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary attachment CRUD; no elevated-approval policy defined for this feature."
+  },
+  "F017-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Outbox events queued (crm.attachment.deleted etc.) but no notification consumer/delivery built."
+  },
+  "F017-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No attachment-specific KPI/report defined or built."
+  },
+  "F017-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface in this feature."
+  },
+  "F017-INT-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Governed HTTP routes under /api/crm/attachments/...",
+    "notes": null
+  },
+  "F017-INT-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Direct user upload, not a cross-module async integration; no idempotency key on upload (acceptable for a direct file POST, not formally justified in writing prior to this row)."
+  },
+  "F017-API-001": {
+    "status": "PARTIAL",
+    "evidence": "4 routes under apps/web/src/app/api/crm/attachments/",
+    "notes": "Auth/schema real; no explicit optimistic-concurrency precondition on attachment metadata mutations (delete/replace are id-scoped, not version-guarded)."
+  },
+  "F017-API-002": {
+    "status": "PARTIAL",
+    "evidence": "GET list/versions routes",
+    "notes": "No pagination params on the list endpoint yet."
+  },
+  "F017-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run against p95 targets this pass."
+  },
+  "F017-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F017-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Formal Playwright/axe explicitly deferred to Stage B per this pass's own scope."
+  },
+  "F017-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F017-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F017-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F028-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "custom-field-runtime.js; tag-assignment.js; CustomFieldsRuntimePanel.tsx; LeadTagsPanel.tsx",
+    "notes": "Typed custom fields on Lead/Opportunity/Account/Contact + tag assignment on Lead, both governed server-side."
+  },
+  "F028-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": "custom_field_definitions.data_type CHECK-equivalent (JS-level DATA_TYPES set)",
+    "notes": "Field lifecycle/role visibility/required-rollout real; no dependent-option (field A controls field B's choices) mechanism; no search/index of custom-field values."
+  },
+  "F028-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "getCustomFieldValues/listCustomFieldDefinitions gated by resolveCrmEntityAccess",
+    "notes": null
+  },
+  "F028-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CustomFieldsRuntimePanel.tsx, LeadTagsPanel.tsx",
+    "notes": "Success/empty/validation/permission states present for both custom fields and tags."
+  },
+  "F028-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "queueOutboxEvent('crm.custom_field_values.updated' / 'crm.lead.tag_assigned' / 'crm.lead.tag_removed')",
+    "notes": "Outbox events recorded; no operator-visible before/after history view."
+  },
+  "F028-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination needed yet at definition-list volumes; not verified at enterprise scale."
+  },
+  "F028-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CustomFieldsRuntimePanel.tsx / LeadTagsPanel.tsx composed into 360s",
+    "notes": null
+  },
+  "F028-US-002": {
+    "status": "PARTIAL",
+    "evidence": "RecordFieldsSettingsScreen.tsx, CustomFieldsAndTagsSettingsScreen.tsx",
+    "notes": "Definition-level admin exists; no usage/audit report across records."
+  },
+  "F028-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "setCustomFieldDefinitionActive (active/inactive); tag status active/inactive via generic resource-mutation-service",
+    "notes": "DRAFT/ACTIVE/DEPRECATED/ARCHIVED collapses to active/inactive in this implementation; stored values remain readable when a definition is deactivated (LEFT JOIN, not a hard delete)."
+  },
+  "F028-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_CUSTOM_FIELD_* / CRM_TAG_* error codes surfaced in both panels",
+    "notes": null
+  },
+  "F028-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Single custom-field-runtime.js / tag-assignment.js service, no UI-only duplicate logic",
+    "notes": null
+  },
+  "F028-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "setCustomFieldValues upserts by (organization,definition,entity) — never deletes prior values on deactivation",
+    "notes": null
+  },
+  "F028-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "public.custom_field_definitions/custom_field_values (002_platform_foundation.sql); tenant.crm_tags/crm_lead_tags (002_crm_module.sql)",
+    "notes": null
+  },
+  "F028-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "value_updated_at, created_by on crm_lead_tags",
+    "notes": null
+  },
+  "F028-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "coerceValue() (type/required/options/range); assertCanManageTags/assertEntityType",
+    "notes": null
+  },
+  "F028-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_CUSTOM_FIELD_VALUE_INVALID / CRM_TAG_NOT_FOUND etc, no restricted-record leakage (404 on inaccessible parent)",
+    "notes": null
+  },
+  "F028-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "coerceValue() is pure deterministic JS; no tenant-supplied expression ever executes",
+    "notes": null
+  },
+  "F028-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CustomFieldsRuntimePanel.tsx / LeadTagsPanel.tsx",
+    "notes": null
+  },
+  "F028-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Both panels render loading/empty/error/permission states",
+    "notes": null
+  },
+  "F028-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F028-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "resolveCrmEntityAccess + assertCanManageTags (crm.leads.manage)",
+    "notes": null
+  },
+  "F028-SEC-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "services/api/tests/crm-custom-field-runtime-f028.test.mjs, crm-tag-assignment-f028.test.mjs",
+    "notes": "Negative tests prove: unknown-field rejection, permission-denial-before-write, relation-invalid on inaccessible parent, inactive-tag rejection."
+  },
+  "F028-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates custom fields/tags."
+  },
+  "F028-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary low-risk field/tag mutations; no elevated-approval policy defined."
+  },
+  "F028-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Outbox events queued; no notification consumer built."
+  },
+  "F028-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No custom-field/tag usage KPI/report built."
+  },
+  "F028-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface in this feature."
+  },
+  "F028-INT-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Governed routes under /api/crm/custom-fields/... and /api/crm/leads/[id]/tags",
+    "notes": null
+  },
+  "F028-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external/cross-module integration surface for this feature yet."
+  },
+  "F028-API-001": {
+    "status": "PARTIAL",
+    "evidence": "3 custom-field routes + 2 tag routes",
+    "notes": "Auth/schema real; no explicit optimistic-concurrency precondition on value/tag mutations (values are upserts by nature, tags are set-membership — both idempotent, so this gap is lower-risk than a true editable-record case, not formally waived in writing before this row)."
+  },
+  "F028-API-002": {
+    "status": "PARTIAL",
+    "evidence": "listCustomFieldDefinitions / listRecordTags",
+    "notes": "No pagination on definition/tag lists yet; acceptable at current per-org definition-count volumes, not verified at scale."
+  },
+  "F028-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F028-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F028-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F028-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F028-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F028-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F020-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "SalesOrganizationSettingsScreen.tsx; resource-mutation-service.js sales-teams/territories cycle guards",
+    "notes": "Create/edit/hierarchy/members/assignments all built; both team and territory parent-cycle guards enforced server-side (crm-sales-org-hierarchy-f020.test.mjs)."
+  },
+  "F020-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "ASSIGNMENT_ROLE_OPTIONS Select (primary/overlay/shared/manager); effectiveFrom/effectiveTo assignment CRUD; per-territory Coverage badge (annotateTerritoryCoverage, resource-query-service.js); QuotaPlanDialog (quota-plans, previously zero frontend consumer)",
+    "notes": "Stage A2 re-audit against the dossier's own named list (hierarchies, overlays, effective dates, quotas, temporary delegation, coverage gaps, forecast alignment): hierarchy/effective-dating were already real. 'Overlay' turned out to already be modeled in the schema since the original migration (assignment_role CHECK IN ('primary','overlay','shared','manager')) but was only reachable via a free-text field that could silently desync from the exact-match coverage-gap/F005 queries with a typo (e.g. 'Primary') — now a proper Select. 'Temporary delegation' is already achievable generically via a time-boxed effectiveFrom/effectiveTo assignment; no separate mechanism was needed. Coverage-gap detection existed only as a dashboard aggregate count (uncovered_territories) with no way to see WHICH territories — added a per-row hasPrimaryCoverage annotation to listCrmRecords('territories') reusing the identical predicate, never a second one. Quotas: crm_quota_plans existed, fully migrated, zero UI — built a Quota Plans section. Forecast alignment is F025's own responsibility to consume this contract (Stage A2 §11), not an F020 gap."
+  },
+  "F020-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "F005's activeTerritoryUserIds reads crm_territory_assignments/crm_territories directly (confirmed in an earlier session's F005 audit); F025 has no territory-scoping code at all yet (grep confirmed), which is a genuine F025-side gap for Stage A2 §11 to address, not evidence F020 invented its own semantics.",
+    "notes": "Re-verified this pass, not merely carried forward."
+  },
+  "F020-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "SalesOrganizationSettingsScreen.tsx (success/empty/validation/permission/conflict states present)",
+    "notes": null
+  },
+  "F020-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "queueOutboxEvent('crm.<resource>.updated') via the generic mutation service",
+    "notes": "Outbox events recorded; no operator-visible team/territory change history view."
+  },
+  "F020-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Lists capped at limit=100 via the generic resource route; no pagination UI."
+  },
+  "F020-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "SalesOrganizationSettingsScreen.tsx",
+    "notes": null
+  },
+  "F020-US-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "The settings screen itself is the admin surface; no separate manager audit/report view."
+  },
+  "F020-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "archiveStatuses['sales-teams']='inactive', ['sales-team-members']='inactive', territories='archived'; territory-assignments is purely effective-dated (effectiveTo)",
+    "notes": null
+  },
+  "F020-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_SALES_TEAM_HIERARCHY_*/CRM_TERRITORY_HIERARCHY_* errors surfaced in dialogs; GENERIC_VERSIONED_RESOURCES now includes sales-teams/sales-team-members/territories/territory-assignments/quota-plans",
+    "notes": "Stage A2 §14 closeout: optimistic concurrency now real for all 4 resources named here (previously disclosed as a gap). A stale PATCH/DELETE is rejected with CRM_STALE_WRITE (409) instead of silently succeeding."
+  },
+  "F020-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Single generic resource-mutation-service.js path; no UI-only duplicate logic",
+    "notes": null
+  },
+  "F020-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Memberships/assignments end via archive or effectiveTo, never deleted/rewritten",
+    "notes": null
+  },
+  "F020-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_sales_teams/crm_sales_team_members/crm_territories/crm_territory_assignments (003_crm_enterprise_core.sql)",
+    "notes": null
+  },
+  "F020-DATA-002": {
+    "status": "PARTIAL",
+    "evidence": "created_at/updated_at on all four tables; territory_assignments.source field",
+    "notes": "No lineage tracking beyond territory-assignments' own source field."
+  },
+  "F020-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Self-parent + recursive-CTE ancestor-cycle guards for both sales-teams and territories; required-field validation via the generic mutation service",
+    "notes": null
+  },
+  "F020-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_SALES_TEAM_HIERARCHY_SELF_PARENT / CRM_SALES_TEAM_HIERARCHY_CYCLE / CRM_TERRITORY_HIERARCHY_SELF_PARENT / CRM_TERRITORY_HIERARCHY_CYCLE",
+    "notes": null
+  },
+  "F020-CALC-001": {
+    "status": "PARTIAL",
+    "evidence": "WITH RECURSIVE ancestors cycle-rejection queries (resource-mutation-service.js)",
+    "notes": "Cycle/double-counting rejection real; no coverage/capacity rollup calculation built."
+  },
+  "F020-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "SalesOrganizationSettingsScreen.tsx",
+    "notes": null
+  },
+  "F020-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Loading/empty/error/permission states in list, member, and assignment dialogs",
+    "notes": null
+  },
+  "F020-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F020-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "recordScope() via companyScoped:true on all four resource-registry entries; crm.settings.manage in resource-permissions.ts",
+    "notes": null
+  },
+  "F020-SEC-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Stage A2 §16: confirmed architectural, not a hole — sales-teams/territories/territory-assignments/quota-plans permission enforcement lives entirely at the apps/web route layer (requireCrmAccess -> requireSessionPermission), consistent with every generic CRM resource in this codebase (resource-mutation-service.js has no per-resource permission check by design). That shared gate is behaviorally tested generically (platform-access-control-runtime.test.mjs). Each route's specific permission mapping was verified correct by direct code read this pass. Missing: a route-specific behavioral test that would catch a copy-paste error wiring the wrong permission to one route — real test-coverage debt, not a live vulnerability."
+  },
+  "F020-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation engine currently mutates teams/territories."
+  },
+  "F020-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary settings mutation; no elevated-approval policy defined."
+  },
+  "F020-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer built."
+  },
+  "F020-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No team/territory KPI/report built."
+  },
+  "F020-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface in this feature."
+  },
+  "F020-INT-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "F005/F025 consumption of these contracts not audited this pass."
+  },
+  "F020-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature."
+  },
+  "F020-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic /api/crm/[resource] and /api/crm/[resource]/[id] routes; GENERIC_VERSIONED_RESOURCES widened (resource-validation.js)",
+    "notes": "Stage A2 §14 closeout: optimistic concurrency now enforced server-side for these 4 resources (see F020-FLOW-002)."
+  },
+  "F020-API-002": {
+    "status": "PARTIAL",
+    "evidence": "listCrmRecords with the new teamId/territoryId scoping filter (Tranche D)",
+    "notes": "No pagination controls beyond the limit=100 cap; counts are permission-safe (recordScope applies before COUNT)."
+  },
+  "F020-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F020-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F020-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F020-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F020-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F020-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F002-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AccountHierarchyPanel/AccountDuplicatesPanel/AccountPlanPanel/AccountCommunicationsPanel + NotesPanel/CrmAttachmentPanel/CustomFieldsRuntimePanel on AccountDetailScreen.tsx",
+    "notes": "Hierarchy, merge, duplicates, plans/stakeholders, notes, attachments, custom fields, communications all wired this session."
+  },
+  "F002-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "PrivacyAdministrationScreen.tsx + AccountPrivacyPanel.tsx (both call the shared PLATFORM privacy authority, services/api/src/core/privacy.js, via /api/privacy/*); gated by platform.privacy.manage, not a crm.* permission",
+    "notes": "Stage A2 §13 closeout — the dossier's mega-prompt framing of this feature as \"Customer 360 / Privacy / Retention\" pointed at a real, confirmed gap: core/privacy.js (a real, already-built, org-scoped finite-state-machine privacy-request tracker and versioned retention-policy engine, already tested — platform-privacy.test.mjs) had ZERO frontend consumers anywhere in the app, not just CRM. A SEPARATE, CRM-local tenant.crm_privacy_requests table also exists (feeding the F030 \"privacy\" report) — deliberately left untouched, not expanded further, since building MORE CRM-local privacy logic is exactly what this prompt's own instruction says not to do (\"reuse platform privacy authority... do NOT implement CRM-local privacy logic\"). New UI wires the platform module instead: a Privacy Administration screen (list/transition requests, define retention-policy versions) and a narrow \"Submit privacy request\" action on Account 360. Both gated by platform.privacy.manage — a permission deliberately excluded from the default \"privileged\" role bundle (packages/permissions/src/roles.js) — so an ordinary CRM manager holding crm.accounts.manage never sees either surface merely by being able to view/edit an Account, satisfying this prompt's explicit \"ordinary REP users must not gain privacy-administration authority\" instruction. Core/company hierarchy-cycles/site-relationships/merge-survivorship/legal-identifiers were already IMPLEMENTED from earlier work; this closes the remaining privacy/retention half."
+  },
+  "F002-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream-module consumption of account contracts not audited this pass."
+  },
+  "F002-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AccountDetailScreen.tsx sections (success/empty/validation/permission/conflict states)",
+    "notes": null
+  },
+  "F002-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "tenant.crm_account_hierarchy_events, tenant.crm_account_merge_history",
+    "notes": "Hierarchy has a real visible history panel; merge has a permanent backend history table but no dedicated frontend view of past merges yet."
+  },
+  "F002-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Account-plans/stakeholders/communications lists are capped (limit=5/100/25) with no pagination UI."
+  },
+  "F002-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AccountDetailScreen.tsx",
+    "notes": null
+  },
+  "F002-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across accounts (e.g. all recent merges, all hierarchy changes)."
+  },
+  "F002-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "archiveStatuses for account-plans/account-stakeholders='inactive'; accounts archive via account-operations.js directly",
+    "notes": null
+  },
+  "F002-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_ACCOUNT_HIERARCHY_SELF_PARENT/_CYCLE, CRM_MERGE_RELATIONSHIP_CONFLICT surfaced in dialogs; account-plans/account-stakeholders added to GENERIC_VERSIONED_RESOURCES",
+    "notes": "Stage A2 §14 closeout: account-plans/account-stakeholders now enforce optimistic concurrency the same way Accounts themselves already did. Previously disclosed gap closed."
+  },
+  "F002-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Single account-intelligence.js / duplicate-matching.js path reused, no UI-only duplicate logic",
+    "notes": null
+  },
+  "F002-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Hierarchy changes append to crm_account_hierarchy_events, never rewrite; merge writes permanent crm_account_merge_history",
+    "notes": null
+  },
+  "F002-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.business_parties.parent_party_id (029_crm_account_intelligence_privacy.sql), tenant.crm_account_plans/crm_account_stakeholders (003_crm_enterprise_core.sql)",
+    "notes": null
+  },
+  "F002-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_account_merge_history/crm_entity_merge_aliases retain source-record lineage after merge (resolveMergedEntity)",
+    "notes": null
+  },
+  "F002-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "setAccountParent's self-parent/cycle/inactive-parent checks; mergeAccountsGoverned's active-status precondition",
+    "notes": null
+  },
+  "F002-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAccountIntelligenceError codes (CRM_ACCOUNT_HIERARCHY_*, CRM_MERGE_RELATIONSHIP_CONFLICT)",
+    "notes": null
+  },
+  "F002-CALC-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "crm_account_plans.health_score column exists but no calculation engine audited or built this pass."
+  },
+  "F002-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AccountDetailScreen.tsx",
+    "notes": null
+  },
+  "F002-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Loading/empty/error/permission states across all four new panels",
+    "notes": null
+  },
+  "F002-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F002-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "requireCrmAccess + crm.accounts.manage on mutating routes; recordScope on account-plans/stakeholders/communications",
+    "notes": null
+  },
+  "F002-SEC-002": {
+    "status": "PARTIAL",
+    "evidence": "previewAccountMergeForCaller projects source/survivor through projectAccountForContext before reaching the browser",
+    "notes": "findAccountDuplicates has NO restricted-match/sensitive-field redaction of its own (confirmed by reading its source) — every returned row (display_name/gstin/pan) is shown as-is in AccountDuplicatesPanel. Disclosed, not fixed this pass; pre-existing backend logic, unlike the Lead duplicate finder which does redact."
+  },
+  "F002-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently triggers account hierarchy/merge/plan actions."
+  },
+  "F002-APP-001": {
+    "status": "PARTIAL",
+    "evidence": "crm.accounts.manage gates merge; mergeAccountsGoverned accepts an optional free-text reason",
+    "notes": "The dossier explicitly names 'destructive merges' as needing an elevated approval policy beyond ordinary manage permission — this pass only enforces the ordinary crm.accounts.manage gate plus an optional reason string, no distinct elevated-approval/second-approver step. A real, disclosed gap, not silently claimed done."
+  },
+  "F002-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for hierarchy/merge/plan events."
+  },
+  "F002-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No account-plan/health/tier KPI report built."
+  },
+  "F002-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F002-INT-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream module consumption not audited this pass."
+  },
+  "F002-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for hierarchy/merge/plans; communications is sync-populated but that sync pipeline predates and is outside this pass."
+  },
+  "F002-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "3 hierarchy/merge routes + duplicates route; account-plans/account-stakeholders now version-checked via GENERIC_VERSIONED_RESOURCES",
+    "notes": "Stage A2 §14 closeout: concurrency now enforced for account-plans/account-stakeholders (see F002-FLOW-002)."
+  },
+  "F002-API-002": {
+    "status": "PARTIAL",
+    "evidence": "listAccountPlans/listAccountStakeholders/listAccountCommunications",
+    "notes": "No pagination controls in the UI beyond fixed small limits."
+  },
+  "F002-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F002-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F002-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F002-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F002-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F002-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F003-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "ContactRelationshipsPanel.tsx, AccountContactRelationshipsPanel.tsx, ContactDuplicatesPanel.tsx, ContactCommunicationsPanel.tsx + NotesPanel/CrmAttachmentPanel/CustomFieldsRuntimePanel",
+    "notes": "Stage A2 correction: multiple relationship roles + stakeholder role are real, wired to tenant.crm_contact_account_relationships (migration 088, already built, already tested, zero prior UI) — not a schema gap as the prior pass incorrectly disclosed. Multiple concurrent Account memberships work via this junction; effective-dating deliberately excluded per the schema's own design comment and no atomic row requiring it."
+  },
+  "F003-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Duplicate/merge coverage real; no formal role-visibility matrix audit."
+  },
+  "F003-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_contact_account_relationships + ContactRelationshipsPanel.tsx/AccountContactRelationshipsPanel.tsx",
+    "notes": "Stage A2 correction of a prior-pass error: this was wrongly marked NOT_STARTED with an incorrect claim that a new migration was needed. The junction table already existed (migration 088), fully tested, merge-reconciliation-safe (verified wired into mergeContactsGoverned/mergeAccountsGoverned) — only the frontend was missing. Closed this pass."
+  },
+  "F003-FR-001": {
+    "status": "PARTIAL",
+    "evidence": "ContactDetailScreen.tsx sections",
+    "notes": "Complete for everything built (duplicates/merge/notes/attachments/custom fields/communications); multi-account relationship workflow does not exist to have states for."
+  },
+  "F003-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "tenant.crm_account_merge_history covers contact merges too (mergeContactsGoverned)",
+    "notes": "Merge history recorded server-side; no dedicated frontend view of past contact merges yet."
+  },
+  "F003-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at volume this pass."
+  },
+  "F003-US-001": {
+    "status": "PARTIAL",
+    "evidence": "ContactDetailScreen.tsx",
+    "notes": "Front-line duplicate/merge/notes/attachments job complete; cannot manage multi-account relationships because that capability doesn't exist yet."
+  },
+  "F003-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view for contacts."
+  },
+  "F003-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "archive/reactivate via contact-operations.js (pre-existing)",
+    "notes": null
+  },
+  "F003-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAccountIntelligenceError codes surfaced in ContactDuplicatesPanel/merge dialog",
+    "notes": null
+  },
+  "F003-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Single duplicate-matching.js/account-intelligence.js path reused, no UI-only duplicate logic",
+    "notes": null
+  },
+  "F003-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Merge writes permanent crm_account_merge_history (shared with Account merges)",
+    "notes": null
+  },
+  "F003-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.contacts (001_business_data_foundation.sql) + tenant.crm_contact_account_relationships (088_f003_contact_account_relationships.sql)",
+    "notes": "Stage A2 correction: the multi-account relationship data model does exist (see F003-CAP-003) — the prior PARTIAL status was based on an incomplete schema search that missed contact-relationships.js/its migration."
+  },
+  "F003-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_account_merge_history/crm_entity_merge_aliases retain lineage after a contact merge",
+    "notes": null
+  },
+  "F003-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "mergeContactsGoverned's active-status precondition, shared validation with Account merge",
+    "notes": null
+  },
+  "F003-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmAccountIntelligenceError codes (CRM_MERGE_RELATIONSHIP_CONFLICT etc.)",
+    "notes": null
+  },
+  "F003-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature."
+  },
+  "F003-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "ContactDetailScreen.tsx",
+    "notes": null
+  },
+  "F003-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Loading/empty/error/permission states across new panels",
+    "notes": null
+  },
+  "F003-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F003-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "requireCrmAccess + crm.accounts.manage on mutating routes (contacts reuse the account permission, pre-existing convention)",
+    "notes": null
+  },
+  "F003-SEC-002": {
+    "status": "PARTIAL",
+    "evidence": "previewContactMergeForCaller projects through the caller's sensitive-content permissions",
+    "notes": "findContactDuplicates has NO restricted-match/sensitive-field redaction of its own (confirmed by reading its source) — email/mobile/phone shown as-is in ContactDuplicatesPanel. Same disclosed gap as F002's Account duplicate finder."
+  },
+  "F003-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently triggers contact merge/duplicate actions."
+  },
+  "F003-APP-001": {
+    "status": "PARTIAL",
+    "evidence": "crm.accounts.manage gates merge; mergeContactsGoverned accepts an optional free-text reason",
+    "notes": "Same disclosed gap as F002-APP-001: 'destructive merges' named by the dossier as needing elevated approval beyond ordinary manage permission; only the ordinary gate plus an optional reason string exists."
+  },
+  "F003-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for contact merge/duplicate events."
+  },
+  "F003-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No contact-specific KPI/report built."
+  },
+  "F003-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F003-INT-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream module consumption not audited this pass."
+  },
+  "F003-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for duplicates/merge; communications sync pipeline predates and is outside this pass."
+  },
+  "F003-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "3 new duplicates/merge routes, same auth pattern as contacts/[id]/route.ts",
+    "notes": null
+  },
+  "F003-API-002": {
+    "status": "PARTIAL",
+    "evidence": "listContactCommunications capped at limit=25",
+    "notes": "No pagination controls in the UI."
+  },
+  "F003-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F003-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F003-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F003-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F003-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F003-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F008-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "DuplicatesWorkspaceScreen.tsx at /crm/data/duplicates; LeadDuplicatesWorkspacePanel/AccountDuplicatesPanel/ContactDuplicatesPanel",
+    "notes": "Review + merge/dismiss now reachable both per-record (360s) and from a standalone workspace."
+  },
+  "F008-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Cross-object matching (Lead/Account/Contact) and field survivorship (merge dialogs) real; no configurable-rules UI (duplicate rules are seeded/DB-configured, not editable from this workspace); confidence explanation is a raw match_score number, not a human-readable explanation."
+  },
+  "F008-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No such sub-capability text found for F008 beyond CAP-001/002 in this dossier."
+  },
+  "F008-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "DuplicatesWorkspaceScreen.tsx (success/empty/permission states)",
+    "notes": null
+  },
+  "F008-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "tenant.crm_lead_duplicate_overrides (Lead dismiss/override, immutable/RLS-protected), tenant.crm_merge_records/crm_account_merge_history",
+    "notes": "Survivorship history recorded server-side for Lead dismissals and all merges; no frontend view of past dismiss/merge decisions from the workspace itself yet."
+  },
+  "F008-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Search results capped at limit=20 with no pagination."
+  },
+  "F008-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "DuplicatesWorkspaceScreen.tsx",
+    "notes": null
+  },
+  "F008-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops override-audit report across all three entity types."
+  },
+  "F008-FLOW-001": {
+    "status": "PARTIAL",
+    "evidence": "dismissLeadDuplicate/mergeLead/mergeAccountsGoverned/mergeContactsGoverned",
+    "notes": "MERGED/DISMISSED real for Lead; MERGED real for Account/Contact. No distinct 'OVERRIDDEN' state surfaced in the workspace UI (recordLeadDuplicateOverride exists server-side but isn't wired into this workspace — it's used elsewhere in the Lead qualification override flow)."
+  },
+  "F008-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Error/permission states in all three duplicate panels",
+    "notes": null
+  },
+  "F008-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Single duplicate-matching.js/lead-duplicates.js/account-intelligence.js path reused everywhere, no client-side fuzzy matching",
+    "notes": null
+  },
+  "F008-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_lead_duplicate_overrides has a BEFORE UPDATE OR DELETE immutability trigger; merge history append-only",
+    "notes": null
+  },
+  "F008-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_lead_duplicate_overrides (064_crm_lead_duplicate_detection_f008.sql), tenant.crm_merge_records (002_crm_module.sql), tenant.crm_account_merge_history",
+    "notes": null
+  },
+  "F008-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_entity_merge_aliases (resolveMergedEntity) preserves lineage from a merged source record to its survivor",
+    "notes": null
+  },
+  "F008-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "mergeAccountsGoverned/mergeContactsGoverned active-status preconditions; crm_lead_duplicate_overrides RLS",
+    "notes": null
+  },
+  "F008-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmError/CrmAccountIntelligenceError codes; restricted Lead matches show no identity (match.restricted)",
+    "notes": null
+  },
+  "F008-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface; match_score is a deterministic weighted-rule sum, not a 'calculation' in the SPEC-CALC sense."
+  },
+  "F008-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "DuplicatesWorkspaceScreen.tsx — the primary workspace this row explicitly asks for",
+    "notes": null
+  },
+  "F008-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Loading/empty/error/permission states",
+    "notes": null
+  },
+  "F008-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F008-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "requireCrmAccess on every route; recordScope inside each find*Duplicates function",
+    "notes": null
+  },
+  "F008-SEC-002": {
+    "status": "PARTIAL",
+    "evidence": "Lead's findCrmDuplicates redacts restricted matches (match.restricted); Account/Contact duplicate finders do not — same disclosed gap carried over from Tranches E/F, now also visible from this workspace.",
+    "notes": null
+  },
+  "F008-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently triggers duplicate review/merge."
+  },
+  "F008-APP-001": {
+    "status": "PARTIAL",
+    "evidence": "crm.leads.manage/crm.accounts.manage gate merge/dismiss actions",
+    "notes": "Same disclosed gap as F002/F003-APP-001: no distinct elevated-approval step for destructive merges beyond the ordinary manage permission."
+  },
+  "F008-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for duplicate/merge events."
+  },
+  "F008-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No duplicate/merge-rate KPI report built."
+  },
+  "F008-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F008-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature."
+  },
+  "F008-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature."
+  },
+  "F008-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Existing merge/duplicates routes across leads/accounts/contacts, all with real auth",
+    "notes": null
+  },
+  "F008-API-002": {
+    "status": "PARTIAL",
+    "evidence": "Search results capped at limit=20/25",
+    "notes": "No pagination controls in the UI."
+  },
+  "F008-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F008-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F008-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F008-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F008-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F008-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F005-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AssignmentPoliciesSettingsScreen.tsx (/crm/settings/assignment)",
+    "notes": null
+  },
+  "F005-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination/virtualization in the new settings screen; acceptable at current per-org row counts, not verified at enterprise scale."
+  },
+  "F005-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AssignmentPoliciesSettingsScreen.tsx (/crm/settings/assignment)",
+    "notes": null
+  },
+  "F005-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit or usage report for this feature's setup surface."
+  },
+  "F005-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "assignment-engine.js",
+    "notes": "Single governed service reused; no UI-only duplicate logic."
+  },
+  "F005-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "assignment-engine.js",
+    "notes": null
+  },
+  "F005-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AssignmentPoliciesSettingsScreen.tsx (/crm/settings/assignment)",
+    "notes": null
+  },
+  "F005-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "AssignmentPoliciesSettingsScreen.tsx (/crm/settings/assignment)",
+    "notes": "Loading/empty/error/permission states present."
+  },
+  "F005-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F005-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this configuration."
+  },
+  "F005-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary settings mutation; no elevated-approval policy defined for this feature."
+  },
+  "F005-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's configuration events."
+  },
+  "F005-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report built for this feature's setup surface."
+  },
+  "F005-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F005-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F005-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F005-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F005-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F005-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F005-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F005-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "AssignmentPoliciesSettingsScreen.tsx; assignment-engine.js",
+    "notes": "Policy CRUD (fixed/round_robin/workload/territory), criteria, sequence — wired this pass."
+  },
+  "F005-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "ExplainDialog in AssignmentPoliciesSettingsScreen.tsx; GET /api/crm/lead-assignment-policies/[id]/explain",
+    "notes": "Stage A2 correction: explain-trace UI built this pass. explainLeadAssignmentCandidates was already exported at the package level (the prior pass wrongly claimed it was not) — only its index.d.ts type declaration was missing, now added. Out-of-directory manual override classified NOT_REQUIRED_BY_CANONICAL_SCOPE (F005-APP-001 is conditional, not a mandate)."
+  },
+  "F005-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers of assignment policy contracts not audited this pass."
+  },
+  "F005-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_lead_assignment_events (lead-assignment.js)",
+    "notes": "Assignment EVENTS are recorded; no dedicated history view of POLICY CONFIGURATION changes (create/edit/toggle) in the setup UI itself."
+  },
+  "F005-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "setLeadAssignmentPolicyStatus (active/inactive)",
+    "notes": null
+  },
+  "F005-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_ASSIGNMENT_RULE_* error codes surfaced in dialogs",
+    "notes": null
+  },
+  "F005-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "assignment-engine.js",
+    "notes": "Policy edits are direct updates (not append-only); the real invariant this dossier protects is assignment DECISIONS (crm_lead_assignment_events), which are append-only, not policy config itself."
+  },
+  "F005-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_lead_assignment_policies (migration 053+)",
+    "notes": null
+  },
+  "F005-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_lead_assignment_events retains per-assignment provenance",
+    "notes": null
+  },
+  "F005-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "assignment-engine.js: saveLeadAssignmentPolicy (update branch) and setLeadAssignmentPolicyStatus (activate/deactivate/archive) now require+verify expectedUpdatedAt with a millisecond-truncation-safe date_trunc comparison; CRM_ASSIGNMENT_RULE_VERSION_REQUIRED/_INVALID, CRM_STALE_WRITE",
+    "notes": "Stage A2 §14: the REAL, engine-consumed lead-assignment-policy table (tenant.crm_lead_assignment_policies) had NO optimistic-concurrency check at all — a real gap, not disclosed before this pass since it is not part of the generic resource registry. Routes and frontend client/screen updated to thread expectedUpdatedAt through. Tests: crm-lead-assignment-f005.test.mjs (3 new cases + 1 updated)."
+  },
+  "F005-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for policy configuration itself (workload-balance calculation lives in eligibility.js, unaudited this pass)."
+  },
+  "F005-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.settings.manage gate on all mutating routes",
+    "notes": null
+  },
+  "F005-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for policy-setup visibility written this pass (assignment DECISION security is covered by pre-existing crm-lead-assignment-f005.test.mjs)."
+  },
+  "F005-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for policy configuration."
+  },
+  "F005-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for policy configuration."
+  },
+  "F005-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "5 new routes under /api/crm/lead-assignment-policies",
+    "notes": null
+  },
+  "F005-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination; listLeadAssignmentPolicies returns the full policy list unbounded."
+  },
+  "F006-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx (/crm/settings/playbooks)",
+    "notes": null
+  },
+  "F006-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination/virtualization in the new settings screen; acceptable at current per-org row counts, not verified at enterprise scale."
+  },
+  "F006-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx (/crm/settings/playbooks)",
+    "notes": null
+  },
+  "F006-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit or usage report for this feature's setup surface."
+  },
+  "F006-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "generic resource-mutation-service.js + assertQualificationCriterionFieldsValid",
+    "notes": "Single governed service reused; no UI-only duplicate logic."
+  },
+  "F006-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "generic resource-mutation-service.js + assertQualificationCriterionFieldsValid",
+    "notes": null
+  },
+  "F006-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx (/crm/settings/playbooks)",
+    "notes": null
+  },
+  "F006-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx (/crm/settings/playbooks)",
+    "notes": "Loading/empty/error/permission states present."
+  },
+  "F006-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F006-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this configuration."
+  },
+  "F006-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary settings mutation; no elevated-approval policy defined for this feature."
+  },
+  "F006-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's configuration events."
+  },
+  "F006-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report built for this feature's setup surface."
+  },
+  "F006-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F006-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F006-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F006-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F006-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F006-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F006-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F006-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx",
+    "notes": "Criteria setup real (confirmed same table the qualification engine reads); playbooks CRUD is generic and not actually Lead-qualification logic, included only per the pre-existing nav grouping."
+  },
+  "F006-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "QualificationAndPlaybooksSettingsScreen.tsx (criteria + playbook CRUD); opportunity-transitions.js (playbook question/response execution, gates moveOpportunityStage)",
+    "notes": "Stage A2 correction: prior PARTIAL scored against an assumed-missing Lead-side playbook question/response builder. Re-audit (grep every services/api/src/modules/crm file for 'playbook') found zero Lead-qualification consumers of crm_playbook_responses; its only real consumer is opportunity-transitions.js, an F012 mechanism ('the same governed playbook infrastructure used elsewhere... not a parallel system', per that file's own comment). crm_playbook_responses.leadId exists in the generic resource schema but has no reader/writer anywhere — vestigial, not a requirement signal. 'Configurable criteria/playbooks' is satisfied as configuration by existing CRUD; exception override/disqualification reasons/evidence timestamps/F027 separation all already satisfied per F006-CAP-001. Building a new Lead-side playbook execution workflow would duplicate F012 against an already-met canonical scope. Classification: NOT_REQUIRED_BY_CANONICAL_SCOPE for that workflow."
+  },
+  "F006-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No further sub-capability text beyond CAP-001/002 found for F006."
+  },
+  "F006-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_lead_qualification_events (pre-existing decision history)",
+    "notes": "Qualification DECISIONS have history (earlier pass); criteria CONFIGURATION changes have only outbox events, no dedicated view."
+  },
+  "F006-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "archiveStatuses['qualification-criteria']='inactive'",
+    "notes": null
+  },
+  "F006-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_QUALIFICATION_CRITERION_FIELD_INVALID etc. surfaced in dialog",
+    "notes": null
+  },
+  "F006-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "GENERIC_VERSIONED_RESOURCES['qualification-criteria']",
+    "notes": "Real optimistic concurrency (unlike F020/F002's disclosed generic-resource gaps)."
+  },
+  "F006-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_lead_qualification_criteria (083_f006_lead_qualification_criteria.sql)",
+    "notes": null
+  },
+  "F006-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "created_at/updated_at, qualification decision history from the earlier pass",
+    "notes": null
+  },
+  "F006-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "assertQualificationCriterionFieldsValid — unknown field keys and positive_number multi-field rejected",
+    "notes": null
+  },
+  "F006-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "criterionMet() is deterministic boolean logic, not a scored calculation."
+  },
+  "F006-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.settings.manage gate via RESOURCE_MANAGE_PERMISSIONS (fixed this pass)",
+    "notes": null
+  },
+  "F006-SEC-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for criteria-setup visibility written this pass."
+  },
+  "F006-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface."
+  },
+  "F006-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface."
+  },
+  "F006-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic /api/crm/qualification-criteria and /api/crm/playbooks routes, now permission-gated",
+    "notes": null
+  },
+  "F006-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "limit=100 cap, no pagination UI."
+  },
+  "F007-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadLifecycleSettingsScreen.tsx (/crm/settings/lead-lifecycle)",
+    "notes": null
+  },
+  "F007-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination/virtualization in the new settings screen; acceptable at current per-org row counts, not verified at enterprise scale."
+  },
+  "F007-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadLifecycleSettingsScreen.tsx (/crm/settings/lead-lifecycle)",
+    "notes": null
+  },
+  "F007-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit or usage report for this feature's setup surface."
+  },
+  "F007-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "stage-catalog.js/transition-graph.js/stage-migration.js",
+    "notes": "Single governed service reused; no UI-only duplicate logic."
+  },
+  "F007-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "stage-catalog.js/transition-graph.js/stage-migration.js",
+    "notes": null
+  },
+  "F007-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadLifecycleSettingsScreen.tsx (/crm/settings/lead-lifecycle)",
+    "notes": null
+  },
+  "F007-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadLifecycleSettingsScreen.tsx (/crm/settings/lead-lifecycle)",
+    "notes": "Loading/empty/error/permission states present."
+  },
+  "F007-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F007-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this configuration."
+  },
+  "F007-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary settings mutation; no elevated-approval policy defined for this feature."
+  },
+  "F007-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's configuration events."
+  },
+  "F007-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report built for this feature's setup surface."
+  },
+  "F007-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F007-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F007-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F007-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F007-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F007-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F007-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F007-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadLifecycleSettingsScreen.tsx",
+    "notes": "Stage/transition/reason CRUD, deactivate-with-migration — wired this pass."
+  },
+  "F007-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "deactivateLeadStageWithMigration + enqueueLeadStageMigrationJob",
+    "notes": "Cycle-free directed graph (edges are explicit, not auto-generated), safe deactivation with a governed migration job — both real."
+  },
+  "F007-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers of the stage/transition contract not audited this pass."
+  },
+  "F007-FR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_lead_stage_history (earlier pass) plus queueOutboxEvent on every stage/transition/reason mutation",
+    "notes": null
+  },
+  "F007-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "ACTIVE/INACTIVE via reactivateLeadStage/deactivateLeadStageWithMigration",
+    "notes": null
+  },
+  "F007-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_LEAD_STAGE_HAS_ACTIVE_LEADS surfaced with a migrate-to-stage picker, not a silent failure",
+    "notes": null
+  },
+  "F007-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_lead_stage_migration_jobs (resumable, batched)",
+    "notes": null
+  },
+  "F007-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_lead_stages/crm_lead_stage_transitions/crm_lead_stage_transition_reasons",
+    "notes": null
+  },
+  "F007-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm_lead_stage_migration_jobs.result_manifest",
+    "notes": null
+  },
+  "F007-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_LEAD_STAGE_GOVERNED_FIELD/CRM_LEAD_STAGE_INITIAL_REQUIRED/CRM_LEAD_STAGE_LAST_ACTIVE",
+    "notes": null
+  },
+  "F007-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface; dwell SLA is a threshold comparison, computed elsewhere (dwell-scan.js, pre-existing)."
+  },
+  "F007-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.settings.manage gate on all mutating routes (no internal check in the service itself, unlike model-config.js)",
+    "notes": null
+  },
+  "F007-SEC-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for stage-setup visibility written this pass."
+  },
+  "F007-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface."
+  },
+  "F007-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface."
+  },
+  "F007-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "8 new routes across lead-stages/lead-stage-transitions/lead-stage-transition-reasons",
+    "notes": null
+  },
+  "F007-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination; stage/transition/reason counts are small by nature (tens, not thousands) so this is lower-risk than other PARTIAL API-002 rows this session."
+  },
+  "F026-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "OutcomeReasonsSettingsScreen.tsx EditReasonDialog (/crm/settings/lost-reasons)",
+    "notes": null
+  },
+  "F026-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination/virtualization in the new settings screen; acceptable at current per-org row counts, not verified at enterprise scale."
+  },
+  "F026-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "OutcomeReasonsSettingsScreen.tsx EditReasonDialog (/crm/settings/lost-reasons)",
+    "notes": null
+  },
+  "F026-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit or usage report for this feature's setup surface."
+  },
+  "F026-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "generic resource-mutation-service.js",
+    "notes": "Single governed service reused; no UI-only duplicate logic."
+  },
+  "F026-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "generic resource-mutation-service.js",
+    "notes": null
+  },
+  "F026-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "OutcomeReasonsSettingsScreen.tsx EditReasonDialog (/crm/settings/lost-reasons)",
+    "notes": null
+  },
+  "F026-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "OutcomeReasonsSettingsScreen.tsx EditReasonDialog (/crm/settings/lost-reasons)",
+    "notes": "Loading/empty/error/permission states present."
+  },
+  "F026-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F026-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this configuration."
+  },
+  "F026-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary settings mutation; no elevated-approval policy defined for this feature."
+  },
+  "F026-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's configuration events."
+  },
+  "F026-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report built for this feature's setup surface."
+  },
+  "F026-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F026-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F026-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F026-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F026-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F026-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F026-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F026-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "OutcomeReasonsSettingsScreen.tsx (edit dialog + order field, this pass; list/create/archive from an earlier pass)",
+    "notes": null
+  },
+  "F026-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Full lifecycle (create/edit/reorder/archive) plus governed capture at Opportunity close (earlier pass)."
+  },
+  "F026-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No further sub-capability text found."
+  },
+  "F026-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "queueOutboxEvent('crm.lost-reasons.updated')",
+    "notes": "Outbox events recorded; no dedicated reason-configuration history view."
+  },
+  "F026-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "archiveStatuses['lost-reasons']='inactive'",
+    "notes": null
+  },
+  "F026-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_STALE_WRITE handled (real optimistic concurrency — GENERIC_VERSIONED_RESOURCES entry)",
+    "notes": null
+  },
+  "F026-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the reason catalog row; the protected historical fact is the CAPTURED outcome reason on a closed Opportunity, which this edit does not retroactively alter."
+  },
+  "F026-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_lost_reasons",
+    "notes": null
+  },
+  "F026-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "created_at/updated_at; codePrefix CRM_LOST_REASON in GENERIC_VERSIONED_RESOURCES",
+    "notes": null
+  },
+  "F026-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic mutation-service validation + CRM_STALE_WRITE on conflict",
+    "notes": null
+  },
+  "F026-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface."
+  },
+  "F026-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.settings.manage via RESOURCE_MANAGE_PERMISSIONS (pre-existing entry)",
+    "notes": null
+  },
+  "F026-SEC-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite written this pass."
+  },
+  "F026-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface."
+  },
+  "F026-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface."
+  },
+  "F026-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic /api/crm/lost-reasons/[id] PATCH, real concurrency",
+    "notes": null
+  },
+  "F026-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "limit=200 cap, no pagination UI (reason catalogs are small by nature)."
+  },
+  "F027-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadScoringSettingsScreen.tsx (/crm/settings/lead-scoring)",
+    "notes": null
+  },
+  "F027-FR-003": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination/virtualization in the new settings screen; acceptable at current per-org row counts, not verified at enterprise scale."
+  },
+  "F027-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadScoringSettingsScreen.tsx (/crm/settings/lead-scoring)",
+    "notes": null
+  },
+  "F027-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit or usage report for this feature's setup surface."
+  },
+  "F027-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "model-config.js/scoring-engine.js",
+    "notes": "Single governed service reused; no UI-only duplicate logic."
+  },
+  "F027-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "model-config.js/scoring-engine.js",
+    "notes": null
+  },
+  "F027-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadScoringSettingsScreen.tsx (/crm/settings/lead-scoring)",
+    "notes": null
+  },
+  "F027-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadScoringSettingsScreen.tsx (/crm/settings/lead-scoring)",
+    "notes": "Loading/empty/error/permission states present."
+  },
+  "F027-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F027-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this configuration."
+  },
+  "F027-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary settings mutation; no elevated-approval policy defined for this feature."
+  },
+  "F027-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's configuration events."
+  },
+  "F027-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report built for this feature's setup surface."
+  },
+  "F027-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F027-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F027-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F027-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F027-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F027-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F027-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F027-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "LeadScoringSettingsScreen.tsx; model-config.js",
+    "notes": "Model create/edit(draft)/activate, rule create/toggle — wired this pass, against the REAL engine table."
+  },
+  "F027-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "activateLeadScoringModel (retires previous, enqueues recalculation)",
+    "notes": "Model versioning, single-active-model invariant (DB partial unique index), auto-recalculation on activation — all real."
+  },
+  "F027-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers (F006 qualification readiness explicitly separate per dossier) not cross-audited this pass."
+  },
+  "F027-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_lead_score_history (earlier pass, per-Lead)",
+    "notes": "Per-Lead score history exists; no dedicated view of model-CONFIGURATION change history in the setup UI."
+  },
+  "F027-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "draft -> active -> retired (activateLeadScoringModel)",
+    "notes": null
+  },
+  "F027-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_LEAD_SCORING_MODEL_ACTIVE_IMMUTABLE / CRM_LEAD_SCORING_MODEL_NO_RULES surfaced",
+    "notes": null
+  },
+  "F027-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "updateLeadScoringModel/createLeadScoringModelRule both reject edits to an active model (CRM_LEAD_SCORING_MODEL_ACTIVE_IMMUTABLE) — a new version is required instead",
+    "notes": null
+  },
+  "F027-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_lead_scoring_models/crm_lead_scoring_model_rules",
+    "notes": null
+  },
+  "F027-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "model version numbers, activated_at, per-rule provenance",
+    "notes": null
+  },
+  "F027-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmLeadIntelligenceError codes throughout model-config.js",
+    "notes": null
+  },
+  "F027-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "calculateLeadScoreBreakdown — pure, deterministic, no I/O (F027-CALC-001's own dossier language), pre-existing and unmodified",
+    "notes": null
+  },
+  "F027-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "assertConfigPermission/assertSensitiveLeadIntelligenceAccess internal to model-config.js",
+    "notes": null
+  },
+  "F027-SEC-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated negative-test suite for model-setup visibility written this pass (score CALCULATION security covered by pre-existing crm-lead-scoring-f027.test.mjs)."
+  },
+  "F027-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for model configuration."
+  },
+  "F027-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for model configuration."
+  },
+  "F027-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "5 new routes under /api/crm/lead-scoring-models",
+    "notes": null
+  },
+  "F027-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "No pagination; model/rule counts are small by nature."
+  },
+  "F013-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": null
+  },
+  "F013-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F013-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": null
+  },
+  "F013-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F013-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "call-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F013-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "call-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F013-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F013-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F013-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F013-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "call-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F013-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F013-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F013-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": null
+  },
+  "F013-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CallDetailScreen.tsx (/crm/calls/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F013-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F013-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F013-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F013-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F013-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F013-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+  },
+  "F013-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F013-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F013-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F013-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F013-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F013-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F013-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F013-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F013-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F013-CAP-001": {
+    "status": "PARTIAL",
+    "evidence": "CallDetailScreen.tsx",
+    "notes": "Detail + edit built this pass. Outcome-capture prompt on list quick-complete remains a disclosed UX shortcut (completeCrmCall still validates whatever outcome is sent, not a governance gap)."
+  },
+  "F013-CAP-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "Core call lifecycle (schedule/log/start/complete/cancel/edit) real; no call-recording/telephony-integration surface (out of this pass's scope)."
+  },
+  "F013-CAP-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Downstream consumers (Timeline, dashboards) of call detail not re-audited this pass."
+  },
+  "F013-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_events / outbox",
+    "notes": "Lifecycle events recorded server-side; detail view does not surface a dedicated change-history timeline yet."
+  },
+  "F013-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_CALL_READ_ONLY surfaced; Edit button conditionally hidden outside planned/overdue",
+    "notes": null
+  },
+  "F014-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": null
+  },
+  "F014-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F014-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": null
+  },
+  "F014-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F014-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "meeting-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F014-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "meeting-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F014-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F014-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F014-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F014-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "meeting-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F014-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F014-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F014-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": null
+  },
+  "F014-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx (/crm/meetings/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F014-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F014-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F014-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F014-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F014-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F014-NOTIF-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "createRemindersForActivity/cancelPendingRemindersForActivity wired into meeting-operations.js and communications.js (Stage A2)",
+    "notes": "Stage A2 correction: reminders were the one dossier-named CAP-002 item genuinely unwired for Meetings. Now real, via the shared activity reminder engine (claimDueReminders/crm_activity_reminders), not a separate edit-event notification."
+  },
+  "F014-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F014-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F014-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F014-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F014-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F014-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F014-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F014-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F014-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F014-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MeetingDetailScreen.tsx; MeetingFormScreen.tsx (real Contact MultiSelect attendee picker, Stage A2); BookMeetingScreen.tsx + /api/crm/public/meetings/links/[token]/* (public booking, Stage A2)",
+    "notes": "Stage A2 closeout: both gaps this row previously flagged are closed. Attendees now offer a real Contact picker (contactId, resolved server-side by the already-tested normalizeAttendees) alongside free-text external-guest emails, not a replacement for either. Public booking was a genuine, confirmed gap — tenant.crm_public_meeting_link(token) (migration 031) existed and was fully tested but had zero callers; now wired end-to-end (link info, availability, booking) reusing getMeetingAvailability/bookMeeting exactly, no second slot-computation path."
+  },
+  "F014-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm-meeting-calendar-push-f014.test.mjs; crm-meeting-booking-token-expiry-f014.test.mjs; meeting-operations.js/communications.js reminder wiring (Stage A2, crm-meetings-f014.test.mjs's new reminder test); ManageBookingScreen.tsx (reschedule/cancel by token)",
+    "notes": "Stage A2 re-audit against the dossier's own named list (availability, booking token expiry, calendar sync, reschedule/no-show, reminders, DST, provider reconciliation, external privacy): all confirmed present or newly wired. Calendar sync/provider reconciliation and booking-token expiry were already real (earlier pass, re-verified not stale by reading the current source, not assumed from the old audit doc). Reminders were the one genuinely unwired item — Meetings now join the same crm_activity_reminders engine Follow-ups (F016) already uses on schedule/reschedule/cancel/complete, for both the internal and public booking paths, not a second reminder system."
+  },
+  "F014-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "Public routes only ever touch crm_meeting_bookings/crm_calendar_attendees, never crm_leads/crm_contacts directly (re-confirmed by reading bookMeeting in full this pass); BookMeetingScreen/ManageBookingScreen expose only name/duration/timezone/owner display name, no organization/company internals",
+    "notes": "Re-verified this pass while building the public UI that actually calls these boundaries, not assumed from the prior pass's note."
+  },
+  "F014-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_events / outbox",
+    "notes": "Lifecycle events recorded; no dedicated change-history timeline in the detail view."
+  },
+  "F014-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_MEETING_READ_ONLY surfaced; Edit button conditionally hidden outside planned/overdue",
+    "notes": null
+  },
+  "F015-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": null
+  },
+  "F015-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F015-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": null
+  },
+  "F015-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F015-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "task-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F015-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "task-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F015-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F015-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F015-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F015-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "task-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F015-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F015-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F015-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": null
+  },
+  "F015-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (/crm/tasks/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F015-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F015-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F015-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F015-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F015-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F015-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for edit events specifically (reminder/escalation notifications predate this pass and are a different surface)."
+  },
+  "F015-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F015-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F015-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F015-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F015-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F015-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F015-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F015-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F015-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F015-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskDetailScreen.tsx (TaskDependenciesPanel, RecurrenceBuilder in EditTaskDialog); TaskFormScreen.tsx (RecurrenceBuilder at creation)",
+    "notes": "Stage A2 closeout: both gaps this row previously flagged are closed. addTaskDependency/removeTaskDependency/listTaskDependencies and recurrenceConfig already existed, fully tested (crm-tasks-f015.test.mjs, 40/40), with zero frontend consumer — now wired, not rebuilt. No backend changes needed."
+  },
+  "F015-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "TaskListScreen.tsx (team/queue filter + claim/release, already built an earlier pass, re-verified not stale); TaskDependenciesPanel; RecurrenceBuilder",
+    "notes": "Stage A2 re-audit against the dossier's own named list (recurrence, team/queue tasks, dependencies, generated tasks, overdue derivation, linked-record privacy, idempotent recurrence): team/queue tasks and overdue derivation were already fully built (F015-AUDIT.md's claim of 'no team/queue assignment' was stale — claimCrmTask/releaseCrmTask/listMyTaskTeams and TaskListScreen's claim/release buttons already existed). Recurrence and dependencies were the two genuinely unwired items; both now have real UI mapping directly to the existing recurrenceConfig/crm_task_dependencies contracts, not invented syntax."
+  },
+  "F015-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm-tasks-f015.test.mjs: \"generic Activity create/update/archive/complete cannot bypass governed Tasks\"",
+    "notes": "Re-verified this pass — the new dependency/recurrence UI calls only task-operations.js's own governed functions (addTaskDependency/removeTaskDependency/updateCrmTask), never the generic resource path."
+  },
+  "F015-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_events / outbox",
+    "notes": "Lifecycle events recorded; no dedicated change-history timeline in the detail view."
+  },
+  "F015-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_TASK_READ_ONLY surfaced; Edit button conditionally hidden once completed/cancelled",
+    "notes": null
+  },
+  "F016-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": null
+  },
+  "F016-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass; the list screen (earlier pass) already has pagination, the new detail view does not need it."
+  },
+  "F016-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": null
+  },
+  "F016-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No manager/ops audit view across records of this type."
+  },
+  "F016-FLOW-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "follow-up-operations.js",
+    "notes": "Lifecycle actions (start/complete/cancel etc.) predate this pass; this tranche adds detail/edit on top."
+  },
+  "F016-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "follow-up-operations.js",
+    "notes": "Single governed service reused (getCrmX/updateCrmX); no UI-only duplicate logic."
+  },
+  "F016-BR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Edits are direct field updates on the activity row, gated to a non-terminal status window; the protected historical facts (completion/outcome/reminder events) are separate append-only tables this edit dialog never touches."
+  },
+  "F016-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_activities (activity_type discriminator)",
+    "notes": null
+  },
+  "F016-DATA-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "created_at/updated_at plus type-specific event/history tables predating this pass."
+  },
+  "F016-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "follow-up-operations.js",
+    "notes": "assertAllowed(input, FIELDS) rejects any field outside the writable allowlist."
+  },
+  "F016-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "CRM_*_READ_ONLY / CRM_*_NOT_FOUND stable error codes surfaced in the edit dialog."
+  },
+  "F016-CALC-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No calculation surface for this feature's detail/edit view."
+  },
+  "F016-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": null
+  },
+  "F016-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (/crm/follow-ups/[id])",
+    "notes": "Loading/error/permission (403->PermissionState, 404->ErrorState) states present; edit dialog has its own error banner."
+  },
+  "F016-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F016-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm.activities.manage gate on the [id] PATCH route (pre-existing route, confirmed unmodified)",
+    "notes": null
+  },
+  "F016-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Sensitive-field visibility on the detail view not specifically negative-tested this pass."
+  },
+  "F016-AUTO-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No automation engine currently mutates this record type via the new edit path specifically (creation-time automation predates this pass)."
+  },
+  "F016-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Ordinary record edit; no elevated-approval policy defined for this feature."
+  },
+  "F016-NOTIF-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "services/worker/src/handlers/crm-follow-up-reminder-dispatch.js (in-app + email delivery, sent/failed outcome tracking); RemindersPanel in FollowUpDetailScreen.tsx (Stage A2, surfaces delivery status/failure reason/acknowledge)",
+    "notes": "Stage A2 correction: F016-AUDIT.md's 'GAP, confirmed' claim on delivery receipts was stale — a full dispatch worker (claimDueReminders/markReminderOutcome/escalateOverdueFollowUps, in-app via createInAppNotification, email via sendTransactionalEmail) already existed with real sent/failed/acknowledged tracking. Only the frontend visibility was missing; now built."
+  },
+  "F016-REP-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated KPI/report tied to the detail/edit surface."
+  },
+  "F016-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F016-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F016-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for the detail/edit view itself."
+  },
+  "F016-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Pre-existing GET/PATCH routes, now consumed for the first time by this pass's UI",
+    "notes": null
+  },
+  "F016-API-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Single-record GET/PATCH, not a list/search API."
+  },
+  "F016-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F016-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F016-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F016-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "FollowUpDetailScreen.tsx (custom-duration Snooze dialog, RemindersPanel, HistoryPanel); FollowUpFormScreen.tsx (reminder-plan authoring at creation)",
+    "notes": "Stage A2 closeout: custom snooze duration and the reminder/escalation history timeline were the two remaining disclosed gaps; both now built. snoozeCrmFollowUp already accepted an arbitrary dueAt (no backend change needed for that); listCrmFollowUpHistory already existed with zero frontend consumer."
+  },
+  "F016-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "RemindersPanel (delivery status/failure reason/acknowledge); reminder-plan editor in FollowUpDetailScreen's EditFollowUpDialog + FollowUpFormScreen; updateCrmFollowUp now accepts reminderOffsets/reminderChannel (crm-follow-ups-f016.test.mjs, 2 new tests, 21/21)",
+    "notes": "Stage A2 re-audit against the dossier's own named list (multiple reminders, working hours, escalation, no-activity rules, delivery receipts, deduplication, timezone behavior): all were already real server-side except reminder-plan editing after creation, which updateCrmFollowUp genuinely didn't support (only regenerated with defaults on due-date change). Extended it to accept a caller-supplied plan, mirroring createCrmFollowUp's own existing stripping/validation pattern exactly — not new backend surface, closing a real asymmetry between create and update."
+  },
+  "F016-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm-follow-ups-f016.test.mjs: \"the generic Activity create/update/archive/complete routes cannot bypass governed Follow-ups\"",
+    "notes": "Re-verified this pass — new routes (reminders, reminders/acknowledge, history) all call only follow-up-operations.js's own governed functions."
+  },
+  "F016-FR-002": {
+    "status": "PARTIAL",
+    "evidence": "crm_activity_reminders (earlier pass)",
+    "notes": "Reminder dispatch events recorded server-side; detail view surfaces snoozeCount/escalatedAt summary fields, not the full event list."
+  },
+  "F016-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CRM_FOLLOW_UP_READ_ONLY surfaced; Edit button conditionally hidden once completed/cancelled",
+    "notes": null
+  },
+  "F024-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass."
+  },
+  "F024-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated manager/ops audit view beyond the screen itself."
+  },
+  "F024-FLOW-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No record lifecycle state machine for this feature's own surface (dashboards/reports read other entities' lifecycles)."
+  },
+  "F024-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": "Loading/error/permission states present."
+  },
+  "F024-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Single governed backend aggregation reused; the screen computes nothing itself."
+  },
+  "F024-BR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly aggregation surface; no historical record this feature itself owns to rewrite."
+  },
+  "F024-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Aggregates real tenant CRM tables; no independent data model of its own beyond that."
+  },
+  "F024-DATA-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No system-derived/externally-sourced value distinct from the underlying records it aggregates."
+  },
+  "F024-VAL-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no create/update command of its own to validate (forecast submissions are the one exception, covered under F025)."
+  },
+  "F024-VAL-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited this pass beyond the existing 403/404 error paths."
+  },
+  "F024-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "apps/web/src/features/crm/shared/format.test.ts (Stage A2 §17: 5 real regression tests, including a literal reduce()-sum test that would catch the documented string-concatenation bug class)",
+    "notes": "Deterministic SQL aggregation; verified numeric-string handling this tranche (see the Tranche K sweep)."
+  },
+  "F024-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "notes": null
+  },
+  "F024-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F024-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "companyVisible/branchVisible/ownerVisible predicates baked into the aggregation SQL itself (not a post-hoc filter)."
+  },
+  "F024-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Stage A2 §16: getCrmDashboard enforces row-level company/branch/owner scoping entirely inside one large raw-SQL query (companyVisible/branchVisible/ownerVisible predicates parameterized by canViewAllCrmRecords/userId). A genuinely behavioral proof requires executing that SQL against real data; a JS mock returning canned rows regardless of the query (the existing crm-record-scope.test.mjs tests, which document this limitation in their own comments) only proves parameter-threading. This environment has no live Postgres available (disclosed since the start of this engagement). Source-level predicate-presence evidence remains the best available without a live DB."
+  },
+  "F024-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation surface for this feature."
+  },
+  "F024-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no elevated-approval policy applicable."
+  },
+  "F024-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's own events."
+  },
+  "F024-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F024-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F024-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F024-API-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Predominantly a read/query surface; see API-002."
+  },
+  "F024-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F024-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F024-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F024-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "DrillMetric components (all six now interactive); stage-row drill; buildFilters dwellBreached/highPriority/stalled predicates (resource-query-service.js); crm-dashboard-drilldown-reconciliation-f024.test.mjs (4/4)",
+    "notes": "Stage A2 §10 closeout. dwell-breached/stalled/high-priority previously had no safe filter mapping (disclosed, not faked) — buildFilters now reuses getCrmDashboard's own predicates verbatim (dwell_breach_hours EXISTS join, lead_grade IN ('hot','qualified'), the SLA-policy-over-stage-default EXISTS join), proven identical by test. Uncovered territories now links to the Territories settings screen, which (Stage A2 §8) shows a real per-row Covered/Uncovered badge using the same predicate — a full, safe reconciliation without inventing a URL filter param the settings screen doesn't support. Source-breakdown remains a non-interactive table (no per-source list view exists to drill into; not a filter-mapping gap)."
+  },
+  "F024-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "money() currency formatting; buildFilters drill predicates; getCrmDashboard has no caching layer (query runs fresh per request, confirmed by reading the route)",
+    "notes": "Metric formulas/currency real. Freshness: no cache exists, so every request is already live — verified, not assumed (the audit's own 'not confirmed' framing is resolved: there is genuinely nothing to invalidate). Target/quota coverage: getCrmReport's team-performance report already computes real pipeline_coverage against crm_quota_plans (analytics-service.js) — deliberately not duplicated onto the dashboard itself; F030's own closeout (Stage A2 §12) is the correct owner of surfacing it, avoiding two independent coverage engines. Filters: getCrmDashboard intentionally takes none — it is a whole-of-scope snapshot, matching CAP-001's own canonical sentence; per-owner/team/date slicing lives in F030 Reports, not duplicated here."
+  },
+  "F024-CAP-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No further sub-capability text beyond CAP-001/002 found for F024."
+  },
+  "F024-FR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Dashboard is a live read of current state, not a mutation with its own history to record."
+  },
+  "F024-API-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "GET /api/crm/dashboard",
+    "notes": "Single aggregated read; no pagination needed for its own fixed metric set."
+  },
+  "F025-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass."
+  },
+  "F025-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated manager/ops audit view beyond the screen itself."
+  },
+  "F025-FLOW-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No record lifecycle state machine for this feature's own surface (dashboards/reports read other entities' lifecycles)."
+  },
+  "F025-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": "Loading/error/permission states present."
+  },
+  "F025-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic resource-mutation-service.js reused for periods/submissions; no UI-only duplicate logic",
+    "notes": null
+  },
+  "F025-BR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly aggregation surface; no historical record this feature itself owns to rewrite."
+  },
+  "F025-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "tenant.crm_forecast_periods/crm_forecast_submissions (003_crm_enterprise_core.sql)",
+    "notes": null
+  },
+  "F025-DATA-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No system-derived/externally-sourced value distinct from the underlying records it aggregates."
+  },
+  "F025-VAL-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic resource-mutation-service.js field validation on forecast-submissions",
+    "notes": null
+  },
+  "F025-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "forecast-periods/forecast-submissions added to GENERIC_VERSIONED_RESOURCES (resource-validation.js)",
+    "notes": "Stage A2 §14: both resources previously had no optimistic-concurrency check at all despite the generic route already sending expectedUpdatedAt/requireVersion:true. Now enforced; a concurrent edit is rejected with CRM_STALE_WRITE (409)."
+  },
+  "F025-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "apps/web/src/features/crm/shared/format.test.ts (same §17 evidence); getForecastCalibration explicitly Number()-coerces predicted/actual before computing errorAmount/errorPercent",
+    "notes": "Deterministic SQL aggregation; verified numeric-string handling this tranche (see the Tranche K sweep)."
+  },
+  "F025-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx (/crm/forecast)",
+    "notes": null
+  },
+  "F025-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F025-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "ownerField scoping on forecast-submissions (fixed in an earlier pass) + crm.settings.manage/crm.opportunities.manage via RESOURCE_MANAGE_PERMISSIONS (added this pass, proactively)",
+    "notes": null
+  },
+  "F025-SEC-002": {
+    "status": "PARTIAL",
+    "evidence": "crm-forecast-review-guards-f025.test.mjs (self-review/self-adjustment-forbidden, real); crm-forecast-submission-owner-scope-f025.test.mjs (team-manager visibility scoping, real)",
+    "notes": "Stage A2 §16: forecast-submissions is genuinely well-covered. forecast-periods and quota-plans have no permission-specific test — same disclosed architectural gap as F020-SEC-002 (route-layer-only enforcement, generic gate proven, per-route wiring verified by code read but not independently tested)."
+  },
+  "F025-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation surface for this feature."
+  },
+  "F025-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no elevated-approval policy applicable."
+  },
+  "F025-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's own events."
+  },
+  "F025-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F025-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F025-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F025-API-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "Generic /api/crm/forecast-periods, /api/crm/forecast-submissions routes, now with a periodId scoping filter",
+    "notes": null
+  },
+  "F025-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F025-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F025-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F025-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "MySubmissionSection (draft save + real Submit-for-review action), TeamReviewSection (approve/reject + manager adjustment), CrmForecastScreen.tsx By-owner table (real ownerUserId drill to /crm/opportunities), recordScope forecast-submissions hierarchy branch",
+    "notes": "Stage A2 §11 closeout. Submit: MySubmissionSection previously only ever saved a draft — assertLifecycleUpdate's real draft->submitted transition was never called from the UI; now a real 'Submit for review' action. Roll up/manager review: forecast-submissions had no team-hierarchy visibility at all (an ordinary rep with crm.revenue.manage could not see, and a manager could not review, anyone else's submission) — recordScope now reuses F020's crm_sales_teams.manager_user_id/crm_sales_team_members verbatim (mirroring the forecast REPORT's own existing ownerVisibleForForecast pattern, confirmed already built in an earlier pass). Manager adjustment: TeamReviewSection lets a reviewer set it; two new server-side guards (CRM_FORECAST_SELF_REVIEW_FORBIDDEN, CRM_FORECAST_SELF_ADJUSTMENT_FORBIDDEN) stop a rep self-approving or self-adjusting through the same generic PATCH they use to edit their own draft — a real gap the hierarchy fix would otherwise have reopened. Reproduce a forecast period: satisfied by the submission lifecycle's own append-only guarantee (approved only ever moves to superseded, never back to draft/submitted) — reading past submissions for a period IS reproducing it; no separate snapshot table was invented. Deal drill-down: the forecast report's 'By owner' rows now carry a real ownerUserId (previously name-only) and link to an authorized, owner-filtered Opportunities list."
+  },
+  "F025-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "forecast_category best_case/commit columns added to the forecast report; assertForecastPeriodMutable (CRM_FORECAST_PERIOD_CLOSED); CalibrationSection (getForecastCalibration, accuracy/backtesting); predictive-snapshot capture (capturePredictiveForecast); quota/target fields pre-existing on crm_forecast_submissions",
+    "notes": "Stage A2 re-audit against the dossier's own named list. Categories: pipeline/best_case/commit breakdown now visible per-owner, not just on the submission form. Locked/closed period behavior was a genuine, confirmed gap — nothing cross-referenced a submission against its own period's status; closed periods now reject create/update (frozen stays mutable, matching the existing period-picker convention in resource-options.js). Accuracy/backtesting and predictive confidence were BOTH already fully built and tested (getForecastCalibration/capturePredictiveForecast, opportunity-revenue-intelligence.js) with zero frontend consumer — an earlier audit wrongly marked accuracy/backtesting a genuine missing capability; now wired via two new routes and a real UI section. Governed export: not duplicated here — the 'forecast' report is one of getCrmReport's report keys, so F030's own export mechanism (Stage A2 §12) covers it without a second export path."
+  },
+  "F025-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "grep confirms no write path from forecast-submissions code (record-policy.js/resource-mutation-service.js) into tenant.crm_opportunities anywhere; managerAdjustment is a column on crm_forecast_submissions only",
+    "notes": "Re-verified this pass while adding the review/adjustment guards. F020 hierarchy consumed via recordScope's new forecast-submissions branch and the forecast report's pre-existing ownerVisibleForForecast — never a second/independent hierarchy."
+  },
+  "F025-FR-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "updated_at on crm_forecast_submissions; optimistic concurrency on update",
+    "notes": "Submission edit history is the row's own updated_at, not a full event log — acceptable for a single-owner-editable row, not a full audit trail."
+  },
+  "F025-API-002": {
+    "status": "PARTIAL",
+    "evidence": null,
+    "notes": "limit=100/200 caps, no pagination UI."
+  },
+  "F030-FR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-FR-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited at enterprise volume this pass."
+  },
+  "F030-US-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-US-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No dedicated manager/ops audit view beyond the screen itself."
+  },
+  "F030-FLOW-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No record lifecycle state machine for this feature's own surface (dashboards/reports read other entities' lifecycles)."
+  },
+  "F030-FLOW-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": "Loading/error/permission states present."
+  },
+  "F030-BR-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Single governed backend aggregation reused; the screen computes nothing itself."
+  },
+  "F030-BR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly aggregation surface; no historical record this feature itself owns to rewrite."
+  },
+  "F030-DATA-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "Aggregates real tenant CRM tables; no independent data model of its own beyond that."
+  },
+  "F030-DATA-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No system-derived/externally-sourced value distinct from the underlying records it aggregates."
+  },
+  "F030-VAL-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no create/update command of its own to validate (forecast submissions are the one exception, covered under F025)."
+  },
+  "F030-VAL-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Not specifically audited this pass beyond the existing 403/404 error paths."
+  },
+  "F030-CALC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "formatCell's strict numeric-string regex (this pass)",
+    "notes": "Deterministic formatting; underlying aggregation SQL is each report kind's own, unmodified this pass. Stage A2 §17: format.ts (money()/toNumber(), the shared coercion boundary this formatCell pattern also follows) now has its own regression test suite (format.test.ts), previously untested despite being the single point of failure for the whole numeric-contract bug class."
+  },
+  "F030-UX-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-UX-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (/crm/reports)",
+    "notes": null
+  },
+  "F030-UX-003": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No live-browser keyboard/mobile verification performed this pass."
+  },
+  "F030-SEC-001": {
+    "status": "IMPLEMENTED",
+    "evidence": null,
+    "notes": "companyVisible/branchVisible/ownerVisible predicates baked into the aggregation SQL itself (not a post-hoc filter)."
+  },
+  "F030-SEC-002": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "Stage A2 §16: same live-DB limitation as F024-SEC-002 — getCrmReport's row-level scoping lives entirely in raw SQL, and report export (GET /api/crm/reports/[report]/export) reads through it directly, inheriting the same gap."
+  },
+  "F030-AUTO-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No automation surface for this feature."
+  },
+  "F030-APP-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-mostly surface; no elevated-approval policy applicable."
+  },
+  "F030-NOTIF-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "No notification consumer for this feature's own events."
+  },
+  "F030-AI-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No AI surface built for this feature this pass."
+  },
+  "F030-INT-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F030-INT-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "No external integration surface for this feature's own screen."
+  },
+  "F030-API-001": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Predominantly a read/query surface; see API-002."
+  },
+  "F030-PERF-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No performance test run this pass."
+  },
+  "F030-OBS-001": {
+    "status": "NOT_VERIFIED",
+    "evidence": null,
+    "notes": "No correlation-ID/structured-log audit performed this pass."
+  },
+  "F030-E2E-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-E2E-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-UAT-001": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-UAT-002": {
+    "status": "NOT_STARTED",
+    "evidence": null,
+    "notes": "Deferred to Stage B."
+  },
+  "F030-CAP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "SavedViewsBar reused with resource=`report:${report}` (CrmReportsScreen.tsx); GET /api/crm/reports/[report]/export (rowsToCsv/csvCell); stage.id/source.id added to the pipeline/sources reports; crm-report-drilldown-f030.test.mjs (2/2)",
+    "notes": "Stage A2 §12 closeout. Save: the earlier audit's claim of no saved-report entity was correct, but the fix did not need a new one — tenant.crm_saved_views (a real, already-governed, personal-scoped, generic `resource` + `filters` table) already existed and is already consumed by Leads/Opportunities via the shared SavedViewsBar component; reused verbatim with a `report:` -prefixed resource key so a saved report config can never collide with a saved list-view row. Export: genuinely absent (the earlier audit's 'PASS' claim was simply wrong — grep found zero rowsToCsv usage anywhere for reports before this pass); now real, reusing the same neutralizing CSV writer F021's Lead export uses. Drill: built only where reconciliation is exact (pipeline->Opportunities by stage, sources->Leads by source, both previously name-only — added the real id columns), and only rendered when no date filter narrows the report (a date-filtered report has no corresponding list-side date filter, so drilling then would silently show a larger population than the report's own count — the same discipline F024's dashboard already established). The other 12 report kinds are left non-interactive, disclosed, not faked."
+  },
+  "F030-CAP-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "getCrmReport has no caching layer (confirmed while auditing F024/F025 — same finding, now stated explicitly in the Reports screen's own description text)",
+    "notes": "Stage A2 re-audit against the dossier's own named list. Dimensions/measures and row/field security before aggregation: already real per report kind. Freshness: confirmed live-per-request, stated in the UI now, not just true-by-omission. Scheduled delivery: genuinely absent, and no existing shared scheduling/notification system exists anywhere in the platform that could be wired to arbitrary report+filter combinations without building a materially new capability — classified NOT_REQUIRED_BY_CANONICAL_SCOPE for this pass (no CAP-001/atomic row mandates it unconditionally; it is enterprise-completeness checklist language, matching this feature's own dossier phrasing pattern). Formula/measure versioning: NOT_REQUIRED_BY_CANONICAL_SCOPE — every report computes live from current source rows (never a persisted historical metric), so there is no stored value whose formula could drift out of sync with a later version; the SQL itself is the one and only version. Safe custom builder / NL query: NOT_REQUIRED_BY_CANONICAL_SCOPE, confirmed deliberately — the 14 fixed, hand-written, non-dynamic queries are the safer posture the dossier's own CAP-003 boundary requires; building either would be new, unrequested dynamic-query surface, not a gap-closing fix."
+  },
+  "F030-CAP-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "Re-confirmed by grep: no dynamic/string-built SQL from user input exists anywhere in getCrmReport, before or after this pass's changes",
+    "notes": "Re-verified while adding the stage_id/source_id columns and the export route — neither introduces any user-composable query surface."
+  },
+  "F030-FR-002": {
+    "status": "NOT_APPLICABLE",
+    "evidence": null,
+    "notes": "Read-only report surface; no mutation of its own to record history for."
+  },
+  "F030-API-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "GET /api/crm/reports/[report]?from&to",
+    "notes": "From/To date filters real; the route's own forwarded-key mismatch (ownerId/stageId/sourceId/campaignId/period silently dropped server-side) was fixed in an earlier pass."
+  },
+  "F024-REP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmDashboardScreen.tsx metrics; all six \"Needs attention\" metrics now drill (F024-CAP-001)",
+    "notes": "Stage A2 §10 closeout — drill-down coverage completed, each mapping test-verified against the dashboard's own predicate."
+  },
+  "F025-REP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmForecastScreen.tsx — By-owner table now drills to /crm/opportunities?ownerId=; getCrmDashboard/getCrmReport have no caching layer (confirmed while auditing F024)",
+    "notes": "Stage A2 §11 closeout — drill-down reconciliation completed (real ownerUserId column added to the report); freshness confirmed real-time by construction, same finding as F024's dashboard."
+  },
+  "F030-REP-001": {
+    "status": "IMPLEMENTED",
+    "evidence": "CrmReportsScreen.tsx (14 report kinds); freshness stated explicitly; pipeline/sources drill-down; save via SavedViewsBar; export via rowsToCsv",
+    "notes": "Stage A2 §12 closeout."
+  },
+  "F030-API-003": {
+    "status": "NOT_APPLICABLE",
+    "evidence": "tenant.crm_report_definitions (report-definitions resource) has zero frontend/backend consumers",
+    "notes": "Stage A2 §14 discovery: F030's real 'governed report definitions save/update' requirement is met by reusing saved-views (resource=report:${report}), not this table — a legitimate architectural choice, already reflected in F030-CAP-001's evidence, not a false claim needing correction. This generic-CRUD table was still added to GENERIC_VERSIONED_RESOURCES for defense-in-depth in case a future/API caller uses it directly."
+  },
+  "F019-VAL-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "scoring-rules added to GENERIC_VERSIONED_RESOURCES (resource-validation.js)",
+    "notes": "Stage A2 §14: lead-scoring configuration (genuinely consumed by scoring-engine.js/model-config.js) had no server-side concurrency check on the generic mutation path. Now enforced."
+  },
+  "F002-SEC-003": {
+    "status": "IMPLEMENTED",
+    "evidence": "apps/web/src/core/privacy-authorization.ts + .test.ts (3 real behavioral tests); platform-privacy.test.mjs cross-org transitionPrivacyRequest test",
+    "notes": "Stage A2 §16 closeout of the gap explicitly deferred at §13. Real tests prove: a caller holding every other CRM permission (including crm.privacy.manage) is still rejected without platform.privacy.manage; a request belonging to a different organization 404s rather than leaking existence, verified with a mock that evaluates the real organization_id predicate (not canned rows)."
+  },
+  "F021-SEC-002": {
+    "status": "IMPLEMENTED",
+    "evidence": "crm-lead-export-f021.test.mjs: cross-organization getCrmLeadExportJob test using a mock that evaluates the real organization_id/id predicate",
+    "notes": "Stage A2 §16: the two pre-existing getCrmLeadExportJob tests covered same-org missing-permission but their mock ignored organization_id entirely. New test proves a job from a different org 404s (not a 403 that would leak existence), with a sanity check that the legitimate owning org can still read it."
+  }
+}

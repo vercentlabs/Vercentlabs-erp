@@ -8,14 +8,6 @@ export function evaluateOpportunityHealth(
   row: Record<string, unknown>,
   now?: Date,
 ): Record<string, unknown>;
-export function buildPipelineSummary(
-  rows: Array<Record<string, unknown>>,
-  now?: Date,
-): Record<string, unknown>;
-export function getOpportunityDashboard(
-  client: QueryClient,
-  context: CrmFoundationContext,
-): Promise<Record<string, unknown>>;
 export function getOpportunityTimeline(
   client: QueryClient,
   context: CrmFoundationContext,

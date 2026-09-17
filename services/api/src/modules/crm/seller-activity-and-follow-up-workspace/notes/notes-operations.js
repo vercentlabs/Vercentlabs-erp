@@ -57,7 +57,12 @@ function normalizeVisibility(value, fallback = "shared") {
 function visibilityPredicate(values, context, alias = "note") {
   const userIdParam = values.push(context.userId), userIdPlaceholder = `$${userIdParam}`;
   const viewAllParam = values.push(canViewAllCrmRecords(context)), viewAllPlaceholder = `$${viewAllParam}`;
-  return ` AND (${alias}.visibility<>'private' OR ${alias}.created_by=${userIdPlaceholder} OR ${viewAllPlaceholder})`;
+  // ::boolean is required, not cosmetic — see communication-projection.js's
+  // communicationVisibilitySql for the full explanation (found via
+  // live-browser Prompt 3 QA against a real database): without it,
+  // Postgres cannot infer this bare `OR $N` placeholder's type and rejects
+  // the query with "could not determine data type of parameter $N".
+  return ` AND (${alias}.visibility<>'private' OR ${alias}.created_by=${userIdPlaceholder} OR ${viewAllPlaceholder}::boolean)`;
 }
 
 export async function listCrmNotes(client, context, entityType, entityId, { includeArchived = false, limit = 50 } = {}) {

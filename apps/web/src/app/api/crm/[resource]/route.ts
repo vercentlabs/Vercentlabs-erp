@@ -1,151 +1,89 @@
-import {
-  incrementBillingUsage,
-  requireBillingWriteAccess,
-} from "@/core/billing";
-import { createCrmRecord, createCrmTask, listCrmRecords } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { requireCrmManage, requireCrmResourceView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import {
-  crmApiContext,
-  crmDefinitions,
-  crmErrorResponse,
-  isCrmDefinition,
-} from "@/modules/crm";
-import { isCrmApiResource } from "@/modules/crm/crm-data-operations-and-customization/capability-registry";
-import { crmSchemas } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
+import { assertSameOriginOrMobile, createCrmRecord, isCrmResource, listCrmRecords } from "@vercentlabs/api";
 
-export async function GET(
-  request: Request,
-  route: { params: Promise<{ resource: string }> },
-) {
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess, requireCrmMutationAccess } from "@/features/crm/shared/crm-context";
+
+const LIST_FILTER_KEYS = [
+  "search",
+  "status",
+  "ownerId",
+  "stageId",
+  "pipelineId",
+  "sourceId",
+  "campaignId",
+  "activityType",
+  "priority",
+  "rating",
+  "followup",
+  "qualification",
+  "due",
+  "opportunityId",
+  "committeeId",
+  "teamId",
+  "territoryId",
+  "partyId",
+  "accountPlanId",
+  "contactId",
+  "periodId",
+  "dwellBreached",
+  "highPriority",
+  "stalled",
+] as const;
+
+function parseListFilters(url: URL) {
+  const filters: Record<string, unknown> = {};
+  for (const key of LIST_FILTER_KEYS) {
+    const value = url.searchParams.get(key);
+    if (value) filters[key] = value;
+  }
+  const limit = url.searchParams.get("limit");
+  const offset = url.searchParams.get("offset");
+  if (limit) filters.limit = Number(limit);
+  if (offset) filters.offset = Number(offset);
+  return filters;
+}
+
+// Governed generic CRM resource boundary (Phase 5/6). Thin by design: this
+// route authenticates, resolves workspace + CRM context, validates the
+// resource key, opens a tenant-scoped transaction, and delegates entirely
+// to @vercentlabs/api's resource-registry-driven listCrmRecords/
+// createCrmRecord — no CRM business logic (assignment, scoring, lifecycle
+// rules) lives here. Covers every CRM_RESOURCE_KEYS entry (leads,
+// opportunities, activities, sources, tags, saved-views, etc.), not just
+// leads, so Accounts/Contacts-adjacent and future CRM screens reuse the
+// same boundary rather than each inventing their own.
+export async function GET(request: Request, context: { params: Promise<{ resource: string }> }) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId)
-      throw new HttpError(401, "Sign in to an organisation workspace.");
-    const { resource } = await route.params;
-    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
-      throw new HttpError(404, "Unknown CRM resource.");
-    if (resource === "assignment-rules")
-      throw new HttpError(
-        410,
-        "Use the governed Lead Assignment Rules API.",
-        "CRM_ASSIGNMENT_RULE_API_MOVED",
-      );
-    requireCrmResourceView(session, resource);
+    const session = await requireWorkspace();
+    const { resource } = await context.params;
+    if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
     const url = new URL(request.url);
-    const context = await crmApiContext(session);
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      listCrmRecords(
-        client,
-        context,
-        resource,
-        Object.fromEntries(url.searchParams.entries()),
-      ),
-    );
+    const filters = parseListFilters(url);
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return listCrmRecords(client, crmContext(session), resource, filters);
+    });
     return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
-export async function POST(
-  request: Request,
-  route: { params: Promise<{ resource: string }> },
-) {
+export async function POST(request: Request, context: { params: Promise<{ resource: string }> }) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId)
-      throw new HttpError(401, "Sign in to an organisation workspace.");
-    const { resource } = await route.params;
-    if (!isCrmDefinition(resource) || !isCrmApiResource(resource))
-      throw new HttpError(404, "Unknown CRM resource.");
-    if (resource === "assignment-rules")
-      throw new HttpError(
-        410,
-        "Use the governed Lead Assignment Rules API.",
-        "CRM_ASSIGNMENT_RULE_API_MOVED",
-      );
-    if (resource === "sources")
-      throw new HttpError(
-        410,
-        "Use the governed Lead Sources API.",
-        "CRM_LEAD_SOURCE_API_MOVED",
-      );
-    if (resource === "stages")
-      throw new HttpError(
-        410,
-        "Use the governed Sales Stages API.",
-        "CRM_SALES_STAGE_API_MOVED",
-      );
-    requireCrmManage(session, resource);
-    await requireBillingWriteAccess(session.organizationId);
-    const rawInput = (await readJson(request)) as Record<string, unknown>;
-    if (
-      resource === "leads" &&
-      ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
-        (field) => Object.prototype.hasOwnProperty.call(rawInput, field),
-      )
-    )
-      throw new HttpError(
-        409,
-        "New Leads always begin in the configured initial lifecycle stage.",
-        "CRM_LEAD_INITIAL_STAGE_GOVERNED",
-      );
-    const input = await crmSchemas[resource].parseAsync(rawInput);
-    if (
-      resource === "leads" &&
-      Object.prototype.hasOwnProperty.call(rawInput, "duplicateOverrideReason")
-    ) {
-      const reason = String(rawInput.duplicateOverrideReason || "").trim();
-      if (reason.length > 1000)
-        throw new HttpError(
-          400,
-          "Duplicate override reason must be at most 1,000 characters.",
-          "CRM_LEAD_DUPLICATE_OVERRIDE_REASON_REQUIRED",
-        );
-      input.duplicateOverrideReason = reason;
-    }
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(
-      context.organizationId,
-      async (client) => {
-        const isTask = resource === "activities" && String(input.activityType || "task").toLowerCase() === "task";
-        let created;
-        if (isTask) {
-          const taskInput: Record<string, unknown> = { ...input };
-          delete taskInput.activityType;
-          delete taskInput.status;
-          created = await createCrmTask(client, context, taskInput);
-        } else {
-          created = await createCrmRecord(client, context, resource, input);
-        }
-        await audit({
-          organizationId: context.organizationId,
-          actorUserId: session.userId,
-          eventType: `crm.${resource}.created`,
-          entityType: resource,
-          entityId: String(created.id),
-          afterData: crmAuditSnapshot(resource, created, Object.keys(input).filter((field) => field !== "duplicateOverrideReason")),
-          request,
-          client,
-        });
-        return created;
-      },
-    );
-    return ok(
-      {
-        message: `${crmDefinitions[resource].singular.replace(/^./, (c) => c.toUpperCase())} created.`,
-        record,
-      },
-      201,
-    );
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { resource } = await context.params;
+    if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmMutationAccess(client, session, resource);
+      return createCrmRecord(client, crmContext(session), resource, input);
+    });
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

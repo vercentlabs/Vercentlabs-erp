@@ -141,7 +141,7 @@ const SP_SECTION_RULES = {
   API: { relevance: "NO_DIRECT_UI", reason: "API/transport contract requirement; consumed by the UI but is not itself a UI decision." },
   MOBILE: { relevance: "AFFECTS_UI_STATE", reason: "Defines the mobile support classification (full/field-optimized/approval-only/read-only/not-applicable) that other DIRECT_UI rows inherit, not a screen of its own." },
   RESPONSIVE: { relevance: "AFFECTS_UI_STATE", reason: "Defines desktop/tablet/phone adaptation rules inherited by other DIRECT_UI rows, not a screen of its own." },
-  ACCESSIBILITY: { relevance: "AFFECTS_UI_STATE", reason: "Governs HOW every UI surface must behave (keyboard/focus/contrast/motion/etc.); see SP032's own dedicated rows for the concrete acceptance contract this drives in packages/ui-web." },
+  ACCESSIBILITY: { relevance: "AFFECTS_UI_STATE", reason: "Governs HOW every UI surface must behave (keyboard/focus/contrast/motion/etc.); see SP032's own dedicated rows for the concrete acceptance contract this drives in packages/design-system." },
   "VISUAL-EVIDENCE": { relevance: "NO_DIRECT_UI", reason: "Process requirement to produce wireframes/state diagrams BEFORE implementation; the requirement is procedural, not itself a UI surface." },
   PERFORMANCE: { relevance: "AFFECTS_UI_STATE", reason: "Surfaces as loading/skeleton/virtualization behavior, not a distinct screen." },
   OBSERVABILITY: { relevance: "NO_DIRECT_UI", reason: "Telemetry/logging requirement; operator-facing only via SP030 diagnostics surfaces." },

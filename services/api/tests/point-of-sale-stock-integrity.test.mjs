@@ -55,12 +55,14 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
   const stockMovementInserts = [];
   const stockBalanceUpserts = [];
   const valuationLayerInserts = [];
+  const saleLineInserts = [];
   const wave0 = createWave0PrimitiveHarness();
 
   return {
     stockMovementInserts,
     stockBalanceUpserts,
     valuationLayerInserts,
+    saleLineInserts,
     async query(sql, params) {
       const wave0Result = wave0.handle(sql, params);
       if (wave0Result) return wave0Result;
@@ -71,6 +73,16 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available\s+FROM tenant\.stock_balances/.test(sql))
         return { rows: [{ available: availableStock }] }; // POS's own unlocked pre-check
       if (/INSERT INTO tenant\.pos_sales/.test(sql)) return { rows: [{ id: saleId, store_id: "store-1", terminal_id: "terminal-1" }] };
+      if (/SELECT id,name,tax_category_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
+        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null })) };
+      // F278: authoritative tax/currency/jurisdiction resolution added this
+      // session — no tax category on the test item, so these resolve to
+      // "no tax" (decimal_places=2, no seller/buyer state, no rate).
+      if (/SELECT decimal_places FROM tenant\.currencies/.test(sql)) return { rows: [{ decimal_places: 2 }] };
+      if (/SELECT seller_state_code FROM tenant\.sales_settings/.test(sql)) return { rows: [] };
+      if (/SELECT state_code FROM tenant\.addresses/.test(sql)) return { rows: [] };
+      if (/SELECT tax_inclusive FROM tenant\.price_lists/.test(sql)) return { rows: [{ tax_inclusive: false }] };
+      if (/FROM tenant\.tax_rates WHERE/.test(sql)) return { rows: [] };
       if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
       if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql))
         return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "50" }] };
@@ -102,7 +114,10 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
         valuationLayerInserts.push({ quantity: params[5] });
         return { rows: [] };
       }
-      if (/INSERT INTO tenant\.pos_sale_lines/.test(sql)) return { rows: [] };
+      if (/INSERT INTO tenant\.pos_sale_lines/.test(sql)) {
+        saleLineInserts.push({ itemId: params[3], variantId: params[4], description: params[5] });
+        return { rows: [] };
+      }
       if (/INSERT INTO tenant\.pos_payments/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.pos_cash_movements/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.pos_events/.test(sql)) return { rows: [] };
@@ -192,4 +207,32 @@ test("POS: serial-tracked sale lines preserve serial_id through the canonical po
   await completePointOfSale(client, baseContext(), saleInput({ lines: [{ itemId, quantity: 1, unitPrice: 100, serialId }], payments: [{ method: "cash", amount: 100 }] }));
   assert.equal(client.stockMovementInserts.length, 1);
   assert.equal(client.stockMovementInserts[0].serial_id, serialId);
+});
+
+// Found via real PostgreSQL testing (not this fake-client suite): the prior
+// code passed line.description straight into an INSERT against a NOT NULL
+// column with no fallback, so any checkout call that didn't happen to
+// supply a description on every line failed with a raw "null value in
+// column violates not-null constraint" — a real, previously undetected
+// defect, since this suite's own saleInput() helper never sets one either.
+test("POS: sale-line description defaults to the item's own name when the caller doesn't supply one (pos_sale_lines.description is NOT NULL)", async () => {
+  const client = trackingClient();
+  await completePointOfSale(client, baseContext(), saleInput());
+  assert.equal(client.saleLineInserts.length, 1);
+  assert.equal(client.saleLineInserts[0].description, "Test Item");
+});
+
+test("POS: an explicit line description is preserved rather than overridden by the item name", async () => {
+  const client = trackingClient();
+  await completePointOfSale(client, baseContext(), saleInput({ lines: [{ itemId, quantity: 1, unitPrice: 100, description: "Gift-wrapped" }], payments: [{ method: "cash", amount: 100 }] }));
+  assert.equal(client.saleLineInserts[0].description, "Gift-wrapped");
+});
+
+test("POS: an unknown item id is rejected before any stock/price lookup, not left to surface as a confusing downstream error", async () => {
+  const client = trackingClient();
+  const unknownItemId = "00000000-0000-4000-8000-000000000000";
+  await assert.rejects(
+    () => completePointOfSale(client, baseContext(), saleInput({ lines: [{ itemId: unknownItemId, quantity: 1, unitPrice: 100 }] })),
+    (error) => error?.status === 404 && error?.code === "POS_SALE_ITEM_NOT_FOUND",
+  );
 });

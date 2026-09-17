@@ -1,61 +1,46 @@
-import {
-  addContactAccountRelationship,
-  listContactAccountRelationships,
-} from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { requirePermissionFromSession, PERMISSIONS } from "@/core/authorization";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
+import { addContactAccountRelationship, assertSameOriginOrMobile, listContactAccountRelationships } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-export async function GET(
-  _request: Request,
-  route: { params: Promise<{ id: string }> },
-) {
+import { tenantTransaction } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+// F003 Stage A2 — listContactAccountRelationships/addContactAccountRelationship
+// (contact-relationships.js) already governed a full multi-account Contact
+// relationship model (tenant.crm_contact_account_relationships, migration
+// 088) — organization scope, relationship/stakeholder role, primary
+// semantics, audit, merge reconciliation — already tested
+// (crm-contact-account-relationships-f003.test.mjs) with zero frontend
+// consumer before this pass. Not a new migration; a wiring gap.
+export async function GET(_request: Request, context: RouteContext) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const { id } = await route.params;
-    const context = await crmApiContext(session);
-    const relationships = await tenantTransaction(context.organizationId, (client) =>
-      listContactAccountRelationships(client, context, id),
-    );
-    return ok({ relationships });
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const rows = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return listContactAccountRelationships(client, crmContext(session), id);
+    });
+    return ok({ rows });
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
-export async function POST(
-  request: Request,
-  route: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: Request, context: RouteContext) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.partiesManage);
-    const { id } = await route.params;
-    const body = (await readJson(request)) as Record<string, unknown>;
-    const context = await crmApiContext(session);
-    const relationships = await tenantTransaction(context.organizationId, async (client) => {
-      const result = await addContactAccountRelationship(client, context, id, body);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: session.userId,
-        eventType: "crm.contact_relationships.added",
-        entityType: "contact",
-        entityId: id,
-        afterData: { accountId: body.accountId, stakeholderRole: body.stakeholderRole },
-        request,
-        client,
-      });
-      return result;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const { id } = await context.params;
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const rows = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      return addContactAccountRelationship(client, crmContext(session), id, input);
     });
-    return ok({ message: "Relationship added.", relationships });
+    return ok({ rows }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

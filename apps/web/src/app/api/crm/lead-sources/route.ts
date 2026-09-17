@@ -1,92 +1,42 @@
-import { createCrmLeadSource, listCrmLeadSources } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createCrmLeadSource, listCrmLeadSources } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { getSessionContext } from "@/core/auth";
-import {
-  incrementBillingUsage,
-  requireBillingWriteAccess,
-} from "@/core/billing";
-import {
-  PERMISSIONS,
-  requirePermissionFromSession,
-} from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-function sourceInput(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new HttpError(
-      400,
-      "Provide a lead source object.",
-      "CRM_LEAD_SOURCE_INPUT_INVALID",
-    );
-  return value as Record<string, unknown>;
-}
-
-export async function GET(request: Request) {
+// F004 Lead Sources — the dedicated governed module (lead-source-
+// operations.js), not the generic /api/crm/[resource] boundary. That
+// boundary already redirects "sources" create/update/archive to
+// CRM_LEAD_SOURCE_API_MOVED (410) precisely so this richer module
+// (default-source uniqueness, lead-count projection, sort order) stays
+// the one real mutation path — verified by reading resource-mutation-
+// service.js before building this, not assumed.
+export async function GET() {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId)
-      throw new HttpError(401, "Sign in to an organisation workspace.");
-    requireCrmView(session);
-    const context = await crmApiContext(session);
-    const url = new URL(request.url);
-    const requested = url.searchParams.get("status") || "active";
-    const status = ["active", "inactive", "all"].includes(requested)
-      ? requested
-      : "active";
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      listCrmLeadSources(client, context, {
-        search: url.searchParams.get("search") || "",
-        status,
-        limit: Number(url.searchParams.get("limit") || 25),
-        offset: Number(url.searchParams.get("offset") || 0),
-      }),
-    );
+    const session = await requireWorkspace();
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return listCrmLeadSources(client, crmContext(session), { status: "all", limit: 200 });
+    });
     return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId)
-      throw new HttpError(401, "Sign in to an organisation workspace.");
-    requireCrmView(session);
-    requirePermissionFromSession(session, PERMISSIONS.crmSettingsManage);
-    await requireBillingWriteAccess(session.organizationId);
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const input = sourceInput(await readJson(request));
-    const record = await tenantTransaction(
-      context.organizationId,
-      async (client) => {
-        const created = await createCrmLeadSource(client, context, input);
-        await audit({
-          organizationId: context.organizationId,
-          actorUserId: context.userId,
-          eventType: "crm.lead_sources.created",
-          entityType: "lead_source",
-          entityId: String(created.id),
-          afterData: {
-            id: created.id,
-            name: created.name,
-            code: created.code,
-            status: created.status,
-          },
-          request,
-          client,
-        });
-        return created;
-      },
-    );
-    return ok({ message: "Lead source created.", record }, 201);
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      return createCrmLeadSource(client, crmContext(session), input);
+    });
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

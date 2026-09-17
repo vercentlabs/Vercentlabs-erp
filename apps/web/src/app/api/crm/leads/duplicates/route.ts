@@ -1,106 +1,24 @@
-import { dismissLeadDuplicateMatch, evaluateLeadDuplicateRisk, findLeadContactCrossMatches } from "@vercentlabs/api";
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
-import { crmApiContext, rethrowCrmError } from "@/modules/crm";
-import { duplicateSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { assertSameOriginOrMobile, findCrmDuplicates } from "@vercentlabs/api";
+
 import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-function publicDuplicateResult(evaluation: { classification: string; matches: Array<Record<string, unknown>>; canOverride: boolean }) {
-  const matches = evaluation.matches.filter((match) => match.restricted !== true);
-  const classification = matches.some((match) => match.classification === "exact")
-    ? "exact"
-    : matches.length
-      ? "probable"
-      : evaluation.matches.some((match) => match.restricted === true)
-        ? "restricted"
-        : "none";
-  return {
-    classification,
-    matches,
-    restrictedMatch: evaluation.matches.some((match) => match.restricted === true),
-    canOverride: evaluation.canOverride,
-  };
-}
-
-export async function GET(request: Request) {
-  try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requireCrmView(session);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-    const url = new URL(request.url);
-    const input = duplicateSchema.parse(
-      Object.fromEntries(url.searchParams.entries()),
-    );
-    const context = await crmApiContext(session);
-    const [evaluation, contactMatches] = await tenantTransaction(
-      context.organizationId,
-      async (client) => [
-        await evaluateLeadDuplicateRisk(client, context, input, {
-          excludeLeadId: input.excludeId || null,
-          lock: false,
-        }),
-        // F008 cross-object matching (CRM-VNEXT-045): a Lead and an
-        // existing Contact can represent the same real person. Surfaced
-        // separately from the Lead-vs-Lead `matches` array so the existing,
-        // well-tested Lead classification/override contract is unaffected —
-        // this is purely additive evidence, gated by the same
-        // crmLeadsViewSensitive permission already required above (Contact
-        // email/mobile is itself sensitive content).
-        await findLeadContactCrossMatches(client, context, input),
-      ],
-    );
-    const publicResult = publicDuplicateResult(evaluation);
-    return ok({
-      ...publicResult,
-      contactMatches,
-      // Compatibility alias for existing clients while F008 becomes canonical.
-      duplicates: publicResult.matches,
-    });
-  } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
-  }
-}
-
+// F008 possible-duplicate check, called while composing a new/edited
+// lead — never auto-merges; the UI shows candidates and requires an
+// explicit authorized decision (see /api/crm/leads/[id]/merge).
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requireCrmView(session);
-    requirePermissionFromSession(session, PERMISSIONS.crmLeadsViewSensitive);
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const leadId = String(input.leadId || "");
-    const matchedLeadId = String(input.matchedLeadId || "");
-    const reason = String(input.reason || "");
-    const context = await crmApiContext(session);
-    const dismissal = await tenantTransaction(context.organizationId, async (client) => {
-      const record = await dismissLeadDuplicateMatch(client, context, leadId, matchedLeadId, reason);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: session.userId,
-        eventType: "crm.lead.duplicate_dismissed",
-        entityType: "lead",
-        entityId: leadId,
-        afterData: { matchedLeadId, reason },
-        request,
-        client,
-      });
-      return record;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const body = (await readJson(request)) as { input: Record<string, unknown>; excludeId?: string | null };
+    const duplicates = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return findCrmDuplicates(client, crmContext(session), body.input, body.excludeId ?? null);
     });
-    return ok({ message: "Duplicate signal dismissed.", dismissal });
+    return ok({ duplicates });
   } catch (error) {
-    try {
-      rethrowCrmError(error);
-    } catch (mapped) {
-      return errorResponse(mapped);
-    }
+    return errorResponse(error);
   }
 }

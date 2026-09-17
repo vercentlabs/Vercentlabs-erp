@@ -1,143 +1,120 @@
+import { z } from "zod";
+
 import {
-  createSession,
-  nextPath,
-  setSessionCookie,
   verifyPasswordOrDummy,
-} from "@/core/auth";
-import { query } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit, recordLoginEvent } from "@/core/security";
+  createSession,
+  setSessionOrganization,
+} from "@vercentlabs/api";
 import {
-  enforceLoginRateLimits,
-  GENERIC_LOGIN_FAILURE,
-  isAccountLocked,
-  isLoginUsable,
-  loginFailureReason,
-  recordFailedPasswordAttempt,
-  recordSuccessfulLogin,
-} from "@/core/login-policy";
-import { loginSchema } from "@/core/validation";
+  assertSameOrigin,
+  clientIp,
+  enforceRateLimit,
+  audit,
+  recordLoginEvent,
+} from "@vercentlabs/api";
+
+import { transaction, withClient } from "@/core/db";
+import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { setSessionCookie } from "@/core/session";
+
+const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(320),
+  password: z.string().min(1).max(200),
+});
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const input = loginSchema.parse(await readJson(request));
-    await enforceLoginRateLimits(request, input.email);
+    assertSameOrigin(request, process.env);
+    const body = loginSchema.parse(await readJson(request));
 
-    const rows = await query<{
-      id: string;
-      email: string;
-      full_name: string;
-      password_hash: string;
-      email_verified_at: Date | null;
-      status: string;
-      locked_until: Date | null;
-      organization_id: string | null;
-      organization_name: string | null;
-      role: "owner" | "admin" | "member" | null;
-    }>(
-      `
-      SELECT
-        app_user.id,
-        app_user.email,
-        app_user.full_name,
-        app_user.password_hash,
-        app_user.email_verified_at,
-        app_user.status,
-        app_user.locked_until,
-        membership.organization_id,
-        organization.name AS organization_name,
-        membership.role
-      FROM users AS app_user
-      LEFT JOIN LATERAL (
-        SELECT organization_membership.organization_id,
-          organization_membership.role,
-          organization_membership.created_at
-        FROM organization_memberships AS organization_membership
-        JOIN organizations AS active_organization
-          ON active_organization.id = organization_membership.organization_id
-         AND active_organization.status = 'active'
-        WHERE organization_membership.user_id = app_user.id
-          AND organization_membership.status = 'active'
-        ORDER BY organization_membership.created_at ASC,
-          organization_membership.organization_id ASC
-        LIMIT 1
-      ) AS membership ON true
-      LEFT JOIN organizations AS organization
-        ON organization.id = membership.organization_id
-      WHERE app_user.email = $1
-      LIMIT 1
-    `,
-      [input.email],
+    await withClient((client) =>
+      enforceRateLimit(
+        client,
+        `login:${clientIp(request, process.env)}`,
+        10,
+        300,
+      ),
     );
 
-    const user = rows[0];
-    const passwordValid = await verifyPasswordOrDummy(
-      input.password,
-      user?.password_hash,
+    const user = await withClient(async (client) => {
+      const rows = await client.query(
+        `SELECT id, email, password_hash, status FROM users WHERE lower(email) = $1 LIMIT 1`,
+        [body.email],
+      );
+      return rows.rows[0] as
+        | {
+            id: string;
+            email: string;
+            password_hash: string | null;
+            status: string;
+          }
+        | undefined;
+    });
+
+    const passwordOk = await verifyPasswordOrDummy(
+      body.password,
+      user?.password_hash ?? null,
     );
-    const locked = isAccountLocked(user);
-    const accountUsable = isLoginUsable(user, passwordValid);
+    const succeeded = Boolean(user && user.status === "active" && passwordOk);
 
-    if (!accountUsable) {
-      const reason = loginFailureReason(user, passwordValid);
-
-      if (user && !passwordValid && !locked) {
-        await recordFailedPasswordAttempt(user.id);
-      }
-
-      await recordLoginEvent({
+    await withClient((client) =>
+      recordLoginEvent(client, {
         request,
-        email: input.email,
-        userId: user?.id,
-        succeeded: false,
-        reason,
-      });
-      throw new HttpError(401, GENERIC_LOGIN_FAILURE);
+        email: body.email,
+        userId: user?.id ?? null,
+        succeeded,
+        reason: succeeded ? undefined : "invalid_credentials",
+        env: process.env,
+      }),
+    );
+
+    if (!succeeded || !user) {
+      throw new HttpError(
+        401,
+        "Incorrect email or password.",
+        "AUTH_INVALID_CREDENTIALS",
+      );
     }
 
-    await recordSuccessfulLogin(user.id);
-
-    const session = await createSession(user.id, request, user.organization_id);
-    const context = {
-      sessionId: session.sessionId,
-      userId: user.id,
-      email: user.email,
-      fullName: user.full_name,
-      locale: "en-IN",
-      timezone: "UTC",
-      emailVerified: true,
-      organizationId: user.organization_id,
-      organizationName: user.organization_name,
-      membershipRole: user.role,
-      roleSlugs: [],
-      permissions: [],
-      activeCompanyId: null,
-      companyName: null,
-      activeBranchId: null,
-      branchName: null,
-    };
-
-    await recordLoginEvent({
-      request,
-      email: input.email,
-      userId: user.id,
-      succeeded: true,
+    const session = await transaction(async (client) => {
+      const created = await createSession(client, {
+        userId: user.id,
+        ipAddress: clientIp(request, process.env),
+        userAgent: request.headers.get("user-agent"),
+        env: process.env,
+      });
+      // Attach the user's most recently active organization, if any —
+      // getSessionContext()'s own membership query re-resolves and
+      // corrects this on first use, this is only a helpful default.
+      const membership = await client.query(
+        `SELECT organization_id FROM organization_memberships
+          WHERE user_id = $1 AND status = 'active'
+          ORDER BY created_at ASC LIMIT 1`,
+        [user.id],
+      );
+      const organizationId = membership.rows[0]?.organization_id as
+        string | undefined;
+      if (organizationId) {
+        await setSessionOrganization(
+          client,
+          created.sessionId,
+          user.id,
+          organizationId,
+        );
+      }
+      await audit(client, {
+        organizationId: organizationId ?? null,
+        actorUserId: user.id,
+        eventType: "auth.session.created",
+        entityType: "session",
+        entityId: created.sessionId,
+        request,
+        env: process.env,
+      });
+      return created;
     });
-    await audit({
-      organizationId: user.organization_id,
-      actorUserId: user.id,
-      eventType: "auth.login_succeeded",
-      entityType: "user",
-      entityId: user.id,
-      request,
-    });
 
-    const response = ok({
-      message: "Signed in successfully.",
-      next: nextPath(context),
-    });
-    response.headers.set("Cache-Control", "private, no-store");
+    const response = ok({ message: "Signed in." });
     setSessionCookie(response, session);
     return response;
   } catch (error) {

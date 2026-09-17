@@ -61,6 +61,23 @@ export function assignLeadOwner(
   },
 ): Promise<any>;
 export function listLeadStages(client: QueryClient, context: CrmContext, options?: { status?: string }): Promise<any>;
+export function classifyLeadStageCustomization(client: QueryClient, context: CrmContext, stages: any[]): Promise<"CUSTOMIZED" | "UNTOUCHED_STANDARD_3_STAGE">;
+export function previewLeadStageTemplateUpgrade(client: QueryClient, context: CrmContext): Promise<{
+  stagesToCreate: Array<{ code: string; name: string; description: string }>;
+  labelsToChange: unknown[];
+  edgesToAdd: Array<{ fromCode: string; toCode: string }>;
+  edgesToRemove: unknown[];
+  affectedLeadCount: number;
+  requiresLeadMigration: boolean;
+  conflicts: Array<{ code: string; issue: string }>;
+}>;
+export function applyLeadStageTemplateUpgrade(client: QueryClient, context: CrmContext, input?: { confirm?: boolean }): Promise<{
+  applied: boolean;
+  stagesCreated: Array<{ code: string; name: string; description: string }>;
+  edgesAdded: Array<{ fromCode: string; toCode: string }>;
+}>;
+export const FIVE_STAGE_LEAD_TEMPLATE: ReadonlyArray<{ code: string; name: string; description: string; sortOrder: number; isInitial: boolean }>;
+export const FIVE_STAGE_LEAD_GRAPH: ReadonlyArray<readonly [string, string]>;
 export function getLeadStage(client: QueryClient, context: CrmContext, idOrCode: string): Promise<any>;
 export function createLeadStage(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
 export function updateLeadStage(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
@@ -204,6 +221,9 @@ export function startCrmMeeting(client: QueryClient, context: CrmContext, id: st
 export function completeCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
 export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
 
+
+export * from "./crm-data-operations-and-customization/custom-field-runtime.js";
+export * from "./crm-data-operations-and-customization/tag-assignment.js";
 
 export function listCrmTasks(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmTask(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean }): Promise<any>;

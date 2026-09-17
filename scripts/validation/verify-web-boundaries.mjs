@@ -1,5 +1,15 @@
 #!/usr/bin/env node
-
+// NOT CURRENTLY WIRED to any root script or CI workflow (removed during the
+// clean-slate frontend rebuild's repository-hygiene pass — see
+// docs/frontend-rebuild/README.md). This checks layer boundaries
+// (shared/core/orchestration/modules) in apps/web/src, which was the OLD
+// architecture's layering convention; the new apps/web doesn't have that
+// structure yet (nothing built past the bootstrap placeholder), so running
+// this now just reports the new directories as "missing," not as violations
+// of anything real. Kept as reference for whoever defines the new
+// architecture's layering convention (Prompt 2/3) — rewrite the `layers`
+// map below against that convention and re-wire a root script once it
+// exists, rather than guessing it here.
 import fs from "node:fs";
 import path from "node:path";
 

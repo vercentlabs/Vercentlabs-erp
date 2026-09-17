@@ -78,6 +78,19 @@ function crmClient({ leadRow = ownedLead, table = "crm_leads", ownerColumn = "ow
       if (hasRecordWhere(sql, table)) {
         return { rows: visible(sql, params) ? [leadRow] : [] };
       }
+      // Stage A2 Prompt 3 live-browser QA fix: listCrmRecords/getCrmRecord
+      // now batch-resolve stageName/partyName/contactName/ownerName for
+      // "opportunities" (resource-query-service.js's
+      // annotateOpportunityRelations) — real, read-only lookups this shared
+      // mock factory's opportunity-shaped tests now also receive.
+      if (
+        sql.startsWith("SELECT id, name FROM tenant.crm_pipeline_stages") ||
+        sql.startsWith("SELECT id, display_name FROM tenant.business_parties") ||
+        sql.startsWith("SELECT id, first_name, last_name FROM tenant.contacts") ||
+        sql.startsWith("SELECT id, full_name FROM public.users")
+      ) {
+        return { rows: [] };
+      }
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -242,6 +255,37 @@ test("CRM analytics: the forecast (salesperson performance) report threads owner
   };
   await getCrmReport(managerClient, managerContext, "forecast", {});
   assert.equal(managerParams[6], true);
+});
+
+// Checkpoint audit (Prompt 3 continuation): before this fix, a Sales
+// Team manager WITHOUT the broad crm.records.view_all grant (i.e. an
+// ordinary rep-level permission set) could only ever forecast their own
+// deals through this report — there was no team-hierarchy-aware rollup
+// anywhere. This test asserts the new team-membership subquery is
+// actually present in the generated SQL (not just that $7/$8 still bind
+// correctly, which the test above already covers) and that it's scoped
+// by crm_sales_teams.manager_user_id / crm_sales_team_members, not a
+// broader grant.
+test("CRM analytics: the forecast report includes a team-hierarchy rollup for a manager without crm.records.view_all", async () => {
+  let capturedSql;
+  let capturedParams;
+  const client = {
+    async query(sql, params) {
+      capturedSql = sql;
+      capturedParams = params;
+      return { rows: [] };
+    },
+  };
+  // A manager with only ordinary rep permissions (no crm.records.view_all) —
+  // exactly the role the pre-existing binary ownerVisible() could not serve.
+  const teamManagerContext = baseContext(otherUser, repPermissions);
+  await getCrmReport(client, teamManagerContext, "forecast", {});
+  assert.equal(capturedParams[6], false); // $7 canViewAllCrmRecords is still false
+  assert.equal(capturedParams[7], otherUser); // $8 is still the caller
+  assert.match(capturedSql, /crm_sales_team_members/);
+  assert.match(capturedSql, /crm_sales_teams/);
+  assert.match(capturedSql, /team\.manager_user_id\s*=\s*\$8/);
+  assert.match(capturedSql, /member\.status\s*=\s*'active'/);
 });
 
 test("CRM: activities are scoped by their own assignee, independent of a parent opportunity's owner (parent/child bypass closed)", async () => {

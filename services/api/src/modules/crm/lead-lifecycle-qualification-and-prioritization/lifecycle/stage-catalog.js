@@ -14,8 +14,69 @@ import {
   getLeadStage,
   scopedLeadWhere,
 } from "./shared.js";
+import { STAGE_MIGRATION_JOB_TYPE } from "./stage-migration.js";
 
 export { getLeadStage };
+
+// Vercentlabs standard Lead pipeline (see docs/03-modules/crm/DECISIONS.md
+// "Default Lead pipeline = five operational stages"): a deliberately richer
+// default than the original 3-stage new/contacted/working pipeline, while
+// keeping the three-axis model intact — this is ONLY the pipeline-stage
+// axis (F007). Qualification (F006: not_reviewed/qualified/unqualified) and
+// record_status (active/archived/converted) remain entirely separate columns
+// and are never represented as a pipeline stage here.
+//
+// Stable codes are chosen to preserve history: `new`, `contacted` and
+// `working` are the exact codes every existing organization's Leads already
+// reference (crm_leads.status), so no Lead record ever needs to change its
+// stage code merely because the label/order changed. `contacted` now means
+// "Connected" and `working` now means "Working / Discovery" as HUMAN-FACING
+// labels only — the code, which is what history/FKs/automation key off, is
+// unchanged. `attempting` and `nurturing` are new stable codes for the two
+// new stages.
+export const FIVE_STAGE_LEAD_TEMPLATE = Object.freeze([
+  { code: "new", name: "New", description: "Captured and awaiting first engagement.", sortOrder: 10, isInitial: true },
+  { code: "attempting", name: "Attempting Contact", description: "Outreach has been initiated; awaiting a response.", sortOrder: 20, isInitial: false },
+  { code: "contacted", name: "Connected", description: "Two-way contact has been established with the prospect.", sortOrder: 30, isInitial: false },
+  { code: "working", name: "Working / Discovery", description: "Active follow-up or discovery is underway.", sortOrder: 40, isInitial: false },
+  { code: "nurturing", name: "Nurturing", description: "A real prospect worth retaining, but not currently in active discovery. Not the same as Unqualified — qualification is tracked separately.", sortOrder: 50, isInitial: false },
+]);
+
+// The recommended directed graph: a forward path from New through to
+// Nurturing, plus one re-engagement edge back to Attempting Contact so a
+// nurtured Lead can be worked again. Deliberately NOT an all-to-all or
+// bidirectional-adjacency graph — every edge here is a real, intentional
+// business transition (see docs/03-modules/crm/features/F007-lead-stages-
+// and-statuses.md's transition-graph requirement).
+export const FIVE_STAGE_LEAD_GRAPH = Object.freeze([
+  ["new", "attempting"],
+  ["attempting", "contacted"],
+  ["contacted", "working"],
+  ["working", "nurturing"],
+  ["nurturing", "attempting"],
+]);
+
+// The exact stage rows migration 063 originally seeded for every
+// organization, before this template existed. Used only to recognize an
+// "untouched legacy default" organization for the safe automatic upgrade
+// below — never used to seed anything new.
+const LEGACY_THREE_STAGE_SEED = Object.freeze({
+  new: { name: "New", description: "Captured and awaiting first engagement.", sortOrder: 10 },
+  contacted: { name: "Contacted", description: "Initial outreach has been made.", sortOrder: 20 },
+  working: { name: "Working", description: "Active follow-up or discovery is underway.", sortOrder: 30 },
+});
+
+// Migration 063 seeded a bidirectional adjacency graph for organizations
+// that existed before migration 093 introduced the real directed-graph
+// model (093's own comment: "Existing rows ... are left untouched ...
+// every org's current graph keeps working exactly as before"). Organizations
+// created AFTER 093 instead got the one-directional new->contacted->working
+// graph this file used to seed. Both are "the untouched default" for
+// classification purposes — neither represents deliberate admin
+// configuration — so both are recognized here, and either is eligible for
+// the safe automatic upgrade to the five-stage template.
+const LEGACY_KNOWN_EDGES = new Set(["new->contacted", "contacted->new", "contacted->working", "working->contacted"]);
+const LEGACY_REQUIRED_EDGES = ["new->contacted", "contacted->working"];
 
 function normalizeStageInput(input, { create = false } = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input))
@@ -81,43 +142,280 @@ async function uniqueCode(client, organizationId, name) {
   throw new CrmError(409, "A stable stage code could not be allocated.", "CRM_LEAD_STAGE_CODE_CONFLICT");
 }
 
-// Idempotent: seeds the 3 default stages exactly once per org, and — only
-// on the run that actually inserts them — seeds a sensible one-directional
-// default graph (new->contacted->working) via ON CONFLICT DO NOTHING. This
-// replaces the old "regenerate the whole bidirectional graph on every
-// call" behavior; an admin's own edits to the graph are never overwritten
-// by a later listLeadStages() call.
-export async function ensureDefaultLeadStages(client, context) {
-  const inserted = await client.query(
-    `INSERT INTO tenant.crm_lead_stages(
-       organization_id,code,name,description,sort_order,status,is_system,is_initial,created_by,updated_by
-     ) VALUES
-       ($1,'new','New','Captured and awaiting first engagement.',10,'active',true,true,$2,$2),
-       ($1,'contacted','Contacted','Initial outreach has been made.',20,'active',true,false,$2,$2),
-       ($1,'working','Working','Active follow-up or discovery is underway.',30,'active',true,false,$2,$2)
-     ON CONFLICT (organization_id,code) DO NOTHING
-     RETURNING id,code`,
-    [context.organizationId, context.userId || null],
-  );
-  if (!inserted.rows.length) return;
-  const byCode = Object.fromEntries(
-    (
-      await client.query(
-        `SELECT id,code FROM tenant.crm_lead_stages WHERE organization_id=$1 AND code IN ('new','contacted','working')`,
-        [context.organizationId],
-      )
-    ).rows.map((row) => [row.code, row.id]),
-  );
-  const edges = [
-    [byCode.new, byCode.contacted],
-    [byCode.contacted, byCode.working],
-  ].filter(([from, to]) => from && to);
-  for (const [from, to] of edges) {
+async function insertStageGraphEdges(client, context, graph, byCode) {
+  for (const [from, to] of graph) {
+    if (!byCode[from] || !byCode[to]) continue;
     await client.query(
       `INSERT INTO tenant.crm_lead_stage_transitions(organization_id,from_stage_id,to_stage_id,created_by)
        VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-      [context.organizationId, from, to, context.userId || null],
+      [context.organizationId, byCode[from], byCode[to], context.userId || null],
     );
+  }
+}
+
+async function seedFreshFiveStageTemplate(client, context) {
+  const actorId = context.userId || null;
+  const values = [];
+  const rows = FIVE_STAGE_LEAD_TEMPLATE.map((stage) => {
+    const base = values.length;
+    values.push(context.organizationId, stage.code, stage.name, stage.description, stage.sortOrder, stage.isInitial, actorId);
+    return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},'active',true,$${base + 6},$${base + 7},$${base + 7})`;
+  });
+  const inserted = await client.query(
+    `INSERT INTO tenant.crm_lead_stages(
+       organization_id,code,name,description,sort_order,status,is_system,is_initial,created_by,updated_by
+     ) VALUES ${rows.join(",")}
+     ON CONFLICT (organization_id,code) DO NOTHING
+     RETURNING id,code`,
+    values,
+  );
+  if (!inserted.rows.length) return; // race: another concurrent call already seeded
+  const byCode = Object.fromEntries(inserted.rows.map((row) => [row.code, row.id]));
+  await insertStageGraphEdges(client, context, FIVE_STAGE_LEAD_GRAPH, byCode);
+}
+
+// Recognizes an organization whose Lead stage catalogue is EXACTLY the
+// original 3-stage default with no admin customization at all — never a
+// heuristic guess. Every check here must pass for an automatic upgrade to
+// be safe; if any single check is ambiguous, the org is treated as
+// CUSTOMIZED and left alone (see docs/03-modules/point-of-sale-unrelated
+// principle applied here: fail closed toward preserving customer intent).
+export async function classifyLeadStageCustomization(client, context, stages) {
+  if (stages.length !== 3) return "CUSTOMIZED";
+  const byCode = Object.fromEntries(stages.map((s) => [s.code, s]));
+  if (!byCode.new || !byCode.contacted || !byCode.working) return "CUSTOMIZED";
+  for (const [code, seed] of Object.entries(LEGACY_THREE_STAGE_SEED)) {
+    const row = byCode[code];
+    if (row.status !== "active" || !row.is_system) return "CUSTOMIZED";
+    if (row.name !== seed.name || row.description !== seed.description) return "CUSTOMIZED";
+    if (Number(row.sort_order) !== seed.sortOrder) return "CUSTOMIZED";
+    if (row.dwell_warning_hours !== null || row.dwell_breach_hours !== null) return "CUSTOMIZED";
+  }
+  if (!byCode.new.is_initial || byCode.contacted.is_initial || byCode.working.is_initial) return "CUSTOMIZED";
+
+  const edges = await client.query(
+    `SELECT from_stage.code AS from_code,to_stage.code AS to_code,edge.reason_required
+       FROM tenant.crm_lead_stage_transitions edge
+       JOIN tenant.crm_lead_stages from_stage ON from_stage.organization_id=edge.organization_id AND from_stage.id=edge.from_stage_id
+       JOIN tenant.crm_lead_stages to_stage ON to_stage.organization_id=edge.organization_id AND to_stage.id=edge.to_stage_id
+      WHERE edge.organization_id=$1`,
+    [context.organizationId],
+  );
+  if (edges.rows.some((edge) => edge.reason_required)) return "CUSTOMIZED";
+  const edgeKeys = edges.rows.map((edge) => `${edge.from_code}->${edge.to_code}`);
+  if (!edgeKeys.every((key) => LEGACY_KNOWN_EDGES.has(key))) return "CUSTOMIZED";
+  if (!LEGACY_REQUIRED_EDGES.every((key) => edgeKeys.includes(key))) return "CUSTOMIZED";
+
+  const reasons = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.crm_lead_stage_transition_reasons WHERE organization_id=$1`,
+    [context.organizationId],
+  );
+  if (Number(reasons.rows[0]?.count || 0) > 0) return "CUSTOMIZED";
+
+  const migrations = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.background_jobs WHERE organization_id=$1 AND job_type=$2`,
+    [context.organizationId, STAGE_MIGRATION_JOB_TYPE],
+  );
+  if (Number(migrations.rows[0]?.count || 0) > 0) return "CUSTOMIZED";
+
+  return "UNTOUCHED_STANDARD_3_STAGE";
+}
+
+// Safe automatic upgrade for a classified-untouched organization: relabels
+// the 3 existing stages to the new template's names/descriptions/order
+// (safe — we've just proven these are unmodified defaults, not customer
+// text), adds the two new stages, and REBUILDS the transition graph from
+// scratch with the new 5-edge cycle. Rebuilding (not merely appending) the
+// graph is safe specifically because classifyLeadStageCustomization already
+// proved every existing edge is auto-generated, not admin-added — the
+// caller must never call this without that proof. Never touches
+// crm_leads.status or crm_lead_stage_events: existing Leads keep whatever
+// stage code they already have (the codes themselves never change), and
+// history remains exactly as it was.
+async function upgradeUntouchedThreeStageToFive(client, context, existingStages) {
+  const byCode = Object.fromEntries(existingStages.map((s) => [s.code, s]));
+  for (const stage of FIVE_STAGE_LEAD_TEMPLATE) {
+    if (!byCode[stage.code]) continue;
+    await client.query(
+      `UPDATE tenant.crm_lead_stages SET name=$3,description=$4,sort_order=$5,updated_at=now()
+        WHERE organization_id=$1 AND code=$2`,
+      [context.organizationId, stage.code, stage.name, stage.description, stage.sortOrder],
+    );
+  }
+  const newStages = FIVE_STAGE_LEAD_TEMPLATE.filter((stage) => !byCode[stage.code]);
+  for (const stage of newStages) {
+    await client.query(
+      `INSERT INTO tenant.crm_lead_stages(organization_id,code,name,description,sort_order,status,is_system,is_initial,created_by,updated_by)
+       VALUES ($1,$2,$3,$4,$5,'active',true,false,$6,$6)
+       ON CONFLICT (organization_id,code) DO NOTHING`,
+      [context.organizationId, stage.code, stage.name, stage.description, stage.sortOrder, context.userId || null],
+    );
+  }
+  await client.query(`DELETE FROM tenant.crm_lead_stage_transitions WHERE organization_id=$1`, [context.organizationId]);
+  const byCodeAfter = Object.fromEntries(
+    (await client.query(`SELECT id,code FROM tenant.crm_lead_stages WHERE organization_id=$1`, [context.organizationId])).rows.map((row) => [
+      row.code,
+      row.id,
+    ]),
+  );
+  await insertStageGraphEdges(client, context, FIVE_STAGE_LEAD_GRAPH, byCodeAfter);
+  await queueOutboxEvent(client, context, "crm.lead_stage_template.auto_upgraded", "lead_stage_template", context.organizationId, {
+    stagesAdded: newStages.map((stage) => stage.code),
+  });
+}
+
+// Idempotent seeding/upgrade entry point, called on every listLeadStages()
+// and (see resource-mutation-service.js) before the very first Lead a new
+// organization ever creates — a truly fresh organization otherwise has no
+// 'new' stage row for crm_leads_lifecycle_stage_fkey to reference at all.
+//
+// Three outcomes, computed fresh every call (never cached, never assumed):
+//   1. No stages exist yet -> seed the standard five-stage template.
+//   2. Stages exist and classify as UNTOUCHED_STANDARD_3_STAGE -> safe
+//      automatic upgrade to the five-stage template (see the function
+//      above for exactly what "safe" means here).
+//   3. Anything else (already five-stage, or genuinely customized) -> do
+//      nothing. An admin's own configuration, or a prior upgrade, is never
+//      overwritten by a later call.
+export async function ensureDefaultLeadStages(client, context) {
+  const existing = await client.query(
+    `SELECT code,name,description,sort_order,status,is_system,is_initial,dwell_warning_hours,dwell_breach_hours
+       FROM tenant.crm_lead_stages WHERE organization_id=$1`,
+    [context.organizationId],
+  );
+  if (!existing.rows.length) {
+    await seedFreshFiveStageTemplate(client, context);
+    return;
+  }
+  const classification = await classifyLeadStageCustomization(client, context, existing.rows);
+  if (classification === "UNTOUCHED_STANDARD_3_STAGE") {
+    await upgradeUntouchedThreeStageToFive(client, context, existing.rows);
+  }
+}
+
+// Administrative "Apply recommended Vercentlabs 5-stage template" workflow
+// for CUSTOMIZED organizations (ensureDefaultLeadStages never touches these
+// automatically). Purely additive: reports/creates only stages and edges
+// that are genuinely missing, never renames, removes or reorders anything
+// that already exists, and never moves a single Lead. Reuses the same
+// FIVE_STAGE_LEAD_TEMPLATE/FIVE_STAGE_LEAD_GRAPH the automatic path uses,
+// so both paths converge on the same end state.
+export async function previewLeadStageTemplateUpgrade(client, context) {
+  const stages = await client.query(
+    `SELECT id,code,name,status FROM tenant.crm_lead_stages WHERE organization_id=$1`,
+    [context.organizationId],
+  );
+  const byCode = Object.fromEntries(stages.rows.map((row) => [row.code, row]));
+  const stagesToCreate = FIVE_STAGE_LEAD_TEMPLATE.filter((stage) => !byCode[stage.code]).map((stage) => ({
+    code: stage.code,
+    name: stage.name,
+    description: stage.description,
+  }));
+
+  const edges = await client.query(
+    `SELECT from_stage.code AS from_code,to_stage.code AS to_code
+       FROM tenant.crm_lead_stage_transitions edge
+       JOIN tenant.crm_lead_stages from_stage ON from_stage.organization_id=edge.organization_id AND from_stage.id=edge.from_stage_id
+       JOIN tenant.crm_lead_stages to_stage ON to_stage.organization_id=edge.organization_id AND to_stage.id=edge.to_stage_id
+      WHERE edge.organization_id=$1`,
+    [context.organizationId],
+  );
+  const edgeKeySet = new Set(edges.rows.map((edge) => `${edge.from_code}->${edge.to_code}`));
+  const edgesToAdd = FIVE_STAGE_LEAD_GRAPH.filter(([from, to]) => !edgeKeySet.has(`${from}->${to}`)).map(([from, to]) => ({
+    fromCode: from,
+    toCode: to,
+  }));
+
+  // An edge can only be safely added if both its endpoints will be active
+  // stages after this preview's creations are applied — an existing stage
+  // an admin has deliberately deactivated is a real conflict, not
+  // something this workflow silently reactivates or routes around.
+  const conflicts = [];
+  const willBeActive = new Set(Object.values(byCode).filter((row) => row.status === "active").map((row) => row.code));
+  for (const stage of stagesToCreate) willBeActive.add(stage.code);
+  for (const [from, to] of FIVE_STAGE_LEAD_GRAPH) {
+    for (const code of [from, to]) {
+      if (byCode[code] && byCode[code].status !== "active" && !conflicts.some((conflict) => conflict.code === code)) {
+        conflicts.push({
+          code,
+          issue: `"${byCode[code].name}" (${code}) exists but is inactive, so the recommended edge ${from}->${to} cannot be wired safely. Reactivate it first or resolve manually.`,
+        });
+      }
+    }
+  }
+
+  const leadCounts = await client.query(
+    `SELECT status,count(*)::int AS count FROM tenant.crm_leads WHERE organization_id=$1 AND record_status='active' GROUP BY status`,
+    [context.organizationId],
+  );
+  const affectedLeadCount = leadCounts.rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+
+  return {
+    stagesToCreate,
+    labelsToChange: [], // A customized organization's existing labels are never auto-renamed.
+    edgesToAdd,
+    edgesToRemove: [], // Never removes a customer-configured edge.
+    affectedLeadCount,
+    requiresLeadMigration: false, // Purely additive — no existing Lead ever needs to move.
+    conflicts,
+  };
+}
+
+export async function applyLeadStageTemplateUpgrade(client, context, input = {}) {
+  try {
+    if (input.confirm !== true) {
+      throw new CrmError(
+        400,
+        "Explicit confirmation is required to apply the recommended Lead lifecycle template.",
+        "CRM_LEAD_STAGE_TEMPLATE_CONFIRMATION_REQUIRED",
+      );
+    }
+    const preview = await previewLeadStageTemplateUpgrade(client, context);
+    if (preview.conflicts.length) {
+      throw new CrmError(
+        409,
+        "Resolve the reported conflicts before applying the recommended template.",
+        "CRM_LEAD_STAGE_TEMPLATE_CONFLICT",
+        { conflicts: preview.conflicts },
+      );
+    }
+    for (const stage of preview.stagesToCreate) {
+      const template = FIVE_STAGE_LEAD_TEMPLATE.find((row) => row.code === stage.code);
+      const nextOrder = Number(
+        (await client.query(`SELECT coalesce(max(sort_order),0)+10 AS value FROM tenant.crm_lead_stages WHERE organization_id=$1`, [
+          context.organizationId,
+        ])).rows[0]?.value || 10,
+      );
+      await client.query(
+        `INSERT INTO tenant.crm_lead_stages(organization_id,code,name,description,sort_order,status,is_system,is_initial,created_by,updated_by)
+         VALUES ($1,$2,$3,$4,$5,'active',false,false,$6,$6)
+         ON CONFLICT (organization_id,code) DO NOTHING`,
+        [context.organizationId, template.code, template.name, template.description, nextOrder, context.userId],
+      );
+    }
+    const byCode = Object.fromEntries(
+      (await client.query(`SELECT id,code FROM tenant.crm_lead_stages WHERE organization_id=$1`, [context.organizationId])).rows.map((row) => [
+        row.code,
+        row.id,
+      ]),
+    );
+    const edgesAdded = [];
+    for (const edge of preview.edgesToAdd) {
+      if (!byCode[edge.fromCode] || !byCode[edge.toCode]) continue;
+      await client.query(
+        `INSERT INTO tenant.crm_lead_stage_transitions(organization_id,from_stage_id,to_stage_id,created_by)
+         VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+        [context.organizationId, byCode[edge.fromCode], byCode[edge.toCode], context.userId],
+      );
+      edgesAdded.push(edge);
+    }
+    await queueOutboxEvent(client, context, "crm.lead_stage_template.applied", "lead_stage_template", context.organizationId, {
+      stagesCreated: preview.stagesToCreate.map((stage) => stage.code),
+      edgesAdded,
+    });
+    return { applied: true, stagesCreated: preview.stagesToCreate, edgesAdded };
+  } catch (error) {
+    throw lifecycleError(error);
   }
 }
 

@@ -558,10 +558,11 @@ export const resources = Object.freeze({
     // same way every other owned CRM resource is scoped; a caller with
     // crm.records.view_all still sees everything (canViewAllCrmRecords
     // bypasses ownerField, matching every other resource's convention).
-    // Full team-hierarchy-aware rollup (a manager sees exactly their F020
-    // team's submissions, not just their own, without needing org-wide
-    // view-all) requires joining crm_sales_team_members and was judged a
-    // separate, larger enhancement — not attempted this pass.
+    // Stage A2 §11 closeout: full team-hierarchy-aware rollup (a manager
+    // sees exactly their F020 team's submissions, not just their own,
+    // without needing org-wide view-all) is now real — see recordScope's
+    // own forecast-submissions branch, joining crm_sales_team_members/
+    // crm_sales_teams verbatim.
     ownerField: "ownerUserId",
     fields: {
       companyId: "company_id",

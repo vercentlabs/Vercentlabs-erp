@@ -1,42 +1,23 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import AuthCard from "@/core/components/auth-card";
-import AuthForm from "@/core/components/auth-form";
-import { getSessionContext, nextPath } from "@/core/auth";
+
+import { getSessionContext, nextPath } from "@/core/session";
+import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in" };
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ reset?: string; expired?: string }>;
-}) {
+export default async function LoginPage() {
   const session = await getSessionContext();
   if (session) redirect(nextPath(session));
-  const { reset, expired } = await searchParams;
+
   return (
-    <AuthCard
-      pageClassName="viewport-auth-page"
-      eyebrow="Welcome back"
-      title="Sign in to your ERP workspace"
-      description="Use your verified work account to continue."
-      footer={
-        <p>
-          New to Vercentlabs ERP? <Link href="/signup">Create an account</Link>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">
+          Vercentlabs ERP
         </p>
-      }
-    >
-      {reset === "success" ? (
-        <p className="notice">
-          Password changed successfully. Sign in with the new password.
-        </p>
-      ) : null}
-      {expired === "1" ? (
-        <p className="notice">
-          Your session ended. Sign in again to continue securely.
-        </p>
-      ) : null}
-      <AuthForm mode="login" />
-    </AuthCard>
+        <h1 className="text-xl font-semibold text-text">Sign in</h1>
+      </div>
+      <LoginForm />
+    </div>
   );
 }

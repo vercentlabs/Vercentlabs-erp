@@ -4,11 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import {
-  analyzeExperience,
-  normalizeMediaQuery,
-  validateExperience,
-} from "./verify-experience.mjs";
+import { checkDesignSystemConvergence, countColorLiterals, countRawTables } from "./verify-experience.mjs";
 
 function write(root, relativePath, content) {
   const target = path.join(root, relativePath);
@@ -16,141 +12,63 @@ function write(root, relativePath, content) {
   fs.writeFileSync(target, content, "utf8");
 }
 
-function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vercent-experience-"));
-
-  write(
-    root,
-    "apps/web/src/app/layout.tsx",
-    'import "../shared/design/tokens.css";\nimport "./globals.css";\n',
-  );
-  write(
-    root,
-    "apps/web/src/shared/design/tokens.css",
-    ":root { --erp-color-surface: #fff; }\n",
-  );
-  write(
-    root,
-    "apps/web/src/app/globals.css",
-    ":root { --legacy: #fff; }\n@media (max-width: 760px) { .x { color: #111; } }\n",
-  );
-  write(root, "apps/web/src/app/page.tsx", "export default function Page(){ return null; }\n");
-
-  const baseline = {
-    canonicalTokenFile: "apps/web/src/shared/design/tokens.css",
-    canonicalMediaQueries: [
-      "(max-width:479px)",
-      "(max-width:767px)",
-      "(min-width:768px)and(max-width:1023px)",
-      "(min-width:1024px)",
-      "(min-width:1440px)",
-      "(prefers-reduced-motion:reduce)",
-      "print",
-    ],
-    legacyAppCssFiles: ["apps/web/src/app/globals.css"],
-    rootLayoutLegacyCssImports: ["./globals.css"],
-    legacyRootBlocksByFile: { "apps/web/src/app/globals.css": 1 },
-    legacyMediaQueriesByFile: {
-      "apps/web/src/app/globals.css": ["(max-width:760px)"],
-    },
-    legacyHardcodedColorLiteralsByFile: {
-      "apps/web/src/app/globals.css": 2,
-    },
-    legacyRawTableCountsByFile: {},
-    canonicalComponentFiles: [],
-    canonicalStyleFiles: [],
-    canonicalRawTableCountsByFile: {},
-  };
-
-  return { root, baseline };
+function fixtureRoot() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "vercent-convergence-"));
 }
 
-test("normalizes equivalent media-query spacing", () => {
-  assert.equal(
-    normalizeMediaQuery("(max-width: 760px)"),
-    normalizeMediaQuery("(max-width:760px)"),
-  );
+test("countColorLiterals finds hex/rgb/hsl literals", () => {
+  assert.equal(countColorLiterals("body { color: #fff; background: rgb(0 0 0); }"), 2);
+  assert.equal(countColorLiterals("body { color: var(--color-text); }"), 0);
 });
 
-test("reviewed legacy debt passes and canonical tokens are allowed", () => {
-  const { root, baseline } = fixture();
-  const failures = validateExperience(analyzeExperience(root), baseline);
+test("countRawTables finds raw <table> elements, not styled components named Table", () => {
+  assert.equal(countRawTables("<table><thead>"), 1);
+  assert.equal(countRawTables("<TableRoot><TableHeader>"), 0);
+});
+
+test("passes on a clean fixture: generated token file exempt, globals.css imports it, no raw tables", () => {
+  const root = fixtureRoot();
+  write(root, "apps/web/src/app/tokens.css", "@theme { --color-brand: #3f46d8; }\n");
+  write(root, "apps/web/src/app/globals.css", '@import "tailwindcss";\n@import "./tokens.css";\n');
+  write(root, "apps/web/src/app/page.tsx", "export default function Page() { return <div className=\"bg-brand\" />; }\n");
+  const { failures } = checkDesignSystemConvergence(root);
   assert.deepEqual(failures, []);
 });
 
-test("new global CSS fails closed", () => {
-  const { root, baseline } = fixture();
-  write(root, "apps/web/src/app/another-global.css", ".new { color: #222; }\n");
-  const failures = validateExperience(analyzeExperience(root), baseline);
-  assert.ok(failures.some((failure) => failure.includes("new application-global CSS")));
+test("fails when a non-generated CSS file has a hardcoded color literal", () => {
+  const root = fixtureRoot();
+  write(root, "apps/web/src/app/tokens.css", "@theme { --color-brand: #3f46d8; }\n");
+  write(root, "apps/web/src/app/globals.css", '@import "tailwindcss";\n@import "./tokens.css";\nbody { color: #111827; }\n');
+  const { failures } = checkDesignSystemConvergence(root);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /hard-coded color literal/);
 });
 
-test("new CSS Module must use canonical colors and media queries", () => {
-  const { root, baseline } = fixture();
+test("fails on a raw <table> outside EnterpriseDataGrid", () => {
+  const root = fixtureRoot();
+  write(root, "apps/web/src/app/globals.css", '@import "tailwindcss";\n@import "./tokens.css";\n');
+  write(root, "apps/web/src/app/leads/page.tsx", "export default function Page() { return <table><tbody /></table>; }\n");
+  const { failures } = checkDesignSystemConvergence(root);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /raw <table>/);
+});
+
+test("does not flag EnterpriseDataGrid's own <table> element", () => {
+  const root = fixtureRoot();
+  write(root, "apps/web/src/app/globals.css", '@import "tailwindcss";\n@import "./tokens.css";\n');
   write(
     root,
-    "apps/web/src/modules/crm/new.module.css",
-    ".x { color: #123456; }\n@media (max-width: 700px) { .x { display: block; } }\n",
+    "packages/design-system/src/enterprise/data-grid/EnterpriseDataGrid.tsx",
+    "export function EnterpriseDataGrid() { return <table><thead /></table>; }\n",
   );
-  const failures = validateExperience(analyzeExperience(root), baseline);
-  assert.ok(failures.some((failure) => failure.includes("hard-coded color")));
-  assert.ok(failures.some((failure) => failure.includes("noncanonical media query")));
+  const { failures } = checkDesignSystemConvergence(root);
+  assert.deepEqual(failures, []);
 });
 
-test("new raw table fails closed", () => {
-  const { root, baseline } = fixture();
-  write(
-    root,
-    "apps/web/src/modules/crm/new-table.tsx",
-    "export function NewTable(){ return <table><tbody /></table>; }\n",
-  );
-  const failures = validateExperience(analyzeExperience(root), baseline);
-  assert.ok(failures.some((failure) => failure.includes("raw <table> debt increased")));
-});
-
-test("canonical data-grid primitive may own one raw table while consumers may not", () => {
-  const { root, baseline } = fixture();
-  const grid = "apps/web/src/shared/design/enterprise-data-grid.tsx";
-  write(root, grid, "export function Grid(){ return <table><tbody /></table>; }\n");
-  baseline.canonicalComponentFiles = [grid];
-  baseline.canonicalRawTableCountsByFile = { [grid]: 1 };
-
-  const canonicalFailures = validateExperience(analyzeExperience(root), baseline);
-  assert.deepEqual(canonicalFailures, []);
-
-  write(
-    root,
-    "apps/web/src/modules/crm/consumer-table.tsx",
-    "export function Consumer(){ return <table><tbody /></table>; }\n",
-  );
-  const consumerFailures = validateExperience(analyzeExperience(root), baseline);
-  assert.ok(
-    consumerFailures.some((failure) => failure.includes("raw <table> debt increased")),
-  );
-});
-
-test("missing canonical Experience Kernel component fails closed", () => {
-  const { root, baseline } = fixture();
-  baseline.canonicalComponentFiles = [
-    "apps/web/src/shared/design/page-header.tsx",
-  ];
-  const failures = validateExperience(analyzeExperience(root), baseline);
-  assert.ok(
-    failures.some((failure) =>
-      failure.includes("missing canonical Experience Kernel component"),
-    ),
-  );
-});
-
-test("missing canonical Experience Kernel stylesheet fails closed", () => {
-  const { root, baseline } = fixture();
-  baseline.canonicalStyleFiles = [
-    "apps/web/src/shared/design/experience-kernel.module.css",
-  ];
-  const failures = validateExperience(analyzeExperience(root), baseline);
-  assert.ok(
-    failures.some((failure) =>
-      failure.includes("missing canonical Experience Kernel stylesheet"),
-    ),
-  );
+test("fails when globals.css doesn't import the generated token file", () => {
+  const root = fixtureRoot();
+  write(root, "apps/web/src/app/globals.css", '@import "tailwindcss";\n');
+  const { failures } = checkDesignSystemConvergence(root);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /must @import/);
 });

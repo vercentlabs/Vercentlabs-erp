@@ -1,28 +1,27 @@
-import Link from "next/link";
-import AuthCard from "@/core/components/auth-card";
-import AuthForm from "@/core/components/auth-form";
+import { ResetPasswordForm } from "./reset-password-form";
 
 export const metadata = { title: "Reset password" };
+
 export default async function ResetPasswordPage({
   searchParams,
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
-  const { token = "" } = await searchParams;
+  const { token } = await searchParams;
+
   return (
-    <AuthCard
-      eyebrow="Choose a new password"
-      title="Secure your account"
-      description="The reset link is single-use and expires after one hour."
-      footer={<Link href="/login">Return to sign in</Link>}
-    >
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">Vercentlabs ERP</p>
+        <h1 className="text-xl font-semibold text-text">Choose a new password</h1>
+      </div>
       {token ? (
-        <AuthForm mode="reset" token={token} />
+        <ResetPasswordForm token={token} />
       ) : (
-        <p className="notice error">
-          The password-reset token is missing. Request a new link.
+        <p role="alert" className="text-sm text-danger">
+          This link is missing its reset token. Request a new password reset link.
         </p>
       )}
-    </AuthCard>
+    </div>
   );
 }

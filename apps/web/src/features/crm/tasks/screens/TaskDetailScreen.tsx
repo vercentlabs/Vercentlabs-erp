@@ -1,0 +1,262 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus, X } from "lucide-react";
+import { Button, Dialog, ErrorState, IconButton, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { addTaskDependency, getTask, listTaskDependencies, listTasks, removeTaskDependency, TaskApiError, updateTask } from "../api/tasks-api";
+import { RecurrenceBuilder } from "../components/RecurrenceBuilder";
+import type { RecurrenceConfig, Task } from "../types";
+
+const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+function describeRecurrence(config: RecurrenceConfig | null): string | null {
+  if (!config) return null;
+  const unit = config.freq === "daily" ? "day" : config.freq === "weekly" ? "week" : "month";
+  let text = config.interval > 1 ? `Every ${config.interval} ${unit}s` : `Every ${unit}`;
+  if (config.count) text += `, ${config.count} times`;
+  else if (config.until) text += `, until ${config.until.slice(0, 10)}`;
+  return text;
+}
+
+function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-text-muted">{label}</span>
+      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
+    </div>
+  );
+}
+
+// F015 Tranche J (Stage A) — dedicated Task detail view; getCrmTask/
+// updateCrmTask (task-operations.js) were already real, already routed,
+// with no frontend consumer. Stage A2 §6 closeout: dependency management
+// and a recurrence-config builder were genuine, confirmed gaps — the
+// backend (addTaskDependency/removeTaskDependency/listTaskDependencies,
+// cycle/self-dependency/completion-blocked all enforced server-side; and
+// recurrenceConfig, the machine-readable field generateNextTaskOccurrence
+// actually reads) already existed with zero frontend consumer. Both are
+// now wired below, not invented.
+export function TaskDetailScreen({ taskId }: { taskId: string }) {
+  const router = useRouter();
+  const workspace = useWorkspaceContext();
+  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tasks", taskId), queryFn: () => getTask(taskId) });
+  const task = query.data?.record;
+
+  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading task…</p>;
+  if (query.isError) {
+    if (query.error instanceof TaskApiError && query.error.status === 403) return <PermissionState title="You don't have access to this task" />;
+    return <ErrorState title="Task not found" action={{ label: "Back to Tasks", onPress: () => router.push("/crm/tasks") }} />;
+  }
+  if (!task) return null;
+
+  return (
+    <RecordDetailsPage
+      header={{
+        title: task.subject,
+        status: <StatusBadge tone={task.status === "completed" ? "success" : task.status === "cancelled" ? "neutral" : "info"}>{task.status}</StatusBadge>,
+        fields: [
+          { label: "Priority", value: task.priority },
+          { label: "Assignee", value: task.assignedName ?? "Unassigned" },
+        ],
+        // updateCrmTask rejects completed/cancelled (CRM_TASK_READ_ONLY) —
+        // hiding Edit in those states avoids offering a rejected action.
+        primaryAction: canManage && task.status !== "completed" && task.status !== "cancelled" ? (
+          <Button variant="secondary" onPress={() => setEditOpen(true)}>
+            <Pencil className="size-4" aria-hidden="true" />
+            Edit
+          </Button>
+        ) : undefined,
+      }}
+    >
+      <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
+        <Field label="Team" value={task.teamName} />
+        <Field label="Start at" value={task.startAt ? dateFormatter.format(new Date(task.startAt)) : null} />
+        <Field label="Due at" value={task.dueAt ? dateFormatter.format(new Date(task.dueAt)) : null} />
+        <Field label="Reminder at" value={task.reminderAt ? dateFormatter.format(new Date(task.reminderAt)) : null} />
+        <Field label="Recurring rule" value={task.recurringRule} />
+        <Field label="Recurrence" value={describeRecurrence(task.recurrenceConfig as RecurrenceConfig | null)} />
+        <Field label="Completed at" value={task.completedAt ? dateFormatter.format(new Date(task.completedAt)) : null} />
+        <Field label="Outcome" value={task.outcome} />
+      </div>
+      {task.description && (
+        <div className="flex flex-col gap-1 border-t border-border pt-4">
+          <span className="text-xs text-text-muted">Description</span>
+          <p className="text-sm text-text">{task.description}</p>
+        </div>
+      )}
+      <TaskDependenciesPanel task={task} canManage={canManage} />
+      <EditTaskDialog isOpen={editOpen} onOpenChange={setEditOpen} task={task} />
+    </RecordDetailsPage>
+  );
+}
+
+// F015 Stage A2 §6. addTaskDependency/removeTaskDependency already
+// enforce cycle prevention, self-dependency rejection and completion-
+// while-blocked rejection server-side (CRM_TASK_DEPENDENCY_CYCLE/
+// CRM_TASK_DEPENDENCY_INVALID/CRM_TASK_DEPENDENCY_BLOCKED) — this panel
+// surfaces that state, it does not re-implement the rules.
+function TaskDependenciesPanel({ task, canManage }: { task: Task; canManage: boolean }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [candidateId, setCandidateId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const dependenciesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "tasks", task.id, "dependencies"),
+    queryFn: () => listTaskDependencies(task.id),
+  });
+  const candidatesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "tasks", "dependency-candidates"),
+    queryFn: () => listTasks({ limit: 200 }),
+    enabled: pickerOpen,
+  });
+
+  const dependencies = useMemo(() => dependenciesQuery.data?.rows ?? [], [dependenciesQuery.data]);
+  const candidateOptions: SelectOption[] = useMemo(
+    () =>
+      (candidatesQuery.data?.rows ?? [])
+        .filter((row) => row.id !== task.id && !dependencies.some((dependency) => dependency.dependsOnTaskId === row.id))
+        .map((row) => ({ value: row.id, label: row.subject })),
+    [candidatesQuery.data, dependencies, task.id],
+  );
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "tasks", task.id, "dependencies") });
+  }
+
+  const addMutation = useMutation({
+    mutationFn: () => addTaskDependency(task.id, candidateId),
+    onSuccess: () => {
+      invalidate();
+      setPickerOpen(false);
+      setCandidateId("");
+      setError(null);
+    },
+    onError: (err: unknown) => setError(err instanceof TaskApiError ? err.message : "This dependency could not be added."),
+  });
+  const removeMutation = useMutation({
+    mutationFn: (dependsOnTaskId: string) => removeTaskDependency(task.id, dependsOnTaskId),
+    onSuccess: invalidate,
+    onError: (err: unknown) => setError(err instanceof TaskApiError ? err.message : "This dependency could not be removed."),
+  });
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-text-muted">Blocked by (must complete first)</span>
+        {canManage && (
+          <Button variant="secondary" size="compact" onPress={() => setPickerOpen((open) => !open)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Add dependency
+          </Button>
+        )}
+      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {pickerOpen && (
+        <div className="flex items-end gap-2">
+          <Select aria-label="Task this depends on" options={candidateOptions} selectedKey={candidateId} onSelectionChange={(key) => setCandidateId(String(key ?? ""))} />
+          <Button variant="primary" size="compact" onPress={() => addMutation.mutate()} isLoading={addMutation.isPending} isDisabled={!candidateId}>
+            Add
+          </Button>
+        </div>
+      )}
+      {dependencies.length === 0 ? (
+        <p className="text-sm text-text-muted">No dependencies.</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {dependencies.map((dependency) => (
+            <li key={dependency.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-border px-3 py-1.5">
+              <span className="text-sm text-text">{dependency.dependsOnSubject}</span>
+              <div className="flex items-center gap-2">
+                <StatusBadge tone={dependency.dependsOnStatus === "completed" ? "success" : "warning"}>{dependency.dependsOnStatus}</StatusBadge>
+                {canManage && (
+                  <IconButton
+                    aria-label={`Remove dependency on ${dependency.dependsOnSubject}`}
+                    size="compact"
+                    variant="ghost"
+                    onPress={() => removeMutation.mutate(dependency.dependsOnTaskId)}
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </IconButton>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function EditTaskDialog({ isOpen, onOpenChange, task }: { isOpen: boolean; onOpenChange: (open: boolean) => void; task: Task }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const [subject, setSubject] = useState(task.subject);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [priority, setPriority] = useState(task.priority);
+  const [assignedTo, setAssignedTo] = useState(task.assignedTo ?? "");
+  const [dueAt, setDueAt] = useState(task.dueAt ?? "");
+  const [recurrenceConfig, setRecurrenceConfig] = useState<RecurrenceConfig | null>((task.recurrenceConfig as RecurrenceConfig | null) ?? null);
+  const [error, setError] = useState<string | null>(null);
+
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
+  const assigneeOptions: SelectOption[] = useMemo(() => {
+    const rows = optionsQuery.data?.options?.users ?? [];
+    return [{ value: "", label: "Unassigned" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+  }, [optionsQuery.data]);
+
+  const mutation = useMutation({
+    mutationFn: () => updateTask(task.id, { subject, description: description || null, priority, assignedTo: assignedTo || null, dueAt: dueAt || null, recurrenceConfig }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "tasks", task.id) });
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "tasks") });
+      onOpenChange(false);
+    },
+    onError: (err: unknown) => setError(err instanceof TaskApiError ? err.message : "This task could not be saved."),
+  });
+
+  return (
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Edit ${task.subject}`}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <TextField label="Subject" isRequired value={subject} onChange={setSubject} />
+        <Select
+          label="Priority"
+          options={[
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
+            { value: "urgent", label: "Urgent" },
+          ]}
+          selectedKey={priority}
+          onSelectionChange={(key) => setPriority(String(key ?? "medium") as Task["priority"])}
+        />
+        <Select label="Assignee" options={assigneeOptions} selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key ?? ""))} />
+        <TextField label="Due at" placeholder="YYYY-MM-DDTHH:mm" value={dueAt} onChange={setDueAt} />
+        <TextArea label="Description" value={description} onChange={setDescription} />
+        <RecurrenceBuilder value={recurrenceConfig} onChange={setRecurrenceConfig} />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!subject.trim()}>
+            Save changes
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}

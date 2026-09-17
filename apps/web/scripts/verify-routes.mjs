@@ -2,11 +2,18 @@
 // Static route smoke validation. This does NOT boot Next.js and does NOT
 // require a database or environment variables — it walks src/app and
 // checks structural invariants that would otherwise only surface at
-// `next build` time or in the browser. See docs/implementation/
-// ERP_VERIFICATION_BASELINE_002.md, "Web route smoke validation".
+// `next build` time or in the browser.
 //
-// With ~116 page.tsx files and ~279 route.ts files (per docs/implementation/
-// ERP_WEB_AUDIT_001.md), this intentionally does NOT attempt to import or
+// Restored (checks 1-3 only) from the pre-clean-slate-rebuild archive —
+// see docs/frontend-rebuild/README.md. The original also had checks 4-6
+// (navigation registry / Quick Create / topbar destination href
+// resolution), dropped here because they hardcoded expectations about the
+// old navigation registry (src/core/navigation/) and specific CRM routes
+// that don't exist in the new architecture yet, by design — nothing has
+// been built past the bootstrap placeholder. Restore that logic once the
+// new app shell has a real navigation registry to check against (see
+// docs/ux/UI_REWRITE_TRACKER.md's "Immediate next action"), rather than
+// guessing its shape now. This intentionally does NOT attempt to import or
 // render every module — that would require full Next.js/webpack resolution
 // of path aliases, CSS imports and React Server Component boundaries. It
 // instead checks the same class of mistake statically and cheaply:
@@ -20,9 +27,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/app");
+const appRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../src/app",
+);
 
-const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+const HTTP_METHODS = [
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+];
 
 let failures = 0;
 let pagesChecked = 0;
@@ -67,12 +85,16 @@ walk(appRoot, (file, name) => {
   if (name !== "route.ts") return;
   routesChecked += 1;
   const source = fs.readFileSync(file, "utf8");
-  const exported = HTTP_METHODS.filter((method) =>
-    new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`).test(source) ||
-    new RegExp(`export\\s+const\\s+${method}\\s*=`).test(source),
+  const exported = HTTP_METHODS.filter(
+    (method) =>
+      new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\b`).test(
+        source,
+      ) || new RegExp(`export\\s+const\\s+${method}\\s*=`).test(source),
   );
   if (exported.length === 0) {
-    fail(`${relative(file)}: exports no recognized HTTP method handler (${HTTP_METHODS.join("/")})`);
+    fail(
+      `${relative(file)}: exports no recognized HTTP method handler (${HTTP_METHODS.join("/")})`,
+    );
   }
 });
 
@@ -85,7 +107,9 @@ function dynamicSegmentName(directoryName) {
 }
 
 function checkDynamicSiblings(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory());
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory());
   const dynamicNames = new Set();
   for (const entry of entries) {
     if (entry.name.startsWith("(")) continue; // route groups are not real segments
@@ -104,147 +128,73 @@ function checkDynamicSiblings(dir) {
 
 checkDynamicSiblings(appRoot);
 
-// --- Check 4: every navigation registry href resolves to a real route -----
-// Static-analysis only (Part 33 explicitly prefers this over importing the
-// registry through a TS loader): the registry's .ts files declare
-// `href: "/some/path"` literals directly, so this extracts them by regex
-// rather than executing TypeScript. Each href must resolve to either a
-// literal page.tsx at that path, or fall through a dynamic `[resource]`-
-// style segment already present in the file tree (the established
-// `<module>/[resource]/page.tsx` pattern most modules use for their
-// non-overview destinations) — see docs/implementation/
-// ERP_NAVIGATION_FOUNDATION_006.md Section 10.
-//
-// CRM vNext Prompt 2 fix: this previously pointed at
-// "../src/lib/navigation", a path retired by verify-architecture.mjs's own
-// forbidden-path list (apps/web/src/lib is not allowed to exist at all —
-// see that script's `forbidden` array). Since that directory never
-// existed, `fs.existsSync(navigationDir)` below was always false, so this
-// check silently examined zero files and always reported "Checked 0
-// navigation registry href(s)" while still exiting 0 — a validator that
-// looked like it verified navigation but checked nothing. The real,
-// live navigation registry lives at apps/web/src/core/navigation/ (see
-// apps/web/src/core/navigation/index.ts).
-const navigationDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/core/navigation");
-const authenticatedAppRoot = path.join(appRoot, "(app)");
-
-function extractHrefs(source) {
-  const hrefs = [];
-  const re = /href:\s*"([^"]+)"/g;
-  let match;
-  while ((match = re.exec(source))) hrefs.push(match[1]);
-  return hrefs;
-}
-
-// A literal segment directory existing does not guarantee it resolves the
-// requested path — e.g. crm/leads/ only contains [id]/page.tsx (the list
-// view is actually served by the sibling crm/[resource]/page.tsx). Next.js
-// itself falls through to a dynamic sibling whenever the literal branch has
-// no page.tsx at the needed depth, so this tries the literal branch first
-// and backtracks to any dynamic sibling if that whole branch dead-ends,
-// rather than greedily committing to the first directory match found.
-function resolveSegments(dir, segments) {
-  if (segments.length === 0) return fs.existsSync(path.join(dir, "page.tsx"));
-  const [segment, ...rest] = segments;
-  const literal = path.join(dir, segment);
-  if (fs.existsSync(literal) && fs.statSync(literal).isDirectory()) {
-    if (resolveSegments(literal, rest)) return true;
+// --- Check 4: every CRM API route calls requireCrmAccess -------------------
+// Formalizes the manual `grep -L requireCrmAccess` sweep run by hand at
+// every checkpoint during the CRM clean rebuild (Prompt 3) into a
+// permanent, CI-enforceable check — see docs/frontend-rebuild/
+// CRM_CLEAN_REBUILD_REGISTER.md's "Checkpoint re-audit #2" for the real,
+// session-wide authorization gap this sweep originally caught (every CRM
+// route checked only authentication + org membership, never module
+// entitlement or action permission). Static text search only — this does
+// NOT prove a session without the permission actually receives a 403 at
+// runtime (that needs real request/DB-backed behavioral tests, tracked
+// separately), only that the route calls the shared gate at all. The one
+// deliberately public route (external prospect-facing meeting booking) is
+// excluded by design, not by oversight.
+let crmRoutesChecked = 0;
+const PUBLIC_CRM_ROUTE_MARKER = `${path.sep}crm${path.sep}public${path.sep}`;
+walk(appRoot, (file, name) => {
+  if (name !== "route.ts") return;
+  if (!file.includes(`${path.sep}api${path.sep}crm${path.sep}`)) return;
+  if (file.includes(PUBLIC_CRM_ROUTE_MARKER)) return;
+  crmRoutesChecked += 1;
+  const source = fs.readFileSync(file, "utf8");
+  if (!/requireCrmAccess\s*\(/.test(source)) {
+    fail(
+      `${relative(file)}: no requireCrmAccess(...) call found — this CRM route would only check authentication + organization membership, not module entitlement or action permission`,
+    );
   }
-  const dynamicSiblings = fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("["));
-  return dynamicSiblings.some((sibling) => resolveSegments(path.join(dir, sibling.name), rest));
-}
+});
 
-function routeExists(hrefPath) {
-  const withoutQuery = hrefPath.split("?")[0].split("#")[0];
-  const segments = withoutQuery.split("/").filter(Boolean);
-  return resolveSegments(authenticatedAppRoot, segments);
-}
-
-let navigationHrefsChecked = 0;
-const allNavigationHrefs = new Set();
-if (fs.existsSync(navigationDir)) {
-  const seenPerFile = new Map();
-  for (const file of fs.readdirSync(navigationDir)) {
-    if (!file.endsWith(".ts") || file === "types.ts" || file === "resolve-navigation.ts" || file === "match-path.ts" || file === "route-map.ts" || file === "breadcrumb-labels.ts" || file === "index.ts") continue;
-    const fullPath = path.join(navigationDir, file);
-    const source = fs.readFileSync(fullPath, "utf8");
-    const hrefs = extractHrefs(source);
-    const seen = new Set();
-    for (const href of hrefs) {
-      navigationHrefsChecked += 1;
-      allNavigationHrefs.add(href);
-      if (seen.has(href)) {
-        fail(`navigation/${file}: duplicate href "${href}" declared more than once in the same file`);
-      }
-      seen.add(href);
-      if (!routeExists(href)) {
-        fail(`navigation/${file}: href "${href}" does not resolve to any page.tsx under src/app/(app)`);
-      }
-    }
-    seenPerFile.set(file, seen);
+// --- Check 5: no CRM API route reads tenant data through withClient -------
+// Formalizes the Prompt 3 live-browser QA discovery: `withClient()` (src/
+// core/db.ts) opens a bare pool connection and never sets Postgres's
+// `app.current_organization_id` session variable, which every tenant-
+// schema table's RLS policy (`organization_id = tenant.
+// current_organization_id()`) is keyed on. Every services/api test that
+// exercised this codebase before this pass used a mocked `client.query`
+// that has no concept of RLS, so this was invisible until a real browser
+// hit a real Postgres database: `getCrmDashboard`, the generic `[resource]`
+// list/get boundary, and 57 other CRM read routes silently returned EMPTY
+// results for every tenant with real data — with_client's own bare
+// connection was denied every row by RLS, not by any application-level
+// filter. Fixed by switching every CRM route to `tenantTransaction(session.
+// organizationId, ...)`, the same helper already used for CRM writes
+// (which is why writes always worked and reads never did). withClient()
+// itself remains legitimate for routes reading ONLY non-RLS platform-
+// schema tables (auth/login, workspace/companies, notifications,
+// approvals, and this app's own /api/privacy/* routes, which wire the
+// platform privacy tables that deliberately have no RLS) — this check is
+// scoped to api/crm/ specifically, not a blanket ban on withClient.
+walk(appRoot, (file, name) => {
+  if (name !== "route.ts") return;
+  if (!file.includes(`${path.sep}api${path.sep}crm${path.sep}`)) return;
+  const source = fs.readFileSync(file, "utf8");
+  if (/\bwithClient\s*\(/.test(source)) {
+    fail(
+      `${relative(file)}: uses withClient() for a CRM (tenant-schema) route — this never sets Postgres's app.current_organization_id, so every RLS-protected query silently returns zero rows against a real database. Use tenantTransaction(session.organizationId, ...) instead.`,
+    );
   }
-}
+});
 
-// This check must never be able to silently pass by examining nothing —
-// that was exactly the pre-fix bug (the directory didn't exist, so this
-// whole block was skipped and 0 hrefs were "checked" without failing).
-// Fail loudly instead of quietly reporting a zero count if the directory
-// is ever missing/empty again, and confirm real, specific CRM navigation
-// destinations were actually discovered — not just some non-zero count
-// from an unrelated module's registry file.
-if (!fs.existsSync(navigationDir)) {
-  fail(`navigation registry directory not found at ${path.relative(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), navigationDir)} — navigation validation cannot run`);
-} else if (navigationHrefsChecked === 0) {
-  fail("navigation registry directory exists but zero href(s) were discovered — the registry may have moved or the extraction pattern is stale");
-} else {
-  const expectedCrmHrefs = ["/crm", "/crm/leads", "/crm/accounts", "/crm/contacts", "/crm/opportunities", "/crm/activities"];
-  const missingCrmHrefs = expectedCrmHrefs.filter((href) => !allNavigationHrefs.has(href));
-  if (missingCrmHrefs.length) {
-    fail(`expected live CRM navigation entries were not discovered in the registry: ${missingCrmHrefs.join(", ")}`);
-  }
-}
-
-// --- Check 5: every Quick Create action href resolves to a real route ----
-// (Part 52: "Quick Create hrefs must resolve... do not allow dead launcher
-// actions.") Same static-extraction + routeExists approach as Check 4;
-// routeExists already strips query strings (?create=1) before resolving.
-const quickCreateFile = path.join(navigationDir, "../quick-create/actions.ts");
-let quickCreateHrefsChecked = 0;
-if (fs.existsSync(quickCreateFile)) {
-  const source = fs.readFileSync(quickCreateFile, "utf8");
-  const hrefs = extractHrefs(source);
-  const seen = new Set();
-  for (const href of hrefs) {
-    quickCreateHrefsChecked += 1;
-    if (seen.has(href)) {
-      fail(`quick-create/actions.ts: duplicate href "${href}" declared more than once`);
-    }
-    seen.add(href);
-    if (!routeExists(href)) {
-      fail(`quick-create/actions.ts: href "${href}" does not resolve to any page.tsx under src/app/(app)`);
-    }
-  }
-}
-
-// --- Check 6: the topbar's hardcoded platform destinations resolve -------
-// (Part 52: "profile/settings destinations resolve") — these are static
-// <Link>s in components/{profile-menu,app-shell,notifications-control}.tsx,
-// not registry-driven, so they're checked directly rather than extracted.
-const staticTopbarDestinations = ["/profile", "/security", "/notifications", "/dashboard"];
-for (const href of staticTopbarDestinations) {
-  if (!routeExists(href)) {
-    fail(`static topbar destination "${href}" does not resolve to any page.tsx under src/app/(app)`);
-  }
-}
-
-console.log(`Checked ${pagesChecked} page.tsx and ${routesChecked} route.ts file(s) under src/app.`);
-console.log(`Checked ${navigationHrefsChecked} navigation registry href(s) under src/core/navigation.`);
-console.log(`Checked ${quickCreateHrefsChecked} Quick Create action href(s) and ${staticTopbarDestinations.length} static topbar destination(s).`);
+console.log(
+  `Checked ${pagesChecked} page.tsx, ${routesChecked} route.ts (${crmRoutesChecked} CRM) file(s) under src/app.`,
+);
 if (failures > 0) {
   console.error(`\nverify:routes summary — ${failures} failing check(s).`);
   process.exitCode = 1;
 } else {
-  console.log("Route smoke validation passed (static analysis only — Next.js was not booted).");
+  console.log(
+    "Route smoke validation passed (static analysis only — Next.js was not booted).",
+  );
 }

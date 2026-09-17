@@ -1,0 +1,366 @@
+"use client";
+
+import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, GripVertical, Users } from "lucide-react";
+import { Badge, Button, Dialog, Select, type SelectOption } from "@vercentlabs/design-system";
+
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { getLeadStageReasons, getLeadTransitionGraph, LeadApiError, listLeads, transitionLeadStage } from "../api/leads-api";
+import type { Lead, LeadListFilters } from "../types";
+
+export type LeadStageOption = { id: string; code: string; name: string };
+
+// Fetched per stage, not once for the whole board with a single hard cap —
+// a lone board-wide fetch silently truncated at whatever limit was chosen
+// (found at real scale: 536 leads against a 200-row cap left the majority
+// of leads invisible, with no indication anything was missing). Each
+// column tracks its own "how many to show" independently and can expand.
+const COLUMN_PAGE_SIZE = 100;
+
+const priorityTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
+  low: "neutral",
+  medium: "info",
+  high: "warning",
+  urgent: "danger",
+};
+
+const DRAG_MIME = "application/x-vercentlabs-lead-id";
+
+function leadDisplayName(lead: Lead) {
+  return lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim();
+}
+
+function ReasonPromptDialog({
+  lead,
+  stage,
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  lead: Lead;
+  stage: LeadStageOption;
+  isPending: boolean;
+  onCancel: () => void;
+  onConfirm: (reasonCode: string) => void;
+}) {
+  const [reasonCode, setReasonCode] = useState("");
+  const reasonsQuery = useQuery({
+    queryKey: ["crm", "leads", lead.id, "stage-reasons", stage.id],
+    queryFn: () => getLeadStageReasons(lead.id, stage.id),
+  });
+  const reasonOptions: SelectOption[] = (reasonsQuery.data?.reasons ?? []).map((r) => ({ value: r.code, label: r.label }));
+
+  return (
+    <Dialog isOpen title={`Move ${leadDisplayName(lead)} to ${stage.name}`} onOpenChange={(open) => !open && onCancel()}>
+      <div className="flex flex-col gap-4">
+        <Select
+          aria-label="Reason for this move"
+          label="Reason"
+          options={reasonOptions}
+          selectedKey={reasonCode}
+          onSelectionChange={(key) => setReasonCode(String(key ?? ""))}
+          placeholder={reasonsQuery.isLoading ? "Loading reasons…" : "Choose a reason…"}
+          isDisabled={reasonsQuery.isLoading}
+        />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={onCancel} isDisabled={isPending}>
+            Cancel
+          </Button>
+          <Button variant="primary" onPress={() => reasonCode && onConfirm(reasonCode)} isDisabled={!reasonCode} isLoading={isPending}>
+            Move
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function LeadKanbanCard({
+  lead,
+  stages,
+  isPending,
+  error,
+  onOpen,
+  onRequestMove,
+  onDragStart,
+  onDragEnd,
+}: {
+  lead: Lead;
+  stages: LeadStageOption[];
+  isPending: boolean;
+  error?: string;
+  onOpen: (id: string) => void;
+  onRequestMove: (lead: Lead, targetStageId: string) => void;
+  onDragStart: (event: DragEvent<HTMLDivElement>, lead: Lead) => void;
+  onDragEnd: () => void;
+}) {
+  const [targetStageId, setTargetStageId] = useState("");
+  const [handlePressed, setHandlePressed] = useState(false);
+  const displayName = leadDisplayName(lead);
+
+  // Belt-and-braces: if the mouse is released completely outside this
+  // card (e.g. over the gap between columns) before a real native drag
+  // ever starts, neither the card's onMouseUp nor onDragEnd fires —
+  // this window listener is the final backstop against the card getting
+  // stuck "armed" for the next click.
+  useEffect(() => {
+    if (!handlePressed) return;
+    const clear = () => setHandlePressed(false);
+    window.addEventListener("mouseup", clear);
+    return () => window.removeEventListener("mouseup", clear);
+  }, [handlePressed]);
+
+  return (
+    <div
+      // draggable is only true while the grip handle is actually pressed —
+      // not the whole card — because the card also contains React Aria
+      // interactive elements (the name button, the stage Select, the
+      // confirm Button) whose own press handling calls preventDefault() on
+      // pointerdown, which silently blocks the browser's native drag-start
+      // gesture for the whole ancestor. Scoping draggable to the handle
+      // means those controls keep working exactly as before, and a real
+      // mouse drag has one deliberate, reliable place to start from.
+      draggable={handlePressed && !isPending}
+      onDragStart={(event) => onDragStart(event, lead)}
+      onDragEnd={() => {
+        onDragEnd();
+        setHandlePressed(false);
+      }}
+      // A real mouse rarely stays pinned to a 14px icon once it starts
+      // moving — disarming on mouseup anywhere within the card (not just
+      // back on the grip itself) means a plain click-and-release on the
+      // handle without an actual drag still clears the armed state
+      // reliably, on top of the dragend reset above.
+      onMouseUp={() => setHandlePressed(false)}
+      className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-subtle)]"
+    >
+      <div className="flex items-start gap-1.5">
+        <span
+          role="presentation"
+          aria-hidden="true"
+          className="-m-1 flex cursor-grab items-center rounded p-1 hover:bg-surface-muted active:cursor-grabbing"
+          onMouseDown={() => setHandlePressed(true)}
+        >
+          <GripVertical className="mt-0.5 size-3.5 shrink-0 text-text-muted" />
+        </span>
+        <button type="button" className="text-left text-sm font-medium text-text hover:underline" onClick={() => onOpen(lead.id)}>
+          {displayName}
+        </button>
+      </div>
+      {lead.companyName && <span className="pl-5 text-xs text-text-muted">{lead.companyName}</span>}
+      <div className="flex flex-wrap items-center gap-1.5 pl-5">
+        <Badge tone={priorityTone[lead.priority] ?? "neutral"}>{lead.priority}</Badge>
+        {lead.score !== null && <span className="text-xs tabular-nums text-text-muted">Score {lead.score}</span>}
+      </div>
+      <div className="flex items-center gap-1.5 pl-5 text-xs text-text-muted">
+        <Users className="size-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">{lead.ownerName || "Unassigned"}</span>
+      </div>
+      {error && (
+        <p role="alert" className="pl-5 text-xs text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex items-center gap-1.5 pl-5">
+        <Select
+          aria-label={`Move ${displayName} to stage`}
+          size="compact"
+          options={stages.filter((s) => s.code !== lead.status).map((s) => ({ value: s.id, label: s.name }))}
+          selectedKey={targetStageId}
+          onSelectionChange={(key) => setTargetStageId(String(key ?? ""))}
+          placeholder="Move to…"
+          className="flex-1"
+        />
+        <Button
+          variant="ghost"
+          size="compact"
+          aria-label={`Confirm move for ${displayName}`}
+          isDisabled={!targetStageId}
+          isLoading={isPending}
+          onPress={() => {
+            if (!targetStageId) return;
+            onRequestMove(lead, targetStageId);
+            setTargetStageId("");
+          }}
+        >
+          <CheckCircle2 className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function LeadKanbanBoard({
+  filters,
+  stages,
+  onOpen,
+}: {
+  filters: LeadListFilters;
+  stages: LeadStageOption[];
+  onOpen: (id: string) => void;
+}) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
+  const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
+  const [pendingLeadId, setPendingLeadId] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<{ leadId: string; message: string } | null>(null);
+  const [reasonPrompt, setReasonPrompt] = useState<{ lead: Lead; stage: LeadStageOption } | null>(null);
+  const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
+
+  const transitionGraphQuery = useQuery({
+    queryKey: ["crm", "leads", "transition-graph"],
+    queryFn: getLeadTransitionGraph,
+  });
+  const transitions = transitionGraphQuery.data?.transitions ?? [];
+
+  const stageQueries = useQueries({
+    queries: stages.map((stage) => {
+      const limit = columnLimits[stage.id] ?? COLUMN_PAGE_SIZE;
+      return {
+        queryKey: scopedQueryKey(workspace, "crm", "leads", "kanban", stage.code, filters, limit),
+        queryFn: () => listLeads({ ...filters, status: stage.code, limit, offset: 0 }),
+      };
+    }),
+  });
+  const isLoading = stageQueries.some((q) => q.isLoading);
+  const allLoadedLeads = useMemo(() => stageQueries.flatMap((q) => q.data?.rows ?? []), [stageQueries]);
+
+  const moveMutation = useMutation({
+    mutationFn: ({ leadId, stageId, reasonCode, expectedUpdatedAt }: { leadId: string; stageId: string; reasonCode?: string; expectedUpdatedAt: string }) =>
+      transitionLeadStage(leadId, { stageId, reasonCode, expectedUpdatedAt }),
+    onMutate: ({ leadId }) => {
+      setPendingLeadId(leadId);
+      setMoveError(null);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
+    },
+    onError: (err: unknown, variables) => {
+      setMoveError({
+        leadId: variables.leadId,
+        message: err instanceof LeadApiError ? err.message : "This move could not be completed.",
+      });
+    },
+    onSettled: () => setPendingLeadId(null),
+  });
+
+  function isReasonRequired(fromStageCode: string, toStageId: string) {
+    return transitions.some((edge) => edge.fromStageCode === fromStageCode && edge.toStageId === toStageId && edge.reasonRequired);
+  }
+
+  function attemptMove(lead: Lead, targetStageId: string) {
+    const targetStage = stages.find((s) => s.id === targetStageId);
+    if (!targetStage || targetStage.code === lead.status) return;
+    if (isReasonRequired(lead.status, targetStageId)) {
+      setReasonPrompt({ lead, stage: targetStage });
+      return;
+    }
+    moveMutation.mutate({ leadId: lead.id, stageId: targetStageId, expectedUpdatedAt: lead.updatedAt });
+  }
+
+  function handleDragStart(event: DragEvent<HTMLDivElement>, lead: Lead) {
+    event.dataTransfer.setData(DRAG_MIME, lead.id);
+    event.dataTransfer.effectAllowed = "move";
+    // Without an explicit drag image, the browser falls back to snapshotting
+    // the draggable element in whatever ambiguous way it sees fit — inside
+    // this flex/overflow-x-auto board layout that produced a huge, blurry
+    // ghost covering unrelated columns instead of just the one card. Pinning
+    // it to exactly this card, at the cursor's offset within it, forces a
+    // clean single-card preview every time.
+    const card = event.currentTarget;
+    const rect = card.getBoundingClientRect();
+    event.dataTransfer.setDragImage(card, event.clientX - rect.left, event.clientY - rect.top);
+    setDraggingLeadId(lead.id);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, stage: LeadStageOption) {
+    event.preventDefault();
+    setDragOverStageId(null);
+    const leadId = event.dataTransfer.getData(DRAG_MIME);
+    const lead = allLoadedLeads.find((l) => l.id === leadId);
+    setDraggingLeadId(null);
+    if (!lead) return;
+    attemptMove(lead, stage.id);
+  }
+
+  if (isLoading) {
+    return <p className="px-1 text-sm text-text-secondary">Loading pipeline…</p>;
+  }
+
+  return (
+    <>
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {stages.map((stage, index) => {
+          const stageQuery = stageQueries[index];
+          const cards = stageQuery.data?.rows ?? [];
+          const total = stageQuery.data?.total ?? cards.length;
+          const hasMore = total > cards.length;
+          const isDragTarget = dragOverStageId === stage.id && draggingLeadId;
+          return (
+            <div
+              key={stage.id}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDragOverStageId(stage.id);
+              }}
+              onDragLeave={() => setDragOverStageId((id) => (id === stage.id ? null : id))}
+              onDrop={(event) => handleDrop(event, stage)}
+              className={`flex w-72 shrink-0 flex-col gap-2 rounded-[var(--radius-card)] border p-3 transition-colors ${
+                isDragTarget ? "border-brand bg-brand-soft/40" : "border-border bg-surface-muted"
+              }`}
+            >
+              <div className="flex items-center justify-between px-0.5">
+                <p className="text-sm font-semibold text-text">{stage.name}</p>
+                <span className="text-xs tabular-nums text-text-muted">{total}</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {cards.map((lead) => (
+                  <LeadKanbanCard
+                    key={lead.id}
+                    lead={lead}
+                    stages={stages}
+                    isPending={pendingLeadId === lead.id}
+                    error={moveError?.leadId === lead.id ? moveError.message : undefined}
+                    onOpen={onOpen}
+                    onRequestMove={attemptMove}
+                    onDragStart={handleDragStart}
+                    onDragEnd={() => setDraggingLeadId(null)}
+                  />
+                ))}
+                {cards.length === 0 && <p className="px-0.5 text-xs text-text-muted">No leads in this stage.</p>}
+                {hasMore && (
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    onPress={() => setColumnLimits((current) => ({ ...current, [stage.id]: (current[stage.id] ?? COLUMN_PAGE_SIZE) + COLUMN_PAGE_SIZE }))}
+                    isLoading={stageQuery.isFetching}
+                  >
+                    Show {Math.min(COLUMN_PAGE_SIZE, total - cards.length)} more ({total - cards.length} remaining)
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {reasonPrompt && (
+        <ReasonPromptDialog
+          lead={reasonPrompt.lead}
+          stage={reasonPrompt.stage}
+          isPending={moveMutation.isPending}
+          onCancel={() => setReasonPrompt(null)}
+          onConfirm={(reasonCode) => {
+            moveMutation.mutate(
+              { leadId: reasonPrompt.lead.id, stageId: reasonPrompt.stage.id, reasonCode, expectedUpdatedAt: reasonPrompt.lead.updatedAt },
+              { onSuccess: () => setReasonPrompt(null) },
+            );
+          }}
+        />
+      )}
+    </>
+  );
+}

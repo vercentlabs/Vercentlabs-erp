@@ -1,109 +1,53 @@
-import { createCrmAccount, listCrmAccounts } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createCrmAccount, listCrmAccounts } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { getSessionContext } from "@/core/auth";
-import {
-  incrementBillingUsage,
-  requireBillingWriteAccess,
-} from "@/core/billing";
-import {
-  requirePermissionFromSession,
-  PERMISSIONS,
-} from "@/core/authorization";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { requireCrmView } from "@/modules/crm/crm-data-operations-and-customization/resource-access";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-function accountInput(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new HttpError(
-      400,
-      "Provide an account object.",
-      "CRM_ACCOUNT_INPUT_INVALID",
-    );
-  }
-  return value as Record<string, unknown>;
-}
-
-function auditSnapshot(record: Record<string, unknown>) {
-  return {
-    id: record.id,
-    code: record.code,
-    displayName: record.displayName,
-    partyType: record.partyType,
-    companyId: record.companyId,
-    status: record.status,
-  };
-}
-
+// F002 Accounts — NOT a CRM_RESOURCE_KEYS resource; business_parties is
+// the shared cross-module master-data table, and listCrmAccounts/
+// createCrmAccount (account-operations.js) are the CRM-specific governed
+// layer over it (duplicate policy, sensitive-field projection, address
+// upsert) — this route is thin by the same rule as the generic [resource]
+// boundary, just against a different backend module.
 export async function GET(request: Request) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) {
-      throw new HttpError(401, "Sign in to an organisation workspace.");
-    }
-    requireCrmView(session);
-    const context = await crmApiContext(session);
+    const session = await requireWorkspace();
     const url = new URL(request.url);
-    const requestedStatus = url.searchParams.get("status") || "active";
-    const status: "active" | "inactive" | "all" = [
-      "active",
-      "inactive",
-      "all",
-    ].includes(requestedStatus)
-      ? (requestedStatus as "active" | "inactive" | "all")
-      : "active";
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      listCrmAccounts(client, context, {
-        search: url.searchParams.get("search") || "",
-        status,
-        industry: url.searchParams.get("industry") || "",
-        country: url.searchParams.get("country") || "",
-        limit: Number(url.searchParams.get("limit") || "25"),
-        offset: Number(url.searchParams.get("offset") || "0"),
-      }),
-    );
+    const status = url.searchParams.get("status");
+    const validStatus: "active" | "inactive" | "all" | undefined =
+      status === "active" ? "active" : status === "inactive" ? "inactive" : status === "all" ? "all" : undefined;
+    const options = {
+      search: url.searchParams.get("search") || undefined,
+      status: validStatus,
+      industry: url.searchParams.get("industry") || undefined,
+      country: url.searchParams.get("country") || undefined,
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
+    };
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return listCrmAccounts(client, crmContext(session), options);
+    });
     return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) {
-      throw new HttpError(401, "Sign in to an organisation workspace.");
-    }
-    requireCrmView(session);
-    requirePermissionFromSession(session, PERMISSIONS.partiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const context = await crmApiContext(session);
-    const input = accountInput(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-
-    const record = await tenantTransaction(
-      context.organizationId,
-      async (client) => {
-        const created = await createCrmAccount(client, context, input);
-        await audit({
-          organizationId: context.organizationId,
-          actorUserId: context.userId,
-          eventType: "crm.accounts.created",
-          entityType: "account",
-          entityId: String(created.id),
-          afterData: auditSnapshot(created),
-          request,
-          client,
-        });
-        return created;
-      },
-    );
-
-    return ok({ message: "Account created.", record }, 201);
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      return createCrmAccount(client, crmContext(session), input);
+    });
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

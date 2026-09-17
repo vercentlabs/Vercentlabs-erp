@@ -1,3 +1,4 @@
+export * from "@vercentlabs/reporting-engine";
 export * from "./core/master-data.js";
 export * from "./core/document-numbering.js";
 export * from "./core/idempotency.js";
@@ -25,6 +26,8 @@ export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lea
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
 
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
+export * from "./modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -47,6 +50,8 @@ export * from "./modules/crm/prospect-and-relationship-master-data/account-intel
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
 export {
+  findAccountDuplicates,
+  findContactDuplicates,
   findLeadContactCrossMatches,
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,
@@ -59,6 +64,7 @@ export * from "./core/release/governance.js";
 export * from "./modules/crm/seller-activity-and-follow-up-workspace/communications.js";
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export {
   listLeadScoringModels,
@@ -104,5 +110,37 @@ export * from "./orchestration/sales-pass1-options.js";
 export * from "./orchestration/sales-stock-reservation.js";
 
 export * from "./orchestration/sales-stock-fulfillment.js";
+
+// Platform reactivation port (Prompt 2 of 15) — see
+// docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the source mapping.
+// Every symbol below is ported from docs/frontend-rebuild/
+// recovered-platform-code and re-reviewed for the current security
+// standard; none of the ACTIVE code re-exported here reads from that
+// parked directory at runtime.
+export * from "./core/access-control-runtime.js";
+export * from "./core/session.js";
+export * from "./core/access-administration.js";
+export * from "./core/entitlements.js";
+export * from "./core/module-entitlements.js";
+export * from "./core/audit-redaction.js";
+export * from "./core/security.js";
+export * from "./core/attachment-security.js";
+export * from "./core/password-policy.js";
+export * from "./core/auth-mailer.js";
+export * from "./core/auth-lifecycle.js";
+export * from "./core/api-keys.js";
+export * from "./core/oauth.js";
+export * from "./core/notification-preferences.js";
+export * from "./core/inbound-mail.js";
+export * from "./core/tags.js";
+export * from "./core/configuration.js";
+export * from "./core/privacy.js";
+export * from "./core/ai-governance.js";
+
+// Prompt 2B — global shell closure: cross-module approval inbox,
+// notification center, and background-job visibility.
+export * from "./core/approvals.js";
+export * from "./core/notifications.js";
+export * from "./core/background-jobs.js";
 
 export * from "./orchestration/sales-crm-opportunity-sync.js";

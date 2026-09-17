@@ -159,6 +159,36 @@ test("F001 Pass 2A: sensitive generic intelligence still inherits Lead company/b
   assert.ok(count.values.includes(base.userId));
 });
 
+test("Stage A2 §15: generic list pagination always sorts with a unique tiebreaker, so OFFSET paging cannot skip/repeat rows across ties", async () => {
+  const queries = [];
+  const client = {
+    async query(sql) {
+      queries.push(sql);
+      if (/count\(\*\)::int AS total/.test(sql)) return { rows: [{ total: 0 }] };
+      return { rows: [] };
+    },
+  };
+  // territories' own orderBy ("name ASC") has no unique column — two
+  // territories can share a name — so it must gain an `id` tiebreaker.
+  await listCrmRecords(client, base, "territories", { limit: 25 });
+  const select = queries.find((sql) => sql.startsWith("SELECT record.*"));
+  assert.match(select, /ORDER BY name ASC, id ASC LIMIT/);
+
+  // leads' own orderBy already ends in a unique-enough tiebreaker
+  // ("... , id DESC") — must NOT be doubled up.
+  const leadQueries = [];
+  const leadClient = {
+    async query(sql) {
+      leadQueries.push(sql);
+      if (/count\(\*\)::int AS total/.test(sql)) return { rows: [{ total: 0 }] };
+      return { rows: [] };
+    },
+  };
+  await listCrmRecords(leadClient, base, "leads", { limit: 25 });
+  const leadSelect = leadQueries.find((sql) => sql.startsWith("SELECT record.*"));
+  assert.match(leadSelect, /ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT/);
+});
+
 test("F001 Pass 2A: restricted actors cannot create Lead-linked generic intelligence", async () => {
   const client = {
     async query() {

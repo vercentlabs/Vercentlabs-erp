@@ -213,6 +213,28 @@ export async function saveLeadAssignmentPolicy(client, context, input = {}) {
     throw new LeadGovernanceError(400, "Territory-based assignment requires a territory.", "CRM_ASSIGNMENT_RULE_INVALID");
   if (!["active", "inactive"].includes(status))
     throw new LeadGovernanceError(400, "Assignment-rule status is invalid.", "CRM_ASSIGNMENT_RULE_INVALID");
+  // Stage A2 §14 concurrency audit: this is the REAL, actively-used
+  // assignment-policy table (see the module comment above) — it had no
+  // optimistic-concurrency check at all on update, unlike every other
+  // governed CRM configuration resource fixed in this pass. Two admins
+  // editing the same policy (e.g. one changing round-robin members while
+  // another changes its criteria) could silently overwrite each other.
+  // Checked here, before any further validation queries, so a stale/missing
+  // version is rejected as cheaply as the other input-shape checks above.
+  let before = null;
+  if (id) {
+    const existing = await client.query(
+      `SELECT updated_at FROM tenant.crm_lead_assignment_policies WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, id],
+    );
+    if (!existing.rows[0]) throw new LeadGovernanceError(404, "Assignment rule not found.", "CRM_ASSIGNMENT_RULE_NOT_FOUND");
+    before = existing.rows[0];
+    const expectedUpdatedAt = text(input.expectedUpdatedAt);
+    if (!expectedUpdatedAt)
+      throw new LeadGovernanceError(400, "Refresh this Assignment rule before changing it.", "CRM_ASSIGNMENT_RULE_VERSION_REQUIRED");
+    if (Number.isNaN(Date.parse(expectedUpdatedAt)))
+      throw new LeadGovernanceError(400, "The Assignment rule version is invalid. Refresh and try again.", "CRM_ASSIGNMENT_RULE_VERSION_INVALID");
+  }
   if (criteria.sourceId) {
     const source = await client.query(
       `SELECT id FROM tenant.crm_lead_sources WHERE organization_id=$1 AND id=$2 AND status='active'`,
@@ -249,21 +271,31 @@ export async function saveLeadAssignmentPolicy(client, context, input = {}) {
   ];
   const result = id
     ? await client.query(
+        // Same millisecond-truncation-safe comparison used by the generic
+        // updateCrmRecord versionGuard: `before.updated_at` (and any
+        // client-supplied expectedUpdatedAt) can only ever carry millisecond
+        // precision, while the stored column is full-microsecond timestamptz.
         `UPDATE tenant.crm_lead_assignment_policies SET name=$3,sequence=$4,criteria=$5::jsonb,mode=$6,
          assignee_user_id=$7,member_user_ids=$8::uuid[],territory_id=$9,status=$10,updated_by=$2,updated_at=now()
-         WHERE organization_id=$1 AND id=$11 RETURNING *`,
-        [...values, id],
+         WHERE organization_id=$1 AND id=$11
+           AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $12::timestamptz)
+         RETURNING *`,
+        [...values, id, input.expectedUpdatedAt],
       )
     : await client.query(
         `INSERT INTO tenant.crm_lead_assignment_policies(organization_id,name,sequence,criteria,mode,assignee_user_id,member_user_ids,territory_id,status,created_by,updated_by)
          VALUES($1,$3,$4,$5::jsonb,$6,$7,$8::uuid[],$9,$10,$2,$2) RETURNING *`,
         values,
       );
-  if (!result.rows[0]) throw new LeadGovernanceError(404, "Assignment rule not found.", "CRM_ASSIGNMENT_RULE_NOT_FOUND");
+  if (!result.rows[0]) {
+    if (before)
+      throw new LeadGovernanceError(409, "This Assignment rule changed after you loaded it. Refresh and try again.", "CRM_STALE_WRITE");
+    throw new LeadGovernanceError(404, "Assignment rule not found.", "CRM_ASSIGNMENT_RULE_NOT_FOUND");
+  }
   return result.rows[0];
 }
 
-export async function setLeadAssignmentPolicyStatus(client, context, policyId, status) {
+export async function setLeadAssignmentPolicyStatus(client, context, policyId, status, expectedUpdatedAt) {
   if (!UUID.test(String(policyId || "")) || !["active", "inactive"].includes(status))
     throw new LeadGovernanceError(400, "Assignment-rule status request is invalid.", "CRM_ASSIGNMENT_RULE_INVALID");
   const policy = await client.query(
@@ -278,13 +310,26 @@ export async function setLeadAssignmentPolicyStatus(client, context, policyId, s
     for (const userId of row.mode === "fixed" ? [row.assignee_user_id] : row.mode === "territory" ? [] : row.member_user_ids || [])
       await assertEligibleLeadAssignee(client, context, userId);
   }
+  // Stage A2 §14: same checked-write contract as saveLeadAssignmentPolicy
+  // above — an activate/deactivate/archive toggle is still a mutation two
+  // admins could race on.
+  const expected = text(expectedUpdatedAt);
+  if (!expected)
+    throw new LeadGovernanceError(400, "Refresh this Assignment rule before changing it.", "CRM_ASSIGNMENT_RULE_VERSION_REQUIRED");
+  if (Number.isNaN(Date.parse(expected)))
+    throw new LeadGovernanceError(400, "The Assignment rule version is invalid. Refresh and try again.", "CRM_ASSIGNMENT_RULE_VERSION_INVALID");
   const result = await client.query(
-    `UPDATE tenant.crm_lead_assignment_policies SET status=$3,updated_by=$2,updated_at=now() WHERE organization_id=$1 AND id=$4 RETURNING *`,
-    [context.organizationId, context.userId, status, policyId],
+    `UPDATE tenant.crm_lead_assignment_policies SET status=$3,updated_by=$2,updated_at=now()
+     WHERE organization_id=$1 AND id=$4
+       AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $5::timestamptz)
+     RETURNING *`,
+    [context.organizationId, context.userId, status, policyId, expected],
   );
+  if (!result.rows[0])
+    throw new LeadGovernanceError(409, "This Assignment rule changed after you loaded it. Refresh and try again.", "CRM_STALE_WRITE");
   return result.rows[0];
 }
 
-export async function archiveLeadAssignmentPolicy(client, context, policyId) {
-  return setLeadAssignmentPolicyStatus(client, context, policyId, "inactive");
+export async function archiveLeadAssignmentPolicy(client, context, policyId, expectedUpdatedAt) {
+  return setLeadAssignmentPolicyStatus(client, context, policyId, "inactive", expectedUpdatedAt);
 }

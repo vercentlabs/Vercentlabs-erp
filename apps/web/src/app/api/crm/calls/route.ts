@@ -1,64 +1,50 @@
-import { createCrmCall, listCrmCalls } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createCrmCall, listCrmCalls } from "@vercentlabs/api";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { getSessionContext } from "@/core/auth";
-import { PERMISSIONS, requirePermissionFromSession } from "@/core/authorization";
-import { incrementBillingUsage, requireBillingWriteAccess } from "@/core/billing";
 import { tenantTransaction } from "@/core/db";
-import { HttpError, ok, readJson } from "@/core/http";
-import { assertSameOrigin, audit } from "@/core/security";
-import { crmApiContext, crmErrorResponse } from "@/modules/crm";
-import { crmCallAuditSnapshot } from "@/modules/crm/crm-data-operations-and-customization/audit-events";
-import { createCallSchema } from "@/modules/crm/crm-data-operations-and-customization/input-validation";
+import { errorResponse, ok, readJson } from "@/core/http";
+import { requireWorkspace } from "@/core/session";
+import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
+// F013 Calls. crm_activities with activity_type='call' — call-operations.js
+// is the ONE governed lifecycle authority; create supports both "schedule"
+// (future call) and "log" (retroactively record a call that already
+// happened) modes, both handled entirely server-side. Matches Tasks'
+// documented convention: base access (crm.activities.manage) is enforced
+// at the route level, not inside the domain function.
 export async function GET(request: Request) {
   try {
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmView);
-    const context = await crmApiContext(session);
-    const params = new URL(request.url).searchParams;
-    const result = await tenantTransaction(context.organizationId, (client) =>
-      listCrmCalls(client, context, {
-        search: params.get("search") || "",
-        status: params.get("status") || "all",
-        direction: params.get("direction") || "all",
-        due: params.get("due") || "all",
-        limit: params.get("limit") || 25,
-        offset: params.get("offset") || 0,
-      }),
-    );
+    const session = await requireWorkspace();
+    const url = new URL(request.url);
+    const filters = {
+      status: url.searchParams.get("status") || undefined,
+      direction: url.searchParams.get("direction") || undefined,
+      due: url.searchParams.get("due") || undefined,
+      search: url.searchParams.get("search") || undefined,
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
+    };
+    const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return listCrmCalls(client, crmContext(session), filters);
+    });
     return ok(result);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    const session = await getSessionContext();
-    if (!session?.organizationId) throw new HttpError(401, "Sign in first.");
-    requirePermissionFromSession(session, PERMISSIONS.crmActivitiesManage);
-    await requireBillingWriteAccess(session.organizationId);
-    const input = createCallSchema.parse(await readJson(request));
-    await incrementBillingUsage(session.organizationId, "api_requests_monthly");
-    const context = await crmApiContext(session);
-    const record = await tenantTransaction(context.organizationId, async (client) => {
-      const created = await createCrmCall(client, context, input);
-      await audit({
-        organizationId: context.organizationId,
-        actorUserId: context.userId,
-        eventType: input.mode === "log" ? "crm.call.logged" : "crm.call.scheduled",
-        entityType: "call",
-        entityId: String(created.id),
-        afterData: crmCallAuditSnapshot(created),
-        request,
-        client,
-      });
-      return created;
+    assertSameOriginOrMobile(request, process.env);
+    const session = await requireWorkspace();
+    const input = (await readJson(request)) as Record<string, unknown>;
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      return createCrmCall(client, crmContext(session), input);
     });
-    return ok({ message: input.mode === "log" ? "Call logged." : "Call scheduled.", record }, 201);
+    return ok({ record }, 201);
   } catch (error) {
-    return crmErrorResponse(error);
+    return errorResponse(error);
   }
 }

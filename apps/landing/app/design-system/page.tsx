@@ -70,15 +70,15 @@ export default function DesignSystemPage() {
         </Grid>
 
         <Text variant="label" className="mt-8 block">
-          Module accents (4 sourced from the real product, 8 landing-original — see modules.js)
+          Module accents (all landing-original — see modules.js)
         </Text>
         <Inline gap={2} className="mt-3">
           {LANDING_MODULES.map((module) => (
-            <ModuleTag key={module.key} name={`${module.name}${module.accentColor.sourcedFromProduct ? "" : " *"}`} accentColor={module.accentColor.hex} />
+            <ModuleTag key={module.key} name={module.name} accentColor={module.accentColor.hex} />
           ))}
         </Inline>
         <Text variant="caption" className="mt-2">
-          * landing-original colour — not sourced from apps/web&apos;s CSS. See creative-direction.md.
+          Landing-owned colors, not sourced from the product. See creative-direction.md.
         </Text>
       </Section>
 

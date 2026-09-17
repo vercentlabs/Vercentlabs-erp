@@ -1,79 +1,28 @@
-import { randomUUID } from "node:crypto";
-import { hashPassword, tokenHash, verifyPassword } from "@/core/auth";
-import { transaction } from "@/core/db";
+import { z } from "zod";
+
+import { assertSameOrigin, clientIp, enforceRateLimit, passwordPolicyIssues, resetPasswordWithToken } from "@vercentlabs/api";
+
+import { transaction, withClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import {
-  assertSameOrigin,
-  audit,
-  clientIp,
-  enforceRateLimit,
-} from "@/core/security";
-import { resetPasswordSchema } from "@/core/validation";
+
+const schema = z.object({ token: z.string().min(1).max(500), password: z.string().min(1).max(200) });
 
 export async function POST(request: Request) {
   try {
-    assertSameOrigin(request);
-    await enforceRateLimit("reset:" + clientIp(request), 8, 900);
-    const input = resetPasswordSchema.parse(await readJson(request));
-    const passwordHash = await hashPassword(input.password);
+    assertSameOrigin(request, process.env);
+    const body = schema.parse(await readJson(request));
+    await withClient((client) => enforceRateLimit(client, `reset-password:${clientIp(request, process.env)}`, 10, 300));
 
-    const userId = await transaction(async (client) => {
-      const tokenResult = await client.query<{ user_id: string }>(
-        `
-        SELECT user_id FROM password_reset_tokens
-        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() FOR UPDATE
-      `,
-        [tokenHash(input.token)],
-      );
-      const row = tokenResult.rows[0];
-      if (!row)
-        throw new HttpError(
-          400,
-          "This password-reset link is invalid or expired.",
-        );
+    const issues = passwordPolicyIssues(body.password);
+    if (issues.length > 0) throw new HttpError(422, issues[0], "AUTH_PASSWORD_POLICY", { issues });
 
-      const history = await client.query<{ password_hash: string }>(
-        "SELECT password_hash FROM password_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
-        [row.user_id],
-      );
-      for (const previous of history.rows) {
-        if (await verifyPassword(input.password, previous.password_hash))
-          throw new HttpError(
-            400,
-            "Choose a password you have not recently used.",
-          );
-      }
-
-      await client.query(
-        "UPDATE users SET password_hash = $1, password_changed_at = now(), failed_login_attempts = 0, locked_until = NULL, updated_at = now() WHERE id = $2",
-        [passwordHash, row.user_id],
-      );
-      await client.query(
-        "INSERT INTO password_history (id, user_id, password_hash) VALUES ($1, $2, $3)",
-        [randomUUID(), row.user_id, passwordHash],
-      );
-      await client.query(
-        "UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL",
-        [row.user_id],
-      );
-      await client.query(
-        "UPDATE sessions SET revoked_at = now(), revoked_reason = 'password_reset' WHERE user_id = $1 AND revoked_at IS NULL",
-        [row.user_id],
-      );
-      return row.user_id;
-    });
-
-    await audit({
-      actorUserId: userId,
-      eventType: "auth.password_reset",
-      entityType: "user",
-      entityId: userId,
-      request,
-    });
-    return ok({
-      message: "Password changed. Sign in again with your new password.",
-      next: "/login?reset=success",
-    });
+    // transaction(), not withClient() — token consumption, the password
+    // update, and session revocation must commit or roll back together
+    // (2C: a crash between steps must never leave a token marked used
+    // with the password unchanged, or a password changed with old
+    // sessions still live).
+    const result = await transaction((client) => resetPasswordWithToken(client, body.token, body.password));
+    return ok({ reset: true, userId: result.userId });
   } catch (error) {
     return errorResponse(error);
   }

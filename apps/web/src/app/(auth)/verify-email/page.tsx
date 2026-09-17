@@ -1,32 +1,21 @@
-import Link from "next/link";
-import AuthCard from "@/core/components/auth-card";
-import AuthForm from "@/core/components/auth-form";
-import ResendVerificationForm from "@/core/components/resend-verification-form";
+import { VerifyEmailClient } from "./verify-email-client";
 
-export const metadata = { title: "Verify email" };
+export const metadata = { title: "Verify your email" };
+
 export default async function VerifyEmailPage({
   searchParams,
 }: {
   searchParams: Promise<{ token?: string; email?: string }>;
 }) {
-  const { token = "", email = "" } = await searchParams;
+  const { token, email } = await searchParams;
+
   return (
-    <AuthCard
-      pageClassName="viewport-auth-page"
-      eyebrow="Email verification"
-      title={token ? "Verify your work email" : "Check your work email"}
-      description={
-        token
-          ? "Confirm this single-use verification link to continue."
-          : "Open the verification link sent to your email, or request a new one below."
-      }
-      footer={<Link href="/login">Return to sign in</Link>}
-    >
-      {token ? (
-        <AuthForm mode="verify" token={token} />
-      ) : (
-        <ResendVerificationForm defaultEmail={email} />
-      )}
-    </AuthCard>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">Vercentlabs ERP</p>
+        <h1 className="text-xl font-semibold text-text">Verify your email</h1>
+      </div>
+      <VerifyEmailClient token={token} email={email} />
+    </div>
   );
 }

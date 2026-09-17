@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  getOpportunityDashboard,
   getOpportunityTimeline,
   bulkUpdateOpportunities,
   captureForecastSnapshot,
@@ -29,22 +28,6 @@ const restrictedContext = {
   roleSlugs: ["sales_representative"],
   permissions: ["crm.view", "crm.opportunities.manage"],
 };
-
-test("F009 security fix: getOpportunityDashboard scopes its aggregate query by company (recordScope applied)", async () => {
-  let sawScopeClause = false;
-  const client = {
-    async query(sql, values = []) {
-      if (sql.includes("FROM tenant.crm_opportunities o")) {
-        sawScopeClause = sql.includes("o.company_id");
-        assert.ok(values.includes(myCompany), "company id must be bound as a query parameter");
-        return { rows: [] };
-      }
-      throw new Error(`Unexpected query: ${sql}`);
-    },
-  };
-  await getOpportunityDashboard(client, restrictedContext);
-  assert.equal(sawScopeClause, true);
-});
 
 test("F009 security fix: getOpportunityTimeline 404s for an opportunity outside the caller's company scope", async () => {
   const client = {

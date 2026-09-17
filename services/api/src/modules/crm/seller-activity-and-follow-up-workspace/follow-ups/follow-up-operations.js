@@ -477,12 +477,20 @@ export async function createCrmFollowUp(client, context, input = {}) {
 }
 
 export async function updateCrmFollowUp(client, context, id, input = {}) {
-  const allowed = new Set([...FOLLOW_UP_FIELDS, ...EXPECTATION_FIELDS]);
+  const allowed = new Set([...FOLLOW_UP_FIELDS, ...EXPECTATION_FIELDS, "reminderOffsets", "reminderChannel"]);
   assertAllowed(input, allowed);
   const before = await getCrmFollowUp(client, context, id, { lock: true });
   if (TERMINAL.has(before.status)) throw new CrmError(409, "Completed or cancelled Follow-ups are read-only.", "CRM_FOLLOW_UP_READ_ONLY");
   stale(before, input.expectedUpdatedAt, input.expectedStatus);
-  const raw = { ...input }; delete raw.expectedUpdatedAt; delete raw.expectedStatus;
+  // F016 Stage A2 closeout: reminderOffsets/reminderChannel are request-level
+  // delivery instructions, not crm_activities columns — same stripping
+  // discipline createCrmFollowUp already uses, so a caller can now edit an
+  // existing Follow-up's reminder plan, not only set one at creation.
+  const reminderPlanGiven = hasOwn(input, "reminderOffsets") || hasOwn(input, "reminderChannel");
+  const reminderOffsets = hasOwn(input, "reminderOffsets") ? input.reminderOffsets : undefined;
+  const reminderChannel = hasOwn(input, "reminderChannel") ? text(input.reminderChannel).toLowerCase() : undefined;
+  const raw = { ...input };
+  delete raw.expectedUpdatedAt; delete raw.expectedStatus; delete raw.reminderOffsets; delete raw.reminderChannel;
   const prepared = normalize(raw);
   const effective = await validate(client, context, prepared, before);
   const pairs = [];
@@ -493,22 +501,29 @@ export async function updateCrmFollowUp(client, context, id, input = {}) {
     followUpReason: "follow_up_reason", followUpChannel: "follow_up_channel", escalateAfterMinutes: "follow_up_escalate_after_minutes",
   };
   for (const [field, column] of Object.entries(columns)) if (hasOwn(prepared, field)) pairs.push(`${column}=${add(values, prepared[field])}`);
-  if (!pairs.length) return before;
-  values.push(context.userId, context.organizationId, id);
-  const result = await client.query(
-    `UPDATE tenant.crm_activities SET ${pairs.join(",")},updated_by=$${values.length - 2},updated_at=now() WHERE organization_id=$${values.length - 1} AND id=$${values.length} AND activity_type='follow_up' RETURNING *`,
-    values,
-  );
-  const followUp = dto(result.rows[0]);
-  await event(client, context, followUp.id, "updated", before, followUp, { changedFields: Object.keys(prepared) });
-  // A due-date change invalidates the previous reminder schedule — cancel
-  // whatever is still pending and regenerate against the new due_at rather
-  // than leaving stale reminders that would fire at the wrong time.
-  if (hasOwn(prepared, "dueAt")) {
-    await cancelPendingRemindersForActivity(client, context, followUp.id);
-    await createRemindersForActivity(client, context, followUp.id, followUp.dueAt, {});
+  if (!pairs.length && !reminderPlanGiven) return before;
+  let followUp = before;
+  if (pairs.length) {
+    values.push(context.userId, context.organizationId, id);
+    const result = await client.query(
+      `UPDATE tenant.crm_activities SET ${pairs.join(",")},updated_by=$${values.length - 2},updated_at=now() WHERE organization_id=$${values.length - 1} AND id=$${values.length} AND activity_type='follow_up' RETURNING *`,
+      values,
+    );
+    followUp = dto(result.rows[0]);
+    await event(client, context, followUp.id, "updated", before, followUp, { changedFields: Object.keys(prepared) });
   }
-  await queueOutboxEvent(client, context, "crm.follow_up.updated", "follow_up", followUp.id, safe(followUp));
+  // A due-date change invalidates the previous reminder schedule, and an
+  // explicit reminder-plan edit is itself a request to replace it — either
+  // one cancels whatever is still pending and regenerates, rather than
+  // leaving stale reminders or silently ignoring the caller's new plan.
+  if (hasOwn(prepared, "dueAt") || reminderPlanGiven) {
+    await cancelPendingRemindersForActivity(client, context, followUp.id);
+    await createRemindersForActivity(client, context, followUp.id, followUp.dueAt, {
+      offsets: reminderOffsets,
+      channel: reminderChannel && REMINDER_CHANNELS.has(reminderChannel) ? reminderChannel : "in_app",
+    });
+  }
+  if (pairs.length) await queueOutboxEvent(client, context, "crm.follow_up.updated", "follow_up", followUp.id, safe(followUp));
   return followUp;
 }
 

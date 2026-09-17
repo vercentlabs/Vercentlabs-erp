@@ -1,4 +1,4 @@
-/* GENERATED from packages/shared-ui/tokens/theme.json. Do not edit directly. */
+/* GENERATED from packages/design-tokens/tokens/theme.json. Do not edit directly. */
 export const palette = Object.freeze({
   navy950: "#0B1220",
   navy900: "#0B1220",

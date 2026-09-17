@@ -182,7 +182,7 @@ test("F018/F019: the communication branch applies the SAME canonical audience pr
   await getCrmRecordTimelinePage(client, baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "lead", lead, {});
   const combined = client.calls.find(({ sql }) => sql.includes("WITH combined AS"));
   assert.match(combined.sql, /FROM tenant\.crm_communications AS communication WHERE organization_id=\$1 AND lead_id=\$\d+/);
-  assert.match(combined.sql, /communication\.visibility='team' OR communication\.created_by=\$\d+ OR \$\d+ OR \(communication\.visibility='participant'/);
+  assert.match(combined.sql, /communication\.visibility='team' OR communication\.created_by=\$\d+ OR \$\d+::boolean OR \(communication\.visibility='participant'/);
 });
 
 test("F019: an unsupported entity type or a malformed record id fails closed with a stable error code", async () => {

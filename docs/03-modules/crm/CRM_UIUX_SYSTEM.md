@@ -1,5 +1,16 @@
 # CRM unified UI/UX system
 
+> **SUPERSEDED — do not follow as architecture.** This document describes
+> `packages/shared-ui`, `apps/web/src/modules/crm/ui/crm.css`, and other
+> structures deleted in the `rebuild/clean-frontend` clean-slate rewrite.
+> The current CRM frontend uses `@vercentlabs/design-system` +
+> `@vercentlabs/design-tokens` exclusively — no CRM-specific stylesheet,
+> no shared-ui package. The current authority is
+> `docs/frontend-rebuild/CRM_CLEAN_REBUILD_REGISTER.md`. This document is
+> retained only as historical context for the requirements it also
+> documents (breakpoint philosophy, etc.), not for the file paths or
+> packages it names.
+
 This is the implementation contract for the September 2026 CRM presentation convergence.
 
 ## Single-source rules

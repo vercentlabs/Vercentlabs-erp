@@ -219,6 +219,29 @@ test("F016: changing dueAt on update cancels stale reminders and regenerates the
   assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_activity_reminders(")));
 });
 
+// F016 Stage A2 closeout: reminder-plan editing was a genuine, dossier-
+// named (F016-CAP-002) gap — updateCrmFollowUp previously only accepted
+// the core Follow-up fields, never reminderOffsets/reminderChannel, so an
+// existing plan couldn't be changed without deleting and recreating the
+// whole Follow-up.
+test("F016: editing only the reminder plan (no core field change) cancels and regenerates with the new offsets/channel, without touching crm_activities", async () => {
+  const client = createClient();
+  const result = await updateCrmFollowUp(client, context, followUp, { reminderOffsets: [180, 15], reminderChannel: "email" });
+  assert.equal(result.id, followUp);
+  assert.equal(client.calls.some(({ sql }) => sql.startsWith("UPDATE tenant.crm_activities SET")), false);
+  assert.ok(client.calls.some(({ sql }) => sql.includes("UPDATE tenant.crm_activity_reminders SET status='cancelled'")));
+  const insertedOffsets = client.calls.filter(({ sql }) => sql.includes("INSERT INTO tenant.crm_activity_reminders(")).map(({ values }) => values[2]);
+  assert.deepEqual(insertedOffsets.sort((a, b) => b - a), [180, 15]);
+  assert.ok(client.calls.some(({ sql, values }) => sql.includes("INSERT INTO tenant.crm_activity_reminders(") && values[3] === "email"));
+});
+
+test("F016: updateCrmFollowUp with neither a core field nor a reminder plan is a clean no-op", async () => {
+  const client = createClient();
+  const result = await updateCrmFollowUp(client, context, followUp, {});
+  assert.equal(client.calls.some(({ sql }) => sql.includes("crm_activity_reminders")), false);
+  assert.equal(result.id, followUp);
+});
+
 test("F016: escalation resolves the assignee's sales-team manager and notifies them", async () => {
   const client = createClient({
     activity: { follow_up_escalate_after_minutes: 60, due_at: "2026-09-01T00:00:00.000Z" },

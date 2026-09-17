@@ -58,38 +58,6 @@ export function evaluateOpportunityHealth(row, now = new Date()) {
       : Math.round(amount * probability) / 100,
   };
 }
-export function buildPipelineSummary(rows, now = new Date()) {
-  const result = {
-    total: rows.length,
-    openAmount: 0,
-    weightedAmount: 0,
-    overdue: 0,
-    healthy: 0,
-    byStage: {},
-  };
-  for (const row of rows) {
-    const health = evaluateOpportunityHealth(row, now);
-    const amount = num(row.amount);
-    if (String(row.status) === "open") result.openAmount += amount;
-    if (String(row.status) === "open") result.weightedAmount += health.weightedAmount;
-    if (health.warnings.includes("Expected close date is overdue."))
-      result.overdue += 1;
-    if (health.healthy) result.healthy += 1;
-    const stage = text(row.stage_name || row.stage_id) || "Unassigned";
-    result.byStage[stage] = (result.byStage[stage] || 0) + 1;
-  }
-  result.openAmount = Math.round(result.openAmount * 100) / 100;
-  result.weightedAmount = Math.round(result.weightedAmount * 100) / 100;
-  return result;
-}
-export async function getOpportunityDashboard(client, context) {
-  const parameters = [context.organizationId];
-  const result = await client.query(
-    `SELECT o.id,o.name,o.amount,o.probability,o.expected_revenue,o.expected_close_date,o.status,o.forecast_category,o.next_step,o.last_activity_at,o.created_at,o.updated_at,s.name stage_name FROM tenant.crm_opportunities o LEFT JOIN tenant.crm_pipeline_stages s ON s.organization_id=o.organization_id AND s.id=o.stage_id WHERE o.organization_id=$1 AND o.status <> 'archived'${recordScope(resources.opportunities, context, parameters, "o")}`,
-    parameters,
-  );
-  return buildPipelineSummary(result.rows);
-}
 export async function getOpportunityTimeline(client, context, opportunityId) {
   const parameters = [context.organizationId, opportunityId];
   const opportunity = await client.query(

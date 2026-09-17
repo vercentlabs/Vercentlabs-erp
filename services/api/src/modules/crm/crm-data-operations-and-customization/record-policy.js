@@ -83,13 +83,21 @@ function communicationParentScopeSql(context, parameters, alias) {
     parameters,
     "opportunity",
   );
-  const partyCompanyParam = context.activeCompanyId
-    ? addParameter(parameters, context.activeCompanyId)
-    : null;
+  // allowAllCompanies is checked FIRST, before touching `parameters` at
+  // all: a real, reproducible bug (found via live-browser Prompt 3 QA
+  // against a real database, invisible to every mocked-client unit test)
+  // previously called addParameter(parameters, context.activeCompanyId)
+  // unconditionally whenever activeCompanyId was set, then discarded it in
+  // favor of the literal "true" whenever allowAllCompanies was also true —
+  // leaving a bound parameter that appears nowhere in the returned SQL
+  // text. Postgres cannot infer that orphaned placeholder's type at parse
+  // time and rejects the whole query with "could not determine data type
+  // of parameter $N", for every organization_owner/view_all caller (i.e.
+  // most real usage) hitting the Communications resource.
   const partyVisible = context.allowAllCompanies
     ? "true"
-    : partyCompanyParam
-      ? `(party.company_id IS NULL OR party.company_id = ${partyCompanyParam})`
+    : context.activeCompanyId
+      ? `(party.company_id IS NULL OR party.company_id = ${addParameter(parameters, context.activeCompanyId)})`
       : "false";
   const standaloneVisible = context.allowAllCompanies ? "true" : "false";
   return ` AND (
@@ -171,7 +179,25 @@ export function recordScope(definition, context, parameters, alias = "record") {
   }
   if (definition.ownerField && !canViewAllCrmRecords(context)) {
     const column = definition.fields[definition.ownerField];
-    sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)})`;
+    if (definition.table === "tenant.crm_forecast_submissions") {
+      // F025 Stage A2 §11 closeout — the dossier's own named "rep sees
+      // own -> manager sees team -> exec sees org" rollup (previously
+      // disclosed as "a separate, larger enhancement — not attempted").
+      // Reuses F020's own crm_sales_teams.manager_user_id/
+      // crm_sales_team_members verbatim — never a second, forecast-only
+      // hierarchy. A caller without crm.records.view_all sees: an
+      // ownerless (team-level) submission (unchanged prior behavior),
+      // their own submission, or a submission whose owner is an active
+      // member of a Sales Team this caller manages.
+      sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)} OR EXISTS (
+        SELECT 1 FROM tenant.crm_sales_team_members member
+          JOIN tenant.crm_sales_teams team ON team.organization_id=member.organization_id AND team.id=member.team_id
+         WHERE member.organization_id=${alias}.organization_id AND member.user_id=${alias}.${column}
+           AND member.status='active' AND team.manager_user_id=${addParameter(parameters, context.userId)}
+      ))`;
+    } else {
+      sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)})`;
+    }
   }
   sql += directLeadLinkedScope(definition, context, parameters, alias);
   sql += aiFeedbackLeadScope(definition, context, parameters, alias);
@@ -415,7 +441,7 @@ export async function assertGenericLeadLinkedTarget(client, context, resource, e
 
 
 
-export function assertLifecycleUpdate(resource, before, input) {
+export function assertLifecycleUpdate(resource, before, input, context = {}) {
   if (
     resource === "leads" &&
     ["qualified", "unqualified"].includes(String(input.status || ""))
@@ -460,6 +486,45 @@ export function assertLifecycleUpdate(resource, before, input) {
         "CRM_FORECAST_TRANSITION_INVALID",
       );
     }
+    // F025 Stage A2 §11 — a rep may draft/submit/revise their own
+    // forecast, but only a reviewer (a caller who is NOT the submission's
+    // own owner — in practice, per the recordScope change above, their
+    // Sales Team's manager or a crm.records.view_all holder, since anyone
+    // else can't even see the row to PATCH it) may move it into
+    // approved/rejected. Without this, a rep could self-approve their own
+    // number through the same generic PATCH that lets them edit it.
+    if (
+      ["approved", "rejected"].includes(input.status) &&
+      before.ownerUserId &&
+      context.userId &&
+      before.ownerUserId === context.userId
+    ) {
+      throw new CrmError(
+        403,
+        "You cannot approve or reject your own forecast submission.",
+        "CRM_FORECAST_SELF_REVIEW_FORBIDDEN",
+      );
+    }
+  }
+  // F025 Stage A2 §11 — managerAdjustment is, by its own name and the
+  // dossier's own requirement, a reviewer's override recorded ALONGSIDE
+  // a rep's own submitted numbers (never the Opportunity's amount/
+  // probability, which this field never touches), so a rep editing their
+  // own draft must not also be able to set it on themselves. Independent
+  // of the status-change guard above — a plain field edit that never
+  // touches status must still be blocked.
+  if (
+    resource === "forecast-submissions" &&
+    Object.prototype.hasOwnProperty.call(input, "managerAdjustment") &&
+    before.ownerUserId &&
+    context.userId &&
+    before.ownerUserId === context.userId
+  ) {
+    throw new CrmError(
+      403,
+      "You cannot set a manager adjustment on your own forecast submission.",
+      "CRM_FORECAST_SELF_ADJUSTMENT_FORBIDDEN",
+    );
   }
   if (
     resource === "privacy-requests" &&
