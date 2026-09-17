@@ -722,6 +722,15 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
+        id: "discounts",
+        label: "Discounts",
+        featureRange: "F279-F281",
+        items: [
+          { ...available("Promotions", "/pos/promotions"), requiredPermission: "pos.settings.manage" },
+          { ...available("Coupons", "/pos/coupons"), requiredPermission: "pos.settings.manage" },
+        ],
+      },
+      {
         id: "cash",
         label: "Cash",
         featureRange: "F278-F282",

@@ -128,5 +128,9 @@ export const listPosPromotions = (status?: string) => request<{ rows: PosPromoti
 export const listPosCoupons = (status?: string) => request<{ rows: PosCoupon[] }>(`/coupons${status ? `?status=${status}` : ""}`);
 export const createPosPromotion = (input: Record<string, unknown>) => post<{ record: PosPromotion }>("/promotions", input);
 export const createPosCoupon = (input: Record<string, unknown>) => post<{ record: PosCoupon }>("/coupons", input);
+export const updatePosPromotion = (id: string, input: Record<string, unknown>) =>
+  request<{ record: PosPromotion }>(`/promotions/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+export const updatePosCoupon = (id: string, input: Record<string, unknown>) =>
+  request<{ record: PosCoupon }>(`/coupons/${id}`, { method: "PATCH", body: JSON.stringify(input) });
 export const setPosPromotionActive = (id: string, active: boolean) => post<{ record: PosPromotion }>(`/promotions/${id}/active`, { active });
 export const setPosCouponActive = (id: string, active: boolean) => post<{ record: PosCoupon }>(`/coupons/${id}/active`, { active });
