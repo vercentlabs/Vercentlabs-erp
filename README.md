@@ -99,7 +99,7 @@ and configure the app as follows:
 npm
 
 # Build command
-sh scripts/deploy/hostinger-build.sh
+npm run build
 
 # Entry file / start command
 node server.js
