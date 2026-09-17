@@ -130,3 +130,73 @@ test("logout still works end-to-end after the same-origin check was added, and t
 
   await context.close();
 });
+
+test("sessions: revoking a specific other session and revoking all other sessions both work end-to-end, and the caller's own session always survives", async ({ browser }) => {
+  // Phase 3 (SP006): DELETE /api/settings/sessions/[id] and DELETE
+  // /api/settings/sessions (revoke-others) both revoke real, live
+  // sessions server-side, not just DB rows the caller can't otherwise
+  // reach. Uses its own fresh logins throughout (storageState: undefined),
+  // not the shared e2e/.auth/owner.json fixture, for the same reason the
+  // logout spec above does — revoking "all other sessions" would revoke
+  // that shared fixture's own session too. Regenerates it at the end so
+  // later specs in the same run are unaffected.
+  async function freshLogin() {
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+    await page.goto("/login", { waitUntil: "networkidle" });
+    await page.getByLabel(/email/i).fill(fixtures.ownerEmail);
+    await page.getByLabel(/password/i).fill(fixtures.ownerPassword);
+    await Promise.all([
+      page.waitForResponse((res) => res.url().includes("/api/auth/login")),
+      page.getByRole("button", { name: /sign in|log in/i }).click(),
+    ]);
+    await page.goto("/crm", { waitUntil: "networkidle" });
+    return { context, page };
+  }
+
+  const current = await freshLogin();
+  const other = await freshLogin();
+
+  try {
+    const otherSessionId = await other.page.evaluate(async () => {
+      const resp = await fetch("/api/settings/sessions");
+      const body = await resp.json();
+      return (body.sessions.find((s: { isCurrent: boolean }) => s.isCurrent) as { id: string }).id;
+    });
+
+    // A cannot revoke B's session by a random/foreign id — this only
+    // works because "current" and "other" are the same fixture user here;
+    // ownership (not identity of caller vs target session) is the gate.
+    const specificRevoke = await current.page.evaluate(async (id) => {
+      const resp = await fetch(`/api/settings/sessions/${id}`, { method: "DELETE" });
+      return { status: resp.status, body: await resp.json() };
+    }, otherSessionId);
+    expect(specificRevoke.status, JSON.stringify(specificRevoke.body)).toBe(200);
+
+    const otherAfterSpecificRevoke = await other.page.evaluate(async () => (await fetch("/api/notifications")).status);
+    expect(otherAfterSpecificRevoke).toBe(401);
+
+    // Revoke-all-others: current survives, a brand-new third session does not.
+    const third = await freshLogin();
+    const revokeOthers = await current.page.evaluate(async () => {
+      const resp = await fetch("/api/settings/sessions", { method: "DELETE" });
+      return { status: resp.status, body: await resp.json() };
+    });
+    expect(revokeOthers.status, JSON.stringify(revokeOthers.body)).toBe(200);
+    expect(revokeOthers.body.revokedCount).toBeGreaterThanOrEqual(1);
+
+    const thirdAfterRevokeOthers = await third.page.evaluate(async () => (await fetch("/api/notifications")).status);
+    expect(thirdAfterRevokeOthers).toBe(401);
+    const currentStillWorks = await current.page.evaluate(async () => (await fetch("/api/notifications")).status);
+    expect(currentStillWorks).toBe(200);
+    await third.context.close();
+  } finally {
+    // Regenerate the shared fixture — revoke-others above also revoked
+    // whatever session e2e/.auth/owner.json was carrying.
+    const replacement = await freshLogin();
+    await replacement.context.storageState({ path: "e2e/.auth/owner.json" });
+    await replacement.context.close();
+    await current.context.close();
+    await other.context.close();
+  }
+});

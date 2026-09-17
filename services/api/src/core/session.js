@@ -194,6 +194,19 @@ export async function revokeSessionById(client, userId, sessionId, reason = "use
   return Boolean(rows.rows[0]);
 }
 
+// "Sign out everywhere else" (SP006) — excludes currentSessionId so the
+// caller's own live session survives; same ownership-is-authorization
+// model as revokeSessionById, just scoped to "all but one" instead of one.
+export async function revokeOtherSessions(client, userId, currentSessionId, reason = "user_revoked_others") {
+  const rows = await client.query(
+    `UPDATE sessions SET revoked_at = now(), revoked_reason = $3
+      WHERE user_id = $1 AND id != $2 AND revoked_at IS NULL
+      RETURNING id`,
+    [userId, currentSessionId, reason],
+  );
+  return rows.rows.length;
+}
+
 export class ContextSwitchError extends Error {
   constructor(status, message, code) {
     super(message);

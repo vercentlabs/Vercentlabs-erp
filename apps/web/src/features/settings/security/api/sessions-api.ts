@@ -38,3 +38,8 @@ export async function revokeSession(id: string): Promise<{ ok: true }> {
   const response = await fetch(`/api/settings/sessions/${id}`, { method: "DELETE" });
   return parseResponse<{ ok: true }>(response);
 }
+
+export async function revokeOtherSessions(): Promise<{ revokedCount: number }> {
+  const response = await fetch("/api/settings/sessions", { method: "DELETE" });
+  return parseResponse<{ revokedCount: number }>(response);
+}

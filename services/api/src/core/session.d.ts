@@ -17,6 +17,7 @@ export declare function listSessionsForUser(client: any, userId: string): Promis
   expiresAt: Date;
 }>>;
 export declare function revokeSessionById(client: any, userId: string, sessionId: string, reason?: string): Promise<boolean>;
+export declare function revokeOtherSessions(client: any, userId: string, currentSessionId: string, reason?: string): Promise<number>;
 export declare function resolveSessionContext(client: any, token: string, sessionType: "browser" | "mobile", env?: any): Promise<any | null>;
 
 export declare class ContextSwitchError extends Error {
