@@ -3,9 +3,9 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type FocusEvent,
   type ReactNode,
 } from "react";
@@ -15,6 +15,30 @@ import { MODULE_NAVIGATION } from "@/shell/navigation/module-navigation-registry
 import type { ModuleNavigation } from "@/shell/navigation/navigation-types";
 
 const PIN_STORAGE_KEY = "vercentlabs.secondarySidebar.pinned";
+// A same-tab write to localStorage doesn't fire a "storage" event (only
+// other tabs get that) — this custom event is what lets
+// useSyncExternalStore notice this tab's own togglePinned() write, in
+// addition to the real "storage" event for cross-tab sync.
+const PINNED_CHANGE_EVENT = "vercentlabs:secondarySidebarPinnedChange";
+
+function subscribeToPinned(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(PINNED_CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(PINNED_CHANGE_EVENT, callback);
+  };
+}
+function getPinnedSnapshot() {
+  try {
+    return window.localStorage.getItem(PIN_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function getPinnedServerSnapshot() {
+  return false;
+}
 
 function isActiveRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
@@ -60,36 +84,33 @@ export function SecondarySidebarProvider({ children }: { children: ReactNode }) 
   const pathname = usePathname();
   const activeModule = findActiveModule(pathname);
 
-  const [pinned, setPinned] = useState(false);
+  const pinned = useSyncExternalStore(subscribeToPinned, getPinnedSnapshot, getPinnedServerSnapshot);
   const [hovering, setHovering] = useState(false);
   const [focused, setFocused] = useState(false);
   const [clickOpen, setClickOpen] = useState(false);
   const leaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    try {
-      setPinned(window.localStorage.getItem(PIN_STORAGE_KEY) === "1");
-    } catch {
-      // Private browsing / storage disabled — default (unpinned) stands.
-    }
-  }, []);
-
-  // Route changes shouldn't leave a click-opened flyout stuck open once
-  // the user has navigated where they meant to go.
-  useEffect(() => {
+  // Resets clickOpen when the route changes, without an effect — the
+  // React-documented pattern for "adjust state when a value changes"
+  // (react.dev, "You Might Not Need an Effect"): compare against the
+  // previous render's value during render itself and call setState
+  // conditionally, which React explicitly allows here (it bails out
+  // before committing/painting the stale render), rather than committing
+  // a stale frame and cleaning it up one effect-cycle later.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setClickOpen(false);
-  }, [pathname]);
+  }
 
   function togglePinned() {
-    setPinned((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(PIN_STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        // best-effort persistence only
-      }
-      return next;
-    });
+    const next = !pinned;
+    try {
+      window.localStorage.setItem(PIN_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // best-effort persistence only
+    }
+    window.dispatchEvent(new Event(PINNED_CHANGE_EVENT));
     setClickOpen(false);
   }
 
