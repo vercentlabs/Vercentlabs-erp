@@ -3,6 +3,10 @@ packages:
   - "services/*"
   - "packages/*"
 
+# The root advertises npm so Hostinger's pre-build dependency step does not
+# invoke its broken Corepack pnpm cache. pnpm remains the workspace manager.
+pmOnFail: ignore
+
 virtualStoreDir: .pnpm
 virtualStoreDirMaxLength: 30
 

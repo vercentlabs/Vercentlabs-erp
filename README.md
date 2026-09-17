@@ -110,6 +110,11 @@ its stale Corepack pnpm cache during its automatic dependency step. The build
 script then runs the repository-pinned `pnpm@11.21.0` through npm's `npx`,
 installs the full workspace, and builds the landing application.
 
+The root `package.json` and `package-lock.json` intentionally advertise npm for
+Hostinger's automatic bootstrap step. The monorepo itself remains managed by
+pnpm, with its exact version enforced by `engines.pnpm`, the pnpm lockfile, and
+the repository toolchain checks.
+
 ## ERP verification
 
 ```bash
