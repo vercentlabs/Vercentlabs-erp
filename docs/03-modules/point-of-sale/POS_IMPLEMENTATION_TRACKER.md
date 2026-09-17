@@ -57,21 +57,21 @@ Legend: REAL/VERIFIED, PARTIAL, FOUNDATION ONLY, FRONTEND MISSING, BACKEND MISSI
 
 | F | Feature | Session-1 status | Evidence / gap |
 |---|---|---|---|
-| F268 | Stores and outlets | PARTIAL | Backend `createStore` real; no update/activate-deactivate; no HTTP route; no UI; no test |
-| F269 | POS terminals | PARTIAL | Backend `createTerminal` real; no activate/inactivate/maintenance transition function; no HTTP route; no UI; no test |
-| F270 | Cashiers | FOUNDATION ONLY | No cashier entity/eligibility model at all — `cashier_user_id` is just a free user reference on `pos_shifts`; no route; no UI |
-| F271 | Cashier permissions | BACKEND MISSING | Only one all-powerful `pos_manager` role exists; no cashier-tier role; no route; no UI |
-| F272 | Product search | FRONTEND MISSING + BACKEND MISSING | No bounded POS product-search query exists in `index.js`; no route; no UI |
-| F273 | Barcode scanning | BACKEND MISSING | No barcode lookup function; no keyboard-wedge handling path; no UI |
-| F274 | Product variants | INTEGRATION MISSING | Not addressed by POS code; must reuse Stock/Item variant identity, not fork |
-| F275 | Price lists | PARTIAL | `resolvePointOfSaleUnitPrice` is a real, simpler lookup; does not reuse Sales' `previewSalesDocument`; no route; no UI |
-| F276 | Customer selection | BACKEND MISSING | `pos_sales.customer_id` has no FK to `business_parties`, no validation, free-text name accepted instead |
+| F268 | Stores and outlets | PARTIAL | Backend `createStore` real; session 1 added `POST`/`GET /api/pos/stores` (create+list, real HTTP route, verified against real Postgres); still no update/activate-deactivate function or route; no UI; no test |
+| F269 | POS terminals | PARTIAL | Backend `createTerminal` real; session 1 added `POST`/`GET /api/pos/terminals`; still no activate/inactivate/maintenance transition function or route; no UI; no test |
+| F270 | Cashiers | FOUNDATION ONLY | Real least-privilege `pos_cashier`/`pos_supervisor` roles now exist (session 1) closing the "one all-powerful role" gap, but there is still no dedicated cashier *entity*/eligibility model — `cashier_user_id` on `pos_shifts` is still a free user reference, not validated against a per-store/terminal eligibility list; no route; no UI |
+| F271 | Cashier permissions | PARTIAL (was BACKEND MISSING) | `pos_cashier` (least-privilege) and `pos_supervisor` (override/approve) roles added session 1, reusing only the existing `pos.*` permission vocabulary; a real `pos_return_create_approve` blocking SoD conflict now exists and is enforced (`pos_manager` no longer holds both sides). Verified against real PostgreSQL. Still no UI for assigning/managing these roles specifically for POS (falls back to the platform's generic role-assignment UI, not audited here) |
+| F272 | Product search | PARTIAL (was FRONTEND MISSING + BACKEND MISSING) | `searchPointOfSalePosProducts` added session 1 (`features/assortment.js`) — bounded, company/store-scoped, searches items + variants, excludes cost fields, joined to real warehouse availability. Exposed via `GET /api/pos/stores/[storeId]/products`. Verified against real PostgreSQL + real HTTP. Still FRONTEND MISSING — no checkout UI consumes it yet |
+| F273 | Barcode scanning | PARTIAL (was BACKEND MISSING) | `lookupPointOfSaleBarcode` added session 1 — exact match across item/variant barcodes (keyboard-wedge first-class path), clear 404 on unknown code. Exposed via `GET /api/pos/stores/[storeId]/barcode/[code]`. Verified against real PostgreSQL + real HTTP. Still FRONTEND MISSING — no scanner-input UI exists yet |
+| F274 | Product variants | INTEGRATION MISSING | `searchPointOfSalePosProducts`/`lookupPointOfSaleBarcode` (session 1) do correctly resolve `tenant.item_variants`, reusing Stock/Item's own variant identity rather than forking one — but `completePointOfSale`/returns still operate on plain `itemId` only, with no explicit `variantId` column/handling on `pos_sale_lines` yet |
+| F275 | Price lists | PARTIAL | Unchanged this session: `resolvePointOfSaleUnitPrice` is a real, simpler lookup; does not reuse Sales' `previewSalesDocument`; no route; no UI |
+| F276 | Customer selection | PARTIAL (was BACKEND MISSING) | Session 1: `completePointOfSale` now validates `customerId` against `tenant.business_parties` (active customer/both, org-shared or company-scoped) before completing a sale; migration 112 (tenant) adds the corresponding `pos_sales_customer_id_fkey` (`ON DELETE SET NULL`). Verified against real PostgreSQL (valid customer accepted, unknown/archived rejected with `POS_CUSTOMER_NOT_FOUND`). Still no dedicated customer-search route/UI — a caller must already know the customer's id |
 | F277 | Cart | FRONTEND MISSING + BACKEND MISSING | No server-side cart aggregate exists; `completePointOfSale` takes a flat `lines[]` with no held/versioned cart identity before commit |
 | F278 | Taxes | BACKEND MISSING (integrity gap) | Client-supplied `taxAmount` trusted (range-validated only); does not derive from `tenant.tax_rates`/GST split like Sales does |
 | F279 | Discounts | BACKEND MISSING | No policy-driven discount evaluation; `pos.discount.apply` permission checked only if `discount > 0`, no threshold/reason/evidence model |
 | F280 | Promotions | BACKEND MISSING | No promotion evaluation exists at all |
 | F281 | Coupons | BACKEND MISSING | No coupon validation/redemption exists at all |
-| F282 | Cash payments | REAL/VERIFIED | `completePointOfSale` cash path is real, tested (stock-integrity test), change computed correctly, net cash movement (not tendered amount) posted |
+| F282 | Cash payments | REAL/VERIFIED | `completePointOfSale` cash path is real, tested (stock-integrity test), change computed correctly, net cash movement (not tendered amount) posted; session 1 added the `POST`/`GET /api/pos/sales` HTTP route and re-verified end-to-end against real Postgres including idempotent replay |
 | F283 | Card payments | EXTERNAL ACTIVATION BLOCKED (adapter) / BACKEND MISSING (code-controllable parts) | Fails closed deliberately; zero adapter code exists; code-controllable adapter boundary is buildable now, real card capture needs a certified provider + merchant credentials |
 | F284 | UPI and digital payments | EXTERNAL ACTIVATION BLOCKED (adapter) / BACKEND MISSING | Same as F283 |
 | F285 | Split payments | BACKEND MISSING | `completePointOfSale` sums multiple payment lines but every non-cash line is rejected; split-cash-only "split" has no dedicated handling beyond summation |
@@ -80,8 +80,8 @@ Legend: REAL/VERIFIED, PARTIAL, FOUNDATION ONLY, FRONTEND MISSING, BACKEND MISSI
 | F288 | Resume sale | BACKEND MISSING + FRONTEND MISSING | Depends on F287; nothing to resume yet |
 | F289 | Receipt printing | BACKEND MISSING + FRONTEND MISSING | No receipt generation/rendering exists |
 | F290 | Invoice generation | BACKEND MISSING + INTEGRATION MISSING | No invoice path; `sales_order_id` column unused |
-| F291 | Returns | PARTIAL | Backend real for cash-tendered sales (creation/approval/completion); no HTTP route; no UI; largely untested beyond one stock-integrity angle |
-| F292 | Refunds | PARTIAL | Cash refund real; non-cash fails closed (correct, but adapter-dependent); no route; no UI |
+| F291 | Returns | PARTIAL | Backend real for cash-tendered sales (creation/approval/completion); session 1 added `POST`/`GET /api/pos/returns` and `POST /api/pos/returns/[id]/approve`; no UI; largely untested beyond one stock-integrity angle |
+| F292 | Refunds | PARTIAL | Cash refund real; non-cash fails closed (correct, but adapter-dependent); session 1 added `POST /api/pos/returns/[id]/complete`; no UI |
 | F293 | Exchanges | BACKEND MISSING | No exchange function exists at all; dossier requires linked return+replacement-sale lineage, not implemented |
 | F294 | Stock reduction | REAL/VERIFIED | Goes through canonical `postStockMovement`; regression-tested against real double-decrement/idempotency/insufficient-stock races |
 | F295 | Lot/serial support | PARTIAL | Stock's `postStockMovement` accepts `batchId`/`serialId` and POS can pass them through, but POS itself does not validate lot/serial *requirement* per item before checkout |
@@ -90,8 +90,8 @@ Legend: REAL/VERIFIED, PARTIAL, FOUNDATION ONLY, FRONTEND MISSING, BACKEND MISSI
 | F298 | Offline-to-online sync | BACKEND MISSING | Same as F297 — nothing to sync yet |
 | F299 | Cash drawer opening balance | REAL/VERIFIED | `openShift` posts an immutable opening cash movement correctly |
 | F300 | Cash movements | PARTIAL | Opening/sale/refund movements real; `paid_in`/`paid_out`/`closing_adjustment` never implemented despite schema + permission existing |
-| F301 | Shift opening | PARTIAL | Real; DB-enforced one-open-shift-per-terminal via partial unique index; not idempotency-key protected (network retry could double-attempt, though the unique index would reject the second) |
-| F302 | Shift closing | PARTIAL | Variance computed against cash movements; does not check unresolved payment/offline state; does not write `pos_reconciliations` |
+| F301 | Shift opening | PARTIAL | Real; DB-enforced one-open-shift-per-terminal via partial unique index; not idempotency-key protected (network retry could double-attempt, though the unique index would reject the second); session 1 added `POST`/`GET /api/pos/shifts` |
+| F302 | Shift closing | PARTIAL | Variance computed against cash movements; does not check unresolved payment/offline state; does not write `pos_reconciliations`; session 1 added `POST /api/pos/shifts/[id]/close` and fixed a bare, unclassified `Error` on "shift not found" (was surfacing as an opaque 500, now a proper 404 `POS_SHIFT_NOT_OPEN`) |
 | F303 | Day-end / Z report | BACKEND MISSING | No Z-report generation function exists |
 | F304 | Payment reconciliation | BACKEND MISSING | `pos_reconciliations` table exists, completely unused |
 | F305 | POS accounting posting | BACKEND MISSING (integration) | Zero calls to `createJournalEntry`/`postJournalEntry`; `accounting_invoice_id` unused |
@@ -112,4 +112,20 @@ This is a genuinely large, multi-tranche program (40 features spanning store/ter
 
 Update this section at the end of every future session with: what tranche was completed, what verification ran, and the exact next tranche to pick up.
 
-- Session 1: audit complete (this document), backend hardening + HTTP route layer + real cashier/supervisor roles + Tranche 1 (F268-F281) work in progress. See commit history on `rebuild/clean-frontend` from SHA `524dc6a8` onward for exact deltas; each capability lands as its own commit per the repo's commit-discipline convention.
+### Session 1 (this session) — what actually landed
+
+Starting SHA `524dc6a8`, five commits on `rebuild/clean-frontend` (each independently verified against real PostgreSQL and, where applicable, real HTTP against the running dev server — not just typecheck/lint/fake-client tests):
+
+1. `af380e17` — this tracker + the four-audit gap matrix (the required first deliverable).
+2. `157d8167` — real `pos_cashier`/`pos_supervisor` roles (F270/F271 foundation), a new `pos_return_create_approve` blocking SoD conflict, `pos_manager` no longer holds both `pos.return.create` and `pos.return.approve`. Platform migration 039.
+3. `7a23ad37` — the entire missing HTTP route layer (`apps/web/src/app/api/pos/**`, `apps/web/src/features/pos/shared/pos-context.ts`) for every domain function that existed before this session (stores, terminals, shifts+close, sales, returns+approve+complete, dashboard, generic resource list). Also fixed a real bug this exposed: `completePointOfSale` inserted `line.description` into a NOT NULL column with no fallback, and `closeShift`'s "not found" path threw a bare `Error` instead of a proper 404.
+4. `c857d622` — F276 customer validation: `completePointOfSale` now validates `customerId` against `tenant.business_parties`; tenant migration 112 adds the missing FK.
+5. `26691647` — F272/F273: `searchPointOfSalePosProducts` and `lookupPointOfSaleBarcode`, the first capability-owned file (`features/assortment.js`) split out of the original single `index.js`, with HTTP routes.
+
+Verification run repeatedly through the session: `pnpm test:api` (ended at 1104/1104, zero regressions across all five commits), `packages/permissions/tests/roles.test.mjs` (8/8), `pnpm test:security` (4/4), `pnpm verify:db` and `pnpm verify:architecture` (both green, correctly counting the two new migrations and the new capability file). Real end-to-end HTTP smoke tests were run against the actual dev server (port 3001) and real Postgres for: store→terminal→shift→cash-sale→idempotent-replay→non-cash-fails-closed→shift-close, product search, and barcode lookup — each confirmed by inspecting actual database state afterward (e.g. `stock_balances` decremented 100→98), not just a 2xx status code.
+
+**Not started this session** (i.e. still exactly as the original audit found them, see the gap matrix above): F274 (variant identity on sale lines), F275 (Sales' `previewSalesDocument` reuse for real tax), F277 (a real server-side cart/hold aggregate — F287/F288), F278-F281 (server-authoritative tax/discount-policy/promotions/coupons), the entire payment-provider adapter (F283-F286), F289/F290 (receipts/invoices), F293 (exchanges), F295 (lot/serial requirement validation in POS itself, though Stock's own contract already supports it), F296 (a dedicated availability query beyond the unlocked pre-check), F297/F298 (offline), F303-F305 (Z report/reconciliation/Accounting posting), F306 (loyalty), F307 (real analytics beyond the coarse dashboard). **All frontend/UI work is still entirely unstarted** — every route added this session is an API contract only; `/pos` still renders the generic `ModuleFoundationPage` placeholder.
+
+### Next tranche to pick up
+
+Continue Tranche 1 (F277-F281: a real server-side cart/hold aggregate, then server-authoritative tax via `previewSalesDocument`, then discount/promotion/coupon policy) before starting Tranche 2 (payment providers) — per the module's own dependency order, tender/payment logic should sit on top of a trustworthy cart, not the other way around. The frontend checkout screen (`/pos/checkout`) cannot honestly start until at least F277-F278 have real server-side backing, since a checkout UI with no real cart/tax would just be decorative controls over an incomplete API.
