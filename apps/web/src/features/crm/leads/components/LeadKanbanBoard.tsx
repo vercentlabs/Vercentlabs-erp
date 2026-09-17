@@ -219,6 +219,15 @@ export function LeadKanbanBoard({
   function handleDragStart(event: DragEvent<HTMLDivElement>, lead: Lead) {
     event.dataTransfer.setData(DRAG_MIME, lead.id);
     event.dataTransfer.effectAllowed = "move";
+    // Without an explicit drag image, the browser falls back to snapshotting
+    // the draggable element in whatever ambiguous way it sees fit — inside
+    // this flex/overflow-x-auto board layout that produced a huge, blurry
+    // ghost covering unrelated columns instead of just the one card. Pinning
+    // it to exactly this card, at the cursor's offset within it, forces a
+    // clean single-card preview every time.
+    const card = event.currentTarget;
+    const rect = card.getBoundingClientRect();
+    event.dataTransfer.setDragImage(card, event.clientX - rect.left, event.clientY - rect.top);
     setDraggingLeadId(lead.id);
   }
 
