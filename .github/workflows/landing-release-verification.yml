@@ -21,18 +21,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      # Must run before actions/setup-node@v5 — see landing-ci.yml's
-      # identical comment for why (setup-node's default
-      # package-manager-cache auto-detection needs `pnpm` already on PATH).
-      - name: Enable corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v5
+      # Install pinned pnpm directly so CI does not depend on Corepack's
+      # interpretation of the npm packageManager field used by Hostinger.
+      - name: Set up Node and pnpm
+        uses: pnpm/setup@v1
         with:
-          node-version: "24"
-          cache: pnpm
+          version: 11.21.0
+          runtime: node@24
+          cache: true
+          install: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
