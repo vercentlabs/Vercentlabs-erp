@@ -560,8 +560,19 @@ export async function completePointOfSale(client, context, input) {
     throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
   }
 
+  // Receipt numbers are unique per ORGANIZATION (pos_sales_organization_id_
+  // receipt_number_key), not per terminal -- a per-terminal sequence key
+  // here was a real, previously-undetected bug: two terminals sharing the
+  // schema's own default receipt_prefix ('POS') would each independently
+  // count from 1, so their first sale would collide on "POS-000001" and
+  // fail with a raw, unhandled unique-constraint violation. Found via
+  // genuine real-Postgres/real-browser testing this session (two real
+  // terminals in the same org), not by inspection. The sequence is now
+  // shared per company, matching the constraint's actual scope; a
+  // terminal's own receipt_prefix still lets it produce visually distinct
+  // numbers if configured, but correctness no longer depends on that.
   const receiptNumber = input.receiptNumber || await nextDocumentNumber(client, context, {
-    documentType: `pos_receipt:${shift.terminal_id}`,
+    documentType: "pos_receipt",
     prefix: safeDocumentPrefix(shift.receipt_prefix, "POS"),
   });
 
@@ -791,8 +802,10 @@ export async function completePosCart(client, context, cartId, input = {}) {
     throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
   }
 
+  // See the matching comment in completePointOfSale: shared per-company,
+  // not per-terminal, to match pos_sales_organization_id_receipt_number_key.
   const receiptNumber = await nextDocumentNumber(client, context, {
-    documentType: `pos_receipt:${cart.terminal_id}`,
+    documentType: "pos_receipt",
     prefix: safeDocumentPrefix(cart.receipt_prefix, "POS"),
   });
 

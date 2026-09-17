@@ -1,12 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { PosOverviewScreen } from "@/features/pos/screens/PosOverviewScreen";
 
 export const metadata = { title: "Point of Sale" };
 
 export default function PosPage() {
-  return (
-    <ModuleFoundationPage
-      moduleKey="point-of-sale"
-      moduleLabel="Point of Sale"
-    />
-  );
+  return <PosOverviewScreen />;
 }

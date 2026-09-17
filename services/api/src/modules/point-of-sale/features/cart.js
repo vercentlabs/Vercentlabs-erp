@@ -237,6 +237,17 @@ export async function createPosCart(client, context, input) {
   );
   if (!shiftResult.rows[0]) throw posError(409, "An open POS shift on this terminal is required.", "POS_SHIFT_NOT_OPEN");
 
+  // pos_carts_one_active_per_terminal_uidx enforces at most one
+  // draft/priced cart per terminal -- resuming that existing cart (the
+  // natural "continue where the cashier left off" behavior for a UI that
+  // calls createPosCart every time it opens the checkout screen) is more
+  // useful than surfacing a raw unique-constraint 409 to the frontend.
+  const active = await client.query(
+    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND terminal_id=$3 AND status IN ('draft','priced')`,
+    [context.organizationId, context.companyId, input.terminalId],
+  );
+  if (active.rows[0]) return getPosCart(client, context, active.rows[0].id);
+
   const policy = await loadPolicy(client, context);
   const result = await client.query(
     `INSERT INTO tenant.pos_carts
