@@ -11,6 +11,7 @@ export * from "./features/cart.js";
 export * from "./features/promotions.js";
 export * from "./features/coupons.js";
 export * from "./features/customers.js";
+export * from "./features/cashier-access.js";
 export { priceCartLines } from "./features/cart-pricing.js";
 import {
   normalizedDiscountAmount,
@@ -175,6 +176,23 @@ export async function listPointOfSaleResource(
   return result.rows;
 }
 
+// F268 admin UI: dropdown data for the store create/edit form. Read-only,
+// bounded to this org/company, reusing the same authoritative tables
+// (public.branches, tenant.warehouses, tenant.price_lists) other modules
+// already own -- not a parallel picker source of truth.
+export async function listPosStoreSetupOptions(client, context) {
+  requirePermission(context, "pos.store.manage");
+  const [branches, warehouses, priceLists] = await Promise.all([
+    client.query(`SELECT id,name,code FROM public.branches WHERE organization_id=$1 AND company_id=$2 ORDER BY name`, [context.organizationId, context.companyId]),
+    client.query(`SELECT id,name,code FROM tenant.warehouses WHERE organization_id=$1 AND company_id=$2 AND status='active' ORDER BY name`, [
+      context.organizationId,
+      context.companyId,
+    ]),
+    client.query(`SELECT id,name,code,currency_code FROM tenant.price_lists WHERE organization_id=$1 AND status='active' ORDER BY name`, [context.organizationId]),
+  ]);
+  return { branches: branches.rows, warehouses: warehouses.rows, priceLists: priceLists.rows };
+}
+
 export async function createStore(client, context, input) {
   requirePermission(context, "pos.store.manage");
   await requireCompanyRecord(client, context, "branch", input.branchId);
@@ -201,6 +219,76 @@ export async function createStore(client, context, input) {
   return result.rows[0];
 }
 
+// F268: an edit that touches warehouse_id/currency_code is structural --
+// it changes which warehouse stock decrements against and what currency
+// every future sale is denominated in. Blocked while any shift is open on
+// the store, so it can never happen mid-transaction; descriptive fields
+// (name/branch/price list/timezone) are always safe to edit.
+export async function updatePosStore(client, context, id, input) {
+  requirePermission(context, "pos.store.manage");
+  const fields = [];
+  const values = [context.organizationId, context.companyId, id];
+  function set(column, value) {
+    values.push(value);
+    fields.push(`${column}=$${values.length}`);
+  }
+  if (input.name != null) set("name", String(input.name).trim());
+  if (input.branchId != null) {
+    await requireCompanyRecord(client, context, "branch", input.branchId);
+    set("branch_id", input.branchId);
+  }
+  if (input.priceListId !== undefined) set("price_list_id", input.priceListId || null);
+  if (input.timezone != null) set("timezone", input.timezone);
+  if (input.warehouseId != null || input.currencyCode != null) {
+    const openShift = await client.query(
+      `SELECT 1 FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND store_id=$3 AND status='open' LIMIT 1`,
+      [context.organizationId, context.companyId, id],
+    );
+    if (openShift.rows[0]) throw posError(409, "Cannot change warehouse or currency while a shift is open on this store.", "POS_STORE_UNSAFE_TRANSITION");
+    if (input.warehouseId != null) {
+      await requireCompanyRecord(client, context, "warehouse", input.warehouseId);
+      set("warehouse_id", input.warehouseId);
+    }
+    if (input.currencyCode != null) set("currency_code", input.currencyCode);
+  }
+  if (!fields.length) throw posError(400, "No fields to update.", "POS_STORE_UPDATE_EMPTY");
+  fields.push("updated_at=now()");
+  const result = await client.query(
+    `UPDATE tenant.pos_stores SET ${fields.join(",")} WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
+    values,
+  );
+  if (!result.rows[0]) throw posError(404, "POS store was not found.", "POS_STORE_NOT_FOUND");
+  return result.rows[0];
+}
+
+// F268: a store cannot be deactivated while it has an open shift or a
+// live (draft/priced/held) cart -- those must be closed/completed/
+// cancelled first, never silently orphaned by flipping a flag underneath
+// them.
+export async function setPosStoreActive(client, context, id, active) {
+  requirePermission(context, "pos.store.manage");
+  if (!active) {
+    const openShift = await client.query(
+      `SELECT 1 FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND store_id=$3 AND status='open' LIMIT 1`,
+      [context.organizationId, context.companyId, id],
+    );
+    if (openShift.rows[0]) throw posError(409, "Cannot deactivate a store with an open shift.", "POS_STORE_HAS_OPEN_SHIFT");
+    const activeCart = await client.query(
+      `SELECT 1 FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND store_id=$3 AND status IN ('draft','priced','held') LIMIT 1`,
+      [context.organizationId, context.companyId, id],
+    );
+    if (activeCart.rows[0]) throw posError(409, "Cannot deactivate a store with an active or held cart.", "POS_STORE_HAS_ACTIVE_CART");
+  }
+  const result = await client.query(`UPDATE tenant.pos_stores SET active=$4,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`, [
+    context.organizationId,
+    context.companyId,
+    id,
+    Boolean(active),
+  ]);
+  if (!result.rows[0]) throw posError(404, "POS store was not found.", "POS_STORE_NOT_FOUND");
+  return result.rows[0];
+}
+
 export async function createTerminal(client, context, input) {
   requirePermission(context, "pos.terminal.manage");
   await assertPosStoreAccess(client, context, input.storeId);
@@ -220,6 +308,62 @@ export async function createTerminal(client, context, input) {
       context.userId,
     ],
   );
+  return result.rows[0];
+}
+
+// F269: reassigning a terminal to a different store (or changing its
+// receipt prefix) is blocked while a shift is currently open on it, for
+// the same reason store warehouse/currency changes are blocked -- it must
+// never happen mid-transaction.
+export async function updatePosTerminal(client, context, id, input) {
+  requirePermission(context, "pos.terminal.manage");
+  const fields = [];
+  const values = [context.organizationId, context.companyId, id];
+  function set(column, value) {
+    values.push(value);
+    fields.push(`${column}=$${values.length}`);
+  }
+  if (input.name != null) set("name", String(input.name).trim());
+  if (input.receiptPrefix != null) set("receipt_prefix", String(input.receiptPrefix).trim().toUpperCase().slice(0, 10) || "POS");
+  if (input.storeId != null) {
+    const openShift = await client.query(
+      `SELECT 1 FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND terminal_id=$3 AND status='open' LIMIT 1`,
+      [context.organizationId, context.companyId, id],
+    );
+    if (openShift.rows[0]) throw posError(409, "Cannot reassign a terminal's store while a shift is open on it.", "POS_TERMINAL_UNSAFE_TRANSITION");
+    await assertPosStoreAccess(client, context, input.storeId);
+    await requireCompanyRecord(client, context, "pos_store", input.storeId);
+    set("store_id", input.storeId);
+  }
+  if (!fields.length) throw posError(400, "No fields to update.", "POS_TERMINAL_UPDATE_EMPTY");
+  fields.push("updated_at=now()");
+  const result = await client.query(
+    `UPDATE tenant.pos_terminals SET ${fields.join(",")} WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
+    values,
+  );
+  if (!result.rows[0]) throw posError(404, "POS terminal was not found.", "POS_TERMINAL_NOT_FOUND");
+  return result.rows[0];
+}
+
+// F269: activate/inactivate/maintenance -- any transition away from
+// 'active' is blocked while a shift is currently open on the terminal.
+export async function setPosTerminalStatus(client, context, id, status) {
+  requirePermission(context, "pos.terminal.manage");
+  if (!["active", "inactive", "maintenance"].includes(status)) throw posError(400, "Invalid terminal status.", "POS_TERMINAL_STATUS_INVALID");
+  if (status !== "active") {
+    const openShift = await client.query(
+      `SELECT 1 FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND terminal_id=$3 AND status='open' LIMIT 1`,
+      [context.organizationId, context.companyId, id],
+    );
+    if (openShift.rows[0]) throw posError(409, "Cannot change status while a shift is open on this terminal.", "POS_TERMINAL_HAS_OPEN_SHIFT");
+  }
+  const result = await client.query(`UPDATE tenant.pos_terminals SET status=$4,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`, [
+    context.organizationId,
+    context.companyId,
+    id,
+    status,
+  ]);
+  if (!result.rows[0]) throw posError(404, "POS terminal was not found.", "POS_TERMINAL_NOT_FOUND");
   return result.rows[0];
 }
 

@@ -704,19 +704,20 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "sell",
         label: "Sell",
-        featureRange: "F268-F272",
+        featureRange: "F277-F282",
         items: [
-          planned("Open POS", "/pos/checkout"),
+          available("Open POS", "/pos/checkout"),
           planned("Transactions", "/pos/transactions"),
         ],
       },
       {
         id: "stores",
         label: "Stores",
-        featureRange: "F273-F277",
+        featureRange: "F268-F271",
         items: [
-          planned("Stores", "/pos/stores"),
-          planned("Terminals", "/pos/terminals"),
+          { ...available("Stores", "/pos/stores"), requiredPermission: "pos.store.manage" },
+          { ...available("Terminals", "/pos/terminals"), requiredPermission: "pos.terminal.manage" },
+          { ...available("Cashiers", "/pos/cashiers"), requiredPermission: "pos.store.manage" },
           planned("Sessions", "/pos/sessions"),
         ],
       },

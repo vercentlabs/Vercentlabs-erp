@@ -31,7 +31,20 @@ function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T,>(path: string, body?: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) });
 const del = <T,>(path: string) => request<T>(path, { method: "DELETE" });
 
-export type PosStore = { id: string; code: string; name: string; warehouseId?: string; warehouse_id?: string; priceListId?: string; price_list_id?: string; currencyCode?: string; currency_code?: string; active: boolean };
+export type PosStore = {
+  id: string;
+  code: string;
+  name: string;
+  branch_id?: string;
+  warehouseId?: string;
+  warehouse_id?: string;
+  priceListId?: string;
+  price_list_id?: string;
+  currencyCode?: string;
+  currency_code?: string;
+  timezone?: string;
+  active: boolean;
+};
 export type PosTerminal = { id: string; code: string; name: string; storeId?: string; store_id?: string; status: string };
 export type PosShift = { id: string; storeId?: string; store_id?: string; terminalId?: string; terminal_id?: string; status: string; shiftNumber?: string; shift_number?: string; openingCash?: string; opening_cash?: string };
 export type PosProductMatch = { itemId: string; variantId: string | null; name: string; code: string; barcode: string | null; salesPrice: string; availableQuantity: number };
@@ -39,9 +52,38 @@ export type PosProductMatch = { itemId: string; variantId: string | null; name: 
 export type PosDashboard = { sales_today: number; revenue_today: string; open_shifts: number; returns_today: number };
 export const getPosDashboard = () => request<PosDashboard>("/dashboard");
 
+export type PosStoreSetupOptions = {
+  branches: { id: string; name: string; code: string }[];
+  warehouses: { id: string; name: string; code: string }[];
+  priceLists: { id: string; name: string; code: string; currency_code: string }[];
+};
+export const getPosStoreSetupOptions = () => request<PosStoreSetupOptions>("/stores/setup-options");
+
 export const listPosStores = () => request<{ rows: PosStore[] }>("/stores");
-export const createPosStore = (input: Record<string, unknown>) => post<{ record: PosStore }>("/stores", input);
+// F268 -- was `post<{ record: PosStore }>` reading a field the route never
+// returns (it returns `{ store }`, per apps/web/src/app/api/pos/stores/
+// route.ts) -- a pre-existing bug in previously-dead, never-called code,
+// caught while building the first real caller (the store admin screen).
+export const createPosStore = (input: Record<string, unknown>) => post<{ store: PosStore }>("/stores", input);
+export const updatePosStoreRecord = (id: string, input: Record<string, unknown>) =>
+  request<{ store: PosStore }>(`/stores/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+export const setPosStoreActiveRecord = (id: string, active: boolean) => post<{ store: PosStore }>(`/stores/${id}/active`, { active });
+
 export const listPosTerminals = () => request<{ rows: PosTerminal[] }>("/terminals");
+export const createPosTerminal = (input: Record<string, unknown>) => post<{ terminal: PosTerminal }>("/terminals", input);
+export const updatePosTerminalRecord = (id: string, input: Record<string, unknown>) =>
+  request<{ terminal: PosTerminal }>(`/terminals/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+export const setPosTerminalStatusRecord = (id: string, status: "active" | "inactive" | "maintenance") =>
+  post<{ terminal: PosTerminal }>(`/terminals/${id}/status`, { status });
+
+export type PosEligibleCashier = { id: string; fullName: string; email: string; roleSlugs: string[]; assignedStoreIds: string[] };
+export const listPosEligibleCashiers = () => request<{ rows: PosEligibleCashier[] }>("/cashiers");
+export type PosStoreAccessGrant = { id: string; userId: string; storeId: string; fullName: string; email: string; createdAt: string };
+export const listPosStoreAccess = (storeId?: string) => request<{ rows: PosStoreAccessGrant[] }>(`/store-access${storeId ? `?storeId=${storeId}` : ""}`);
+export const grantPosStoreAccess = (userId: string, storeId: string) => post<{ grant: PosStoreAccessGrant }>("/store-access", { userId, storeId });
+export const revokePosStoreAccess = (userId: string, storeId: string) =>
+  request<{ revoked: true }>(`/store-access?userId=${userId}&storeId=${storeId}`, { method: "DELETE" });
+
 export const openPosShift = (input: Record<string, unknown>) => post<{ shift: PosShift }>("/shifts", input);
 export const closePosShift = (id: string, input: Record<string, unknown>) => post<{ shift: PosShift }>(`/shifts/${id}/close`, input);
 export const listPosShifts = (query: Record<string, string | undefined> = {}) => {

@@ -8,9 +8,22 @@ export type PointOfSaleContext = {
 
 export declare function getPointOfSaleDashboard(client: any, context: PointOfSaleContext): Promise<any>;
 export declare function listPointOfSaleResource(client: any, context: PointOfSaleContext, resource: string, options?: Record<string, unknown>): Promise<any[]>;
+export declare function listPosStoreSetupOptions(client: any, context: PointOfSaleContext): Promise<{ branches: any[]; warehouses: any[]; priceLists: any[] }>;
 export declare function createStore(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+export declare function updatePosStore(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<any>;
+export declare function setPosStoreActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<any>;
 export declare function createTerminal(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+export declare function updatePosTerminal(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<any>;
+export declare function setPosTerminalStatus(client: any, context: PointOfSaleContext, id: string, status: "active" | "inactive" | "maintenance"): Promise<any>;
 export declare function openShift(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+
+// F270/F271 cashier eligibility administration
+export type PosEligibleCashier = { id: string; fullName: string; email: string; roleSlugs: string[]; assignedStoreIds: string[] };
+export declare function listPosEligibleCashiers(client: any, context: PointOfSaleContext): Promise<PosEligibleCashier[]>;
+export type PosStoreAccessGrant = { id: string; userId: string; storeId: string; fullName: string; email: string; createdAt: string };
+export declare function listPosStoreAccess(client: any, context: PointOfSaleContext, storeId?: string | null): Promise<PosStoreAccessGrant[]>;
+export declare function grantPosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string }): Promise<any>;
+export declare function revokePosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string }): Promise<{ revoked: true }>;
 export declare function completePointOfSale(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function createPointOfSaleReturn(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function approvePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
