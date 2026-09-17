@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, GripVertical, Users } from "lucide-react";
 import { Badge, Button, Dialog, Select, type SelectOption } from "@vercentlabs/design-system";
@@ -97,17 +97,54 @@ function LeadKanbanCard({
   onDragEnd: () => void;
 }) {
   const [targetStageId, setTargetStageId] = useState("");
+  const [handlePressed, setHandlePressed] = useState(false);
   const displayName = leadDisplayName(lead);
+
+  // Belt-and-braces: if the mouse is released completely outside this
+  // card (e.g. over the gap between columns) before a real native drag
+  // ever starts, neither the card's onMouseUp nor onDragEnd fires —
+  // this window listener is the final backstop against the card getting
+  // stuck "armed" for the next click.
+  useEffect(() => {
+    if (!handlePressed) return;
+    const clear = () => setHandlePressed(false);
+    window.addEventListener("mouseup", clear);
+    return () => window.removeEventListener("mouseup", clear);
+  }, [handlePressed]);
 
   return (
     <div
-      draggable={!isPending}
+      // draggable is only true while the grip handle is actually pressed —
+      // not the whole card — because the card also contains React Aria
+      // interactive elements (the name button, the stage Select, the
+      // confirm Button) whose own press handling calls preventDefault() on
+      // pointerdown, which silently blocks the browser's native drag-start
+      // gesture for the whole ancestor. Scoping draggable to the handle
+      // means those controls keep working exactly as before, and a real
+      // mouse drag has one deliberate, reliable place to start from.
+      draggable={handlePressed && !isPending}
       onDragStart={(event) => onDragStart(event, lead)}
-      onDragEnd={onDragEnd}
-      className="flex cursor-grab flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-subtle)] active:cursor-grabbing"
+      onDragEnd={() => {
+        onDragEnd();
+        setHandlePressed(false);
+      }}
+      // A real mouse rarely stays pinned to a 14px icon once it starts
+      // moving — disarming on mouseup anywhere within the card (not just
+      // back on the grip itself) means a plain click-and-release on the
+      // handle without an actual drag still clears the armed state
+      // reliably, on top of the dragend reset above.
+      onMouseUp={() => setHandlePressed(false)}
+      className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-subtle)]"
     >
       <div className="flex items-start gap-1.5">
-        <GripVertical className="mt-0.5 size-3.5 shrink-0 text-text-muted" aria-hidden="true" />
+        <span
+          role="presentation"
+          aria-hidden="true"
+          className="-m-1 flex cursor-grab items-center rounded p-1 hover:bg-surface-muted active:cursor-grabbing"
+          onMouseDown={() => setHandlePressed(true)}
+        >
+          <GripVertical className="mt-0.5 size-3.5 shrink-0 text-text-muted" />
+        </span>
         <button type="button" className="text-left text-sm font-medium text-text hover:underline" onClick={() => onOpen(lead.id)}>
           {displayName}
         </button>
