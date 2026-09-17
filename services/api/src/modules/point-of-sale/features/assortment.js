@@ -1,4 +1,5 @@
 import { requireCompanyRecord } from "../../../core/references.js";
+import { assertPosStoreAccess } from "./cart.js";
 
 // POS-CAP-002 (F272-F281): assortment, pricing, customer and cart. This is
 // the first capability-owned file split out of the module's original
@@ -36,6 +37,7 @@ const MAX_SEARCH_TERM_LENGTH = 100;
 export async function searchPointOfSalePosProducts(client, context, storeId, input = {}) {
   requirePermission(context, "pos.view");
   const store = await requireCompanyRecord(client, context, "pos_store", storeId);
+  await assertPosStoreAccess(client, context, store.id);
   const term = String(input.query || "").trim().slice(0, MAX_SEARCH_TERM_LENGTH);
   if (!term) throw posError(400, "A search term is required.", "POS_SEARCH_TERM_REQUIRED");
   const limit = Math.min(Math.max(Number(input.limit) || 25, 1), MAX_SEARCH_RESULTS);
@@ -99,6 +101,7 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
 export async function lookupPointOfSaleBarcode(client, context, storeId, barcode) {
   requirePermission(context, "pos.view");
   const store = await requireCompanyRecord(client, context, "pos_store", storeId);
+  await assertPosStoreAccess(client, context, store.id);
   const normalized = String(barcode || "").trim();
   if (!normalized) throw posError(400, "A barcode is required.", "POS_BARCODE_REQUIRED");
 

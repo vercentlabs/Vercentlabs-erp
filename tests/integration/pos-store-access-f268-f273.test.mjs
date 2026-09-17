@@ -44,6 +44,10 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
     completePosCart,
     openShift,
     listPointOfSaleResource,
+    createTerminal,
+    createPointOfSaleReturn,
+    approvePointOfSaleReturn,
+    completePointOfSale,
   } = await import("../../services/api/src/index.js");
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
@@ -210,6 +214,8 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
 
     let cartA;
     let shiftA;
+    let shiftB;
+    let saleA;
     await t.test("cashier A (assigned to store A) can operate store A normally", async () => {
       shiftA = await tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0 }));
       cartA = await tx((c) => createPosCart(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, shiftId: shiftA.id }));
@@ -223,7 +229,7 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
 
-      const shiftB = await tx((c) => openShift(c, contextFor(cashierBId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0 }));
+      shiftB = await tx((c) => openShift(c, contextFor(cashierBId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0 }));
       const cartB = await tx((c) => createPosCart(c, contextFor(cashierBId), { storeId: storeBId, terminalId: terminalBId, shiftId: shiftB.id }));
 
       // Cashier A must not be able to read cashier B's store-B cart by id,
@@ -252,10 +258,117 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
     });
 
     await t.test("cashier A can still complete their own store-A sale end to end", async () => {
-      const sale = await tx((c) =>
+      saleA = await tx((c) =>
         completePosCart(c, contextFor(cashierAId), cartA.id, { idempotencyKey: "f268-storeA-complete", payments: [{ method: "cash", amount: cartA.grand_total }] }),
       );
-      assert.equal(sale.status, "completed");
+      assert.equal(saleA.status, "completed");
+    });
+
+    await t.test("SECURITY: the legacy flat-lines completePointOfSale path is store-access gated by the shift's store, same as the cart path", async () => {
+      // cashier A is not assigned to store B, so completing a legacy sale
+      // through store B's already-open shift must be denied even though
+      // the shift itself is genuinely open.
+      await assert.rejects(
+        () =>
+          tx((c) =>
+            completePointOfSale(c, contextFor(cashierAId), {
+              shiftId: shiftB.id,
+              idempotencyKey: "f268-legacy-cross-store",
+              lines: [{ itemId, quantity: 1, unitPrice: 100 }],
+              payments: [{ method: "cash", amount: 118 }],
+            }),
+          ),
+        (error) => error.code === "POS_STORE_ACCESS_DENIED",
+      );
+      // cashier B, who IS assigned to store B, can use the same legacy path.
+      const legacySale = await tx((c) =>
+        completePointOfSale(c, contextFor(cashierBId), {
+          shiftId: shiftB.id,
+          idempotencyKey: "f268-legacy-storeB",
+          lines: [{ itemId, quantity: 1, unitPrice: 100 }],
+          payments: [{ method: "cash", amount: 118 }],
+        }),
+      );
+      assert.equal(legacySale.status, "completed");
+    });
+
+    let terminalA2Id;
+    await t.test("SECURITY: creating a terminal is store-access gated for whoever holds pos.terminal.manage", async () => {
+      const terminalManagerContext = contextFor(cashierAId, ["pos.view", "pos.terminal.manage"]);
+      await assert.rejects(
+        () => tx((c) => createTerminal(c, terminalManagerContext, { storeId: storeBId, code: "TB2", name: "Terminal B2" })),
+        (error) => error.code === "POS_STORE_ACCESS_DENIED",
+        "cashier A is not assigned to store B, so they cannot create a terminal there even with pos.terminal.manage",
+      );
+      const created = await tx((c) => createTerminal(c, terminalManagerContext, { storeId: storeAId, code: "TA2", name: "Terminal A2" }));
+      assert.equal(created.store_id, storeAId);
+      terminalA2Id = created.id;
+    });
+
+    await t.test("SECURITY: POS returns (create/approve) are store-access gated by the underlying sale's store", async () => {
+      const saleLines = await admin.query(`SELECT id,quantity FROM tenant.pos_sale_lines WHERE organization_id=$1 AND sale_id=$2`, [orgId, saleA.id]);
+      // cashier B is assigned to store B, not store A -- must not be able
+      // to create a return against store A's sale even though pos.return.create
+      // is a permission they could otherwise hold.
+      await assert.rejects(
+        () =>
+          tx((c) =>
+            createPointOfSaleReturn(c, contextFor(cashierBId, ["pos.view", "pos.return.create"]), {
+              saleId: saleA.id,
+              reason: "cross-store test",
+              idempotencyKey: "f268-return-cross-store",
+              lines: saleLines.rows.map((row) => ({ saleLineId: row.id, quantity: row.quantity })),
+            }),
+          ),
+        (error) => error.code === "POS_STORE_ACCESS_DENIED",
+      );
+      // cashier A, assigned to store A, can create the return. Approving
+      // it needs a genuinely different person (the return module's own
+      // requester!==approver rule, independent of store access) -- use the
+      // organization owner, who also bypasses store-access by role.
+      const returnRecord = await tx((c) =>
+        createPointOfSaleReturn(c, contextFor(cashierAId, ["pos.view", "pos.return.create"]), {
+          saleId: saleA.id,
+          reason: "same-store test",
+          idempotencyKey: "f268-return-storeA",
+          lines: saleLines.rows.map((row) => ({ saleLineId: row.id, quantity: row.quantity })),
+        }),
+      );
+      await assert.rejects(
+        () =>
+          tx((c) =>
+            approvePointOfSaleReturn(c, contextFor(cashierBId, ["pos.view", "pos.return.approve"]), returnRecord.id, {
+              idempotencyKey: "f268-return-approve-cross-store",
+            }),
+          ),
+        (error) => error.code === "POS_STORE_ACCESS_DENIED",
+      );
+      const ownerContext = { organizationId: orgId, companyId, userId: ownerUserId, roleSlugs: ["organization_owner"], permissions: [] };
+      const approved = await tx((c) => approvePointOfSaleReturn(c, ownerContext, returnRecord.id, { idempotencyKey: "f268-return-approve-storeA" }));
+      assert.equal(approved.status, "approved");
+    });
+
+    await t.test("SECURITY: opening a shift on behalf of a different cashier requires an administrative permission AND the assigned cashier's own store eligibility", async () => {
+      // cashier A holds no administrative permission -- cannot open a
+      // shift naming someone else as the cashier at all.
+      await assert.rejects(
+        () => tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierBId, openingCash: 0 })),
+        (error) => error.code === "FORBIDDEN",
+      );
+      // A store manager CAN open a shift on behalf of another user, but
+      // only if THAT user is themselves eligible for the store -- cashier B
+      // is assigned to store B, not store A.
+      const managerContext = { organizationId: orgId, companyId, userId: storeManagerId, roleSlugs: [], permissions: ["pos.view", "pos.shift.open", "pos.store.manage"] };
+      await assert.rejects(
+        () => tx((c) => openShift(c, managerContext, { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierBId, openingCash: 0 })),
+        (error) => error.code === "POS_STORE_ACCESS_DENIED",
+      );
+      // terminalA already has shiftA open from earlier in this suite --
+      // close it first (pos_terminal_open_shift_uidx allows only one open
+      // shift per terminal).
+      await admin.query(`UPDATE tenant.pos_shifts SET status='closed' WHERE id=$1`, [shiftA.id]);
+      const shiftForA = await tx((c) => openShift(c, managerContext, { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierAId, openingCash: 0 }));
+      assert.equal(shiftForA.cashier_user_id, cashierAId);
     });
 
     await t.test("a store manager (pos.store.manage) and an organization_owner always bypass store assignment", async () => {
@@ -273,7 +386,7 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
       assert.deepEqual(storesForA.map((row) => row.id).sort(), [storeAId].sort());
 
       const terminalsForA = await tx((c) => listPointOfSaleResource(c, contextFor(cashierAId, ["pos.view"]), "terminals"));
-      assert.deepEqual(terminalsForA.map((row) => row.id).sort(), [terminalAId].sort());
+      assert.deepEqual(terminalsForA.map((row) => row.id).sort(), [terminalAId, terminalA2Id].sort());
     });
   } finally {
     for (const table of [
@@ -285,6 +398,8 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
       "pos_cart_lines",
       "pos_carts",
       "pos_store_access",
+      "pos_return_lines",
+      "pos_returns",
       "pos_sale_lines",
       "pos_payments",
       "pos_cash_movements",

@@ -202,6 +202,7 @@ export async function createStore(client, context, input) {
 
 export async function createTerminal(client, context, input) {
   requirePermission(context, "pos.terminal.manage");
+  await assertPosStoreAccess(client, context, input.storeId);
   await requireCompanyRecord(client, context, "pos_store", input.storeId);
   const result = await client.query(
     `INSERT INTO tenant.pos_terminals
@@ -231,6 +232,23 @@ export async function openShift(client, context, input) {
     error.status = 409;
     error.code = "POS_TERMINAL_STORE_MISMATCH";
     throw error;
+  }
+  // Phase 2 (F270): input.cashierUserId let ANY caller with pos.shift.open
+  // name an arbitrary user as the shift's cashier, with no check that
+  // person is a real member, holds any POS permission, or has store
+  // access -- opening a shift "as" someone else is a supervisory action
+  // (assigning a cashier to a shift), not something an ordinary cashier
+  // does for themselves, and the assigned cashier must be as eligible for
+  // this store as the person opening the shift is.
+  if (input.cashierUserId && input.cashierUserId !== context.userId) {
+    if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes("pos.terminal.manage") && !context.permissions?.includes("pos.store.manage")) {
+      throw posError(403, "You are not authorized to open a shift on behalf of another cashier.", "FORBIDDEN");
+    }
+    // Checked against the ASSIGNED cashier's own eligibility, not the
+    // caller's -- deliberately not carrying over the caller's roleSlugs/
+    // permissions (a supervisor's own pos.store.manage must not silently
+    // vouch for someone else's store access).
+    await assertPosStoreAccess(client, { organizationId: context.organizationId, companyId: context.companyId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id);
   }
   const shiftNumber = input.shiftNumber || await nextDocumentNumber(client, context, {
     documentType: `pos_shift:${input.terminalId}`,
@@ -420,6 +438,7 @@ export async function completePointOfSale(client, context, input) {
   if (!shift) {
     throw posError(409, "An open POS shift with a valid store and terminal is required.", "POS_SHIFT_NOT_OPEN");
   }
+  await assertPosStoreAccess(client, context, shift.store_id);
 
   const settings = await client.query(
     `SELECT allow_negative_stock,allow_price_override
@@ -1013,6 +1032,7 @@ export async function createPointOfSaleReturn(client, context, input) {
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Eligible sale not found.", "POS_RETURN_SALE_NOT_FOUND");
+  await assertPosStoreAccess(client, context, sale.store_id);
 
   const uniqueLineIds = [...new Set(input.lines.map((line) => line.saleLineId))];
   if (uniqueLineIds.length !== input.lines.length) {
@@ -1147,6 +1167,7 @@ export async function approvePointOfSaleReturn(client, context, returnId, input 
   );
   const row = found.rows[0];
   if (!row) throw posError(404, "POS return was not found.", "POS_RETURN_NOT_FOUND");
+  await assertPosStoreAccess(client, context, row.store_id);
   if (row.status === "approved" || row.status === "completed") {
     const response = { ...row, replayed: true };
     await completeIdempotentOperation(client, context, idempotency, {
@@ -1211,6 +1232,7 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   );
   const returnRecord = found.rows[0];
   if (!returnRecord) throw posError(404, "POS return was not found.", "POS_RETURN_NOT_FOUND");
+  await assertPosStoreAccess(client, context, returnRecord.store_id);
   if (returnRecord.status === "completed") {
     const response = { ...returnRecord, replayed: true };
     await completeIdempotentOperation(client, context, idempotency, {
@@ -1394,6 +1416,7 @@ export async function closeShift(client, context, shiftId, input) {
     [context.organizationId, context.companyId, shiftId],
   );
   if (!shift.rows[0]) throw posError(404, "Open shift not found.", "POS_SHIFT_NOT_OPEN");
+  await assertPosStoreAccess(client, context, shift.rows[0].store_id);
 
   const cash = await client.query(
     `SELECT coalesce(sum(amount),0)::text AS expected_cash

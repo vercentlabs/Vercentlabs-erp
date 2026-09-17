@@ -67,6 +67,11 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       const wave0Result = wave0.handle(sql, params);
       if (wave0Result) return wave0Result;
       if (/FROM tenant\.pos_shifts shift[\s\S]*FOR UPDATE/.test(sql)) return { rows: [shiftRow()] };
+      // Phase 2 (F268-F273): assertPosStoreAccess()'s "has this company
+      // opted into per-cashier store assignment at all" check -- no rows
+      // means unconfigured/permissive, matching every test here (none sets
+      // up a pos_store_access row).
+      if (/FROM tenant\.pos_store_access/.test(sql)) return { rows: [] };
       if (/SELECT allow_negative_stock,allow_price_override\s+FROM tenant\.pos_settings/.test(sql))
         return { rows: [{ allow_negative_stock: false, allow_price_override: false }] };
       if (/SELECT price_item\.rate/.test(sql)) return { rows: [{ rate: "100" }] };

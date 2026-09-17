@@ -29,6 +29,7 @@ function client({ searchRows = [], availableQuantity = "10" } = {}) {
     async query(sql, params) {
       queries.push(sql);
       if (/FROM tenant\.pos_stores/.test(sql)) return { rows: [storeRow()] };
+      if (/FROM tenant\.pos_store_access/.test(sql)) return { rows: [] };
       if (/SELECT\s*\n?\s*\(SELECT/.test(sql) || /item\.id AS item_id/.test(sql)) return { rows: searchRows };
       if (/SELECT item_id,coalesce\(sum/.test(sql))
         return { rows: searchRows.map((row) => ({ item_id: row.item_id, available: availableQuantity })) };
