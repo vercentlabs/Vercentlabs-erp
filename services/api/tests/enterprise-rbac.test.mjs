@@ -38,11 +38,11 @@ const assignableRoleSlugs = [
   "accountant", "accounts_receivable_executive", "accounts_payable_executive", "treasury_executive",
   "tax_compliance_accountant", "purchase_manager", "buyer", "purchase_requester", "purchase_approver",
   "goods_receipt_user", "supplier_manager", "inventory_manager", "manufacturing_manager",
-  "project_manager", "asset_manager", "pos_manager", "quality_manager", "support_manager", "hr_manager",
+  "project_manager", "asset_manager", "pos_manager", "pos_cashier", "pos_supervisor", "quality_manager", "support_manager", "hr_manager",
 ];
 
 test("role catalogue is complete, module-aware, and every module has at least one assignable role", () => {
-  assert.equal(ROLE_TEMPLATES.length, 34);
+  assert.equal(ROLE_TEMPLATES.length, 36);
   const releasedModuleKeys = new Set(["platform", ...ERP_MODULE_CATALOG.map((m) => m.key)]);
   for (const slug of assignableRoleSlugs) {
     const role = ROLE_TEMPLATE_BY_SLUG.get(slug);

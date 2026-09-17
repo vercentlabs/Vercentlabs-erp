@@ -777,9 +777,13 @@ export const ROLE_TEMPLATES = Object.freeze([
       "pos.operate",
       "pos.shift.open",
       "pos.shift.close",
-      "pos.sale.create",
       "pos.discount.apply",
-      "pos.return.create",
+      // pos.return.create deliberately excluded: pos_manager also holds
+      // pos.return.approve, and a single role holding both is exactly the
+      // blocking pos_return_create_approve SoD conflict below. A manager
+      // approves returns; day-to-day return creation belongs to
+      // pos_cashier/pos_supervisor. A person who genuinely needs both is
+      // assigned pos_cashier or pos_supervisor alongside pos_manager.
       "pos.return.approve",
       "pos.cash.adjust",
       "pos.price.override",
@@ -789,6 +793,52 @@ export const ROLE_TEMPLATES = Object.freeze([
       "pos.reports.view",
       "pos.settings.manage",
       "pos.audit.view",
+    ]),
+  },
+  {
+    name: "POS Cashier",
+    slug: "pos_cashier",
+    description:
+      "Least-privilege checkout operation: open/close an assigned shift, ring up sales, request returns. No overrides, no approvals, no store/terminal configuration.",
+    moduleKey: "point-of-sale",
+    riskLevel: "standard",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "stock.view",
+      "pos.view",
+      "pos.operate",
+      "pos.shift.open",
+      "pos.shift.close",
+      "pos.sale.create",
+      "pos.return.create",
+    ]),
+  },
+  {
+    name: "POS Supervisor",
+    slug: "pos_supervisor",
+    description:
+      "Store-floor override authority: approve returns, apply discounts and price overrides, adjust cash, view reports. Does not create returns itself and does not configure stores/terminals/settings.",
+    moduleKey: "point-of-sale",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...businessReader,
+      "stock.view",
+      "stock.issue",
+      "pos.view",
+      "pos.operate",
+      "pos.shift.open",
+      "pos.shift.close",
+      "pos.sale.create",
+      "pos.discount.apply",
+      // pos.return.create deliberately excluded — see pos_manager's comment
+      // above; a supervisor approves, a cashier (or a supervisor also
+      // holding pos_cashier) creates.
+      "pos.return.approve",
+      "pos.cash.adjust",
+      "pos.price.override",
+      "pos.reports.view",
     ]),
   },
   {
@@ -931,6 +981,14 @@ export const SOD_CONFLICTS = Object.freeze([
     severity: "warning",
     description:
       "Quotation creation and approval should normally be separated.",
+  },
+  {
+    key: "pos_return_create_approve",
+    first: "pos.return.create",
+    second: "pos.return.approve",
+    severity: "blocking",
+    description:
+      "POS return creation and approval must be separated — the same role must not both request and approve a store return/refund.",
   },
   {
     key: "supplier_manage_sensitive",

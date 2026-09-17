@@ -104,7 +104,7 @@ Legend: REAL/VERIFIED, PARTIAL, FOUNDATION ONLY, FRONTEND MISSING, BACKEND MISSI
 2. **Fix the two gaps that block everything else first**: (a) there is no HTTP route layer, so nothing built is reachable; (b) there is no real cashier-vs-supervisor role, so "cashier permissions" (F271) is not a real feature yet. Both are Tranche-0-level foundation repairs, done before new capability code.
 3. **Server-authoritative pricing/tax**: reuse `previewSalesDocument` rather than extending POS's own simplified lookup, per the explicit instruction not to trust browser-supplied tax/discount amounts and not to fork a second pricing engine.
 4. **Payment provider architecture**: build the adapter *interface* and a test-only sandbox adapter now; keep production fail-closed exactly as today until a real merchant-certified provider is wired — this is an EXTERNAL ACTIVATION BLOCKED item for the actual card/UPI capture, not for the code-controllable adapter boundary.
-5. Continue numbering DB migrations from `112` (the last migration in the repo is `111_f029_opportunity_bulk_scale.sql`).
+5. Continue numbering DB migrations from `112` under `database/tenant/migrations/` (last: `111_f029_opportunity_bulk_scale.sql`) and from `039` under `database/platform/migrations/` (last: `038_attachment_versioning.sql`) — these are two separate numbering sequences, do not conflate them.
 
 ## Continuation point (read this first in any future session)
 
