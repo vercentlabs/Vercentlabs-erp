@@ -545,6 +545,12 @@ test("F005: explicit create owner is persisted instead of being discarded", asyn
         sql.includes("normalized_mobile")
       )
         return { rows: [] };
+      // ensureDefaultLeadStages' existence check — five rows (any content)
+      // is enough to make it a no-op for this test, since it only acts
+      // when zero stages exist or the catalogue classifies as the
+      // untouched 3-stage legacy default.
+      if (sql.includes("SELECT code,name,description,sort_order,status,is_system,is_initial,dwell_warning_hours,dwell_breach_hours") && sql.includes("FROM tenant.crm_lead_stages"))
+        return { rows: [{ code: "new" }, { code: "attempting" }, { code: "contacted" }, { code: "working" }, { code: "nurturing" }] };
       if (sql.startsWith("UPDATE public.numbering_series"))
         return { rows: [{ prefix: "LEAD-", number: 1, padding: 5 }] };
       if (sql.includes("FROM public.organization_memberships membership"))

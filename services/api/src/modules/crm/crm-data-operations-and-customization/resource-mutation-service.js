@@ -1,4 +1,5 @@
 import { assertNoQualificationMutation } from "../lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
+import { ensureDefaultLeadStages } from "../lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
 import { normalizeLeadRecordInput, validateLeadRecord } from "../lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
 import { normalizeOpportunityRecordInput, opportunityChangedFields, validateOpportunityRecord } from "../opportunity-and-pipeline-governance/opportunity-record-validation.js";
 import { assertLeadDuplicatePolicy, hasLeadDuplicateIdentityChange, recordLeadDuplicateOverride } from "../prospect-and-relationship-master-data/lead-duplicates.js";
@@ -163,6 +164,17 @@ export async function createCrmRecord(client, context, resource, input) {
         validationErrorDetails(leadErrors),
       );
     }
+    // Pure in-memory validation must fail before any DB access — only
+    // reachable here once the input is already known to be well-formed.
+    // A truly brand-new organization has no crm_lead_stages rows at all
+    // yet (nothing seeds them at organization-creation time — only
+    // listLeadStages/getLeadStages ever did, until now) — without this,
+    // the very first Lead any such organization ever creates would violate
+    // crm_leads_lifecycle_stage_fkey, since no ('org','new') row would
+    // exist for it to reference. ensureDefaultLeadStages is idempotent
+    // (a no-op once stages already exist), so this is safe to call on
+    // every creation, not just the first.
+    await ensureDefaultLeadStages(client, context);
     if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
       await assertLeadSourceAssignment(client, context, prepared.sourceId);
   }

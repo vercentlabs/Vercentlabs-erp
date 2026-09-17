@@ -56,6 +56,23 @@ export function dismissLeadDuplicateMatch(
 ): Promise<any>;
 
 export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
+export function classifyLeadStageCustomization(client: QueryClient, context: any, stages: any[]): Promise<"CUSTOMIZED" | "UNTOUCHED_STANDARD_3_STAGE">;
+export function previewLeadStageTemplateUpgrade(client: QueryClient, context: any): Promise<{
+  stagesToCreate: Array<{ code: string; name: string; description: string }>;
+  labelsToChange: unknown[];
+  edgesToAdd: Array<{ fromCode: string; toCode: string }>;
+  edgesToRemove: unknown[];
+  affectedLeadCount: number;
+  requiresLeadMigration: boolean;
+  conflicts: Array<{ code: string; issue: string }>;
+}>;
+export function applyLeadStageTemplateUpgrade(client: QueryClient, context: any, input?: { confirm?: boolean }): Promise<{
+  applied: boolean;
+  stagesCreated: Array<{ code: string; name: string; description: string }>;
+  edgesAdded: Array<{ fromCode: string; toCode: string }>;
+}>;
+export const FIVE_STAGE_LEAD_TEMPLATE: ReadonlyArray<{ code: string; name: string; description: string; sortOrder: number; isInitial: boolean }>;
+export const FIVE_STAGE_LEAD_GRAPH: ReadonlyArray<readonly [string, string]>;
 export function getLeadStage(client: QueryClient, context: any, idOrCode: string): Promise<any>;
 export function createLeadStage(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function updateLeadStage(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;

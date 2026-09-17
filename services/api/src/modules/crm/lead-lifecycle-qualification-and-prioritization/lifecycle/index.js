@@ -11,6 +11,11 @@ export {
   reactivateLeadStage,
   listLeadStageHistory,
   getLeadStageDwell,
+  classifyLeadStageCustomization,
+  previewLeadStageTemplateUpgrade,
+  applyLeadStageTemplateUpgrade,
+  FIVE_STAGE_LEAD_TEMPLATE,
+  FIVE_STAGE_LEAD_GRAPH,
 } from "./stage-catalog.js";
 
 export {
