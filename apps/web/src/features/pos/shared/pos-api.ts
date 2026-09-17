@@ -86,6 +86,12 @@ export const revokePosStoreAccess = (userId: string, storeId: string) =>
 
 export const openPosShift = (input: Record<string, unknown>) => post<{ shift: PosShift }>("/shifts", input);
 export const closePosShift = (id: string, input: Record<string, unknown>) => post<{ shift: PosShift }>(`/shifts/${id}/close`, input);
+
+// F300 -- paid-in/paid-out cash movements.
+export type PosCashMovement = { id: string; movement_number: string; movement_type: string; amount: string; reason: string; created_at: string };
+export const listPosCashMovements = (shiftId: string) => request<{ rows: PosCashMovement[] }>(`/shifts/${shiftId}/cash-movements`);
+export const recordPosCashMovement = (shiftId: string, input: { movementType: "paid_in" | "paid_out"; amount: number; reason: string }) =>
+  post<{ movement: PosCashMovement }>(`/shifts/${shiftId}/cash-movements`, input);
 export const listPosShifts = (query: Record<string, string | undefined> = {}) => {
   const params = new URLSearchParams(Object.entries(query).filter(([, v]) => v) as [string, string][]);
   return request<{ rows: PosShift[] }>(`/shifts${params.size ? `?${params}` : ""}`);

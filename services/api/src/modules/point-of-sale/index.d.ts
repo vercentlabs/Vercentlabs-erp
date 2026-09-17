@@ -31,6 +31,10 @@ export declare function approvePointOfSaleReturn(client: any, context: PointOfSa
 export declare function completePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
 export declare function closeShift(client: any, context: PointOfSaleContext, shiftId: string, input: Record<string, any>): Promise<any>;
 
+// F300 cash movements
+export declare function recordPosCashMovement(client: any, context: PointOfSaleContext, shiftId: string, input: { movementType: "paid_in" | "paid_out"; amount: number; reason: string }): Promise<any>;
+export declare function listPosCashMovements(client: any, context: PointOfSaleContext, shiftId: string): Promise<any[]>;
+
 export type PointOfSaleProductMatch = {
   itemId: string;
   variantId: string | null;

@@ -14,6 +14,7 @@ export * from "./features/customers.js";
 export * from "./features/cashier-access.js";
 export * from "./features/receipts.js";
 export * from "./features/returns.js";
+export * from "./features/cash-movements.js";
 export { priceCartLines } from "./features/cart-pricing.js";
 import {
   normalizedDiscountAmount,
@@ -1564,6 +1565,29 @@ export async function closeShift(client, context, shiftId, input) {
   );
   if (!shift.rows[0]) throw posError(404, "Open shift not found.", "POS_SHIFT_NOT_OPEN");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
+
+  // F302: a shift must not close out from under a cart still actively
+  // being rung up (draft/priced), or an unresolved return (a supervisor
+  // hasn't decided or completed it yet) -- both would silently orphan a
+  // real in-flight transaction with no record of why the shift closed
+  // while it existed. A HELD cart is deliberately excluded: holding is the
+  // real-world "come back for this later" case, and a held cart carries no
+  // payment or stock commitment yet -- it is designed to outlive the shift
+  // that held it and be resumed on a later one (same terminal).
+  const unresolvedCart = await client.query(
+    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 AND status IN ('draft','priced') LIMIT 1`,
+    [context.organizationId, context.companyId, shiftId],
+  );
+  if (unresolvedCart.rows[0]) {
+    throw posError(409, "Complete, hold, or cancel every active cart on this shift before closing it.", "POS_SHIFT_HAS_UNRESOLVED_CART");
+  }
+  const unresolvedReturn = await client.query(
+    `SELECT id FROM tenant.pos_returns WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 AND status IN ('pending_approval','approved') LIMIT 1`,
+    [context.organizationId, context.companyId, shiftId],
+  );
+  if (unresolvedReturn.rows[0]) {
+    throw posError(409, "Resolve every pending return on this shift before closing it.", "POS_SHIFT_HAS_UNRESOLVED_RETURN");
+  }
 
   const cash = await client.query(
     `SELECT coalesce(sum(amount),0)::text AS expected_cash

@@ -3,12 +3,22 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, NumberField, Select, type SelectOption } from "@vercentlabs/design-system";
+import { Button, ErrorState, NumberField, Select, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { closePosShift, getPosDashboard, listPosShifts, listPosStores, listPosTerminals, openPosShift, PosApiError } from "@/features/pos/shared/pos-api";
+import {
+  closePosShift,
+  getPosDashboard,
+  listPosCashMovements,
+  listPosShifts,
+  listPosStores,
+  listPosTerminals,
+  openPosShift,
+  PosApiError,
+  recordPosCashMovement,
+} from "@/features/pos/shared/pos-api";
 import { money } from "@/features/pos/shared/format";
 
 export function PosOverviewScreen() {
@@ -18,10 +28,15 @@ export function PosOverviewScreen() {
   const canOpenShift = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.shiftOpen);
   const canCloseShift = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.shiftClose);
 
+  const canAdjustCash = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.cashAdjust);
+
   const [storeId, setStoreId] = useState("");
   const [terminalId, setTerminalId] = useState("");
   const [openingCash, setOpeningCash] = useState(0);
   const [countedCash, setCountedCash] = useState(0);
+  const [movementType, setMovementType] = useState<"paid_in" | "paid_out">("paid_out");
+  const [movementAmount, setMovementAmount] = useState(0);
+  const [movementReason, setMovementReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const dashboardQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "dashboard"), queryFn: getPosDashboard });
@@ -33,6 +48,12 @@ export function PosOverviewScreen() {
     () => shiftsQuery.data?.rows.find((row) => (row as { status: string; cashier_user_id?: string }).status === "open" && (row as { cashier_user_id?: string }).cashier_user_id === workspace.userId),
     [shiftsQuery.data, workspace.userId],
   );
+
+  const cashMovementsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "cash-movements", myOpenShift?.id),
+    queryFn: () => listPosCashMovements(myOpenShift!.id),
+    enabled: Boolean(myOpenShift?.id) && canAdjustCash,
+  });
 
   const storeOptions: SelectOption[] = useMemo(
     () => (storesQuery.data?.rows ?? []).filter((s) => s.active).map((s) => ({ value: s.id, label: `${s.name} (${s.code})` })),
@@ -62,6 +83,17 @@ export function PosOverviewScreen() {
       queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "shifts") });
     },
     onError: (err) => setError(err instanceof PosApiError ? err.message : "The shift could not be closed."),
+  });
+
+  const cashMovementMutation = useMutation({
+    mutationFn: () => recordPosCashMovement(myOpenShift!.id, { movementType, amount: movementAmount, reason: movementReason }),
+    onSuccess: () => {
+      setError(null);
+      setMovementAmount(0);
+      setMovementReason("");
+      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "cash-movements", myOpenShift?.id) });
+    },
+    onError: (err) => setError(err instanceof PosApiError ? err.message : "The cash movement could not be recorded."),
   });
 
   return (
@@ -102,6 +134,45 @@ export function PosOverviewScreen() {
           <Button variant="primary" onPress={() => router.push("/pos/checkout")}>
             Go to checkout
           </Button>
+          {canAdjustCash && (
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
+              <p className="text-sm font-medium text-text">Cash paid in / out</p>
+              <div className="flex items-end gap-2">
+                <Select
+                  label="Type"
+                  size="compact"
+                  options={[
+                    { value: "paid_in", label: "Paid in" },
+                    { value: "paid_out", label: "Paid out" },
+                  ]}
+                  selectedKey={movementType}
+                  onSelectionChange={(key) => setMovementType(key === "paid_in" ? "paid_in" : "paid_out")}
+                />
+                <NumberField label="Amount" size="compact" value={movementAmount} onChange={setMovementAmount} minValue={0} step={0.01} />
+              </div>
+              <TextField label="Reason" value={movementReason} onChange={setMovementReason} />
+              <Button
+                variant="secondary"
+                onPress={() => cashMovementMutation.mutate()}
+                isLoading={cashMovementMutation.isPending}
+                isDisabled={movementAmount <= 0 || !movementReason.trim()}
+              >
+                Record movement
+              </Button>
+              {(cashMovementsQuery.data?.rows.length ?? 0) > 0 && (
+                <ul className="mt-1 flex flex-col divide-y divide-border rounded-[var(--radius-control)] border border-border text-xs">
+                  {cashMovementsQuery.data!.rows.map((movement) => (
+                    <li key={movement.id} className="flex items-center justify-between px-2 py-1.5">
+                      <span className="capitalize text-text-secondary">
+                        {movement.movement_type.replace("_", " ")} — {movement.reason}
+                      </span>
+                      <span className="tabular-nums text-text">{money("", movement.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {canCloseShift && (
             <div className="flex flex-col gap-2 border-t border-border pt-4">
               <p className="text-sm font-medium text-text">Close this shift</p>
