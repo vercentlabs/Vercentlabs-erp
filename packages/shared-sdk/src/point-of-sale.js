@@ -59,6 +59,15 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
       request(`/stores/${encodeURIComponent(storeId)}/products?q=${encodeURIComponent(query)}${limit ? `&limit=${limit}` : ""}`),
     lookupBarcode: (storeId, code) => request(`/stores/${encodeURIComponent(storeId)}/barcode/${encodeURIComponent(code)}`),
 
+    // F276: bounded customer search against tenant.business_parties --
+    // replaces trusting a cashier-typed customer UUID.
+    searchCustomers: (query, { limit, offset } = {}) => {
+      const params = new URLSearchParams({ q: query || "" });
+      if (limit) params.set("limit", String(limit));
+      if (offset) params.set("offset", String(offset));
+      return request(`/customers?${params}`);
+    },
+
     // F277 Cart
     createCart: (input) => post("/carts", input),
     getCart: (id) => request(`/carts/${encodeURIComponent(id)}`),

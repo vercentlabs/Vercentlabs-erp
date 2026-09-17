@@ -486,17 +486,18 @@ async function ensureDiscountApprovalRequested(client, context, cart, cartLineId
 
   const discountApprovalId = randomUUID();
   const approvalRequestId = randomUUID();
+  // A supervisor deciding this from the generic /approvals inbox sees only
+  // this title (and, on request, the note) -- it must carry enough to
+  // decide without needing to separately open the cart, since the inbox
+  // has no POS-specific rendering of the underlying pos_cart_discount
+  // entity_type.
+  const title =
+    (cartLineId ? "Approve line discount" : "Approve cart discount") +
+    `: ${formatDecimal(amount, 2)} (${formatDecimal(percentOfGross, 1)}%) -- "${reason}"`;
   await client.query(
     `INSERT INTO public.approval_requests (id,organization_id,entity_type,entity_id,title,status,requested_by,command_key,command_payload)
      VALUES ($1,$2,'pos_cart_discount',$3,$4,'pending',$5,'pos.discount.approve',$6::jsonb)`,
-    [
-      approvalRequestId,
-      context.organizationId,
-      cart.id,
-      cartLineId ? `Approve line discount on POS cart ${cart.id}` : `Approve cart discount on POS cart ${cart.id}`,
-      context.userId,
-      JSON.stringify({ discountApprovalId }),
-    ],
+    [approvalRequestId, context.organizationId, cart.id, title, context.userId, JSON.stringify({ discountApprovalId })],
   );
   await client.query(
     `INSERT INTO tenant.pos_cart_discount_approvals

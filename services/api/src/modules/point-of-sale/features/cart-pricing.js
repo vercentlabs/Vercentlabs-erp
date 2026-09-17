@@ -208,6 +208,22 @@ async function evaluatePromotions(client, context, store, customerId, lines, car
       explanations.push({ code: promotion.code, applied: false, reason: "This customer is not eligible for this promotion." });
       continue;
     }
+    // F280/Phase 4: usage_limit_per_customer existed as a column since
+    // migration 113 but was never actually enforced anywhere -- a
+    // configured per-customer cap did nothing. Checked here (preview) and
+    // re-checked under lock at commit time (commitPosPromotionApplications
+    // in promotions.js), the same two-layer pattern coupons already use.
+    if (customerId && promotion.usage_limit_per_customer != null) {
+      const perCustomer = await client.query(
+        `SELECT count(*)::int AS count FROM tenant.pos_promotion_applications
+         WHERE organization_id=$1 AND promotion_id=$2 AND customer_id=$3`,
+        [context.organizationId, promotion.id, customerId],
+      );
+      if (Number(perCustomer.rows[0].count) >= promotion.usage_limit_per_customer) {
+        explanations.push({ code: promotion.code, applied: false, reason: "This customer already reached this promotion's usage limit." });
+        continue;
+      }
+    }
     if (promotion.min_basket_amount != null && cartSubtotal < decimal(promotion.min_basket_amount)) {
       explanations.push({ code: promotion.code, applied: false, reason: `Basket must reach ${promotion.min_basket_amount} to qualify.` });
       continue;

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Trash2, X } from "lucide-react";
-import { Button, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, ComboBox, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
 import type { PosCart } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -24,10 +24,12 @@ import {
   PosApiError,
   removePosCartLine,
   removePosCoupon,
+  searchPosCustomers,
   searchPosProducts,
   setPosCartCustomer,
   setPosCartDiscount,
   updatePosCartLineQuantity,
+  type PosCustomerMatch,
   type PosProductMatch,
 } from "@/features/pos/shared/pos-api";
 import { money } from "@/features/pos/shared/format";
@@ -51,7 +53,9 @@ export function PosCheckoutScreen() {
   const [searchTerm, setSearchTerm] = useState("");
   const [barcodeInput, setBarcodeInput] = useState("");
   const [couponCode, setCouponCode] = useState("");
-  const [customerId, setCustomerId] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerMatch | null>(null);
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
   const [cartDiscountValue, setCartDiscountValue] = useState(0);
   const [cartDiscountReason, setCartDiscountReason] = useState("");
   const [cashTendered, setCashTendered] = useState(0);
@@ -90,6 +94,23 @@ export function PosCheckoutScreen() {
     queryFn: () => searchPosProducts(store!.id, searchTerm),
     enabled: Boolean(store?.id && searchTerm.trim().length > 0),
   });
+
+  // F276: debounce the customer search-as-you-type so every keystroke
+  // doesn't fire a request — 250ms of no typing before the query updates.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedCustomerSearch(customerSearchInput), 250);
+    return () => clearTimeout(handle);
+  }, [customerSearchInput]);
+
+  const customerSearchQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "customer-search", debouncedCustomerSearch),
+    queryFn: ({ signal }) => searchPosCustomers(debouncedCustomerSearch, { signal }),
+    enabled: debouncedCustomerSearch.trim().length > 0,
+  });
+  const customerOptions = (customerSearchQuery.data?.rows ?? []).map((customer) => ({
+    value: customer.id,
+    label: customer.phone || customer.email ? `${customer.displayName} · ${customer.phone || customer.email}` : customer.displayName,
+  }));
 
   async function run(action: () => Promise<{ cart: PosCart }>) {
     setLoading(true);
@@ -132,7 +153,13 @@ export function PosCheckoutScreen() {
     cartDiscountValue > 0 &&
     cartDiscountReason.trim() &&
     run(() => setPosCartDiscount(cart.id, { type: "percent", value: cartDiscountValue, reason: cartDiscountReason, expectedVersion: cart.version }));
-  const applyCustomer = () => cart && run(() => setPosCartCustomer(cart.id, customerId.trim() || null, cart.version));
+  function selectCustomer(customer: PosCustomerMatch | null) {
+    if (!cart) return;
+    setSelectedCustomer(customer);
+    setCustomerSearchInput("");
+    setDebouncedCustomerSearch("");
+    run(() => setPosCartCustomer(cart.id, customer?.id ?? null, cart.version));
+  }
 
   async function completeSale() {
     if (!cart) return;
@@ -162,7 +189,9 @@ export function PosCheckoutScreen() {
   function startNewSale() {
     setConfirmation(null);
     setCashTendered(0);
-    setCustomerId("");
+    setSelectedCustomer(null);
+    setCustomerSearchInput("");
+    setDebouncedCustomerSearch("");
     setCouponCode("");
     setIdempotencyKey(crypto.randomUUID());
     setCart(null);
@@ -279,12 +308,35 @@ export function PosCheckoutScreen() {
           </p>
         )}
 
-        <div className="flex items-end gap-2">
-          <TextField label="Customer ID (blank = walk-in)" value={customerId} onChange={setCustomerId} className="flex-1" />
-          <Button variant="secondary" onPress={applyCustomer}>
-            Set
-          </Button>
-        </div>
+        {selectedCustomer ? (
+          <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
+            <div>
+              <p className="text-sm font-medium text-text">{selectedCustomer.displayName}</p>
+              {(selectedCustomer.phone || selectedCustomer.email) && (
+                <p className="text-xs text-text-muted">{selectedCustomer.phone || selectedCustomer.email}</p>
+              )}
+            </div>
+            <Button variant="ghost" size="compact" onPress={() => selectCustomer(null)} aria-label="Clear selected customer">
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        ) : (
+          <ComboBox
+            label="Customer (blank = walk-in)"
+            placeholder="Search by name, code or phone…"
+            inputValue={customerSearchInput}
+            onInputChange={setCustomerSearchInput}
+            options={customerOptions}
+            isLoading={customerSearchQuery.isFetching}
+            emptyMessage={debouncedCustomerSearch.trim() ? "No matching customers" : "Type to search customers"}
+            allowsEmptyCollection
+            onSelectionChange={(key) => {
+              if (key == null) return;
+              const match = customerSearchQuery.data?.rows.find((row) => row.id === key);
+              if (match) selectCustomer(match);
+            }}
+          />
+        )}
 
         <div className="flex items-end gap-2">
           <TextField label="Coupon code" value={couponCode} onChange={setCouponCode} className="flex-1" />

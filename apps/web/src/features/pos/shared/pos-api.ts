@@ -54,6 +54,12 @@ export const searchPosProducts = (storeId: string, query: string) =>
 export const lookupPosBarcode = (storeId: string, code: string) =>
   request<PosProductMatch>(`/stores/${storeId}/barcode/${encodeURIComponent(code)}`);
 
+// F276: bounded customer search against tenant.business_parties -- see
+// services/api/src/modules/point-of-sale/features/customers.js.
+export type PosCustomerMatch = { id: string; code: string; displayName: string; phone: string | null; email: string | null };
+export const searchPosCustomers = (query: string, options: { signal?: AbortSignal } = {}) =>
+  request<{ rows: PosCustomerMatch[] }>(`/customers?q=${encodeURIComponent(query)}`, { signal: options.signal });
+
 export const createPosCart = (input: Record<string, unknown>) => post<{ cart: PosCart }>("/carts", input);
 export const getPosCart = (id: string) => request<{ cart: PosCart }>(`/carts/${id}`);
 export const addPosCartLine = (id: string, input: Record<string, unknown>) => post<{ cart: PosCart }>(`/carts/${id}/lines`, input);

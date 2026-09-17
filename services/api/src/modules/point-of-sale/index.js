@@ -10,6 +10,7 @@ export * from "./features/assortment.js";
 export * from "./features/cart.js";
 export * from "./features/promotions.js";
 export * from "./features/coupons.js";
+export * from "./features/customers.js";
 export { priceCartLines } from "./features/cart-pricing.js";
 import {
   normalizedDiscountAmount,

@@ -29,6 +29,10 @@ export type PointOfSaleProductMatch = {
 export declare function searchPointOfSalePosProducts(client: any, context: PointOfSaleContext, storeId: string, input?: Record<string, any>): Promise<PointOfSaleProductMatch[]>;
 export declare function lookupPointOfSaleBarcode(client: any, context: PointOfSaleContext, storeId: string, barcode: string): Promise<PointOfSaleProductMatch>;
 
+// F276
+export type PointOfSaleCustomerMatch = { id: string; code: string; displayName: string; phone: string | null; email: string | null };
+export declare function searchPointOfSaleCustomers(client: any, context: PointOfSaleContext, input?: { query?: string; limit?: number; offset?: number }): Promise<PointOfSaleCustomerMatch[]>;
+
 // F277 Cart. Field names are snake_case throughout -- getPosCart/reprice
 // return the raw tenant.pos_carts/pos_cart_lines row shape directly
 // (the same convention completePointOfSale/createPointOfSaleReturn

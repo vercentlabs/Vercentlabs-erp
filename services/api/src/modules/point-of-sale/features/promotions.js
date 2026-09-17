@@ -105,7 +105,14 @@ export async function updatePosPromotion(client, context, id, input) {
   if (input.usageLimitTotal !== undefined) set("usage_limit_total", input.usageLimitTotal || null);
   if (input.usageLimitPerCustomer !== undefined) set("usage_limit_per_customer", input.usageLimitPerCustomer || null);
   if (!fields.length) throw posError(400, "No fields to update.", "POS_PROMOTION_UPDATE_EMPTY");
-  fields.push("updated_by=$3", "updated_at=now()");
+  // SECURITY (audit-field integrity): this used to push a literal
+  // "updated_by=$3" -- but $3 is `id` (the promotion's own record id, see
+  // `values` above), not the acting user. Every update silently stamped
+  // the promotion's own id into updated_by instead of who edited it. The
+  // actor must always come from the authenticated context, never reused
+  // from an unrelated positional parameter.
+  values.push(context.userId);
+  fields.push(`updated_by=$${values.length}`, "updated_at=now()");
   const result = await client.query(
     `UPDATE tenant.pos_promotions SET ${fields.join(",")} WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2) AND id=$3 RETURNING *`,
     values,
@@ -116,10 +123,12 @@ export async function updatePosPromotion(client, context, id, input) {
 
 export async function setPosPromotionActive(client, context, id, active) {
   requirePermission(context, "pos.settings.manage");
+  // Same audit-field bug as updatePosPromotion above -- updated_by must be
+  // the acting user, not the record id being flipped.
   const result = await client.query(
-    `UPDATE tenant.pos_promotions SET status=$4,updated_by=$3,updated_at=now()
+    `UPDATE tenant.pos_promotions SET status=$4,updated_by=$5,updated_at=now()
      WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2) AND id=$3::uuid RETURNING *`,
-    [context.organizationId, context.companyId, id, active ? "active" : "inactive"],
+    [context.organizationId, context.companyId, id, active ? "active" : "inactive", context.userId],
   );
   if (!result.rows[0]) throw posError(404, "POS promotion was not found.", "POS_PROMOTION_NOT_FOUND");
   return result.rows[0];
@@ -136,13 +145,29 @@ export async function commitPosPromotionApplications(client, context, saleId, sa
     byPromotion.get(application.promotionId).push(application);
   }
   for (const [promotionId, items] of byPromotion) {
-    const promotion = await client.query(`SELECT id,usage_limit_total,usage_count FROM tenant.pos_promotions WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [
-      context.organizationId,
-      promotionId,
-    ]);
+    const promotion = await client.query(
+      `SELECT id,usage_limit_total,usage_limit_per_customer,usage_count FROM tenant.pos_promotions WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+      [context.organizationId, promotionId],
+    );
     if (!promotion.rows[0]) continue;
     if (promotion.rows[0].usage_limit_total != null && promotion.rows[0].usage_count >= promotion.rows[0].usage_limit_total) {
       throw posError(409, "A promotion in this cart reached its usage limit before checkout completed.", "POS_PROMOTION_USAGE_LIMIT_REACHED");
+    }
+    // Concurrency (Phase 4): same race as coupons' commitPosCouponRedemption
+    // -- the preview-time per-customer check in cart-pricing.js's
+    // evaluatePromotions() can pass on two racing terminals for the same
+    // customer's last remaining use; holding this promotion's own row lock
+    // (FOR UPDATE above) serializes every commit for it, so this re-check
+    // is race-free.
+    if (customerId && promotion.rows[0].usage_limit_per_customer != null) {
+      const perCustomer = await client.query(
+        `SELECT count(*)::int AS count FROM tenant.pos_promotion_applications
+         WHERE organization_id=$1 AND promotion_id=$2 AND customer_id=$3`,
+        [context.organizationId, promotionId, customerId],
+      );
+      if (Number(perCustomer.rows[0].count) >= promotion.rows[0].usage_limit_per_customer) {
+        throw posError(409, "A promotion in this cart reached its per-customer usage limit before checkout completed.", "POS_PROMOTION_CUSTOMER_LIMIT_REACHED");
+      }
     }
     await client.query(`UPDATE tenant.pos_promotions SET usage_count=usage_count+1 WHERE organization_id=$1 AND id=$2`, [
       context.organizationId,

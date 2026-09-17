@@ -97,7 +97,10 @@ export async function updatePosCoupon(client, context, id, input) {
   if (input.usageLimitTotal !== undefined) set("usage_limit_total", input.usageLimitTotal || null);
   if (input.usageLimitPerCustomer !== undefined) set("usage_limit_per_customer", input.usageLimitPerCustomer || null);
   if (!fields.length) throw posError(400, "No fields to update.", "POS_COUPON_UPDATE_EMPTY");
-  fields.push("updated_by=$3", "updated_at=now()");
+  // SECURITY (audit-field integrity): see the matching comment in
+  // promotions.js's updatePosPromotion -- $3 is `id`, not the actor.
+  values.push(context.userId);
+  fields.push(`updated_by=$${values.length}`, "updated_at=now()");
   const result = await client.query(
     `UPDATE tenant.pos_coupons SET ${fields.join(",")} WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2) AND id=$3 RETURNING *`,
     values,
@@ -109,9 +112,9 @@ export async function updatePosCoupon(client, context, id, input) {
 export async function setPosCouponActive(client, context, id, active) {
   requirePermission(context, "pos.settings.manage");
   const result = await client.query(
-    `UPDATE tenant.pos_coupons SET status=$4,updated_by=$3,updated_at=now()
+    `UPDATE tenant.pos_coupons SET status=$4,updated_by=$5,updated_at=now()
      WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2) AND id=$3::uuid RETURNING *`,
-    [context.organizationId, context.companyId, id, active ? "active" : "inactive"],
+    [context.organizationId, context.companyId, id, active ? "active" : "inactive", context.userId],
   );
   if (!result.rows[0]) throw posError(404, "POS coupon was not found.", "POS_COUPON_NOT_FOUND");
   return result.rows[0];
@@ -130,13 +133,30 @@ export async function commitPosCouponRedemption(client, context, cartId, saleId,
   );
   const row = redemption.rows[0];
   if (!row) return null;
-  const coupon = await client.query(`SELECT id,usage_limit_total,committed_count FROM tenant.pos_coupons WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [
-    context.organizationId,
-    row.coupon_id,
-  ]);
+  const coupon = await client.query(
+    `SELECT id,usage_limit_total,usage_limit_per_customer,committed_count FROM tenant.pos_coupons WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, row.coupon_id],
+  );
   if (!coupon.rows[0]) throw posError(409, "The applied coupon no longer exists.", "POS_COUPON_NOT_FOUND");
   if (coupon.rows[0].usage_limit_total != null && coupon.rows[0].committed_count >= coupon.rows[0].usage_limit_total) {
     throw posError(409, "This coupon reached its usage limit before checkout completed.", "POS_COUPON_USAGE_LIMIT_REACHED");
+  }
+  // Concurrency (F281/Phase 4): the preview-time check in cart-pricing.js's
+  // evaluateCoupon() re-runs on every reprice, but two terminals can BOTH
+  // pass that preview for the same customer's last remaining use and then
+  // both reach completion. Holding the coupon's own row lock (FOR UPDATE
+  // above) serializes every commit for this coupon, so re-checking the
+  // per-customer count here is race-free -- exactly one of two racing
+  // completions for the same customer's final use can pass this check.
+  if (row.customer_id && coupon.rows[0].usage_limit_per_customer != null) {
+    const perCustomer = await client.query(
+      `SELECT count(*)::int AS count FROM tenant.pos_coupon_redemptions
+       WHERE organization_id=$1 AND coupon_id=$2 AND customer_id=$3 AND status='committed'`,
+      [context.organizationId, row.coupon_id, row.customer_id],
+    );
+    if (Number(perCustomer.rows[0].count) >= coupon.rows[0].usage_limit_per_customer) {
+      throw posError(409, "This customer already reached this coupon's usage limit before checkout completed.", "POS_COUPON_CUSTOMER_LIMIT_REACHED");
+    }
   }
   await client.query(`UPDATE tenant.pos_coupons SET committed_count=committed_count+1 WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
