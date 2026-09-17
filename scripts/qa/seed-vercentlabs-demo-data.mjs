@@ -62,7 +62,24 @@ function slugify(name) {
 
 const INDUSTRIES = ["Logistics", "Retail Technology", "Manufacturing", "Food & Beverage", "Data & Analytics", "Agriculture", "Construction", "Healthcare", "Textiles", "Financial Services"];
 
-const ACCOUNTS = [
+const CITY_STATE = [
+  { city: "Pune", state: "Maharashtra" }, { city: "Bengaluru", state: "Karnataka" },
+  { city: "Ahmedabad", state: "Gujarat" }, { city: "Kochi", state: "Kerala" },
+  { city: "Hyderabad", state: "Telangana" }, { city: "Nashik", state: "Maharashtra" },
+  { city: "Gurugram", state: "Haryana" }, { city: "Chennai", state: "Tamil Nadu" },
+  { city: "Surat", state: "Gujarat" }, { city: "Mumbai", state: "Maharashtra" },
+  { city: "Delhi", state: "Delhi" }, { city: "Jaipur", state: "Rajasthan" },
+  { city: "Lucknow", state: "Uttar Pradesh" }, { city: "Indore", state: "Madhya Pradesh" },
+  { city: "Coimbatore", state: "Tamil Nadu" }, { city: "Nagpur", state: "Maharashtra" },
+  { city: "Vadodara", state: "Gujarat" }, { city: "Bhopal", state: "Madhya Pradesh" },
+  { city: "Visakhapatnam", state: "Andhra Pradesh" }, { city: "Chandigarh", state: "Chandigarh" },
+];
+
+// The original, hand-picked 10 accounts / 14 leads from the first seed pass
+// (kept verbatim so the idempotency checks below keep recognizing them),
+// plus a much larger combinatorial pool (root x business-type) so the org
+// looks like it has hundreds of real records instead of a small fixed set.
+const ACCOUNTS_BASE = [
   { name: "Suvidha Logistics Pvt Ltd", industry: "Logistics", city: "Pune", state: "Maharashtra" },
   { name: "Nimbus Retail Solutions", industry: "Retail Technology", city: "Bengaluru", state: "Karnataka" },
   { name: "Bluepeak Manufacturing Co", industry: "Manufacturing", city: "Ahmedabad", state: "Gujarat" },
@@ -75,8 +92,74 @@ const ACCOUNTS = [
   { name: "Prime Financial Consultants", industry: "Financial Services", city: "Mumbai", state: "Maharashtra" },
 ];
 
-const FIRST_NAMES = ["Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan", "Krishna", "Ishaan", "Ananya", "Diya", "Saanvi", "Aadhya", "Kavya", "Myra", "Anika", "Riya", "Priya", "Neha", "Rohan", "Kabir", "Aryan", "Dhruv", "Karan", "Meera", "Pooja", "Sneha", "Tanvi", "Isha"];
-const LAST_NAMES = ["Sharma", "Verma", "Iyer", "Nair", "Reddy", "Rao", "Kulkarni", "Mehta", "Gupta", "Agarwal", "Malhotra", "Bose", "Chatterjee", "Pillai", "Menon", "Desai", "Joshi", "Kapoor", "Bhatt", "Chawla"];
+const LEAD_COMPANIES_BASE = [
+  "Horizon Freight Pvt Ltd", "Vantage Point Studios", "Copper Leaf Hospitality", "Bright Path Ed-Tech",
+  "Silverline Realty", "TrueNorth Insurance Brokers", "Aster Pharma Distributors", "Nova Print Solutions",
+  "Everest Cold Storage", "Lakeside Furniture Exports", "Falcon Security Services", "Rampart Auto Components",
+  "Cedar Grove Interiors", "Pinnacle IT Staffing",
+];
+
+const NAME_ROOTS = [
+  "Suvidha", "Nimbus", "Bluepeak", "Coastal", "Zenith", "Green Valley", "Skyline", "Meridian", "Orbit", "Prime",
+  "Horizon", "Vantage", "Copper Leaf", "Bright Path", "Silverline", "TrueNorth", "Aster", "Nova", "Everest", "Lakeside",
+  "Falcon", "Rampart", "Cedar Grove", "Pinnacle", "Crimson", "Ashford", "Larkspur", "Whitfield", "Ironclad", "Solstice",
+  "Bayline", "Redwood", "Amberfield", "Northgate", "Clearwater", "Stonebridge", "Windermere", "Highcastle", "Marigold", "Cobalt",
+  "Sundew", "Ridgeline", "Vermillion", "Sapphire Bay", "Golden Arc", "Wavecrest", "Ironwood", "Palm Grove", "Silver Birch", "Amber Sky",
+  "Newgate", "Fairview", "Kestrel", "Osprey", "Trident", "Emberstone", "Brightline", "Bluebell", "Riverside", "Hillcrest",
+];
+
+const BUSINESS_SUFFIXES = [
+  "Logistics Pvt Ltd", "Retail Solutions", "Manufacturing Co", "Foods Exports", "Analytics Pvt Ltd", "Agro Industries",
+  "Constructions Pvt Ltd", "Healthcare Systems", "Textiles Ltd", "Financial Consultants", "Freight Pvt Ltd", "Studios",
+  "Hospitality", "Ed-Tech", "Realty", "Insurance Brokers", "Pharma Distributors", "Print Solutions", "Cold Storage",
+  "Furniture Exports", "Security Services", "Auto Components", "Interiors", "IT Staffing", "Energy Solutions",
+  "Consulting Group", "Media Networks", "Data Systems", "Apparel Ltd", "Beverages Pvt Ltd", "Packaging Industries",
+  "Chemicals Pvt Ltd", "Electronics Ltd", "Engineering Works", "Infra Projects", "Wellness Pvt Ltd", "Travels & Tours",
+  "Publishing House", "Digital Solutions", "Renewables Pvt Ltd",
+];
+
+function shuffle(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function generateCompanyNames(count, excludeNames) {
+  const excludeSet = new Set(excludeNames);
+  const combos = [];
+  for (const root of NAME_ROOTS) {
+    for (const suffix of BUSINESS_SUFFIXES) {
+      const name = `${root} ${suffix}`;
+      if (!excludeSet.has(name)) combos.push(name);
+    }
+  }
+  return shuffle(combos).slice(0, count);
+}
+
+// Overridable so a cleanup/top-up pass (e.g. closing an activity-coverage
+// gap left by an earlier interrupted run) can ask for zero additional
+// accounts/leads instead of piling on yet another random batch — each run
+// draws its own fresh random sample from the combinatorial pool, so
+// repeated runs are additive by design, not idempotent at a fixed target.
+const NEW_ACCOUNT_COUNT = Number(process.env.SEED_NEW_ACCOUNTS ?? 90);
+const NEW_LEAD_COUNT = Number(process.env.SEED_NEW_LEADS ?? 190);
+const generatedNames = generateCompanyNames(
+  NEW_ACCOUNT_COUNT + NEW_LEAD_COUNT,
+  [...ACCOUNTS_BASE.map((a) => a.name), ...LEAD_COMPANIES_BASE],
+);
+
+const ACCOUNTS = [
+  ...ACCOUNTS_BASE,
+  ...generatedNames.slice(0, NEW_ACCOUNT_COUNT).map((name) => ({ name, industry: randomOf(INDUSTRIES), ...randomOf(CITY_STATE) })),
+];
+
+const LEAD_COMPANIES = [...LEAD_COMPANIES_BASE, ...generatedNames.slice(NEW_ACCOUNT_COUNT)];
+
+const FIRST_NAMES = ["Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan", "Krishna", "Ishaan", "Ananya", "Diya", "Saanvi", "Aadhya", "Kavya", "Myra", "Anika", "Riya", "Priya", "Neha", "Rohan", "Kabir", "Aryan", "Dhruv", "Karan", "Meera", "Pooja", "Sneha", "Tanvi", "Isha", "Yash", "Advait", "Nikhil", "Om", "Parth", "Rudra", "Shaurya", "Veer", "Zara", "Ira", "Navya", "Prisha", "Aanya", "Siya", "Trisha", "Vanya"];
+const LAST_NAMES = ["Sharma", "Verma", "Iyer", "Nair", "Reddy", "Rao", "Kulkarni", "Mehta", "Gupta", "Agarwal", "Malhotra", "Bose", "Chatterjee", "Pillai", "Menon", "Desai", "Joshi", "Kapoor", "Bhatt", "Chawla", "Bhatia", "Khanna", "Trivedi", "Shetty", "Ghosh", "Mukherjee", "Saxena", "Das", "Pandey", "Thakur"];
 const DESIGNATIONS = ["Chief Executive Officer", "Chief Financial Officer", "VP Operations", "Procurement Manager", "IT Director", "Head of Sales", "Finance Manager", "Operations Head", "General Manager", "Business Development Manager"];
 
 function randomPersonName() {
@@ -85,13 +168,6 @@ function randomPersonName() {
 function phoneNumber() {
   return `+91 ${randomInt(70000, 99999)}${randomInt(10000, 99999)}`;
 }
-
-const LEAD_COMPANIES = [
-  "Horizon Freight Pvt Ltd", "Vantage Point Studios", "Copper Leaf Hospitality", "Bright Path Ed-Tech",
-  "Silverline Realty", "TrueNorth Insurance Brokers", "Aster Pharma Distributors", "Nova Print Solutions",
-  "Everest Cold Storage", "Lakeside Furniture Exports", "Falcon Security Services", "Rampart Auto Components",
-  "Cedar Grove Interiors", "Pinnacle IT Staffing",
-];
 
 const OPPORTUNITY_TEMPLATES = [
   (company) => `${company} — Annual Platform License Renewal`,
@@ -267,38 +343,69 @@ async function main() {
   console.log("  moved a realistic subset of newly created leads to Contacted/Working");
 
   // --- Opportunities (linked to accounts) ---
+  // Top up each account to a randomly chosen target opportunity count
+  // (0-2, ~85% of accounts get at least one) rather than "one or none" —
+  // idempotent by counting what already exists rather than a single
+  // exists/skip check, so re-running only ever adds the shortfall.
   const opportunityRecords = [];
   for (const record of accountRecords) {
-    const existingOpp = (await admin.query(
-      `SELECT id, name FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2 LIMIT 1`,
+    const existingRows = (await admin.query(
+      `SELECT id, name FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2`,
       [organizationId, record.id],
-    )).rows[0];
-    if (existingOpp) {
-      opportunityRecords.push(existingOpp);
-      console.log(`  opportunity (already exists): ${existingOpp.name}`);
-      continue;
-    }
-    if (Math.random() > 0.75) continue; // not every account has an open deal
+    )).rows;
+    opportunityRecords.push(...existingRows);
+    for (const row of existingRows) console.log(`  opportunity (already exists): ${row.name}`);
+
+    const targetCount = Math.random() > 0.15 ? randomInt(1, 2) : 0;
     const accInfo = ACCOUNTS.find((a) => slugify(a.name) === slugify(record.displayName || ""));
-    const label = (OPPORTUNITY_TEMPLATES[randomInt(0, OPPORTUNITY_TEMPLATES.length - 1)])(accInfo?.name ?? record.displayName ?? "Account");
-    const opp = await withTx((client) =>
-      createCrmRecord(client, context, "opportunities", {
-        name: label,
-        partyId: record.id,
-        amount: randomInt(150, 5000) * 1000,
-        currencyCode: "INR",
-        expectedCloseDate: calendarDateFromNow(randomInt(15, 90)),
-        nextStep: randomOf(["Awaiting stakeholder sign-off", "Send revised commercial terms", "Schedule technical review", "Confirm rollout timeline"]),
-      }),
-    );
-    opportunityRecords.push(opp);
-    console.log(`  opportunity: ${label}`);
+    const usedTemplates = new Set();
+    for (let i = existingRows.length; i < targetCount; i += 1) {
+      let templateIndex = randomInt(0, OPPORTUNITY_TEMPLATES.length - 1);
+      if (usedTemplates.size < OPPORTUNITY_TEMPLATES.length) {
+        while (usedTemplates.has(templateIndex)) templateIndex = randomInt(0, OPPORTUNITY_TEMPLATES.length - 1);
+      }
+      usedTemplates.add(templateIndex);
+      const label = OPPORTUNITY_TEMPLATES[templateIndex](accInfo?.name ?? record.displayName ?? "Account");
+      const opp = await withTx((client) =>
+        createCrmRecord(client, context, "opportunities", {
+          name: label,
+          partyId: record.id,
+          amount: randomInt(150, 5000) * 1000,
+          currencyCode: "INR",
+          expectedCloseDate: calendarDateFromNow(randomInt(15, 90)),
+          nextStep: randomOf(["Awaiting stakeholder sign-off", "Send revised commercial terms", "Schedule technical review", "Confirm rollout timeline"]),
+        }),
+      );
+      opportunityRecords.push(opp);
+      console.log(`  opportunity: ${label}`);
+    }
   }
 
   // --- Activities (tasks, calls, meetings, follow-ups) ---
+  // Targets every lead/opportunity in the ORG with zero activities so far —
+  // not just this run's local leadRecords/opportunityRecords. Each run's
+  // ACCOUNTS/LEAD_COMPANIES draw an independent random sample from the
+  // combinatorial pool, so a prior run's records are largely invisible to
+  // this run's own arrays; scanning the whole org (and re-querying fresh
+  // after this run's own creates) is what actually makes this step
+  // resumable after an interrupted run, regardless of which run or process
+  // created which record.
+  async function idsWithoutActivities(entityType, ids) {
+    if (!ids.length) return new Set();
+    const rows = (await admin.query(
+      `SELECT DISTINCT entity_id FROM tenant.crm_activities WHERE organization_id = $1 AND entity_type = $2 AND entity_id = ANY($3::uuid[])`,
+      [organizationId, entityType, ids],
+    )).rows;
+    const withActivities = new Set(rows.map((r) => r.entity_id));
+    return new Set(ids.filter((id) => !withActivities.has(id)));
+  }
+  const allLeadRows = (await admin.query(`SELECT id, first_name AS "firstName" FROM tenant.crm_leads WHERE organization_id = $1`, [organizationId])).rows;
+  const allOppRows = (await admin.query(`SELECT id, name FROM tenant.crm_opportunities WHERE organization_id = $1`, [organizationId])).rows;
+  const leadIdsNeedingActivities = await idsWithoutActivities("lead", allLeadRows.map((r) => r.id));
+  const oppIdsNeedingActivities = await idsWithoutActivities("opportunity", allOppRows.map((r) => r.id));
   const activityTargets = [
-    ...leadRecords.map((r) => ({ entityType: "lead", entityId: r.id, label: r.firstName })),
-    ...opportunityRecords.map((r) => ({ entityType: "opportunity", entityId: r.id, label: r.name })),
+    ...allLeadRows.filter((r) => leadIdsNeedingActivities.has(r.id)).map((r) => ({ entityType: "lead", entityId: r.id, label: r.firstName })),
+    ...allOppRows.filter((r) => oppIdsNeedingActivities.has(r.id)).map((r) => ({ entityType: "opportunity", entityId: r.id, label: r.name })),
   ];
 
   for (const target of activityTargets) {
@@ -328,7 +435,13 @@ async function main() {
       );
     }
     if (Math.random() > 0.7) {
-      const meetingStartOffset = randomInt(1, 14);
+      // Exact millisecond arithmetic, not another daysFromNow(+1) call: two
+      // separate setDate() calls can land on opposite sides of a DST
+      // transition (observed: a Southern Hemisphere DST start landed one
+      // pair 1 hour over), and "> 24 hours" then rejects the meeting.
+      const meetingStart = new Date();
+      meetingStart.setDate(meetingStart.getDate() + randomInt(1, 14));
+      const meetingEnd = new Date(meetingStart.getTime() + 60 * 60 * 1000);
       await withTx((client) =>
         createCrmMeeting(client, context, {
           subject: `${randomOf(MEETING_SUBJECTS)} — ${target.label}`,
@@ -336,8 +449,8 @@ async function main() {
           meetingUrl: "https://meet.vercentlabs.example/room",
           entityType: target.entityType,
           entityId: target.entityId,
-          startAt: daysFromNow(meetingStartOffset),
-          endAt: daysFromNow(meetingStartOffset + 1),
+          startAt: meetingStart.toISOString(),
+          endAt: meetingEnd.toISOString(),
         }),
       );
     }
