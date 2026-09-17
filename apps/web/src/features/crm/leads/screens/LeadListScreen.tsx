@@ -39,8 +39,6 @@ import {
 } from "../api/leads-api";
 import type { Lead, LeadListFilters } from "../types";
 
-const KANBAN_PAGE_SIZE = 200;
-
 const PAGE_SIZE = 25;
 
 const PRIORITY_OPTIONS: SelectOption[] = [
@@ -220,16 +218,6 @@ export function LeadListScreen() {
     delete rest.offset;
     return rest;
   }, [filters]);
-
-  // Kanban shows every matching lead across stage columns at once, not a
-  // single page of PAGE_SIZE — same filters as the table (search/stage/
-  // owner/etc.), just a much larger limit and no offset. Only fetched
-  // while the Kanban view is actually active.
-  const kanbanQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "leads", "kanban", filtersWithoutPaging),
-    queryFn: () => listLeads({ ...filtersWithoutPaging, limit: KANBAN_PAGE_SIZE, offset: 0 }),
-    enabled: view === "kanban",
-  });
 
   const leadStageColumns: LeadStageOption[] = useMemo(() => {
     const stageRows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ id: string; code: string; name: string; status: string }>;
@@ -475,9 +463,8 @@ export function LeadListScreen() {
       )}
       {view === "kanban" ? (
         <LeadKanbanBoard
-          leads={kanbanQuery.data?.rows ?? []}
+          filters={filtersWithoutPaging}
           stages={leadStageColumns}
-          isLoading={kanbanQuery.isLoading}
           onOpen={(id) => router.push(`/crm/leads/${id}`)}
         />
       ) : (

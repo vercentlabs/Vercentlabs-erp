@@ -1,16 +1,23 @@
 "use client";
 
 import { useMemo, useState, type DragEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, GripVertical, Users } from "lucide-react";
 import { Badge, Button, Dialog, Select, type SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { getLeadStageReasons, getLeadTransitionGraph, LeadApiError, transitionLeadStage } from "../api/leads-api";
-import type { Lead } from "../types";
+import { getLeadStageReasons, getLeadTransitionGraph, LeadApiError, listLeads, transitionLeadStage } from "../api/leads-api";
+import type { Lead, LeadListFilters } from "../types";
 
 export type LeadStageOption = { id: string; code: string; name: string };
+
+// Fetched per stage, not once for the whole board with a single hard cap —
+// a lone board-wide fetch silently truncated at whatever limit was chosen
+// (found at real scale: 536 leads against a 200-row cap left the majority
+// of leads invisible, with no indication anything was missing). Each
+// column tracks its own "how many to show" independently and can expand.
+const COLUMN_PAGE_SIZE = 100;
 
 const priorityTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   low: "neutral",
@@ -149,14 +156,12 @@ function LeadKanbanCard({
 }
 
 export function LeadKanbanBoard({
-  leads,
+  filters,
   stages,
-  isLoading,
   onOpen,
 }: {
-  leads: Lead[];
+  filters: LeadListFilters;
   stages: LeadStageOption[];
-  isLoading: boolean;
   onOpen: (id: string) => void;
 }) {
   const workspace = useWorkspaceContext();
@@ -166,6 +171,7 @@ export function LeadKanbanBoard({
   const [pendingLeadId, setPendingLeadId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<{ leadId: string; message: string } | null>(null);
   const [reasonPrompt, setReasonPrompt] = useState<{ lead: Lead; stage: LeadStageOption } | null>(null);
+  const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
 
   const transitionGraphQuery = useQuery({
     queryKey: ["crm", "leads", "transition-graph"],
@@ -173,15 +179,17 @@ export function LeadKanbanBoard({
   });
   const transitions = transitionGraphQuery.data?.transitions ?? [];
 
-  const leadsByStage = useMemo(() => {
-    const map = new Map<string, Lead[]>();
-    for (const lead of leads) {
-      const list = map.get(lead.status) ?? [];
-      list.push(lead);
-      map.set(lead.status, list);
-    }
-    return map;
-  }, [leads]);
+  const stageQueries = useQueries({
+    queries: stages.map((stage) => {
+      const limit = columnLimits[stage.id] ?? COLUMN_PAGE_SIZE;
+      return {
+        queryKey: scopedQueryKey(workspace, "crm", "leads", "kanban", stage.code, filters, limit),
+        queryFn: () => listLeads({ ...filters, status: stage.code, limit, offset: 0 }),
+      };
+    }),
+  });
+  const isLoading = stageQueries.some((q) => q.isLoading);
+  const allLoadedLeads = useMemo(() => stageQueries.flatMap((q) => q.data?.rows ?? []), [stageQueries]);
 
   const moveMutation = useMutation({
     mutationFn: ({ leadId, stageId, reasonCode, expectedUpdatedAt }: { leadId: string; stageId: string; reasonCode?: string; expectedUpdatedAt: string }) =>
@@ -235,7 +243,7 @@ export function LeadKanbanBoard({
     event.preventDefault();
     setDragOverStageId(null);
     const leadId = event.dataTransfer.getData(DRAG_MIME);
-    const lead = leads.find((l) => l.id === leadId);
+    const lead = allLoadedLeads.find((l) => l.id === leadId);
     setDraggingLeadId(null);
     if (!lead) return;
     attemptMove(lead, stage.id);
@@ -248,8 +256,11 @@ export function LeadKanbanBoard({
   return (
     <>
       <div className="flex gap-4 overflow-x-auto pb-2">
-        {stages.map((stage) => {
-          const cards = leadsByStage.get(stage.code) ?? [];
+        {stages.map((stage, index) => {
+          const stageQuery = stageQueries[index];
+          const cards = stageQuery.data?.rows ?? [];
+          const total = stageQuery.data?.total ?? cards.length;
+          const hasMore = total > cards.length;
           const isDragTarget = dragOverStageId === stage.id && draggingLeadId;
           return (
             <div
@@ -267,7 +278,7 @@ export function LeadKanbanBoard({
             >
               <div className="flex items-center justify-between px-0.5">
                 <p className="text-sm font-semibold text-text">{stage.name}</p>
-                <span className="text-xs tabular-nums text-text-muted">{cards.length}</span>
+                <span className="text-xs tabular-nums text-text-muted">{total}</span>
               </div>
               <div className="flex flex-col gap-2">
                 {cards.map((lead) => (
@@ -284,6 +295,16 @@ export function LeadKanbanBoard({
                   />
                 ))}
                 {cards.length === 0 && <p className="px-0.5 text-xs text-text-muted">No leads in this stage.</p>}
+                {hasMore && (
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    onPress={() => setColumnLimits((current) => ({ ...current, [stage.id]: (current[stage.id] ?? COLUMN_PAGE_SIZE) + COLUMN_PAGE_SIZE }))}
+                    isLoading={stageQuery.isFetching}
+                  >
+                    Show {Math.min(COLUMN_PAGE_SIZE, total - cards.length)} more ({total - cards.length} remaining)
+                  </Button>
+                )}
               </div>
             </div>
           );
