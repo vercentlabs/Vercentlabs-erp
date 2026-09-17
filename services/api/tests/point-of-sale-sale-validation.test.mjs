@@ -62,8 +62,13 @@ function client() {
         return { rows: [{ allow_negative_stock: false, allow_price_override: false }] };
       if (/SELECT price_item\.rate/.test(sql)) return { rows: [{ rate: "100" }] };
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available/.test(sql)) return { rows: [{ available: "1000" }] };
-      if (/SELECT id,name FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
-        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item" })) };
+      if (/SELECT id,name,tax_category_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
+        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null })) };
+      if (/SELECT decimal_places FROM tenant\.currencies/.test(sql)) return { rows: [{ decimal_places: 2 }] };
+      if (/SELECT seller_state_code FROM tenant\.sales_settings/.test(sql)) return { rows: [] };
+      if (/SELECT state_code FROM tenant\.addresses/.test(sql)) return { rows: [] };
+      if (/SELECT tax_inclusive FROM tenant\.price_lists/.test(sql)) return { rows: [{ tax_inclusive: false }] };
+      if (/FROM tenant\.tax_rates WHERE/.test(sql)) return { rows: [] };
       if (/SELECT id FROM tenant\.business_parties/.test(sql)) {
         const requestedId = params[2];
         if (requestedId === activeCustomerId) return { rows: [{ id: activeCustomerId }] };

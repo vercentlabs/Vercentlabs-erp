@@ -12,6 +12,7 @@ import {
   formatDecimal,
 } from "./money.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
+import { resolveTaxRateComponents, isExemptSupplyType } from "../../core/tax-engine.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -398,42 +399,15 @@ async function calculateLine(client, context, master, line, sequence, input) {
     master.currency.decimal_places,
   );
 
-  let taxRate = decimal(0);
-  let components = [];
-  if (
-    item.tax_category_id &&
-    input.supplyType !== "exempt" &&
-    input.supplyType !== "non_gst" &&
-    input.supplyType !== "export"
-  ) {
-    const rateResult = await client.query(
-      `SELECT tax_type,rate,name,code FROM tenant.tax_rates WHERE organization_id=$1 AND tax_category_id=$2 AND (company_id=$3 OR company_id IS NULL) AND status='active' AND (effective_from IS NULL OR effective_from<=current_date) AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY company_id NULLS LAST,effective_from DESC NULLS LAST,rate DESC LIMIT 1`,
-      [context.organizationId, item.tax_category_id, master.companyId],
-    );
-    const rate = rateResult.rows[0];
-    if (rate) {
-      taxRate = decimal(rate.rate);
-      const sellerState = String(
-        master.settings.seller_state_code || "",
-      ).trim();
-      const buyerState = String(
-        input.placeOfSupply ||
-          master.shipping.row?.state_code ||
-          master.billing.row?.state_code ||
-          "",
-      ).trim();
-      const intra = sellerState && buyerState && sellerState === buyerState;
-      if (rate.tax_type === "gst" && intra)
-        components = [
-          { type: "cgst", label: "CGST", rate: div(taxRate, 2) },
-          { type: "sgst", label: "SGST", rate: div(taxRate, 2) },
-        ];
-      else if (rate.tax_type === "gst")
-        components = [{ type: "igst", label: "IGST", rate: taxRate }];
-      else
-        components = [{ type: rate.tax_type, label: rate.name, rate: taxRate }];
-    }
-  }
+  const { taxRate, components } = await resolveTaxRateComponents(client, {
+    organizationId: context.organizationId,
+    companyId: master.companyId,
+    taxCategoryId: item.tax_category_id,
+    sellerStateCode: master.settings.seller_state_code,
+    buyerStateCode:
+      input.placeOfSupply || master.shipping.row?.state_code || master.billing.row?.state_code,
+    exempt: isExemptSupplyType(input.supplyType),
+  });
   let taxableAmount = netAmount;
   let taxAmount = decimal(0);
   if (master.priceList?.tax_inclusive && taxRate > 0n) {

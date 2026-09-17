@@ -73,8 +73,16 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available\s+FROM tenant\.stock_balances/.test(sql))
         return { rows: [{ available: availableStock }] }; // POS's own unlocked pre-check
       if (/INSERT INTO tenant\.pos_sales/.test(sql)) return { rows: [{ id: saleId, store_id: "store-1", terminal_id: "terminal-1" }] };
-      if (/SELECT id,name FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
-        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item" })) };
+      if (/SELECT id,name,tax_category_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
+        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null })) };
+      // F278: authoritative tax/currency/jurisdiction resolution added this
+      // session — no tax category on the test item, so these resolve to
+      // "no tax" (decimal_places=2, no seller/buyer state, no rate).
+      if (/SELECT decimal_places FROM tenant\.currencies/.test(sql)) return { rows: [{ decimal_places: 2 }] };
+      if (/SELECT seller_state_code FROM tenant\.sales_settings/.test(sql)) return { rows: [] };
+      if (/SELECT state_code FROM tenant\.addresses/.test(sql)) return { rows: [] };
+      if (/SELECT tax_inclusive FROM tenant\.price_lists/.test(sql)) return { rows: [{ tax_inclusive: false }] };
+      if (/FROM tenant\.tax_rates WHERE/.test(sql)) return { rows: [] };
       if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
       if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql))
         return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "50" }] };
@@ -107,7 +115,7 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
         return { rows: [] };
       }
       if (/INSERT INTO tenant\.pos_sale_lines/.test(sql)) {
-        saleLineInserts.push({ itemId: params[3], description: params[4] });
+        saleLineInserts.push({ itemId: params[3], variantId: params[4], description: params[5] });
         return { rows: [] };
       }
       if (/INSERT INTO tenant\.pos_payments/.test(sql)) return { rows: [] };
