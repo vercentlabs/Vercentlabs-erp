@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, Plus, SlidersHorizontal, Users } from "lucide-react";
+import { Archive, Kanban, Plus, SlidersHorizontal, Table2, Users } from "lucide-react";
 import {
   Badge,
   Button,
@@ -28,6 +28,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LeadKanbanBoard, type LeadStageOption } from "../components/LeadKanbanBoard";
 import {
   archiveLead,
   bulkUpdateLeads,
@@ -37,6 +38,8 @@ import {
   type LeadBulkItemResult,
 } from "../api/leads-api";
 import type { Lead, LeadListFilters } from "../types";
+
+const KANBAN_PAGE_SIZE = 200;
 
 const PAGE_SIZE = 25;
 
@@ -124,6 +127,7 @@ export function LeadListScreen() {
 
   const [filters, setFilters] = useState<LeadListFilters>(() => filtersFromSearchParams(searchParams));
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
+  const [view, setView] = useState<"table" | "kanban">("table");
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [bulkField, setBulkField] = useState<string>("priority");
   const [bulkValue, setBulkValue] = useState<string>("");
@@ -216,6 +220,21 @@ export function LeadListScreen() {
     delete rest.offset;
     return rest;
   }, [filters]);
+
+  // Kanban shows every matching lead across stage columns at once, not a
+  // single page of PAGE_SIZE — same filters as the table (search/stage/
+  // owner/etc.), just a much larger limit and no offset. Only fetched
+  // while the Kanban view is actually active.
+  const kanbanQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "leads", "kanban", filtersWithoutPaging),
+    queryFn: () => listLeads({ ...filtersWithoutPaging, limit: KANBAN_PAGE_SIZE, offset: 0 }),
+    enabled: view === "kanban",
+  });
+
+  const leadStageColumns: LeadStageOption[] = useMemo(() => {
+    const stageRows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ id: string; code: string; name: string; status: string }>;
+    return stageRows.filter((row) => row.status === "active").map((row) => ({ id: row.id, code: row.code, name: row.name }));
+  }, [optionsQuery.data]);
 
   async function runBulkUpdate() {
     if (!bulkValue && bulkField !== "nextFollowUpAt") return;
@@ -338,6 +357,34 @@ export function LeadListScreen() {
       header={{
         title: "Leads",
         description: "Every prospect awaiting qualification, assignment, or follow-up.",
+        secondaryActions: (
+          <div className="flex items-center rounded-[var(--radius-control)] border border-border bg-surface p-0.5">
+            <button
+              type="button"
+              aria-pressed={view === "table"}
+              onClick={() => setView("table")}
+              className={[
+                "flex items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1.5 text-sm font-medium transition-colors",
+                view === "table" ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-muted",
+              ].join(" ")}
+            >
+              <Table2 className="size-3.5" aria-hidden="true" />
+              Table
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "kanban"}
+              onClick={() => setView("kanban")}
+              className={[
+                "flex items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1.5 text-sm font-medium transition-colors",
+                view === "kanban" ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-muted",
+              ].join(" ")}
+            >
+              <Kanban className="size-3.5" aria-hidden="true" />
+              Kanban
+            </button>
+          </div>
+        ),
         primaryAction: canManageLeads ? (
           <Button variant="primary" onPress={() => router.push("/crm/leads/new")}>
             <Plus className="size-4" aria-hidden="true" />
@@ -426,64 +473,73 @@ export function LeadListScreen() {
           )}
         </div>
       )}
-      <EnterpriseDataGrid<Lead>
-        aria-label="Leads"
-        columns={columns}
-        data={rows}
-        getRowId={(row) => row.id}
-        state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading leads…</p>}
-        emptyContent={
-          <NoResultsState
-            title="No leads yet"
-            description="New leads captured from forms, imports, or manual entry will appear here."
-            action={canManageLeads ? { label: "New lead", onPress: () => router.push("/crm/leads/new") } : undefined}
-          />
-        }
-        noResultsContent={
-          <NoResultsState title="No leads match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearAllFilters }} />
-        }
-        errorContent={<ErrorState title="Could not load leads" description="Something went wrong loading this list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
-        permissionDeniedContent={<PermissionState title="You don't have access to Leads" description="Ask an administrator to grant CRM lead access." />}
-        enableRowSelection
-        rowSelection={selection}
-        onRowSelectionChange={setSelection}
-        pageIndex={pageIndex}
-        pageSize={PAGE_SIZE}
-        pageCount={pageCount}
-        totalRowCount={total}
-        onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
-        onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
-        rowActions={
-          canManageLeads
-            ? (row) =>
-                row.recordStatus === "converted" || row.recordStatus === "archived" ? null : (
-                  <span onClick={(event) => event.stopPropagation()}>
-                    <IconButton aria-label={`Archive ${row.fullName || row.firstName}`} size="compact" variant="ghost" onPress={() => archiveRow(row)}>
-                      <Archive className="size-4" aria-hidden="true" />
-                    </IconButton>
-                  </span>
-                )
-            : undefined
-        }
-        renderMobileCard={(row) => (
-          <button
-            type="button"
-            onClick={() => router.push(`/crm/leads/${row.id}`)}
-            className="flex w-full flex-col gap-1.5 border-b border-border px-4 py-3 text-left"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-text">{row.fullName || `${row.firstName} ${row.lastName || ""}`.trim()}</span>
-              <StatusBadge tone={statusTone[row.status] ?? "neutral"}>{row.status}</StatusBadge>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <Users className="size-3.5" aria-hidden="true" />
-              <span>{row.ownerName || "Unassigned"}</span>
-              {row.nextFollowUpAt && <span>· Follow up {dateFormatter.format(new Date(row.nextFollowUpAt))}</span>}
-            </div>
-          </button>
-        )}
-      />
+      {view === "kanban" ? (
+        <LeadKanbanBoard
+          leads={kanbanQuery.data?.rows ?? []}
+          stages={leadStageColumns}
+          isLoading={kanbanQuery.isLoading}
+          onOpen={(id) => router.push(`/crm/leads/${id}`)}
+        />
+      ) : (
+        <EnterpriseDataGrid<Lead>
+          aria-label="Leads"
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+          state={gridState}
+          loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading leads…</p>}
+          emptyContent={
+            <NoResultsState
+              title="No leads yet"
+              description="New leads captured from forms, imports, or manual entry will appear here."
+              action={canManageLeads ? { label: "New lead", onPress: () => router.push("/crm/leads/new") } : undefined}
+            />
+          }
+          noResultsContent={
+            <NoResultsState title="No leads match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearAllFilters }} />
+          }
+          errorContent={<ErrorState title="Could not load leads" description="Something went wrong loading this list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
+          permissionDeniedContent={<PermissionState title="You don't have access to Leads" description="Ask an administrator to grant CRM lead access." />}
+          enableRowSelection
+          rowSelection={selection}
+          onRowSelectionChange={setSelection}
+          pageIndex={pageIndex}
+          pageSize={PAGE_SIZE}
+          pageCount={pageCount}
+          totalRowCount={total}
+          onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
+          onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
+          rowActions={
+            canManageLeads
+              ? (row) =>
+                  row.recordStatus === "converted" || row.recordStatus === "archived" ? null : (
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <IconButton aria-label={`Archive ${row.fullName || row.firstName}`} size="compact" variant="ghost" onPress={() => archiveRow(row)}>
+                        <Archive className="size-4" aria-hidden="true" />
+                      </IconButton>
+                    </span>
+                  )
+              : undefined
+          }
+          renderMobileCard={(row) => (
+            <button
+              type="button"
+              onClick={() => router.push(`/crm/leads/${row.id}`)}
+              className="flex w-full flex-col gap-1.5 border-b border-border px-4 py-3 text-left"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-text">{row.fullName || `${row.firstName} ${row.lastName || ""}`.trim()}</span>
+                <StatusBadge tone={statusTone[row.status] ?? "neutral"}>{row.status}</StatusBadge>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <Users className="size-3.5" aria-hidden="true" />
+                <span>{row.ownerName || "Unassigned"}</span>
+                {row.nextFollowUpAt && <span>· Follow up {dateFormatter.format(new Date(row.nextFollowUpAt))}</span>}
+              </div>
+            </button>
+          )}
+        />
+      )}
     </EnterpriseListPage>
   );
 }
