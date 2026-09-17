@@ -11,6 +11,27 @@ function isActiveRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
+// The module root (e.g. "Home" at /crm) matches every one of its own
+// sibling routes too under isActiveRoute's startsWith check ("/crm/leads"
+// starts with "/crm/"), so naively calling isActiveRoute per item
+// highlighted Home AND Leads simultaneously on every leaf page. Only the
+// single longest matching route (the most specific one) is ever active —
+// this resolves the whole module's active item once, not per-item.
+function findActiveItemId(pathname: string, sections: { items: { id: string; route: string; status: string }[] }[]) {
+  let bestId: string | null = null;
+  let bestLength = -1;
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.status !== "AVAILABLE") continue;
+      if (isActiveRoute(pathname, item.route) && item.route.length > bestLength) {
+        bestId = item.id;
+        bestLength = item.route.length;
+      }
+    }
+  }
+  return bestId;
+}
+
 // Desktop module secondary sidebar (Phase 3; UI refinement addendum
 // requirement #1 for the hover/pin behaviour). One section per work area,
 // PLANNED items rendered disabled (visible for orientation, never a
@@ -25,6 +46,7 @@ export function SecondarySidebar() {
   const { activeModule, pinned, togglePinned, open } =
     useSecondarySidebarState();
   if (!activeModule) return null;
+  const activeItemId = findActiveItemId(pathname, activeModule.sections);
 
   return (
     <nav
@@ -34,11 +56,18 @@ export function SecondarySidebar() {
         pinned
           ? "flex w-[240px] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface py-4"
           : [
+              // Transform-only slide, deliberately never animating opacity:
+              // this box's own background must stay fully opaque (rgb(255,
+              // 255, 255), not a blended in-between value) at every single
+              // frame of the transition, or a slow/busy paint can catch it
+              // mid-fade and visibly blend with the page content sitting
+              // behind it (found via a real repro: page content bled through
+              // the flyout during its open animation). Closed state moves
+              // the whole box off past the rail's left edge instead of
+              // fading it — off-screen, not see-through.
               "absolute left-16 top-0 bottom-0 z-20 flex w-[240px] flex-col overflow-y-auto border-r border-border bg-surface py-4 shadow-[var(--shadow-subtle)]",
-              "transition-[opacity,transform] duration-150 ease-out",
-              open
-                ? "translate-x-0 opacity-100"
-                : "pointer-events-none -translate-x-2 opacity-0",
+              "transition-transform duration-150 ease-out",
+              open ? "translate-x-0" : "pointer-events-none -translate-x-[calc(100%+4rem)]",
             ].join(" ")
       }
     >
@@ -81,7 +110,7 @@ export function SecondarySidebar() {
                 // the user lacks permission for renders the disabled/locked
                 // state below, never a live Link.
                 if (available && permitted) {
-                  const active = isActiveRoute(pathname, item.route);
+                  const active = item.id === activeItemId;
                   return (
                     <Link
                       key={item.id}
