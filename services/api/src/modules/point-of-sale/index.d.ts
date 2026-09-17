@@ -91,9 +91,19 @@ export declare function getPosCart(client: any, context: PointOfSaleContext, car
 export declare function addPosCartLine(client: any, context: PointOfSaleContext, cartId: string, input: Record<string, any>): Promise<PosCart>;
 export declare function updatePosCartLineQuantity(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { quantity: number; expectedVersion?: number }): Promise<PosCart>;
 export declare function removePosCartLine(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
-export declare function applyPosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { type: "percent" | "amount"; value: number; reason: string; expectedVersion?: number; approvedBy?: string }): Promise<PosCart>;
+// F279: `approvedBy` is deliberately NOT part of this input -- a caller
+// can never assert who approved a discount. Above the configured
+// threshold, applying a discount creates a real pending request in
+// public.approval_requests (see assertPosCartDiscountsApproved /
+// approvePosCartDiscountApproval in features/cart.js); only a decision
+// made through decideApproval() by a genuinely separate, permission-
+// holding approver can satisfy it, checked again at completePosCart().
+export declare function applyPosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { type: "percent" | "amount"; value: number; reason: string; expectedVersion?: number }): Promise<PosCart>;
 export declare function removePosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
-export declare function setPosCartDiscount(client: any, context: PointOfSaleContext, cartId: string, input: { type?: "percent" | "amount" | null; value?: number; reason?: string; expectedVersion?: number; approvedBy?: string }): Promise<PosCart>;
+export declare function setPosCartDiscount(client: any, context: PointOfSaleContext, cartId: string, input: { type?: "percent" | "amount" | null; value?: number; reason?: string; expectedVersion?: number }): Promise<PosCart>;
+export declare function assertPosCartDiscountsApproved(client: any, context: PointOfSaleContext, cart: PosCart, policy: Record<string, any>): Promise<void>;
+export declare function approvePosCartDiscountApproval(client: any, context: Record<string, any>, payload: { discountApprovalId: string }): Promise<{ discountApprovalId: string; cartId: string; status: "approved" }>;
+export declare function rejectPosCartDiscountApproval(client: any, context: Record<string, any>, payload: { discountApprovalId: string }): Promise<{ discountApprovalId: string; cartId: string; status: "rejected" }>;
 export declare function setPosCartCustomer(client: any, context: PointOfSaleContext, cartId: string, input: { customerId: string | null; expectedVersion?: number }): Promise<PosCart>;
 export declare function applyPosCartCoupon(client: any, context: PointOfSaleContext, cartId: string, input: { code: string; expectedVersion?: number }): Promise<PosCart>;
 export declare function removePosCartCoupon(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;

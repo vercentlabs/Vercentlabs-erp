@@ -777,7 +777,15 @@ export const ROLE_TEMPLATES = Object.freeze([
       "pos.operate",
       "pos.shift.open",
       "pos.shift.close",
-      "pos.discount.apply",
+      // pos.discount.apply deliberately excluded (POS Session 3, F279):
+      // pos_manager now holds pos.discount.approve instead, and a single
+      // role holding both apply+approve is exactly the same
+      // blocking-SoD-conflict shape as pos.return.create+approve below --
+      // a manager approves another person's above-threshold discount
+      // request; day-to-day discount application belongs to
+      // pos_supervisor. A person who genuinely needs both is assigned
+      // pos_supervisor alongside pos_manager.
+      "pos.discount.approve",
       // pos.return.create deliberately excluded: pos_manager also holds
       // pos.return.approve, and a single role holding both is exactly the
       // blocking pos_return_create_approve SoD conflict below. A manager
@@ -989,6 +997,14 @@ export const SOD_CONFLICTS = Object.freeze([
     severity: "blocking",
     description:
       "POS return creation and approval must be separated — the same role must not both request and approve a store return/refund.",
+  },
+  {
+    key: "pos_discount_apply_approve",
+    first: "pos.discount.apply",
+    second: "pos.discount.approve",
+    severity: "blocking",
+    description:
+      "POS discount application and approval must be separated — the same role must not both apply an above-threshold discount and approve it.",
   },
   {
     key: "supplier_manage_sensitive",

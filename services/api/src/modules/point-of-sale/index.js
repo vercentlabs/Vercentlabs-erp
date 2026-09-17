@@ -17,7 +17,7 @@ import {
   resolveSellerStateCode,
   resolveBuyerStateCode,
 } from "./features/cart-pricing.js";
-import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines } from "./features/cart.js";
+import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines, assertPosCartDiscountsApproved, assertPosStoreAccess } from "./features/cart.js";
 import { priceCartLines } from "./features/cart-pricing.js";
 import { commitPosPromotionApplications } from "./features/promotions.js";
 import { commitPosCouponRedemption, releasePosCouponRedemptionForFullReturn } from "./features/coupons.js";
@@ -101,6 +101,38 @@ export async function getPointOfSaleDashboard(client, context) {
   return { ...sales.rows[0], ...returns.rows[0] };
 }
 
+// Phase 2 (F268-F273): tables that carry a store_id (or, for 'pos_stores'
+// itself, are keyed by store id directly) get row-filtered to the caller's
+// assigned stores once an organization has opted into pos_store_access --
+// see assertPosStoreAccess's doc comment in features/cart.js for the same
+// "permissive until configured" convention. pos_payments/pos_cash_movements/
+// pos_reconciliations have no store_id column (only shift_id) and are NOT
+// yet filtered here -- a disclosed remaining gap, not an oversight: doing
+// so would need a join through pos_shifts, which the loop below does not
+// attempt.
+const STORE_SCOPED_TABLES = Object.freeze({
+  pos_stores: "id",
+  pos_terminals: "store_id",
+  pos_shifts: "store_id",
+  pos_sales: "store_id",
+  pos_returns: "store_id",
+});
+
+async function accessiblePosStoreIds(client, context) {
+  if (context.roleSlugs?.includes("organization_owner") || context.roleSlugs?.includes("system_administrator")) return null;
+  if (context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage")) return null;
+  const configured = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND company_id=$2 LIMIT 1`, [
+    context.organizationId,
+    context.companyId,
+  ]);
+  if (!configured.rows[0]) return null;
+  const granted = await client.query(`SELECT store_id FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$2`, [
+    context.organizationId,
+    context.userId,
+  ]);
+  return granted.rows.map((row) => row.store_id);
+}
+
 export async function listPointOfSaleResource(
   client,
   context,
@@ -122,6 +154,14 @@ export async function listPointOfSaleResource(
   ) {
     values.push(shiftId);
     filter = ` AND shift_id=$${values.length}`;
+  }
+  const storeColumn = STORE_SCOPED_TABLES[target];
+  if (storeColumn) {
+    const accessibleStoreIds = await accessiblePosStoreIds(client, context);
+    if (accessibleStoreIds) {
+      values.push(accessibleStoreIds);
+      filter += ` AND ${storeColumn}=ANY($${values.length}::uuid[])`;
+    }
   }
   values.push(Math.min(Number(limit) || 100, 200), Number(offset) || 0);
   const result = await client.query(
@@ -183,6 +223,7 @@ export async function createTerminal(client, context, input) {
 
 export async function openShift(client, context, input) {
   requirePermission(context, "pos.shift.open");
+  await assertPosStoreAccess(client, context, input.storeId);
   const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
   const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
   if (terminal.store_id !== store.id) {
@@ -757,6 +798,11 @@ export async function completePosCart(client, context, cartId, input = {}) {
   );
   const cart = cartResult.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
+  // Phase 2 (F268-F273): same store-assignment boundary as every other
+  // cart operation (see features/cart.js's lockCart/getPosCart) -- this
+  // query is a bespoke SELECT rather than a call into lockCart, so it needs
+  // its own check.
+  await assertPosStoreAccess(client, context, cart.store_id);
   if (cart.status !== "priced") {
     throw posError(409, `This cart is ${cart.status} and cannot be completed.`, "POS_CART_NOT_PRICED");
   }
@@ -770,10 +816,17 @@ export async function completePosCart(client, context, cartId, input = {}) {
     throw posError(409, "An open POS shift with a valid store and terminal is required.", "POS_SHIFT_NOT_OPEN");
   }
 
+  const policy = await loadPosSettingsPolicy(client, context);
+  // F279 requirement K: fail closed on any above-threshold discount that
+  // is not backed by a genuine, currently-valid approval decision (see
+  // assertPosCartDiscountsApproved in features/cart.js). Checked against
+  // `cart` as loaded by the FOR UPDATE query above, so this always sees
+  // the cart's authoritative current version.
+  await assertPosCartDiscountsApproved(client, context, cart, policy);
+
   const existingLines = await loadPosCartLines(client, context, cartId);
   if (!existingLines.length) throw posError(400, "At least one sale line is required.", "POS_SALE_LINES_REQUIRED");
 
-  const policy = await loadPosSettingsPolicy(client, context);
   for (const line of existingLines) {
     const available = await stockAvailable(client, context, line.item_id, line.warehouse_id);
     if (!policy.allow_negative_stock && available < Number(line.quantity)) {

@@ -10,12 +10,13 @@ import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context"
 // A null type clears the cart-level discount; the domain layer accepts
 // this in a single POST rather than a separate DELETE since removing a
 // cart discount and setting one are the same "set current state" action.
+// F279 (POS Session 3): `approvedBy` is deliberately not accepted here --
+// see the matching comment in lines/[lineId]/discount/route.ts.
 const discountSchema = z.object({
   type: z.enum(["percent", "amount"]).nullable(),
   value: z.number().positive().optional(),
   reason: z.string().trim().max(500).optional(),
   expectedVersion: z.number().int().optional(),
-  approvedBy: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

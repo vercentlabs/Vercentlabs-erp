@@ -5,6 +5,7 @@ export const POS_PERMISSIONS = Object.freeze({
   shiftClose: "pos.shift.close",
   saleCreate: "pos.sale.create",
   discountApply: "pos.discount.apply",
+  discountApprove: "pos.discount.approve",
   returnCreate: "pos.return.create",
   returnApprove: "pos.return.approve",
   cashAdjust: "pos.cash.adjust",

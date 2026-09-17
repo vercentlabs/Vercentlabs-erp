@@ -7,12 +7,17 @@ import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
 
+// F279 (POS Session 3): `approvedBy` is deliberately not accepted here --
+// a caller can never assert who approved a discount. Above the configured
+// threshold, the domain layer creates a real pending approval request
+// (see services/api/src/modules/point-of-sale/features/cart.js) that only
+// a genuinely separate, permission-holding approver can decide, via
+// POST /api/approvals/[id]/decide.
 const discountSchema = z.object({
   type: z.enum(["percent", "amount"]),
   value: z.number().positive(),
   reason: z.string().trim().min(1).max(500),
   expectedVersion: z.number().int().optional(),
-  approvedBy: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; lineId: string }> }) {

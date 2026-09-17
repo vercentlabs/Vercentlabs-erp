@@ -8,7 +8,10 @@
 // version. Two concurrent requests against the same cart therefore
 // cannot silently overwrite each other: the second one to acquire the
 // row lock sees the first one's already-applied change.
+import { randomUUID } from "node:crypto";
+
 import { requireCompanyRecord } from "../../../core/references.js";
+import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { priceCartLines } from "./cart-pricing.js";
 
 function posError(status, message, code) {
@@ -24,6 +27,41 @@ function requirePermission(context, permission) {
     error.code = "FORBIDDEN";
     throw error;
   }
+}
+
+// POS Session 3, Phase 2 (F268-F273): every function below used to filter
+// carts/shifts by organization_id+company_id only -- any cashier holding
+// pos.sale.create could read or mutate ANY store's cart in the company by
+// guessing/enumerating a cart id, regardless of which physical store they
+// actually work at. The platform has no existing sub-company access-grant
+// finer than company/branch (see database/platform/migrations/
+// 002_platform_foundation.sql's membership_company_access/
+// membership_branch_access), so tenant.pos_store_access (migration 115) is
+// the smallest analogous table for POS stores specifically.
+//
+// Deliberately permissive when unconfigured: if an organization has never
+// created a single pos_store_access row for a company, every existing
+// company-scoped cashier keeps working exactly as before (a single-store
+// tenant is never affected). The moment an organization assigns ANY user
+// to ANY store in a company, this becomes a real fail-closed boundary for
+// every other non-bypass user in that company: no assignment, no access to
+// that store's carts/shifts, full stop. pos.store.manage/pos.settings.manage
+// (store/policy administrators) and organization_owner/system_administrator
+// always bypass it, matching every other POS permission check's convention.
+async function assertPosStoreAccess(client, context, storeId) {
+  if (context.roleSlugs?.includes("organization_owner") || context.roleSlugs?.includes("system_administrator")) return;
+  if (context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage")) return;
+  const configured = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND company_id=$2 LIMIT 1`, [
+    context.organizationId,
+    context.companyId,
+  ]);
+  if (!configured.rows[0]) return;
+  const granted = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$2 AND store_id=$3`, [
+    context.organizationId,
+    context.userId,
+    storeId,
+  ]);
+  if (!granted.rows[0]) throw posError(403, "You are not authorized to operate this POS store.", "POS_STORE_ACCESS_DENIED");
 }
 
 const OPEN_STATUSES = ["draft", "priced"];
@@ -57,6 +95,7 @@ async function lockCart(client, context, cartId, { requireOpen = true } = {}) {
   );
   const cart = result.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
+  await assertPosStoreAccess(client, context, cart.store_id);
   if (cart.expires_at && new Date(cart.expires_at).getTime() < Date.now() && OPEN_STATUSES.includes(cart.status)) {
     await client.query(`UPDATE tenant.pos_carts SET status='expired' WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
     cart.status = "expired";
@@ -226,6 +265,7 @@ async function reprice(client, context, cart, policy) {
 
 export async function createPosCart(client, context, input) {
   requirePermission(context, "pos.sale.create");
+  await assertPosStoreAccess(client, context, input.storeId);
   const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
   const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
   if (terminal.store_id !== store.id) {
@@ -280,6 +320,7 @@ export async function getPosCart(client, context, cartId) {
   ]);
   const cart = cartResult.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
+  await assertPosStoreAccess(client, context, cart.store_id);
   const lines = await loadLines(client, context, cartId);
   return { ...cart, lines };
 }
@@ -363,37 +404,40 @@ export async function applyPosCartLineDiscount(client, context, cartId, lineId, 
   const cart = await lockCart(client, context, cartId);
   checkVersion(cart, input.expectedVersion);
   if (!input.reason || !String(input.reason).trim()) throw posError(400, "A discount reason is required.", "POS_DISCOUNT_REASON_REQUIRED");
-  const amountColumn = input.type === "percent" ? null : Number(input.value);
-  // Store as an absolute amount either way -- reprice() reads
-  // manual_discount_amount, not a type+value pair, so percent discounts
-  // are resolved to a concrete amount once here using the line's current
-  // gross_amount, then treated identically to an amount discount on every
-  // future reprice (consistent with a cashier expecting "10% off this
-  // shirt" to mean a fixed rupee amount once applied, not a moving target
-  // if the price list changes later in the same cart's lifetime).
   const line = await client.query(`SELECT gross_amount FROM tenant.pos_cart_lines WHERE organization_id=$1 AND id=$2 AND cart_id=$3`, [
     context.organizationId,
     lineId,
     cartId,
   ]);
   if (!line.rows[0]) throw posError(404, "Cart line was not found.", "POS_CART_LINE_NOT_FOUND");
-  const amount =
-    input.type === "percent" ? (Number(line.rows[0].gross_amount) * Math.min(Math.max(Number(input.value), 0), 100)) / 100 : amountColumn;
-  if (!(amount >= 0)) throw posError(400, "Discount value is invalid.", "POS_DISCOUNT_INVALID");
+  const grossAmount = decimal(line.rows[0].gross_amount);
+  // Store as an absolute amount either way -- reprice() reads
+  // manual_discount_amount, not a type+value pair, so percent discounts
+  // are resolved to a concrete amount once here using the line's current
+  // gross_amount, then treated identically to an amount discount on every
+  // future reprice (consistent with a cashier expecting "10% off this
+  // shirt" to mean a fixed rupee amount once applied, not a moving target
+  // if the price list changes later in the same cart's lifetime). All of
+  // this is computed with fixed-point decimals (services/api/src/core/
+  // decimal.js), never a JS float -- an authoritative discount/threshold
+  // comparison on money must not be exposed to floating-point error.
+  const clampedPercent = min(max(decimal(input.value), 0n), decimal(100));
+  const amount = input.type === "percent" ? div(mul(grossAmount, clampedPercent), decimal(100)) : decimal(input.value);
+  if (!(amount >= 0n)) throw posError(400, "Discount value is invalid.", "POS_DISCOUNT_INVALID");
+  const reason = String(input.reason).trim();
   await client.query(
     `UPDATE tenant.pos_cart_lines SET manual_discount_amount=$3,manual_discount_reason=$4 WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, lineId, amount, String(input.reason).trim()],
+    [context.organizationId, lineId, asDatabaseDecimal(amount), reason],
   );
-  const percentOfGross = Number(line.rows[0].gross_amount) > 0 ? (amount / Number(line.rows[0].gross_amount)) * 100 : 0;
-  if (percentOfGross > Number(policy.discount_approval_threshold_percent)) {
-    if (!input.approvedBy) {
-      throw posError(
-        409,
-        `A line discount above ${policy.discount_approval_threshold_percent}% requires supervisor approval.`,
-        "POS_DISCOUNT_APPROVAL_REQUIRED",
-      );
-    }
-    await recordDiscountApproval(client, context, cart, lineId, amount, input);
+  // Effective-percent-of-gross is computed from the amount actually being
+  // applied, regardless of whether the caller expressed it as "percent" or
+  // "amount" -- a flat-amount discount that happens to equal 60% of the
+  // line's gross amount must trigger approval exactly like a stated 60%
+  // discount would. (This was the flat-amount threshold-bypass bug: the
+  // cart-level equivalent below only ever checked input.type==="percent".)
+  const percentOfGross = grossAmount > 0n ? div(mul(amount, decimal(100)), grossAmount) : 0n;
+  if (percentOfGross > decimal(policy.discount_approval_threshold_percent)) {
+    await ensureDiscountApprovalRequested(client, context, cart, lineId, amount, percentOfGross, reason);
   }
   return reprice(client, context, cart, policy);
 }
@@ -410,32 +454,187 @@ export async function removePosCartLineDiscount(client, context, cartId, lineId,
   return reprice(client, context, cart, policy);
 }
 
-async function recordDiscountApproval(client, context, cart, cartLineId, amount, input) {
-  requireApprover(context, input.approvedBy);
+// SECURITY (POS Session 3, F279): this used to be recordDiscountApproval()
+// + requireApprover(), which trusted a client-supplied `approvedBy` field
+// as if it were evidence that a different, authorized person had reviewed
+// and approved the discount -- it never verified that person authenticated
+// or made any decision at all. A discount above the policy threshold now
+// creates a REAL pending request in the platform's own maker-checker
+// engine (services/api/src/core/approvals.js's decideApproval(), the same
+// engine that already handles sales quotation/order approvals) instead of
+// persisting a self-asserted approval. The discount is applied to the
+// cart immediately (the cashier/supervisor sees the discounted price), but
+// completePosCart() (assertPosCartDiscountsApproved(), below) refuses to
+// let the sale complete until a genuinely separate, permission-holding
+// approver decides that request -- see approvePosCartDiscountApproval().
+// Idempotent per (cart_id, cart_line_id, cart_version): repeated calls
+// against the same not-yet-repriced cart version (e.g. a retried request)
+// reuse the existing pending row instead of spawning duplicates.
+async function ensureDiscountApprovalRequested(client, context, cart, cartLineId, amount, percentOfGross, reason) {
+  // reprice() (called by every caller of this function right after) always
+  // increments cart.version by exactly one -- bind the approval to the
+  // version the cart will actually have once this transaction commits, so
+  // assertPosCartDiscountsApproved()'s exact-version match lines up.
+  const nextVersion = Number(cart.version) + 1;
+  const existing = await client.query(
+    `SELECT id FROM tenant.pos_cart_discount_approvals
+      WHERE organization_id=$1 AND cart_id=$2 AND cart_version=$3 AND status='pending'
+        AND cart_line_id IS NOT DISTINCT FROM $4`,
+    [context.organizationId, cart.id, nextVersion, cartLineId || null],
+  );
+  if (existing.rows[0]) return existing.rows[0].id;
+
+  const discountApprovalId = randomUUID();
+  const approvalRequestId = randomUUID();
   await client.query(
-    `INSERT INTO tenant.pos_cart_discount_approvals
-      (organization_id,cart_id,cart_version,cart_line_id,discount_amount_snapshot,discount_percent_snapshot,
-       cart_subtotal_snapshot,reason,requested_by,approved_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    `INSERT INTO public.approval_requests (id,organization_id,entity_type,entity_id,title,status,requested_by,command_key,command_payload)
+     VALUES ($1,$2,'pos_cart_discount',$3,$4,'pending',$5,'pos.discount.approve',$6::jsonb)`,
     [
+      approvalRequestId,
       context.organizationId,
       cart.id,
-      cart.version,
-      cartLineId,
-      amount,
-      input.type === "percent" ? input.value : null,
-      cart.subtotal,
-      String(input.reason).trim(),
+      cartLineId ? `Approve line discount on POS cart ${cart.id}` : `Approve cart discount on POS cart ${cart.id}`,
       context.userId,
-      input.approvedBy,
+      JSON.stringify({ discountApprovalId }),
     ],
   );
+  await client.query(
+    `INSERT INTO tenant.pos_cart_discount_approvals
+      (id,organization_id,cart_id,cart_version,cart_line_id,discount_amount_snapshot,discount_percent_snapshot,
+       cart_subtotal_snapshot,reason,requested_by,status,approval_request_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11)`,
+    [
+      discountApprovalId,
+      context.organizationId,
+      cart.id,
+      nextVersion,
+      cartLineId || null,
+      asDatabaseDecimal(amount),
+      formatDecimal(percentOfGross, 4),
+      cart.subtotal,
+      reason,
+      context.userId,
+      approvalRequestId,
+    ],
+  );
+  return discountApprovalId;
 }
 
-function requireApprover(context, approvedBy) {
-  if (!approvedBy) throw posError(400, "An approver is required for this discount.", "POS_DISCOUNT_APPROVAL_REQUIRED");
-  if (approvedBy === context.userId) {
-    throw posError(409, "The person applying a discount cannot also approve it.", "SELF_APPROVAL_BLOCKED");
+// Registered in services/api/src/core/approvals.js's COMMAND_DISPATCH under
+// "pos.discount.approve" -- reachable ONLY through decideApproval(), which
+// (a) has already loaded the approval_requests row from the database, not
+// from anything the deciding caller supplied, (b) derives the deciding
+// user from the authenticated session, never a request body field, and
+// (c) has already run assertSeparationOfDuties() to block the original
+// requester from deciding their own request. `context` here is
+// approvals.js's moduleContext(session) shape (organizationId, userId,
+// activeCompanyId, allowAllCompanies, permissions, roleSlugs) -- NOT the
+// PointOfSaleContext shape the rest of this file uses (that has
+// `companyId`, not `activeCompanyId`), so this adapts it after looking up
+// which company the cart actually belongs to (never trusting the caller
+// for that either).
+export async function approvePosCartDiscountApproval(client, context, payload) {
+  const row = await lockDiscountApprovalForDecision(client, context, payload);
+  requirePermission(posContextFor(context, row.company_id), "pos.discount.approve");
+  // Defense in depth: decideApproval's assertSeparationOfDuties already
+  // blocks the same session from deciding its own request; re-check here
+  // too so this function is never accidentally safe to call in a way that
+  // relies solely on that caller doing so correctly.
+  if (row.requested_by === context.userId) {
+    throw posError(409, "The person who requested a discount cannot also approve it.", "SELF_APPROVAL_BLOCKED");
+  }
+  await client.query(
+    `UPDATE tenant.pos_cart_discount_approvals SET status='approved',approved_by=$3,approved_at=now() WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, row.id, context.userId],
+  );
+  return { discountApprovalId: row.id, cartId: row.cart_id, status: "approved" };
+}
+
+export async function rejectPosCartDiscountApproval(client, context, payload) {
+  const row = await lockDiscountApprovalForDecision(client, context, payload);
+  requirePermission(posContextFor(context, row.company_id), "pos.discount.approve");
+  await client.query(`UPDATE tenant.pos_cart_discount_approvals SET status='rejected' WHERE organization_id=$1 AND id=$2`, [
+    context.organizationId,
+    row.id,
+  ]);
+  return { discountApprovalId: row.id, cartId: row.cart_id, status: "rejected" };
+}
+
+async function lockDiscountApprovalForDecision(client, context, payload) {
+  const result = await client.query(
+    `SELECT a.*, c.company_id FROM tenant.pos_cart_discount_approvals a
+       JOIN tenant.pos_carts c ON c.organization_id=a.organization_id AND c.id=a.cart_id
+      WHERE a.organization_id=$1 AND a.id=$2 FOR UPDATE OF a`,
+    [context.organizationId, payload?.discountApprovalId],
+  );
+  const row = result.rows[0];
+  if (!row) throw posError(404, "Discount approval request was not found.", "POS_DISCOUNT_APPROVAL_NOT_FOUND");
+  if (row.status !== "pending") throw posError(409, `This discount approval was already ${row.status}.`, "POS_DISCOUNT_APPROVAL_NOT_PENDING");
+  if (!context.allowAllCompanies && context.activeCompanyId && context.activeCompanyId !== row.company_id) {
+    throw posError(403, "You are not authorized to decide discount approvals for this company.", "FORBIDDEN");
+  }
+  return row;
+}
+
+function posContextFor(approvalsModuleContext, companyId) {
+  return {
+    organizationId: approvalsModuleContext.organizationId,
+    companyId,
+    userId: approvalsModuleContext.userId,
+    roleSlugs: approvalsModuleContext.roleSlugs,
+    permissions: approvalsModuleContext.permissions,
+  };
+}
+
+// Checkout-time enforcement (F279 requirement K: "a checkout with an
+// unapproved above-threshold discount must fail closed"). Recomputes,
+// from the authoritative current line/cart rows, which discounts exceed
+// the policy threshold, then requires an 'approved' row in
+// tenant.pos_cart_discount_approvals bound to the CART'S CURRENT VERSION
+// for each one. Binding to the exact current version is what makes a
+// material cart change after approval (any mutation -- reprice() always
+// bumps version) invalidate the old approval: it simply no longer matches.
+export async function assertPosCartDiscountsApproved(client, context, cart, policy) {
+  const threshold = decimal(policy.discount_approval_threshold_percent);
+  const lines = await client.query(`SELECT id,gross_amount,manual_discount_amount FROM tenant.pos_cart_lines WHERE organization_id=$1 AND cart_id=$2`, [
+    context.organizationId,
+    cart.id,
+  ]);
+  const offendingLineIds = [];
+  for (const line of lines.rows) {
+    const gross = decimal(line.gross_amount);
+    const amount = decimal(line.manual_discount_amount);
+    if (amount <= 0n || gross <= 0n) continue;
+    if (div(mul(amount, decimal(100)), gross) > threshold) offendingLineIds.push(line.id);
+  }
+
+  let cartLevelOffends = false;
+  if (cart.cart_discount_type) {
+    const subtotal = decimal(cart.subtotal);
+    const value = decimal(cart.cart_discount_value);
+    const amount =
+      cart.cart_discount_type === "percent" ? div(mul(subtotal, min(max(value, 0n), decimal(100))), decimal(100)) : min(max(value, 0n), subtotal);
+    const percentOfSubtotal = subtotal > 0n ? div(mul(amount, decimal(100)), subtotal) : cart.cart_discount_type === "percent" ? value : 0n;
+    cartLevelOffends = percentOfSubtotal > threshold;
+  }
+
+  if (!offendingLineIds.length && !cartLevelOffends) return;
+
+  const approvals = await client.query(
+    `SELECT cart_line_id FROM tenant.pos_cart_discount_approvals
+      WHERE organization_id=$1 AND cart_id=$2 AND cart_version=$3 AND status='approved' AND approved_by IS NOT NULL`,
+    [context.organizationId, cart.id, cart.version],
+  );
+  const approvedLineIds = new Set(approvals.rows.filter((row) => row.cart_line_id).map((row) => row.cart_line_id));
+  const cartLevelApproved = approvals.rows.some((row) => row.cart_line_id === null);
+
+  const missingLineApproval = offendingLineIds.some((id) => !approvedLineIds.has(id));
+  if (missingLineApproval || (cartLevelOffends && !cartLevelApproved)) {
+    throw posError(
+      409,
+      `A discount above ${policy.discount_approval_threshold_percent}% requires supervisor approval before this sale can be completed.`,
+      "POS_DISCOUNT_APPROVAL_REQUIRED",
+    );
   }
 }
 
@@ -453,27 +652,26 @@ export async function setPosCartDiscount(client, context, cartId, input) {
     return reprice(client, context, cart, policy);
   }
   if (!input.reason || !String(input.reason).trim()) throw posError(400, "A discount reason is required.", "POS_DISCOUNT_REASON_REQUIRED");
+  const reason = String(input.reason).trim();
   await client.query(
     `UPDATE tenant.pos_carts SET cart_discount_type=$3,cart_discount_value=$4,cart_discount_reason=$5
      WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, cartId, input.type, input.value, String(input.reason).trim()],
+    [context.organizationId, cartId, input.type, input.value, reason],
   );
-  if (Number(input.value) > Number(policy.discount_approval_threshold_percent) && input.type === "percent") {
-    if (!input.approvedBy) {
-      throw posError(
-        409,
-        `A cart discount above ${policy.discount_approval_threshold_percent}% requires supervisor approval.`,
-        "POS_DISCOUNT_APPROVAL_REQUIRED",
-      );
-    }
-    requireApprover(context, input.approvedBy);
-    await client.query(
-      `INSERT INTO tenant.pos_cart_discount_approvals
-        (organization_id,cart_id,cart_version,discount_amount_snapshot,discount_percent_snapshot,
-         cart_subtotal_snapshot,reason,requested_by,approved_by)
-       VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8)`,
-      [context.organizationId, cartId, cart.version, input.value, cart.subtotal, String(input.reason).trim(), context.userId, input.approvedBy],
-    );
+  // Effective-percent-of-subtotal is computed the same way for BOTH
+  // discount types -- a flat-amount cart discount that happens to equal
+  // (say) 60% of the subtotal must require approval exactly like a stated
+  // 60% discount would. Previously this only ever checked
+  // `input.type === "percent"`, so an amount-type cart discount of any
+  // size bypassed approval entirely regardless of how large a share of the
+  // sale it represented -- the flat-amount threshold-bypass this session
+  // was asked to find and fix.
+  const subtotal = decimal(cart.subtotal);
+  const value = decimal(input.value);
+  const amount = input.type === "percent" ? div(mul(subtotal, min(max(value, 0n), decimal(100))), decimal(100)) : min(max(value, 0n), subtotal);
+  const percentOfSubtotal = subtotal > 0n ? div(mul(amount, decimal(100)), subtotal) : input.type === "percent" ? value : 0n;
+  if (percentOfSubtotal > decimal(policy.discount_approval_threshold_percent)) {
+    await ensureDiscountApprovalRequested(client, context, cart, null, amount, percentOfSubtotal, reason);
   }
   return reprice(client, context, cart, policy);
 }
@@ -602,4 +800,5 @@ export {
   reprice as repricePosCartInternal,
   loadLines as loadPosCartLines,
   toPricingInputLines as toPosCartPricingInputLines,
+  assertPosStoreAccess,
 };

@@ -50,12 +50,16 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     createPointOfSaleReturn,
     approvePointOfSaleReturn,
     completePointOfSaleReturn,
+    decideApproval,
+    setPosCartDiscount,
+    cancelPosCart,
   } = await import("../../services/api/src/index.js");
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
   const userId = randomUUID();
   const supervisorId = randomUUID();
+  const managerId = randomUUID();
   const companyId = randomUUID();
   const branchId = randomUUID();
   const warehouseId = randomUUID();
@@ -75,6 +79,21 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     permissions: ["pos.view", "pos.settings.manage", "pos.discount.apply", "pos.return.create"],
   };
   const ownerContext = { organizationId: orgId, companyId, userId, roleSlugs: ["organization_owner"], permissions: [] };
+  // F279 (POS Session 3): decideApproval() takes a SESSION shape
+  // (organizationId, userId, activeCompanyId, roleSlugs, permissions), not
+  // the PointOfSaleContext shape (companyId) the domain functions above
+  // take -- this is the real, separate approver who holds
+  // pos.discount.approve but NOT pos.discount.apply, matching the
+  // pos_manager/pos_supervisor role split in packages/permissions/src/roles.js.
+  const managerSession = {
+    organizationId: orgId,
+    userId: managerId,
+    activeCompanyId: companyId,
+    activeBranchId: branchId,
+    roleSlugs: [],
+    permissions: ["pos.discount.approve"],
+  };
+  const supervisorSession = { organizationId: orgId, userId: supervisorId, activeCompanyId: companyId, activeBranchId: branchId, roleSlugs: [], permissions: [] };
 
   async function tx(fn) {
     await admin.query("BEGIN");
@@ -97,6 +116,10 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     await admin.query(
       `INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'F277 Supervisor','x','active',now())`,
       [supervisorId, `f277-supervisor-${supervisorId}@test.invalid`],
+    );
+    await admin.query(
+      `INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'F279 Manager','x','active',now())`,
+      [managerId, `f279-manager-${managerId}@test.invalid`],
     );
     await admin.query(
       `INSERT INTO public.organizations(id,name,slug,country_code,timezone,base_currency,created_by) VALUES ($1,'F277 Test Org',$2,'IN','Asia/Kolkata','INR',$3)`,
@@ -213,41 +236,70 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       assert.equal(cart.grand_total, "312.700000");
     });
 
-    await t.test("F279: a plain cashier cannot apply any manual discount; a supervisor's large discount needs a DIFFERENT approver", async () => {
+    await t.test("F279 SECURITY: a plain cashier cannot apply any manual discount; a supervisor's above-threshold discount needs a REAL, separately-authenticated approval decision -- a forged approvedBy can never substitute for one", async () => {
       await assert.rejects(
         () => tx((c) => applyPosCartLineDiscount(c, cashierContext, cart.id, cart.lines[0].id, { type: "percent", value: 5, reason: "test", expectedVersion: cart.version })),
         (error) => error.code === "FORBIDDEN",
       );
+
+      // Above the 10% policy threshold: the discount is applied to the
+      // cart immediately (visible to the cashier/supervisor), but a real
+      // pending approval request is created -- it does NOT throw, and
+      // there is no `approvedBy` field left to forge (removed from the
+      // input entirely; see the route's zod schema and index.d.ts).
+      cart = await tx((c) =>
+        applyPosCartLineDiscount(c, supervisorContext, cart.id, cart.lines[0].id, { type: "percent", value: 50, reason: "damaged", expectedVersion: cart.version }),
+      );
+      assert.equal(cart.manual_discount_total, "150.000000", "the discount is visible on the cart while awaiting approval");
+
+      // The checkout guard fails closed: an above-threshold discount with
+      // no approved decision must never let a sale complete.
       await assert.rejects(
-        () =>
-          tx((c) =>
-            applyPosCartLineDiscount(c, supervisorContext, cart.id, cart.lines[0].id, { type: "percent", value: 50, reason: "damaged", expectedVersion: cart.version }),
-          ),
+        () => tx((c) => completePosCart(c, cashierContext, cart.id, { idempotencyKey: "f279-blocked-1", payments: [{ method: "cash", amount: cart.grand_total }] })),
         (error) => error.code === "POS_DISCOUNT_APPROVAL_REQUIRED",
       );
+
+      const pendingRequest = await admin.query(
+        `SELECT id, requested_by FROM public.approval_requests WHERE organization_id=$1 AND command_key='pos.discount.approve' AND status='pending' ORDER BY requested_at DESC LIMIT 1`,
+        [orgId],
+      );
+      assert.ok(pendingRequest.rows[0], "requesting an above-threshold discount must create a real approval_requests row (requirement A)");
+      const approvalRequestId = pendingRequest.rows[0].id;
+      assert.equal(pendingRequest.rows[0].requested_by, supervisorId);
+
+      // The supervisor who requested it cannot decide their own request --
+      // enforced by the shared platform engine's assertSeparationOfDuties,
+      // independent of anything cart.js does.
+      await assert.rejects(
+        () => tx((c) => decideApproval(c, supervisorSession, approvalRequestId, { decision: "approved" })),
+        (error) => error.code === "SELF_APPROVAL_DENIED",
+      );
+
+      // A caller merely NAMING another user as the approver (the exact
+      // forged-approvedBy vulnerability this session was asked to fix)
+      // achieves nothing -- there is no code path left that reads such a
+      // field. The discount remains unapproved until a genuinely separate,
+      // authenticated session with pos.discount.approve decides it.
+      const stillPending = await admin.query(`SELECT status FROM public.approval_requests WHERE id=$1`, [approvalRequestId]);
+      assert.equal(stillPending.rows[0].status, "pending");
+
+      // A real, separate approver without pos.discount.approve is refused.
       await assert.rejects(
         () =>
           tx((c) =>
-            applyPosCartLineDiscount(c, supervisorContext, cart.id, cart.lines[0].id, {
-              type: "percent",
-              value: 50,
-              reason: "damaged",
-              expectedVersion: cart.version,
-              approvedBy: supervisorId,
-            }),
+            decideApproval(c, { ...managerSession, permissions: [] }, approvalRequestId, { decision: "approved" }),
           ),
-        (error) => error.code === "SELF_APPROVAL_BLOCKED",
+        (error) => error.code === "FORBIDDEN",
       );
-      cart = await tx((c) =>
-        applyPosCartLineDiscount(c, supervisorContext, cart.id, cart.lines[0].id, {
-          type: "percent",
-          value: 50,
-          reason: "damaged",
-          expectedVersion: cart.version,
-          approvedBy: userId,
-        }),
-      );
-      assert.equal(cart.manual_discount_total, "150.000000");
+
+      // The genuine approver: a different, authenticated session holding
+      // pos.discount.approve.
+      const decision = await tx((c) => decideApproval(c, managerSession, approvalRequestId, { decision: "approved" }));
+      assert.equal(decision.approval.status, "approved");
+
+      const approvalRow = await admin.query(`SELECT status, approved_by FROM tenant.pos_cart_discount_approvals WHERE approval_request_id=$1`, [approvalRequestId]);
+      assert.equal(approvalRow.rows[0].status, "approved");
+      assert.equal(approvalRow.rows[0].approved_by, managerId, "approved_by must be the REAL decider's own authenticated id, never a client-supplied one (requirement D)");
     });
 
     await t.test("F277: a stale expectedVersion is rejected with a clean conflict, not a silent overwrite", async () => {
@@ -268,6 +320,61 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       cart = await tx((c) => setPosCartCustomer(c, cashierContext, cart.id, { customerId: null, expectedVersion: cart.version }));
       assert.equal(cart.coupon_code, before.coupon_code, "coupon must survive an unrelated mutation");
       assert.equal(cart.manual_discount_total, before.manual_discount_total, "manual discount must survive an unrelated mutation");
+    });
+
+    await t.test("F279 SECURITY requirement J: a material cart change after approval invalidates it -- checkout fails closed again until reapproved at the new version", async () => {
+      // The customer-set mutation above bumped cart.version, so the earlier
+      // approval (bound to the version at the time it was granted) no
+      // longer matches the cart's current version and must not still
+      // authorize checkout.
+      await assert.rejects(
+        () => tx((c) => completePosCart(c, cashierContext, cart.id, { idempotencyKey: "f279-stale-approval", payments: [{ method: "cash", amount: cart.grand_total }] })),
+        (error) => error.code === "POS_DISCOUNT_APPROVAL_REQUIRED",
+      );
+
+      // Re-submitting the same discount at the cart's current version
+      // creates a fresh pending request (idempotent re-request, not a
+      // duplicate discount -- the line's manual_discount_amount is
+      // unchanged) that a genuine approver must decide again.
+      cart = await tx((c) =>
+        applyPosCartLineDiscount(c, supervisorContext, cart.id, cart.lines[0].id, { type: "percent", value: 50, reason: "damaged", expectedVersion: cart.version }),
+      );
+      const pendingRequest = await admin.query(
+        `SELECT id FROM public.approval_requests WHERE organization_id=$1 AND command_key='pos.discount.approve' AND status='pending' ORDER BY requested_at DESC LIMIT 1`,
+        [orgId],
+      );
+      assert.ok(pendingRequest.rows[0]);
+      const decision = await tx((c) => decideApproval(c, managerSession, pendingRequest.rows[0].id, { decision: "approved" }));
+      assert.equal(decision.approval.status, "approved");
+    });
+
+    await t.test("F279 SECURITY: a flat-AMOUNT cart-level discount cannot bypass approval just because the threshold check only used to look at percent-type discounts", async () => {
+      // Isolated cart on terminal 2 -- cancelled at the end so it doesn't
+      // occupy pos_carts_one_active_per_terminal_uidx for the receipt-number
+      // regression test below, which also uses terminal 2.
+      let flatCart = await tx((c) => createPosCart(c, cashierContext, { storeId, terminalId: terminal2Id, shiftId: shift2.id }));
+      flatCart = await tx((c) => addPosCartLine(c, cashierContext, flatCart.id, { itemId, quantity: 1, expectedVersion: flatCart.version }));
+      assert.equal(flatCart.subtotal, "100.000000");
+
+      // 15 is 15% of the 100 subtotal -- above the 10% threshold -- but
+      // expressed as a flat amount, not a percent, so the old code
+      // (`Number(input.value) > threshold && input.type === "percent"`)
+      // never checked it at all.
+      flatCart = await tx((c) =>
+        setPosCartDiscount(c, supervisorContext, flatCart.id, { type: "amount", value: 15, reason: "flat amount test", expectedVersion: flatCart.version }),
+      );
+      const pendingRequest = await admin.query(
+        `SELECT id FROM public.approval_requests WHERE organization_id=$1 AND command_key='pos.discount.approve' AND status='pending' AND entity_id=$2`,
+        [orgId, flatCart.id],
+      );
+      assert.ok(pendingRequest.rows[0], "a flat-amount discount above the effective threshold percentage must require approval");
+
+      await assert.rejects(
+        () => tx((c) => completePosCart(c, cashierContext, flatCart.id, { idempotencyKey: "f279-flat-amount-blocked", payments: [{ method: "cash", amount: flatCart.grand_total }] })),
+        (error) => error.code === "POS_DISCOUNT_APPROVAL_REQUIRED",
+      );
+
+      await tx((c) => cancelPosCart(c, cashierContext, flatCart.id, { reason: "test cleanup" }));
     });
 
     let sale;
@@ -379,8 +486,9 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     ]) {
       await admin.query(`DELETE FROM tenant.${table} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     }
+    await admin.query(`DELETE FROM public.approval_requests WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]).catch(() => undefined);
-    await admin.query(`DELETE FROM public.users WHERE id=ANY($1::uuid[])`, [[userId, supervisorId]]).catch(() => undefined);
+    await admin.query(`DELETE FROM public.users WHERE id=ANY($1::uuid[])`, [[userId, supervisorId, managerId]]).catch(() => undefined);
     await admin.end();
   }
 });
