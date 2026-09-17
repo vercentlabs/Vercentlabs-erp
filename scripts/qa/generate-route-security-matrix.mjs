@@ -21,6 +21,7 @@ const AUTHORIZATION_PRIMITIVES = [
   "requireSessionPermission",
   "assertPrivacyManage",
   "assertSensitiveLeadIntelligenceAccess",
+  "requirePosAccess",
 ];
 
 // Routes whose absence of the usual authenticated/same-origin pattern is
