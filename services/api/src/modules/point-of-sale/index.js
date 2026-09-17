@@ -378,6 +378,20 @@ export async function completePointOfSale(client, context, input) {
   let taxTotal = 0;
   const normalizedLines = [];
 
+  // pos_sale_lines.description is NOT NULL (receipts must show a real line
+  // description, not a blank line) — a caller reasonably won't always
+  // override it, so batch-resolve each item's own name as the default
+  // rather than requiring every checkout call to repeat it. Found via
+  // direct PostgreSQL testing: the prior code passed line.description
+  // straight through and only ever worked because the one existing test
+  // happened to always supply one.
+  const itemIds = [...new Set(input.lines.map((line) => line.itemId))];
+  const itemNames = await client.query(
+    `SELECT id,name FROM tenant.items WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
+    [context.organizationId, itemIds],
+  );
+  const itemNameById = new Map(itemNames.rows.map((row) => [row.id, row.name]));
+
   for (const [index, line] of input.lines.entries()) {
     const quantity = Number(line.quantity);
     const discountAmount = Number(line.discountAmount || 0);
@@ -389,6 +403,9 @@ export async function completePointOfSale(client, context, input) {
       throw posError(400, "POS discount and tax amounts cannot be negative.", "POS_SALE_AMOUNT_INVALID");
     }
     if (discountAmount > 0) requirePermission(context, "pos.discount.apply");
+    if (!itemNameById.has(line.itemId)) {
+      throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
+    }
 
     const warehouseId = line.warehouseId || shift.warehouse_id;
     const available = await stockAvailable(client, context, line.itemId, warehouseId);
@@ -419,6 +436,7 @@ export async function completePointOfSale(client, context, input) {
       taxAmount,
       lineTotal,
       warehouseId,
+      description: line.description || itemNameById.get(line.itemId),
     });
   }
 
@@ -966,7 +984,7 @@ export async function closeShift(client, context, shiftId, input) {
        AND status='open' FOR UPDATE`,
     [context.organizationId, context.companyId, shiftId],
   );
-  if (!shift.rows[0]) throw new Error("Open shift not found.");
+  if (!shift.rows[0]) throw posError(404, "Open shift not found.", "POS_SHIFT_NOT_OPEN");
 
   const cash = await client.query(
     `SELECT coalesce(sum(amount),0)::text AS expected_cash
