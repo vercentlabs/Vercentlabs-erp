@@ -10,6 +10,10 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { PosApiError } from "@/features/pos/shared/http";
+import { listPosShifts } from "@/features/pos/overview/api/overview-api";
+import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import {
   addPosCartLine,
   applyPosCoupon,
@@ -23,10 +27,6 @@ import {
   getPosPayment,
   initiatePosPayment,
   lookupPosBarcode,
-  listPosShifts,
-  listPosStores,
-  listPosTerminals,
-  PosApiError,
   removePosCartLine,
   removePosCoupon,
   resumePosCart,
@@ -39,7 +39,7 @@ import {
   type PosCustomerMatch,
   type PosPaymentLeg,
   type PosProductMatch,
-} from "@/features/pos/shared/pos-api";
+} from "@/features/pos/checkout/api/checkout-api";
 import { money } from "@/features/pos/shared/format";
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple

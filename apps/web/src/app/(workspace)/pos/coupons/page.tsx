@@ -1,7 +1,7 @@
-import { PosCouponsSettingsScreen } from "@/features/pos/settings/screens/PosCouponsSettingsScreen";
+import { PosCouponsScreen } from "@/features/pos/coupons/screens/PosCouponsScreen";
 
 export const metadata = { title: "POS Coupons" };
 
 export default function PosCouponsPage() {
-  return <PosCouponsSettingsScreen />;
+  return <PosCouponsScreen />;
 }

@@ -1,4 +1,4 @@
-import { PosReturnsScreen } from "@/features/pos/screens/PosReturnsScreen";
+import { PosReturnsScreen } from "@/features/pos/returns/screens/PosReturnsScreen";
 
 export const metadata = { title: "POS Returns" };
 

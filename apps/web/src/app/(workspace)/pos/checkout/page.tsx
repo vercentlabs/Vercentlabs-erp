@@ -1,4 +1,4 @@
-import { PosCheckoutScreen } from "@/features/pos/screens/PosCheckoutScreen";
+import { PosCheckoutScreen } from "@/features/pos/checkout/screens/PosCheckoutScreen";
 
 export const metadata = { title: "POS Checkout" };
 

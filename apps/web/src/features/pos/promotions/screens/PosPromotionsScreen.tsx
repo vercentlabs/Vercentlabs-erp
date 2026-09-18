@@ -10,17 +10,18 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { createPosPromotion, listPosPromotions, PosApiError, setPosPromotionActive, updatePosPromotion } from "@/features/pos/shared/pos-api";
+import { PosApiError } from "@/features/pos/shared/http";
+import { createPosPromotion, listPosPromotions, setPosPromotionActive, updatePosPromotion } from "@/features/pos/promotions/api/promotions-api";
 
-// F280 -- real promotion administration against the F280 backend built in
-// session 2 (features/promotions.js): list/search(status)/create/edit/
-// activate-deactivate, every field mapping to a real backend column (no
-// decorative inputs). Item/item-group/customer ID-array eligibility is
-// configurable through the API but NOT exposed here yet -- that needs
-// item and item-group search-selects that don't exist anywhere in the app
-// yet (not even in checkout); disclosed as a real, deliberate gap rather
-// than faking a picker.
-export function PosPromotionsSettingsScreen() {
+// F280 -- real promotion administration against the F280 backend
+// (assortment-pricing-customer-and-cart/promotions.js): list/search(status)/
+// create/edit/activate-deactivate, every field mapping to a real backend
+// column (no decorative inputs). Item/item-group/customer ID-array
+// eligibility is configurable through the API but NOT exposed here yet --
+// that needs item and item-group search-selects that don't exist anywhere
+// in the app yet (not even in checkout); disclosed as a real, deliberate
+// gap rather than faking a picker.
+export function PosPromotionsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.settingsManage);

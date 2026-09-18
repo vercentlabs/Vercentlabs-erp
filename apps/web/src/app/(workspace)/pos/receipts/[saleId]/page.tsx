@@ -1,4 +1,4 @@
-import { PosReceiptScreen } from "@/features/pos/screens/PosReceiptScreen";
+import { PosReceiptScreen } from "@/features/pos/receipts/screens/PosReceiptScreen";
 
 export const metadata = { title: "POS Receipt" };
 

@@ -9,14 +9,9 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import {
-  grantPosStoreAccess,
-  listPosEligibleCashiers,
-  listPosStores,
-  PosApiError,
-  revokePosStoreAccess,
-  type PosEligibleCashier,
-} from "@/features/pos/shared/pos-api";
+import { PosApiError } from "@/features/pos/shared/http";
+import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { grantPosStoreAccess, listPosEligibleCashiers, revokePosStoreAccess, type PosEligibleCashier } from "@/features/pos/cashiers/api/cashiers-api";
 
 // F270/F271 -- real cashier-eligibility administration. Only active
 // organization members who already hold a real POS role (pos_cashier/
@@ -25,7 +20,7 @@ import {
 // ever ASSIGN which store(s) a genuinely eligible person may operate,
 // never invent a cashier identity or grant POS access itself (that stays
 // governed entirely by the platform's own role-assignment screens).
-export function PosCashiersSettingsScreen() {
+export function PosCashiersScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.storeManage);

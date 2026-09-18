@@ -9,24 +9,25 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { PosApiError } from "@/features/pos/shared/http";
+import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import {
   createPosTerminal,
-  listPosStores,
   listPosTerminals,
-  PosApiError,
   setPosTerminalStatusRecord,
   updatePosTerminalRecord,
   type PosTerminal,
-} from "@/features/pos/shared/pos-api";
+} from "@/features/pos/terminals/api/terminals-api";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral"> = { active: "success", maintenance: "warning", inactive: "neutral" };
 
 // F269 -- real terminal administration: list/create/edit/status transition
-// (active/inactive/maintenance), backed by createTerminal/updatePosTerminal/
+// (active/inactive/maintenance), backed by store-terminal-and-cashier-
+// control/terminal-operations.js's createTerminal/updatePosTerminal/
 // setPosTerminalStatus. Any transition away from 'active', or reassigning a
 // terminal to a different store, is blocked server-side while a shift is
 // open on it (POS_TERMINAL_HAS_OPEN_SHIFT/POS_TERMINAL_UNSAFE_TRANSITION).
-export function PosTerminalsSettingsScreen() {
+export function PosTerminalsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.terminalManage);

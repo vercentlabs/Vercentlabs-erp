@@ -10,15 +10,16 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { createPosCoupon, listPosCoupons, PosApiError, setPosCouponActive, updatePosCoupon } from "@/features/pos/shared/pos-api";
+import { PosApiError } from "@/features/pos/shared/http";
+import { createPosCoupon, listPosCoupons, setPosCouponActive, updatePosCoupon } from "@/features/pos/coupons/api/coupons-api";
 
-// F281 -- real coupon administration against the F281 backend built in
-// session 2 (features/coupons.js). Committed redemption facts
-// (committed_count) are shown read-only and never editable here -- this
-// screen only edits the coupon's own configuration. Item/customer ID-
-// array eligibility has the same disclosed gap as promotions (no item/
+// F281 -- real coupon administration against the F281 backend
+// (assortment-pricing-customer-and-cart/coupons.js). Committed redemption
+// facts (committed_count) are shown read-only and never editable here --
+// this screen only edits the coupon's own configuration. Item/customer
+// ID-array eligibility has the same disclosed gap as promotions (no item/
 // customer picker exists yet).
-export function PosCouponsSettingsScreen() {
+export function PosCouponsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.settingsManage);

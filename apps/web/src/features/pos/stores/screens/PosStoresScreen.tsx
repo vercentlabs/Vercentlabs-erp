@@ -9,24 +9,25 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { PosApiError } from "@/features/pos/shared/http";
 import {
   createPosStore,
   getPosStoreSetupOptions,
   listPosStores,
-  PosApiError,
   setPosStoreActiveRecord,
   updatePosStoreRecord,
   type PosStore,
-} from "@/features/pos/shared/pos-api";
+} from "@/features/pos/stores/api/stores-api";
 
 // F268 -- real store administration: list/create/edit/activate-deactivate,
-// backed entirely by services/api/src/modules/point-of-sale/index.js's
-// createStore/updatePosStore/setPosStoreActive. Deactivation and warehouse/
-// currency changes are blocked server-side while a shift is open on the
-// store (POS_STORE_HAS_OPEN_SHIFT/POS_STORE_HAS_ACTIVE_CART/
+// backed entirely by services/api/src/modules/point-of-sale/
+// store-terminal-and-cashier-control/store-operations.js's createStore/
+// updatePosStore/setPosStoreActive. Deactivation and warehouse/currency
+// changes are blocked server-side while a shift is open on the store
+// (POS_STORE_HAS_OPEN_SHIFT/POS_STORE_HAS_ACTIVE_CART/
 // POS_STORE_UNSAFE_TRANSITION) -- this screen surfaces those errors rather
 // than re-deriving the safety check client-side.
-export function PosStoresSettingsScreen() {
+export function PosStoresScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.storeManage);

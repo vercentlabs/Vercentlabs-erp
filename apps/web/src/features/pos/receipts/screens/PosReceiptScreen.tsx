@@ -13,7 +13,7 @@ import {
   type PosReceiptPayment,
   type PosReceiptPromotionEvidence,
   type PosReceiptReturn,
-} from "@/features/pos/shared/pos-api";
+} from "@/features/pos/receipts/api/receipts-api";
 import { money } from "@/features/pos/shared/format";
 
 // F289 -- a deterministic receipt built entirely from persisted sale facts

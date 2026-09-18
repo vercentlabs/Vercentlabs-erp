@@ -1,7 +1,7 @@
-import { PosTerminalsSettingsScreen } from "@/features/pos/settings/screens/PosTerminalsSettingsScreen";
+import { PosTerminalsScreen } from "@/features/pos/terminals/screens/PosTerminalsScreen";
 
 export const metadata = { title: "POS Terminals" };
 
 export default function PosTerminalsPage() {
-  return <PosTerminalsSettingsScreen />;
+  return <PosTerminalsScreen />;
 }

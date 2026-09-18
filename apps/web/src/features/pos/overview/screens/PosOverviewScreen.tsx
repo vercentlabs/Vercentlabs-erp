@@ -8,17 +8,17 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { PosApiError } from "@/features/pos/shared/http";
+import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import {
   closePosShift,
   getPosDashboard,
   listPosCashMovements,
   listPosShifts,
-  listPosStores,
-  listPosTerminals,
   openPosShift,
-  PosApiError,
   recordPosCashMovement,
-} from "@/features/pos/shared/pos-api";
+} from "@/features/pos/overview/api/overview-api";
 import { money } from "@/features/pos/shared/format";
 
 export function PosOverviewScreen() {

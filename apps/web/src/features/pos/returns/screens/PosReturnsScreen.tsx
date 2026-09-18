@@ -10,17 +10,17 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { PosApiError } from "@/features/pos/shared/http";
 import {
   approvePosReturn,
   completePosReturn,
   createPosReturn,
   findPosSaleForReturn,
   listPosReturns,
-  PosApiError,
   type PosReturn,
   type PosReturnSale,
   type PosReturnSaleLine,
-} from "@/features/pos/shared/pos-api";
+} from "@/features/pos/returns/api/returns-api";
 import { money } from "@/features/pos/shared/format";
 
 const STATUS_TONE: Record<PosReturn["status"], "success" | "warning" | "neutral" | "danger"> = {
