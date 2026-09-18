@@ -82,6 +82,15 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     cancelCart: (id, reason) => post(`/carts/${encodeURIComponent(id)}/cancel`, { reason }),
     completeCart: (id, input) => post(`/carts/${encodeURIComponent(id)}/complete`, input),
 
+    // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286
+    // (multiple payment methods). initiatePayment starts a non-cash leg;
+    // completeCart above only ever accepts that leg's id once it has
+    // independently reached 'captured' -- never a client-asserted amount.
+    initiatePayment: (input) => post("/payments/initiate", input),
+    getPayment: (id) => request(`/payments/${encodeURIComponent(id)}`),
+    refundPayment: (id, input) => post(`/payments/${encodeURIComponent(id)}/refund`, input),
+    requestPaymentOverride: (id, reason) => post(`/payments/${encodeURIComponent(id)}/override`, { reason }),
+
     // F280 Promotions / F281 Coupons (admin configuration)
     listPromotions: (status) => request(`/promotions${status ? `?status=${status}` : ""}`),
     createPromotion: (input) => post("/promotions", input),

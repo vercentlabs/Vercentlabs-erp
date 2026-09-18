@@ -11,8 +11,18 @@ import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context"
 // inside its own transaction and never trusts a client-supplied total; a
 // mismatch against expectedGrandTotal surfaces as a POS_PRICE_CONFLICT,
 // not a silently-accepted amount.
+// F283/F284/F285/F286: a 'cash' leg still carries a client-asserted amount
+// (unchanged -- physical cash exchange). Any other tender leg carries the
+// id of a payment ALREADY initiated and captured via
+// POST /api/pos/payments/initiate -- never a client-asserted amount.
+// completePosCart re-verifies the referenced payment's own amount/status
+// server-side and never trusts anything from this request body but the id.
+const paymentLegSchema = z.union([
+  z.object({ method: z.literal("cash"), amount: z.number().positive() }),
+  z.object({ method: z.enum(["card", "upi", "wallet", "bank_transfer"]), paymentId: z.string().uuid() }),
+]);
 const completeSchema = z.object({
-  payments: z.array(z.object({ method: z.enum(["cash", "card", "upi", "bank_transfer", "wallet", "store_credit"]), amount: z.number().positive() })).min(1),
+  payments: z.array(paymentLegSchema).min(1),
   idempotencyKey: z.string().trim().min(1).max(200),
   expectedVersion: z.number().int().optional(),
   expectedGrandTotal: z.string().optional(),
