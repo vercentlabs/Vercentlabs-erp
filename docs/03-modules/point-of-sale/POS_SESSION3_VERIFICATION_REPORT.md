@@ -1,6 +1,6 @@
 # POS Session 3 — Consolidated Pass Verification Report
 
-Branch: `rebuild/clean-frontend` (PR #8, unmerged). Starting SHA `c39b7ac8` (`main`, after the documented fast-forward reconciliation recorded in `POS_IMPLEMENTATION_TRACKER.md`). Current HEAD at the time of writing: `1919d540`.
+Branch: `rebuild/clean-frontend` (PR #8, unmerged). Starting SHA `c39b7ac8` (`main`, after the documented fast-forward reconciliation recorded in `POS_IMPLEMENTATION_TRACKER.md`). Current HEAD at the time of writing: `343e8237`.
 
 This report is the single source of truth for what this consolidated pass actually verified. `POS_IMPLEMENTATION_TRACKER.md` carries the narrative/decision history; this file carries the raw verification evidence it summarizes.
 
@@ -25,6 +25,9 @@ de1b6018 test(security): prove revoked/expired role assignments and deactivated 
 1b6fcb09 test(pos): prove cross-tenant isolation and cart/shift lifecycle guards against real PostgreSQL
 ff16f323 test(pos): prove idempotent checkout/returns, price-integrity, and stock-race safety against real PostgreSQL
 1919d540 docs(pos): record the verification-gate battery and 26-item security matrix results
+c172f92e docs(pos): add the session-3 consolidated-pass verification report
+cd9fe19f fix(pos): persist cart-line descriptions and fix a StrictMode cart-creation race
+343e8237 test(pos): add a permanent Playwright E2E suite against the real dev server and real Postgres
 ```
 
 Grouped by concern (see each commit message for full detail):
@@ -44,6 +47,8 @@ Grouped by concern (see each commit message for full detail):
 | Promotion/coupon per-customer usage-limit race | Limit checked at preview only, never re-verified inside the completion transaction | Re-checked under the record's own row lock at commit; proven with a genuine two-Postgres-connection race | same file |
 | **Matrix #13 — legacy flat-lines discount bypass** | `completePointOfSale`'s `pos_settings` SELECT never fetched `max_line_discount_percent`/`discount_approval_threshold_percent`, so the org's configured cap was silently ignored and any above-threshold discount was accepted with zero approval | Both columns now fetched; path fails closed with `POS_DISCOUNT_APPROVAL_REQUIRED` above threshold | New tests in `pos-cart-tax-promotions-coupons-f277-f281.test.mjs` (17/17 total) |
 | **Matrix #23 — cash-movement idempotency** | `recordPosCashMovement` had no replay protection at all — a client retry could double-post a paid-in/paid-out movement | Wired into the shared `operation_idempotency` reserve-then-complete mechanism; `idempotencyKey` now required end-to-end (route, pos-api.ts, shared-sdk, UI) | `pos-cash-movements-and-shift-close-f299-f302.test.mjs` (5/5) |
+
+Two further genuine bugs (not security defects, but real correctness bugs) were found and fixed by the Playwright E2E work in §5, below — see that section for detail: a cart-line description that was never persisted, and a React StrictMode double-invoke race that could orphan a draft cart under real load.
 
 ## 3. 26-item negative security/concurrency matrix — final disposition
 
@@ -122,7 +127,34 @@ Individual POS real-Postgres integration files (all independently re-run and con
 
 ## 5. Playwright E2E suite
 
-**Status at time of writing: build still in progress (background agent).** This section will be completed and this report republished once that run finishes and its results are independently re-verified. Do not treat POS E2E coverage as complete until this section is filled in.
+**Status: complete. 11/11 passing, independently re-run and confirmed** (not taken on trust from the agent that built it) against the real dev server (`next dev`) and real Postgres:
+
+```
+ok  1 [setup] authenticate as e2e owner
+ok  2 pos-authorization.spec.ts › cashier cannot apply a line discount (UI + direct API), no unauthorized DB mutation
+ok  3 pos-authorization.spec.ts › cashier denied on a store never granted, no shift row created
+ok  4 pos-checkout-safety.spec.ts › duplicate completion with same idempotency key → exactly one sale
+ok  5 pos-checkout-safety.spec.ts › cart mutated from a second channel → real conflict, no stale-data success
+ok  6 pos-checkout.spec.ts › cash sale with search-selected customer (desktop)
+ok  7 pos-checkout.spec.ts › cash sale with search-selected customer (tablet)
+ok  8 pos-discount-approval.spec.ts › supervisor requests discount, self-approval blocked, separate manager decides
+ok  9 pos-discount-approval.spec.ts › DOCUMENTED GAP: pos_manager can't see the request in the generic /approvals list
+ok 10 pos-hold-resume.spec.ts › hold → Held sales → resume with contents intact → complete
+ok 11 pos-returns.spec.ts › find sale by receipt, request return, separate manager approves + completes refund
+```
+
+Every spec waits on real network responses / real DOM state — no `sleep()`/`waitForTimeout()` anywhere. Every denied-action test asserts directly against Postgres that no unauthorized row was created, not just the UI error text. Both desktop (1440×900) and tablet (820×1180) viewports are exercised (`pos-checkout.spec.ts`).
+
+**Fixture infrastructure**: `apps/web/e2e/pos-fixtures.ts` provisions three genuine, separately-authenticated personas (`pos_cashier`/`pos_supervisor`/`pos_manager`, real system roles, real scrypt-hashed passwords, real login flow), dedicated stores/terminals/shifts, and a deliberately-ungranted store for the access-denial journey. `apps/web/e2e/pos-global-teardown.ts` deletes every seeded row after the run and deactivates (never hard-deletes) the persona users, since `public.audit_events` is DB-enforced immutable and blocks the cascade a hard delete would trigger.
+
+**Two genuine, non-security correctness bugs found via real browser + real Postgres (neither visible to any unit or mocked test) — both fixed, `cd9fe19f`:**
+
+1. **Cart lines showed a permanently blank description in the checkout UI.** `reprice()` already resolves the correct display text (line description, else variant name, else item name) via `cart-pricing.js`, but its `UPDATE tenant.pos_cart_lines` never wrote that value back — only `pos_sale_lines` (built fresh at checkout completion) ever received it, so a cart's own line description was `NULL` for the cart's *entire* lifetime up to the point of sale. Fixed: `description` is now persisted on every reprice.
+2. **Intermittent `POS_CART_VERSION_CONFLICT` under real load with no second channel involved.** `PosCheckoutScreen`'s cart-creation effect guarded its state updates against a stale response but never guarded the `createPosCart()` network call itself, so React StrictMode's dev-mode double-invoke fired two real `POST /api/pos/carts` requests per mount, racing to decide which cart the UI bound to and orphaning the other as an invisible draft cart. Fixed with a `useRef` guard keyed by shift id, so the call fires at most once per shift regardless of how many times the effect re-runs.
+
+Fixing these two required updating two mocked-client unit tests (`point-of-sale-stock-integrity.test.mjs`, `point-of-sale-sale-validation.test.mjs`) whose hand-written query router matched `pos_settings`' SELECT by an exact column list that a *different* fix earlier in this pass (matrix item #13) had already changed — a real gap in this session's own verification discipline (item #13 was only checked against the real-Postgres suite, not the full mocked API suite, at the time). Caught here by running the complete `test:api` suite before declaring this pass done; both mocks are now updated and `test:api` is 1112/1112 again.
+
+**What remains uncovered, and why** (disclosed, not silently skipped): admin screens (`/pos/stores`, `/pos/terminals`, `/pos/cashiers`, `/pos/promotions`, `/pos/coupons`) have no E2E coverage — not in the required journey list. Card/UPI payment paths are untested — explicitly out of scope. The documented `/approvals`-inbox visibility gap (`pos_manager`/`pos_supervisor` lack `approvals.manage`, and POS never sets `assigned_to`) is asserted as *current behavior* in `pos-discount-approval.spec.ts`'s second test, not fixed — fixing it means changing `services/api/src/core/approvals.js`'s `listApprovals`, which is shared across every module (CRM, Purchase, Sales, …) and out of this task's blast radius; if it's ever fixed, that test is expected to start failing as the correct signal to update it.
 
 ## 6. Migrations added this pass
 
