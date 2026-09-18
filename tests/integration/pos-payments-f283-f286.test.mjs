@@ -44,7 +44,7 @@ test("F283-F286: card/UPI/split/multi-method payments against real PostgreSQL", 
   } = await import("../../services/api/src/index.js");
   const { allocate } = await import("../../services/api/src/core/decimal.js");
   const { buildSandboxWebhookDelivery } = await import(
-    "../../services/api/src/modules/point-of-sale/payments/sandbox-adapter.js"
+    "../../services/api/src/modules/point-of-sale/tender-and-payment-execution/sandbox-adapter.js"
   );
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 

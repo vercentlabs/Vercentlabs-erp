@@ -23,40 +23,20 @@
 //     "refund to an alternate method" path.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, asDatabaseDecimal, sub } from "../../../core/decimal.js";
-import { resolvePaymentAdapter, PaymentAdapterError } from "../payments/adapter.js";
+import { resolvePaymentAdapter, PaymentAdapterError } from "./adapter.js";
+import { posError } from "../shared/errors.js";
+import { requirePermission } from "../shared/access-control.js";
+import { event } from "../shared/audit.js";
 
 // Re-exported so the web app's webhook route (which must resolve+verify an
 // adapter BEFORE it knows which organization's tenant client to open) can
 // import it from the same public @vercentlabs/api surface as everything
 // else in this module, without reaching into services/api's internal
-// payments/adapter.js path.
+// tender-and-payment-execution/adapter.js path.
 export { resolvePaymentAdapter, PaymentAdapterError };
 
 const NON_CASH_METHODS = Object.freeze(["card", "upi", "wallet", "bank_transfer"]);
 const TERMINAL_STATUSES = Object.freeze(["captured", "failed", "voided", "refunded", "partially_refunded"]);
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
-
-async function event(client, context, aggregateType, aggregateId, eventType, payload = {}) {
-  await client.query(
-    `INSERT INTO tenant.pos_events (organization_id,company_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
-    [context.organizationId, context.companyId, aggregateType, aggregateId, eventType, JSON.stringify(payload), context.userId || null],
-  );
-}
 
 async function lockOpenCart(client, context, cartId) {
   const result = await client.query(

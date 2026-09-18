@@ -1,30 +1,8 @@
 import { requireCompanyRecord } from "../../../core/references.js";
-import { assertPosStoreAccess } from "./cart.js";
+import { posError } from "../shared/errors.js";
+import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
-// POS-CAP-002 (F272-F281): assortment, pricing, customer and cart. This is
-// the first capability-owned file split out of the module's original
-// single index.js, per the architecture note against letting that file
-// grow indefinitely — new POS capability code belongs here, not appended
-// to index.js. requirePermission/posError are intentionally small, stable
-// utility functions duplicated from index.js rather than refactoring that
-// already-tested file's internals in the same pass as new feature work;
-// a follow-up pass should extract them into a shared module both files
-// import from once more capability files exist here.
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
+// POS-CAP-002 (F272-F281): assortment, pricing, customer and cart.
 const MAX_SEARCH_RESULTS = 50;
 const MAX_SEARCH_TERM_LENGTH = 100;
 

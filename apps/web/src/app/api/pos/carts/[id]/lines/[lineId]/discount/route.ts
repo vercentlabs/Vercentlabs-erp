@@ -10,7 +10,7 @@ import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context"
 // F279 (POS Session 3): `approvedBy` is deliberately not accepted here --
 // a caller can never assert who approved a discount. Above the configured
 // threshold, the domain layer creates a real pending approval request
-// (see services/api/src/modules/point-of-sale/features/cart.js) that only
+// (see services/api/src/modules/point-of-sale/assortment-pricing-customer-and-cart/cart.js) that only
 // a genuinely separate, permission-holding approver can decide, via
 // POST /api/approvals/[id]/decide.
 const discountSchema = z.object({

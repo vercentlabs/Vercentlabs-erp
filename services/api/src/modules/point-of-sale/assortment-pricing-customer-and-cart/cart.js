@@ -13,56 +13,8 @@ import { randomUUID } from "node:crypto";
 import { requireCompanyRecord } from "../../../core/references.js";
 import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { priceCartLines } from "./cart-pricing.js";
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
-
-// POS Session 3, Phase 2 (F268-F273): every function below used to filter
-// carts/shifts by organization_id+company_id only -- any cashier holding
-// pos.sale.create could read or mutate ANY store's cart in the company by
-// guessing/enumerating a cart id, regardless of which physical store they
-// actually work at. The platform has no existing sub-company access-grant
-// finer than company/branch (see database/platform/migrations/
-// 002_platform_foundation.sql's membership_company_access/
-// membership_branch_access), so tenant.pos_store_access (migration 115) is
-// the smallest analogous table for POS stores specifically.
-//
-// Deliberately permissive when unconfigured: if an organization has never
-// created a single pos_store_access row for a company, every existing
-// company-scoped cashier keeps working exactly as before (a single-store
-// tenant is never affected). The moment an organization assigns ANY user
-// to ANY store in a company, this becomes a real fail-closed boundary for
-// every other non-bypass user in that company: no assignment, no access to
-// that store's carts/shifts, full stop. pos.store.manage/pos.settings.manage
-// (store/policy administrators) and organization_owner/system_administrator
-// always bypass it, matching every other POS permission check's convention.
-async function assertPosStoreAccess(client, context, storeId) {
-  if (context.roleSlugs?.includes("organization_owner") || context.roleSlugs?.includes("system_administrator")) return;
-  if (context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage")) return;
-  const configured = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND company_id=$2 LIMIT 1`, [
-    context.organizationId,
-    context.companyId,
-  ]);
-  if (!configured.rows[0]) return;
-  const granted = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$2 AND store_id=$3`, [
-    context.organizationId,
-    context.userId,
-    storeId,
-  ]);
-  if (!granted.rows[0]) throw posError(403, "You are not authorized to operate this POS store.", "POS_STORE_ACCESS_DENIED");
-}
+import { posError } from "../shared/errors.js";
+import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
 const OPEN_STATUSES = ["draft", "priced"];
 const HELD_CART_EXPIRY_MS = 24 * 60 * 60 * 1000;
@@ -930,5 +882,4 @@ export {
   reprice as repricePosCartInternal,
   loadLines as loadPosCartLines,
   toPricingInputLines as toPosCartPricingInputLines,
-  assertPosStoreAccess,
 };

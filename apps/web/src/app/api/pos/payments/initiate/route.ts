@@ -17,7 +17,7 @@ const initiateSchema = z.object({
   amount: z.number().positive(),
   idempotencyKey: z.string().trim().min(1).max(200),
   // Sandbox-only test/dev scripting instruction (see
-  // services/api/src/modules/point-of-sale/payments/sandbox-adapter.js) --
+  // services/api/src/modules/point-of-sale/tender-and-payment-execution/sandbox-adapter.js) --
   // never trusted as a truth claim about payment state. A real (non-
   // sandbox) adapter ignores this field entirely.
   outcome: z.string().trim().max(64).optional(),

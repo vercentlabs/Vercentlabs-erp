@@ -67,7 +67,7 @@ const NON_CASH_METHOD_OPTIONS = [
 ];
 // This environment has no live merchant/gateway credentials -- only the
 // deterministic sandbox adapter is registered (see
-// services/api/src/modules/point-of-sale/payments/sandbox-adapter.js).
+// services/api/src/modules/point-of-sale/tender-and-payment-execution/sandbox-adapter.js).
 // This selector is a SANDBOX TEST-SCRIPTING INSTRUCTION only: it is never
 // read as a truth claim about payment state, and a real adapter would
 // ignore it entirely.

@@ -9,21 +9,8 @@
 // pos_supervisor/pos_manager, or any custom role holding a pos.* grant);
 // this file only answers "at which store(s)."
 import { requireCompanyRecord } from "../../../core/references.js";
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
+import { posError } from "../shared/errors.js";
+import { requirePermission } from "../shared/access-control.js";
 
 // Active org members who hold at least one point-of-sale-module role --
 // candidates an administrator can actually assign to a store. Mirrors the

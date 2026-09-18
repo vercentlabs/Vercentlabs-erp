@@ -5,13 +5,7 @@
 // Selects only fields safe for a cashier to see (no gstin/pan/credit_limit/
 // msme_number) -- the checkout screen needs a name to recognize, not a
 // customer's financial/compliance profile.
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
+import { requirePermission } from "../shared/access-control.js";
 
 const MAX_LIMIT = 25;
 const MAX_TERM_LENGTH = 100;

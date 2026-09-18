@@ -4,7 +4,7 @@
 // mutate ANY store's cart/shift in the company by guessing/enumerating its
 // id, regardless of which physical store they actually work at.
 // tenant.pos_store_access (migration 115) + assertPosStoreAccess()
-// (services/api/src/modules/point-of-sale/features/cart.js) close that
+// (services/api/src/modules/point-of-sale/assortment-pricing-customer-and-cart/cart.js) close that
 // gap, but ONLY once an organization opts in by creating at least one
 // assignment row for a company — this suite proves BOTH halves: the
 // permissive default when unconfigured (backward compatible with every

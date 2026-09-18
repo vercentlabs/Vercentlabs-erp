@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { lookupPointOfSaleBarcode, searchPointOfSalePosProducts } from "../src/modules/point-of-sale/features/assortment.js";
+import { lookupPointOfSaleBarcode, searchPointOfSalePosProducts } from "../src/modules/point-of-sale/assortment-pricing-customer-and-cart/assortment.js";
 
 // POS Implementation Tracker (docs/03-modules/point-of-sale/
 // POS_IMPLEMENTATION_TRACKER.md), Tranche 1 (F272/F273): bounded product

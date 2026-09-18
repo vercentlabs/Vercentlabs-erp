@@ -27,13 +27,7 @@
 // behavior, not an oversight.
 import { add, sub, mul, div, percent, max, min, roundMoney, asDatabaseDecimal, decimal, allocate } from "../../../core/decimal.js";
 import { resolveTaxRateComponents } from "../../../core/tax-engine.js";
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
+import { posError } from "../shared/errors.js";
 
 export async function resolveCurrencyDecimalPlaces(client, context, currencyCode) {
   const result = await client.query(

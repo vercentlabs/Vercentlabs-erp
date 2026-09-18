@@ -8,23 +8,9 @@
 // reason, never editing history.
 import { nextDocumentNumber } from "../../../core/document-numbering.js";
 import { decimal, asDatabaseDecimal } from "../../../core/decimal.js";
-import { assertPosStoreAccess } from "./cart.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
+import { posError } from "../shared/errors.js";
+import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
 // Same sign convention completePointOfSaleReturn's refund movement already
 // uses: positive = cash added to the drawer, negative = cash removed --

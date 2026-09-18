@@ -3,20 +3,8 @@
 // pos.settings.manage (the same permission that already gates every other
 // POS store-level configuration action) so an ordinary cashier can apply
 // an eligible promotion during checkout but cannot invent new ones.
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
+import { posError } from "../shared/errors.js";
+import { requirePermission } from "../shared/access-control.js";
 
 function normalizedCode(value) {
   const code = String(value || "").trim().toUpperCase();

@@ -1,29 +1,15 @@
 // F291/F292 -- "find the original transaction" step of the returns UI.
 // createPointOfSaleReturn/approvePointOfSaleReturn/completePointOfSaleReturn
-// (services/api/src/modules/point-of-sale/index.js) already own the real
-// return lifecycle; this is the one missing piece -- looking a sale up by
-// its receipt number and reporting exactly how much of each line is still
-// returnable, using the SAME eligibility rule (status IN ('completed',
-// 'partially_returned')) and remaining-quantity math
+// (return-lifecycle.js, this same POS-CAP-005 capability) already own the
+// real return lifecycle; this is the one missing piece -- looking a sale
+// up by its receipt number and reporting exactly how much of each line is
+// still returnable, using the SAME eligibility rule (status IN
+// ('completed', 'partially_returned')) and remaining-quantity math
 // (quantity - returned_quantity) createPointOfSaleReturn itself already
 // enforces, so the UI can never show a quantity the backend would reject.
 import { decimal, sub, asDatabaseDecimal } from "../../../core/decimal.js";
-import { assertPosStoreAccess } from "./cart.js";
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
+import { posError } from "../shared/errors.js";
+import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
 export async function findPosSaleForReturn(client, context, { receiptNumber }) {
   requirePermission(context, "pos.return.create");

@@ -6,22 +6,8 @@
 // is the first read after completion or not tracked at all here (a real
 // print-audit-log would need its own table); this function itself has no
 // side effects and can be called any number of times safely.
-import { assertPosStoreAccess } from "./cart.js";
-
-function posError(status, message, code) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  return error;
-}
-
-function requirePermission(context, permission) {
-  if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes(permission)) {
-    const error = new Error(`Missing permission: ${permission}`);
-    error.code = "FORBIDDEN";
-    throw error;
-  }
-}
+import { posError } from "../shared/errors.js";
+import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
 export async function getPosSaleReceipt(client, context, saleId) {
   requirePermission(context, "pos.view");
