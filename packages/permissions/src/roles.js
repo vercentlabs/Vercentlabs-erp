@@ -810,6 +810,10 @@ export const ROLE_TEMPLATES = Object.freeze([
       // generated/reviewed its draft.
       "pos.report.finalize",
       "pos.report.view",
+      // F297/F298: a manager reviews/resolves offline-sync conflicts other
+      // cashiers' devices produced (never creates sales, so no
+      // pos.offline.sync grant here).
+      "pos.offline.resolve",
     ]),
   },
   {
@@ -829,6 +833,9 @@ export const ROLE_TEMPLATES = Object.freeze([
       "pos.shift.close",
       "pos.sale.create",
       "pos.return.create",
+      // F297/F298: a cashier's own terminal drains its local offline queue
+      // against the server once back online.
+      "pos.offline.sync",
     ]),
   },
   {
@@ -862,6 +869,10 @@ export const ROLE_TEMPLATES = Object.freeze([
       // authority; see the pos_day_end_generate_finalize SoD conflict).
       "pos.report.generate",
       "pos.report.view",
+      // F297/F298: a supervisor both syncs their own floor terminal's queue
+      // and resolves conflicts other cashiers' syncs produced.
+      "pos.offline.sync",
+      "pos.offline.resolve",
     ]),
   },
   {

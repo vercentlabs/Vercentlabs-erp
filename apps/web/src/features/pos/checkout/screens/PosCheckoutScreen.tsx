@@ -41,6 +41,11 @@ import {
   type PosProductMatch,
 } from "@/features/pos/checkout/api/checkout-api";
 import { money } from "@/features/pos/shared/format";
+import { getPosOfflineSnapshot } from "@/features/pos/offline/api/offline-api";
+import { OfflineCheckoutPanel } from "@/features/pos/offline/OfflineCheckoutPanel";
+import { useOnlineStatus } from "@/features/pos/offline/useOnlineStatus";
+import { saveOfflineContext, saveSnapshot } from "@/features/pos/offline/db";
+import { runOfflineSyncPass } from "@/features/pos/offline/sync-runner";
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): one tender line per payment leg. A 'cash' line is
@@ -97,6 +102,7 @@ export function PosCheckoutScreen() {
   // (completePosExchange) instead of an ordinary sale.
   const exchangeReturnId = searchParams.get("exchangeReturnId");
   const canDiscount = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApply);
+  const online = useOnlineStatus();
 
   const [cart, setCart] = useState<PosCart | null>(null);
   const [loading, setLoading] = useState(false);
@@ -134,6 +140,45 @@ export function PosCheckoutScreen() {
     [shiftsQuery.data, workspace.userId],
   );
   const store = storesQuery.data?.rows.find((s) => s.id === myOpenShift?.store_id);
+
+  // F297: while online with an open shift, keep this device's bounded
+  // offline snapshot + context fresh so the offline checkout path below
+  // never depends on any online-only query succeeding once the network
+  // actually drops. "Periodically" here is "every time this effect's
+  // dependencies change" (store/shift changing, or a fresh mount) --
+  // sufficient for a real cashier session without a separate polling
+  // timer.
+  useEffect(() => {
+    if (!online || !myOpenShift || !store) return;
+    let cancelled = false;
+    getPosOfflineSnapshot(store.id)
+      .then(async (result) => {
+        if (cancelled) return;
+        await saveSnapshot(result.snapshot);
+        await saveOfflineContext({
+          storeId: store.id,
+          terminalId: myOpenShift.terminal_id,
+          shiftId: myOpenShift.id,
+          cashierUserId: workspace.userId,
+        });
+      })
+      .catch(() => undefined); // best-effort refresh; a stale-but-present snapshot is still usable offline
+    return () => {
+      cancelled = true;
+    };
+    // Only the identifying fields, not full object reference equality,
+    // should retrigger this refresh -- same rationale as the cart-creation
+    // effect above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online, myOpenShift?.id, myOpenShift?.terminal_id, store?.id, workspace.userId]);
+
+  // F298: as soon as the device comes back online, drain the local
+  // offline queue automatically rather than waiting for the cashier to
+  // notice and click something.
+  useEffect(() => {
+    if (!online) return;
+    runOfflineSyncPass().catch(() => undefined);
+  }, [online]);
 
   // BUG FIX (found via real E2E testing, apps/web/e2e/pos-checkout.spec.ts
   // et al, under the app's actual next.config.ts reactStrictMode: true):
@@ -419,6 +464,15 @@ export function PosCheckoutScreen() {
     startFreshCart();
   }
 
+  // F297: the offline checkout path is fully independent of the online
+  // queries above (it reads its own cached context/snapshot from
+  // IndexedDB) -- checked before the "no open shift" guard below, which
+  // depends on an online-only query that would just be stale/empty
+  // offline rather than a meaningful signal.
+  if (!online) {
+    return <OfflineCheckoutPanel />;
+  }
+
   if (!myOpenShift) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
@@ -555,6 +609,9 @@ export function PosCheckoutScreen() {
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:w-96">
+        <StatusBadge tone="success" className="self-start">
+          Online
+        </StatusBadge>
         {error && (
           <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
             {error}

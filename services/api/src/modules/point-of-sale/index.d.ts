@@ -109,6 +109,76 @@ export declare function recordPosDayEndVariance(client: any, context: PointOfSal
 export declare function listPosDayEndReports(client: any, context: PointOfSaleContext, options?: { storeId?: string; terminalId?: string; status?: string; scopeType?: string; businessDateFrom?: string; businessDateTo?: string; limit?: number; offset?: number }): Promise<PosDayEndReport[]>;
 export declare function getPosDayEndReport(client: any, context: PointOfSaleContext, reportId: string): Promise<PosDayEndReport>;
 
+// F297/F298 — offline POS workspace + offline-to-online sync
+export type PosOfflineUnsupportedOperation = { code: string; label: string; reason: string };
+export declare const OFFLINE_SNAPSHOT_ITEM_LIMIT: number;
+export declare const OFFLINE_UNSUPPORTED_OPERATIONS: readonly PosOfflineUnsupportedOperation[];
+export type PosOfflineSnapshot = {
+  version: string;
+  generatedAt: string;
+  store: { id: string; code: string; name: string; warehouseId: string; currencyCode: string; priceListId: string | null };
+  policy: { allowNegativeStock: boolean; maxLineDiscountPercent: number };
+  items: Array<{ itemId: string; code: string; name: string; barcode: string | null; taxCategoryId: string | null; unitPrice: number; minimumQuantity: number; lastKnownQuantity: number }>;
+  itemLimit: number;
+  itemLimitReached: boolean;
+  taxRatesByCategory: Array<{ taxCategoryId: string; rate: number }>;
+  cashierPermissions: string[];
+  unsupportedOperations: readonly PosOfflineUnsupportedOperation[];
+  encryptionSeed: string;
+};
+export declare function getPosOfflineSnapshot(client: any, context: PointOfSaleContext, input: { storeId: string }): Promise<PosOfflineSnapshot>;
+
+export type PosOfflineSyncLine = {
+  itemId: string;
+  variantId?: string | null;
+  quantity: number;
+  capturedUnitPrice: number;
+  discountAmount?: number | null;
+  discountReason?: string | null;
+  description?: string | null;
+  warehouseLocationId?: string | null;
+  batchId?: string | null;
+  serialId?: string | null;
+};
+export type PosOfflineSyncInput = {
+  localTransactionId: string;
+  storeId: string;
+  terminalId?: string | null;
+  shiftId: string;
+  lines: PosOfflineSyncLine[];
+  payments: Array<{ method: string; amount: number }>;
+  customerName?: string | null;
+  roundingAdjustment?: number;
+  capturedAt?: string | null;
+};
+export type PosOfflineSyncResult =
+  | { outcome: "accepted"; localTransactionId: string; sale: any; replayed: boolean }
+  | { outcome: "conflict"; localTransactionId: string; conflictId: string; conflictType: string; detail: string | null; replayed: boolean }
+  | { outcome: "voided"; localTransactionId: string; conflictId: string; detail: string | null; replayed: boolean };
+export declare function syncOfflinePosSale(client: any, context: PointOfSaleContext, input: PosOfflineSyncInput): Promise<PosOfflineSyncResult>;
+
+export type PosOfflineSyncConflict = {
+  id: string;
+  local_transaction_id: string;
+  conflict_type: string;
+  status: "pending" | "resolved_retried" | "resolved_voided";
+  captured_payload: Record<string, any>;
+  server_context_snapshot: Record<string, any>;
+  [key: string]: any;
+};
+export declare function listPosOfflineSyncConflicts(client: any, context: PointOfSaleContext, options?: { status?: string; limit?: number; offset?: number }): Promise<PosOfflineSyncConflict[]>;
+// A retry line never carries capturedUnitPrice: resolvePosOfflineSyncConflict's
+// retry path always re-resolves the CURRENT price fresh server-side
+// (currentOfflineCatalogUnitPrice), never trusts a client-supplied
+// captured price for an operator-reviewed retry.
+export type PosOfflineRetryLine = Omit<PosOfflineSyncLine, "capturedUnitPrice">;
+export declare function resolvePosOfflineSyncConflict(
+  client: any,
+  context: PointOfSaleContext,
+  conflictId: string,
+  input: { action: "retry" | "void"; reason?: string; lines?: PosOfflineRetryLine[]; payments?: Array<{ method: string; amount: number }>; shiftId?: string },
+): Promise<PosOfflineSyncConflict>;
+
 export type PointOfSaleProductMatch = {
   itemId: string;
   variantId: string | null;

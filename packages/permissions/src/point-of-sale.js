@@ -39,4 +39,10 @@ export const POS_PERMISSIONS = Object.freeze({
   reportsView: "pos.reports.view",
   settingsManage: "pos.settings.manage",
   auditView: "pos.audit.view",
+  // F297/F298 (offline POS workspace + offline-to-online sync): syncing a
+  // device's own queued offline sales is distinct from resolving a
+  // conflict another cashier's sync produced, matching the
+  // create/approve-style separation already used for returns.
+  offlineSync: "pos.offline.sync",
+  offlineResolve: "pos.offline.resolve",
 });

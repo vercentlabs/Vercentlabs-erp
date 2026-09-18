@@ -765,6 +765,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           planned("POS Inventory", "/pos/inventory"),
           planned("Stock Sync", "/pos/stock-sync"),
+          // F297/F298: a real screen for reviewing/resolving offline sales
+          // that couldn't sync cleanly (price/stock/shift divergence).
+          { ...available("Offline Sync Conflicts", "/pos/offline-sync-conflicts"), requiredPermission: "pos.offline.resolve" },
         ],
       },
       {

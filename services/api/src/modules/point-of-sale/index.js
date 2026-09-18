@@ -76,3 +76,13 @@ export {
   listPosDayEndReports,
   getPosDayEndReport,
 } from "./cash-shift-day-end-and-reconciliation/day-end-reports.js";
+
+// POS-CAP-006 -- inventory and offline continuity (F294-F298).
+export {
+  OFFLINE_SNAPSHOT_ITEM_LIMIT,
+  OFFLINE_UNSUPPORTED_OPERATIONS,
+  getPosOfflineSnapshot,
+  listPosOfflineSyncConflicts,
+  syncOfflinePosSale,
+  resolvePosOfflineSyncConflict,
+} from "./inventory-and-offline-continuity/offline-sync.js";
