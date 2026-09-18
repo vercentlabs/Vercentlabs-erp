@@ -14,6 +14,7 @@ import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
 import { releasePosCouponRedemptionForFullReturn } from "../assortment-pricing-customer-and-cart/coupons.js";
+import { reversePosLoyaltyForReturn } from "../assortment-pricing-customer-and-cart/loyalty.js";
 
 export async function createPointOfSaleReturn(client, context, input) {
   requirePermission(context, "pos.return.create");
@@ -224,7 +225,7 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
 
   const found = await client.query(
-    `SELECT return_record.*,sale.status AS sale_status
+    `SELECT return_record.*,sale.status AS sale_status,sale.customer_id AS sale_customer_id,sale.loyalty_program_id AS sale_loyalty_program_id
      FROM tenant.pos_returns return_record
      JOIN tenant.pos_sales sale
        ON sale.organization_id=return_record.organization_id
@@ -271,6 +272,7 @@ export async function completePointOfSaleReturn(client, context, returnId, input
     `SELECT return_line.*,sale_line.quantity AS sold_quantity,
             sale_line.returned_quantity,sale_line.item_id,sale_line.warehouse_id,
             sale_line.warehouse_location_id,sale_line.batch_id,sale_line.serial_id,
+            sale_line.loyalty_redeem_points AS sale_line_loyalty_redeem_points,
             stock_movement.unit_cost
      FROM tenant.pos_return_lines return_line
      JOIN tenant.pos_sale_lines sale_line
@@ -353,6 +355,27 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   // rather than inventing an unspecified fractional-usage-credit model.
   if (fullyReturned) {
     await releasePosCouponRedemptionForFullReturn(client, context, returnRecord.sale_id);
+  }
+
+  // F306: reverse the PROPORTIONAL share of points this return event's own
+  // lines earned/redeemed — see loyalty.js's PARTIAL-RETURN
+  // PROPORTIONALITY comment. Unlike the coupon release above, this is NOT
+  // gated on fullyReturned: it runs for every return (partial or full) and
+  // is proportionally correct in both cases (a full return's per-line
+  // ratio is exactly 1, reversing exactly 100% of that line's points).
+  if (returnRecord.sale_customer_id) {
+    await reversePosLoyaltyForReturn(client, context, {
+      returnId,
+      saleId: returnRecord.sale_id,
+      customerId: returnRecord.sale_customer_id,
+      programId: returnRecord.sale_loyalty_program_id,
+      returnedLines: lines.rows.map((line) => ({
+        saleLineId: line.sale_line_id,
+        soldQuantity: line.sold_quantity,
+        returnQuantity: line.quantity,
+        redeemPoints: line.sale_line_loyalty_redeem_points,
+      })),
+    });
   }
 
   const refundTotal = Number(returnRecord.refund_total);

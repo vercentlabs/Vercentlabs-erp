@@ -217,6 +217,7 @@ export type PosCartLine = {
   manual_discount_reason: string | null;
   promotion_discount_amount: string;
   coupon_discount_amount: string;
+  loyalty_redeem_amount: string;
   taxable_amount: string;
   tax_amount: string;
   line_total: string;
@@ -251,9 +252,19 @@ export type PosCart = {
   cart_discount_type: "percent" | "amount" | null;
   cart_discount_value: string | null;
   cart_discount_reason: string | null;
+  loyalty_redeem_points: string | null;
   lines: PosCartLine[];
   promotionExplanations?: Array<{ code: string; applied: boolean; amountSaved?: string; reason: string }>;
   coupon?: { id: string; code: string; amount: string } | null;
+  loyalty?: {
+    programId: string | null;
+    pointsToEarn: string;
+    redeemPointsRequested: string;
+    redeemPointsApplied: string;
+    redeemAmount: string;
+    balanceBeforeSale: string;
+    balanceAfterPreview: string;
+  };
   [key: string]: any;
 };
 export declare function createPosCart(client: any, context: PointOfSaleContext, input: { storeId: string; terminalId: string; shiftId: string; customerId?: string | null }): Promise<PosCart>;
@@ -305,6 +316,8 @@ export declare function getPosSaleReceipt(client: any, context: PointOfSaleConte
   promotionEvidence: Record<string, any>[];
 }>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
+export declare function redeemPosCartLoyaltyPoints(client: any, context: PointOfSaleContext, cartId: string, input: { points: number | string; expectedVersion?: number }): Promise<PosCart>;
+export declare function removePosCartLoyaltyRedemption(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
 export declare function completePosCart(
   client: any,
   context: PointOfSaleContext,
@@ -333,6 +346,38 @@ export declare function listPosCoupons(client: any, context: PointOfSaleContext,
 export declare function createPosCoupon(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<PosCoupon>;
 export declare function updatePosCoupon(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<PosCoupon>;
 export declare function setPosCouponActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<PosCoupon>;
+
+// F306 Loyalty
+export type PosLoyaltyProgram = {
+  id: string;
+  status: "active" | "inactive";
+  name: string;
+  earn_rate_points_per_currency: string;
+  redemption_value_per_point: string;
+  min_redemption_points: string;
+  max_redemption_points_per_sale: string | null;
+  max_redemption_percent_of_payable: string | null;
+  min_eligible_sale_amount: string;
+  points_expiry_days: number | null;
+  [key: string]: any;
+};
+export type PosLoyaltyLedgerEntry = {
+  id: string;
+  entry_type: "earn" | "redeem" | "reverse_earn" | "reverse_redeem" | "expire" | "adjust";
+  points: string;
+  sale_id: string | null;
+  sale_line_id: string | null;
+  return_id: string | null;
+  original_entry_id: string | null;
+  created_at: string;
+  [key: string]: any;
+};
+export declare function getPosLoyaltyProgram(client: any, context: PointOfSaleContext): Promise<PosLoyaltyProgram | null>;
+export declare function upsertPosLoyaltyProgram(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<PosLoyaltyProgram>;
+export declare function setPosLoyaltyProgramActive(client: any, context: PointOfSaleContext, active: boolean): Promise<PosLoyaltyProgram>;
+export declare function getPosCustomerLoyaltyBalance(client: any, context: PointOfSaleContext, customerId: string): Promise<{ customerId: string; balance: string; updatedAt: string | null }>;
+export declare function listPosCustomerLoyaltyLedger(client: any, context: PointOfSaleContext, customerId: string, options?: { limit?: number }): Promise<PosLoyaltyLedgerEntry[]>;
+export declare function adjustPosCustomerLoyaltyBalance(client: any, context: PointOfSaleContext, customerId: string, points: number | string, reason: string): Promise<{ customerId: string; balance: string }>;
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): ONE payment-tender subsystem. Field names are

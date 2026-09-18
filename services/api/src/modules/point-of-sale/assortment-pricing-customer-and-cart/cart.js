@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { requireCompanyRecord } from "../../../core/references.js";
 import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { priceCartLines } from "./cart-pricing.js";
+import { resolveActivePosLoyaltyProgram, getPosLoyaltyBalanceValue, requirePosLoyaltyRedemptionEligible } from "./loyalty.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
@@ -149,7 +150,7 @@ async function reprice(client, context, cart, policy) {
   // shift_id/warehouse_id/currency_code/price_list_id never change after
   // creation, so those are safe to keep from the passed-in `cart`.
   const current = await client.query(
-    `SELECT customer_id,coupon_code,cart_discount_type,cart_discount_value,cart_discount_reason
+    `SELECT customer_id,coupon_code,cart_discount_type,cart_discount_value,cart_discount_reason,loyalty_redeem_points
      FROM tenant.pos_carts WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, cart.id],
   );
@@ -179,6 +180,7 @@ async function reprice(client, context, cart, policy) {
     lines: toPricingInputLines(existingLines),
     cartDiscount,
     couponCode: cart.coupon_code,
+    loyaltyRedeemPoints: cart.loyalty_redeem_points,
   });
 
   for (let i = 0; i < priced.lines.length; i++) {
@@ -188,7 +190,7 @@ async function reprice(client, context, cart, policy) {
       `UPDATE tenant.pos_cart_lines
        SET list_price=$3,unit_price=$4,gross_amount=$5,manual_discount_amount=$6,promotion_discount_amount=$7,
            coupon_discount_amount=$8,taxable_amount=$9,tax_amount=$10,line_total=$11,tax_components=$12::jsonb,
-           applied_promotion_ids=$13::uuid[],description=$14,updated_at=now()
+           applied_promotion_ids=$13::uuid[],description=$14,loyalty_redeem_amount=$15,updated_at=now()
        WHERE organization_id=$1 AND id=$2`,
       [
         context.organizationId,
@@ -225,6 +227,7 @@ async function reprice(client, context, cart, policy) {
         // lines instead. Persisting it here is the minimal fix -- reprice
         // already computes the correct value, it just wasn't saved.
         line.description,
+        line.loyaltyRedeemAmount,
       ],
     );
   }
@@ -252,7 +255,7 @@ async function reprice(client, context, cart, policy) {
     ],
   );
 
-  return { ...(await getPosCart(client, context, cart.id)), promotionExplanations: priced.promotionExplanations, coupon: priced.coupon };
+  return { ...(await getPosCart(client, context, cart.id)), promotionExplanations: priced.promotionExplanations, coupon: priced.coupon, loyalty: priced.loyalty };
 }
 
 export async function createPosCart(client, context, input) {
@@ -708,7 +711,12 @@ export async function setPosCartCustomer(client, context, cartId, input) {
     );
     if (!customer.rows[0]) throw posError(404, "Selected customer was not found or is not an active customer for this company.", "POS_CUSTOMER_NOT_FOUND");
   }
-  await client.query(`UPDATE tenant.pos_carts SET customer_id=$3 WHERE organization_id=$1 AND id=$2`, [
+  // F306: a loyalty redemption is validated against ONE specific
+  // customer's balance -- changing (or clearing) the cart's customer
+  // invalidates that validation, so any pending redemption request is
+  // cleared rather than silently re-evaluating against a different
+  // customer's balance.
+  await client.query(`UPDATE tenant.pos_carts SET customer_id=$3,loyalty_redeem_points=NULL WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
     cartId,
     input.customerId || null,
@@ -854,6 +862,44 @@ export async function removePosCartCoupon(client, context, cartId, input = {}) {
     [context.organizationId, cartId],
   );
   await client.query(`UPDATE tenant.pos_carts SET coupon_code=NULL WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
+  return reprice(client, context, cart, policy);
+}
+
+// F306: the cashier requests a specific number of points to redeem
+// against this cart. Validated against the customer's CURRENT (preview)
+// balance and the program's min/max rules immediately, so an obviously
+// invalid request is rejected right here with a clear error rather than
+// surfacing as a confusing failure only once the cart is repriced -- the
+// authoritative, concurrency-safe recheck still happens again at
+// completePosCart's commit step under the balance row's own lock (see
+// loyalty.js's commitPosLoyaltyForSale).
+export async function redeemPosCartLoyaltyPoints(client, context, cartId, input = {}) {
+  requirePermission(context, "pos.loyalty.redeem");
+  const policy = await loadPolicy(client, context);
+  const cart = await lockCart(client, context, cartId);
+  checkVersion(cart, input.expectedVersion);
+  if (!cart.customer_id) {
+    throw posError(409, "A customer must be attached to this cart before redeeming loyalty points.", "POS_LOYALTY_CUSTOMER_REQUIRED");
+  }
+  const requestedPoints = decimal(input.points);
+  if (requestedPoints <= 0n) throw posError(400, "Points to redeem must be greater than zero.", "POS_LOYALTY_POINTS_INVALID");
+  const program = await resolveActivePosLoyaltyProgram(client, context);
+  const balance = await getPosLoyaltyBalanceValue(client, context, cart.customer_id);
+  requirePosLoyaltyRedemptionEligible(program, balance, requestedPoints);
+  await client.query(`UPDATE tenant.pos_carts SET loyalty_redeem_points=$3 WHERE organization_id=$1 AND id=$2`, [
+    context.organizationId,
+    cartId,
+    input.points,
+  ]);
+  return reprice(client, context, cart, policy);
+}
+
+export async function removePosCartLoyaltyRedemption(client, context, cartId, input = {}) {
+  requirePermission(context, "pos.loyalty.redeem");
+  const policy = await loadPolicy(client, context);
+  const cart = await lockCart(client, context, cartId);
+  checkVersion(cart, input.expectedVersion);
+  await client.query(`UPDATE tenant.pos_carts SET loyalty_redeem_points=NULL WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
   return reprice(client, context, cart, policy);
 }
 

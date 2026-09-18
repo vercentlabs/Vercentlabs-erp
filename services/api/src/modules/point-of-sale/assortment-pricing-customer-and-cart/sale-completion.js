@@ -25,6 +25,7 @@ import { resolveCurrencyDecimalPlaces, resolveSellerStateCode, resolveBuyerState
 import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines, assertPosCartDiscountsApproved } from "./cart.js";
 import { commitPosPromotionApplications } from "./promotions.js";
 import { commitPosCouponRedemption } from "./coupons.js";
+import { resolveActivePosLoyaltyProgram, computePosLoyaltyEarnPoints, commitPosLoyaltyForSale } from "./loyalty.js";
 import { lockCapturedCartPaymentLegs } from "../tender-and-payment-execution/payments.js";
 
 // Sale-line stock issue routes through Stock's own postStockMovement
@@ -245,6 +246,15 @@ export async function completePointOfSale(client, context, input) {
   let taxTotal = decimal(0);
   const normalizedLines = [];
 
+  // F306: the legacy flat-lines path has no cart aggregate and does not
+  // evaluate promotions/coupons either (see this function's own header
+  // comment for that pre-existing, documented limitation) -- it earns
+  // loyalty points (same basis/timing as the cart path: final net-of-tax
+  // line amount) but does not support redemption, which requires the
+  // interactive cart preview/apply flow.
+  const loyaltyProgram = input.customerId ? await resolveActivePosLoyaltyProgram(client, context) : null;
+  let loyaltyPointsEarned = decimal(0);
+
   // pos_sale_lines.description is NOT NULL (receipts must show a real line
   // description, not a blank line) — a caller reasonably won't always
   // override it, so batch-resolve each item's own name/tax category as the
@@ -346,6 +356,8 @@ export async function completePointOfSale(client, context, input) {
     subtotal = add(subtotal, lineSubtotal);
     discountTotal = add(discountTotal, discountAmount);
     taxTotal = add(taxTotal, taxAmount);
+    const linePointsEarned = computePosLoyaltyEarnPoints(loyaltyProgram, taxableBase);
+    loyaltyPointsEarned = add(loyaltyPointsEarned, linePointsEarned);
     normalizedLines.push({
       ...line,
       lineNumber: index + 1,
@@ -362,7 +374,12 @@ export async function completePointOfSale(client, context, input) {
       lineTotal: asDatabaseDecimal(lineTotal),
       warehouseId,
       description: line.description || item.name,
+      loyaltyPointsEarned: linePointsEarned,
     });
+  }
+  if (loyaltyProgram?.min_eligible_sale_amount != null && subtotal - discountTotal < decimal(loyaltyProgram.min_eligible_sale_amount)) {
+    loyaltyPointsEarned = decimal(0);
+    for (const line of normalizedLines) line.loyaltyPointsEarned = decimal(0);
   }
 
   // A client-supplied roundingAdjustment is a legitimate cashier action
@@ -404,9 +421,9 @@ export async function completePointOfSale(client, context, input) {
       (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,customer_name,currency_code,subtotal,discount_total,tax_total,
        rounding_adjustment,grand_total,paid_total,change_total,status,
-       idempotency_key,created_by,completed_at)
+       idempotency_key,created_by,completed_at,loyalty_program_id,loyalty_points_earned)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-       'completed',$17,$18,now())
+       'completed',$17,$18,now(),$19,$20)
      RETURNING *`,
     [
       context.organizationId,
@@ -427,9 +444,12 @@ export async function completePointOfSale(client, context, input) {
       asDatabaseDecimal(sub(paidTotal, grandTotal)),
       input.idempotencyKey,
       context.userId,
+      loyaltyProgram?.id || null,
+      asDatabaseDecimal(loyaltyPointsEarned),
     ],
   );
 
+  const saleLineIdByLineNumberLegacy = new Map();
   for (const line of normalizedLines) {
     const stockMovement = await postCanonicalStockMovement(
       client,
@@ -450,13 +470,15 @@ export async function completePointOfSale(client, context, input) {
       },
     );
 
-    await client.query(
+    const saleLine = await client.query(
       `INSERT INTO tenant.pos_sale_lines
         (organization_id,sale_id,line_number,item_id,variant_id,description,quantity,
          unit_price,discount_amount,tax_amount,line_total,warehouse_id,
          warehouse_location_id,batch_id,serial_id,stock_movement_id,
-         manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,0,0,$18::jsonb)`,
+         manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components,
+         loyalty_points_earned)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,0,0,$18::jsonb,$19)
+       RETURNING id`,
       [
         context.organizationId,
         sale.rows[0].id,
@@ -476,8 +498,20 @@ export async function completePointOfSale(client, context, input) {
         stockMovement.id,
         String(line.discountAmount),
         JSON.stringify(line.taxComponents || []),
+        asDatabaseDecimal(line.loyaltyPointsEarned || decimal(0)),
       ],
     );
+    saleLineIdByLineNumberLegacy.set(line.lineNumber, saleLine.rows[0].id);
+  }
+
+  if (input.customerId) {
+    await commitPosLoyaltyForSale(client, context, {
+      saleId: sale.rows[0].id,
+      customerId: input.customerId,
+      programId: loyaltyProgram?.id || null,
+      lines: normalizedLines.map((line) => ({ saleLineId: saleLineIdByLineNumberLegacy.get(line.lineNumber), points: line.loyaltyPointsEarned })),
+      redeemPointsApplied: 0,
+    });
   }
 
   for (const payment of input.payments) {
@@ -653,6 +687,7 @@ export async function completePosCart(client, context, cartId, input = {}) {
     lines: toPosCartPricingInputLines(existingLines),
     cartDiscount,
     couponCode: cart.coupon_code,
+    loyaltyRedeemPoints: cart.loyalty_redeem_points,
     expectedTotals: input.expectedGrandTotal != null ? { grandTotal: input.expectedGrandTotal } : undefined,
   });
 
@@ -689,8 +724,8 @@ export async function completePosCart(client, context, cartId, input = {}) {
       (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,currency_code,subtotal,discount_total,tax_total,rounding_adjustment,
        grand_total,paid_total,change_total,status,idempotency_key,created_by,completed_at,
-       cart_id,coupon_code)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'completed',$16,$17,now(),$18,$19)
+       cart_id,coupon_code,loyalty_program_id,loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'completed',$16,$17,now(),$18,$19,$20,$21,$22,$23)
      RETURNING *`,
     [
       context.organizationId,
@@ -712,6 +747,10 @@ export async function completePosCart(client, context, cartId, input = {}) {
       context.userId,
       cart.id,
       cart.coupon_code,
+      priced.loyalty.programId,
+      priced.loyalty.pointsToEarn,
+      priced.loyalty.redeemPointsApplied,
+      priced.loyalty.redeemAmount,
     ],
   );
   const saleId = sale.rows[0].id;
@@ -746,8 +785,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
       `INSERT INTO tenant.pos_sale_lines
         (organization_id,sale_id,line_number,item_id,variant_id,description,quantity,unit_price,
          discount_amount,tax_amount,line_total,warehouse_id,warehouse_location_id,batch_id,serial_id,
-         stock_movement_id,manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb)
+         stock_movement_id,manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components,
+         loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,$22,$23)
        RETURNING id`,
       [
         context.organizationId,
@@ -770,6 +810,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
         line.promotionDiscountAmount,
         line.couponDiscountAmount,
         JSON.stringify(line.taxComponents || []),
+        line.loyaltyPointsEarned,
+        line.loyaltyRedeemPoints,
+        line.loyaltyRedeemAmount,
       ],
     );
     saleLineIdByLineNumber.set(line.lineNumber, saleLine.rows[0].id);
@@ -817,6 +860,15 @@ export async function completePosCart(client, context, cartId, input = {}) {
   }
   if (priced.coupon) {
     await commitPosCouponRedemption(client, context, cartId, saleId, priced.coupon.amount);
+  }
+  if (cart.customer_id) {
+    await commitPosLoyaltyForSale(client, context, {
+      saleId,
+      customerId: cart.customer_id,
+      programId: priced.loyalty.programId,
+      lines: priced.lines.map((line) => ({ saleLineId: saleLineIdByLineNumber.get(line.lineNumber), points: line.loyaltyPointsEarned })),
+      redeemPointsApplied: priced.loyalty.redeemPointsApplied,
+    });
   }
 
   await client.query(

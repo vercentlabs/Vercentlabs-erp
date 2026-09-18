@@ -46,6 +46,11 @@ import { OfflineCheckoutPanel } from "@/features/pos/offline/OfflineCheckoutPane
 import { useOnlineStatus } from "@/features/pos/offline/useOnlineStatus";
 import { saveOfflineContext, saveSnapshot } from "@/features/pos/offline/db";
 import { runOfflineSyncPass } from "@/features/pos/offline/sync-runner";
+import {
+  getPosCustomerLoyaltyBalance,
+  redeemPosCartLoyaltyPoints,
+  removePosCartLoyaltyRedemption,
+} from "@/features/pos/loyalty/api/loyalty-api";
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): one tender line per payment leg. A 'cash' line is
@@ -102,6 +107,7 @@ export function PosCheckoutScreen() {
   // (completePosExchange) instead of an ordinary sale.
   const exchangeReturnId = searchParams.get("exchangeReturnId");
   const canDiscount = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApply);
+  const canRedeemLoyalty = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.loyaltyRedeem);
   const online = useOnlineStatus();
 
   const [cart, setCart] = useState<PosCart | null>(null);
@@ -116,6 +122,7 @@ export function PosCheckoutScreen() {
   const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
   const [cartDiscountValue, setCartDiscountValue] = useState(0);
   const [cartDiscountReason, setCartDiscountReason] = useState("");
+  const [redeemPointsInput, setRedeemPointsInput] = useState(0);
   const [tenderLines, setTenderLines] = useState<TenderLine[]>([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
   const [completing, setCompleting] = useState(false);
   const [confirmation, setConfirmation] = useState<{ saleId: string; receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
@@ -216,6 +223,15 @@ export function PosCheckoutScreen() {
     enabled: Boolean(store?.id && searchTerm.trim().length > 0),
   });
 
+  // F306: real points balance for the cart's customer, used both to gate
+  // redemption (can't redeem more than is on the ledger) and to show the
+  // balance/earn preview the cashier and customer both see before completion.
+  const loyaltyBalanceQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "loyalty", "balance", cart?.customer_id),
+    queryFn: () => getPosCustomerLoyaltyBalance(cart!.customer_id!),
+    enabled: Boolean(cart?.customer_id),
+  });
+
   // F276: debounce the customer search-as-you-type so every keystroke
   // doesn't fire a request — 250ms of no typing before the query updates.
   useEffect(() => {
@@ -299,6 +315,12 @@ export function PosCheckoutScreen() {
 
   const applyCoupon = () => cart && couponCode.trim() && run(() => applyPosCoupon(cart.id, couponCode.trim(), cart.version));
   const removeCoupon = () => cart && run(() => removePosCoupon(cart.id, cart.version));
+  async function redeemLoyalty() {
+    if (!cart || redeemPointsInput <= 0) return;
+    await run(() => redeemPosCartLoyaltyPoints(cart.id, redeemPointsInput, cart.version));
+    setRedeemPointsInput(0);
+  }
+  const removeLoyaltyRedemption = () => cart && run(() => removePosCartLoyaltyRedemption(cart.id, cart.version));
   const applyCartDiscount = () =>
     cart &&
     cartDiscountValue > 0 &&
@@ -677,6 +699,39 @@ export function PosCheckoutScreen() {
             <Button variant="secondary" onPress={applyCartDiscount}>
               Apply cart discount
             </Button>
+          </div>
+        )}
+
+        {cart?.customer_id && (
+          <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong p-3">
+            <p className="text-sm font-medium text-text">Loyalty points</p>
+            {loyaltyBalanceQuery.data && (
+              <p className="text-sm text-text-secondary">
+                Balance: <span className="tabular-nums">{loyaltyBalanceQuery.data.balance.balance}</span> pts
+                {cart.loyalty?.pointsToEarn && Number(cart.loyalty.pointsToEarn) > 0 && (
+                  <> · will earn <span className="tabular-nums">{cart.loyalty.pointsToEarn}</span> pts on completion</>
+                )}
+              </p>
+            )}
+            {canRedeemLoyalty &&
+              (Number(cart.loyalty_redeem_points ?? 0) > 0 ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-text-secondary">
+                    Redeeming <span className="tabular-nums">{cart.loyalty_redeem_points}</span> pts
+                    {cart.loyalty?.redeemAmount && <> (−{money(currency, cart.loyalty.redeemAmount)})</>}
+                  </p>
+                  <Button variant="secondary" onPress={removeLoyaltyRedemption}>
+                    Remove
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-end gap-2">
+                  <NumberField label="Points to redeem" value={redeemPointsInput} onChange={setRedeemPointsInput} minValue={0} step={1} className="flex-1" />
+                  <Button variant="secondary" onPress={redeemLoyalty} isDisabled={redeemPointsInput <= 0}>
+                    Redeem
+                  </Button>
+                </div>
+              ))}
           </div>
         )}
 

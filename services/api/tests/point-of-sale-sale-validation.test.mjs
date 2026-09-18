@@ -85,10 +85,14 @@ function client() {
         return { rows: [{ allow_negative_stock: false, costing_method: "moving_average" }] };
       if (/SELECT quantity,reserved_quantity,average_cost FROM tenant\.stock_balances.*FOR UPDATE/.test(sql))
         return { rows: [{ quantity: "1000", reserved_quantity: "0", average_cost: "50" }] };
+      if (/SELECT \* FROM tenant\.pos_loyalty_programs/.test(sql)) return { rows: [] };
+      if (/SELECT 1 FROM tenant\.pos_loyalty_ledger/.test(sql)) return { rows: [] };
+      if (/INSERT INTO tenant\.pos_loyalty_balances/.test(sql)) return { rows: [] };
+      if (/SELECT balance FROM tenant\.pos_loyalty_balances/.test(sql)) return { rows: [{ balance: "0" }] };
       if (/INSERT INTO tenant\.stock_movements/.test(sql)) return { rows: [{ id: "movement-1" }] };
       if (/INSERT INTO tenant\.stock_balances/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.stock_valuation_layers/.test(sql)) return { rows: [] };
-      if (/INSERT INTO tenant\.pos_sale_lines/.test(sql)) return { rows: [] };
+      if (/INSERT INTO tenant\.pos_sale_lines/.test(sql)) return { rows: [{ id: "sale-line-1" }] };
       if (/INSERT INTO tenant\.pos_payments/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.pos_cash_movements/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.pos_events/.test(sql)) return { rows: [] };

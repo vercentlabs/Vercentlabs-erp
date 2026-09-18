@@ -814,6 +814,12 @@ export const ROLE_TEMPLATES = Object.freeze([
       // cashiers' devices produced (never creates sales, so no
       // pos.offline.sync grant here).
       "pos.offline.resolve",
+      // F306: program configuration sits at the same tier as
+      // pos.settings.manage; redemption is already implied by
+      // pos.sale.create's checkout authority but listed explicitly for
+      // clarity and so a permission audit sees it granted, not inferred.
+      "pos.loyalty.manage",
+      "pos.loyalty.redeem",
     ]),
   },
   {
@@ -836,6 +842,11 @@ export const ROLE_TEMPLATES = Object.freeze([
       // F297/F298: a cashier's own terminal drains its local offline queue
       // against the server once back online.
       "pos.offline.sync",
+      // F306: redeeming a customer's own points at checkout is a normal
+      // checkout action, not a supervisor override — it sits alongside
+      // pos.sale.create here, not with pos.loyalty.manage (program
+      // configuration), which a cashier never holds.
+      "pos.loyalty.redeem",
     ]),
   },
   {
@@ -873,6 +884,11 @@ export const ROLE_TEMPLATES = Object.freeze([
       // and resolves conflicts other cashiers' syncs produced.
       "pos.offline.sync",
       "pos.offline.resolve",
+      // F306: a supervisor can both configure the loyalty program (a
+      // store-floor policy call, not a full pos.settings.manage-level
+      // store/terminal change) and redeem points at checkout.
+      "pos.loyalty.manage",
+      "pos.loyalty.redeem",
     ]),
   },
   {

@@ -755,7 +755,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F287-F290",
         items: [
           planned("Customers", "/pos/customers"),
-          planned("Loyalty", "/pos/loyalty"),
+          // F306: program config + real customer balance/ledger lookup.
+          // Editing the program is gated inside the screen itself
+          // (pos.loyalty.manage) since balance lookup stays open to cashiers.
+          available("Loyalty", "/pos/loyalty"),
         ],
       },
       {

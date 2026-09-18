@@ -38,9 +38,25 @@ export {
   resumePosCart,
   listHeldPosCarts,
   cancelPosCart,
+  redeemPosCartLoyaltyPoints,
+  removePosCartLoyaltyRedemption,
 } from "./assortment-pricing-customer-and-cart/cart.js";
 export { listPosPromotions, createPosPromotion, updatePosPromotion, setPosPromotionActive } from "./assortment-pricing-customer-and-cart/promotions.js";
 export { listPosCoupons, createPosCoupon, updatePosCoupon, setPosCouponActive } from "./assortment-pricing-customer-and-cart/coupons.js";
+export {
+  getPosLoyaltyProgram,
+  upsertPosLoyaltyProgram,
+  setPosLoyaltyProgramActive,
+  getPosCustomerLoyaltyBalance,
+  listPosCustomerLoyaltyLedger,
+  adjustPosCustomerLoyaltyBalance,
+  // Exported publicly (not just used internally by sale-completion.js/
+  // return-lifecycle.js) because it is also the intended entry point for
+  // a future offline-sync replay path to commit loyalty effects for a
+  // sale synced outside the normal completePosCart/completePointOfSale
+  // flow -- see its own idempotent-on-sale-id design.
+  commitPosLoyaltyForSale,
+} from "./assortment-pricing-customer-and-cart/loyalty.js";
 export { completePointOfSale, completePosCart } from "./assortment-pricing-customer-and-cart/sale-completion.js";
 
 // POS-CAP-003 -- tender and payment execution (F282-F286).

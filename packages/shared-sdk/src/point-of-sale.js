@@ -158,5 +158,18 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     reviewDayEndReport: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/review`, input),
     finalizeDayEndReport: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/finalize`, input),
     recordDayEndVariance: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/variance`, input),
+
+    // F306 Loyalty
+    redeemCartLoyaltyPoints: (id, points, expectedVersion) => post(`/carts/${encodeURIComponent(id)}/loyalty`, { points, expectedVersion }),
+    removeCartLoyaltyRedemption: (id, expectedVersion) =>
+      del(`/carts/${encodeURIComponent(id)}/loyalty${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`),
+    getLoyaltyProgram: () => request("/loyalty/program"),
+    upsertLoyaltyProgram: (input) => post("/loyalty/program", input),
+    setLoyaltyProgramActive: (active) => post("/loyalty/program/active", { active }),
+    getCustomerLoyaltyBalance: (customerId) => request(`/loyalty/customers/${encodeURIComponent(customerId)}`),
+    listCustomerLoyaltyLedger: (customerId, limit) =>
+      request(`/loyalty/customers/${encodeURIComponent(customerId)}/ledger${limit ? `?limit=${limit}` : ""}`),
+    adjustCustomerLoyaltyBalance: (customerId, points, reason) =>
+      post(`/loyalty/customers/${encodeURIComponent(customerId)}/adjust`, { points, reason }),
   });
 }

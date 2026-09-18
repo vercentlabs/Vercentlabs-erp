@@ -121,7 +121,7 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       }
       if (/INSERT INTO tenant\.pos_sale_lines/.test(sql)) {
         saleLineInserts.push({ itemId: params[3], variantId: params[4], description: params[5] });
-        return { rows: [] };
+        return { rows: [{ id: `sale-line-${saleLineInserts.length}` }] };
       }
       if (/INSERT INTO tenant\.pos_payments/.test(sql)) return { rows: [] };
       if (/INSERT INTO tenant\.pos_cash_movements/.test(sql)) return { rows: [] };

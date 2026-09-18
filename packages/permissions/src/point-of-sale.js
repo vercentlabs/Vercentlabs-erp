@@ -45,4 +45,6 @@ export const POS_PERMISSIONS = Object.freeze({
   // create/approve-style separation already used for returns.
   offlineSync: "pos.offline.sync",
   offlineResolve: "pos.offline.resolve",
+  loyaltyManage: "pos.loyalty.manage",
+  loyaltyRedeem: "pos.loyalty.redeem",
 });

@@ -28,6 +28,13 @@
 import { add, sub, mul, div, percent, max, min, roundMoney, asDatabaseDecimal, decimal, allocate } from "../../../core/decimal.js";
 import { resolveTaxRateComponents } from "../../../core/tax-engine.js";
 import { posError } from "../shared/errors.js";
+import {
+  resolveActivePosLoyaltyProgram,
+  getPosLoyaltyBalanceValue,
+  requirePosLoyaltyRedemptionEligible,
+  computePosLoyaltyRedemption,
+  computePosLoyaltyEarnPoints,
+} from "./loyalty.js";
 
 export async function resolveCurrencyDecimalPlaces(client, context, currencyCode) {
   const result = await client.query(
@@ -345,11 +352,42 @@ async function evaluateCoupon(client, context, store, customerId, lines, cartSub
   return { coupon, lineDiscounts, amount: totalAmount };
 }
 
+// F306: evaluate a REQUESTED loyalty-point redemption against the cart's
+// current post-cart-discount, pre-tax base. Re-validates eligibility
+// (min/max/balance) on every call — see requirePosLoyaltyRedemptionEligible's
+// comment for why this alone is only ever a PREVIEW check, never the
+// authoritative one (that's commitPosLoyaltyForSale's row-locked recheck
+// at actual sale completion).
+//
+// BUG FIX (found via this session's own real-Postgres test run, never
+// caught before because this uncommitted work's own test suite had never
+// been run against it): the active program must be resolved whenever a
+// customer is attached, REGARDLESS of whether a redemption was requested
+// -- earning points is the common case and must not depend on the
+// customer simultaneously redeeming in the same transaction. Only the
+// eligibility/amount computation below is skipped when no redemption is
+// requested; `program` (used by computePosLoyaltyEarnPoints for every
+// line, further down in priceCartLines) is resolved unconditionally for
+// any customer.
+async function evaluatePosLoyaltyRedemption(client, context, customerId, requestedPoints, remainingBase) {
+  if (!customerId) {
+    return { program: null, balanceBefore: decimal(0), pointsApplied: decimal(0), amount: decimal(0) };
+  }
+  const program = await resolveActivePosLoyaltyProgram(client, context);
+  if (!requestedPoints || decimal(requestedPoints) <= 0n) {
+    return { program, balanceBefore: decimal(0), pointsApplied: decimal(0), amount: decimal(0) };
+  }
+  const balanceBefore = await getPosLoyaltyBalanceValue(client, context, customerId);
+  const eligiblePoints = requirePosLoyaltyRedemptionEligible(program, balanceBefore, requestedPoints);
+  const { pointsApplied, amount } = computePosLoyaltyRedemption(program, eligiblePoints, remainingBase);
+  return { program, balanceBefore, pointsApplied, amount };
+}
+
 // The single authoritative pricing pipeline. `lines` input shape:
 // [{ itemId, variantId?, quantity, unitPrice?, priceOverride?,
 //    warehouseId?, warehouseLocationId?, batchId?, serialId?,
 //    manualDiscount?: {type,value,reason} }]
-export async function priceCartLines(client, context, { store, policy, customerId, lines, cartDiscount, couponCode, expectedTotals } = {}) {
+export async function priceCartLines(client, context, { store, policy, customerId, lines, cartDiscount, couponCode, loyaltyRedeemPoints, expectedTotals } = {}) {
   if (!Array.isArray(lines) || !lines.length) {
     throw posError(400, "At least one sale line is required.", "POS_SALE_LINES_REQUIRED");
   }
@@ -398,6 +436,9 @@ export async function priceCartLines(client, context, { store, policy, customerI
       promotionDiscountAmount: decimal(0),
       couponDiscountAmount: decimal(0),
       cartDiscountAmount: decimal(0),
+      loyaltyRedeemAmount: decimal(0),
+      loyaltyRedeemPoints: decimal(0),
+      loyaltyPointsEarned: decimal(0),
       warehouseId: rawLine.warehouseId || store.warehouse_id,
       warehouseLocationId: rawLine.warehouseLocationId || null,
       batchId: rawLine.batchId || null,
@@ -446,20 +487,52 @@ export async function priceCartLines(client, context, { store, policy, customerI
     }
   }
 
+  // F306: loyalty redemption, allocated proportionally across lines by
+  // each line's remaining (post manual/promotion/coupon/cart-discount)
+  // amount, using the exact same allocate() pattern as the cart-level
+  // discount just above -- see loyalty.js's BUSINESS RULE 2 for why this
+  // reduces the taxable base BEFORE tax, consistently with every other
+  // POS discount layer.
+  const preLoyaltyAmounts = priced.map((line) =>
+    max(0, sub(sub(sub(sub(line.grossAmount, line.manualDiscountAmount), line.promotionDiscountAmount), line.couponDiscountAmount), line.cartDiscountAmount)),
+  );
+  const preLoyaltySubtotal = preLoyaltyAmounts.reduce((sum, amount) => add(sum, amount), decimal(0));
+  const loyaltyResult = await evaluatePosLoyaltyRedemption(client, context, customerId, loyaltyRedeemPoints, preLoyaltySubtotal);
+  if (loyaltyResult.amount > 0n) {
+    const amountShares = allocate(loyaltyResult.amount, preLoyaltyAmounts.map(asDatabaseDecimal));
+    // Points are allocated independently (same weights) rather than
+    // derived per line from amount/rate, so the per-line shares sum
+    // EXACTLY to pointsApplied (allocate()'s own guarantee) with no
+    // per-line division-rounding drift -- this is what
+    // pos_sale_lines.loyalty_redeem_points is for (reversal
+    // proportionality on a partial return).
+    const pointShares = allocate(loyaltyResult.pointsApplied, preLoyaltyAmounts.map(asDatabaseDecimal));
+    priced.forEach((line, index) => {
+      line.loyaltyRedeemAmount = amountShares[index];
+      line.loyaltyRedeemPoints = pointShares[index];
+    });
+  }
+
   let subtotal = decimal(0);
   let manualDiscountTotal = decimal(0);
   let promotionDiscountTotal = decimal(0);
   let couponDiscountTotal = decimal(0);
+  let loyaltyRedeemTotal = decimal(0);
+  let loyaltyPointsToEarn = decimal(0);
   let taxTotal = decimal(0);
   for (const line of priced) {
     subtotal = add(subtotal, line.grossAmount);
     manualDiscountTotal = add(manualDiscountTotal, line.manualDiscountAmount);
     promotionDiscountTotal = add(promotionDiscountTotal, line.promotionDiscountAmount);
     couponDiscountTotal = add(couponDiscountTotal, line.couponDiscountAmount);
+    loyaltyRedeemTotal = add(loyaltyRedeemTotal, line.loyaltyRedeemAmount);
 
     const taxableBase = max(
       0,
-      sub(sub(sub(sub(line.grossAmount, line.manualDiscountAmount), line.promotionDiscountAmount), line.couponDiscountAmount), line.cartDiscountAmount),
+      sub(
+        sub(sub(sub(sub(line.grossAmount, line.manualDiscountAmount), line.promotionDiscountAmount), line.couponDiscountAmount), line.cartDiscountAmount),
+        line.loyaltyRedeemAmount,
+      ),
     );
     const { taxRate, components } = await resolveTaxRateComponents(client, {
       organizationId: context.organizationId,
@@ -488,10 +561,23 @@ export async function priceCartLines(client, context, { store, policy, customerI
       taxAmount: asDatabaseDecimal(roundMoney(percent(taxableAmount, component.rate), decimalPlaces)),
     }));
     line.lineTotal = add(taxableAmount, taxAmount);
+    line.loyaltyPointsEarned = computePosLoyaltyEarnPoints(loyaltyResult.program, taxableAmount);
+    loyaltyPointsToEarn = add(loyaltyPointsToEarn, line.loyaltyPointsEarned);
     taxTotal = add(taxTotal, taxAmount);
   }
 
-  const discountTotal = add(add(add(manualDiscountTotal, promotionDiscountTotal), couponDiscountTotal), cartDiscountTotal);
+  // F306 eligibility rule: a program's min_eligible_sale_amount applies to
+  // EARNING only (a redemption the cashier already validated/applied
+  // stands regardless of basket size) -- measured against the post-every-
+  // other-discount, pre-tax, pre-redemption base so a customer using
+  // points to pay for most of a basket doesn't get disqualified from
+  // earning by the very redemption that lowered their taxable spend.
+  if (loyaltyResult.program?.min_eligible_sale_amount != null && preLoyaltySubtotal < decimal(loyaltyResult.program.min_eligible_sale_amount)) {
+    loyaltyPointsToEarn = decimal(0);
+    for (const line of priced) line.loyaltyPointsEarned = decimal(0);
+  }
+
+  const discountTotal = add(add(add(add(manualDiscountTotal, promotionDiscountTotal), couponDiscountTotal), cartDiscountTotal), loyaltyRedeemTotal);
   const beforeRounding = sub(add(subtotal, taxTotal), discountTotal);
   const grandTotal = roundMoney(beforeRounding, decimalPlaces);
   const roundingAdjustment = sub(grandTotal, beforeRounding);
@@ -525,6 +611,9 @@ export async function priceCartLines(client, context, { store, policy, customerI
       promotionDiscountAmount: asDatabaseDecimal(line.promotionDiscountAmount),
       couponDiscountAmount: asDatabaseDecimal(line.couponDiscountAmount),
       cartDiscountAmount: asDatabaseDecimal(line.cartDiscountAmount),
+      loyaltyRedeemAmount: asDatabaseDecimal(line.loyaltyRedeemAmount),
+      loyaltyRedeemPoints: asDatabaseDecimal(line.loyaltyRedeemPoints),
+      loyaltyPointsEarned: asDatabaseDecimal(line.loyaltyPointsEarned),
       taxableAmount: asDatabaseDecimal(line.taxableAmount),
       taxAmount: asDatabaseDecimal(line.taxAmount),
       lineTotal: asDatabaseDecimal(line.lineTotal),
@@ -536,6 +625,7 @@ export async function priceCartLines(client, context, { store, policy, customerI
       promotionDiscountTotal: asDatabaseDecimal(promotionDiscountTotal),
       couponDiscountTotal: asDatabaseDecimal(couponDiscountTotal),
       cartDiscountTotal: asDatabaseDecimal(cartDiscountTotal),
+      loyaltyRedeemTotal: asDatabaseDecimal(loyaltyRedeemTotal),
       discountTotal: asDatabaseDecimal(discountTotal),
       taxTotal: asDatabaseDecimal(taxTotal),
       roundingAdjustment: asDatabaseDecimal(roundingAdjustment),
@@ -546,5 +636,21 @@ export async function priceCartLines(client, context, { store, policy, customerI
     coupon: couponResult.coupon
       ? { id: couponResult.coupon.id, code: couponResult.coupon.code, amount: asDatabaseDecimal(couponResult.amount) }
       : null,
+    // F306: a live preview of what this cart WOULD do to the customer's
+    // loyalty balance if completed right now -- pointsToEarn/
+    // redeemPointsApplied/redeemAmount are the exact figures the commit
+    // functions in loyalty.js will use if this cart is completed without
+    // further changes, but (per requirePosLoyaltyRedemptionEligible's
+    // comment) balanceAfterPreview is only ever a preview snapshot, never
+    // the authoritative concurrency-safe figure.
+    loyalty: {
+      programId: loyaltyResult.program?.id || null,
+      pointsToEarn: asDatabaseDecimal(loyaltyPointsToEarn),
+      redeemPointsRequested: asDatabaseDecimal(decimal(loyaltyRedeemPoints || 0)),
+      redeemPointsApplied: asDatabaseDecimal(loyaltyResult.pointsApplied),
+      redeemAmount: asDatabaseDecimal(loyaltyRedeemTotal),
+      balanceBeforeSale: asDatabaseDecimal(loyaltyResult.balanceBefore),
+      balanceAfterPreview: asDatabaseDecimal(add(sub(loyaltyResult.balanceBefore, loyaltyResult.pointsApplied), loyaltyPointsToEarn)),
+    },
   };
 }
