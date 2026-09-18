@@ -171,6 +171,7 @@ function PromotionFormDialog({
   const [exclusive, setExclusive] = useState(Boolean(promotion?.exclusive));
   const [usageLimitTotal, setUsageLimitTotal] = useState(Number(promotion?.usage_limit_total ?? 0));
   const [usageLimitPerCustomer, setUsageLimitPerCustomer] = useState(Number(promotion?.usage_limit_per_customer ?? 0));
+  const [usageLimitPerStore, setUsageLimitPerStore] = useState(Number(promotion?.usage_limit_per_store ?? 0));
   const [effectiveFrom, setEffectiveFrom] = useState((promotion?.effective_from as string) ?? "");
   const [effectiveTo, setEffectiveTo] = useState((promotion?.effective_to as string) ?? "");
 
@@ -186,6 +187,7 @@ function PromotionFormDialog({
     exclusive,
     usageLimitTotal: usageLimitTotal > 0 ? usageLimitTotal : null,
     usageLimitPerCustomer: usageLimitPerCustomer > 0 ? usageLimitPerCustomer : null,
+    usageLimitPerStore: usageLimitPerStore > 0 ? usageLimitPerStore : null,
     effectiveFrom: effectiveFrom || null,
     effectiveTo: effectiveTo || null,
   };
@@ -231,6 +233,7 @@ function PromotionFormDialog({
           <NumberField label="Total usage limit (0 = unlimited)" value={usageLimitTotal} onChange={setUsageLimitTotal} minValue={0} />
           <NumberField label="Per-customer usage limit (0 = unlimited)" value={usageLimitPerCustomer} onChange={setUsageLimitPerCustomer} minValue={0} />
         </div>
+        <NumberField label="Per-store usage limit (0 = unlimited)" value={usageLimitPerStore} onChange={setUsageLimitPerStore} minValue={0} />
         <div className="grid grid-cols-2 gap-3">
           <TextField label="Effective from (YYYY-MM-DD)" value={effectiveFrom} onChange={setEffectiveFrom} />
           <TextField label="Effective to (YYYY-MM-DD)" value={effectiveTo} onChange={setEffectiveTo} />

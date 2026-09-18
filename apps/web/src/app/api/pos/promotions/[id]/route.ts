@@ -24,6 +24,7 @@ const updateSchema = z.object({
   exclusive: z.boolean().optional(),
   usageLimitTotal: z.number().int().positive().optional().nullable(),
   usageLimitPerCustomer: z.number().int().positive().optional().nullable(),
+  usageLimitPerStore: z.number().int().positive().optional().nullable(),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {

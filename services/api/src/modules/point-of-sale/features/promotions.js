@@ -49,8 +49,9 @@ export async function createPosPromotion(client, context, input) {
     `INSERT INTO tenant.pos_promotions
       (organization_id,company_id,store_id,code,name,description,effective_from,effective_to,discount_type,
        discount_value,max_discount_amount,min_quantity,min_basket_amount,eligible_item_ids,eligible_item_group_ids,
-       eligible_customer_ids,priority,stackable,exclusive,usage_limit_total,usage_limit_per_customer,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       eligible_customer_ids,priority,stackable,exclusive,usage_limit_total,usage_limit_per_customer,
+       usage_limit_per_store,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
      RETURNING *`,
     [
       context.organizationId,
@@ -74,6 +75,7 @@ export async function createPosPromotion(client, context, input) {
       Boolean(input.exclusive),
       input.usageLimitTotal || null,
       input.usageLimitPerCustomer || null,
+      input.usageLimitPerStore || null,
       context.userId,
     ],
   );
@@ -104,6 +106,7 @@ export async function updatePosPromotion(client, context, id, input) {
   if (input.exclusive != null) set("exclusive", Boolean(input.exclusive));
   if (input.usageLimitTotal !== undefined) set("usage_limit_total", input.usageLimitTotal || null);
   if (input.usageLimitPerCustomer !== undefined) set("usage_limit_per_customer", input.usageLimitPerCustomer || null);
+  if (input.usageLimitPerStore !== undefined) set("usage_limit_per_store", input.usageLimitPerStore || null);
   if (!fields.length) throw posError(400, "No fields to update.", "POS_PROMOTION_UPDATE_EMPTY");
   // SECURITY (audit-field integrity): this used to push a literal
   // "updated_by=$3" -- but $3 is `id` (the promotion's own record id, see
@@ -138,7 +141,7 @@ export async function setPosPromotionActive(client, context, id, active) {
 // to turn this session's in-memory promotion applications into immutable
 // evidence and bump each promotion's usage_count atomically under its own
 // row lock -- mirrors the coupon commit pattern in coupons.js.
-export async function commitPosPromotionApplications(client, context, saleId, saleLineByCartLineNumber, applications, customerId) {
+export async function commitPosPromotionApplications(client, context, saleId, saleLineByCartLineNumber, applications, customerId, storeId) {
   const byPromotion = new Map();
   for (const application of applications) {
     if (!byPromotion.has(application.promotionId)) byPromotion.set(application.promotionId, []);
@@ -146,7 +149,8 @@ export async function commitPosPromotionApplications(client, context, saleId, sa
   }
   for (const [promotionId, items] of byPromotion) {
     const promotion = await client.query(
-      `SELECT id,usage_limit_total,usage_limit_per_customer,usage_count FROM tenant.pos_promotions WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+      `SELECT id,usage_limit_total,usage_limit_per_customer,usage_limit_per_store,usage_count
+       FROM tenant.pos_promotions WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
       [context.organizationId, promotionId],
     );
     if (!promotion.rows[0]) continue;
@@ -169,15 +173,28 @@ export async function commitPosPromotionApplications(client, context, saleId, sa
         throw posError(409, "A promotion in this cart reached its per-customer usage limit before checkout completed.", "POS_PROMOTION_CUSTOMER_LIMIT_REACHED");
       }
     }
+    // Matrix item #18 (per-store half): same race, same fix -- re-checked
+    // under this promotion's own row lock so two terminals AT THE SAME
+    // STORE racing for its last remaining store-scoped use cannot both win.
+    if (storeId && promotion.rows[0].usage_limit_per_store != null) {
+      const perStore = await client.query(
+        `SELECT count(*)::int AS count FROM tenant.pos_promotion_applications
+         WHERE organization_id=$1 AND promotion_id=$2 AND store_id=$3`,
+        [context.organizationId, promotionId, storeId],
+      );
+      if (Number(perStore.rows[0].count) >= promotion.rows[0].usage_limit_per_store) {
+        throw posError(409, "A promotion in this cart reached its per-store usage limit before checkout completed.", "POS_PROMOTION_STORE_LIMIT_REACHED");
+      }
+    }
     await client.query(`UPDATE tenant.pos_promotions SET usage_count=usage_count+1 WHERE organization_id=$1 AND id=$2`, [
       context.organizationId,
       promotionId,
     ]);
     for (const item of items) {
       await client.query(
-        `INSERT INTO tenant.pos_promotion_applications (organization_id,promotion_id,sale_id,sale_line_id,discount_amount,customer_id)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [context.organizationId, promotionId, saleId, saleLineByCartLineNumber.get(item.lineNumber) || null, item.amount, customerId || null],
+        `INSERT INTO tenant.pos_promotion_applications (organization_id,promotion_id,sale_id,sale_line_id,discount_amount,customer_id,store_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [context.organizationId, promotionId, saleId, saleLineByCartLineNumber.get(item.lineNumber) || null, item.amount, customerId || null, storeId || null],
       );
     }
   }

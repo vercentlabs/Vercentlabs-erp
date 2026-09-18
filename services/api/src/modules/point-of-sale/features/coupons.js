@@ -49,8 +49,8 @@ export async function createPosCoupon(client, context, input) {
       `INSERT INTO tenant.pos_coupons
         (organization_id,company_id,store_id,code,name,effective_from,effective_to,discount_type,discount_value,
          max_discount_amount,min_basket_amount,eligible_item_ids,eligible_customer_ids,usage_limit_total,
-         usage_limit_per_customer,created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         usage_limit_per_customer,usage_limit_per_store,created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         context.organizationId,
@@ -68,6 +68,7 @@ export async function createPosCoupon(client, context, input) {
         input.eligibleCustomerIds || [],
         input.usageLimitTotal || null,
         input.usageLimitPerCustomer || null,
+        input.usageLimitPerStore || null,
         context.userId,
       ],
     );
@@ -96,6 +97,7 @@ export async function updatePosCoupon(client, context, id, input) {
   if (input.eligibleCustomerIds !== undefined) set("eligible_customer_ids", input.eligibleCustomerIds || []);
   if (input.usageLimitTotal !== undefined) set("usage_limit_total", input.usageLimitTotal || null);
   if (input.usageLimitPerCustomer !== undefined) set("usage_limit_per_customer", input.usageLimitPerCustomer || null);
+  if (input.usageLimitPerStore !== undefined) set("usage_limit_per_store", input.usageLimitPerStore || null);
   if (!fields.length) throw posError(400, "No fields to update.", "POS_COUPON_UPDATE_EMPTY");
   // SECURITY (audit-field integrity): see the matching comment in
   // promotions.js's updatePosPromotion -- $3 is `id`, not the actor.
@@ -134,7 +136,8 @@ export async function commitPosCouponRedemption(client, context, cartId, saleId,
   const row = redemption.rows[0];
   if (!row) return null;
   const coupon = await client.query(
-    `SELECT id,usage_limit_total,usage_limit_per_customer,committed_count FROM tenant.pos_coupons WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    `SELECT id,usage_limit_total,usage_limit_per_customer,usage_limit_per_store,committed_count
+     FROM tenant.pos_coupons WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
     [context.organizationId, row.coupon_id],
   );
   if (!coupon.rows[0]) throw posError(409, "The applied coupon no longer exists.", "POS_COUPON_NOT_FOUND");
@@ -156,6 +159,20 @@ export async function commitPosCouponRedemption(client, context, cartId, saleId,
     );
     if (Number(perCustomer.rows[0].count) >= coupon.rows[0].usage_limit_per_customer) {
       throw posError(409, "This customer already reached this coupon's usage limit before checkout completed.", "POS_COUPON_CUSTOMER_LIMIT_REACHED");
+    }
+  }
+  // Matrix item #18 (per-store half): same race, same fix, keyed on
+  // row.store_id -- stamped onto the redemption row at reservation time
+  // (cart.js's applyPosCartCoupon), the same already-established precedent
+  // row.customer_id itself follows.
+  if (row.store_id && coupon.rows[0].usage_limit_per_store != null) {
+    const perStore = await client.query(
+      `SELECT count(*)::int AS count FROM tenant.pos_coupon_redemptions
+       WHERE organization_id=$1 AND coupon_id=$2 AND store_id=$3 AND status='committed'`,
+      [context.organizationId, row.coupon_id, row.store_id],
+    );
+    if (Number(perStore.rows[0].count) >= coupon.rows[0].usage_limit_per_store) {
+      throw posError(409, "This coupon reached its per-store usage limit before checkout completed.", "POS_COUPON_STORE_LIMIT_REACHED");
     }
   }
   await client.query(`UPDATE tenant.pos_coupons SET committed_count=committed_count+1 WHERE organization_id=$1 AND id=$2`, [

@@ -21,6 +21,7 @@ const createSchema = z.object({
   eligibleCustomerIds: z.array(z.string().uuid()).optional(),
   usageLimitTotal: z.number().int().positive().optional().nullable(),
   usageLimitPerCustomer: z.number().int().positive().optional().nullable(),
+  usageLimitPerStore: z.number().int().positive().optional().nullable(),
 });
 
 export async function GET(request: Request) {

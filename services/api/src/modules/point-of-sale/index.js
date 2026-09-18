@@ -1168,7 +1168,7 @@ export async function completePosCart(client, context, cartId, input = {}) {
   }
 
   if (priced.promotionApplications.length) {
-    await commitPosPromotionApplications(client, context, saleId, saleLineIdByLineNumber, priced.promotionApplications, cart.customer_id);
+    await commitPosPromotionApplications(client, context, saleId, saleLineIdByLineNumber, priced.promotionApplications, cart.customer_id, cart.store_id);
   }
   if (priced.coupon) {
     await commitPosCouponRedemption(client, context, cartId, saleId, priced.coupon.amount);
