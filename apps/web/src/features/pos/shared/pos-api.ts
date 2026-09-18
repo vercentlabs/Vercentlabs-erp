@@ -1,6 +1,6 @@
 "use client";
 
-import type { PosCart, PosCoupon, PosPromotion } from "@vercentlabs/api";
+import type { PosCart, PosCoupon, PosPayment, PosPromotion } from "@vercentlabs/api";
 
 export class PosApiError extends Error {
   constructor(
@@ -242,6 +242,18 @@ export const completePosExchange = (
   returnId: string,
   input: { cartId: string; idempotencyKey: string; payments: { method: "cash"; amount: number }[]; expectedVersion?: number; expectedGrandTotal?: string },
 ) => post<{ return: PosReturn; sale: Record<string, unknown> }>(`/returns/${returnId}/exchange`, input);
+
+// F283/F284/F285/F286 payment tender subsystem.
+export type PosPaymentLeg =
+  | { method: "cash"; amount: number }
+  | { method: "card" | "upi" | "wallet" | "bank_transfer"; paymentId: string };
+export const initiatePosPayment = (input: { cartId: string; method: "card" | "upi" | "wallet" | "bank_transfer"; amount: number; idempotencyKey: string; outcome?: string }) =>
+  post<{ payment: PosPayment }>("/payments/initiate", input);
+export const getPosPayment = (id: string) => request<{ payment: PosPayment }>(`/payments/${id}`);
+export const refundPosPayment = (id: string, input: { amount: number; idempotencyKey: string; outcome?: string }) =>
+  post<{ payment: PosPayment }>(`/payments/${id}/refund`, input);
+export const requestPosPaymentOverride = (id: string, reason: string) =>
+  post<{ paymentId: string; approvalRequest: { id: string; status: string; version: number } }>(`/payments/${id}/override`, { reason });
 
 export const listPosPromotions = (status?: string) => request<{ rows: PosPromotion[] }>(`/promotions${status ? `?status=${status}` : ""}`);
 export const listPosCoupons = (status?: string) => request<{ rows: PosCoupon[] }>(`/coupons${status ? `?status=${status}` : ""}`);

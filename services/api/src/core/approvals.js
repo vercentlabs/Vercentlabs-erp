@@ -36,7 +36,10 @@ import {
   approveSalesOrder, rejectSalesOrderApproval,
   approveSalesOrderAmendment, rejectSalesOrderAmendment,
 } from "../modules/sales/index.js";
-import { approvePosCartDiscountApproval, rejectPosCartDiscountApproval } from "../modules/point-of-sale/index.js";
+import {
+  approvePosCartDiscountApproval, rejectPosCartDiscountApproval,
+  approvePosPaymentOverride, rejectPosPaymentOverrideApproval,
+} from "../modules/point-of-sale/index.js";
 
 export class ApprovalError extends Error {
   constructor(status, message, code) {
@@ -99,6 +102,10 @@ const COMMAND_DISPATCH = Object.freeze({
   "pos.discount.approve": {
     approve: (client, context, payload) => approvePosCartDiscountApproval(client, context, payload),
     reject: (client, context, payload) => rejectPosCartDiscountApproval(client, context, payload),
+  },
+  "pos.payment.override.approve": {
+    approve: (client, context, payload) => approvePosPaymentOverride(client, context, payload),
+    reject: (client, context, payload) => rejectPosPaymentOverrideApproval(client, context, payload),
   },
 });
 

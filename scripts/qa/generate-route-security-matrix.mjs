@@ -39,6 +39,7 @@ const DOCUMENTED_EXCEPTIONS = {
   "api/crm/public/meetings/links/[token]/book/route.ts": "Public by design (prospect booking a slot) — access control is the opaque per-link token, never a session cookie, so same-origin/session checks don't apply.",
   "api/crm/public/meetings/bookings/[token]/route.ts": "Public by design (prospect managing their own booking) — same token-based model as the link-booking route above.",
   "api/test-support/email-capture/route.ts": "Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here.",
+  "api/pos/payments/webhook/[provider]/route.ts": "Public by design — a payment provider's own servers call it directly with no ERP session to present. Authenticated by the provider's cryptographic HMAC signature instead (adapter.verifyWebhookSignature over the raw body, verified before the payload is parsed or trusted, and re-verified inside handlePosPaymentWebhook's transaction), the same 'unauthenticated but cryptographically verified' pattern already established for inbound-mail webhooks (services/api/src/core/inbound-mail.js's verifyInboundMailSignature).",
 };
 
 function readFile(filePath) {

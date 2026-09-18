@@ -171,7 +171,20 @@ export declare function getPosSaleReceipt(client: any, context: PointOfSaleConte
   promotionEvidence: Record<string, any>[];
 }>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
-export declare function completePosCart(client: any, context: PointOfSaleContext, cartId: string, input: { idempotencyKey: string; payments: Array<{ method: string; amount: number }>; expectedVersion?: number; expectedGrandTotal?: string }): Promise<any>;
+export declare function completePosCart(
+  client: any,
+  context: PointOfSaleContext,
+  cartId: string,
+  input: {
+    idempotencyKey: string;
+    // A 'cash' leg carries a client-asserted amount (unchanged, physical
+    // exchange). Any other method carries the id of an ALREADY-CAPTURED
+    // payment (see initiatePosPayment) -- never a client-asserted amount.
+    payments: Array<{ method: "cash"; amount: number } | { method: "card" | "upi" | "wallet" | "bank_transfer"; paymentId: string }>;
+    expectedVersion?: number;
+    expectedGrandTotal?: string;
+  },
+): Promise<any>;
 
 // F280 Promotions
 export type PosPromotion = { id: string; code: string; name: string; status: "active" | "inactive"; [key: string]: any };
@@ -186,3 +199,67 @@ export declare function listPosCoupons(client: any, context: PointOfSaleContext,
 export declare function createPosCoupon(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<PosCoupon>;
 export declare function updatePosCoupon(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<PosCoupon>;
 export declare function setPosCouponActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<PosCoupon>;
+
+// F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
+// payment methods): ONE payment-tender subsystem. Field names are
+// snake_case, matching tenant.pos_payments directly (same convention as
+// PosCart/PosCartLine above).
+export type PosPaymentMethod = "cash" | "card" | "upi" | "wallet" | "bank_transfer" | "store_credit";
+export type PosPaymentStatus = "initiated" | "pending" | "authorized" | "captured" | "failed" | "voided" | "refunded" | "partially_refunded";
+export type PosPayment = {
+  id: string;
+  organization_id: string;
+  company_id: string;
+  cart_id: string | null;
+  sale_id: string | null;
+  store_id: string | null;
+  shift_id: string;
+  payment_method: PosPaymentMethod;
+  amount: string;
+  currency_code: string | null;
+  provider_key: string;
+  provider_reference: string | null;
+  idempotency_key: string | null;
+  status: PosPaymentStatus;
+  refunded_amount: string;
+  failure_reason: string | null;
+  initiated_at: string;
+  captured_at: string | null;
+  voided_at: string | null;
+  replayed?: boolean;
+  [key: string]: any;
+};
+export declare function initiatePosPayment(
+  client: any,
+  context: PointOfSaleContext,
+  input: { cartId: string; method: "card" | "upi" | "wallet" | "bank_transfer"; amount: number; idempotencyKey: string; outcome?: string },
+): Promise<PosPayment>;
+export declare function getPosPaymentStatus(client: any, context: PointOfSaleContext, paymentId: string): Promise<PosPayment>;
+export declare function voidPosPayment(client: any, context: PointOfSaleContext, paymentId: string): Promise<PosPayment>;
+export declare function refundPosPayment(
+  client: any,
+  context: PointOfSaleContext,
+  input: { paymentId: string; amount: number; idempotencyKey: string; outcome?: string },
+): Promise<PosPayment & { providerRefundReference?: string }>;
+export declare function requestPosPaymentOverride(
+  client: any,
+  context: PointOfSaleContext,
+  input: { paymentId: string; reason: string },
+): Promise<{ paymentId: string; approvalRequest: { id: string; status: string; version: number } }>;
+export declare function handlePosPaymentWebhook(
+  client: any,
+  input: { providerKey: string; rawBody: string; signatureHeader: string | null },
+): Promise<{ replayed: boolean; event: Record<string, any>; payment?: PosPayment | null }>;
+
+export type PosPaymentAdapter = {
+  key: string;
+  initiate: (context: PointOfSaleContext, input: Record<string, any>) => Promise<{ providerReference: string; status: string; failureReason?: string; raw?: unknown }>;
+  refund: (context: PointOfSaleContext, input: Record<string, any>) => Promise<{ providerRefundReference: string; status: string }>;
+  verifyWebhookSignature: (rawBody: string, signatureHeader: string | null, env?: Record<string, string | undefined>) => boolean;
+  parseWebhookEvent: (rawBody: string) => { eventId: string; eventType: string; organizationId: string; companyId: string; paymentId: string; providerReference: string | null; status: string; failureReason: string | null; raw: unknown };
+};
+export declare function resolvePaymentAdapter(providerKey: string): PosPaymentAdapter;
+export declare class PaymentAdapterError extends Error {
+  status: number;
+  code: string;
+}
