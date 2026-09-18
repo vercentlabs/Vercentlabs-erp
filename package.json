@@ -90,7 +90,8 @@
     "verify:crm:backend": "node scripts/validation/verify-architecture.mjs && node scripts/validation/verify-db-structure.mjs && node scripts/validation/verify-crm-module-contracts.mjs && node --test services/api/tests/crm*.test.mjs",
     "verify:crm": "npx --yes pnpm@11.21.0 verify:crm:backend && npx --yes pnpm@11.21.0 test:api",
     "design:generate": "node scripts/design/generate-theme.mjs && node scripts/design/generate-tailwind-theme.mjs",
-    "design:check": "node scripts/design/generate-theme.mjs --check && node scripts/design/generate-tailwind-theme.mjs --check"
+    "design:check": "node scripts/design/generate-theme.mjs --check && node scripts/design/generate-tailwind-theme.mjs --check",
+    "deadcode:check": "npx --yes pnpm@11.21.0 exec knip"
   },
   "engines": {
     "node": ">=24 <25",
@@ -99,5 +100,8 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "knip": "6.37.0"
   }
 }

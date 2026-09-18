@@ -48,6 +48,7 @@ minimumReleaseAgeExclude:
   - expo-splash-screen@57.0.5
   - expo@57.0.8
   - brace-expansion@5.0.9
+  - knip@6.37.0
 
 patchedDependencies:
   brace-expansion@5.0.9: patches/brace-expansion@5.0.9.patch
