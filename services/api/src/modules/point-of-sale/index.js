@@ -10,6 +10,7 @@ export * from "./features/assortment.js";
 export * from "./features/cart.js";
 export * from "./features/promotions.js";
 export * from "./features/coupons.js";
+export * from "./features/payments.js";
 export { priceCartLines } from "./features/cart-pricing.js";
 import {
   normalizedDiscountAmount,
@@ -21,6 +22,7 @@ import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines } f
 import { priceCartLines } from "./features/cart-pricing.js";
 import { commitPosPromotionApplications } from "./features/promotions.js";
 import { commitPosCouponRedemption, releasePosCouponRedemptionForFullReturn } from "./features/coupons.js";
+import { lockCapturedCartPaymentLegs } from "./features/payments.js";
 
 const TABLES = Object.freeze({
   stores: "pos_stores",
@@ -724,17 +726,41 @@ export async function completePosCart(client, context, cartId, input = {}) {
   if (!Array.isArray(input.payments) || input.payments.length === 0) {
     throw posError(400, "At least one payment is required.", "POS_PAYMENT_REQUIRED");
   }
+  // F283/F284/F285/F286: a payment leg is either a cash tender (a
+  // client-supplied amount is fine -- physical cash exchange has always
+  // been the one case a client asserts the figure for, unchanged from
+  // before) or a reference to a payment ATTEMPT that was already
+  // initiated via initiatePosPayment and independently, server-side,
+  // reached 'captured' (via the adapter's own synchronous response or a
+  // verified webhook -- see features/payments.js). The client can never
+  // simply assert a card/UPI/wallet amount here; only cash amounts are
+  // ever taken from client input.
+  const cashLegs = [];
+  const nonCashLegs = [];
   for (const payment of input.payments) {
-    const amount = decimal(payment.amount);
-    if (amount <= 0n) throw posError(400, "POS payment amount must be greater than zero.", "POS_PAYMENT_AMOUNT_INVALID");
-    if (payment.method !== "cash") {
-      throw posError(
-        409,
-        `Payment method ${payment.method} is not available until an authoritative provider adapter is configured.`,
-        "POS_PAYMENT_PROVIDER_NOT_CONFIGURED",
-      );
+    const method = String(payment.method || "").trim().toLowerCase();
+    if (method === "cash") {
+      const amount = decimal(payment.amount);
+      if (amount <= 0n) throw posError(400, "POS payment amount must be greater than zero.", "POS_PAYMENT_AMOUNT_INVALID");
+      cashLegs.push({ method, amount });
+    } else if (["card", "upi", "wallet", "bank_transfer"].includes(method)) {
+      if (!payment.paymentId) {
+        throw posError(
+          400,
+          `A ${method} payment leg must reference an already-initiated paymentId (see initiatePosPayment).`,
+          "POS_PAYMENT_ID_REQUIRED",
+        );
+      }
+      nonCashLegs.push({ method, paymentId: payment.paymentId });
+    } else {
+      throw posError(400, `Unsupported POS payment method: ${payment.method}.`, "POS_PAYMENT_METHOD_INVALID");
     }
   }
+  // A pure single cash tender may still exceed the total (change is
+  // returned). Any split/multi-method sale must sum EXACTLY to the total
+  // -- a card/UPI leg is exact by nature, and "change" against a
+  // non-cash leg is not a real-world concept.
+  const isSingleCashTender = cashLegs.length === 1 && nonCashLegs.length === 0;
 
   const idempotency = await beginIdempotentOperation(client, context, {
     operation: "pos.sale.complete",
@@ -797,9 +823,25 @@ export async function completePosCart(client, context, cartId, input = {}) {
     expectedTotals: input.expectedGrandTotal != null ? { grandTotal: input.expectedGrandTotal } : undefined,
   });
 
-  const paidTotal = input.payments.reduce((sum, payment) => add(sum, decimal(payment.amount)), decimal(0));
-  if (paidTotal < decimal(priced.totals.grandTotal)) {
-    throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
+  // Non-cash legs are locked and validated here (leg belongs to THIS cart,
+  // has genuinely reached 'captured', and has not already been consumed by
+  // a different sale) -- their amount is always read from the
+  // server-owned payment row itself, never from client input.
+  const lockedNonCashPayments = nonCashLegs.length ? await lockCapturedCartPaymentLegs(client, context, cartId, nonCashLegs) : [];
+  const cashTotal = cashLegs.reduce((sum, leg) => add(sum, leg.amount), decimal(0));
+  const nonCashTotal = lockedNonCashPayments.reduce((sum, row) => add(sum, decimal(row.amount)), decimal(0));
+  const paidTotal = add(cashTotal, nonCashTotal);
+  const grandTotal = decimal(priced.totals.grandTotal);
+  if (isSingleCashTender) {
+    if (paidTotal < grandTotal) {
+      throw posError(409, "Payment total is less than sale total.", "UNDERPAYMENT");
+    }
+  } else if (paidTotal !== grandTotal) {
+    throw posError(
+      409,
+      `Split/multi-method payments must sum exactly to the sale total (received ${asDatabaseDecimal(paidTotal)}, expected ${asDatabaseDecimal(grandTotal)}).`,
+      "POS_PAYMENT_SPLIT_MISMATCH",
+    );
   }
 
   // See the matching comment in completePointOfSale: shared per-company,
@@ -900,22 +942,40 @@ export async function completePosCart(client, context, cartId, input = {}) {
     saleLineIdByLineNumber.set(line.lineNumber, saleLine.rows[0].id);
   }
 
-  for (const payment of input.payments) {
+  for (const leg of cashLegs) {
     await client.query(
       `INSERT INTO tenant.pos_payments
         (organization_id,company_id,sale_id,shift_id,payment_method,amount,status,captured_at,created_by)
        VALUES ($1,$2,$3,$4,'cash',$5,'captured',now(),$6)`,
-      [context.organizationId, context.companyId, saleId, cart.shift_id, asDatabaseDecimal(decimal(payment.amount)), context.userId],
+      [context.organizationId, context.companyId, saleId, cart.shift_id, asDatabaseDecimal(leg.amount), context.userId],
+    );
+  }
+  // F283/F284/F285/F286: each already-captured non-cash leg is attached to
+  // the new sale (sale_id=saleId) here, inside the SAME transaction as the
+  // sale row itself -- this is also what prevents the leg from ever being
+  // reused by a second sale (lockCapturedCartPaymentLegs required
+  // sale_id IS NULL under FOR UPDATE, and this update is the only place
+  // that ever sets it).
+  for (const row of lockedNonCashPayments) {
+    await client.query(
+      `UPDATE tenant.pos_payments SET sale_id=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, row.id, saleId],
     );
   }
 
-  if (decimal(priced.totals.grandTotal) > 0n) {
+  // Only the CASH portion of the tender ever touches the till -- a
+  // card/UPI/wallet leg is money the provider holds, not physical cash in
+  // the drawer. (Bug fixed alongside this feature: this previously
+  // recorded the FULL sale grand_total as a cash movement even when a
+  // split-tender leg existed, which would have inflated expected-cash
+  // reconciliation the moment a non-cash method was ever wired up.)
+  if (cashTotal > 0n) {
     const cashMovementNumber = await nextDocumentNumber(client, context, { documentType: "pos_cash_movement", prefix: "CASH" });
     await client.query(
       `INSERT INTO tenant.pos_cash_movements
         (organization_id,company_id,shift_id,movement_number,movement_type,amount,reference_type,reference_id,created_by)
        VALUES ($1,$2,$3,$4,'sale',$5,'pos_sale',$6,$7)`,
-      [context.organizationId, context.companyId, cart.shift_id, cashMovementNumber, priced.totals.grandTotal, saleId, context.userId],
+      [context.organizationId, context.companyId, cart.shift_id, cashMovementNumber, asDatabaseDecimal(cashTotal), saleId, context.userId],
     );
   }
 

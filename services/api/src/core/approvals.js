@@ -36,6 +36,9 @@ import {
   approveSalesOrder, rejectSalesOrderApproval,
   approveSalesOrderAmendment, rejectSalesOrderAmendment,
 } from "../modules/sales/index.js";
+import {
+  approvePosPaymentOverride, rejectPosPaymentOverrideApproval,
+} from "../modules/point-of-sale/features/payments.js";
 
 export class ApprovalError extends Error {
   constructor(status, message, code) {
@@ -94,6 +97,17 @@ const COMMAND_DISPATCH = Object.freeze({
       approveSalesOrderAmendment(client, context, payload.orderId, payload.orderVersionId, payload.previousVersionId, payload.resumeStatus),
     reject: (client, context, payload) =>
       rejectSalesOrderAmendment(client, context, payload.orderId, payload.orderVersionId, payload.previousVersionId, payload.resumeStatus),
+  },
+  // F283/F284/F285/F286 manual force-capture override: a supervisor/
+  // manager requests acceptance of a card/UPI/wallet tender that a
+  // provider could not confirm (terminal unreachable). Approving/
+  // rejecting goes through this SAME engine as every other module, which
+  // is what actually blocks the requester from also deciding their own
+  // request (assertSeparationOfDuties above) -- there is no second,
+  // POS-specific approval mechanism.
+  "pos.payment.override.approve": {
+    approve: (client, context, payload) => approvePosPaymentOverride(client, context, payload),
+    reject: (client, context, payload) => rejectPosPaymentOverrideApproval(client, context, payload),
   },
 });
 
