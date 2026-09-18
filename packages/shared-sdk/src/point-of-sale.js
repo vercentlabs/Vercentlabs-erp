@@ -90,6 +90,11 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     resumeCart: (id) => post(`/carts/${encodeURIComponent(id)}/resume`),
     cancelCart: (id, reason) => post(`/carts/${encodeURIComponent(id)}/cancel`, { reason }),
     completeCart: (id, input) => post(`/carts/${encodeURIComponent(id)}/complete`, input),
+    // F287/F288: the held-cart queue.
+    listHeldCarts: (search) => request(`/carts/held${search ? `?q=${encodeURIComponent(search)}` : ""}`),
+
+    // F289: receipts -- read-only, built entirely from persisted sale facts.
+    getSaleReceipt: (saleId) => request(`/sales/${encodeURIComponent(saleId)}/receipt`),
 
     // F280 Promotions / F281 Coupons (admin configuration)
     listPromotions: (status) => request(`/promotions${status ? `?status=${status}` : ""}`),
@@ -101,6 +106,31 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     createCoupon: (input) => post("/coupons", input),
     updateCoupon: (id, input) => request(`/coupons/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
     setCouponActive: (id, active) => post(`/coupons/${encodeURIComponent(id)}/active`, { active }),
+
+    // F268/F269: store/terminal edit + activate/deactivate/status.
+    updateStore: (id, input) => request(`/stores/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+    setStoreActive: (id, active) => post(`/stores/${encodeURIComponent(id)}/active`, { active }),
+    getStoreSetupOptions: () => request("/stores/setup-options"),
+    updateTerminal: (id, input) => request(`/terminals/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+    setTerminalStatus: (id, status) => post(`/terminals/${encodeURIComponent(id)}/status`, { status }),
+
+    // F270/F271: cashier eligibility administration.
+    listEligibleCashiers: () => request("/cashiers"),
+    listStoreAccess: (storeId) => request(`/store-access${storeId ? `?storeId=${encodeURIComponent(storeId)}` : ""}`),
+    grantStoreAccess: (userId, storeId) => post("/store-access", { userId, storeId }),
+    revokeStoreAccess: (userId, storeId) =>
+      del(`/store-access?userId=${encodeURIComponent(userId)}&storeId=${encodeURIComponent(storeId)}`),
+
+    // F291/F292/F293: returns, refunds, exchanges.
+    findSaleForReturn: (receiptNumber) => request(`/returns/find?receiptNumber=${encodeURIComponent(receiptNumber)}`),
+    listReturns: () => request("/returns"),
+    approveReturn: (id, input) => post(`/returns/${encodeURIComponent(id)}/approve`, input),
+    completeReturn: (id, input) => post(`/returns/${encodeURIComponent(id)}/complete`, input),
+    completeExchange: (returnId, input) => post(`/returns/${encodeURIComponent(returnId)}/exchange`, input),
+
+    // F300: paid-in/paid-out cash movements.
+    listCashMovements: (shiftId) => request(`/shifts/${encodeURIComponent(shiftId)}/cash-movements`),
+    recordCashMovement: (shiftId, input) => post(`/shifts/${encodeURIComponent(shiftId)}/cash-movements`, input),
 
     // Legacy direct sale-completion payload, retained for compatibility.
     completeSale: (input) => post("/sales", input),

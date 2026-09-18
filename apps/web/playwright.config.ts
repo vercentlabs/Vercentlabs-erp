@@ -8,6 +8,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  // Cleans up apps/web/e2e/pos-fixtures.ts's seeded store/terminal/item/
+  // personas exactly once after the whole run, regardless of which spec
+  // files matched -- see pos-global-teardown.ts. A no-op if no POS spec
+  // ever ran (it checks for its own marker file first).
+  globalTeardown: "./e2e/pos-global-teardown.ts",
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   timeout: 30_000,
   use: {
@@ -16,7 +21,12 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: `pnpm dev -p ${PORT}`,
+    // npx --yes pnpm@11.21.0 (not bare `pnpm`) for the same reason
+    // root package.json's scripts all do this now: Corepack enforces the
+    // repo's `packageManager` field (npm@11.5.1, changed for Hostinger's
+    // own install step) against ANY bare `pnpm` invocation, which would
+    // otherwise refuse to run this webServer command at all.
+    command: `npx --yes pnpm@11.21.0 dev -p ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 60_000,
