@@ -15,6 +15,15 @@ import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
 // passed POS's own authorization (assertPosStoreAccess/requirePermission);
 // it is never derived from end-user input and is never returned to a
 // client.
+// F290/F305/F305-config: settingsManage is needed by the account-mapping
+// configuration wrapper (accounting-mapping-config.js) -- upsertAccountMapping
+// has no internal bypass of its own (unlike createJournalEntry/
+// createCustomerInvoice), so it's satisfied the same way receivablesManage
+// is here: the REAL gate is POS's own pos.settings.manage permission check
+// at the wrapper's entry point (accountingPost-tier, already required
+// before this context is ever built), not a second interactive Accounting
+// permission the POS admin configuring a mapping would have to separately
+// hold.
 export function posAccountingContext(context) {
   return {
     ...context,
@@ -24,6 +33,7 @@ export function posAccountingContext(context) {
       ...(context.permissions || []),
       ACCOUNTING_PERMISSIONS.view,
       ACCOUNTING_PERMISSIONS.receivablesManage,
+      ACCOUNTING_PERMISSIONS.settingsManage,
     ],
   };
 }

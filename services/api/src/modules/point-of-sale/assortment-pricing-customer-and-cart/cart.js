@@ -49,7 +49,12 @@ async function lockCart(client, context, cartId, { requireOpen = true } = {}) {
   );
   const cart = result.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
-  await assertPosStoreAccess(client, context, cart.store_id);
+  // F270/F271: every cart mutation goes through this one shared lock, so
+  // checking terminal-level access here (not just at creation) means a
+  // mid-shift access revocation takes effect on the very next cart action,
+  // not just future cart creation -- see the mega-prompt's own "existing
+  // sessions" requirement.
+  await assertPosStoreAccess(client, context, cart.store_id, cart.terminal_id);
   if (cart.expires_at && new Date(cart.expires_at).getTime() < Date.now() && OPEN_STATUSES.includes(cart.status)) {
     await client.query(`UPDATE tenant.pos_carts SET status='expired' WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
     cart.status = "expired";
@@ -260,7 +265,7 @@ async function reprice(client, context, cart, policy) {
 
 export async function createPosCart(client, context, input) {
   requirePermission(context, "pos.sale.create");
-  await assertPosStoreAccess(client, context, input.storeId);
+  await assertPosStoreAccess(client, context, input.storeId, input.terminalId);
   const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
   const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
   if (terminal.store_id !== store.id) {
@@ -315,7 +320,7 @@ export async function getPosCart(client, context, cartId) {
   ]);
   const cart = cartResult.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
-  await assertPosStoreAccess(client, context, cart.store_id);
+  await assertPosStoreAccess(client, context, cart.store_id, cart.terminal_id);
   if (cart.status === "held" && cart.held_at && Date.now() - new Date(cart.held_at).getTime() > HELD_CART_EXPIRY_MS) {
     await client.query(`UPDATE tenant.pos_carts SET status='expired' WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
     cart.status = "expired";

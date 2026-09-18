@@ -9,6 +9,11 @@ import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context"
 
 const completeReturnSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(200),
+  // F292: only meaningful for a non-cash tender leg, and only ever honored
+  // by the sandbox adapter (the same "outcome" knob initiatePosPayment/
+  // refundPosPayment's own routes already expose) — a real provider
+  // determines its own outcome from its live response, ignoring this.
+  refundOutcome: z.string().trim().max(64).optional(),
 });
 
 // completePointOfSaleReturn itself requires pos.return.approve (the same

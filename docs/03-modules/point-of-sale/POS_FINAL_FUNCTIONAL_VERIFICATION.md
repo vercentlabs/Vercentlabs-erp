@@ -10,7 +10,7 @@ Status legend: **VERIFIED** = real backend + API + UI + DB + security + test evi
 |---|---|---|---|
 | F268 | Stores and outlets | VERIFIED | `store-operations.js`; `/pos/stores`; `pos-store-access-f268-f273.test.mjs`, `pos-store-terminal-cashier-admin.test.mjs` |
 | F269 | POS terminals | VERIFIED | `terminal-operations.js`; `/pos/terminals`; same suites as F268 |
-| F270 | Cashiers | PARTIAL | `cashier-access.js`; `/pos/cashiers`; store-level eligibility real, terminal-level not built (disclosed, low priority) |
+| F270 | Cashiers | VERIFIED | `cashier-access.js`; `/pos/cashiers`; store- AND terminal-level eligibility real (migration 128); `pos-terminal-access-f270-f271.test.mjs` 10/10 |
 | F271 | Cashier permissions | VERIFIED | `pos_cashier`/`pos_supervisor`/`pos_manager` roles + SoD conflicts; `packages/permissions/tests/roles.test.mjs` 8/8 |
 | F272 | Product search | VERIFIED | `assortment.js`; store-access-gated; `/pos/checkout` |
 | F273 | Barcode scanning | VERIFIED | `assortment.js`; store-access-gated; `/pos/checkout` |
@@ -32,7 +32,7 @@ Status legend: **VERIFIED** = real backend + API + UI + DB + security + test evi
 | F289 | Receipt printing | VERIFIED | `receipts.js`; `/pos/receipts/[saleId]` |
 | F290 | Invoice generation | VERIFIED | `invoices.js`; `/pos/invoices` + receipt-screen action; real-Postgres suite (this session) |
 | F291 | Returns | VERIFIED | `return-lifecycle.js`; `/pos/returns` |
-| F292 | Refunds | VERIFIED (cash) / disclosed gap (non-cash refund, tracks F283/284's own scope) | Same |
+| F292 | Refunds | VERIFIED | Cash + every non-cash tender via real `refundPosPayment`; `pos-non-cash-refunds-f292.test.mjs` 5/5 |
 | F293 | Exchanges | VERIFIED | `exchange.js`; `pos-exchange-f293.test.mjs` 6/6 |
 | F294 | Stock reduction | VERIFIED | Canonical `postStockMovement`; regression-tested |
 | F295 | Lot/serial support | VERIFIED | Landed `5ecbdda5` (prior session); requirement validation + lifecycle real |
@@ -49,13 +49,15 @@ Status legend: **VERIFIED** = real backend + API + UI + DB + security + test evi
 | F306 | Loyalty | VERIFIED | `loyalty.js`; `/pos/loyalty` + checkout redemption; `pos-loyalty-earn-redeem-reverse-f306.test.mjs` 10/10 |
 | F307 | POS sales analytics | VERIFIED | `pos-analytics/reports.js`; `/pos/analytics`; real-Postgres suite (this session) |
 
-**Net**: 36 of 40 features fully VERIFIED with no disclosed residual gap; 2 (F270, F275) have a disclosed low-priority residual gap that does not block real use; 2 (F283, F284) are code-complete and verified against a sandbox adapter, blocked on a real payment-provider merchant credential this environment cannot obtain (an external activation blocker, not a functional gap — see below).
+**Net**: 37 of 40 features fully VERIFIED with no disclosed residual gap (F270 closed this pass); F275 has a disclosed, deliberate design decision (its own simpler price lookup, not a gap); 2 (F283, F284) are code-complete and verified against a sandbox adapter, blocked on a real payment-provider merchant credential this environment cannot obtain (an external activation blocker, not a functional gap — see below).
 
 ## Genuinely new ground this session (F305)
 
 No other module in this codebase posts a cost-of-goods-sold/inventory-relief journal entry anywhere yet — Sales never calls into Accounting at all (confirmed by research), and Procurement's own vendor-bill posting (`payables.js`) posts an expense/payable/tax journal, never an inventory-relief one. F305's COGS/inventory posting is real (sourced from `stock_movements.unit_cost`, not invented) but is the first of its kind in the codebase — flagged here explicitly rather than presented as "following an established pattern," which would overstate precedent that doesn't exist.
 
-## Verification-run evidence (this session, F290/F304/F305/F307 + resource-registry fix)
+## Verification-run evidence
+
+Two sessions of work are reflected here: F290/F304/F305/F307 (invoice/reconciliation/accounting-posting/analytics) and, immediately after, the four disclosed-gap closures (terminal-level eligibility, eligibility pickers, account-mapping config, non-cash refunds).
 
 | Gate | Result |
 |---|---|
@@ -66,14 +68,14 @@ No other module in this codebase posts a cost-of-goods-sold/inventory-relief jou
 | `test:security` | 4/4 |
 | `test:enterprise-rbac` | 5/5 |
 | `test:worker` | 102/102 |
-| `node --test tests/integration/*.test.mjs` (real PostgreSQL) | 146/146 (was 136 before this session; +10 new F290/F304/F305/F307 assertions) |
+| `node --test tests/integration/*.test.mjs` (real PostgreSQL) | 161/161 (136 baseline → 146 after F290/F304/F305/F307 → 161 after gap closures: +10 `pos-terminal-access-f270-f271`, +5 `pos-non-cash-refunds-f292`) |
 | `typecheck:web` | clean |
 | `lint:web` | clean, 0 warnings |
 | `build:web` | clean; `/pos/invoices`, `/pos/reconciliation`, `/pos/accounting`, `/pos/analytics` all present |
 | `verify:architecture` | OK (all 7 checks, incl. public cross-module API contracts) |
-| `verify:db` | OK — 127 tenant migrations, 45 platform migrations, all RLS-enforced |
-| `verify:routes` | OK — 219 route.ts (116 CRM), 92 page.tsx |
-| `verify:route-security` | OK — 170 mutation-capable routes, 0 unexplained gaps |
+| `verify:db` | OK — 128 tenant migrations, 45 platform migrations, all RLS-enforced |
+| `verify:routes` | OK — 221 route.ts (116 CRM), 92 page.tsx |
+| `verify:route-security` | OK — 171 mutation-capable routes, 0 unexplained gaps |
 
 `verify:erp`/`verify:toolchain` still fail at the very first step for the same pre-existing, undisclosed-by-any-session reason every prior session already documented: this environment runs Node v26.5.0 against the repo's `>=24 <25` pin. Every individual gate the composite chains was run directly above and passed — this is an environment characteristic, not a functional gap.
 
@@ -91,12 +93,23 @@ The new integration suite (`tests/integration/pos-invoice-reconciliation-account
 - **F283/F284 live payment provider**: the adapter interface, sandbox implementation, and every code-controllable part of card/UPI capture are real and tested; no merchant-certified provider (Razorpay/Stripe/etc.) credential exists in this environment to certify a live integration against. This was disclosed as out-of-scope-for-code from the very first POS session and remains an external, not functional, blocker.
 - **F304 live settlement feed**: reconciliation matching is real and tested against real settlement evidence; that evidence is imported (file/API import or the sandbox generator) rather than polled live from a bank/card-network settlement API, for the identical reason — no live provider credential exists in this environment.
 
+## Four disclosed gaps closed (this pass)
+
+All four gaps disclosed in the prior verification pass are now genuinely closed, with real backend, UI, database and test evidence — not just UI hidden/unhidden:
+
+- **A. Terminal-level cashier eligibility (F270/F271)**: `tenant.pos_store_access` gained a real, additive `terminal_id` column (migration 128) — a `NULL` row keeps meaning exactly what it always meant (store-wide), a real `terminal_id` is a narrower grant. `assertPosStoreAccess`/`accessiblePosTerminalIds` (`shared/access-control.js`) enforce it server-side at the two points a cashier actively operates a terminal (`openShift`, `createPosCart`) and at every subsequent cart action (`getPosCart`/`lockCart`, so a mid-shift revocation takes effect on the very next request, not just future shift-opens) — never only a UI hide. `grantPosStoreAccess`/`revokePosStoreAccess`/`listPosStoreAccess` (`cashier-access.js`) and the `/pos/cashiers` admin dialog let an admin restrict a cashier to specific terminals within a store instead of the whole store. `listPointOfSaleResource('terminals')` is narrowed accordingly. Verified against real PostgreSQL: `tests/integration/pos-terminal-access-f270-f271.test.mjs` (10/10) — cross-terminal denial, mid-shift revocation, store-wide-grant precedence, owner/store-manager bypass, and on-behalf-of shift-opening all proven with real assignment rows, not mocked.
+- **B. Item/item-group/customer eligibility pickers (F280/F281)**: a new `EligibilitySearchPicker` component (search-one-at-a-time via the existing ERP-standard `ComboBox`, selected ids render as a removable chip list) is wired into the promotion and coupon admin dialogs, backed by the EXISTING `searchPosProducts`/`searchPosCustomers` search functions plus one genuinely new, minimal, read-only `searchPointOfSaleItemGroups` function (no new catalog, no new pricing logic — the same `tenant.items`/`tenant.item_groups`/`tenant.business_parties` tables every other POS screen already reads).
+- **C. Accounting account-mapping configuration UI (F305)**: a new section on `/pos/accounting` (gated by `pos.settings.manage`) lists every mapping key F305 posts through, shows which are pre-seeded vs. configured vs. missing, and lets an admin pick and save a GL account for each — calling Accounting's own real `getAccountingSettings`/`getAccountingOptions`/`upsertAccountMapping` functions (`accounting-mapping-config.js`), never a POS-owned mapping table. Disclosed explicitly: Accounting itself has no frontend anywhere in this app yet (confirmed — `/accounting` still renders the generic module-foundation placeholder, no `/api/accounting/**` route exists at all), so this lives on the POS side as the actual, immediate consumer, per the task's own "the correct owning module OR an appropriate POS configuration interface" allowance — it is not a duplicate business rule, it is Accounting's own API with POS's own UI in front of it.
+- **D. Non-cash refunds (F292)**: `completePointOfSaleReturn` now allocates a return's refund total across every tender leg the original sale actually used (proportional to each leg's original captured amount, capped and redistributed against what each leg still has headroom for), refunding cash via a real cash movement and every other tender via the EXISTING, already-tested `refundPosPayment` (the same idempotent, provider-adapter-backed, capped-at-captured-amount function the standalone payment-refund action already used) — never a fabricated "refunded" status with no provider call. F305's return-posting journal was updated to attribute the credit to each tender's own real account (reading the actual cash-movement amount, allocating the remainder across the sale's real non-cash legs) instead of assuming cash. A genuine bug was found and fixed by real-Postgres testing (not mocked tests): a `BigInt` refund total leaked into an audit-event JSON payload, crashing `JSON.stringify` — caught by `pos-serial-batch-tracking-f295.test.mjs`'s own return/restock assertion, not a new test written for this gap. Verified against real PostgreSQL: `tests/integration/pos-non-cash-refunds-f292.test.mjs` (5/5) — a card-only full refund through the real sandbox adapter, idempotent retry, a split cash+card partial refund allocated and capped correctly, and a rejected double-return.
+
+## Remaining external activation blockers (not functional gaps)
+
+- **F283/F284 live payment provider**: the adapter interface, sandbox implementation, and every code-controllable part of card/UPI capture AND refund are real and tested; no merchant-certified provider (Razorpay/Stripe/etc.) credential exists in this environment to certify a live integration against. This was disclosed as out-of-scope-for-code from the very first POS session and remains an external, not functional, blocker.
+- **F304 live settlement feed**: reconciliation matching is real and tested against real settlement evidence; that evidence is imported (file/API import or the sandbox generator) rather than polled live from a bank/card-network settlement API, for the identical reason — no live provider credential exists in this environment.
+
 ## Remaining functional gaps (disclosed, non-blocking)
 
-- Terminal-level (not just store-level) cashier eligibility (F270).
-- Item/item-group/customer eligibility pickers for promotion/coupon admin screens (cosmetic admin-UX gap; the underlying eligibility logic is real and enforced, only the picker widget is missing).
-- A dedicated Accounting account-mapping configuration screen (cross-module gap — F305's new mapping keys are configurable today only through Accounting's existing generic API, not a UI).
-- Non-cash refunds (F292) — tracks F283/284's own external-provider blocker, not a separate gap.
 - Loyalty-accrual reversal on a return's own accounting journal (F305) — the return's revenue/tax/tender/COGS reversal is real; loyalty-accrual reversal specifically was disclosed as a scoped-out simplification.
+- A sale split across MULTIPLE different non-cash tender methods has its return's accounting-posting attribution reconstructed via proportional allocation (since the exact per-payment split isn't stored after the fact) rather than read from an exact record — exact for the overwhelmingly common case (one tender, or cash + one other); disclosed, not silently approximated.
 
 None of the above blocks a real merchant from operating the POS module end to end on cash/existing-tender sales today.

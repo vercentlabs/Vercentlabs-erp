@@ -11,7 +11,7 @@ import { event } from "../shared/audit.js";
 
 export async function openShift(client, context, input) {
   requirePermission(context, "pos.shift.open");
-  await assertPosStoreAccess(client, context, input.storeId);
+  await assertPosStoreAccess(client, context, input.storeId, input.terminalId);
   const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
   const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
   if (terminal.store_id !== store.id) {
@@ -35,7 +35,7 @@ export async function openShift(client, context, input) {
     // caller's -- deliberately not carrying over the caller's roleSlugs/
     // permissions (a supervisor's own pos.store.manage must not silently
     // vouch for someone else's store access).
-    await assertPosStoreAccess(client, { organizationId: context.organizationId, companyId: context.companyId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id);
+    await assertPosStoreAccess(client, { organizationId: context.organizationId, companyId: context.companyId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id, terminal.id);
   }
   const shiftNumber = input.shiftNumber || await nextDocumentNumber(client, context, {
     documentType: `pos_shift:${input.terminalId}`,

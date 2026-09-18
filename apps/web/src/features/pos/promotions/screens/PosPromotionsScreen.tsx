@@ -12,15 +12,17 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { createPosPromotion, listPosPromotions, setPosPromotionActive, updatePosPromotion } from "@/features/pos/promotions/api/promotions-api";
+import { searchPosProducts, searchPosCustomers } from "@/features/pos/checkout/api/checkout-api";
+import { searchPosItemGroups } from "@/features/pos/shared/eligibility-api";
+import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { EligibilitySearchPicker } from "@/features/pos/shared/EligibilitySearchPicker";
 
 // F280 -- real promotion administration against the F280 backend
 // (assortment-pricing-customer-and-cart/promotions.js): list/search(status)/
 // create/edit/activate-deactivate, every field mapping to a real backend
-// column (no decorative inputs). Item/item-group/customer ID-array
-// eligibility is configurable through the API but NOT exposed here yet --
-// that needs item and item-group search-selects that don't exist anywhere
-// in the app yet (not even in checkout); disclosed as a real, deliberate
-// gap rather than faking a picker.
+// column (no decorative inputs), including item/item-group/customer
+// eligibility via EligibilitySearchPicker (closes a previously disclosed
+// gap -- no item/item-group search-select existed anywhere in the app).
 export function PosPromotionsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -175,6 +177,16 @@ function PromotionFormDialog({
   const [usageLimitPerStore, setUsageLimitPerStore] = useState(Number(promotion?.usage_limit_per_store ?? 0));
   const [effectiveFrom, setEffectiveFrom] = useState((promotion?.effective_from as string) ?? "");
   const [effectiveTo, setEffectiveTo] = useState((promotion?.effective_to as string) ?? "");
+  const [eligibleItemIds, setEligibleItemIds] = useState<string[]>((promotion?.eligible_item_ids as string[]) ?? []);
+  const [eligibleItemGroupIds, setEligibleItemGroupIds] = useState<string[]>((promotion?.eligible_item_group_ids as string[]) ?? []);
+  const [eligibleCustomerIds, setEligibleCustomerIds] = useState<string[]>((promotion?.eligible_customer_ids as string[]) ?? []);
+
+  // searchPosProducts requires a storeId (it also resolves stock
+  // availability, irrelevant here but harmless) -- item existence/name/code
+  // is company-wide, not store-specific, so any one active store works
+  // purely as a search anchor; the admin never sees or picks a store here.
+  const storesQuery = useQuery({ queryKey: ["pos", "eligibility-picker-stores"], queryFn: listPosStores });
+  const anchorStoreId = storesQuery.data?.rows.find((s) => s.active)?.id;
 
   const payload = {
     name,
@@ -191,6 +203,9 @@ function PromotionFormDialog({
     usageLimitPerStore: usageLimitPerStore > 0 ? usageLimitPerStore : null,
     effectiveFrom: effectiveFrom || null,
     effectiveTo: effectiveTo || null,
+    eligibleItemIds,
+    eligibleItemGroupIds,
+    eligibleCustomerIds,
   };
 
   const mutation = useMutation({
@@ -247,6 +262,47 @@ function PromotionFormDialog({
             Exclusive (blocks others)
           </Checkbox>
         </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <p className="text-sm font-medium text-text">Eligibility (blank = every item/customer)</p>
+          <EligibilitySearchPicker
+            label="Eligible items"
+            placeholder="Search items by name, code or barcode…"
+            selectedIds={eligibleItemIds}
+            onChange={setEligibleItemIds}
+            queryKeyPrefix="promotion-items"
+            search={async (query) => {
+              if (!anchorStoreId || !query.trim()) return [];
+              const result = await searchPosProducts(anchorStoreId, query);
+              return result.rows.map((row) => ({ id: row.itemId, label: `${row.name} (${row.code})` }));
+            }}
+          />
+          <EligibilitySearchPicker
+            label="Eligible item groups"
+            placeholder="Search item groups…"
+            selectedIds={eligibleItemGroupIds}
+            onChange={setEligibleItemGroupIds}
+            queryKeyPrefix="promotion-item-groups"
+            search={async (query) => {
+              if (!query.trim()) return [];
+              const result = await searchPosItemGroups(query);
+              return result.rows.map((row) => ({ id: row.id, label: `${row.name} (${row.code})` }));
+            }}
+          />
+          <EligibilitySearchPicker
+            label="Eligible customers"
+            placeholder="Search customers by name, phone or email…"
+            selectedIds={eligibleCustomerIds}
+            onChange={setEligibleCustomerIds}
+            queryKeyPrefix="promotion-customers"
+            search={async (query) => {
+              if (!query.trim()) return [];
+              const result = await searchPosCustomers(query);
+              return result.rows.map((row) => ({ id: row.id, label: row.phone || row.email ? `${row.displayName} · ${row.phone || row.email}` : row.displayName }));
+            }}
+          />
+        </div>
+
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>
             Cancel

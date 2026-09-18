@@ -128,3 +128,32 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
     availableQuantity: Number(available.rows[0]?.available ?? 0),
   };
 }
+
+// Promotion/coupon eligibility item-group picker (closes a disclosed gap:
+// promotion/coupon admin screens could only set eligible_item_group_ids
+// through the raw API, never a UI, because no item-group search existed
+// anywhere in the app -- not even in checkout). Read-only, bounded,
+// company-scoped -- the exact same shape searchPointOfSalePosProducts
+// already established, just over tenant.item_groups instead of
+// tenant.items. Not a second catalog: item_groups is the SAME table Sales/
+// Stock's own item.group_id already references.
+export async function searchPointOfSaleItemGroups(client, context, input = {}) {
+  requirePermission(context, "pos.view");
+  const term = String(input.query || "").trim().slice(0, MAX_SEARCH_TERM_LENGTH);
+  const limit = Math.min(Math.max(Number(input.limit) || 25, 1), MAX_SEARCH_RESULTS);
+  const values = [context.organizationId];
+  let filter = "";
+  if (term) {
+    values.push(`%${term.toLowerCase()}%`);
+    filter = ` AND (lower(name) LIKE $${values.length} OR lower(code) LIKE $${values.length})`;
+  }
+  values.push(limit);
+  const result = await client.query(
+    `SELECT id,code,name FROM tenant.item_groups
+      WHERE organization_id=$1 AND status='active'${filter}
+      ORDER BY name
+      LIMIT $${values.length}`,
+    values,
+  );
+  return result.rows.map((row) => ({ id: row.id, code: row.code, name: row.name }));
+}

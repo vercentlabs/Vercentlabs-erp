@@ -9,12 +9,66 @@
 // layering violation.
 import { nextDocumentNumber } from "../../../core/document-numbering.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
+import { add, sub, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
 import { postStockMovement as postCanonicalStockMovement } from "../../stock/index.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
 import { releasePosCouponRedemptionForFullReturn } from "../assortment-pricing-customer-and-cart/coupons.js";
 import { reversePosLoyaltyForReturn } from "../assortment-pricing-customer-and-cart/loyalty.js";
+import { refundPosPayment } from "../tender-and-payment-execution/payments.js";
+
+// F292 non-cash refunds: the return's own refund_total is split across the
+// sale's captured payment legs proportionally to each leg's ORIGINAL
+// captured amount (a split-tender sale is refunded in the same proportions
+// it was paid in — the same "allocate a total across tender legs"
+// primitive F285 split-payment capture already uses), then capped at each
+// leg's own remaining refundable amount (capturedAmount-refundedAmount).
+// Any excess a cap creates is redistributed across legs that still have
+// headroom in a second pass; if headroom is exhausted across every leg
+// (only possible if an earlier, separate partial return already consumed
+// it disproportionately), this fails loud rather than silently
+// under-refunding one tender or fabricating headroom that doesn't exist.
+function allocateRefundAcrossPayments(refundTotal, legs) {
+  const shareByPaymentId = new Map(legs.map((leg) => [leg.payment.id, 0n]));
+  let remaining = refundTotal;
+  let pool = legs.filter((leg) => sub(leg.capturedAmount, leg.alreadyRefunded) > 0n);
+  let iterations = 0;
+  while (remaining > 0n && pool.length > 0 && iterations < legs.length + 1) {
+    iterations += 1;
+    const weights = pool.map((leg) => leg.capturedAmount);
+    const proposedShares = allocate(remaining, weights);
+    let distributed = 0n;
+    const nextPool = [];
+    for (let index = 0; index < pool.length; index += 1) {
+      const leg = pool[index];
+      const cap = sub(leg.capturedAmount, add(leg.alreadyRefunded, shareByPaymentId.get(leg.payment.id)));
+      const proposed = proposedShares[index];
+      const applied = proposed > cap ? cap : proposed;
+      if (applied > 0n) {
+        shareByPaymentId.set(leg.payment.id, add(shareByPaymentId.get(leg.payment.id), applied));
+        distributed = add(distributed, applied);
+      }
+      if (applied < proposed || (applied === cap && applied > 0n && proposed >= cap)) {
+        // This leg hit its cap this round -- it has no more headroom for
+        // a later round even though it may have "accepted" its full cap.
+        continue;
+      }
+      nextPool.push(leg);
+    }
+    remaining = sub(remaining, distributed);
+    pool = nextPool.filter((leg) => sub(leg.capturedAmount, add(leg.alreadyRefunded, shareByPaymentId.get(leg.payment.id))) > 0n);
+    if (distributed === 0n) break;
+  }
+  if (remaining > 0n) {
+    throw posError(
+      409,
+      "This return's refund total exceeds what remains refundable across the sale's payment methods.",
+      "POS_REFUND_EXCEEDS_CAPTURED",
+    );
+  }
+  return legs.map((leg) => shareByPaymentId.get(leg.payment.id));
+}
 
 export async function createPointOfSaleReturn(client, context, input) {
   requirePermission(context, "pos.return.create");
@@ -252,6 +306,12 @@ export async function completePointOfSaleReturn(client, context, returnId, input
     throw posError(409, "Only an approved POS return can be completed.", "POS_RETURN_STATE_INVALID");
   }
 
+  // F292: every captured/partially_refunded tender leg on the sale is a
+  // real refund candidate now, not just cash -- see
+  // allocateRefundAcrossPayments below. Locked here (not just read) so a
+  // concurrent refund attempt against the same payment (e.g. a supervisor
+  // double-clicking "complete") serializes rather than racing on the same
+  // remaining-refundable headroom.
   const payments = await client.query(
     `SELECT * FROM tenant.pos_payments
      WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3
@@ -259,13 +319,8 @@ export async function completePointOfSaleReturn(client, context, returnId, input
      ORDER BY id FOR UPDATE`,
     [context.organizationId, context.companyId, returnRecord.sale_id],
   );
-  const externalPayment = payments.rows.find((payment) => payment.payment_method !== "cash");
-  if (externalPayment) {
-    throw posError(
-      409,
-      `Refund for ${externalPayment.payment_method} requires an authoritative payment-provider refund adapter.`,
-      "POS_REFUND_PROVIDER_NOT_CONFIGURED",
-    );
+  if (!payments.rows.length) {
+    throw posError(409, "This sale has no captured payment left to refund.", "POS_REFUND_NO_PAYMENT");
   }
 
   const lines = await client.query(
@@ -378,41 +433,64 @@ export async function completePointOfSaleReturn(client, context, returnId, input
     });
   }
 
-  const refundTotal = Number(returnRecord.refund_total);
-  if (refundTotal > 0) {
-    const cashMovementNumber = await nextDocumentNumber(client, context, {
-      documentType: "pos_cash_movement",
-      prefix: "CASH",
-    });
-    await client.query(
-      `INSERT INTO tenant.pos_cash_movements
-        (organization_id,company_id,shift_id,movement_number,movement_type,
-         amount,reason,reference_type,reference_id,created_by)
-       VALUES ($1,$2,$3,$4,'refund',$5,$6,'pos_return',$7,$8)`,
-      [
-        context.organizationId,
-        context.companyId,
-        returnRecord.shift_id,
-        cashMovementNumber,
-        String(-refundTotal),
-        returnRecord.reason,
-        returnId,
-        context.userId,
-      ],
-    );
+  // F292: allocate the return's own authoritative refund_total across
+  // every captured tender leg on the sale, proportionally to how the sale
+  // was originally paid, then refund each leg through its own real
+  // mechanism -- a cash movement for cash, refundPosPayment's real
+  // provider-adapter call (tender-and-payment-execution/payments.js, the
+  // same idempotent/capped function F283-F286's own operator-facing
+  // refund action already uses) for everything else. Never a fabricated
+  // "refunded" status with no corresponding provider call.
+  const refundTotal = decimal(returnRecord.refund_total);
+  if (refundTotal > 0n) {
+    const legs = payments.rows.map((payment) => ({
+      payment,
+      capturedAmount: decimal(payment.amount),
+      alreadyRefunded: decimal(payment.refunded_amount || 0),
+    }));
+    const shares = allocateRefundAcrossPayments(refundTotal, legs);
+    for (let index = 0; index < legs.length; index += 1) {
+      const { payment } = legs[index];
+      const share = shares[index];
+      if (share <= 0n) continue;
+      if (payment.payment_method === "cash") {
+        const cashMovementNumber = await nextDocumentNumber(client, context, {
+          documentType: "pos_cash_movement",
+          prefix: "CASH",
+        });
+        await client.query(
+          `INSERT INTO tenant.pos_cash_movements
+            (organization_id,company_id,shift_id,movement_number,movement_type,
+             amount,reason,reference_type,reference_id,created_by)
+           VALUES ($1,$2,$3,$4,'refund',$5,$6,'pos_return',$7,$8)`,
+          [
+            context.organizationId,
+            context.companyId,
+            returnRecord.shift_id,
+            cashMovementNumber,
+            asDatabaseDecimal(sub(decimal(0), share)),
+            returnRecord.reason,
+            returnId,
+            context.userId,
+          ],
+        );
+        const newRefunded = add(decimal(payment.refunded_amount || 0), share);
+        const fullyRefundedLeg = newRefunded >= decimal(payment.amount);
+        await client.query(
+          `UPDATE tenant.pos_payments SET refunded_amount=$3,status=$4,updated_at=now()
+           WHERE organization_id=$1 AND id=$2`,
+          [context.organizationId, payment.id, asDatabaseDecimal(newRefunded), fullyRefundedLeg ? "refunded" : "partially_refunded"],
+        );
+      } else {
+        await refundPosPayment(client, context, {
+          paymentId: payment.id,
+          amount: asDatabaseDecimal(share),
+          idempotencyKey: `${input.idempotencyKey}:refund:${payment.id}`,
+          outcome: input.refundOutcome,
+        });
+      }
+    }
   }
-  await client.query(
-    `UPDATE tenant.pos_payments
-     SET status=$4
-     WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3 AND payment_method='cash'
-       AND status IN ('captured','partially_refunded')`,
-    [
-      context.organizationId,
-      context.companyId,
-      returnRecord.sale_id,
-      fullyReturned ? "refunded" : "partially_refunded",
-    ],
-  );
 
   const completed = await client.query(
     `UPDATE tenant.pos_returns
@@ -423,7 +501,7 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   );
   if (!completed.rows[0]) throw posError(409, "POS return state changed before completion.", "POS_RETURN_STATE_CONFLICT");
   await event(client, context, "return", returnId, "pos.return.completed", {
-    refundTotal,
+    refundTotal: asDatabaseDecimal(refundTotal),
     saleStatus: nextSaleStatus,
   });
   const response = { ...completed.rows[0], saleStatus: nextSaleStatus, replayed: false };

@@ -1,4 +1,4 @@
-import { requirePermission, accessiblePosStoreIds } from "./access-control.js";
+import { requirePermission, accessiblePosStoreIds, accessiblePosTerminalIds } from "./access-control.js";
 
 // Generic multi-resource listing (admin/reporting screens that list raw
 // store/terminal/shift/sale/... rows). This is genuinely cross-cutting --
@@ -58,6 +58,17 @@ export async function listPointOfSaleResource(client, context, resource, { limit
     if (accessibleStoreIds) {
       values.push(accessibleStoreIds);
       filter += ` AND ${storeColumn}=ANY($${values.length}::uuid[])`;
+    }
+    // F270/F271: a further narrowing on top of store-level access -- only
+    // meaningful (non-null) once this user holds at least one
+    // terminal-specific grant somewhere; otherwise every terminal in an
+    // accessible store is visible, the pre-existing behavior.
+    if (target === "pos_terminals") {
+      const accessibleTerminalIds = await accessiblePosTerminalIds(client, context);
+      if (accessibleTerminalIds) {
+        values.push(accessibleTerminalIds);
+        filter += ` AND id=ANY($${values.length}::uuid[])`;
+      }
     }
   } else if (target === "pos_cash_movements") {
     const accessibleStoreIds = await accessiblePosStoreIds(client, context);

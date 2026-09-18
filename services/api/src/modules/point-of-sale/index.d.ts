@@ -20,10 +20,13 @@ export declare function openShift(client: any, context: PointOfSaleContext, inpu
 // F270/F271 cashier eligibility administration
 export type PosEligibleCashier = { id: string; fullName: string; email: string; roleSlugs: string[]; assignedStoreIds: string[] };
 export declare function listPosEligibleCashiers(client: any, context: PointOfSaleContext): Promise<PosEligibleCashier[]>;
-export type PosStoreAccessGrant = { id: string; userId: string; storeId: string; fullName: string; email: string; createdAt: string };
+// F270/F271: terminalId null/omitted = a store-wide grant (all terminals);
+// a real terminalId = a narrower, terminal-specific grant. See migration
+// 128 and shared/access-control.js's assertPosStoreAccess.
+export type PosStoreAccessGrant = { id: string; userId: string; storeId: string; terminalId: string | null; terminalName: string | null; fullName: string; email: string; createdAt: string };
 export declare function listPosStoreAccess(client: any, context: PointOfSaleContext, storeId?: string | null): Promise<PosStoreAccessGrant[]>;
-export declare function grantPosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string }): Promise<any>;
-export declare function revokePosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string }): Promise<{ revoked: true }>;
+export declare function grantPosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string; terminalId?: string | null }): Promise<any>;
+export declare function revokePosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string; terminalId?: string | null }): Promise<{ revoked: true }>;
 export declare function completePointOfSale(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function findPosSaleForReturn(client: any, context: PointOfSaleContext, input: { receiptNumber: string }): Promise<{ sale: Record<string, any>; lines: Record<string, any>[] }>;
 export declare function createPointOfSaleReturn(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
@@ -133,6 +136,14 @@ export declare function postPosReturnToAccounting(client: any, context: PointOfS
 export declare function postPosDayEndReportToAccounting(client: any, context: PointOfSaleContext, reportId: string): Promise<{ reportId: string; posted: Array<{ type: string; id: string; journalEntryId: string }>; alreadyPosted: Array<{ type: string; id: string }>; failed: Array<{ type: string; id: string; message: string }> }>;
 export declare function listPosAccountingPostingQueue(client: any, context: PointOfSaleContext, options?: { status?: string; storeId?: string; limit?: number }): Promise<Record<string, any>[]>;
 
+// F305 gap closure — account-mapping configuration (wraps Accounting's own
+// getAccountingSettings/getAccountingOptions/upsertAccountMapping).
+export type PosMappingKeyDefinition = { key: string; label: string; description: string; seeded: boolean };
+export declare const POS_MAPPING_KEYS: readonly PosMappingKeyDefinition[];
+export type PosAccountingMappingRow = PosMappingKeyDefinition & { configured: boolean; accountId: string | null; accountCode: string | null; accountName: string | null };
+export declare function getPosAccountingMappingConfig(client: any, context: PointOfSaleContext): Promise<{ ledger: Record<string, any> | null; accounts: Record<string, any>[]; mappings: PosAccountingMappingRow[] }>;
+export declare function upsertPosAccountingMapping(client: any, context: PointOfSaleContext, input: { mappingKey: string; accountId: string }): Promise<Record<string, any>>;
+
 // F307 — POS sales analytics.
 export declare function getPosSalesAnalytics(client: any, context: PointOfSaleContext, filters: { dateFrom: string; dateTo: string; storeId?: string; terminalId?: string; cashierId?: string }): Promise<Record<string, any>>;
 
@@ -218,6 +229,8 @@ export type PointOfSaleProductMatch = {
 };
 export declare function searchPointOfSalePosProducts(client: any, context: PointOfSaleContext, storeId: string, input?: Record<string, any>): Promise<PointOfSaleProductMatch[]>;
 export declare function lookupPointOfSaleBarcode(client: any, context: PointOfSaleContext, storeId: string, barcode: string): Promise<PointOfSaleProductMatch>;
+export type PosItemGroupMatch = { id: string; code: string; name: string };
+export declare function searchPointOfSaleItemGroups(client: any, context: PointOfSaleContext, input?: { query?: string; limit?: number }): Promise<PosItemGroupMatch[]>;
 
 // F276
 export type PointOfSaleCustomerMatch = { id: string; code: string; displayName: string; phone: string | null; email: string | null };

@@ -32,3 +32,20 @@ export const listPosAccountingPostingQueue = (query: { status?: string; storeId?
   if (query.storeId) params.set("storeId", query.storeId);
   return request<{ rows: PosAccountingPostingRow[] }>(`/accounting/posting-queue${params.size ? `?${params}` : ""}`);
 };
+
+// F305 gap closure — account-mapping configuration.
+export type PosAccountingMappingRow = {
+  key: string;
+  label: string;
+  description: string;
+  seeded: boolean;
+  configured: boolean;
+  accountId: string | null;
+  accountCode: string | null;
+  accountName: string | null;
+};
+export type PosAccountOption = { id: string; code: string; name: string; account_type: string };
+export type PosAccountingMappingConfig = { ledger: { id: string; code: string; name: string } | null; accounts: PosAccountOption[]; mappings: PosAccountingMappingRow[] };
+export const getPosAccountingMappingConfig = () => request<PosAccountingMappingConfig>("/accounting/mappings");
+export const upsertPosAccountingMapping = (mappingKey: string, accountId: string) =>
+  post<{ mapping: Record<string, unknown> }>("/accounting/mappings", { mappingKey, accountId });

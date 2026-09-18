@@ -48,17 +48,32 @@ export async function listPosEligibleCashiers(client, context) {
   }));
 }
 
+// F270/F271: terminal_id is real now (migration 128) -- a NULL row is the
+// original store-wide grant, a non-NULL row is a narrower terminal-specific
+// one. listPosStoreAccess returns both kinds undifferentiated in shape
+// (terminalId is simply null for a store-wide row) so the admin screen can
+// render "All terminals" vs a specific terminal name from the same list.
 export async function listPosStoreAccess(client, context, storeId) {
   requirePermission(context, "pos.store.manage");
   const result = await client.query(
-    `SELECT psa.id, psa.user_id, psa.store_id, psa.created_at, u.full_name, u.email
+    `SELECT psa.id, psa.user_id, psa.store_id, psa.terminal_id, psa.created_at, u.full_name, u.email, terminal.name AS terminal_name
        FROM tenant.pos_store_access psa
        JOIN public.users u ON u.id = psa.user_id
+       LEFT JOIN tenant.pos_terminals terminal ON terminal.organization_id = psa.organization_id AND terminal.id = psa.terminal_id
       WHERE psa.organization_id = $1 AND psa.company_id = $2 AND ($3::uuid IS NULL OR psa.store_id = $3)
-      ORDER BY u.full_name`,
+      ORDER BY u.full_name, terminal.name NULLS FIRST`,
     [context.organizationId, context.companyId, storeId || null],
   );
-  return result.rows.map((row) => ({ id: row.id, userId: row.user_id, storeId: row.store_id, fullName: row.full_name, email: row.email, createdAt: row.created_at }));
+  return result.rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    storeId: row.store_id,
+    terminalId: row.terminal_id,
+    terminalName: row.terminal_name,
+    fullName: row.full_name,
+    email: row.email,
+    createdAt: row.created_at,
+  }));
 }
 
 export async function grantPosStoreAccess(client, context, input) {
@@ -69,27 +84,46 @@ export async function grantPosStoreAccess(client, context, input) {
     input.userId,
   ]);
   if (!member.rows[0]) throw posError(404, "That user is not an active member of this organization.", "POS_STORE_ACCESS_USER_INVALID");
-  await requireCompanyRecord(client, context, "pos_store", input.storeId);
+  const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
+  let terminalId = null;
+  if (input.terminalId) {
+    const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
+    if (terminal.store_id !== store.id) throw posError(409, "The selected terminal does not belong to the selected store.", "POS_TERMINAL_STORE_MISMATCH");
+    terminalId = terminal.id;
+  }
   await client.query(
-    `INSERT INTO tenant.pos_store_access (organization_id,company_id,user_id,store_id,created_by)
-     VALUES ($1,$2,$3,$4,$5) ON CONFLICT (organization_id,user_id,store_id) DO NOTHING`,
-    [context.organizationId, context.companyId, input.userId, input.storeId, context.userId],
+    `INSERT INTO tenant.pos_store_access (organization_id,company_id,user_id,store_id,terminal_id,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (organization_id,user_id,store_id) WHERE terminal_id IS NULL DO NOTHING`,
+    [context.organizationId, context.companyId, input.userId, input.storeId, terminalId, context.userId],
+  ).catch(async (error) => {
+    // The two partial unique indexes (migration 128) can't both be named
+    // in one ON CONFLICT target -- a terminal-specific insert that
+    // collides falls through to this second, explicit attempt instead of
+    // a second INSERT statement guessing which index applies up front.
+    if (error.code !== "23505") throw error;
+    await client.query(
+      `INSERT INTO tenant.pos_store_access (organization_id,company_id,user_id,store_id,terminal_id,created_by)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (organization_id,user_id,store_id,terminal_id) WHERE terminal_id IS NOT NULL DO NOTHING`,
+      [context.organizationId, context.companyId, input.userId, input.storeId, terminalId, context.userId],
+    );
+  });
+  const row = await client.query(
+    `SELECT * FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$2 AND store_id=$3 AND (terminal_id=$4 OR (terminal_id IS NULL AND $4::uuid IS NULL))`,
+    [context.organizationId, input.userId, input.storeId, terminalId],
   );
-  const row = await client.query(`SELECT * FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$2 AND store_id=$3`, [
-    context.organizationId,
-    input.userId,
-    input.storeId,
-  ]);
   return row.rows[0];
 }
 
 export async function revokePosStoreAccess(client, context, input) {
   requirePermission(context, "pos.store.manage");
-  const result = await client.query(`DELETE FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$2 AND store_id=$3 RETURNING id`, [
-    context.organizationId,
-    input.userId,
-    input.storeId,
-  ]);
-  if (!result.rows[0]) throw posError(404, "That cashier is not assigned to this store.", "POS_STORE_ACCESS_NOT_FOUND");
+  const result = await client.query(
+    `DELETE FROM tenant.pos_store_access
+      WHERE organization_id=$1 AND user_id=$2 AND store_id=$3 AND (terminal_id=$4 OR (terminal_id IS NULL AND $4::uuid IS NULL))
+      RETURNING id`,
+    [context.organizationId, input.userId, input.storeId, input.terminalId || null],
+  );
+  if (!result.rows[0]) throw posError(404, "That cashier is not assigned to this store/terminal.", "POS_STORE_ACCESS_NOT_FOUND");
   return { revoked: true };
 }

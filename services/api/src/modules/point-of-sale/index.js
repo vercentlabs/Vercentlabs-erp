@@ -17,7 +17,7 @@ export { createTerminal, updatePosTerminal, setPosTerminalStatus } from "./store
 export { listPosEligibleCashiers, listPosStoreAccess, grantPosStoreAccess, revokePosStoreAccess } from "./store-terminal-and-cashier-control/cashier-access.js";
 
 // POS-CAP-002 -- assortment, pricing, customer and cart (F272-F281).
-export { searchPointOfSalePosProducts, lookupPointOfSaleBarcode } from "./assortment-pricing-customer-and-cart/assortment.js";
+export { searchPointOfSalePosProducts, lookupPointOfSaleBarcode, searchPointOfSaleItemGroups } from "./assortment-pricing-customer-and-cart/assortment.js";
 export { searchPointOfSaleCustomers } from "./assortment-pricing-customer-and-cart/customers.js";
 export { priceCartLines } from "./assortment-pricing-customer-and-cart/cart-pricing.js";
 export {
@@ -109,6 +109,11 @@ export {
   postPosDayEndReportToAccounting,
   listPosAccountingPostingQueue,
 } from "./cash-shift-day-end-and-reconciliation/accounting-posting.js";
+export {
+  POS_MAPPING_KEYS,
+  getPosAccountingMappingConfig,
+  upsertPosAccountingMapping,
+} from "./cash-shift-day-end-and-reconciliation/accounting-mapping-config.js";
 
 // POS-CAP-006 -- inventory and offline continuity (F294-F298).
 export {

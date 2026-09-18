@@ -7,7 +7,7 @@ import { errorResponse, ok, readJson } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
 
-const accessSchema = z.object({ userId: z.string().uuid(), storeId: z.string().uuid() });
+const accessSchema = z.object({ userId: z.string().uuid(), storeId: z.string().uuid(), terminalId: z.string().uuid().optional().nullable() });
 
 export async function GET(request: Request) {
   try {
@@ -44,7 +44,7 @@ export async function DELETE(request: Request) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const url = new URL(request.url);
-    const input = accessSchema.parse({ userId: url.searchParams.get("userId"), storeId: url.searchParams.get("storeId") });
+    const input = accessSchema.parse({ userId: url.searchParams.get("userId"), storeId: url.searchParams.get("storeId"), terminalId: url.searchParams.get("terminalId") || undefined });
     const result = await tenantTransaction(session.organizationId, async (client) => {
       await requirePosAccess(client, session, "pos.store.manage");
       return revokePosStoreAccess(client, posContext(session), input);

@@ -174,7 +174,7 @@ export async function completePointOfSale(client, context, input) {
   if (!shift) {
     throw posError(409, "An open POS shift with a valid store and terminal is required.", "POS_SHIFT_NOT_OPEN");
   }
-  await assertPosStoreAccess(client, context, shift.store_id);
+  await assertPosStoreAccess(client, context, shift.store_id, shift.terminal_id);
 
   // SECURITY (consolidated pass): this used to SELECT only
   // allow_negative_stock/allow_price_override, so the discount check below
@@ -642,7 +642,7 @@ export async function completePosCart(client, context, cartId, input = {}) {
   // cart operation (see features/cart.js's lockCart/getPosCart) -- this
   // query is a bespoke SELECT rather than a call into lockCart, so it needs
   // its own check.
-  await assertPosStoreAccess(client, context, cart.store_id);
+  await assertPosStoreAccess(client, context, cart.store_id, cart.terminal_id);
   if (cart.status !== "priced") {
     throw posError(409, `This cart is ${cart.status} and cannot be completed.`, "POS_CART_NOT_PRICED");
   }

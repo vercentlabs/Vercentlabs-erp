@@ -32,7 +32,7 @@ import {
   loadCompany,
   getPrimaryLedger,
 } from "../../accounting/index.js";
-import { add, sub, mul, div, decimal, asDatabaseDecimal } from "../../../core/decimal.js";
+import { add, sub, mul, div, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event as auditEvent } from "../shared/audit.js";
@@ -271,13 +271,52 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
     lines.push({ accountId: tax.account_id, description: `Output tax reversal — ${posReturn.return_number}`, debit: asDatabaseDecimal(taxTotal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
   }
 
-  // Returns/refunds are cash-only today (F292's own current, disclosed
-  // scope — see the POS gap matrix); the tender-side reversal always
-  // credits 'cash' until a non-cash refund path exists.
+  // F292: refunds now really do go back to every tender the sale used, not
+  // just cash (return-lifecycle.js's allocateRefundAcrossPayments). The
+  // exact per-payment split isn't stored anywhere after the fact, so this
+  // reconstructs it: the cash portion is read directly from this return's
+  // own real pos_cash_movements row (exact, not an estimate); any
+  // remainder is the non-cash portion, allocated across the sale's
+  // non-cash tender legs by their ORIGINAL captured amounts -- exact for
+  // the overwhelmingly common case (one tender, or cash + one other), a
+  // disclosed proportional approximation only for a sale split across
+  // MULTIPLE different non-cash methods.
   const refundTotal = decimal(posReturn.refund_total);
   if (refundTotal > 0n) {
-    const cash = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date });
-    lines.push({ accountId: cash.account_id, description: `POS cash refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(refundTotal), referenceType: "pos_return", referenceId: posReturn.id });
+    const cashMovement = await client.query(
+      `SELECT coalesce(sum(-amount),0)::numeric(20,6) AS cash_refunded
+         FROM tenant.pos_cash_movements
+        WHERE organization_id=$1 AND reference_type='pos_return' AND reference_id=$2 AND movement_type='refund'`,
+      [context.organizationId, posReturn.id],
+    );
+    const cashPortion = decimal(cashMovement.rows[0]?.cash_refunded || 0);
+    if (cashPortion > 0n) {
+      const cash = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date });
+      lines.push({ accountId: cash.account_id, description: `POS cash refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(cashPortion), referenceType: "pos_return", referenceId: posReturn.id });
+    }
+    const nonCashPortion = sub(refundTotal, cashPortion);
+    if (nonCashPortion > 0n) {
+      const nonCashLegs = await client.query(
+        `SELECT payment_method,sum(amount)::numeric(20,6) AS captured_amount
+           FROM tenant.pos_payments
+          WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3 AND payment_method<>'cash'
+            AND status IN ('captured','partially_refunded','refunded')
+          GROUP BY payment_method`,
+        [context.organizationId, company.id, posReturn.sale_id],
+      );
+      if (!nonCashLegs.rows.length) {
+        throw posError(409, "This return's refund cannot be traced to a real tender leg on its sale.", "POS_ACCOUNTING_REFUND_TENDER_UNRESOLVED");
+      }
+      const weights = nonCashLegs.rows.map((row) => decimal(row.captured_amount));
+      const shares = allocate(nonCashPortion, weights);
+      for (let index = 0; index < nonCashLegs.rows.length; index += 1) {
+        const share = shares[index];
+        if (share <= 0n) continue;
+        const method = nonCashLegs.rows[index].payment_method;
+        const account = await tenderMappingAccount(client, accountingContext, company, ledger, method, date);
+        lines.push({ accountId: account.account_id, description: `POS ${method} refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(share), referenceType: "pos_return", referenceId: posReturn.id });
+      }
+    }
   }
 
   return { lines, date };

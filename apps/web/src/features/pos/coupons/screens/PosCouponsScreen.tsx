@@ -12,13 +12,15 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { createPosCoupon, listPosCoupons, setPosCouponActive, updatePosCoupon } from "@/features/pos/coupons/api/coupons-api";
+import { searchPosProducts, searchPosCustomers } from "@/features/pos/checkout/api/checkout-api";
+import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { EligibilitySearchPicker } from "@/features/pos/shared/EligibilitySearchPicker";
 
 // F281 -- real coupon administration against the F281 backend
 // (assortment-pricing-customer-and-cart/coupons.js). Committed redemption
 // facts (committed_count) are shown read-only and never editable here --
 // this screen only edits the coupon's own configuration. Item/customer
-// ID-array eligibility has the same disclosed gap as promotions (no item/
-// customer picker exists yet).
+// eligibility uses the same EligibilitySearchPicker promotions does.
 export function PosCouponsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -167,6 +169,11 @@ function CouponFormDialog({
   const [usageLimitPerStore, setUsageLimitPerStore] = useState(Number(coupon?.usage_limit_per_store ?? 0));
   const [effectiveFrom, setEffectiveFrom] = useState((coupon?.effective_from as string) ?? "");
   const [effectiveTo, setEffectiveTo] = useState((coupon?.effective_to as string) ?? "");
+  const [eligibleItemIds, setEligibleItemIds] = useState<string[]>((coupon?.eligible_item_ids as string[]) ?? []);
+  const [eligibleCustomerIds, setEligibleCustomerIds] = useState<string[]>((coupon?.eligible_customer_ids as string[]) ?? []);
+
+  const storesQuery = useQuery({ queryKey: ["pos", "eligibility-picker-stores"], queryFn: listPosStores });
+  const anchorStoreId = storesQuery.data?.rows.find((s) => s.active)?.id;
 
   const payload = {
     name: name || undefined,
@@ -177,6 +184,8 @@ function CouponFormDialog({
     usageLimitPerStore: usageLimitPerStore > 0 ? usageLimitPerStore : null,
     effectiveFrom: effectiveFrom || null,
     effectiveTo: effectiveTo || null,
+    eligibleItemIds,
+    eligibleCustomerIds,
     ...(isEdit ? { discountValue } : {}),
   };
 
@@ -226,6 +235,35 @@ function CouponFormDialog({
             {coupon!.committed_count ?? 0} redemption(s) already committed. Historical redemption facts cannot be edited here.
           </p>
         )}
+
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <p className="text-sm font-medium text-text">Eligibility (blank = every item/customer)</p>
+          <EligibilitySearchPicker
+            label="Eligible items"
+            placeholder="Search items by name, code or barcode…"
+            selectedIds={eligibleItemIds}
+            onChange={setEligibleItemIds}
+            queryKeyPrefix="coupon-items"
+            search={async (query) => {
+              if (!anchorStoreId || !query.trim()) return [];
+              const result = await searchPosProducts(anchorStoreId, query);
+              return result.rows.map((row) => ({ id: row.itemId, label: `${row.name} (${row.code})` }));
+            }}
+          />
+          <EligibilitySearchPicker
+            label="Eligible customers"
+            placeholder="Search customers by name, phone or email…"
+            selectedIds={eligibleCustomerIds}
+            onChange={setEligibleCustomerIds}
+            queryKeyPrefix="coupon-customers"
+            search={async (query) => {
+              if (!query.trim()) return [];
+              const result = await searchPosCustomers(query);
+              return result.rows.map((row) => ({ id: row.id, label: row.phone || row.email ? `${row.displayName} · ${row.phone || row.email}` : row.displayName }));
+            }}
+          />
+        </div>
+
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>
             Cancel

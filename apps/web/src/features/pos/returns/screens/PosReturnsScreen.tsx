@@ -30,14 +30,18 @@ const STATUS_TONE: Record<PosReturn["status"], "success" | "warning" | "neutral"
   rejected: "danger",
 };
 
-// F291/F292 -- cash returns and refunds against the real F291/F292 backend
+// F291/F292 -- returns and refunds against the real F291/F292 backend
 // (createPointOfSaleReturn/approvePointOfSaleReturn/completePointOfSaleReturn,
 // services/api/src/modules/point-of-sale/index.js). A cashier can request
 // a return (pos.return.create); a supervisor approves and completes the
 // refund (pos.return.approve, on a DIFFERENT person than the requester --
-// enforced server-side). Non-cash refunds are not offered here at all --
-// the backend fails closed on anything but cash until a certified
-// provider exists, so this screen never even shows the option.
+// enforced server-side). "Complete refund" works for every tender the
+// original sale used, not just cash: completePointOfSaleReturn allocates
+// the refund across the sale's real payment legs and refunds each through
+// its own real mechanism (a cash movement, or the same provider-adapter
+// refundPosPayment call the standalone payment-refund action uses) --
+// there is no separate "non-cash" button because there is no separate
+// code path to gate here.
 export function PosReturnsScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
@@ -129,7 +133,7 @@ export function PosReturnsScreen() {
       <EnterpriseListPage
         header={{
           title: "Returns",
-          description: "Cash returns and refunds against a completed sale. Non-cash refunds are not available until a payment provider is connected.",
+          description: "Returns and refunds against a completed sale, refunded back through whichever tender(s) the original sale used.",
           primaryAction: canCreate ? (
             <Button variant="primary" onPress={() => setNewReturnOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
