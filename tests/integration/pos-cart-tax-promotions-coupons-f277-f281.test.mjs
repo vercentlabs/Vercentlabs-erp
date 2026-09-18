@@ -481,6 +481,74 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       );
     });
 
+    // The legacy flat-lines path requires pos.sale.create (to complete a
+    // sale at all) AND pos.discount.apply (to apply a line discount) --
+    // cashierContext has only the former, supervisorContext only the
+    // latter, so these two tests need a persona holding both.
+    const legacyDiscountContext = { organizationId: orgId, companyId, userId: supervisorId, roleSlugs: [], permissions: ["pos.view", "pos.sale.create", "pos.discount.apply"] };
+
+    await t.test("SECURITY (consolidated pass, item #13): the legacy flat-lines completePointOfSale path enforces the supervisor-approval discount threshold instead of accepting any discountAmount at face value", async () => {
+      // At/under the default 10% discount_approval_threshold_percent: still
+      // allowed outright, no approval needed.
+      const allowed = await tx((c) =>
+        completePointOfSale(c, legacyDiscountContext, {
+          shiftId: shift.id,
+          idempotencyKey: "legacy-discount-below-threshold",
+          lines: [{ itemId, quantity: 1, unitPrice: 100, discountAmount: 5, discountReason: "loyalty" }],
+          payments: [{ method: "cash", amount: 112.1 }],
+        }),
+      );
+      assert.equal(allowed.tax_total, "17.100000");
+
+      // Above the threshold: this used to be silently accepted (the legacy
+      // path never checked discount_approval_threshold_percent at all and
+      // has no cart to bind a real maker-checker approval to). It must now
+      // fail closed rather than let a cashier grant an unapproved discount.
+      await assert.rejects(
+        () =>
+          tx((c) =>
+            completePointOfSale(c, legacyDiscountContext, {
+              shiftId: shift.id,
+              idempotencyKey: "legacy-discount-above-threshold",
+              lines: [{ itemId, quantity: 1, unitPrice: 100, discountAmount: 50, discountReason: "damaged" }],
+              payments: [{ method: "cash", amount: 59 }],
+            }),
+          ),
+        (error) => error.code === "POS_DISCOUNT_APPROVAL_REQUIRED",
+      );
+    });
+
+    await t.test("SECURITY (consolidated pass, item #13): pos_settings.max_line_discount_percent is now actually read and enforced on the legacy path (the SELECT previously omitted the column, so the real value was silently ignored)", async () => {
+      await admin.query(
+        `UPDATE tenant.pos_settings SET max_line_discount_percent=5, discount_approval_threshold_percent=100 WHERE organization_id=$1 AND company_id=$2`,
+        [orgId, companyId],
+      );
+      try {
+        // A 20% discount is well under the (temporarily raised) 100%
+        // approval threshold, so if this is rejected, it can only be
+        // because the real max_line_discount_percent=5 was fetched and
+        // enforced -- proving the previously-missing SELECT column is now
+        // actually wired up rather than always falling back to `?? 100`.
+        await assert.rejects(
+          () =>
+            tx((c) =>
+              completePointOfSale(c, legacyDiscountContext, {
+                shiftId: shift.id,
+                idempotencyKey: "legacy-discount-exceeds-configured-cap",
+                lines: [{ itemId, quantity: 1, unitPrice: 100, discountAmount: 20, discountReason: "clearance" }],
+                payments: [{ method: "cash", amount: 94.4 }],
+              }),
+            ),
+          (error) => error.code === "POS_DISCOUNT_POLICY_EXCEEDED",
+        );
+      } finally {
+        await admin.query(
+          `UPDATE tenant.pos_settings SET max_line_discount_percent=100, discount_approval_threshold_percent=10 WHERE organization_id=$1 AND company_id=$2`,
+          [orgId, companyId],
+        );
+      }
+    });
+
     await t.test("PHASE 10 regression: two terminals sharing the default receipt_prefix never collide on receipt numbers (real bug found this session)", async () => {
       const cart2 = await tx((c) => createPosCart(c, cashierContext, { storeId, terminalId: terminal2Id, shiftId: shift2.id }));
       const priced2 = await tx((c) => addPosCartLine(c, cashierContext, cart2.id, { itemId, quantity: 1 }));

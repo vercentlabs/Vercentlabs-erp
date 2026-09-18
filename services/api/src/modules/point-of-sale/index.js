@@ -588,8 +588,15 @@ export async function completePointOfSale(client, context, input) {
   }
   await assertPosStoreAccess(client, context, shift.store_id);
 
+  // SECURITY (consolidated pass): this used to SELECT only
+  // allow_negative_stock/allow_price_override, so the discount check below
+  // (`policy.max_line_discount_percent ?? 100`) silently ignored whatever
+  // the organization actually configured and always fell back to
+  // "100% -- no cap at all." discount_approval_threshold_percent is now
+  // also selected so this legacy path can be held to the same fail-closed
+  // rule the cart-based path (F279) already enforces (see below).
   const settings = await client.query(
-    `SELECT allow_negative_stock,allow_price_override
+    `SELECT allow_negative_stock,allow_price_override,max_line_discount_percent,discount_approval_threshold_percent
      FROM tenant.pos_settings
      WHERE organization_id=$1 AND company_id=$2`,
     [context.organizationId, context.companyId],
@@ -597,6 +604,8 @@ export async function completePointOfSale(client, context, input) {
   const policy = settings.rows[0] || {
     allow_negative_stock: false,
     allow_price_override: false,
+    max_line_discount_percent: 100,
+    discount_approval_threshold_percent: 10,
   };
 
   // F276: reference the authoritative CRM/Sales customer master
@@ -698,6 +707,25 @@ export async function completePointOfSale(client, context, input) {
         policy.max_line_discount_percent ?? 100,
         `Line ${index + 1}`,
       );
+      // SECURITY (consolidated pass): this legacy flat-lines path has no
+      // cart to bind a real maker-checker approval to (F279's approval
+      // engine is keyed on a cart id + cart version) -- rather than build
+      // a second, weaker approval mechanism just for this deprecated path,
+      // an above-threshold discount fails closed here with a clear error
+      // directing the caller to the cart-based checkout, which DOES have
+      // real supervisor approval. Effective-percent-of-gross computed with
+      // fixed-point decimals, the same way the cart path computes it, so a
+      // flat amount can't bypass this by not being expressed as a percent.
+      if (lineSubtotal > 0n) {
+        const percentOfGross = div(mul(discountAmount, decimal(100)), lineSubtotal);
+        if (percentOfGross > decimal(policy.discount_approval_threshold_percent ?? 10)) {
+          throw posError(
+            409,
+            `Line ${index + 1} discount above ${policy.discount_approval_threshold_percent ?? 10}% requires supervisor approval — use the cart-based checkout for discounts that need approval.`,
+            "POS_DISCOUNT_APPROVAL_REQUIRED",
+          );
+        }
+      }
     }
     const taxableAmount = max(0, sub(lineSubtotal, discountAmount));
     const { taxRate, components } = await resolveTaxRateComponents(client, {
