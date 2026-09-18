@@ -47,7 +47,20 @@ export type PosStore = {
 };
 export type PosTerminal = { id: string; code: string; name: string; storeId?: string; store_id?: string; status: string };
 export type PosShift = { id: string; storeId?: string; store_id?: string; terminalId?: string; terminal_id?: string; status: string; shiftNumber?: string; shift_number?: string; openingCash?: string; opening_cash?: string };
-export type PosProductMatch = { itemId: string; variantId: string | null; name: string; code: string; barcode: string | null; salesPrice: string; availableQuantity: number };
+export type PosProductMatch = {
+  itemId: string;
+  variantId: string | null;
+  name: string;
+  code: string;
+  barcode: string | null;
+  salesPrice: string;
+  // F295 -- "none" | "batch" | "serial" (tenant.items.tracking_type). Lets
+  // the checkout UI require a serial/batch before completing a sale of a
+  // tracked item, instead of only discovering the requirement from the
+  // server's hard rejection at checkout.
+  trackingType?: "none" | "batch" | "serial";
+  availableQuantity: number;
+};
 
 export type PosDashboard = { sales_today: number; revenue_today: string; open_shifts: number; returns_today: number };
 export const getPosDashboard = () => request<PosDashboard>("/dashboard");
@@ -117,6 +130,9 @@ export const removePosCartLine = (id: string, lineId: string, expectedVersion?: 
   del<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`);
 export const applyPosLineDiscount = (id: string, lineId: string, input: Record<string, unknown>) =>
   post<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/discount`, input);
+// F295 -- set/change the batch or serial number on a cart line.
+export const setPosCartLineTracking = (id: string, lineId: string, input: { batchId?: string | null; serialId?: string | null; expectedVersion?: number }) =>
+  post<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/tracking`, input);
 export const removePosLineDiscount = (id: string, lineId: string, expectedVersion?: number) =>
   del<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/discount${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`);
 export const setPosCartDiscount = (id: string, input: Record<string, unknown>) => post<{ cart: PosCart }>(`/carts/${id}/discount`, input);

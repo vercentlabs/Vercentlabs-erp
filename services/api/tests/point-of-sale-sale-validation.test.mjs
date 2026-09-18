@@ -77,8 +77,8 @@ function client() {
       }
       if (/INSERT INTO tenant\.pos_sales/.test(sql)) return { rows: [{ id: saleId, store_id: "store-1", terminal_id: "terminal-1" }] };
       if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
-      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql))
-        return { rows: [{ id: itemId, company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "50" }] };
+      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost,tracking_type FROM tenant\.items/.test(sql))
+        return { rows: [{ id: itemId, company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "50", tracking_type: "none" }] };
       if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql))
         return { rows: [{ id: warehouseId, company_id: company, allow_negative_stock: false }] };
       if (/SELECT allow_negative_stock,costing_method FROM tenant\.stock_settings/.test(sql))

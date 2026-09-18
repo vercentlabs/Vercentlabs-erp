@@ -47,7 +47,7 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
     `(SELECT
         item.id AS item_id, NULL::uuid AS variant_id,
         item.name, item.code, item.barcode,
-        item.sales_price, item.uom_id
+        item.sales_price, item.uom_id, item.tracking_type
       FROM tenant.items item
       WHERE item.organization_id=$1 AND (item.company_id IS NULL OR item.company_id=$2)
         AND item.status='active'
@@ -57,7 +57,7 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
      (SELECT
         variant.item_id, variant.id AS variant_id,
         variant.name, variant.sku AS code, variant.barcode,
-        coalesce(variant.sales_price, item.sales_price), item.uom_id
+        coalesce(variant.sales_price, item.sales_price), item.uom_id, item.tracking_type
       FROM tenant.item_variants variant
       JOIN tenant.items item
         ON item.organization_id=variant.organization_id AND item.id=variant.item_id
@@ -88,6 +88,7 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
     code: row.code,
     barcode: row.barcode,
     salesPrice: row.sales_price,
+    trackingType: row.tracking_type || "none",
     availableQuantity: availableByItem.get(row.item_id) ?? 0,
   }));
 }
@@ -106,7 +107,7 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
   if (!normalized) throw posError(400, "A barcode is required.", "POS_BARCODE_REQUIRED");
 
   const itemMatch = await client.query(
-    `SELECT id AS item_id, NULL::uuid AS variant_id, name, code, barcode, sales_price, uom_id
+    `SELECT id AS item_id, NULL::uuid AS variant_id, name, code, barcode, sales_price, uom_id, tracking_type
      FROM tenant.items
      WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2)
        AND status='active' AND barcode=$3
@@ -118,7 +119,8 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
     (
       await client.query(
         `SELECT variant.item_id, variant.id AS variant_id, variant.name, variant.sku AS code,
-                variant.barcode, coalesce(variant.sales_price, item.sales_price) AS sales_price, item.uom_id
+                variant.barcode, coalesce(variant.sales_price, item.sales_price) AS sales_price, item.uom_id,
+                item.tracking_type
          FROM tenant.item_variants variant
          JOIN tenant.items item ON item.organization_id=variant.organization_id AND item.id=variant.item_id
          WHERE variant.organization_id=$1 AND (variant.company_id IS NULL OR variant.company_id=$2)
@@ -144,6 +146,7 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
     code: row.code,
     barcode: row.barcode,
     salesPrice: row.sales_price,
+    trackingType: row.tracking_type || "none",
     availableQuantity: Number(available.rows[0]?.available ?? 0),
   };
 }

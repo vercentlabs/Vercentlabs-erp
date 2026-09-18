@@ -130,9 +130,20 @@ function checkVersion(cart, expectedVersion) {
   }
 }
 
+// F295: tracking_type is joined in from tenant.items purely for display --
+// it is an item-master property, never persisted onto pos_cart_lines
+// itself (there is nothing to persist: it cannot diverge from the item's
+// own current value within a single cart's short lifetime), so the
+// checkout UI can require a serial/batch to be set on a line BEFORE the
+// cashier attempts to complete the sale, rather than only discovering the
+// requirement from postStockMovement's rejection at that point.
 async function loadLines(client, context, cartId) {
   const result = await client.query(
-    `SELECT * FROM tenant.pos_cart_lines WHERE organization_id=$1 AND cart_id=$2 ORDER BY line_number`,
+    `SELECT line.*, item.tracking_type
+     FROM tenant.pos_cart_lines line
+     LEFT JOIN tenant.items item ON item.organization_id=line.organization_id AND item.id=line.item_id
+     WHERE line.organization_id=$1 AND line.cart_id=$2
+     ORDER BY line.line_number`,
     [context.organizationId, cartId],
   );
   return result.rows;
@@ -428,6 +439,28 @@ export async function removePosCartLine(client, context, cartId, lineId, input =
     cartId,
   ]);
   if (!deleted.rows[0]) throw posError(404, "Cart line was not found.", "POS_CART_LINE_NOT_FOUND");
+  return reprice(client, context, cart, policy);
+}
+
+// F295: lets the cashier set/change the batch or serial number on an
+// already-added line -- the small, functional checkout affordance for a
+// tracking_type='batch'|'serial' item (surfaced via loadLines' join
+// above). This does not itself validate the value against
+// tenant.stock_batches/stock_serials -- that authoritative check happens
+// once, atomically, in Stock's own postStockMovement at sale completion
+// (services/api/src/modules/stock/index.js) -- so a cashier gets to type
+// ahead of scanning, but a wrong/already-sold serial still fails loudly at
+// checkout rather than being silently accepted here.
+export async function setPosCartLineTracking(client, context, cartId, lineId, input = {}) {
+  requirePermission(context, "pos.sale.create");
+  const policy = await loadPolicy(client, context);
+  const cart = await lockCart(client, context, cartId);
+  checkVersion(cart, input.expectedVersion);
+  const updated = await client.query(
+    `UPDATE tenant.pos_cart_lines SET batch_id=$3,serial_id=$4 WHERE organization_id=$1 AND id=$2 AND cart_id=$5 RETURNING id`,
+    [context.organizationId, lineId, input.batchId || null, input.serialId || null, cartId],
+  );
+  if (!updated.rows[0]) throw posError(404, "Cart line was not found.", "POS_CART_LINE_NOT_FOUND");
   return reprice(client, context, cart, policy);
 }
 
@@ -840,10 +873,15 @@ export async function applyPosCartCoupon(client, context, cartId, input) {
     `DELETE FROM tenant.pos_coupon_redemptions WHERE organization_id=$1 AND cart_id=$2 AND status='reserved'`,
     [context.organizationId, cartId],
   );
+  // Matrix item #18 (per-store half): store_id is stamped onto the
+  // reservation here, at attach time, the same way customer_id already is
+  // -- commitPosCouponRedemption (coupons.js) later reads it straight off
+  // this same row rather than re-deriving it, and evaluateCoupon
+  // (cart-pricing.js) counts committed redemptions by it.
   await client.query(
-    `INSERT INTO tenant.pos_coupon_redemptions (organization_id,coupon_id,cart_id,customer_id,status,created_by)
-     VALUES ($1,$2,$3,$4,'reserved',$5)`,
-    [context.organizationId, coupon.rows[0].id, cartId, cart.customer_id, context.userId],
+    `INSERT INTO tenant.pos_coupon_redemptions (organization_id,coupon_id,cart_id,customer_id,store_id,status,created_by)
+     VALUES ($1,$2,$3,$4,$5,'reserved',$6)`,
+    [context.organizationId, coupon.rows[0].id, cartId, cart.customer_id, cart.store_id, context.userId],
   );
   await client.query(`UPDATE tenant.pos_carts SET coupon_code=$3 WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,

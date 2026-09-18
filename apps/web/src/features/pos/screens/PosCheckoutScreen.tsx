@@ -32,6 +32,7 @@ import {
   searchPosProducts,
   setPosCartCustomer,
   setPosCartDiscount,
+  setPosCartLineTracking,
   updatePosCartLineQuantity,
   type PosCustomerMatch,
   type PosProductMatch,
@@ -73,6 +74,10 @@ export function PosCheckoutScreen() {
   const [confirmation, setConfirmation] = useState<{ saleId: string; receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [heldCartsOpen, setHeldCartsOpen] = useState(false);
+  // F295 -- one free-text input per tracked cart line, keyed by line id,
+  // for the serial/batch number the cashier scans or types before the
+  // sale can complete. Not committed until "Set" is pressed (setPosCartLineTracking).
+  const [trackingInputs, setTrackingInputs] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
 
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
@@ -175,6 +180,16 @@ export function PosCheckoutScreen() {
 
   const changeQuantity = (lineId: string, quantity: number) =>
     cart && run(() => (quantity <= 0 ? removePosCartLine(cart.id, lineId, cart.version) : updatePosCartLineQuantity(cart.id, lineId, quantity, cart.version)));
+
+  // F295 -- commit the scanned/typed serial or batch number onto a tracked
+  // cart line. Which field (batchId vs serialId) depends on the line's own
+  // tracking_type, surfaced by the server (cart-pricing.js/cart.js).
+  function setLineTracking(lineId: string, trackingType: "batch" | "serial") {
+    if (!cart) return;
+    const value = trackingInputs[lineId]?.trim();
+    if (!value) return;
+    run(() => setPosCartLineTracking(cart.id, lineId, trackingType === "serial" ? { serialId: value, expectedVersion: cart.version } : { batchId: value, expectedVersion: cart.version }));
+  }
 
   const applyCoupon = () => cart && couponCode.trim() && run(() => applyPosCoupon(cart.id, couponCode.trim(), cart.version));
   const removeCoupon = () => cart && run(() => removePosCoupon(cart.id, cart.version));
@@ -373,32 +388,59 @@ export function PosCheckoutScreen() {
           {!cart?.lines?.length ? (
             <p className="p-6 text-center text-sm text-text-muted">{loading ? "Loading…" : "Cart is empty — search or scan a product to begin."}</p>
           ) : (
-            cart.lines.map((line) => (
-              <div key={line.id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-0">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-text">{line.description}</p>
-                  <p className="text-xs text-text-muted">
-                    {money(currency, line.unit_price)} each
-                    {Number(line.manual_discount_amount) > 0 && <> · manual −{money(currency, line.manual_discount_amount)}</>}
-                    {Number(line.promotion_discount_amount) > 0 && <> · promo −{money(currency, line.promotion_discount_amount)}</>}
-                    {Number(line.coupon_discount_amount) > 0 && <> · coupon −{money(currency, line.coupon_discount_amount)}</>}
-                  </p>
+            cart.lines.map((line) => {
+              // F295 -- requires a serial/batch to be set before this line
+              // can actually be sold (enforced authoritatively at checkout
+              // by Stock's postStockMovement); this is only the UI nudge to
+              // capture it earlier, at the counter, rather than let the
+              // cashier discover the requirement from a failed checkout.
+              const needsSerial = line.tracking_type === "serial" && !line.serial_id;
+              const needsBatch = line.tracking_type === "batch" && !line.batch_id;
+              return (
+                <div key={line.id} className="flex flex-col gap-1.5 border-b border-border px-3 py-2 last:border-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-text">{line.description}</p>
+                      <p className="text-xs text-text-muted">
+                        {money(currency, line.unit_price)} each
+                        {Number(line.manual_discount_amount) > 0 && <> · manual −{money(currency, line.manual_discount_amount)}</>}
+                        {Number(line.promotion_discount_amount) > 0 && <> · promo −{money(currency, line.promotion_discount_amount)}</>}
+                        {Number(line.coupon_discount_amount) > 0 && <> · coupon −{money(currency, line.coupon_discount_amount)}</>}
+                        {line.serial_id && <> · serial set</>}
+                        {line.batch_id && <> · batch set</>}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="compact" onPress={() => changeQuantity(line.id, Number(line.quantity) - 1)} aria-label="Decrease quantity">
+                        <Minus className="size-3.5" aria-hidden="true" />
+                      </Button>
+                      <span className="w-8 text-center tabular-nums">{Number(line.quantity)}</span>
+                      <Button variant="outline" size="compact" onPress={() => changeQuantity(line.id, Number(line.quantity) + 1)} aria-label="Increase quantity">
+                        <Plus className="size-3.5" aria-hidden="true" />
+                      </Button>
+                    </div>
+                    <span className="w-24 text-right tabular-nums">{money(currency, line.line_total)}</span>
+                    <Button variant="ghost" size="compact" onPress={() => cart && run(() => removePosCartLine(cart.id, line.id, cart.version))} aria-label="Remove line">
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                  {(needsSerial || needsBatch) && (
+                    <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-2 py-1.5">
+                      <TextField
+                        label={needsSerial ? "Serial number required" : "Batch required"}
+                        placeholder={needsSerial ? "Scan or enter serial" : "Scan or enter batch"}
+                        value={trackingInputs[line.id] ?? ""}
+                        onChange={(value) => setTrackingInputs((prev) => ({ ...prev, [line.id]: value }))}
+                        className="flex-1"
+                      />
+                      <Button variant="secondary" size="compact" onPress={() => setLineTracking(line.id, needsSerial ? "serial" : "batch")}>
+                        Set
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="compact" onPress={() => changeQuantity(line.id, Number(line.quantity) - 1)} aria-label="Decrease quantity">
-                    <Minus className="size-3.5" aria-hidden="true" />
-                  </Button>
-                  <span className="w-8 text-center tabular-nums">{Number(line.quantity)}</span>
-                  <Button variant="outline" size="compact" onPress={() => changeQuantity(line.id, Number(line.quantity) + 1)} aria-label="Increase quantity">
-                    <Plus className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-                <span className="w-24 text-right tabular-nums">{money(currency, line.line_total)}</span>
-                <Button variant="ghost" size="compact" onPress={() => cart && run(() => removePosCartLine(cart.id, line.id, cart.version))} aria-label="Remove line">
-                  <Trash2 className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -494,7 +536,11 @@ export function PosCheckoutScreen() {
         <Button
           variant="primary"
           onPress={completeSale}
-          isDisabled={!cart?.lines?.length || cashTendered < Number(cart?.grand_total ?? 0)}
+          isDisabled={
+            !cart?.lines?.length ||
+            cashTendered < Number(cart?.grand_total ?? 0) ||
+            (cart?.lines ?? []).some((line) => (line.tracking_type === "serial" && !line.serial_id) || (line.tracking_type === "batch" && !line.batch_id))
+          }
           isLoading={completing}
         >
           {exchangeReturnId ? "Complete exchange" : "Complete cash sale"}

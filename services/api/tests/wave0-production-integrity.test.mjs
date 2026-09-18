@@ -122,8 +122,8 @@ test("Wave 0 Quality -> Stock: an active matching quality hold blocks a stock is
     async query(sql, params) {
       const primitive = wave0.handle(sql, params);
       if (primitive && !/FROM tenant\.quality_holds/.test(sql)) return primitive;
-      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql)) {
-        return { rows: [{ id: itemId, company_id: companyId, track_inventory: true, allow_negative_stock: false, standard_cost: "10" }] };
+      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost,tracking_type FROM tenant\.items/.test(sql)) {
+        return { rows: [{ id: itemId, company_id: companyId, track_inventory: true, allow_negative_stock: false, standard_cost: "10", tracking_type: "none" }] };
       }
       if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql)) {
         return { rows: [{ id: warehouseId, company_id: companyId, allow_negative_stock: false }] };

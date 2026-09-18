@@ -89,7 +89,7 @@ async function settings(client, c) {
 }
 async function stockDimension(client, c, input) {
   const item = (await client.query(
-    `SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    `SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost,tracking_type FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
     [c.organizationId, input.itemId],
   )).rows[0];
   if (!item || (item.company_id && item.company_id !== c.companyId))
@@ -185,6 +185,83 @@ async function assertQualityAllowsDecrease(client, c, input, quantity, oldBalanc
   }
 }
 
+// F295: tenant.items.tracking_type (migration 117) is the item master's
+// declaration that it must be sold/issued against a specific batch or
+// serial -- previously nothing anywhere required one or checked it made
+// sense. For 'batch' items, stock_balances is already correctly
+// dimensioned by batch_id (see the balance query in postStockMovement
+// below), so the only real gap was that a batch was never actually
+// REQUIRED on an issue; the existing FOR UPDATE row lock and
+// quantity/reserved-quantity check already correctly prevent a batch from
+// going negative once one is supplied, so no separate state machine is
+// needed for batches the way serials need one.
+function requireTrackingReference(item, movementType, input) {
+  if (movementType !== "issue") return;
+  if (item.tracking_type === "batch" && !input.batchId) {
+    throw new StockError(400, "This item requires a batch to be selected before it can be issued.", "STOCK_BATCH_REQUIRED");
+  }
+  if (item.tracking_type === "serial" && !input.serialId) {
+    throw new StockError(400, "This item requires a serial number to be selected before it can be issued.", "STOCK_SERIAL_REQUIRED");
+  }
+}
+
+// F295: a serial is a single, discrete unit -- unlike a batch's quantity,
+// it can only ever be in one of two coherent states: sitting in stock
+// ('available') or already sold ('sold'). This is the ONLY code anywhere
+// that ever transitions tenant.stock_serials.status (see migration 117's
+// comment). Locked with its own FOR UPDATE so two concurrent issues
+// against the SAME serial id serialize on this row: the second one to
+// reach here always observes the first one's already-committed 'sold'
+// status and is rejected, closing the double-sell race deterministically
+// rather than relying on timing.
+//
+// Documented rule for 'receipt' (the return/restock direction): a serial
+// can only be receipted back to 'available' from 'sold' -- that is the
+// only prior state a genuine return can coherently come from (the serial
+// was sold on the original sale, and this receipt is undoing exactly
+// that). A receipt against a serial that is already 'available' has no
+// coherent prior state to undo (it was never sold, or was already
+// returned once) and is rejected rather than silently accepted, which
+// would let the same physical return double-credit stock. A 'receipt'
+// with no serialId at all (e.g. bulk initial stock intake before any
+// serial numbers are individually registered) is left alone -- this
+// module has no serial-registration endpoint yet, so requiring one on
+// every receipt would make it impossible to ever receive serial-tracked
+// stock for the first time; that is a disclosed, separate gap, not one
+// this pass silently papers over.
+async function applySerialTransition(client, c, input, item, movementType) {
+  if (item.tracking_type !== "serial" || !input.serialId) return;
+  const serial = await client.query(
+    `SELECT id,status FROM tenant.stock_serials
+     WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND item_id=$4
+     FOR UPDATE`,
+    [c.organizationId, c.companyId, input.serialId, input.itemId],
+  );
+  const row = serial.rows[0];
+  if (!row) throw new StockError(404, "Serial number was not found for the selected item.", "STOCK_SERIAL_NOT_FOUND");
+  if (movementType === "issue") {
+    if (row.status !== "available") {
+      throw new StockError(409, "This serial number has already been sold and is not available.", "STOCK_SERIAL_NOT_AVAILABLE");
+    }
+    await client.query(
+      `UPDATE tenant.stock_serials SET status='sold',warehouse_id=$4,warehouse_location_id=$5,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
+      [c.organizationId, c.companyId, row.id, input.warehouseId, input.warehouseLocationId || null],
+    );
+  } else if (movementType === "receipt") {
+    if (row.status !== "sold") {
+      throw new StockError(
+        409,
+        "This serial number is not currently marked as sold, so it has no coherent sale to return.",
+        "STOCK_SERIAL_NOT_RETURNABLE",
+      );
+    }
+    await client.query(
+      `UPDATE tenant.stock_serials SET status='available',warehouse_id=$4,warehouse_location_id=$5,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
+      [c.organizationId, c.companyId, row.id, input.warehouseId, input.warehouseLocationId || null],
+    );
+  }
+}
+
 export async function postStockMovement(client, c, input = {}) {
   const movementType = String(input.movementType || "").toLowerCase();
   if (!new Set(["receipt", "issue", "adjustment"]).has(movementType))
@@ -206,6 +283,7 @@ export async function postStockMovement(client, c, input = {}) {
     throw new StockError(400, "Adjustment direction must be increase or decrease.", "STOCK_ADJUSTMENT_DIRECTION_INVALID");
   const signed = movementType === "issue" || direction === "decrease" ? -qty : qty;
   const { item, warehouse } = await stockDimension(client, c, { ...input, movementType });
+  requireTrackingReference(item, movementType, input);
   await lockInventoryItem(client, c, input.itemId);
   const cfg = await settings(client, c);
 
@@ -221,6 +299,11 @@ export async function postStockMovement(client, c, input = {}) {
   if (signed < 0) {
     await assertQualityAllowsDecrease(client, c, input, qty, old);
   }
+  // F295: validated and transitioned under the serial row's own FOR UPDATE
+  // lock (inside applySerialTransition), in the same transaction as the
+  // balance lock taken just above -- see that function's doc comment for
+  // the exact available/sold rule.
+  await applySerialTransition(client, c, input, item, movementType);
 
   const explicitCost = input.unitCost == null || input.unitCost === "" ? null : Number(input.unitCost);
   if (explicitCost != null && (!Number.isFinite(explicitCost) || explicitCost < 0))

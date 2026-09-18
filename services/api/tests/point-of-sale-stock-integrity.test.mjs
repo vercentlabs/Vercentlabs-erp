@@ -89,8 +89,8 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       if (/SELECT tax_inclusive FROM tenant\.price_lists/.test(sql)) return { rows: [{ tax_inclusive: false }] };
       if (/FROM tenant\.tax_rates WHERE/.test(sql)) return { rows: [] };
       if (/SELECT \* FROM tenant\.stock_movements WHERE organization_id=\$1 AND idempotency_key=\$2/.test(sql)) return { rows: [] };
-      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost FROM tenant\.items/.test(sql))
-        return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "50" }] };
+      if (/SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost,tracking_type FROM tenant\.items/.test(sql))
+        return { rows: [{ id: params[1], company_id: company, track_inventory: true, allow_negative_stock: false, standard_cost: "50", tracking_type: "none" }] };
       if (/SELECT id,company_id,allow_negative_stock FROM tenant\.warehouses/.test(sql))
         return { rows: [{ id: params[1], company_id: company, allow_negative_stock: false }] };
       if (/SELECT id FROM tenant\.stock_serials/.test(sql)) return { rows: [{ id: params[2] }] };

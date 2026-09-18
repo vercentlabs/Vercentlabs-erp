@@ -52,6 +52,7 @@ export type PointOfSaleProductMatch = {
   code: string;
   barcode: string | null;
   salesPrice: string;
+  trackingType: "none" | "batch" | "serial";
   availableQuantity: number;
 };
 export declare function searchPointOfSalePosProducts(client: any, context: PointOfSaleContext, storeId: string, input?: Record<string, any>): Promise<PointOfSaleProductMatch[]>;
@@ -90,6 +91,9 @@ export type PosCartLine = {
   warehouse_location_id: string | null;
   batch_id: string | null;
   serial_id: string | null;
+  // F295: joined in from tenant.items for display, not a real column on
+  // pos_cart_lines -- see loadLines()'s doc comment in cart.js.
+  tracking_type?: "none" | "batch" | "serial";
   [key: string]: any;
 };
 export type PosCart = {
@@ -123,6 +127,7 @@ export declare function getPosCart(client: any, context: PointOfSaleContext, car
 export declare function addPosCartLine(client: any, context: PointOfSaleContext, cartId: string, input: Record<string, any>): Promise<PosCart>;
 export declare function updatePosCartLineQuantity(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { quantity: number; expectedVersion?: number }): Promise<PosCart>;
 export declare function removePosCartLine(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
+export declare function setPosCartLineTracking(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { batchId?: string | null; serialId?: string | null; expectedVersion?: number }): Promise<PosCart>;
 // F279: `approvedBy` is deliberately NOT part of this input -- a caller
 // can never assert who approved a discount. Above the configured
 // threshold, applying a discount creates a real pending request in

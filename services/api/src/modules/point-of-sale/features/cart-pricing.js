@@ -82,7 +82,7 @@ export async function resolveBuyerStateCode(client, context, customerId, sellerS
 
 async function resolveItemAndVariant(client, context, companyId, itemId, variantId) {
   const itemResult = await client.query(
-    `SELECT id,company_id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status
+    `SELECT id,company_id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status,tracking_type
      FROM tenant.items WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, itemId],
   );
@@ -224,6 +224,23 @@ async function evaluatePromotions(client, context, store, customerId, lines, car
         continue;
       }
     }
+    // Matrix item #18 (per-store half): usage_limit_per_store (migration
+    // 118) follows the exact same preview-check/commit-recheck pattern as
+    // usage_limit_per_customer just above, counted from the same
+    // pos_promotion_applications evidence table (now carrying store_id --
+    // see commitPosPromotionApplications in promotions.js) rather than a
+    // separate counter column.
+    if (promotion.usage_limit_per_store != null) {
+      const perStore = await client.query(
+        `SELECT count(*)::int AS count FROM tenant.pos_promotion_applications
+         WHERE organization_id=$1 AND promotion_id=$2 AND store_id=$3`,
+        [context.organizationId, promotion.id, store.id],
+      );
+      if (Number(perStore.rows[0].count) >= promotion.usage_limit_per_store) {
+        explanations.push({ code: promotion.code, applied: false, reason: "This store already reached this promotion's usage limit." });
+        continue;
+      }
+    }
     if (promotion.min_basket_amount != null && cartSubtotal < decimal(promotion.min_basket_amount)) {
       explanations.push({ code: promotion.code, applied: false, reason: `Basket must reach ${promotion.min_basket_amount} to qualify.` });
       continue;
@@ -302,6 +319,20 @@ async function evaluateCoupon(client, context, store, customerId, lines, cartSub
       throw posError(409, "This customer has already used this coupon the maximum number of times.", "POS_COUPON_CUSTOMER_LIMIT_REACHED");
     }
   }
+  // Matrix item #18 (per-store half): same pattern as the per-customer
+  // check above, counted from pos_coupon_redemptions' committed rows now
+  // carrying store_id (migration 118) -- see applyPosCartCoupon in
+  // cart.js, which stamps store_id onto the reservation at attach time.
+  if (coupon.usage_limit_per_store != null) {
+    const perStore = await client.query(
+      `SELECT count(*)::int AS count FROM tenant.pos_coupon_redemptions
+       WHERE organization_id=$1 AND coupon_id=$2 AND store_id=$3 AND status='committed'`,
+      [context.organizationId, coupon.id, store.id],
+    );
+    if (Number(perStore.rows[0].count) >= coupon.usage_limit_per_store) {
+      throw posError(409, "This store has already used this coupon the maximum number of times.", "POS_COUPON_STORE_LIMIT_REACHED");
+    }
+  }
   const eligibleLines = coupon.eligible_item_ids.length ? lines.filter((line) => coupon.eligible_item_ids.includes(line.itemId)) : lines;
   if (!eligibleLines.length) throw posError(409, "No items in the cart are eligible for this coupon.", "POS_COUPON_NO_ELIGIBLE_ITEMS");
   const lineDiscounts = new Map(lines.map((line) => [line.lineNumber, decimal(0)]));
@@ -377,6 +408,12 @@ export async function priceCartLines(client, context, { store, policy, customerI
       warehouseLocationId: rawLine.warehouseLocationId || null,
       batchId: rawLine.batchId || null,
       serialId: rawLine.serialId || null,
+      // F295: surfaced so the checkout UI can require a serial/batch
+      // BEFORE completion is attempted, not just discover the requirement
+      // from postStockMovement's hard rejection at checkout time. Not
+      // persisted on tenant.pos_cart_lines -- it is always derivable from
+      // the item master, never mutable cart state.
+      trackingType: item.tracking_type || "none",
       taxCategoryId: item.tax_category_id,
       standardCost: decimal(item.standard_cost || 0),
     });
