@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Pause, Plus, Trash2, X } from "lucide-react";
@@ -89,8 +89,26 @@ export function PosCheckoutScreen() {
   );
   const store = storesQuery.data?.rows.find((s) => s.id === myOpenShift?.store_id);
 
+  // BUG FIX (found via real E2E testing, apps/web/e2e/pos-checkout.spec.ts
+  // et al, under the app's actual next.config.ts reactStrictMode: true):
+  // React 18/19 dev-mode StrictMode deliberately mounts, unmounts, then
+  // remounts every component once, double-invoking effects to surface
+  // exactly this class of bug. The `cancelled` flag here only ever guarded
+  // the STATE UPDATE, not the createPosCart(...) network call itself -- so
+  // StrictMode's double-invoke fired two REAL POST /api/pos/carts requests
+  // for the same shift, creating two live draft carts on the same
+  // terminal. Whichever response happened to resolve first won the race
+  // to become `cart` in state; the other became an orphaned draft cart in
+  // the database, invisible to the UI -- and under real load (many
+  // requests in flight), that race could resolve either way. This ref
+  // guard, keyed by shift id, ensures createPosCart is only ever actually
+  // dispatched once per shift, independent of how many times StrictMode
+  // (re)invokes this effect for the same shift.
+  const cartCreationStartedForShiftIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!myOpenShift || cart) return;
+    if (cartCreationStartedForShiftIdRef.current === myOpenShift.id) return;
+    cartCreationStartedForShiftIdRef.current = myOpenShift.id;
     let cancelled = false;
     createPosCart({ storeId: myOpenShift.store_id, terminalId: myOpenShift.terminal_id, shiftId: myOpenShift.id })
       .then((result) => !cancelled && setCart(result.cart))

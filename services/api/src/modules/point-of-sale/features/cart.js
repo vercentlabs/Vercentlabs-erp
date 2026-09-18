@@ -225,7 +225,7 @@ async function reprice(client, context, cart, policy) {
       `UPDATE tenant.pos_cart_lines
        SET list_price=$3,unit_price=$4,gross_amount=$5,manual_discount_amount=$6,promotion_discount_amount=$7,
            coupon_discount_amount=$8,taxable_amount=$9,tax_amount=$10,line_total=$11,tax_components=$12::jsonb,
-           applied_promotion_ids=$13::uuid[],updated_at=now()
+           applied_promotion_ids=$13::uuid[],description=$14,updated_at=now()
        WHERE organization_id=$1 AND id=$2`,
       [
         context.organizationId,
@@ -246,6 +246,22 @@ async function reprice(client, context, cart, policy) {
         line.lineTotal,
         JSON.stringify(line.taxComponents),
         priced.promotionApplications.filter((a) => a.lineNumber === line.lineNumber).map((a) => a.promotionId),
+        // BUG FIX (found via real E2E testing, apps/web/e2e/pos-hold-
+        // resume.spec.ts): addPosCartLine never writes a `description`
+        // (the frontend never sends one -- see PosCheckoutScreen's
+        // addLine), so this column stayed NULL forever. cart-pricing.js's
+        // priceCartLines already resolves the right display text
+        // (rawLine.description || variant?.name || item.name) into
+        // `line.description` on every reprice, but that resolved value
+        // was only ever handed to pos_sale_lines at checkout completion
+        // -- never persisted back onto pos_cart_lines itself. The result:
+        // every cart line rendered with a genuinely blank description for
+        // the ENTIRE lifetime of the cart (search results still showed
+        // the product name, masking it), only ever showing the real item
+        // name after the sale completed and the receipt read pos_sale_
+        // lines instead. Persisting it here is the minimal fix -- reprice
+        // already computes the correct value, it just wasn't saved.
+        line.description,
       ],
     );
   }
