@@ -37,6 +37,7 @@ export function PosOverviewScreen() {
   const [movementType, setMovementType] = useState<"paid_in" | "paid_out">("paid_out");
   const [movementAmount, setMovementAmount] = useState(0);
   const [movementReason, setMovementReason] = useState("");
+  const [movementIdempotencyKey, setMovementIdempotencyKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(null);
 
   const dashboardQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "dashboard"), queryFn: getPosDashboard });
@@ -86,11 +87,12 @@ export function PosOverviewScreen() {
   });
 
   const cashMovementMutation = useMutation({
-    mutationFn: () => recordPosCashMovement(myOpenShift!.id, { movementType, amount: movementAmount, reason: movementReason }),
+    mutationFn: () => recordPosCashMovement(myOpenShift!.id, { movementType, amount: movementAmount, reason: movementReason, idempotencyKey: movementIdempotencyKey }),
     onSuccess: () => {
       setError(null);
       setMovementAmount(0);
       setMovementReason("");
+      setMovementIdempotencyKey(crypto.randomUUID());
       queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "cash-movements", myOpenShift?.id) });
     },
     onError: (err) => setError(err instanceof PosApiError ? err.message : "The cash movement could not be recorded."),

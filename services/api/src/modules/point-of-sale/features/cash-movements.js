@@ -9,6 +9,7 @@
 import { nextDocumentNumber } from "../../../core/document-numbering.js";
 import { decimal, asDatabaseDecimal } from "../../../core/decimal.js";
 import { assertPosStoreAccess } from "./cart.js";
+import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 
 function posError(status, message, code) {
   const error = new Error(message);
@@ -45,6 +46,19 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
   if (!shift.rows[0]) throw posError(409, "An open shift is required to record a cash movement.", "POS_SHIFT_NOT_OPEN");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
 
+  // SECURITY (consolidated pass, item #23): this financial mutation had no
+  // idempotency protection at all -- a client retry (timeout, double-tap)
+  // could double-post a paid-in/paid-out movement with no way to detect it
+  // after the fact. Same reserve-then-complete pattern completePosCart and
+  // the other checkout/return/exchange paths already use.
+  const idempotency = await beginIdempotentOperation(client, context, {
+    operation: "pos.cash_movement.record",
+    key: input.idempotencyKey,
+    payload: { ...input, idempotencyKey: undefined },
+    required: true,
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+
   const signedAmount = movementType === "paid_out" ? -amount : amount;
   const movementNumber = await nextDocumentNumber(client, context, { documentType: "pos_cash_movement", prefix: "CASH" });
   const result = await client.query(
@@ -52,7 +66,9 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
     [context.organizationId, context.companyId, shiftId, movementNumber, movementType, asDatabaseDecimal(signedAmount), String(input.reason).trim(), context.userId],
   );
-  return result.rows[0];
+  const response = result.rows[0];
+  await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_cash_movement", aggregateId: response.id });
+  return response;
 }
 
 export async function listPosCashMovements(client, context, shiftId) {

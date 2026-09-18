@@ -128,7 +128,8 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     completeReturn: (id, input) => post(`/returns/${encodeURIComponent(id)}/complete`, input),
     completeExchange: (returnId, input) => post(`/returns/${encodeURIComponent(returnId)}/exchange`, input),
 
-    // F300: paid-in/paid-out cash movements.
+    // F300: paid-in/paid-out cash movements. idempotencyKey is required --
+    // this mutation has no other replay protection.
     listCashMovements: (shiftId) => request(`/shifts/${encodeURIComponent(shiftId)}/cash-movements`),
     recordCashMovement: (shiftId, input) => post(`/shifts/${encodeURIComponent(shiftId)}/cash-movements`, input),
 

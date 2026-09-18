@@ -151,22 +151,42 @@ test("F299-F302: cash movements and shift-close unresolved-transaction guards ag
         [orgId, companyId, shift.id, userId],
       );
 
-      const paidOut = await tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 50, reason: "Petty cash for supplies" }));
+      const paidOut = await tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 50, reason: "Petty cash for supplies", idempotencyKey: "f300-paid-out-1" }));
       assert.equal(paidOut.amount, "-50.000000", "paid_out must be recorded as a NEGATIVE signed amount (reduces expected cash)");
-      const paidIn = await tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_in", amount: 20, reason: "Change fund top-up" }));
+      const paidIn = await tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_in", amount: 20, reason: "Change fund top-up", idempotencyKey: "f300-paid-in-1" }));
       assert.equal(paidIn.amount, "20.000000", "paid_in must be recorded as a POSITIVE signed amount (increases expected cash)");
 
       await assert.rejects(
-        () => tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 0, reason: "invalid" })),
+        () => tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 0, reason: "invalid", idempotencyKey: "f300-invalid-amount" })),
         (error) => error.code === "POS_CASH_MOVEMENT_AMOUNT_INVALID",
       );
       await assert.rejects(
-        () => tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 10, reason: "" })),
+        () => tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 10, reason: "", idempotencyKey: "f300-missing-reason" })),
         (error) => error.code === "POS_CASH_MOVEMENT_REASON_REQUIRED",
       );
 
       const movements = await tx((c) => listPosCashMovements(c, context, shift.id));
       assert.equal(movements.length, 3, "opening + paid_out + paid_in");
+    });
+
+    await t.test("SECURITY (consolidated pass, item #23): retrying recordPosCashMovement with the same idempotency key replays the original movement instead of double-posting", async () => {
+      const first = await tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_in", amount: 15, reason: "Retry-test top-up", idempotencyKey: "f300-retry-key" }));
+      const retried = await tx((c) => recordPosCashMovement(c, context, shift.id, { movementType: "paid_in", amount: 15, reason: "Retry-test top-up", idempotencyKey: "f300-retry-key" }));
+      assert.equal(retried.replayed, true);
+      assert.equal(retried.id, first.id, "the retried call must return the SAME movement row, not create a second one");
+
+      const rows = await admin.query(`SELECT id FROM tenant.pos_cash_movements WHERE organization_id=$1 AND shift_id=$2 AND reason='Retry-test top-up'`, [orgId, shift.id]);
+      assert.equal(rows.rows.length, 1, "exactly one movement must exist in the database despite two calls with the same key");
+
+      // A different payload under the same key must fail closed rather than
+      // silently apply the new amount/reason to the old reservation.
+      await assert.rejects(
+        () =>
+          tx((c) =>
+            recordPosCashMovement(c, context, shift.id, { movementType: "paid_out", amount: 999, reason: "different payload, same key", idempotencyKey: "f300-retry-key" }),
+          ),
+        (error) => error.code === "IDEMPOTENCY_KEY_REUSED",
+      );
     });
 
     await t.test("F302 SECURITY: closing a shift is refused while a draft/priced cart is still active on it", async () => {
