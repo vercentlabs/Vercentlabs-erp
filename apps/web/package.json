@@ -20,6 +20,7 @@
     "verify:routes": "node scripts/verify-routes.mjs"
   },
   "dependencies": {
+    "@swc/helpers": "0.5.15",
     "@tanstack/react-form": "1.33.5",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-table": "8.21.3",

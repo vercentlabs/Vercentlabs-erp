@@ -21,6 +21,7 @@
     "lighthouse:baseline": "node scripts/lighthouse-baseline.mjs"
   },
   "dependencies": {
+    "@swc/helpers": "0.5.15",
     "@vercentlabs/landing-content": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*",
     "next": "16.2.11",
