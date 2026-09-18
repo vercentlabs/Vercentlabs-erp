@@ -145,5 +145,18 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     // Legacy direct sale-completion payload, retained for compatibility.
     completeSale: (input) => post("/sales", input),
     createReturn: (input) => post("/returns", input),
+
+    // F303 Day-end / Z report
+    listDayEndReports: (query = {}) => {
+      const params = new URLSearchParams(
+        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
+      );
+      return request(`/reports/day-end${params.size ? `?${params}` : ""}`);
+    },
+    getDayEndReport: (id) => request(`/reports/day-end/${encodeURIComponent(id)}`),
+    generateDayEndReport: (input) => post("/reports/day-end", input),
+    reviewDayEndReport: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/review`, input),
+    finalizeDayEndReport: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/finalize`, input),
+    recordDayEndVariance: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/variance`, input),
   });
 }

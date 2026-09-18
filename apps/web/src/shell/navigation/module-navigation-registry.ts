@@ -771,7 +771,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "insights",
         label: "Insights",
         featureRange: "F295-F307",
-        items: [planned("Reports", "/pos/reports")],
+        // F303: day-end (Z) reports has a real screen now (list, generate,
+        // review/finalize, print) -- flipped to AVAILABLE. Ordinary ad hoc
+        // POS reporting (pos.reports.view) still has no screen yet.
+        items: [available("Day-end (Z) Reports", "/pos/reports/day-end"), planned("Reports", "/pos/reports")],
       },
     ],
   },

@@ -68,3 +68,11 @@ export { completePosExchange } from "./returns-refunds-and-exchanges/exchange.js
 // POS-CAP-007 -- cash, shift, day-end and reconciliation (F299-F305).
 export { openShift, closeShift } from "./cash-shift-day-end-and-reconciliation/shift-operations.js";
 export { recordPosCashMovement, listPosCashMovements } from "./cash-shift-day-end-and-reconciliation/cash-movements.js";
+export {
+  generatePosDayEndReport,
+  reviewPosDayEndReport,
+  finalizePosDayEndReport,
+  recordPosDayEndVariance,
+  listPosDayEndReports,
+  getPosDayEndReport,
+} from "./cash-shift-day-end-and-reconciliation/day-end-reports.js";

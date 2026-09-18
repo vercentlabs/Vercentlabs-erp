@@ -26,6 +26,16 @@ export const POS_PERMISSIONS = Object.freeze({
   // see assertSeparationOfDuties in decideApproval).
   paymentRefund: "pos.payment.refund",
   paymentOverride: "pos.payment.override",
+  // F303: day-end/Z report generation, review and finalization. Deliberately
+  // separate from the pre-existing pos.reports.view (routine ad hoc
+  // reporting) — pos.report.view gates the immutable, numbered Z report
+  // record itself. generate/finalize are split across two different role
+  // tiers on purpose (see roles.js's pos_supervisor/pos_manager grants and
+  // the pos_day_end_generate_finalize SoD conflict below): the person who
+  // computes/reviews a draft is never the same authority who locks it.
+  reportGenerate: "pos.report.generate",
+  reportFinalize: "pos.report.finalize",
+  reportView: "pos.report.view",
   reportsView: "pos.reports.view",
   settingsManage: "pos.settings.manage",
   auditView: "pos.audit.view",

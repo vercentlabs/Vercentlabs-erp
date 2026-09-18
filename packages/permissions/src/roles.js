@@ -803,6 +803,13 @@ export const ROLE_TEMPLATES = Object.freeze([
       "pos.reports.view",
       "pos.settings.manage",
       "pos.audit.view",
+      // F303: pos_manager is the finalize/lock authority for the Z report —
+      // deliberately NOT pos.report.generate (see pos_supervisor below and
+      // the pos_day_end_generate_finalize SoD conflict), so the person who
+      // finalizes a day-end report is never the same role tier that
+      // generated/reviewed its draft.
+      "pos.report.finalize",
+      "pos.report.view",
     ]),
   },
   {
@@ -850,6 +857,11 @@ export const ROLE_TEMPLATES = Object.freeze([
       "pos.price.override",
       "pos.payment.refund",
       "pos.reports.view",
+      // F303: pos_supervisor generates/reviews the day-end (Z) report draft
+      // — NOT pos.report.finalize (that's pos_manager's, a different
+      // authority; see the pos_day_end_generate_finalize SoD conflict).
+      "pos.report.generate",
+      "pos.report.view",
     ]),
   },
   {
@@ -1008,6 +1020,14 @@ export const SOD_CONFLICTS = Object.freeze([
     severity: "blocking",
     description:
       "POS discount application and approval must be separated — the same role must not both apply an above-threshold discount and approve it.",
+  },
+  {
+    key: "pos_day_end_generate_finalize",
+    first: "pos.report.generate",
+    second: "pos.report.finalize",
+    severity: "blocking",
+    description:
+      "POS day-end (Z) report generation/review and finalization must be separated — the same role must not both draft and lock the same immutable report.",
   },
   {
     key: "supplier_manage_sensitive",

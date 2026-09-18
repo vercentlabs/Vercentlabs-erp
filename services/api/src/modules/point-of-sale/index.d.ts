@@ -45,6 +45,70 @@ export declare function closeShift(client: any, context: PointOfSaleContext, shi
 export declare function recordPosCashMovement(client: any, context: PointOfSaleContext, shiftId: string, input: { movementType: "paid_in" | "paid_out"; amount: number; reason: string; idempotencyKey: string }): Promise<any>;
 export declare function listPosCashMovements(client: any, context: PointOfSaleContext, shiftId: string): Promise<any[]>;
 
+// F303 Day-end / Z report. Field names are snake_case, matching the raw
+// tenant.pos_day_end_reports row shape (same convention as PosCart) —
+// F304's reconciliation workstream reads this shape directly.
+export type PosDayEndTender = { method: string; amount: string; count: number };
+export type PosDayEndLineage = { shiftIds: string[]; saleIds: string[]; returnIds: string[]; cashMovementIds: string[] };
+export type PosDayEndReport = {
+  id: string;
+  organization_id: string;
+  company_id: string;
+  store_id: string;
+  terminal_id: string | null;
+  scope_type: "shift" | "business_day";
+  shift_id: string | null;
+  business_date: string;
+  status: "draft" | "reviewed" | "closed" | "void";
+  report_number: string;
+  sale_count: number;
+  gross_sales_total: string;
+  discount_total: string;
+  tax_total: string;
+  net_sales_total: string;
+  rounding_total: string;
+  grand_sales_total: string;
+  return_count: number;
+  return_total: string;
+  tender_totals: PosDayEndTender[];
+  opening_cash_total: string;
+  paid_in_total: string;
+  paid_out_total: string;
+  expected_cash_total: string;
+  counted_cash_total: string | null;
+  cash_variance_total: string;
+  lineage: PosDayEndLineage;
+  reconciliation_status: "pending" | "matched" | "exception";
+  reconciliation_references: Array<{ type: string; id: string; note?: string }>;
+  outstanding_exceptions: Array<Record<string, any>>;
+  generated_by: string;
+  generated_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  finalized_by: string | null;
+  finalized_at: string | null;
+  replayed?: boolean;
+  corrections?: PosDayEndReportCorrection[];
+  [key: string]: any;
+};
+export type PosDayEndReportCorrection = {
+  id: string;
+  original_report_id: string;
+  correction_number: string;
+  variance_type: "cash_variance" | "total_adjustment" | "reclassification" | "other";
+  reason: string;
+  adjustment: Array<Record<string, any>>;
+  created_by: string;
+  created_at: string;
+  [key: string]: any;
+};
+export declare function generatePosDayEndReport(client: any, context: PointOfSaleContext, input: { storeId: string; scopeType: "shift" | "business_day"; shiftId?: string; terminalId?: string; businessDate?: string; idempotencyKey?: string }): Promise<PosDayEndReport>;
+export declare function reviewPosDayEndReport(client: any, context: PointOfSaleContext, reportId: string, input?: { reviewNotes?: string | null }): Promise<PosDayEndReport>;
+export declare function finalizePosDayEndReport(client: any, context: PointOfSaleContext, reportId: string, input?: { closeNotes?: string | null }): Promise<PosDayEndReport>;
+export declare function recordPosDayEndVariance(client: any, context: PointOfSaleContext, reportId: string, input: { varianceType: "cash_variance" | "total_adjustment" | "reclassification" | "other"; reason: string; adjustment?: Array<Record<string, any>> }): Promise<PosDayEndReportCorrection>;
+export declare function listPosDayEndReports(client: any, context: PointOfSaleContext, options?: { storeId?: string; terminalId?: string; status?: string; scopeType?: string; businessDateFrom?: string; businessDateTo?: string; limit?: number; offset?: number }): Promise<PosDayEndReport[]>;
+export declare function getPosDayEndReport(client: any, context: PointOfSaleContext, reportId: string): Promise<PosDayEndReport>;
+
 export type PointOfSaleProductMatch = {
   itemId: string;
   variantId: string | null;
@@ -246,6 +310,10 @@ export declare function requestPosPaymentOverride(
   context: PointOfSaleContext,
   input: { paymentId: string; reason: string },
 ): Promise<{ paymentId: string; approvalRequest: { id: string; status: string; version: number } }>;
+// Invoked only from the global cross-module approvals dispatch table
+// (services/api/src/core/approvals.js), never directly from an HTTP route.
+export declare function approvePosPaymentOverride(client: any, context: Record<string, any>, payload: { paymentId: string; reason?: string }): Promise<PosPayment>;
+export declare function rejectPosPaymentOverrideApproval(client: any, context: Record<string, any>, payload: { paymentId: string }): Promise<PosPayment>;
 export declare function handlePosPaymentWebhook(
   client: any,
   input: { providerKey: string; rawBody: string; signatureHeader: string | null },
