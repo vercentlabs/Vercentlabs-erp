@@ -29,6 +29,16 @@ export declare function findPosSaleForReturn(client: any, context: PointOfSaleCo
 export declare function createPointOfSaleReturn(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function approvePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
 export declare function completePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
+
+// F293 exchanges
+export declare function completePosExchange(client: any, context: PointOfSaleContext, input: {
+  returnId: string;
+  cartId: string;
+  idempotencyKey: string;
+  payments: Array<{ method: string; amount: number }>;
+  expectedVersion?: number;
+  expectedGrandTotal?: string;
+}): Promise<{ return: any; sale: any }>;
 export declare function closeShift(client: any, context: PointOfSaleContext, shiftId: string, input: Record<string, any>): Promise<any>;
 
 // F300 cash movements

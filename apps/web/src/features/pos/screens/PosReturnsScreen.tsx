@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Check, Plus, RotateCcw } from "lucide-react";
+import { ArrowLeftRight, Check, Plus, RotateCcw } from "lucide-react";
 import { Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, NumberField, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -39,6 +40,7 @@ const STATUS_TONE: Record<PosReturn["status"], "success" | "warning" | "neutral"
 // provider exists, so this screen never even shows the option.
 export function PosReturnsScreen() {
   const workspace = useWorkspaceContext();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const canCreate = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.returnCreate);
   const canApprove = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.returnApprove);
@@ -95,17 +97,23 @@ export function PosReturnsScreen() {
           }
           if (r.status === "approved" && canApprove) {
             return (
-              <Button variant="primary" size="compact" onPress={() => completeMutation.mutate(r)} isLoading={completeMutation.isPending}>
-                <RotateCcw className="size-4" aria-hidden="true" />
-                Complete refund
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <Button variant="primary" size="compact" onPress={() => completeMutation.mutate(r)} isLoading={completeMutation.isPending}>
+                  <RotateCcw className="size-4" aria-hidden="true" />
+                  Complete refund
+                </Button>
+                <Button variant="secondary" size="compact" onPress={() => router.push(`/pos/checkout?exchangeReturnId=${r.id}`)}>
+                  <ArrowLeftRight className="size-4" aria-hidden="true" />
+                  Exchange
+                </Button>
+              </div>
             );
           }
           return null;
         },
       },
     ],
-    [canApprove, approveMutation, completeMutation],
+    [canApprove, approveMutation, completeMutation, router],
   );
 
   if (!canView) return <PermissionState title="You don't have access to POS Returns" description="Ask an administrator to grant pos.return.create or pos.return.approve." />;

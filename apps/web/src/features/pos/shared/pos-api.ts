@@ -221,6 +221,12 @@ export const approvePosReturn = (id: string, input: { reason?: string; idempoten
   post<{ posReturn: PosReturn }>(`/returns/${id}/approve`, input);
 export const completePosReturn = (id: string, input: { idempotencyKey: string }) => post<{ posReturn: PosReturn & { saleStatus: string } }>(`/returns/${id}/complete`, input);
 
+// F293 -- exchange as linked lineage (see services/api/src/modules/point-of-sale/index.js's completePosExchange).
+export const completePosExchange = (
+  returnId: string,
+  input: { cartId: string; idempotencyKey: string; payments: { method: "cash"; amount: number }[]; expectedVersion?: number; expectedGrandTotal?: string },
+) => post<{ return: PosReturn; sale: Record<string, unknown> }>(`/returns/${returnId}/exchange`, input);
+
 export const listPosPromotions = (status?: string) => request<{ rows: PosPromotion[] }>(`/promotions${status ? `?status=${status}` : ""}`);
 export const listPosCoupons = (status?: string) => request<{ rows: PosCoupon[] }>(`/coupons${status ? `?status=${status}` : ""}`);
 export const createPosPromotion = (input: Record<string, unknown>) => post<{ record: PosPromotion }>("/promotions", input);

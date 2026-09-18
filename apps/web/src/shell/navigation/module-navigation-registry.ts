@@ -744,10 +744,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "returns",
         label: "Returns",
         featureRange: "F291-F293",
-        items: [
-          available("Returns", "/pos/returns"),
-          planned("Exchanges", "/pos/exchanges"),
-        ],
+        // Exchanges (F293) is not a separate screen -- it's the "Exchange"
+        // action on an approved return in this same Returns screen, which
+        // hands off to checkout to build the replacement cart.
+        items: [available("Returns", "/pos/returns")],
       },
       {
         id: "customers",

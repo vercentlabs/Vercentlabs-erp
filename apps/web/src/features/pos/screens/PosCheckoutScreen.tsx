@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Pause, Plus, Trash2, X } from "lucide-react";
 import { Button, ComboBox, Dialog, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
@@ -15,6 +15,7 @@ import {
   applyPosCoupon,
   cancelPosCart,
   completePosCart,
+  completePosExchange,
   createPosCart,
   getPosCart,
   holdPosCart,
@@ -47,6 +48,12 @@ import { money } from "@/features/pos/shared/format";
 export function PosCheckoutScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // F293: arriving here from the Returns screen's "Exchange" action --
+  // build a normal cart with the replacement item(s), then completing it
+  // finishes BOTH the return and this sale as one linked exchange
+  // (completePosExchange) instead of an ordinary sale.
+  const exchangeReturnId = searchParams.get("exchangeReturnId");
   const canDiscount = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApply);
 
   const [cart, setCart] = useState<PosCart | null>(null);
@@ -213,12 +220,20 @@ export function PosCheckoutScreen() {
     if (!cart) return;
     setCompleting(true);
     try {
-      const result = await completePosCart(cart.id, {
-        payments: [{ method: "cash", amount: cashTendered }],
-        idempotencyKey,
-        expectedVersion: cart.version,
-        expectedGrandTotal: cart.grand_total,
-      });
+      const result = exchangeReturnId
+        ? await completePosExchange(exchangeReturnId, {
+            cartId: cart.id,
+            payments: [{ method: "cash", amount: cashTendered }],
+            idempotencyKey,
+            expectedVersion: cart.version,
+            expectedGrandTotal: cart.grand_total,
+          })
+        : await completePosCart(cart.id, {
+            payments: [{ method: "cash", amount: cashTendered }],
+            idempotencyKey,
+            expectedVersion: cart.version,
+            expectedGrandTotal: cart.grand_total,
+          });
       const sale = result.sale as { id: string; receipt_number: string; grand_total: string; change_total: string };
       setConfirmation({ saleId: sale.id, receiptNumber: sale.receipt_number, grandTotal: sale.grand_total, changeTotal: sale.change_total });
       setError(null);
@@ -449,6 +464,12 @@ export function PosCheckoutScreen() {
           </div>
         </div>
 
+        {exchangeReturnId && (
+          <p className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+            Exchange mode — completing this sale also completes the linked return.
+          </p>
+        )}
+
         <NumberField label="Cash tendered" value={cashTendered} onChange={setCashTendered} minValue={0} step={0.01} />
         <p className="text-sm text-text-secondary">Change: {money(currency, Math.max(0, cashTendered - Number(cart?.grand_total ?? 0)))}</p>
 
@@ -458,7 +479,7 @@ export function PosCheckoutScreen() {
           isDisabled={!cart?.lines?.length || cashTendered < Number(cart?.grand_total ?? 0)}
           isLoading={completing}
         >
-          Complete cash sale
+          {exchangeReturnId ? "Complete exchange" : "Complete cash sale"}
         </Button>
         <Button variant="secondary" onPress={holdCurrentCart} isDisabled={!cart?.lines?.length} isLoading={loading}>
           <Pause className="size-4" aria-hidden="true" />
