@@ -706,7 +706,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Sell",
         featureRange: "F268-F272",
         items: [
-          planned("Open POS", "/pos/checkout"),
+          // A real checkout screen exists at this route (PosCheckoutScreen,
+          // extended this session with the card/UPI/wallet/split tender
+          // subsystem) -- this was left "planned" even though the screen
+          // was already real; flipped alongside the payment-tender work
+          // since it is the primary surface for that work and was
+          // otherwise unreachable from normal navigation.
+          available("Open POS", "/pos/checkout"),
           planned("Transactions", "/pos/transactions"),
         ],
       },

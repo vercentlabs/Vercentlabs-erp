@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, Trash2, X } from "lucide-react";
-import { Button, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, NumberField, SearchField, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import type { PosCart } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -17,6 +17,8 @@ import {
   completePosCart,
   createPosCart,
   getPosCart,
+  getPosPayment,
+  initiatePosPayment,
   lookupPosBarcode,
   listPosShifts,
   listPosStores,
@@ -28,9 +30,48 @@ import {
   setPosCartCustomer,
   setPosCartDiscount,
   updatePosCartLineQuantity,
+  type PosPaymentLeg,
   type PosProductMatch,
 } from "@/features/pos/shared/pos-api";
 import { money } from "@/features/pos/shared/format";
+
+// F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
+// payment methods): one tender line per payment leg. A 'cash' line is
+// final the moment its amount is entered (unchanged from before -- a
+// physical exchange). Any other method must be independently "charged"
+// (initiatePosPayment) and reach a server-confirmed 'captured' status
+// before Complete Sale will accept it -- there is no client-side "mark as
+// paid."
+type TenderMethod = "cash" | "card" | "upi" | "wallet" | "bank_transfer";
+type TenderLine = {
+  id: string;
+  method: TenderMethod;
+  amount: number;
+  paymentId?: string;
+  status?: string;
+  error?: string;
+  charging?: boolean;
+};
+const NON_CASH_METHOD_OPTIONS = [
+  { value: "card" as const, label: "Card" },
+  { value: "upi" as const, label: "UPI" },
+  { value: "wallet" as const, label: "Wallet" },
+  { value: "bank_transfer" as const, label: "Bank transfer" },
+];
+// This environment has no live merchant/gateway credentials -- only the
+// deterministic sandbox adapter is registered (see
+// services/api/src/modules/point-of-sale/payments/sandbox-adapter.js).
+// This selector is a SANDBOX TEST-SCRIPTING INSTRUCTION only: it is never
+// read as a truth claim about payment state, and a real adapter would
+// ignore it entirely.
+const SANDBOX_OUTCOME_OPTIONS = [
+  { value: "immediate_success" as const, label: "Simulate: succeeds immediately" },
+  { value: "immediate_decline" as const, label: "Simulate: declines immediately" },
+];
+
+function newTenderLineId() {
+  return crypto.randomUUID();
+}
 
 // A single `cart` state variable is deliberately NOT a TanStack Query
 // cache entry: every mutation (add line, change quantity, apply coupon,
@@ -54,7 +95,7 @@ export function PosCheckoutScreen() {
   const [customerId, setCustomerId] = useState("");
   const [cartDiscountValue, setCartDiscountValue] = useState(0);
   const [cartDiscountReason, setCartDiscountReason] = useState("");
-  const [cashTendered, setCashTendered] = useState(0);
+  const [tenderLines, setTenderLines] = useState<TenderLine[]>([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
   const [completing, setCompleting] = useState(false);
   const [confirmation, setConfirmation] = useState<{ receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
@@ -90,6 +131,26 @@ export function PosCheckoutScreen() {
     queryFn: () => searchPosProducts(store!.id, searchTerm),
     enabled: Boolean(store?.id && searchTerm.trim().length > 0),
   });
+
+  // Poll a non-cash leg while its outcome is still pending/authorized --
+  // there is no client-side "it succeeded," only what the server reports
+  // (an adapter's own synchronous response already resolved the sandbox
+  // outcomes this UI offers, but polling is what a real async provider's
+  // webhook-driven capture would need).
+  useEffect(() => {
+    const pendingLines = tenderLines.filter((line) => line.paymentId && (line.status === "pending" || line.status === "authorized" || line.status === "initiated"));
+    if (!pendingLines.length) return;
+    const timer = setInterval(() => {
+      pendingLines.forEach((line) => {
+        getPosPayment(line.paymentId!)
+          .then((result) => {
+            setTenderLines((lines) => lines.map((l) => (l.id === line.id ? { ...l, status: result.payment.status, error: result.payment.failure_reason || undefined } : l)));
+          })
+          .catch(() => undefined);
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [tenderLines]);
 
   async function run(action: () => Promise<{ cart: PosCart }>) {
     setLoading(true);
@@ -134,12 +195,55 @@ export function PosCheckoutScreen() {
     run(() => setPosCartDiscount(cart.id, { type: "percent", value: cartDiscountValue, reason: cartDiscountReason, expectedVersion: cart.version }));
   const applyCustomer = () => cart && run(() => setPosCartCustomer(cart.id, customerId.trim() || null, cart.version));
 
+  // F283/F284/F285/F286 tender-line helpers.
+  const tenderTotal = tenderLines.reduce((sum, line) => sum + (Number.isFinite(line.amount) ? line.amount : 0), 0);
+  const grandTotalNumber = Number(cart?.grand_total ?? 0);
+  const remainingToAllocate = Math.round((grandTotalNumber - tenderTotal) * 100) / 100;
+  const isSingleCashTender = tenderLines.length === 1 && tenderLines[0].method === "cash";
+  const allNonCashCaptured = tenderLines.every((line) => line.method === "cash" || line.status === "captured");
+  const canComplete =
+    Boolean(cart?.lines?.length) &&
+    tenderLines.every((line) => line.amount > 0) &&
+    allNonCashCaptured &&
+    (isSingleCashTender ? tenderTotal >= grandTotalNumber : remainingToAllocate === 0);
+
+  function updateTenderLine(id: string, patch: Partial<TenderLine>) {
+    setTenderLines((lines) => lines.map((line) => (line.id === id ? { ...line, ...patch } : line)));
+  }
+  function addTenderLine() {
+    setTenderLines((lines) => [...lines, { id: newTenderLineId(), method: "card", amount: Math.max(0, remainingToAllocate) }]);
+  }
+  function removeTenderLine(id: string) {
+    setTenderLines((lines) => (lines.length > 1 ? lines.filter((line) => line.id !== id) : lines));
+  }
+  const [tenderOutcome, setTenderOutcome] = useState<Record<string, string>>({});
+
+  async function chargeTenderLine(line: TenderLine) {
+    if (!cart || line.method === "cash" || line.amount <= 0) return;
+    updateTenderLine(line.id, { charging: true, error: undefined });
+    try {
+      const result = await initiatePosPayment({
+        cartId: cart.id,
+        method: line.method,
+        amount: line.amount,
+        idempotencyKey: line.id,
+        outcome: tenderOutcome[line.id] || "immediate_success",
+      });
+      updateTenderLine(line.id, { paymentId: result.payment.id, status: result.payment.status, charging: false, error: result.payment.failure_reason || undefined });
+    } catch (err) {
+      updateTenderLine(line.id, { charging: false, error: err instanceof PosApiError ? err.message : "The payment could not be started." });
+    }
+  }
+
   async function completeSale() {
     if (!cart) return;
     setCompleting(true);
     try {
+      const payments: PosPaymentLeg[] = tenderLines.map((line) =>
+        line.method === "cash" ? { method: "cash", amount: line.amount } : { method: line.method, paymentId: line.paymentId! },
+      );
       const result = await completePosCart(cart.id, {
-        payments: [{ method: "cash", amount: cashTendered }],
+        payments,
         idempotencyKey,
         expectedVersion: cart.version,
         expectedGrandTotal: cart.grand_total,
@@ -161,7 +265,8 @@ export function PosCheckoutScreen() {
 
   function startNewSale() {
     setConfirmation(null);
-    setCashTendered(0);
+    setTenderLines([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
+    setTenderOutcome({});
     setCustomerId("");
     setCouponCode("");
     setIdempotencyKey(crypto.randomUUID());
@@ -320,16 +425,77 @@ export function PosCheckoutScreen() {
           </div>
         </div>
 
-        <NumberField label="Cash tendered" value={cashTendered} onChange={setCashTendered} minValue={0} step={0.01} />
-        <p className="text-sm text-text-secondary">Change: {money(currency, Math.max(0, cashTendered - Number(cart?.grand_total ?? 0)))}</p>
+        <div className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong p-3">
+          <p className="text-sm font-medium text-text">Tender</p>
+          {tenderLines.map((line) => (
+            <div key={line.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-2">
+              <div className="flex items-end gap-2">
+                {line.method === "cash" ? (
+                  <span className="flex-1 text-sm font-medium text-text">Cash</span>
+                ) : (
+                  <Select
+                    label="Method"
+                    className="flex-1"
+                    options={NON_CASH_METHOD_OPTIONS}
+                    selectedKey={line.method}
+                    onSelectionChange={(key) => updateTenderLine(line.id, { method: key as TenderMethod })}
+                    isDisabled={Boolean(line.paymentId)}
+                  />
+                )}
+                <NumberField
+                  label="Amount"
+                  value={line.amount}
+                  onChange={(value) => updateTenderLine(line.id, { amount: value })}
+                  minValue={0}
+                  step={0.01}
+                  isDisabled={Boolean(line.paymentId)}
+                  className="w-32"
+                />
+                {tenderLines.length > 1 && !line.paymentId && (
+                  <Button variant="ghost" size="compact" onPress={() => removeTenderLine(line.id)} aria-label="Remove tender line">
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+              {line.method !== "cash" && (
+                <div className="flex items-center gap-2">
+                  {!line.paymentId && (
+                    <Select
+                      label="Sandbox outcome"
+                      className="flex-1"
+                      options={SANDBOX_OUTCOME_OPTIONS}
+                      selectedKey={(tenderOutcome[line.id] || "immediate_success") as (typeof SANDBOX_OUTCOME_OPTIONS)[number]["value"]}
+                      onSelectionChange={(key) => setTenderOutcome((prev) => ({ ...prev, [line.id]: String(key) }))}
+                    />
+                  )}
+                  {!line.paymentId ? (
+                    <Button variant="secondary" onPress={() => chargeTenderLine(line)} isLoading={line.charging} isDisabled={line.amount <= 0}>
+                      Charge {line.method}
+                    </Button>
+                  ) : (
+                    <StatusBadge tone={line.status === "captured" ? "success" : line.status === "failed" ? "danger" : "warning"}>
+                      {line.status === "captured" ? "Captured" : line.status === "failed" ? "Declined" : "Processing…"}
+                    </StatusBadge>
+                  )}
+                </div>
+              )}
+              {line.error && <p className="text-xs text-danger">{line.error}</p>}
+            </div>
+          ))}
+          <Button variant="ghost" size="compact" onPress={addTenderLine}>
+            + Add tender line (split payment)
+          </Button>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-secondary">Remaining to allocate</span>
+            <span className={`tabular-nums font-medium ${remainingToAllocate === 0 ? "text-success" : "text-text"}`}>{money(currency, remainingToAllocate)}</span>
+          </div>
+          {isSingleCashTender && (
+            <p className="text-sm text-text-secondary">Change: {money(currency, Math.max(0, tenderTotal - grandTotalNumber))}</p>
+          )}
+        </div>
 
-        <Button
-          variant="primary"
-          onPress={completeSale}
-          isDisabled={!cart?.lines?.length || cashTendered < Number(cart?.grand_total ?? 0)}
-          isLoading={completing}
-        >
-          Complete cash sale
+        <Button variant="primary" onPress={completeSale} isDisabled={!canComplete} isLoading={completing}>
+          Complete sale
         </Button>
         <Button variant="ghost" onPress={() => cart && run(() => cancelPosCart(cart.id).then((r) => ({ cart: r.cart })))}>
           Cancel sale
