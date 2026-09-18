@@ -14,7 +14,13 @@ export default defineConfig({
   // ever ran (it checks for its own marker file first).
   globalTeardown: "./e2e/pos-global-teardown.ts",
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
-  timeout: 30_000,
+  // 45s, not 30s: the POS specs (pos-*.spec.ts) run several multi-step
+  // journeys per test against a Next.js DEV server, where the FIRST hit of
+  // any not-yet-compiled API route/page can itself take 10-20s of on-demand
+  // webpack/turbopack compilation before the request even starts executing
+  // -- a real, structural cost of testing against `next dev` rather than a
+  // production build, not flakiness in the tests themselves.
+  timeout: 45_000,
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",
