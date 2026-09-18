@@ -820,6 +820,22 @@ export const ROLE_TEMPLATES = Object.freeze([
       // clarity and so a permission audit sees it granted, not inferred.
       "pos.loyalty.manage",
       "pos.loyalty.redeem",
+      // F290: invoice generation/viewing, same tier as sale.create.
+      "pos.invoice.generate",
+      "pos.invoice.view",
+      // F304: pos_manager is the resolve/approve authority for a
+      // reconciliation variance -- deliberately NOT pos.reconciliation.manage
+      // (see pos_supervisor below and the
+      // pos_reconciliation_manage_approve SoD conflict), so the role that
+      // generated/matched a reconciliation is never the same one that
+      // resolves its exceptions.
+      "pos.reconciliation.approve",
+      "pos.reconciliation.view",
+      // F305: posting/retrying a completed sale's GL entry.
+      "pos.accounting.post",
+      "pos.accounting.view",
+      // F307
+      "pos.analytics.view",
     ]),
   },
   {
@@ -847,6 +863,11 @@ export const ROLE_TEMPLATES = Object.freeze([
       // pos.sale.create here, not with pos.loyalty.manage (program
       // configuration), which a cashier never holds.
       "pos.loyalty.redeem",
+      // F290: generating/viewing an invoice for a sale the cashier just
+      // rang up is a normal checkout-adjacent action, same tier as
+      // sale.create/return.create.
+      "pos.invoice.generate",
+      "pos.invoice.view",
     ]),
   },
   {
@@ -889,6 +910,17 @@ export const ROLE_TEMPLATES = Object.freeze([
       // store/terminal change) and redeem points at checkout.
       "pos.loyalty.manage",
       "pos.loyalty.redeem",
+      // F290: invoice generation/viewing.
+      "pos.invoice.generate",
+      "pos.invoice.view",
+      // F304: pos_supervisor imports settlement evidence and
+      // generates/matches a reconciliation — deliberately NOT
+      // pos.reconciliation.approve (that's pos_manager's, a different
+      // authority; see the pos_reconciliation_manage_approve SoD conflict).
+      "pos.reconciliation.manage",
+      "pos.reconciliation.view",
+      // F307
+      "pos.analytics.view",
     ]),
   },
   {
@@ -1055,6 +1087,14 @@ export const SOD_CONFLICTS = Object.freeze([
     severity: "blocking",
     description:
       "POS day-end (Z) report generation/review and finalization must be separated — the same role must not both draft and lock the same immutable report.",
+  },
+  {
+    key: "pos_reconciliation_manage_approve",
+    first: "pos.reconciliation.manage",
+    second: "pos.reconciliation.approve",
+    severity: "blocking",
+    description:
+      "POS payment reconciliation generation/matching and exception approval must be separated — the same role must not both match settlement evidence and resolve its own variance.",
   },
   {
     key: "supplier_manage_sensitive",

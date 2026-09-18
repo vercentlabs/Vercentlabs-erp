@@ -26,17 +26,21 @@ function table(resource) {
 // itself, are keyed by store id directly) get row-filtered to the caller's
 // assigned stores once an organization has opted into pos_store_access --
 // see accessiblePosStoreIds's doc comment in shared/access-control.js for
-// the same "permissive until configured" convention. pos_payments/
-// pos_cash_movements/pos_reconciliations have no store_id column (only
-// shift_id) and are NOT yet filtered here -- a disclosed remaining gap,
-// not an oversight: doing so would need a join through pos_shifts, which
-// the loop below does not attempt.
+// the same "permissive until configured" convention. pos_payments gained a
+// real store_id column in migration 120 (F283-F286) and pos_reconciliations
+// gained one in migration 127 (F304), closing the gap this comment used to
+// describe for both. pos_cash_movements still has no store_id column of
+// its own (only shift_id) -- filtered via a shift_id subquery below instead
+// of a table-level column, since a join would require touching this
+// function's `SELECT *` shape for every other resource too.
 const STORE_SCOPED_TABLES = Object.freeze({
   pos_stores: "id",
   pos_terminals: "store_id",
   pos_shifts: "store_id",
   pos_sales: "store_id",
   pos_returns: "store_id",
+  pos_payments: "store_id",
+  pos_reconciliations: "store_id",
 });
 
 export async function listPointOfSaleResource(client, context, resource, { limit = 100, offset = 0, shiftId = null } = {}) {
@@ -54,6 +58,12 @@ export async function listPointOfSaleResource(client, context, resource, { limit
     if (accessibleStoreIds) {
       values.push(accessibleStoreIds);
       filter += ` AND ${storeColumn}=ANY($${values.length}::uuid[])`;
+    }
+  } else if (target === "pos_cash_movements") {
+    const accessibleStoreIds = await accessiblePosStoreIds(client, context);
+    if (accessibleStoreIds) {
+      values.push(accessibleStoreIds);
+      filter += ` AND shift_id IN (SELECT id FROM tenant.pos_shifts WHERE organization_id=$1 AND store_id=ANY($${values.length}::uuid[]))`;
     }
   }
   values.push(Math.min(Number(limit) || 100, 200), Number(offset) || 0);

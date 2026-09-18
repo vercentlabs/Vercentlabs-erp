@@ -98,12 +98,20 @@ async function approvalPolicy(client, context, document, config) {
   return Boolean(policy.required) || (threshold > 0n && amount >= threshold);
 }
 
-export async function submitSubledgerDocument(client, context, kind, idValue, assignedTo = null) {
+export async function submitSubledgerDocument(client, context, kind, idValue, assignedTo = null, options = {}) {
   const { config, document } = await lockDocument(client, context, kind, idValue);
-  requirePermission(context, config.submitPermission);
+  if (!options.internal) requirePermission(context, config.submitPermission);
   if (document.status !== "draft") throw new AccountingError(409, "Only a draft Accounting document can be submitted.");
   const hash = await contentHash(client, context, config, document);
-  const approvalRequired = await approvalPolicy(client, context, document, config);
+  // A trusted internal caller (e.g. POS posting an already-completed,
+  // already-paid retail sale's invoice) has no interactive human
+  // maker-checker step to route through -- the transaction it documents
+  // already happened at checkout. Skip the approval-request detour
+  // entirely for internal callers; the source module's own authorization
+  // (e.g. assertPosStoreAccess) and this function's still-real audit event
+  // are the control, not a second human sign-off on a fact already
+  // settled at the till.
+  const approvalRequired = options.internal ? false : await approvalPolicy(client, context, document, config);
   if (!approvalRequired) {
     await client.query(
       `UPDATE tenant.${config.table}

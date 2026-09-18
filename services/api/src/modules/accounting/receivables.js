@@ -370,8 +370,8 @@ export async function getCustomerInvoice(client, context, idValue) {
     creditAllocations: creditAllocations.rows, creditCandidates: creditCandidates.rows, events: events.rows };
 }
 
-export async function postCustomerInvoice(client, context, idValue) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
+export async function postCustomerInvoice(client, context, idValue, options = {}) {
+  if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
   const id = uuid(idValue, "Customer invoice");
   const locked = await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id]);
   const invoice = locked.rows[0];

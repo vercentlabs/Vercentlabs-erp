@@ -6,6 +6,8 @@
 // owner -- mirroring services/api/src/modules/crm/index.js's own "implementation
 // is owned by the capability directories" boundary.
 export { getPointOfSaleDashboard } from "./pos-analytics/dashboard.js";
+// POS-CAP-009 -- POS analytics (F307).
+export { getPosSalesAnalytics } from "./pos-analytics/reports.js";
 
 export { listPointOfSaleResource } from "./shared/resource-registry.js";
 
@@ -75,6 +77,7 @@ export {
 
 // POS-CAP-004 -- transaction continuity and documents (F287-F290).
 export { getPosSaleReceipt } from "./transaction-continuity-and-documents/receipts.js";
+export { generatePosInvoice, getPosInvoiceForSale, listPosInvoices } from "./transaction-continuity-and-documents/invoices.js";
 
 // POS-CAP-005 -- returns, refunds and exchanges (F291-F293).
 export { findPosSaleForReturn } from "./returns-refunds-and-exchanges/returns.js";
@@ -92,6 +95,20 @@ export {
   listPosDayEndReports,
   getPosDayEndReport,
 } from "./cash-shift-day-end-and-reconciliation/day-end-reports.js";
+export {
+  importPosSettlementBatch,
+  generatePosReconciliation,
+  resolvePosReconciliation,
+  recordPosReconciliationCorrection,
+  listPosReconciliations,
+  getPosReconciliation,
+} from "./cash-shift-day-end-and-reconciliation/reconciliation.js";
+export {
+  postPosSaleToAccounting,
+  postPosReturnToAccounting,
+  postPosDayEndReportToAccounting,
+  listPosAccountingPostingQueue,
+} from "./cash-shift-day-end-and-reconciliation/accounting-posting.js";
 
 // POS-CAP-006 -- inventory and offline continuity (F294-F298).
 export {

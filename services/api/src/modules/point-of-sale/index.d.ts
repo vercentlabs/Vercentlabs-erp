@@ -109,6 +109,33 @@ export declare function recordPosDayEndVariance(client: any, context: PointOfSal
 export declare function listPosDayEndReports(client: any, context: PointOfSaleContext, options?: { storeId?: string; terminalId?: string; status?: string; scopeType?: string; businessDateFrom?: string; businessDateTo?: string; limit?: number; offset?: number }): Promise<PosDayEndReport[]>;
 export declare function getPosDayEndReport(client: any, context: PointOfSaleContext, reportId: string): Promise<PosDayEndReport>;
 
+// F290 — invoice generation. The returned shape is Accounting's own
+// getCustomerInvoice() composite { invoice, lines, schedules, ... }.
+export declare function generatePosInvoice(client: any, context: PointOfSaleContext, saleId: string, input?: { notes?: string | null; idempotencyKey?: string }): Promise<{ invoice: Record<string, any>; lines: Record<string, any>[]; [key: string]: any }>;
+export declare function getPosInvoiceForSale(client: any, context: PointOfSaleContext, saleId: string): Promise<{ invoice: Record<string, any>; lines: Record<string, any>[]; [key: string]: any }>;
+export declare function listPosInvoices(client: any, context: PointOfSaleContext, options?: { storeId?: string; customerId?: string; limit?: number; offset?: number }): Promise<Record<string, any>[]>;
+
+// F304 — payment reconciliation.
+export type PosSettlementBatch = { id: string; organization_id: string; company_id: string; store_id: string | null; payment_method: string; provider_key: string; batch_reference: string; settlement_date: string; total_amount: string; total_fee_amount: string; entry_count: number; status: "imported" | "matched" | "closed"; [key: string]: any };
+export type PosSettlementEntry = { id: string; batch_id: string; provider_reference: string; amount: string; fee_amount: string; settled_at: string; matched_payment_id: string | null; match_status: "unmatched" | "matched" | "duplicate"; [key: string]: any };
+export type PosReconciliation = { id: string; organization_id: string; company_id: string; store_id: string | null; day_end_report_id: string | null; shift_id: string | null; payment_method: string; reconciliation_number: string | null; expected_amount: string; counted_amount: string; settled_amount: string; variance_amount: string; fee_total: string; missing_count: number; duplicate_count: number; status: "draft" | "matched" | "variance" | "resolved"; matched_by: string | null; matched_at: string | null; resolved_by: string | null; resolved_at: string | null; resolution_notes: string | null; approved_by: string | null; approved_at: string | null; [key: string]: any };
+export declare function importPosSettlementBatch(client: any, context: PointOfSaleContext, input: { storeId?: string | null; paymentMethod: "card" | "upi" | "bank_transfer" | "wallet" | "store_credit"; providerKey: string; batchReference: string; settlementDate: string; entries: Array<{ providerReference: string; amount: number; feeAmount?: number; settledAt?: string }> }): Promise<{ batch: PosSettlementBatch; entries: PosSettlementEntry[]; replayed: boolean }>;
+export declare function generatePosReconciliation(client: any, context: PointOfSaleContext, reportId: string, input?: { idempotencyKey?: string }): Promise<{ reportId: string; reconciliations: PosReconciliation[]; replayed: boolean }>;
+export declare function resolvePosReconciliation(client: any, context: PointOfSaleContext, reconciliationId: string, input: { resolutionNotes: string }): Promise<PosReconciliation>;
+export declare function recordPosReconciliationCorrection(client: any, context: PointOfSaleContext, reconciliationId: string, input: { reason: string; adjustment?: Array<Record<string, any>> }): Promise<Record<string, any>>;
+export declare function listPosReconciliations(client: any, context: PointOfSaleContext, options?: { storeId?: string; dayEndReportId?: string; status?: string; limit?: number; offset?: number }): Promise<PosReconciliation[]>;
+export declare function getPosReconciliation(client: any, context: PointOfSaleContext, reconciliationId: string): Promise<PosReconciliation & { corrections: Record<string, any>[] }>;
+
+// F305 — POS accounting posting.
+export type PosAccountingPostingOutcome = { posted: boolean; replayed?: boolean; failed?: boolean; journalEntryId?: string; message?: string };
+export declare function postPosSaleToAccounting(client: any, context: PointOfSaleContext, saleId: string): Promise<PosAccountingPostingOutcome>;
+export declare function postPosReturnToAccounting(client: any, context: PointOfSaleContext, returnId: string): Promise<PosAccountingPostingOutcome>;
+export declare function postPosDayEndReportToAccounting(client: any, context: PointOfSaleContext, reportId: string): Promise<{ reportId: string; posted: Array<{ type: string; id: string; journalEntryId: string }>; alreadyPosted: Array<{ type: string; id: string }>; failed: Array<{ type: string; id: string; message: string }> }>;
+export declare function listPosAccountingPostingQueue(client: any, context: PointOfSaleContext, options?: { status?: string; storeId?: string; limit?: number }): Promise<Record<string, any>[]>;
+
+// F307 — POS sales analytics.
+export declare function getPosSalesAnalytics(client: any, context: PointOfSaleContext, filters: { dateFrom: string; dateTo: string; storeId?: string; terminalId?: string; cashierId?: string }): Promise<Record<string, any>>;
+
 // F297/F298 — offline POS workspace + offline-to-online sync
 export type PosOfflineUnsupportedOperation = { code: string; label: string; reason: string };
 export declare const OFFLINE_SNAPSHOT_ITEM_LIMIT: number;

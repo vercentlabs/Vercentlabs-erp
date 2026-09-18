@@ -171,5 +171,47 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
       request(`/loyalty/customers/${encodeURIComponent(customerId)}/ledger${limit ? `?limit=${limit}` : ""}`),
     adjustCustomerLoyaltyBalance: (customerId, points, reason) =>
       post(`/loyalty/customers/${encodeURIComponent(customerId)}/adjust`, { points, reason }),
+
+    // F290 Invoice generation
+    generateSaleInvoice: (saleId, input) => post(`/sales/${encodeURIComponent(saleId)}/invoice`, input),
+    getSaleInvoice: (saleId) => request(`/sales/${encodeURIComponent(saleId)}/invoice`),
+    listInvoices: (query = {}) => {
+      const params = new URLSearchParams(
+        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
+      );
+      return request(`/invoices${params.size ? `?${params}` : ""}`);
+    },
+
+    // F304 Payment reconciliation
+    importSettlementBatch: (input) => post("/settlements", input),
+    generateReconciliation: (reportId, input) => post(`/reports/day-end/${encodeURIComponent(reportId)}/reconciliation`, input),
+    listReconciliations: (query = {}) => {
+      const params = new URLSearchParams(
+        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
+      );
+      return request(`/reconciliations${params.size ? `?${params}` : ""}`);
+    },
+    getReconciliation: (id) => request(`/reconciliations/${encodeURIComponent(id)}`),
+    resolveReconciliation: (id, resolutionNotes) => post(`/reconciliations/${encodeURIComponent(id)}/resolve`, { resolutionNotes }),
+    recordReconciliationCorrection: (id, input) => post(`/reconciliations/${encodeURIComponent(id)}/correction`, input),
+
+    // F305 Accounting posting
+    postSaleToAccounting: (saleId) => post(`/sales/${encodeURIComponent(saleId)}/accounting-post`),
+    postReturnToAccounting: (returnId) => post(`/returns/${encodeURIComponent(returnId)}/accounting-post`),
+    postDayEndReportToAccounting: (reportId) => post(`/reports/day-end/${encodeURIComponent(reportId)}/accounting-post`),
+    listAccountingPostingQueue: (query = {}) => {
+      const params = new URLSearchParams(
+        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
+      );
+      return request(`/accounting/posting-queue${params.size ? `?${params}` : ""}`);
+    },
+
+    // F307 Analytics
+    getSalesAnalytics: (query = {}) => {
+      const params = new URLSearchParams(
+        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
+      );
+      return request(`/analytics${params.size ? `?${params}` : ""}`);
+    },
   });
 }

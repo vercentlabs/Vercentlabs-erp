@@ -759,6 +759,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // Editing the program is gated inside the screen itself
           // (pos.loyalty.manage) since balance lookup stays open to cashiers.
           available("Loyalty", "/pos/loyalty"),
+          // F290: generation happens from the receipt screen; this is the
+          // searchable ledger of every invoice already generated.
+          available("Invoices", "/pos/invoices"),
         ],
       },
       {
@@ -780,7 +783,20 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         // F303: day-end (Z) reports has a real screen now (list, generate,
         // review/finalize, print) -- flipped to AVAILABLE. Ordinary ad hoc
         // POS reporting (pos.reports.view) still has no screen yet.
-        items: [available("Day-end (Z) Reports", "/pos/reports/day-end"), planned("Reports", "/pos/reports")],
+        items: [
+          available("Day-end (Z) Reports", "/pos/reports/day-end"),
+          // F304: cross-report exception queue + settlement-evidence
+          // import; generating a report's own reconciliation happens from
+          // that report's detail screen.
+          { ...available("Reconciliation", "/pos/reconciliation"), requiredPermission: "pos.reconciliation.view" },
+          // F305: every completed sale/return's GL posting status, with
+          // retry for anything failed.
+          { ...available("Accounting Posting", "/pos/accounting"), requiredPermission: "pos.accounting.view" },
+          // F307: real date-range/store/terminal/cashier drilldown
+          // analytics, replacing the coarse today-only dashboard aggregate.
+          { ...available("Analytics", "/pos/analytics"), requiredPermission: "pos.analytics.view" },
+          planned("Reports", "/pos/reports"),
+        ],
       },
     ],
   },

@@ -47,4 +47,22 @@ export const POS_PERMISSIONS = Object.freeze({
   offlineResolve: "pos.offline.resolve",
   loyaltyManage: "pos.loyalty.manage",
   loyaltyRedeem: "pos.loyalty.redeem",
+  // F290: producing/viewing a formal tax invoice for a completed sale is a
+  // normal checkout-adjacent action, same tier as saleCreate.
+  invoiceGenerate: "pos.invoice.generate",
+  invoiceView: "pos.invoice.view",
+  // F304: a genuine maker-checker split, mirroring reportGenerate/
+  // reportFinalize -- the role that imports settlement evidence and
+  // generates/matches a reconciliation is never the same role that
+  // resolves its variance exceptions (see the
+  // pos_reconciliation_manage_approve SoD conflict below).
+  reconciliationManage: "pos.reconciliation.manage",
+  reconciliationApprove: "pos.reconciliation.approve",
+  reconciliationView: "pos.reconciliation.view",
+  // F305: triggering/retrying a GL posting is a sensitive financial-system
+  // action, same tier as settingsManage.
+  accountingPost: "pos.accounting.post",
+  accountingView: "pos.accounting.view",
+  // F307
+  analyticsView: "pos.analytics.view",
 });
