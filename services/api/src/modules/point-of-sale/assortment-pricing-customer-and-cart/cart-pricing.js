@@ -266,7 +266,15 @@ async function evaluatePromotions(client, context, store, customerId, lines, car
       if (promotion.max_discount_amount != null) amount = min(amount, decimal(promotion.max_discount_amount));
       lineDiscounts.set(line.lineNumber, add(lineDiscounts.get(line.lineNumber), amount));
       promotionTotal = add(promotionTotal, amount);
-      applications.push({ promotionId: promotion.id, code: promotion.code, lineNumber: line.lineNumber, amount });
+      // `amount` above is the raw BigInt-scaled decimal.js value, still
+      // needed in that form for the add()/min() arithmetic on lines 266-268
+      // -- but this `applications` entry is DB-bound (commitPosPromotionApplications
+      // in promotions.js inserts `.amount` straight into pos_promotion_applications.
+      // discount_amount), so it must cross that boundary already descaled,
+      // same as every other DB-bound field in this module. Left raw, a
+      // 10% discount on 500 was stored -- and receipted -- as 50,000,000
+      // instead of 50.00 (decimal.js's SCALE is 1e6).
+      applications.push({ promotionId: promotion.id, code: promotion.code, lineNumber: line.lineNumber, amount: asDatabaseDecimal(amount) });
     }
     if (promotionTotal > 0n) {
       explanations.push({ code: promotion.code, applied: true, amountSaved: asDatabaseDecimal(promotionTotal), reason: promotion.name });

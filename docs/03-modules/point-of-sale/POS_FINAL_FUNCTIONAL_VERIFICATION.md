@@ -57,7 +57,7 @@ No other module in this codebase posts a cost-of-goods-sold/inventory-relief jou
 
 ## Verification-run evidence
 
-Two sessions of work are reflected here: F290/F304/F305/F307 (invoice/reconciliation/accounting-posting/analytics) and, immediately after, the four disclosed-gap closures (terminal-level eligibility, eligibility pickers, account-mapping config, non-cash refunds).
+Three passes of work are reflected here: F290/F304/F305/F307 (invoice/reconciliation/accounting-posting/analytics); the four disclosed-gap closures (terminal-level eligibility, eligibility pickers, account-mapping config, non-cash refunds); and, immediately after, the comprehensive visual/responsive/accessibility QA pass documented in full in `POS_FINAL_VISUAL_QA_REPORT.md`.
 
 | Gate | Result |
 |---|---|
@@ -68,7 +68,7 @@ Two sessions of work are reflected here: F290/F304/F305/F307 (invoice/reconcilia
 | `test:security` | 4/4 |
 | `test:enterprise-rbac` | 5/5 |
 | `test:worker` | 102/102 |
-| `node --test tests/integration/*.test.mjs` (real PostgreSQL) | 161/161 (136 baseline → 146 after F290/F304/F305/F307 → 161 after gap closures: +10 `pos-terminal-access-f270-f271`, +5 `pos-non-cash-refunds-f292`) |
+| `node --test tests/integration/*.test.mjs` (real PostgreSQL) | 161/161 (136 baseline → 146 after F290/F304/F305/F307 → 161 after gap closures: +10 `pos-terminal-access-f270-f271`, +5 `pos-non-cash-refunds-f292`; unchanged count this pass — one existing assertion strengthened, see below, not a new test) |
 | `typecheck:web` | clean |
 | `lint:web` | clean, 0 warnings |
 | `build:web` | clean; `/pos/invoices`, `/pos/reconciliation`, `/pos/accounting`, `/pos/analytics` all present |
@@ -76,6 +76,18 @@ Two sessions of work are reflected here: F290/F304/F305/F307 (invoice/reconcilia
 | `verify:db` | OK — 128 tenant migrations, 45 platform migrations, all RLS-enforced |
 | `verify:routes` | OK — 221 route.ts (116 CRM), 92 page.tsx |
 | `verify:route-security` | OK — 171 mutation-capable routes, 0 unexplained gaps |
+| `playwright test pos-visual-qa.spec.ts` (real browser, real dev server) | 7/7 — 63 screenshots across 19 screen/state combinations at up to 6 viewports (1440/1280/1024/768/390/360) |
+| `playwright test pos-accessibility.spec.ts` (axe-core, wcag2a+wcag2aa) | 16/16 POS pages (3 personas) — 0 critical/serious violations |
+
+## Visual/responsive/accessibility QA pass (this session) — real bugs found and fixed
+
+Full screen-by-screen inventory, viewport coverage, and per-screen findings are in `POS_FINAL_VISUAL_QA_REPORT.md`. Three genuine, previously-undetected bugs were found by actually inspecting real screenshots (not assuming correctness from a passing build) and fixed with regression coverage:
+
+1. **Checkout cold-load race (`PosCheckoutScreen.tsx`)**: on the very first navigation to `/pos/checkout` in a fresh session, `myOpenShift` was derived purely from `shiftsQuery.data`, which is `undefined` while the query is still in flight — the screen rendered "No open shift found" (indistinguishable from a genuine no-shift state) instead of a loading state, on every cold load. Fixed by checking `shiftsQuery.isLoading` first.
+2. **Raw ISO datetime shown for a calendar date (`PosDayEndReportDetailScreen.tsx`, `PosDayEndReportsScreen.tsx`)**: `business_date` (a DATE column) round-trips through the API as a full `2026-09-17T18:30:00.000Z` string; both screens rendered it unformatted. Added `calendarDate()` to `shared/format.ts` (slices the calendar date as stored, deliberately not `new Date().toLocaleDateString()`, which would re-parse in the browser's local timezone and shift the displayed day).
+3. **Promotion discount stored/receipted 1,000,000× too large (`cart-pricing.js` `evaluatePromotions`)**: the raw BigInt-scaled `decimal.js` value (SCALE=1e6) was pushed into the `applications` array and inserted straight into `pos_promotion_applications.discount_amount` without `asDatabaseDecimal()` — a 10% discount on 500 was stored, and shown on the real receipt, as −INR 50,000,000.00 instead of −INR 50.00. This is the same class of bug as the BigInt-into-JSON crash found in the prior gap-closure pass, in a different codepath the earlier fix didn't cover. Fixed at the point the value crosses into DB-bound structures, matching the equivalent coupon path (`priced.coupon.amount`) which already did this correctly. `tests/integration/pos-cart-tax-promotions-coupons-f277-f281.test.mjs`'s F289 receipt assertion was strengthened to assert `discount_amount < grand_total` (a discount can never legitimately exceed the sale it discounted) — it previously only checked the promo code appeared, which is exactly why a 1,000,000× inflation went undetected.
+
+Also fixed (test infrastructure, not app code): `apps/web/e2e/pos-global-teardown.ts` didn't tear down `pos_day_end_reports`/`pos_reconciliations` at all (a pre-existing gap — no prior spec had ever closed one), then, once fixed, hit the tables' own intentional immutability triggers (a closed day-end report / resolved reconciliation cannot be deleted by design, migrations 121/127). Now scoped behind a `SAVEPOINT` so that expected, by-design failure retains just that run's store/shift/terminal chain permanently (same pattern as `public.users` below) without rolling back the rest of the cleanup.
 
 `verify:erp`/`verify:toolchain` still fail at the very first step for the same pre-existing, undisclosed-by-any-session reason every prior session already documented: this environment runs Node v26.5.0 against the repo's `>=24 <25` pin. Every individual gate the composite chains was run directly above and passed — this is an environment characteristic, not a functional gap.
 

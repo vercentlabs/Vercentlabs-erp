@@ -25,7 +25,7 @@ import { generatePosDayEndReport, listPosDayEndReports } from "@/features/pos/da
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import { listPosShifts } from "@/features/pos/overview/api/overview-api";
-import { money } from "@/features/pos/shared/format";
+import { calendarDate, money } from "@/features/pos/shared/format";
 
 const PAGE_SIZE = 25;
 
@@ -132,7 +132,7 @@ export function PosDayEndReportsScreen() {
   const columns: ColumnDef<DayEndReportRow, unknown>[] = useMemo(
     () => [
       { id: "report_number", header: "Report #", accessorKey: "report_number", cell: ({ row }) => <span className="font-medium text-text">{row.original.report_number}</span> },
-      { id: "business_date", header: "Business date", accessorKey: "business_date" },
+      { id: "business_date", header: "Business date", accessorFn: (row) => calendarDate(row.business_date) },
       { id: "scope_type", header: "Scope", accessorFn: (row) => (row.scope_type === "shift" ? "Per shift" : "Business day") },
       {
         id: "status",

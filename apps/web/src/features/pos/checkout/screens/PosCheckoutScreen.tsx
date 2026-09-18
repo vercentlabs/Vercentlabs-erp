@@ -495,6 +495,14 @@ export function PosCheckoutScreen() {
     return <OfflineCheckoutPanel />;
   }
 
+  if (shiftsQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <p className="text-sm text-text-secondary">Loading…</p>
+      </div>
+    );
+  }
+
   if (!myOpenShift) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">

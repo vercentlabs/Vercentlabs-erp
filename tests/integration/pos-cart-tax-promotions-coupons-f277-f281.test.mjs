@@ -403,7 +403,18 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       assert.ok(receipt.lines.length >= 1);
       assert.equal(receipt.payments.length, 1);
       assert.equal(receipt.payments[0].payment_method, "cash");
-      assert.ok(receipt.promotionEvidence.some((row) => row.code === "PROMO10"), "the receipt must show real promotion evidence, not a client-side guess");
+      const promoEvidenceRow = receipt.promotionEvidence.find((row) => row.code === "PROMO10");
+      assert.ok(promoEvidenceRow, "the receipt must show real promotion evidence, not a client-side guess");
+      // Regression guard for a real bug this pass found: cart-pricing.js's
+      // evaluatePromotions() pushed the raw BigInt-scaled decimal.js amount
+      // (SCALE=1e6) into pos_promotion_applications.discount_amount instead
+      // of asDatabaseDecimal(amount) -- a 10% discount was stored and
+      // receipted as 1,000,000x too large. A discount can never legitimately
+      // exceed the sale it discounted.
+      assert.ok(
+        Number(promoEvidenceRow.discount_amount) < Number(sale.grand_total),
+        `promotion discount_amount (${promoEvidenceRow.discount_amount}) must be a real fraction of the sale (${sale.grand_total}), not a raw unscaled decimal.js value`,
+      );
       assert.equal(receipt.returns.length, 0, "no returns exist yet for this sale");
 
       // A different store's cashier (no store access configured for this

@@ -7,5 +7,6 @@ next-env.d.ts
 /test-results/
 /e2e/.auth/
 /e2e/.pos-world.json
+/e2e/visual-qa-screenshots/
 /storybook-static/
 .env*.local

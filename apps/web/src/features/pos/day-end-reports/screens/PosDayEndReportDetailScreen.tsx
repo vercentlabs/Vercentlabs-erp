@@ -17,7 +17,7 @@ import {
 } from "@/features/pos/day-end-reports/api/day-end-reports-api";
 import { generatePosReconciliation, type PosReconciliation } from "@/features/pos/reconciliation/api/reconciliation-api";
 import { postPosDayEndReportToAccounting } from "@/features/pos/accounting/api/accounting-api";
-import { money } from "@/features/pos/shared/format";
+import { calendarDate, money } from "@/features/pos/shared/format";
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   draft: "warning",
@@ -125,7 +125,7 @@ export function PosDayEndReportDetailScreen({ reportId }: { reportId: string }) 
           </button>
           <h1 className="mt-1 text-2xl font-semibold text-text">Z Report {report.report_number}</h1>
           <p className="text-sm text-text-secondary">
-            {report.scope_type === "shift" ? "Per-shift report" : "Business-day report"} · Business date {report.business_date}
+            {report.scope_type === "shift" ? "Per-shift report" : "Business-day report"} · Business date {calendarDate(report.business_date)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -144,7 +144,7 @@ export function PosDayEndReportDetailScreen({ reportId }: { reportId: string }) 
 
       <div className="hidden print:block">
         <h1 className="text-xl font-semibold">Z Report {report.report_number}</h1>
-        <p className="text-sm">Business date {report.business_date} · Status {report.status}</p>
+        <p className="text-sm">Business date {calendarDate(report.business_date)} · Status {report.status}</p>
       </div>
 
       <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">

@@ -1,5 +1,7 @@
 # POS Visual QA Handoff
 
+**Status: the visual/UX/accessibility QA pass this document was written to hand off has now been performed.** See `POS_FINAL_VISUAL_QA_REPORT.md` for the full screen-by-screen inventory, viewport coverage, screenshot evidence locations, and the real bugs found and fixed. This document is kept as-is below for its original context (test-data setup, per-screen notes) — treat its "known non-visual limitations" list as historical; the current list is in the final report.
+
 Every screen below is functionally complete and backed by real backend/API/DB work (see `POS_FINAL_FUNCTIONAL_VERIFICATION.md`). This document exists so the next session can be **visual/UX QA only** — checking layout, spacing, responsiveness, accessibility and polish, not chasing missing functionality. Where a screen has a known non-visual limitation, it is called out explicitly and separated from anything that's merely "not yet visually reviewed."
 
 No POS wireframes exist anywhere in this repository (a standing gap recorded since Session 1) — every screen below was built directly against the design system's existing primitives and the visual conventions already established by CRM/Accounting screens, not against a visual spec. Visual QA should expect to be the FIRST real design review these screens receive.
