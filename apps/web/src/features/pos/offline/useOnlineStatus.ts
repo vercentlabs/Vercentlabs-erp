@@ -10,7 +10,14 @@ import { useEffect, useState } from "react";
 // (apps/web/e2e/pos-offline-sync.spec.ts) -- a real, testable mechanism
 // rather than a periodic network probe.
 export function useOnlineStatus(): boolean {
-  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  // `typeof navigator === "undefined"` used to be a reliable "we're on the
+  // server" check, but Node.js 21+ defines a partial, non-functional global
+  // `navigator` (no real `onLine`), so `navigator.onLine` reads as
+  // `undefined` (falsy) during SSR -- silently rendering the offline
+  // checkout panel server-side and causing a real hydration mismatch
+  // against the client's genuine online state. `window` is never defined
+  // in Node.js, so it's the safe check.
+  const [online, setOnline] = useState(() => (typeof window === "undefined" ? true : navigator.onLine));
 
   useEffect(() => {
     function handleOnline() {

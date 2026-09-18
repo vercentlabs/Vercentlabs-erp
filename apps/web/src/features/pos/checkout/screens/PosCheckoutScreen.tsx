@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Pause, Plus, Trash2, X } from "lucide-react";
@@ -90,6 +90,24 @@ function newTenderLineId() {
   return crypto.randomUUID();
 }
 
+// Hydration-safe "has this rendered on the client yet" flag, same
+// useSyncExternalStore pattern SecondarySidebarState.tsx already uses for
+// an analogous server/client divergence. There's nothing to actually
+// subscribe to (mounting only ever happens once), so subscribe is a no-op;
+// what matters is getServerSnapshot/getClientSnapshot disagreeing, which is
+// exactly the signal React uses to schedule the client-only re-render
+// after hydration -- unlike a plain `useEffect(() => setState(true), [])`,
+// this never risks a hydration-mismatch warning on the flag itself.
+function subscribeNever() {
+  return () => {};
+}
+function getMountedClientSnapshot() {
+  return true;
+}
+function getMountedServerSnapshot() {
+  return false;
+}
+
 // A single `cart` state variable is deliberately NOT a TanStack Query
 // cache entry: every mutation (add line, change quantity, apply coupon,
 // ...) returns the ENTIRE freshly-repriced cart as its response, so the
@@ -128,6 +146,19 @@ export function PosCheckoutScreen() {
   const [confirmation, setConfirmation] = useState<{ saleId: string; receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [heldCartsOpen, setHeldCartsOpen] = useState(false);
+  // This app has no TanStack Query SSR hydration boundary (no dehydrate/
+  // HydrationBoundary anywhere), so shiftsQuery.isLoading is not
+  // hydration-safe on its own -- the server never dispatches the fetch at
+  // all, while the client starts it immediately, and the two can disagree
+  // on the very first paint (a real hydration mismatch, not a fluke).
+  // !myOpenShift alone IS hydration-safe (data is undefined on both the
+  // server's only pass and the client's pre-hydration pass), so that stays
+  // the server-matching branch below; isLoading only takes over a tick
+  // later, once hasMounted flips true post-hydration -- late enough to
+  // never mismatch, early enough that a real in-flight fetch (the original
+  // bug this replaced: a lingering false "no open shift" on slow first
+  // loads) is caught well before a user could read it.
+  const hasMounted = useSyncExternalStore(subscribeNever, getMountedClientSnapshot, getMountedServerSnapshot);
   // F295 -- one free-text input per tracked cart line, keyed by line id,
   // for the serial/batch number the cashier scans or types before the
   // sale can complete. Not committed until "Set" is pressed (setPosCartLineTracking).
@@ -495,7 +526,7 @@ export function PosCheckoutScreen() {
     return <OfflineCheckoutPanel />;
   }
 
-  if (shiftsQuery.isLoading) {
+  if (hasMounted && shiftsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center p-12">
         <p className="text-sm text-text-secondary">Loading…</p>
