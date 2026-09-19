@@ -112,13 +112,13 @@
     "positive_test": "Migration applied and verify:db passed (129 tenant migrations). Route/typecheck/lint/build all clean.",
     "negative_test": "",
     "concurrency_retry_test": "",
-    "browser_test": "apps/web/e2e/pos-checkout.spec.ts updated to assert the new server-derived badge and a real pos_receipt_print_events row -- NOT independently confirmed passing this session (blocked by a pre-existing, unrelated environment flake; see POS_COMPLETION_PROMPT1_HANDOFF.md).",
-    "verification_result": "Migration + route + typecheck/lint/build verified directly. The end-to-end browser journey is written but not independently confirmed green this session -- honestly marked PASS only for the immutability/durability property itself (proven via the DB trigger + verify:db), not for the full UI journey.",
-    "commit_sha": "0e09bd20",
+    "browser_test": "apps/web/e2e/pos-checkout.spec.ts -- asserts the server-derived badge ('Not yet printed' before any print, 'Printed — original' after) and a real pos_receipt_print_events row queried directly from Postgres. Confirmed passing this session (Prompt 2) after root-causing and fixing the E2E suite's six real underlying defects (see commit 60221917) -- 11/11 across the full core POS E2E batch, run together.",
+    "verification_result": "Full end-to-end browser journey independently confirmed green: sale completion -> receipt screen -> Print click -> badge flips to 'Printed — original' -> a real immutable pos_receipt_print_events row exists in Postgres with print_type='original'.",
+    "commit_sha": "60221917",
     "exact_gap": "",
-    "next_action": "Get pos-checkout.spec.ts to a clean run once the pre-existing environment flake is diagnosed, and independently confirm the full browser journey.",
-    "phase_owner": "PROMPT_2",
-    "notes": ""
+    "next_action": "",
+    "phase_owner": "PROMPT_3",
+    "notes": "Prompt 1's handoff left this row's browser evidence unconfirmed, citing a 'pre-existing environment flake.' Prompt 2 investigated that claim directly (network capture, DB inspection, page snapshots) rather than accepting it, and found six concrete, fixable root causes, none of them a genuine flake -- see the commit message for the full list."
   },
 
   "F289-CAP-001": {
