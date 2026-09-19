@@ -62,6 +62,7 @@ export function ProfileMenu({
       <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
         <IconButton
           aria-label={`Account menu for ${fullName}`}
+          tooltip={false}
           variant="ghost"
           className="h-9 w-9 rounded-full bg-white/10 text-xs font-semibold text-navigation-text hover:bg-white/20 hover:text-navigation-text"
         >
