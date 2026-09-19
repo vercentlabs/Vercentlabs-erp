@@ -12,6 +12,7 @@ api/auth/mfa/enroll/confirm/route.ts,POST,true,true,false,
 api/auth/mfa/enroll/start/route.ts,POST,true,true,false,
 api/auth/mfa/recovery-codes/regenerate/route.ts,POST,true,true,false,
 api/auth/mfa/verify/route.ts,POST,true,true,false,
+api/auth/register/route.ts,POST,false,true,false,"Pre-authentication self-serve account creation: there is no session yet to protect (this route creates the first one); assertSameOrigin applies, and enforceRateLimit(client, `register:${ip}`, 5, 600) bounds abuse the same way login/accept-invitation are bounded."
 api/auth/resend-verification/route.ts,POST,true,true,false,
 api/auth/reset-password/route.ts,POST,false,true,false,Token-bearer authentication; assertSameOrigin applies.
 api/auth/verify-email/route.ts,POST,false,true,false,Token-bearer authentication (proof of mailbox control IS the credential); assertSameOrigin applies.
@@ -158,6 +159,7 @@ api/pos/returns/[id]/exchange/route.ts,POST,true,true,true,
 api/pos/returns/route.ts,POST,true,true,true,
 api/pos/sales/[id]/accounting-post/route.ts,POST,true,true,true,
 api/pos/sales/[id]/invoice/route.ts,POST,true,true,true,
+api/pos/sales/[id]/receipt/print/route.ts,POST,true,true,true,
 api/pos/sales/route.ts,POST,true,true,true,
 api/pos/settlements/route.ts,POST,true,true,true,
 api/pos/shifts/[id]/cash-movements/route.ts,POST,true,true,true,

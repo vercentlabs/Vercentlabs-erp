@@ -12,6 +12,7 @@ api/auth/mfa/enroll/confirm/route.ts,POST,none,out-of-scope,,auth/security (like
 api/auth/mfa/enroll/start/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/mfa/recovery-codes/regenerate/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/mfa/verify/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
+api/auth/register/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/resend-verification/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/reset-password/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/verify-email/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
@@ -158,6 +159,7 @@ api/pos/returns/[id]/exchange/route.ts,POST,via-mutation-option,gated,,"business
 api/pos/returns/route.ts,POST,via-mutation-option,gated,,"business-data mutation (default assumption, needs confirmation)"
 api/pos/sales/[id]/accounting-post/route.ts,POST,none,excluded,"Posts an already-completed sale to accounting -- bookkeeping completion, not new business activity.",financial-record-keeping (needs case-by-case judgment)
 api/pos/sales/[id]/invoice/route.ts,POST,none,excluded,"Generates a legal/compliance document (invoice) for an already-completed sale -- export/compliance-adjacent, must remain available.","business-data mutation (default assumption, needs confirmation)"
+api/pos/sales/[id]/receipt/print/route.ts,POST,via-mutation-option,gated,,"business-data mutation (default assumption, needs confirmation)"
 api/pos/sales/route.ts,POST,via-mutation-option,gated,,"business-data mutation (default assumption, needs confirmation)"
 api/pos/settlements/route.ts,POST,none,excluded,Financial settlement record-keeping for already-completed payments -- not new business activity.,"business-data mutation (default assumption, needs confirmation)"
 api/pos/shifts/[id]/cash-movements/route.ts,POST,via-mutation-option,gated,,"business-data mutation (default assumption, needs confirmation)"

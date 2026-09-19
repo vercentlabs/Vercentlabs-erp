@@ -53,8 +53,11 @@ function base32Decode(text: string): Buffer {
   }
   return Buffer.from(bytes);
 }
+function totpStep(): number {
+  return Math.floor(Date.now() / 1000 / 30);
+}
 function totpNow(secretBase32: string): string {
-  const counter = Math.floor(Date.now() / 1000 / 30);
+  const counter = totpStep();
   const counterBuffer = Buffer.alloc(8);
   counterBuffer.writeBigUInt64BE(BigInt(counter));
   const hmac = createHmac("sha1", base32Decode(secretBase32)).update(counterBuffer).digest();
@@ -62,6 +65,19 @@ function totpNow(secretBase32: string): string {
   const binary =
     ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff);
   return String(binary % 1_000_000).padStart(6, "0");
+}
+// migration 050's replay protection (services/api/src/core/mfa.js) rejects
+// reusing the same TOTP step twice for a given user, matching how a real
+// authenticator app is never asked to produce two codes for one step --
+// correct, intentional behavior, not a bug. This test uses the setup key
+// to compute a code twice (once to confirm enrollment, once to verify a
+// later login), so it must wait for a genuinely fresh step before the
+// second use, exactly as a real user would if their app's code hadn't
+// rolled over yet.
+async function waitForFreshTotpStep(previousStep: number) {
+  while (totpStep() === previousStep) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
 }
 
 test("SP007 end-to-end: enroll MFA through Settings, then a real login requires it", async ({ browser }) => {
@@ -134,6 +150,7 @@ test("SP007 end-to-end: enroll MFA through Settings, then a real login requires 
     const secretBase32 = (await setupKeyLocator.textContent())!.trim();
     expect(secretBase32).toMatch(/^[A-Z2-7]{32}$/);
 
+    const enrollmentStep = totpStep();
     await page.getByLabel(/6-digit code/i).fill(totpNow(secretBase32));
     await page.getByRole("button", { name: "Enable", exact: true }).click();
     await expect(page.getByText(/save these recovery codes/i)).toBeVisible({ timeout: 10_000 });
@@ -159,7 +176,9 @@ test("SP007 end-to-end: enroll MFA through Settings, then a real login requires 
     await expect(page.getByText(/incorrect or has already been used/i)).toBeVisible({ timeout: 10_000 });
     expect(page.url()).toContain("/mfa-verify");
 
-    // The real current code succeeds and reaches the workspace.
+    // The real current code succeeds and reaches the workspace -- wait for
+    // a step the enrollment confirmation hasn't already claimed.
+    await waitForFreshTotpStep(enrollmentStep);
     await page.getByLabel(/code/i).fill(totpNow(secretBase32));
     await Promise.all([
       page.waitForResponse((res) => res.url().includes("/api/auth/mfa/verify")),

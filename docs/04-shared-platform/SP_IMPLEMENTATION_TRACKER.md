@@ -2,9 +2,11 @@
 
 Authoritative, evidence-based status for the shared-platform scope defined in `docs/04-shared-platform/requirements/`. Statuses are **COMPLETE / PARTIAL / FOUNDATION_ONLY / MISSING / BLOCKED**, assigned only against real, currently-running code and passing tests — never against documentation or schema existence alone, per this register's own governing instruction.
 
-This document reflects two work passes on branch `main`:
+This document reflects four work passes on branch `main`:
 - **Session A** (starting commit `26ad3400`): SP007 MFA implemented end to end.
-- **Session B** (this document): SP001–SP003 organization/company/branch administration, SP004 invitation company/branch-grant atomicity, SP011 billing-entitlement policy consolidation, plus verification of SP005/SP006/SP008–SP010 and SP012–SP036's pre-existing state.
+- **Session B**: SP001–SP003 organization/company/branch administration, SP004 invitation company/branch-grant atomicity, SP011 billing-entitlement policy consolidation, plus verification of SP005/SP006/SP008–SP010 and SP012–SP036's pre-existing state.
+- **Session C** (commit `64e0628c`): complete billing-mutation inventory and wiring, SP008 role CRUD, SP009 cross-organization adversarial tests, SP012–SP036 corrected re-audit, MFA replay-protection and rate-limiting fixes. Committed and pushed to `origin/main`.
+- **Session D** (this pass, uncommitted): pre-work security preflight (migration 051's Founder-Preview-by-default trigger defect, found and fixed), then visual QA/UX/accessibility/responsive verification of every implemented auth and shared-platform screen — see "Session D — Visual QA" below.
 
 ## Method
 
@@ -157,13 +159,17 @@ The check is added at the shared authorization boundary every CRM/POS route alre
 
 **A second, previously-unverified gate discovered and proven this pass**: `resolveModuleAccess`/`assertModuleAccessible` (`services/api/src/core/module-entitlements.js`) — the universal gate every single CRM/POS route calls before anything else, for reads AND writes alike — had **zero tests exercising it against a real database**, despite being the most-called authorization function in the entire CRM/POS request path. `tests/integration/module-entitlements-sp010.test.mjs` (8/8, new) proves its actual, real behavior for the first time: it deliberately fails closed on ANY billing-lookup error (including a missing subscription row) **regardless of enforcement mode** — stricter than `requireBillingWriteAccess`'s own observe-mode leniency, and confirmed as intentional by the function's own pre-existing code comment ("Fails closed at every stage... never granting access on a system failure"). This means every CRM/POS route was already denying ALL access (not just writes) to a subscription-less org, even before this pass's `requireBillingWriteAccess` wiring — the two gates are complementary: this one checks "is the module in your plan," `requireBillingWriteAccess` checks "is your subscription status current" (an org with CRM in its plan but an `expired` status passes this gate but is correctly blocked by the write-specific one).
 
-**New migration `051_organization_subscription_auto_provision.sql`**: "ensure the normal organization-creation process does not produce new organizations without initialized billing state" was addressed structurally, not procedurally — there is no application code path that creates an organization at all (invite-only/administrative per SP004, re-confirmed this pass by exhaustive search), so there is no single function to patch. A database trigger (`organizations_ensure_subscription`, `AFTER INSERT ON organizations`) now provisions a real, auditable `internal`/founder-preview subscription row automatically, through ANY insert path — application code, an operational script, or direct SQL — using the identical mechanism migrations 005 and 049 already used for the historical backfill. Proven by `tests/integration/organization-subscription-auto-provision.test.mjs` (3/3): the trigger fires and provisions correctly, and does not clobber a real subscription an operational process deliberately sets up in the same transaction (`ON CONFLICT (organization_id) DO NOTHING`).
+**New migration `051_organization_subscription_auto_provision.sql`**: "ensure the normal organization-creation process does not produce new organizations without initialized billing state" was addressed structurally, not procedurally — there is no application code path that creates an organization at all (invite-only/administrative per SP004, re-confirmed this pass by exhaustive search), so there is no single function to patch. A database trigger (`organizations_ensure_subscription`, `AFTER INSERT ON organizations`) now provisions a real, auditable subscription row automatically, through ANY insert path — application code, an operational script, or direct SQL.
+
+**CORRECTED, visual-QA preflight (found before any UI work began, release-blocking): migration 051's original trigger body granted every new organization unconditional Founder Preview (`status='internal'`, every module via the wildcard `"*"`, $0, no expiry `hasWriteAccess()` ever enforces) — not just the historical orgs migrations 005/049 deliberately backfilled.** Left as shipped, this meant the entire billing/entitlement system would have been meaningless for any organization created after 051: nobody would ever need to start a real trial or pay, since every new org — ordinary future customers included — silently got permanent, free, unlimited access. **Migration `052_new_organization_default_trial_not_founder_preview.sql`** fixes this forward (`CREATE OR REPLACE FUNCTION`, same trigger): new organizations now default to a genuine `status='trialing'` subscription on the base paid plan (`launch`), with a real `trial_ends_at` computed from that plan's own `trial_days`, and that plan's real (non-wildcard) module/limit entitlements — the *intended trial entitlement*, not Founder Preview. Founder Preview/`internal` status no longer exists on any organization as a side effect of creating it; the capability to grant it explicitly is preserved (a deliberate `UPDATE`, same as before), only the silent automatic grant was removed. Proven by the rewritten `tests/integration/organization-subscription-auto-provision.test.mjs` (4/4): a new org gets a real, currently-valid trial (not `internal`); `hasWriteAccess()` genuinely enforces `trial_ends_at` (a past expiry denies writes, proving this isn't a cosmetic field); the trial's modules never include the wildcard; an operational process's own deliberate subscription choice in the same transaction still wins over the trigger's default; and Founder Preview remains reachable only through an explicit action, never automatically.
+
+**The 22 documented CRM/POS billing-gate exclusions were re-reviewed against this same scrutiny** (`scripts/qa/generate-billing-mutation-inventory.mjs`'s `DOCUMENTED_EXCLUSIONS`) — re-read the actual route/domain-function source for the highest-risk ones (`pos/settlements` → `importPosSettlementBatch`, matches already-received payment-provider data to existing sales, real reconciliation, not new business activity; `pos/reports/day-end/[id]/finalize` → locks an already-generated report from already-completed shifts, real record-keeping). No inappropriate exemption found; all 22 remain correctly classified as reads, exports, public/webhook routes, or genuine financial record-keeping on transactions that already happened.
 
 | Layer | Evidence |
 |---|---|
 | Inventory | `docs/frontend-rebuild/BILLING_MUTATION_INVENTORY.csv` — 189 mutation routes, 153 in-scope, 131 gated / 22 excluded / 0 unaccounted |
 | Backend | `hasWriteAccess` (`billing.js`), `getBillingSummary`/`requireBillingWriteAccess`/`assertModuleEntitlement`/`assertOrganizationLimit`/`incrementBillingUsage` (`entitlements.js`), `resolveModuleAccess`/`assertModuleAccessible` (`module-entitlements.js`, now tested for the first time) |
-| Migrations | `049_backfill_missing_organization_subscriptions.sql` (86/86 existing orgs backfilled), `051_organization_subscription_auto_provision.sql` (structural guarantee for every future org, any creation path) |
+| Migrations | `049_backfill_missing_organization_subscriptions.sql` (86/86 existing orgs backfilled), `051_organization_subscription_auto_provision.sql` (structural guarantee for every future org, any creation path), `052_new_organization_default_trial_not_founder_preview.sql` (corrects 051's default from unconditional Founder Preview to a real, expiring trial) |
 | Tests | `billing-entitlement-sp011.test.mjs` (12/12), `billing-mutation-wiring-sp011.test.mjs` (7/7, includes the full-inventory validator run), `module-entitlements-sp010.test.mjs` (8/8, new), `organization-subscription-auto-provision.test.mjs` (3/3, new) — 30 real-Postgres assertions total for this section alone |
 
 **Disclosed, still not done**: the other 10 modules (accounting, stock, sales, procurement, manufacturing, projects, assets, quality, support, hr-payroll) have no route/UI layer at all — nothing to wire (see SP012–SP036 below). Background-job/worker re-verification at execution time (as opposed to enqueue-time, which IS gated) is not implemented — a job enqueued while entitled that executes after a subscription lapses is not re-checked; this is a real, narrow residual gap, not claimed as closed.
@@ -247,3 +253,103 @@ Verified integrated into real, currently-operational routes:
 **Not run this session (disclosed, not silently skipped)**: `pos-*.spec.ts` (checkout/returns/discount-approval/visual-QA/accessibility — unrelated to this session's changes, not re-run to conserve time), `crm-regression.spec.ts`, `opportunity-stage-transition.spec.ts`, `accessibility.spec.ts`, `auth-lifecycle.spec.ts`. No E2E journey was written or run for: organization/company/branch creation through the UI, invitation accept with company/branch assignment, or an expired-subscription-blocks-writes browser journey — these remain verified only at the database/integration-test level (see SP001-003, SP011 test evidence above), not at the browser level. Given the scope already covered directly addresses this session's actual changes (MFA, roles, billing, authorization), this is judged a reasonable, disclosed stopping point rather than exhaustive coverage of the entire 12-journey list requested.
 
 The integration-suite increase this session (214 → 238) is entirely new, real assertions, none replacing or weakening an existing test: 3 for the `resolveModuleAccess` real-DB coverage gap (`module-entitlements-sp010.test.mjs`, new, 8 tests), 1 for the organizations-auto-provision trigger (`organization-subscription-auto-provision.test.mjs`, new, 3 tests), 1 for cross-organization adversarial isolation (`cross-organization-isolation-sp009.test.mjs`, new, 11 tests), 1 new billing-mutation full-inventory validator test, 1 new MFA rate-limit-bypass structural guard, plus fixture updates in 3 existing files to account for migration 051's new auto-provisioning trigger.
+
+## Session D — Visual QA, responsive/accessibility verification, and a pre-work security preflight
+
+### Security preflight (done first, before any UI work, per this pass's explicit instruction)
+
+**Confirmed and fixed a real, release-blocking defect in migration 051's `organizations_ensure_subscription` trigger (shipped, committed in Session C).** The trigger granted every newly-created organization — not just the historical orgs migrations 005/049 deliberately backfilled — an unconditional `status='internal'` (Founder Preview) subscription: every module via the wildcard `"*"`, $0, no expiry `hasWriteAccess()` ever enforces for `internal` status. Left as shipped, the entire billing/entitlement system built in Session C would have been meaningless for any organization created after 051: every future customer, ordinary paying ones included, would silently receive permanent, free, unlimited access.
+
+**Fix — new migration `052_new_organization_default_trial_not_founder_preview.sql`** (`CREATE OR REPLACE FUNCTION`, same trigger, corrected body): new organizations now default to a genuine `status='trialing'` subscription on the base paid plan (`launch`), with a real `trial_ends_at` computed from that plan's own `trial_days`, and that plan's real (non-wildcard) module/limit entitlements. Founder Preview/`internal` status no longer exists on any organization as a side effect of creating it — the capability to grant it explicitly (a deliberate `UPDATE`) is preserved, only the silent automatic grant was removed.
+
+Proven by the rewritten `tests/integration/organization-subscription-auto-provision.test.mjs` (4/4, real PostgreSQL):
+- A new org gets `status='trialing'` on `plan_code='launch'`, never `internal`/`founder-preview` (explicit regression-guard assertions).
+- `trial_ends_at` is real and matches the plan's own `trial_days`; `hasWriteAccess()` genuinely enforces it (a past expiry denies writes -- proving this isn't a cosmetic field).
+- The trial's `modules_snapshot` never includes the wildcard `"*"`, and its `limits_snapshot` is the base plan's real (narrower) limits, not founder-preview's generous ones.
+- An operational process's own deliberate subscription choice in the same transaction as the org insert still wins over the trigger's default (`ON CONFLICT DO NOTHING` unchanged).
+- Founder Preview remains reachable only through an explicit action (a direct `UPDATE`), never automatically.
+
+Full integration suite re-run after the fix: 239/239.
+
+**The 22 documented CRM/POS billing-gate exclusions were re-reviewed** against the same scrutiny (re-read actual route/domain-function source for the highest-risk ones: `pos/settlements` -> `importPosSettlementBatch` genuinely reconciles already-received payment-provider data against existing sales; `pos/reports/day-end/[id]/finalize` -> locks an already-generated report from already-completed shifts). No inappropriate exemption found.
+
+### Design system study (before any screen changes)
+
+Read `packages/design-tokens/tokens/theme.json` directly (not assumed): color palette (canvas/surface/text/border/accent/success/warning/danger/info, each with soft/emphasis variants), spacing scale (4/8/12/16/20/24/32/40/48px), radius scale (control 8px, card 10px, panel 12px, overlay 14px, pill), control heights (compact 34px, standard 42px, large 48px, **webTouchTarget 44px** -- the accessibility-relevant one), breakpoints (narrow 480, mobile 768, tablet 1024, compactDesktop 1280), and the type scale (12/13/14/16/18/20/24/28px, Inter). Screenshots were captured at 375x812 (mobile), 820x1180 (tablet), and 1440x900 (desktop) to bracket these real breakpoints, not arbitrary sizes.
+
+### Screens audited in a real browser (Playwright + Chromium against the live local dev server, screenshots inspected directly -- not claimed without looking)
+
+**Authentication screens** (unauthenticated, desktop + mobile): `/login`, `/forgot-password`, `/reset-password` (including the invalid-token state -- form still renders, never discloses token validity before submission, consistent with the existing account-enumeration-safe convention), `/verify-email` (invalid-token state shows a clear, generic "This verification link is invalid" message with a recovery action -- no information disclosure). MFA enrollment/verification was verified functionally end-to-end via `mfa-sp007.spec.ts` (real browser, real TOTP codes) rather than a static screenshot, since it requires a specific mid-flow session state.
+
+**Shared Settings screens** (authenticated, desktop + tablet + mobile): `/settings` (index), `/settings/organization`, `/settings/companies`, `/settings/branches`, `/settings/users`, `/settings/invitations`, `/settings/roles` (including the New Role dialog, both collapsed and scrolled to its bottom on mobile), `/settings/security`, `/settings/profile`.
+
+### UI/UX defects found and fixed
+
+**1. Real, systemic responsive-layout bug (release-relevant): action buttons overflowed off-screen on mobile in every list-style Settings screen.** `Companies`, `Branches`, `Users`, `Invitations`, and `Roles` all used a fixed `flex items-center justify-between` row for each list item (info on the left, 1-3 action buttons on the right); at 375px width the button group had no room and was clipped past the right edge of the card and the viewport -- on `Users` (up to 3 buttons per row) and `Roles`, this made the primary action ("Reserved"/"Disable"/etc.) completely inaccessible on a real phone screen. **Fixed** in all 5 screens plus `SecuritySettingsScreen`'s session list (defensive, same pattern): `flex flex-col gap-3 ... sm:flex-row sm:items-center sm:justify-between` on the row, `flex flex-wrap gap-2` on the button group, `min-w-0` on the text column so long content truncates/wraps instead of forcing overflow, `break-all` on email addresses. Verified by re-capturing and re-inspecting all 5 screens at mobile and tablet width after the fix -- buttons now wrap cleanly within the card at every width, desktop layout confirmed pixel-identical to before (the `sm:` breakpoint change is inert at desktop width).
+
+**2. Duplicated header pattern instead of the shared component.** `RolesScreen.tsx` hand-rolled its own `<div className="flex items-start justify-between gap-4">` wrapper around `PageHeader` plus a sibling `Button`, instead of using `PageHeader`'s own `primaryAction` prop the way `Companies`/`Branches`/`Invitations` already correctly do. **Fixed**: now uses `primaryAction`, consistent with the other 3 list screens, one fewer hand-rolled layout to maintain.
+
+**Files modified for the visual-QA fixes**: `apps/web/src/features/settings/companies/screens/CompaniesScreen.tsx`, `.../branches/screens/BranchesScreen.tsx`, `.../invitations/screens/InvitationsScreen.tsx`, `.../roles/screens/RolesScreen.tsx`, `.../users/screens/UsersScreen.tsx`, `.../security/screens/SecuritySettingsScreen.tsx`.
+
+**Noted, not changed (by design, not a defect)**: `/settings/profile` is read-only (name/email/organisation/company/branch/locale/timezone displayed, no edit form) -- this predates this session's work and is not a "fake" screen (it shows real data honestly, doesn't pretend to be editable); expanding it into a full profile-editor was judged out of scope for a visual-QA pass focused on fixing confirmed defects, not adding features.
+
+### Accessibility
+
+Ran the existing `accessibility.spec.ts` (axe-core, WCAG 2A/2AA, critical/serious-impact gate) unchanged: **10/10 passing**, confirming no regression from this pass's CRM billing-gate wiring or earlier sessions' CRM screens.
+
+Added `settings-accessibility.spec.ts`, the identical pattern applied to every Settings screen (not previously covered by any accessibility test) plus the New Role dialog: **11/11 passing, zero critical/serious violations** across `/settings`, `/settings/organization`, `/settings/companies`, `/settings/branches`, `/settings/users`, `/settings/invitations`, `/settings/roles`, `/settings/security`, `/settings/profile`, and the open New Role dialog.
+
+Keyboard navigation, focus visibility, dialog focus management, and reduced-motion preferences were not independently instrumented beyond what axe-core's automated ruleset checks (axe covers label/contrast/ARIA-semantics categories well but not manual tab-order or focus-trap behavior) -- this is a real, disclosed gap in coverage depth, not claimed as fully verified.
+
+### User journeys verified (real browser + real database)
+
+| # | Journey | Result |
+|---|---|---|
+| 1 | Login and logout | Verified -- `platform-security.spec.ts` (logout + session invalidation confirmed) |
+| 2 | MFA enrollment and verification | Verified -- `mfa-sp007.spec.ts`, 2/2 (real TOTP codes, independently computed, not importing the app's own code) |
+| 3 | Invalid MFA codes and recovery | Verified -- same spec -- wrong code rejected with a clear message before the real code succeeds |
+| 4 | Organization Settings | Verified -- `settings-companies-branches.spec.ts` exercises the org-scoped company/branch flow; organization profile edit covered by existing integration tests |
+| 5 | Company creation and editing | Verified -- **new** `settings-companies-branches.spec.ts` -- real UI, real DB persistence verified at each step |
+| 6 | Branch creation and editing | Verified -- same spec, same rigor, including selecting the just-created company from the real dropdown |
+| 7 | Employee invitation with company/branch grants | Partially -- covered at the integration-test level (`auth-lifecycle.test.mjs`, Session B/C); UI covered by `settings-accessibility.spec.ts` + manual screenshot inspection, not a full create-through-UI E2E this pass |
+| 8 | Invitation acceptance | Partially -- covered at the integration-test level (`auth-lifecycle.test.mjs`) |
+| 9 | Role creation and editing | Verified -- `settings-roles.spec.ts` (Session C) -- real UI, real DB persistence, edit, and archive, all verified |
+| 10 | User role assignment | Partially -- covered at the integration-test level (`access-administration-sp008.test.mjs`); UI (`UsersScreen`'s "Manage roles" dialog) accessibility-checked, not driven through a dedicated E2E this pass |
+| 11 | User suspension and session revocation | Verified -- `platform-security.spec.ts` (session revocation, both single and revoke-all) |
+| 12 | Permission-denied screens | Verified -- `crm-authorization.spec.ts`, `restricted-role-authorization.spec.ts` |
+| 13 | Expired subscription: read vs. write | Verified -- **new** `billing-expired-subscription.spec.ts` -- real browser, real database, a dedicated fresh org with a genuinely `expired` subscription; confirmed the leads list still loads (read unaffected) and creating a lead is blocked with a real 402 and a clear, real UI message ("subscription is not active... renew...") -- proven against an isolated server instance actually running in `enforce` mode, not just observe-mode local defaults |
+| 14 | Cross-organization access denial | Verified -- `cross-organization-isolation-sp009.test.mjs` (Session C, 11/11, integration-level); `restricted-role-authorization.spec.ts` covers the browser-level analog for permission (not cross-org) denial |
+
+**New E2E spec files this pass**: `apps/web/e2e/settings-companies-branches.spec.ts`, `apps/web/e2e/billing-expired-subscription.spec.ts`, `apps/web/e2e/settings-accessibility.spec.ts`, plus `apps/web/e2e/run-billing-enforce-spec.mjs` (a small operational script that briefly restarts the shared dev server with `BILLING_ENFORCEMENT_MODE=enforce`, runs the expired-subscription spec, then restarts it again in normal mode -- necessary because `billingEnforcementMode()` defaults to `observe` outside `NODE_ENV=production`, and exercising the real enforce-mode UI behavior requires a server actually running with enforcement on; verified this leaves the shared dev server exactly as it was found for every other spec).
+
+**A real, second defect found and fixed while building the MFA E2E journey**: running the full E2E suite together (not in isolation) surfaced that `mfa-sp007.spec.ts` could intermittently fail against migration 050's TOTP replay protection -- the spec computed a code once to confirm enrollment and, moments later, computed "the current code" again for the login step; if both calls landed in the same or an adjacent 30-second step, the second use was correctly rejected as a replay. This is genuinely correct, intentional security behavior (a real authenticator app is never asked to produce two codes for one step, and a server cannot distinguish "the legitimate user reusing their own still-valid code" from "an attacker replaying an observed one" -- real-world services enforce the same single-use-per-code rule). **Fixed the test**, not the security behavior: it now waits for a fresh TOTP step between the two uses, exactly mirroring what a real user's authenticator app would require.
+
+**Known test-execution artifact (not a product defect, disclosed for accuracy)**: running many E2E spec files back-to-back within this session's testing repeatedly hit the pre-existing login rate limiter (`login:${ip}`, 10 attempts/300s -- unrelated to anything built this pass) once accumulated attempts crossed its threshold, causing some specs to fail with 401s when run in one large combined batch shortly after many prior runs. Every spec passed cleanly in isolation or smaller batches; the rate limiter itself is correct, pre-existing, security-relevant behavior and was not weakened to make a combined run pass.
+
+### Final regression evidence (this pass)
+
+| Gate | Result |
+|---|---|
+| `test:api` | 1112/1112 |
+| `test:web` | 21/21 |
+| `test:packages` | 151/151 across 10 packages |
+| Real-Postgres integration (`tests/integration/*.test.mjs`) | 239/239 (2 skipped, env-gated, unchanged) |
+| `typecheck:web` | clean |
+| `lint:web` | clean, 0 warnings |
+| `build:web` | clean |
+| `verify:route-security` | 189 routes, 0 unexplained gaps |
+| `verify:billing-mutation-gate` | 153 in-scope routes, 0 unaccounted |
+| `accessibility.spec.ts` (pre-existing CRM pages) | 10/10, 0 critical/serious violations |
+| `settings-accessibility.spec.ts` (new, all Settings screens) | 11/11, 0 critical/serious violations |
+| Relevant Playwright E2E (individually/small-batch verified) | 16/16 across `mfa-sp007`, `crm-authorization`, `platform-security`, `restricted-role-authorization`, `settings-roles`, `settings-companies-branches`, `billing-expired-subscription` |
+| Full migration replay (047-052) from an empty database | clean, zero errors (re-verified this pass after adding 052) |
+
+### Remaining product/security items (accurate, not overclaimed)
+
+- SP020 global search: still a genuine, honestly-disclosed placeholder -- unchanged this pass, not attempted (large standalone feature, out of proportion to a visual-QA pass).
+- Generic workflow engine (SP013) and shared report-dataset permissions (SP031): still deferred pending overlap audits against `packages/workflows`/`packages/reporting-engine`, unchanged.
+- API keys/OAuth/webhooks administration (SP025): real, tested backend, still zero frontend -- unchanged.
+- The 10 modules with no route/UI layer (accounting, stock, sales, procurement, manufacturing, projects, assets, quality, support, hr-payroll): unchanged, no screens exist to visually QA.
+- `/settings/profile` remains read-only by its existing design; not expanded this pass.
+- Keyboard-navigation/focus-trap/reduced-motion behavior verified only to the extent axe-core's automated rules cover (label/contrast/ARIA semantics) -- manual keyboard-only traversal of every dialog was not separately performed.
+- Journeys #7 (invitation UI) and #10 (role-assignment UI) are verified at the integration-test level and accessibility-checked, but do not yet have a dedicated create-through-the-real-UI E2E spec the way journeys #5/#6/#9/#13 now do.
