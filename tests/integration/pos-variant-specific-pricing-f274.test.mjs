@@ -34,7 +34,7 @@ test("F274: variant-specific price-list rates resolve correctly at POS checkout 
     return;
   }
 
-  const { createPosCart, addPosCartLine, cancelPosCart, upsertSalesPriceListItem } = await import("../../services/api/src/index.js");
+  const { createPosCart, addPosCartLine, cancelPosCart, upsertSalesPriceListItem, completePointOfSale } = await import("../../services/api/src/index.js");
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -47,6 +47,8 @@ test("F274: variant-specific price-list rates resolve correctly at POS checkout 
   const itemId = randomUUID();
   const smallVariantId = randomUUID();
   const largeVariantId = randomUUID();
+  const otherItemId = randomUUID();
+  const otherItemVariantId = randomUUID();
   const uomId = randomUUID();
   const storeId = randomUUID();
   const terminalId = randomUUID();
@@ -130,6 +132,21 @@ test("F274: variant-specific price-list rates resolve correctly at POS checkout 
       itemId,
       warehouseId,
     ]);
+    // A second, unrelated item+variant pair -- used only to prove
+    // resolvePointOfSaleUnitPrice/completePointOfSale (the legacy
+    // flat-lines path) rejects a real, valid variant that belongs to a
+    // DIFFERENT item, not just a nonexistent variant_id (which the DB's
+    // own FK would already stop).
+    await admin.query(
+      `INSERT INTO tenant.items(id,organization_id,code,name,item_type,uom_id,tax_category_id,sales_price,standard_cost,status) VALUES ($1,$2,'ITEM2','F274 Other Item','product',$3,$4,50,25,'active')`,
+      [otherItemId, orgId, uomId, taxCategoryId],
+    );
+    await admin.query(`INSERT INTO tenant.item_variants(id,organization_id,company_id,item_id,sku,name,status) VALUES ($1,$2,$3,$4,'OTHER-V1','Other Variant','active')`, [
+      otherItemVariantId,
+      orgId,
+      companyId,
+      otherItemId,
+    ]);
     await admin.query(`INSERT INTO tenant.pos_settings(organization_id,company_id) VALUES ($1,$2)`, [orgId, companyId]);
     await admin.query(
       `INSERT INTO tenant.pos_stores(id,organization_id,company_id,branch_id,code,name,warehouse_id,price_list_id,currency_code,created_by) VALUES ($1,$2,$3,$4,'S1','Store 1',$5,$6,'INR',$7)`,
@@ -175,11 +192,46 @@ test("F274: variant-specific price-list rates resolve correctly at POS checkout 
       cart = await tx((c) => addPosCartLine(c, cashierContext, cart.id, { itemId, quantity: 1 }));
       assert.equal(cart.lines[0].unit_price, "100.000000");
     });
+
+    // Gap closure (comprehensive completion pass, this session): the
+    // separate legacy flat-lines completePointOfSale path persists
+    // line.variantId onto pos_sale_lines but, before this session, never
+    // factored it into pricing at all (same class of gap F274's own cart-
+    // path fix closed) and never validated it belongs to the claimed item.
+    await t.test("GAP CLOSURE: the legacy flat-lines completePointOfSale path also resolves the Large variant's own rate (130), not the generic rate", async () => {
+      const result = await tx((c) =>
+        completePointOfSale(c, cashierContext, {
+          shiftId: shift.id,
+          idempotencyKey: randomUUID(),
+          lines: [{ itemId, variantId: largeVariantId, quantity: 1, unitPrice: 100, description: "F274 T-Shirt (Large)" }],
+          payments: [{ method: "cash", amount: 130 }],
+        }),
+      );
+      assert.equal(result.grand_total, "130.000000");
+    });
+
+    await t.test("GAP CLOSURE: the legacy flat-lines path rejects a real variant that belongs to a DIFFERENT item", async () => {
+      await assert.rejects(
+        tx((c) =>
+          completePointOfSale(c, cashierContext, {
+            shiftId: shift.id,
+            idempotencyKey: randomUUID(),
+            lines: [{ itemId, variantId: otherItemVariantId, quantity: 1, unitPrice: 100, description: "Mismatched variant" }],
+            payments: [{ method: "cash", amount: 100 }],
+          }),
+        ),
+        (error) => error.code === "POS_SALE_VARIANT_NOT_FOUND",
+      );
+    });
   } finally {
     await admin.query("BEGIN");
     await setTenantContext(admin, orgId);
     await admin.query(`DELETE FROM tenant.pos_cart_lines WHERE organization_id=$1`, [orgId]);
     await admin.query(`DELETE FROM tenant.pos_carts WHERE organization_id=$1`, [orgId]);
+    await admin.query(`DELETE FROM tenant.pos_sale_lines WHERE organization_id=$1`, [orgId]);
+    await admin.query(`DELETE FROM tenant.pos_payments WHERE organization_id=$1`, [orgId]);
+    await admin.query(`DELETE FROM tenant.pos_cash_movements WHERE organization_id=$1`, [orgId]);
+    await admin.query(`DELETE FROM tenant.pos_sales WHERE organization_id=$1`, [orgId]);
     await admin.query(`DELETE FROM tenant.pos_shifts WHERE organization_id=$1`, [orgId]);
     await admin.query(`DELETE FROM tenant.pos_terminals WHERE organization_id=$1`, [orgId]);
     await admin.query(`DELETE FROM tenant.pos_stores WHERE organization_id=$1`, [orgId]);

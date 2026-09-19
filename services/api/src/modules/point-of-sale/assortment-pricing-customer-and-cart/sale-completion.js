@@ -84,6 +84,13 @@ function safeDocumentPrefix(value, fallback = "POS") {
 // through — so it needed the same fix cart-pricing.js's own
 // applyCustomerPricingRules already implements, reused here rather than
 // duplicated.
+//
+// F274 gap closure (same session): this path already persists
+// line.variantId onto pos_sale_lines (see the INSERT below) but never
+// factored it into pricing -- the same "variant recorded, never priced"
+// gap the cart path had before F274's own fix. Now prefers a
+// variant-specific price_list_items row the same way resolveUnitPrice
+// (cart-pricing.js) does.
 async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line, customerId, itemGroupId) {
   const requestedPrice = Number(line.unitPrice);
   if (!Number.isFinite(requestedPrice) || requestedPrice < 0) {
@@ -115,6 +122,7 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line,
      WHERE price_item.organization_id=$1
        AND price_item.price_list_id=$2
        AND price_item.item_id=$3
+       AND (price_item.variant_id=$6 OR price_item.variant_id IS NULL)
        AND price_item.minimum_quantity <= $4
        AND price_item.status='active'
        AND price_list.status='active'
@@ -124,9 +132,9 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line,
        AND (price_item.valid_to IS NULL OR price_item.valid_to>=current_date)
        AND (price_list.valid_from IS NULL OR price_list.valid_from<=current_date)
        AND (price_list.valid_to IS NULL OR price_list.valid_to>=current_date)
-     ORDER BY price_item.minimum_quantity DESC,price_item.valid_from DESC NULLS LAST
+     ORDER BY (price_item.variant_id IS NOT NULL) DESC,price_item.minimum_quantity DESC,price_item.valid_from DESC NULLS LAST
      LIMIT 1`,
-    [context.organizationId, shift.price_list_id, line.itemId, line.quantity, shift.currency_code],
+    [context.organizationId, shift.price_list_id, line.itemId, line.quantity, shift.currency_code, line.variantId || null],
   );
   if (!price.rows[0]) {
     throw posError(409, "No active POS price exists for this item and quantity.", "POS_PRICE_NOT_FOUND");
@@ -296,6 +304,24 @@ export async function completePointOfSale(client, context, input) {
       throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
     }
     const item = itemById.get(line.itemId);
+
+    // F274 gap closure: line.variantId was persisted onto pos_sale_lines
+    // with no application-level check that it actually belongs to
+    // line.itemId, is active, or is scoped to this company -- unlike the
+    // cart path's resolveItemAndVariant, which validates all three. A DB
+    // FK stops a nonexistent variant, but not a real, valid variant
+    // belonging to a DIFFERENT item/company from being silently attached
+    // to this sale line.
+    if (line.variantId) {
+      const variant = await client.query(
+        `SELECT id,company_id,status FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3`,
+        [context.organizationId, line.variantId, line.itemId],
+      );
+      const variantRow = variant.rows[0];
+      if (!variantRow || variantRow.status !== "active" || (variantRow.company_id && variantRow.company_id !== context.companyId)) {
+        throw posError(404, "The selected product variant was not found.", "POS_SALE_VARIANT_NOT_FOUND");
+      }
+    }
 
     const warehouseId = line.warehouseId || shift.warehouse_id;
     const available = await stockAvailable(client, context, line.itemId, warehouseId);
