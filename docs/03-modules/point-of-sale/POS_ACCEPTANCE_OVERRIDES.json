@@ -89,16 +89,16 @@
     "frontend_evidence": "apps/web/src/features/pos/checkout/screens/PosCheckoutScreen.tsx -- unchanged UI, correct price now flows through automatically once a customer is selected",
     "security_permission_evidence": "No new permission required; reuses the existing pos.sale.create gate on cart mutations.",
     "cross_module_integration": "Reuses Sales' own authoritative pricing-rule table and exact adjustment semantics (services/api/src/modules/sales/index.js:334-364) -- no second POS-owned pricing master created, per the explicit instruction.",
-    "positive_test": "tests/integration/pos-customer-pricing-f275.test.mjs -- 'a customer with a discount_percent rule gets the adjusted price' and 'a customer with a fixed_rate rule gets exactly that rate'",
-    "negative_test": "tests/integration/pos-customer-pricing-f275.test.mjs -- 'no customer selected: plain price-list rate applies' and 'a customer with NO pricing rule still gets the plain price-list rate' and 'the discount customer's rule is scoped to its own item -- a DIFFERENT item is unaffected'",
+    "positive_test": "tests/integration/pos-customer-pricing-f275.test.mjs -- 'a customer with a discount_percent rule gets the adjusted price', 'a customer with a fixed_rate rule gets exactly that rate', and (added this session) 'GAP CLOSURE: the legacy flat-lines completePointOfSale path now also applies a customer's discount_percent rule'",
+    "negative_test": "tests/integration/pos-customer-pricing-f275.test.mjs -- 'no customer selected: plain price-list rate applies', 'a customer with NO pricing rule still gets the plain price-list rate', 'the discount customer's rule is scoped to its own item -- a DIFFERENT item is unaffected', and (added this session) 'GAP CLOSURE: the legacy flat-lines path leaves a walk-in (no customer) sale unaffected'",
     "concurrency_retry_test": "",
     "browser_test": "",
-    "verification_result": "7/7 real-Postgres assertions passing (2026-09-19 session run); full existing 254-test real-Postgres suite re-passes unchanged (no regression).",
-    "commit_sha": "04a7de08",
-    "exact_gap": "The legacy flat-lines completePointOfSale path (sale-completion.js's resolvePointOfSaleUnitPrice) was NOT updated -- still store-list-only, no customer sensitivity. Deliberately not fixed this pass (already a discouraged/flagged-for-removal path per F279's own note); disclosed, not silently skipped.",
-    "next_action": "Apply the same customer-pricing-rule lookup to the legacy path, or complete its planned removal, whichever the next session decides.",
+    "verification_result": "9/9 real-Postgres assertions passing (up from 7/7, this session); full existing 269-test real-Postgres suite re-passes unchanged (no regression).",
+    "commit_sha": "73f73ade",
+    "exact_gap": "",
+    "next_action": "",
     "phase_owner": "PROMPT_2",
-    "notes": "This is the specific gap the Prompt 1 brief named by number and asked to investigate; confirmed still open by direct code read before any fix was written."
+    "notes": "This is the specific gap the Prompt 1 brief named by number and asked to investigate; confirmed still open by direct code read before any fix was written. UPDATE (comprehensive completion pass, later session): the legacy flat-lines completePointOfSale path (sale-completion.js's resolvePointOfSaleUnitPrice) was previously disclosed as NOT fixed here, on the assumption it was a deprecated/soon-to-be-removed path. Re-examination found it is NOT dead code -- it is what POST /api/pos/sales (a real, customerId-accepting HTTP endpoint) and offline-sync's own sale-completion step both complete through. applyCustomerPricingRules is now exported from cart-pricing.js and reused (not duplicated) by resolvePointOfSaleUnitPrice. Both entry points now apply customer-sensitive pricing; this row's prior disclosed gap is closed."
   },
 
   "F289-BR-002": {
@@ -159,6 +159,46 @@
     "next_action": "Add a dedicated 'retry the same shift-open request with the same idempotencyKey returns the original shift; the same key with different input is rejected' test, mirroring recordPosCashMovement's own such test.",
     "phase_owner": "PROMPT_2",
     "notes": "Marked PASS on the strength of (a) the shared primitive's own separate, already-passing test coverage and (b) the full suite passing unchanged after the breaking signature change -- not on a brand-new dedicated positive test, which is the one honest gap here."
+  },
+
+  "F274-CALC-001": {
+    "status": "PASS",
+    "database_evidence": "tenant.price_list_items.variant_id (database/tenant/migrations/131_pos_variant_specific_pricing.sql), indexed for the variant-preferring lookup.",
+    "backend_function": "resolveUnitPrice (cart path) / resolvePointOfSaleUnitPrice (legacy flat-lines path), services/api/src/modules/point-of-sale/assortment-pricing-customer-and-cart/{cart-pricing,sale-completion}.js -- both use the same variant-preferring price-list query and the shared fixed-point core/decimal.js primitives for the resulting unit price, never native Number arithmetic.",
+    "http_endpoint": "POST /api/pos/carts/[id]/lines; POST /api/pos/sales",
+    "frontend_evidence": "",
+    "security_permission_evidence": "",
+    "cross_module_integration": "Reuses Sales' own tenant.price_list_items table (adds a column, not a second POS-owned pricing table) -- the same reuse discipline F275's own fix follows for tenant.sales_pricing_rules.",
+    "positive_test": "tests/integration/pos-variant-specific-pricing-f274.test.mjs -- 'the Large variant resolves its own specific rate (130), not the generic item rate (100)' (cart path) and 'the legacy flat-lines completePointOfSale path also resolves the Large variant's own rate (130)' (legacy path)",
+    "negative_test": "tests/integration/pos-variant-specific-pricing-f274.test.mjs -- 'the Small variant (no rate row of its own) correctly falls back to the generic item rate (100)' and 'a plain line with NO variant selected still gets the generic rate (100), never the Large-specific one'",
+    "concurrency_retry_test": "",
+    "browser_test": "",
+    "verification_result": "7/7 real-Postgres assertions passing across both entry points; full existing 271-test real-Postgres suite re-passes unchanged.",
+    "commit_sha": "84615ce9",
+    "exact_gap": "",
+    "next_action": "",
+    "phase_owner": "PROMPT_2_OR_3",
+    "notes": "A variant-specific row wins over the item-generic one via ORDER BY (variant_id IS NOT NULL) DESC when both exist for the same item/quantity tier; a plain no-variant line never matches a variant-specific row (variant_id=$N OR variant_id IS NULL, with $N NULL for a plain line)."
+  },
+
+  "F274-VAL-001": {
+    "status": "PASS",
+    "database_evidence": "tenant.item_variants (existing table) -- FK from pos_sale_lines.variant_id stops a nonexistent variant id; this row's own gap was a real, EXISTING variant belonging to the wrong item passing that FK check regardless.",
+    "backend_function": "resolveItemAndVariant (cart-pricing.js, pre-existing) and the newly added equivalent inline check in completePointOfSale's line loop (sale-completion.js) -- both reject a variant that doesn't belong to the claimed item_id, isn't status='active', or belongs to a different company.",
+    "http_endpoint": "POST /api/pos/carts/[id]/lines; POST /api/pos/sales",
+    "frontend_evidence": "",
+    "security_permission_evidence": "",
+    "cross_module_integration": "",
+    "positive_test": "",
+    "negative_test": "tests/integration/pos-variant-specific-pricing-f274.test.mjs -- 'GAP CLOSURE: the legacy flat-lines path rejects a real variant that belongs to a DIFFERENT item' (asserts POS_SALE_VARIANT_NOT_FOUND)",
+    "concurrency_retry_test": "",
+    "browser_test": "",
+    "verification_result": "Confirmed via real PostgreSQL: a real, active, correctly-company-scoped variant belonging to a second, unrelated item is rejected when supplied against the first item's line.",
+    "commit_sha": "84615ce9",
+    "exact_gap": "The cart path's own resolveItemAndVariant validation predates this session and was not independently re-tested for the cross-item-mismatch case specifically (only the legacy path got a new dedicated negative test this session) -- believed equivalent by direct code read (identical query shape), not independently proven by a cart-path test of its own.",
+    "next_action": "Add the same cross-item-mismatch negative test for the cart path (addPosCartLine) for full parity with the legacy-path coverage.",
+    "phase_owner": "PROMPT_2_OR_3",
+    "notes": "Found while closing F274's pricing gap on the legacy path: the legacy path recorded line.variantId with zero application-level validation that it belonged to the claimed item -- a DB FK alone does not catch a real variant attached to the wrong item."
   },
 
   "F302-CALC-001": {
