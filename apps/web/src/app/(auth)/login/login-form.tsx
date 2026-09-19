@@ -76,6 +76,12 @@ export function LoginForm() {
       >
         Sign in
       </Button>
+      <p className="text-center text-sm text-text-secondary">
+        New to Vercentlabs ERP?{" "}
+        <Link href="/register" className="font-medium text-brand hover:underline">
+          Create an account
+        </Link>
+      </p>
     </form>
   );
 }

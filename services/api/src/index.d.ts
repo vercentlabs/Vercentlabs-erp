@@ -634,6 +634,7 @@ export * from "./core/auth-mailer.js";
 export * from "./core/auth-lifecycle.js";
 export * from "./core/mfa.js";
 export * from "./core/organization-administration.js";
+export * from "./core/organization-registration.js";
 export * from "./core/api-keys.js";
 export * from "./core/oauth.js";
 export * from "./core/notification-preferences.js";

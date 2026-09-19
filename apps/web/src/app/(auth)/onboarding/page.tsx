@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { listPendingInvitationsForEmail } from "@vercentlabs/api";
 
 import { withClient } from "@/core/db";
@@ -7,12 +9,13 @@ import { SignOutLink } from "./sign-out-link";
 export const metadata = { title: "Join an organization" };
 
 // Reached when a verified user has no active organization membership at
-// all — per SP004's flow ("Invite -> verify -> join organization"), the
-// only way into a workspace is an invitation from an existing
-// organization; there is no self-service "create your own organization"
-// signup in this product. This page's job is to tell that person exactly
-// what's true right now (a pending invitation exists, or none does),
-// never to fabricate a next step that isn't real.
+// all. Two real ways forward exist: accept a pending invitation from an
+// existing organization (SP004's "Invite -> verify -> join organization"
+// flow), or create a new organization of their own via /register (added
+// after this page's original "no self-service signup exists" copy, which
+// is why the link below only appeared once that flow was real — this
+// page's job is to tell the person exactly what's true right now, never
+// to fabricate a next step that isn't real).
 export default async function OnboardingPage() {
   const session = await requireVerifiedUser();
   const invitations = await withClient((client) => listPendingInvitationsForEmail(client, session.email));
@@ -40,7 +43,11 @@ export default async function OnboardingPage() {
       ) : (
         <p className="text-sm text-text-secondary">
           No one has invited {session.email} to an organization yet. Ask your administrator to send an invitation to this
-          email address, then refresh this page.
+          email address, then refresh this page — or{" "}
+          <Link href="/register" className="font-medium text-brand hover:underline">
+            create your own organization
+          </Link>{" "}
+          instead.
         </p>
       )}
       <SignOutLink />

@@ -30,6 +30,7 @@ const AUTHORIZATION_PRIMITIVES = [
 // silently grow into "things nobody checked".
 const DOCUMENTED_EXCEPTIONS = {
   "api/auth/login/route.ts": "Pre-authentication: there is no session yet to protect; assertSameOrigin still applies to the login POST itself.",
+  "api/auth/register/route.ts": "Pre-authentication self-serve account creation: there is no session yet to protect (this route creates the first one); assertSameOrigin applies, and enforceRateLimit(client, `register:${ip}`, 5, 600) bounds abuse the same way login/accept-invitation are bounded.",
   "api/auth/logout/route.ts": "Deliberately reads the session cookie directly rather than calling requireUser()/requireWorkspace() — logout must work even for an unverified or org-less session, which those helpers would redirect away from instead of processing. Idempotent/safe with no cookie at all. assertSameOriginOrMobile still applies.",
   "api/auth/forgot-password/route.ts": "Public by design (account-enumeration-safe); assertSameOrigin applies, rate-limited, identical response regardless of registration state.",
   "api/auth/verify-email/route.ts": "Token-bearer authentication (proof of mailbox control IS the credential); assertSameOrigin applies.",
