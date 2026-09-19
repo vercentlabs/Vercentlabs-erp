@@ -58,6 +58,8 @@
     "verify:routes": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web verify:routes",
     "verify:route-security": "node scripts/qa/validate-route-security.mjs",
     "verify:billing-mutation-gate": "node scripts/qa/validate-billing-mutation-gate.mjs",
+    "pos:generate-acceptance-register": "node scripts/qa/generate-pos-acceptance-register.mjs",
+    "verify:pos-acceptance-register": "node scripts/qa/validate-pos-acceptance-register.mjs",
     "verify:web": "npx --yes pnpm@11.21.0 verify:experience && npx --yes pnpm@11.21.0 verify:fast && npx --yes pnpm@11.21.0 verify:routes && npx --yes pnpm@11.21.0 build:web",
     "verify:mobile": "npx --yes pnpm@11.21.0 typecheck:mobile && npx --yes pnpm@11.21.0 lint:mobile",
     "verify:db": "node scripts/validation/verify-db-structure.mjs",

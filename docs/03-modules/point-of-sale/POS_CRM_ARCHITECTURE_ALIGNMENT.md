@@ -78,3 +78,12 @@ This session's F290/F305 work required one genuine, minimal extension to Account
 
 - **Loyalty (POS-CAP-008) has no dedicated capability directory.** CRM has no equivalent "cross-cutting discount mechanism" concept; POS's loyalty redemption is architecturally a cart-pricing concern (pre-tax discount), so it was placed with `cart-pricing.js`/`cart.js` rather than isolated. Disclosed in the F306 merge commit, not silently deviating from convention.
 - **F305 posts through Accounting's journal contract directly, not through a subledger document.** CRM has no analog (CRM never posts financial entries). Sales' own `postCustomerInvoice` posts through the `accounting_customer_invoices` subledger because a Sales invoice is itself a real AR document with its own lifecycle (draft/approved/posted/paid). A POS SALE is not naturally an AR subledger document — it is an already-paid till transaction — so F305 posts a journal entry directly (mirroring `postVendorBill`'s own direct-journal pattern for the exact same reason: a vendor bill's underlying event, once matched, needs a GL entry, not a second interactive document lifecycle on top of the one Procurement's matching record already has).
+
+## 7. Session 6 additions (F275, F289, F301, F302 gap closure)
+
+All four fixes followed the conventions above without exception, not as new patterns:
+
+- **F275 customer pricing**: reuses `tenant.sales_pricing_rules`, Sales' own table (§3's "Not a forked table" rule applied to pricing specifically, extending the existing "Tax/discount calculation" row).
+- **F289 print evidence**: `tenant.pos_receipt_print_events` (migration 129) follows §4's RLS/immutability idiom exactly — `ENABLE/FORCE ROW LEVEL SECURITY` + the same organization-isolation policy, and a `BEFORE UPDATE OR DELETE` trigger modeled on the same lineage `pos_reconciliation_protect_resolved()`/`pos_day_end_report_protect_closed()` already established.
+- **F301 shift-open idempotency**: `beginIdempotentOperation`/`completeIdempotentOperation` (§3/§4's shared idempotency contract), the exact same primitive `recordPosCashMovement` already used — not a new mechanism.
+- **F302 decimal arithmetic**: `core/decimal.js`'s fixed-point utilities (§4's own standing "never native Number arithmetic for money" rule, applied to a function that had been missed).
