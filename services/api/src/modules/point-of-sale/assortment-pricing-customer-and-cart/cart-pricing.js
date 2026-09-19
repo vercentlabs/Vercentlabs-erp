@@ -116,7 +116,7 @@ async function resolveItemAndVariant(client, context, companyId, itemId, variant
 // semantics (discount_percent / discount_amount / fixed_rate, applied in
 // priority order). A manual price override still bypasses all of this
 // entirely, matching Sales' own manualOverride semantics.
-async function applyCustomerPricingRules(client, context, store, customerId, itemId, itemGroupId, quantity, listUnitPrice) {
+export async function applyCustomerPricingRules(client, context, store, customerId, itemId, itemGroupId, quantity, listUnitPrice) {
   if (!customerId) return listUnitPrice;
   const rules = await client.query(
     `SELECT adjustment_type,adjustment_value FROM tenant.sales_pricing_rules

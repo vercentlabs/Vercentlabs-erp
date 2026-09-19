@@ -63,8 +63,9 @@ function client() {
         return { rows: [{ allow_negative_stock: false, allow_price_override: false, max_line_discount_percent: 100, discount_approval_threshold_percent: 10 }] };
       if (/SELECT price_item\.rate/.test(sql)) return { rows: [{ rate: "100" }] };
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available/.test(sql)) return { rows: [{ available: "1000" }] };
-      if (/SELECT id,name,tax_category_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
-        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null })) };
+      if (/SELECT id,name,tax_category_id,group_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
+        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null, group_id: null })) };
+      if (/SELECT adjustment_type,adjustment_value FROM tenant\.sales_pricing_rules/.test(sql)) return { rows: [] };
       if (/SELECT decimal_places FROM tenant\.currencies/.test(sql)) return { rows: [{ decimal_places: 2 }] };
       if (/SELECT seller_state_code FROM tenant\.sales_settings/.test(sql)) return { rows: [] };
       if (/SELECT state_code FROM tenant\.addresses/.test(sql)) return { rows: [] };

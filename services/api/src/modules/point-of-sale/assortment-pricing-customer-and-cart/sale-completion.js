@@ -21,7 +21,14 @@ import { postStockMovement as postCanonicalStockMovement } from "../../stock/ind
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
-import { resolveCurrencyDecimalPlaces, resolveSellerStateCode, resolveBuyerStateCode, normalizedDiscountAmount, priceCartLines } from "./cart-pricing.js";
+import {
+  resolveCurrencyDecimalPlaces,
+  resolveSellerStateCode,
+  resolveBuyerStateCode,
+  normalizedDiscountAmount,
+  priceCartLines,
+  applyCustomerPricingRules,
+} from "./cart-pricing.js";
 import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines, assertPosCartDiscountsApproved } from "./cart.js";
 import { commitPosPromotionApplications } from "./promotions.js";
 import { commitPosCouponRedemption } from "./coupons.js";
@@ -67,7 +74,17 @@ function safeDocumentPrefix(value, fallback = "POS") {
   return normalized || fallback;
 }
 
-async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line) {
+// F275 gap closure (legacy flat-lines path): this path previously only
+// ever consulted the store's own price list, same as the cart path did
+// before F275's own fix — silently ignoring a customer's negotiated rate
+// (tenant.sales_pricing_rules). Not just a documentation gap: this path
+// is genuinely reachable via POST /api/pos/sales (a real, customerId-
+// accepting HTTP endpoint) and is what offline sync's completion step
+// (inventory-and-offline-continuity/offline-sync.js) itself completes
+// through — so it needed the same fix cart-pricing.js's own
+// applyCustomerPricingRules already implements, reused here rather than
+// duplicated.
+async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line, customerId, itemGroupId) {
   const requestedPrice = Number(line.unitPrice);
   if (!Number.isFinite(requestedPrice) || requestedPrice < 0) {
     throw posError(400, "POS unit price must be zero or greater.", "POS_UNIT_PRICE_INVALID");
@@ -78,7 +95,7 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line)
       throw posError(409, "Price override is disabled for this company.", "POS_PRICE_OVERRIDE_DISABLED");
     }
     requirePermission(context, "pos.price.override");
-    return requestedPrice;
+    return decimal(requestedPrice);
   }
 
   if (!shift.price_list_id) {
@@ -114,7 +131,8 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line)
   if (!price.rows[0]) {
     throw posError(409, "No active POS price exists for this item and quantity.", "POS_PRICE_NOT_FOUND");
   }
-  return Number(price.rows[0].rate);
+  const listUnitPrice = decimal(price.rows[0].rate);
+  return applyCustomerPricingRules(client, context, shift, customerId, line.itemId, itemGroupId, decimal(line.quantity), listUnitPrice);
 }
 
 export async function completePointOfSale(client, context, input) {
@@ -264,7 +282,7 @@ export async function completePointOfSale(client, context, input) {
   // happened to always supply one.
   const itemIds = [...new Set(input.lines.map((line) => line.itemId))];
   const itemRows = await client.query(
-    `SELECT id,name,tax_category_id FROM tenant.items WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
+    `SELECT id,name,tax_category_id,group_id FROM tenant.items WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
     [context.organizationId, itemIds],
   );
   const itemById = new Map(itemRows.rows.map((row) => [row.id, row]));
@@ -288,7 +306,7 @@ export async function completePointOfSale(client, context, input) {
     }
 
     const unitPrice = decimal(
-      await resolvePointOfSaleUnitPrice(client, context, shift, policy, { ...line, quantity }),
+      await resolvePointOfSaleUnitPrice(client, context, shift, policy, { ...line, quantity }, input.customerId, item.group_id),
     );
     const lineSubtotal = roundMoney(mul(decimal(quantity), unitPrice), decimalPlaces);
 

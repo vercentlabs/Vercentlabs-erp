@@ -34,7 +34,9 @@ test("F275: customer-sensitive pricing at POS checkout, reusing Sales' own sales
     return;
   }
 
-  const { createPosCart, addPosCartLine, setPosCartCustomer, getPosSaleReceipt, completePosCart, cancelPosCart } = await import("../../services/api/src/index.js");
+  const { createPosCart, addPosCartLine, setPosCartCustomer, getPosSaleReceipt, completePosCart, cancelPosCart, completePointOfSale } = await import(
+    "../../services/api/src/index.js"
+  );
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -229,6 +231,41 @@ test("F275: customer-sensitive pricing at POS checkout, reusing Sales' own sales
       assert.equal(result.grand_total, "65.000000");
       const receipt = await tx((c) => getPosSaleReceipt(c, cashierContext, result.id));
       assert.equal(receipt.lines[0].unit_price, "65.000000");
+    });
+
+    // Gap closure (comprehensive completion pass, this session): F275's own
+    // fix only ever touched the cart path (resolveUnitPrice). The separate
+    // legacy flat-lines path (completePointOfSale/resolvePointOfSaleUnitPrice
+    // in sale-completion.js) is NOT dead code -- it's what POST /api/pos/sales
+    // and offline-sync's own sale-completion step both go through -- and it
+    // silently ignored sales_pricing_rules entirely until now.
+    await t.test("GAP CLOSURE: the legacy flat-lines completePointOfSale path now also applies a customer's discount_percent rule", async () => {
+      const result = await tx((c) =>
+        completePointOfSale(c, cashierContext, {
+          shiftId: shift.id,
+          customerId: discountCustomerId,
+          idempotencyKey: randomUUID(),
+          lines: [{ itemId, quantity: 1, unitPrice: 100, description: "F275 Widget" }],
+          payments: [{ method: "cash", amount: 80 }],
+        }),
+      );
+      assert.equal(result.grand_total, "80.000000"); // 100 - 20%, not the plain 100
+      const receipt = await tx((c) => getPosSaleReceipt(c, cashierContext, result.id));
+      assert.equal(receipt.lines[0].unit_price, "80.000000");
+    });
+
+    await t.test("GAP CLOSURE: the legacy flat-lines path leaves a walk-in (no customer) sale unaffected -- plain list price", async () => {
+      const result = await tx((c) =>
+        completePointOfSale(c, cashierContext, {
+          shiftId: shift.id,
+          idempotencyKey: randomUUID(),
+          lines: [{ itemId, quantity: 1, unitPrice: 100, description: "F275 Widget" }],
+          payments: [{ method: "cash", amount: 100 }],
+        }),
+      );
+      assert.equal(result.grand_total, "100.000000");
+      const receipt = await tx((c) => getPosSaleReceipt(c, cashierContext, result.id));
+      assert.equal(receipt.lines[0].unit_price, "100.000000");
     });
   } finally {
     await admin.query("BEGIN");

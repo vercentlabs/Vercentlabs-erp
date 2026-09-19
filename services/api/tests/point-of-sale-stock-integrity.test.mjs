@@ -78,8 +78,9 @@ function trackingClient({ availableStock = "1000", existingBalance = { quantity:
       if (/SELECT coalesce\(sum\(quantity-reserved_quantity\),0\)::text AS available\s+FROM tenant\.stock_balances/.test(sql))
         return { rows: [{ available: availableStock }] }; // POS's own unlocked pre-check
       if (/INSERT INTO tenant\.pos_sales/.test(sql)) return { rows: [{ id: saleId, store_id: "store-1", terminal_id: "terminal-1" }] };
-      if (/SELECT id,name,tax_category_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
-        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null })) };
+      if (/SELECT id,name,tax_category_id,group_id FROM tenant\.items WHERE organization_id=\$1 AND id=ANY/.test(sql))
+        return { rows: params[1].filter((id) => id === itemId).map((id) => ({ id, name: "Test Item", tax_category_id: null, group_id: null })) };
+      if (/SELECT adjustment_type,adjustment_value FROM tenant\.sales_pricing_rules/.test(sql)) return { rows: [] };
       // F278: authoritative tax/currency/jurisdiction resolution added this
       // session — no tax category on the test item, so these resolve to
       // "no tax" (decimal_places=2, no seller/buyer state, no rate).
