@@ -694,6 +694,12 @@ export async function priceCartLines(client, context, { store, policy, customerI
     // the authoritative concurrency-safe figure.
     loyalty: {
       programId: loyaltyResult.program?.id || null,
+      // Gap C fix (POS Completion Program Prompt 2): the rate resolved
+      // HERE, at pricing time, is what sale-completion.js snapshots onto
+      // pos_sales.loyalty_redemption_value_per_point_snapshot -- the
+      // immutable historical rate this specific sale's accrual is valued
+      // at, regardless of any later change to the program's live rate.
+      redemptionValuePerPoint: loyaltyResult.program?.redemption_value_per_point ?? null,
       pointsToEarn: asDatabaseDecimal(loyaltyPointsToEarn),
       redeemPointsRequested: asDatabaseDecimal(decimal(loyaltyRedeemPoints || 0)),
       redeemPointsApplied: asDatabaseDecimal(loyaltyResult.pointsApplied),

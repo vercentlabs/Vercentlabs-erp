@@ -21,10 +21,17 @@
 // task's own instruction not to add functionality outside canonical
 // scope).
 //
-// NOT BUILT (disclosed, not silently skipped): a return's journal reverses
-// revenue/tax/tender/COGS for the returned portion, but does NOT reverse
-// any loyalty accrual the original sale posted -- a genuine, disclosed
-// simplification, not an oversight.
+// POS Completion Program Prompt 2 closed three previously-disclosed
+// financial-integrity gaps here: (A) a return's journal now also reverses
+// the original sale's loyalty accrual/redemption, sourced from loyalty.js's
+// own reverse_earn/reverse_redeem ledger entries; (B) refund tender
+// allocation now reads the exact per-payment split return-lifecycle.js
+// persists at refund time (tenant.pos_return_payment_refunds) instead of
+// reconstructing a proportional guess, with the old reconstruction kept
+// only as a backward-compatible fallback for returns completed before this
+// fix shipped; (C) loyalty accrual is valued at the ORIGINAL SALE's own
+// historical rate snapshot (pos_sales.loyalty_redemption_value_per_point_
+// snapshot), never the loyalty program's current live rate.
 import {
   createJournalEntry,
   postJournalEntry,
@@ -186,16 +193,17 @@ async function buildSaleJournalLines(client, context, accountingContext, company
   }
 
   // F306 loyalty deferred-revenue accrual, when this sale's own points
-  // program was active. Valued at the program's CURRENT redemption value
-  // per point (a disclosed simplification -- not a sale-time snapshot).
+  // program was active. Gap C fix (POS Completion Program Prompt 2):
+  // valued at THIS SALE'S OWN historical rate snapshot
+  // (loyalty_redemption_value_per_point_snapshot, captured at
+  // sale-completion time in sale-completion.js), never the program's
+  // CURRENT live rate -- an admin changing the program's rate must never
+  // retroactively change what an already-completed, not-yet-posted sale's
+  // accrual is worth.
   const pointsEarned = decimal(sale.loyalty_points_earned || 0);
   const redeemAmount = decimal(sale.loyalty_redeem_amount || 0);
   if (pointsEarned > 0n || redeemAmount > 0n) {
-    const program = await client.query(
-      `SELECT redemption_value_per_point FROM tenant.pos_loyalty_programs WHERE organization_id=$1 AND company_id=$2`,
-      [context.organizationId, sale.company_id],
-    );
-    const redemptionValue = decimal(program.rows[0]?.redemption_value_per_point || 0);
+    const redemptionValue = decimal(sale.loyalty_redemption_value_per_point_snapshot || 0);
     if (pointsEarned > 0n && redemptionValue > 0n) {
       const accrualAmount = mul(pointsEarned, redemptionValue);
       if (accrualAmount > 0n) {
@@ -271,50 +279,121 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
     lines.push({ accountId: tax.account_id, description: `Output tax reversal — ${posReturn.return_number}`, debit: asDatabaseDecimal(taxTotal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
   }
 
-  // F292: refunds now really do go back to every tender the sale used, not
-  // just cash (return-lifecycle.js's allocateRefundAcrossPayments). The
-  // exact per-payment split isn't stored anywhere after the fact, so this
-  // reconstructs it: the cash portion is read directly from this return's
-  // own real pos_cash_movements row (exact, not an estimate); any
-  // remainder is the non-cash portion, allocated across the sale's
-  // non-cash tender legs by their ORIGINAL captured amounts -- exact for
-  // the overwhelmingly common case (one tender, or cash + one other), a
-  // disclosed proportional approximation only for a sale split across
-  // MULTIPLE different non-cash methods.
+  // Gap B fix (POS Completion Program Prompt 2): read the EXACT per-payment
+  // refund evidence return-lifecycle.js now persists at refund time
+  // (tenant.pos_return_payment_refunds, migration 130) instead of
+  // reconstructing a proportional guess. Falls back to the old
+  // reconstruction ONLY for a return completed before this fix shipped
+  // (no persisted rows exist for it yet) -- not a regression, a
+  // backward-compatibility path for already-existing data.
   const refundTotal = decimal(posReturn.refund_total);
   if (refundTotal > 0n) {
-    const cashMovement = await client.query(
-      `SELECT coalesce(sum(-amount),0)::numeric(20,6) AS cash_refunded
-         FROM tenant.pos_cash_movements
-        WHERE organization_id=$1 AND reference_type='pos_return' AND reference_id=$2 AND movement_type='refund'`,
-      [context.organizationId, posReturn.id],
+    const persistedRefunds = await client.query(
+      `SELECT payment_method,sum(refund_amount)::numeric(20,6) AS amount
+         FROM tenant.pos_return_payment_refunds
+        WHERE organization_id=$1 AND company_id=$2 AND return_id=$3
+        GROUP BY payment_method`,
+      [context.organizationId, company.id, posReturn.id],
     );
-    const cashPortion = decimal(cashMovement.rows[0]?.cash_refunded || 0);
-    if (cashPortion > 0n) {
-      const cash = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date });
-      lines.push({ accountId: cash.account_id, description: `POS cash refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(cashPortion), referenceType: "pos_return", referenceId: posReturn.id });
-    }
-    const nonCashPortion = sub(refundTotal, cashPortion);
-    if (nonCashPortion > 0n) {
-      const nonCashLegs = await client.query(
-        `SELECT payment_method,sum(amount)::numeric(20,6) AS captured_amount
-           FROM tenant.pos_payments
-          WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3 AND payment_method<>'cash'
-            AND status IN ('captured','partially_refunded','refunded')
-          GROUP BY payment_method`,
-        [context.organizationId, company.id, posReturn.sale_id],
-      );
-      if (!nonCashLegs.rows.length) {
-        throw posError(409, "This return's refund cannot be traced to a real tender leg on its sale.", "POS_ACCOUNTING_REFUND_TENDER_UNRESOLVED");
+    if (persistedRefunds.rows.length) {
+      for (const row of persistedRefunds.rows) {
+        const amount = decimal(row.amount);
+        if (amount <= 0n) continue;
+        const account = row.payment_method === "cash"
+          ? await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date })
+          : await tenderMappingAccount(client, accountingContext, company, ledger, row.payment_method, date);
+        lines.push({
+          accountId: account.account_id,
+          description: `POS ${row.payment_method} refund — ${posReturn.return_number}`,
+          debit: 0,
+          credit: asDatabaseDecimal(amount),
+          referenceType: "pos_return",
+          referenceId: posReturn.id,
+        });
       }
-      const weights = nonCashLegs.rows.map((row) => decimal(row.captured_amount));
-      const shares = allocate(nonCashPortion, weights);
-      for (let index = 0; index < nonCashLegs.rows.length; index += 1) {
-        const share = shares[index];
-        if (share <= 0n) continue;
-        const method = nonCashLegs.rows[index].payment_method;
-        const account = await tenderMappingAccount(client, accountingContext, company, ledger, method, date);
-        lines.push({ accountId: account.account_id, description: `POS ${method} refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(share), referenceType: "pos_return", referenceId: posReturn.id });
+    } else {
+      const cashMovement = await client.query(
+        `SELECT coalesce(sum(-amount),0)::numeric(20,6) AS cash_refunded
+           FROM tenant.pos_cash_movements
+          WHERE organization_id=$1 AND reference_type='pos_return' AND reference_id=$2 AND movement_type='refund'`,
+        [context.organizationId, posReturn.id],
+      );
+      const cashPortion = decimal(cashMovement.rows[0]?.cash_refunded || 0);
+      if (cashPortion > 0n) {
+        const cash = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date });
+        lines.push({ accountId: cash.account_id, description: `POS cash refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(cashPortion), referenceType: "pos_return", referenceId: posReturn.id });
+      }
+      const nonCashPortion = sub(refundTotal, cashPortion);
+      if (nonCashPortion > 0n) {
+        const nonCashLegs = await client.query(
+          `SELECT payment_method,sum(amount)::numeric(20,6) AS captured_amount
+             FROM tenant.pos_payments
+            WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3 AND payment_method<>'cash'
+              AND status IN ('captured','partially_refunded','refunded')
+            GROUP BY payment_method`,
+          [context.organizationId, company.id, posReturn.sale_id],
+        );
+        if (!nonCashLegs.rows.length) {
+          throw posError(409, "This return's refund cannot be traced to a real tender leg on its sale.", "POS_ACCOUNTING_REFUND_TENDER_UNRESOLVED");
+        }
+        const weights = nonCashLegs.rows.map((row) => decimal(row.captured_amount));
+        const shares = allocate(nonCashPortion, weights);
+        for (let index = 0; index < nonCashLegs.rows.length; index += 1) {
+          const share = shares[index];
+          if (share <= 0n) continue;
+          const method = nonCashLegs.rows[index].payment_method;
+          const account = await tenderMappingAccount(client, accountingContext, company, ledger, method, date);
+          lines.push({ accountId: account.account_id, description: `POS ${method} refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(share), referenceType: "pos_return", referenceId: posReturn.id });
+        }
+      }
+    }
+  }
+
+  // Gap A fix (POS Completion Program Prompt 2): a return's journal
+  // previously reversed revenue/tax/tender/COGS but never the original
+  // sale's loyalty accrual, even though loyalty.js's own
+  // reversePosLoyaltyForReturn already computes and ledgers the exact
+  // reversed points (reverse_earn) and restored-redemption points
+  // (reverse_redeem) for this return. Valued at the ORIGINAL SALE's own
+  // historical rate snapshot (Gap C), never the program's current rate.
+  const loyaltyReversal = await client.query(
+    `SELECT entry_type,sum(abs(points))::numeric(18,6) AS points
+       FROM tenant.pos_loyalty_ledger
+      WHERE organization_id=$1 AND return_id=$2 AND entry_type IN ('reverse_earn','reverse_redeem')
+      GROUP BY entry_type`,
+    [context.organizationId, posReturn.id],
+  );
+  if (loyaltyReversal.rows.length) {
+    const saleRate = await client.query(
+      `SELECT loyalty_redemption_value_per_point_snapshot FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, posReturn.sale_id],
+    );
+    const rate = decimal(saleRate.rows[0]?.loyalty_redemption_value_per_point_snapshot || 0);
+    if (rate > 0n) {
+      const reverseEarnPoints = decimal(loyaltyReversal.rows.find((r) => r.entry_type === "reverse_earn")?.points || 0);
+      const reverseRedeemPoints = decimal(loyaltyReversal.rows.find((r) => r.entry_type === "reverse_redeem")?.points || 0);
+      if (reverseEarnPoints > 0n) {
+        // Mirror of the original accrual (debit expense / credit
+        // liability) -- reversing it is debit liability / credit expense.
+        const accrualReversal = mul(reverseEarnPoints, rate);
+        if (accrualReversal > 0n) {
+          const expense = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_program_expense", { date });
+          const liability = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_liability", { date });
+          lines.push({ accountId: liability.account_id, description: `Loyalty accrual reversal — ${posReturn.return_number}`, debit: asDatabaseDecimal(accrualReversal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
+          lines.push({ accountId: expense.account_id, description: `Loyalty accrual reversal — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(accrualReversal), referenceType: "pos_return", referenceId: posReturn.id });
+        }
+      }
+      if (reverseRedeemPoints > 0n) {
+        // Mirror of the original redemption (debit liability / credit
+        // revenue) -- restoring redeemed points is debit revenue / credit
+        // liability.
+        const redeemReversal = mul(reverseRedeemPoints, rate);
+        if (redeemReversal > 0n) {
+          const liability = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_liability", { date });
+          const revenue = await getAccountMapping(client, accountingContext, company.id, ledger.id, "revenue", { date });
+          lines.push({ accountId: revenue.account_id, description: `Loyalty redemption restored — ${posReturn.return_number}`, debit: asDatabaseDecimal(redeemReversal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
+          lines.push({ accountId: liability.account_id, description: `Loyalty redemption restored — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(redeemReversal), referenceType: "pos_return", referenceId: posReturn.id });
+        }
       }
     }
   }

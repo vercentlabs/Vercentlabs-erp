@@ -70,6 +70,23 @@ function allocateRefundAcrossPayments(refundTotal, legs) {
   return legs.map((leg) => shareByPaymentId.get(leg.payment.id));
 }
 
+// Gap B fix (POS Completion Program Prompt 2): the one durable, exact
+// record of "this return refunded exactly this much against this
+// specific original payment" — tenant.pos_return_payment_refunds
+// (migration 130), immutable. Accounting's own buildReturnJournalLines
+// (cash-shift-day-end-and-reconciliation/accounting-posting.js) reads
+// this instead of reconstructing a proportional guess from pos_payments'
+// running refunded_amount total, which has no per-return attribution
+// once a sale has been returned more than once.
+async function recordReturnPaymentRefund(client, context, { returnId, saleId, paymentId, paymentMethod, providerReference, amount }) {
+  await client.query(
+    `INSERT INTO tenant.pos_return_payment_refunds
+      (organization_id,company_id,return_id,sale_id,payment_id,payment_method,provider_reference,refund_amount,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [context.organizationId, context.companyId, returnId, saleId, paymentId, paymentMethod, providerReference, asDatabaseDecimal(amount), context.userId],
+  );
+}
+
 export async function createPointOfSaleReturn(client, context, input) {
   requirePermission(context, "pos.return.create");
   if (!Array.isArray(input.lines) || input.lines.length === 0) {
@@ -481,13 +498,38 @@ export async function completePointOfSaleReturn(client, context, returnId, input
            WHERE organization_id=$1 AND id=$2`,
           [context.organizationId, payment.id, asDatabaseDecimal(newRefunded), fullyRefundedLeg ? "refunded" : "partially_refunded"],
         );
+        await recordReturnPaymentRefund(client, context, {
+          returnId,
+          saleId: returnRecord.sale_id,
+          paymentId: payment.id,
+          paymentMethod: "cash",
+          providerReference: null,
+          amount: share,
+        });
       } else {
-        await refundPosPayment(client, context, {
+        const refundResult = await refundPosPayment(client, context, {
           paymentId: payment.id,
           amount: asDatabaseDecimal(share),
           idempotencyKey: `${input.idempotencyKey}:refund:${payment.id}`,
           outcome: input.refundOutcome,
         });
+        // Gap B fix (POS Completion Program Prompt 2): `share` is the
+        // EXACT amount just refunded against THIS payment for THIS
+        // return -- persist it now, at the only point it's ever known
+        // precisely, instead of letting Accounting reconstruct it later
+        // from pos_payments' running refunded_amount total (which loses
+        // per-return attribution the moment a sale is returned more than
+        // once).
+        if (!refundResult.replayed) {
+          await recordReturnPaymentRefund(client, context, {
+            returnId,
+            saleId: returnRecord.sale_id,
+            paymentId: payment.id,
+            paymentMethod: payment.payment_method,
+            providerReference: refundResult.providerRefundReference || null,
+            amount: share,
+          });
+        }
       }
     }
   }

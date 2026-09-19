@@ -421,9 +421,10 @@ export async function completePointOfSale(client, context, input) {
       (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,customer_name,currency_code,subtotal,discount_total,tax_total,
        rounding_adjustment,grand_total,paid_total,change_total,status,
-       idempotency_key,created_by,completed_at,loyalty_program_id,loyalty_points_earned)
+       idempotency_key,created_by,completed_at,loyalty_program_id,loyalty_points_earned,
+       loyalty_redemption_value_per_point_snapshot)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-       'completed',$17,$18,now(),$19,$20)
+       'completed',$17,$18,now(),$19,$20,$21)
      RETURNING *`,
     [
       context.organizationId,
@@ -446,6 +447,7 @@ export async function completePointOfSale(client, context, input) {
       context.userId,
       loyaltyProgram?.id || null,
       asDatabaseDecimal(loyaltyPointsEarned),
+      loyaltyProgram?.redemption_value_per_point ?? null,
     ],
   );
 
@@ -724,8 +726,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
       (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,currency_code,subtotal,discount_total,tax_total,rounding_adjustment,
        grand_total,paid_total,change_total,status,idempotency_key,created_by,completed_at,
-       cart_id,coupon_code,loyalty_program_id,loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'completed',$16,$17,now(),$18,$19,$20,$21,$22,$23)
+       cart_id,coupon_code,loyalty_program_id,loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount,
+       loyalty_redemption_value_per_point_snapshot)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'completed',$16,$17,now(),$18,$19,$20,$21,$22,$23,$24)
      RETURNING *`,
     [
       context.organizationId,
@@ -751,6 +754,7 @@ export async function completePosCart(client, context, cartId, input = {}) {
       priced.loyalty.pointsToEarn,
       priced.loyalty.redeemPointsApplied,
       priced.loyalty.redeemAmount,
+      priced.loyalty.redemptionValuePerPoint,
     ],
   );
   const saleId = sale.rows[0].id;
