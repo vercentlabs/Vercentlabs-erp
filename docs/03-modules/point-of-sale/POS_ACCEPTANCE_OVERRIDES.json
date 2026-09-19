@@ -149,16 +149,36 @@
     "frontend_evidence": "apps/web/src/features/pos/overview/screens/PosOverviewScreen.tsx -- openShiftIdempotencyKey state, rotated on success, matching the existing recordPosCashMovement UI pattern exactly",
     "security_permission_evidence": "",
     "cross_module_integration": "",
+    "positive_test": "tests/integration/pos-shift-open-idempotency-f301.test.mjs -- 'a retry with the SAME idempotency key and the SAME payload replays the original shift -- exactly one row persisted'",
+    "negative_test": "tests/integration/pos-shift-open-idempotency-f301.test.mjs -- 'the SAME idempotency key with a DIFFERENT payload is rejected' (asserts IDEMPOTENCY_KEY_REUSED) and 'a replay attempt by an UNAUTHORIZED user is stopped by authorization, never returns the original shift'",
+    "concurrency_retry_test": "tests/integration/pos-shift-open-idempotency-f301.test.mjs -- 'CONCURRENCY: two genuinely simultaneous requests with the identical key/payload create exactly ONE shift' -- a real two-Postgres-connection race (same pattern as the established stock-race test), not a single-connection simulation.",
+    "browser_test": "",
+    "verification_result": "5/5 real-Postgres assertions passing (dedicated new suite, this session). Full existing 276-test real-Postgres suite re-passes unchanged (no regression).",
+    "commit_sha": "5669dfe2",
+    "exact_gap": "",
+    "next_action": "",
+    "phase_owner": "PROMPT_3",
+    "notes": "Closes the exact gap this row's own prior entry disclosed: same-key/same-payload replay, same-key/different-payload rejection, genuine two-connection concurrency, and authorization-enforced-on-replay are now each proven directly through openShift itself, not just inferred from the shared primitive's generic coverage plus a passing regression sweep."
+  },
+
+  "F292-DATA-002": {
+    "status": "PASS",
+    "database_evidence": "tenant.pos_return_payment_refunds -- now backfilled (database/tenant/migrations/132_pos_historical_refund_allocation_backfill.sql) for every historical (pre-migration-130) return whose allocation is unambiguously recoverable from other real evidence (100% cash, refund_total exactly equal to the persisted cash-refund movement total, zero non-cash tender legs on the underlying sale).",
+    "backend_function": "recordReturnPaymentRefund (return-lifecycle.js, real-time path, unchanged); migration 132 (one-time backfill, data only, no application code change).",
+    "http_endpoint": "",
+    "frontend_evidence": "",
+    "security_permission_evidence": "",
+    "cross_module_integration": "buildReturnJournalLines (accounting-posting.js) now reads exact persisted evidence for these historical rows instead of falling back to proportional reconstruction at every posting run.",
     "positive_test": "",
     "negative_test": "",
-    "concurrency_retry_test": "Not independently added this session as a dedicated new test (unlike F275/F300's own dedicated concurrency tests) -- the shared beginIdempotentOperation/completeIdempotentOperation primitive itself already has its own permanent regression coverage elsewhere in this codebase (Wave 0 idempotency tests in services/api/tests), and this fix is a direct, mechanical application of that already-tested primitive, not new idempotency logic.",
+    "concurrency_retry_test": "",
     "browser_test": "",
-    "verification_result": "The full existing 254-assertion real-Postgres suite (which opens dozens of shifts across 5 different test files) passes unchanged after making idempotencyKey a required input -- this is strong regression evidence that no existing shift-opening call path was missed, but it is not itself a dedicated positive test proving replay-safety (a retry with the same key returns the original shift) or reuse-rejection (the same key, different payload, is rejected).",
-    "commit_sha": "260dffe7",
-    "exact_gap": "No dedicated new test proves the replay-safety/reuse-rejection behavior specifically for openShift (as opposed to relying on the shared primitive's own existing coverage plus the full suite's regression pass).",
-    "next_action": "Add a dedicated 'retry the same shift-open request with the same idempotencyKey returns the original shift; the same key with different input is rejected' test, mirroring recordPosCashMovement's own such test.",
-    "phase_owner": "PROMPT_2",
-    "notes": "Marked PASS on the strength of (a) the shared primitive's own separate, already-passing test coverage and (b) the full suite passing unchanged after the breaking signature change -- not on a brand-new dedicated positive test, which is the one honest gap here."
+    "verification_result": "Investigated directly against the live database (Prompt 3, Section 6D): found 4 real historical returns lacking a persisted allocation row, all 100%-cash with zero non-cash legs (an unambiguous, not estimated, allocation) -- backfilled and confirmed queryable via the exact query accounting-posting.js uses. Found 53 additional returns still lacking a row; sampled and confirmed these reference organization_ids with NO corresponding public.organizations row (orphaned test-run debris, unreachable via any tenant-scoped read since RLS requires a live organization context) -- deliberately left untouched rather than guessed at. verify:db clean at 132 tenant migrations; full real-Postgres suite (276/276) and test:api (1112/1112) re-pass unchanged after applying the migration.",
+    "commit_sha": "7c93fe69",
+    "exact_gap": "The 53 orphaned rows are permanently unrecoverable (their organizations no longer exist) and were deliberately left as-is rather than fabricated -- not a code gap, a consequence of the shared dev database's own test-run history.",
+    "next_action": "None for the 4 real rows (closed). The 53 orphaned rows are not actionable and not reachable by any live code path; no further action needed.",
+    "phase_owner": "PROMPT_3",
+    "notes": "Deliberately did NOT attempt to reconstruct an estimated split for any ambiguous historical return (one with multiple non-cash legs) -- writing an ESTIMATE into a table whose entire purpose is EXACT evidence would make estimated data indistinguishable from genuine ground truth to a future auditor, which this program's own anti-fabrication rule forbids. accounting-posting.js's existing runtime fallback continues to serve any such case correctly and transparently."
   },
 
   "F274-CALC-001": {
