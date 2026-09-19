@@ -39,7 +39,20 @@ export type OfflineSyncPassResult = { synced: number; conflicts: number; errors:
 
 export async function runOfflineSyncPass(): Promise<OfflineSyncPassResult> {
   const queue = await listOfflineQueue();
-  const pending = queue.filter((sale) => sale.status === "queued" || sale.status === "error");
+  // Interrupted-sync recovery (found via real-browser testing): a sale is
+  // marked "syncing" BEFORE the network call is sent, and only reverted
+  // back to "queued" in this function's own catch block below if that
+  // call rejects cleanly. A tab close, browser crash, or a request
+  // aborted by the browser itself mid-flight (observed here as a real
+  // net::ERR_ABORTED) never reaches that catch -- the record was
+  // permanently stuck at "syncing" forever, since this function's own
+  // pending filter never included it again on any later pass. Retrying a
+  // "syncing" record is safe: the server's own sync endpoint is
+  // idempotent per localTransactionId (F298's own "replaying the SAME
+  // local transaction id is a safe no-op" guarantee), so there is no
+  // double-submission risk in treating a leftover "syncing" status the
+  // same as "queued"/"error".
+  const pending = queue.filter((sale) => sale.status === "queued" || sale.status === "error" || sale.status === "syncing");
   if (pending.length === 0) return { synced: 0, conflicts: 0, errors: 0, total: 0 };
 
   await Promise.all(pending.map((sale) => updateOfflineSale(sale.localTransactionId, { status: "syncing" })));
