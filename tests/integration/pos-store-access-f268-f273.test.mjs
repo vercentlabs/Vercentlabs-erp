@@ -178,7 +178,7 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
     // either store -- the permissive default for tenants that have never
     // configured per-cashier store assignment.
     const preConfigShift = await tx((c) =>
-      openShift(c, contextFor(unassignedCashierId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0 }),
+      openShift(c, contextFor(unassignedCashierId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0, idempotencyKey: randomUUID() }),
     );
     assert.equal(preConfigShift.status, "open", "before any pos_store_access row exists, store access is unrestricted (backward compatible default)");
     await admin.query(`UPDATE tenant.pos_shifts SET status='closed' WHERE id=$1`, [preConfigShift.id]);
@@ -203,11 +203,11 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
 
     await t.test("an unassigned cashier can no longer open a shift or create a cart on ANY store once the company has opted in", async () => {
       await assert.rejects(
-        () => tx((c) => openShift(c, contextFor(unassignedCashierId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0 })),
+        () => tx((c) => openShift(c, contextFor(unassignedCashierId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
       await assert.rejects(
-        () => tx((c) => openShift(c, contextFor(unassignedCashierId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0 })),
+        () => tx((c) => openShift(c, contextFor(unassignedCashierId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
     });
@@ -217,7 +217,7 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
     let shiftB;
     let saleA;
     await t.test("cashier A (assigned to store A) can operate store A normally", async () => {
-      shiftA = await tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0 }));
+      shiftA = await tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, openingCash: 0, idempotencyKey: randomUUID() }));
       cartA = await tx((c) => createPosCart(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, shiftId: shiftA.id }));
       cartA = await tx((c) => addPosCartLine(c, contextFor(cashierAId), cartA.id, { itemId, quantity: 1, expectedVersion: cartA.version }));
       assert.equal(cartA.status, "priced");
@@ -225,11 +225,11 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
 
     await t.test("SECURITY: cashier A cannot open a shift, read, or complete a cart on store B (a different store than they're assigned to)", async () => {
       await assert.rejects(
-        () => tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0 })),
+        () => tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
 
-      shiftB = await tx((c) => openShift(c, contextFor(cashierBId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0 }));
+      shiftB = await tx((c) => openShift(c, contextFor(cashierBId), { storeId: storeBId, terminalId: terminalBId, openingCash: 0, idempotencyKey: randomUUID() }));
       const cartB = await tx((c) => createPosCart(c, contextFor(cashierBId), { storeId: storeBId, terminalId: terminalBId, shiftId: shiftB.id }));
 
       // Cashier A must not be able to read cashier B's store-B cart by id,
@@ -352,7 +352,7 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
       // cashier A holds no administrative permission -- cannot open a
       // shift naming someone else as the cashier at all.
       await assert.rejects(
-        () => tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierBId, openingCash: 0 })),
+        () => tx((c) => openShift(c, contextFor(cashierAId), { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierBId, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "FORBIDDEN",
       );
       // A store manager CAN open a shift on behalf of another user, but
@@ -360,14 +360,14 @@ test("F268-F273: POS store-level cashier access is enforced once an organization
       // is assigned to store B, not store A.
       const managerContext = { organizationId: orgId, companyId, userId: storeManagerId, roleSlugs: [], permissions: ["pos.view", "pos.shift.open", "pos.store.manage"] };
       await assert.rejects(
-        () => tx((c) => openShift(c, managerContext, { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierBId, openingCash: 0 })),
+        () => tx((c) => openShift(c, managerContext, { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierBId, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
       // terminalA already has shiftA open from earlier in this suite --
       // close it first (pos_terminal_open_shift_uidx allows only one open
       // shift per terminal).
       await admin.query(`UPDATE tenant.pos_shifts SET status='closed' WHERE id=$1`, [shiftA.id]);
-      const shiftForA = await tx((c) => openShift(c, managerContext, { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierAId, openingCash: 0 }));
+      const shiftForA = await tx((c) => openShift(c, managerContext, { storeId: storeAId, terminalId: terminalAId, cashierUserId: cashierAId, openingCash: 0, idempotencyKey: randomUUID() }));
       assert.equal(shiftForA.cashier_user_id, cashierAId);
     });
 

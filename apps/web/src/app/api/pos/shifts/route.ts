@@ -13,6 +13,7 @@ const openShiftSchema = z.object({
   cashierUserId: z.string().uuid().optional().nullable(),
   openingCash: z.number().min(0).optional(),
   shiftNumber: z.string().trim().min(1).max(60).optional(),
+  idempotencyKey: z.string().trim().min(1).max(200),
 });
 
 export async function GET(request: Request) {

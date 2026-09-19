@@ -167,7 +167,7 @@ test("F268-F271: store/terminal/cashier administration against real PostgreSQL",
     let shift;
     await t.test("F268/F269: deactivating a store or reassigning a terminal is blocked while a shift is open, allowed once it's closed", async () => {
       terminal = await tx((c) => createTerminal(c, managerContext, { storeId: store.id, code: "T1", name: "Terminal 1" }));
-      shift = await tx((c) => openShift(c, cashierContext, { storeId: store.id, terminalId: terminal.id, openingCash: 0 }));
+      shift = await tx((c) => openShift(c, cashierContext, { storeId: store.id, terminalId: terminal.id, openingCash: 0, idempotencyKey: randomUUID() }));
 
       await assert.rejects(() => tx((c) => setPosStoreActive(c, managerContext, store.id, false)), (error) => error.code === "POS_STORE_HAS_OPEN_SHIFT");
       await assert.rejects(
@@ -200,7 +200,7 @@ test("F268-F271: store/terminal/cashier administration against real PostgreSQL",
     });
 
     await t.test("F268: a store with an active (non-shift) cart also blocks deactivation", async () => {
-      const shift2 = await tx((c) => openShift(c, cashierContext, { storeId: store.id, terminalId: terminal.id, openingCash: 0 }));
+      const shift2 = await tx((c) => openShift(c, cashierContext, { storeId: store.id, terminalId: terminal.id, openingCash: 0, idempotencyKey: randomUUID() }));
       await admin.query(`UPDATE tenant.pos_shifts SET status='closed' WHERE id=$1`, [shift2.id]);
       // Reopen a fresh shift so createPosCart has a valid open shift, then
       // close JUST the shift row (simulating a cart that outlived its
@@ -208,7 +208,7 @@ test("F268-F271: store/terminal/cashier administration against real PostgreSQL",
       // still catch a live cart directly) -- simpler: keep the shift open,
       // prove the cart guard fires even independent of the shift guard by
       // checking cart status specifically.
-      const shift3 = await tx((c) => openShift(c, cashierContext, { storeId: store.id, terminalId: terminal.id, openingCash: 0 }));
+      const shift3 = await tx((c) => openShift(c, cashierContext, { storeId: store.id, terminalId: terminal.id, openingCash: 0, idempotencyKey: randomUUID() }));
       await tx((c) => createPosCart(c, cashierContext, { storeId: store.id, terminalId: terminal.id, shiftId: shift3.id }));
       await assert.rejects(() => tx((c) => setPosStoreActive(c, managerContext, store.id, false)), (error) => error.code === "POS_STORE_HAS_OPEN_SHIFT");
       await admin.query(`UPDATE tenant.pos_shifts SET status='closed' WHERE id=$1`, [shift3.id]);

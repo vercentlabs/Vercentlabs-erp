@@ -105,13 +105,13 @@ test("F270/F271: terminal-level cashier eligibility against real PostgreSQL", as
     let shift1;
     await t.test("F270: granting a cashier terminal-1-only access lets them open a shift on terminal 1", async () => {
       await tx((c) => grantPosStoreAccess(c, storeManagerContext, { userId: cashierId, storeId, terminalId: terminal1Id }));
-      shift1 = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal1Id, openingCash: 0 }));
+      shift1 = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal1Id, openingCash: 0, idempotencyKey: randomUUID() }));
       assert.equal(shift1.status, "open");
     });
 
     await t.test("F270 SECURITY: the same cashier cannot open a shift on terminal 2 at the SAME store they're otherwise eligible for", async () => {
       await assert.rejects(
-        () => tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal2Id, openingCash: 0 })),
+        () => tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal2Id, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "POS_TERMINAL_ACCESS_DENIED",
       );
     });
@@ -137,7 +137,7 @@ test("F270/F271: terminal-level cashier eligibility against real PostgreSQL", as
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
       await assert.rejects(
-        () => tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal1Id, openingCash: 0 })),
+        () => tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal1Id, openingCash: 0, idempotencyKey: randomUUID() })),
         (error) => error.code === "POS_STORE_ACCESS_DENIED",
       );
 
@@ -147,7 +147,7 @@ test("F270/F271: terminal-level cashier eligibility against real PostgreSQL", as
 
     await t.test("F270: a store-wide grant covers every terminal at that store, including one only ever granted per-terminal elsewhere", async () => {
       await tx((c) => grantPosStoreAccess(c, storeManagerContext, { userId: cashierId, storeId }));
-      const shift2 = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal2Id, openingCash: 0 }));
+      const shift2 = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminal2Id, openingCash: 0, idempotencyKey: randomUUID() }));
       assert.equal(shift2.status, "open");
       await tx((c) => closeShift(c, cashierContext, shift2.id, { countedCash: 0 }));
       // Remove the store-wide grant again so later assertions are back to
@@ -170,7 +170,7 @@ test("F270/F271: terminal-level cashier eligibility against real PostgreSQL", as
     });
 
     await t.test("F270: organization_owner always bypasses terminal-level restriction, same as store-level", async () => {
-      const shift = await tx((c) => openShift(c, ownerContext, { storeId, terminalId: terminal2Id, cashierUserId: ownerUserId, openingCash: 0 }));
+      const shift = await tx((c) => openShift(c, ownerContext, { storeId, terminalId: terminal2Id, cashierUserId: ownerUserId, openingCash: 0, idempotencyKey: randomUUID() }));
       assert.equal(shift.status, "open");
       await tx((c) => closeShift(c, ownerContext, shift.id, { countedCash: 0 }));
     });
@@ -179,7 +179,7 @@ test("F270/F271: terminal-level cashier eligibility against real PostgreSQL", as
       await assert.rejects(
         () =>
           tx((c) =>
-            openShift(c, storeManagerContext, { storeId, terminalId: terminal2Id, cashierUserId: cashierId, openingCash: 0 }),
+            openShift(c, storeManagerContext, { storeId, terminalId: terminal2Id, cashierUserId: cashierId, openingCash: 0, idempotencyKey: randomUUID() }),
           ),
         (error) => error.code === "POS_TERMINAL_ACCESS_DENIED",
       );

@@ -163,8 +163,8 @@ test("Matrix #18 (per-store half): promotion/coupon usage_limit_per_store is sto
         createPosCoupon(c, adminContext, { code: "STORECAP1", discountType: "amount", discountValue: 5, usageLimitPerStore: 1 }),
       );
 
-      const shiftA1 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA1Id, openingCash: 0 }));
-      const shiftA2 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA2Id, openingCash: 0 }));
+      const shiftA1 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA1Id, openingCash: 0, idempotencyKey: randomUUID() }));
+      const shiftA2 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA2Id, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartA1 = await tx((c) => createPosCart(c, cashierContext, { storeId: storeAId, terminalId: terminalA1Id, shiftId: shiftA1.id }));
       let cartA2 = await tx((c) => createPosCart(c, cashierContext, { storeId: storeAId, terminalId: terminalA2Id, shiftId: shiftA2.id }));
       cartA1 = await tx((c) => addPosCartLine(c, cashierContext, cartA1.id, { itemId, quantity: 1, expectedVersion: cartA1.version }));
@@ -234,7 +234,7 @@ test("Matrix #18 (per-store half): promotion/coupon usage_limit_per_store is sto
         storeAId,
         adminUserId,
       ]);
-      const shiftA1b = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA5Id, openingCash: 0 }));
+      const shiftA1b = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA5Id, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartA3 = await tx((c) => createPosCart(c, cashierContext, { storeId: storeAId, terminalId: terminalA5Id, shiftId: shiftA1b.id }));
       cartA3 = await tx((c) => addPosCartLine(c, cashierContext, cartA3.id, { itemId, quantity: 1, expectedVersion: cartA3.version }));
       await assert.rejects(
@@ -244,7 +244,7 @@ test("Matrix #18 (per-store half): promotion/coupon usage_limit_per_store is sto
 
       // Store B has never used this coupon -- genuinely store-scoped, not a
       // second global counter dressed up as one.
-      const shiftB = await tx((c) => openShift(c, cashierContext, { storeId: storeBId, terminalId: terminalBId, openingCash: 0 }));
+      const shiftB = await tx((c) => openShift(c, cashierContext, { storeId: storeBId, terminalId: terminalBId, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartB = await tx((c) => createPosCart(c, cashierContext, { storeId: storeBId, terminalId: terminalBId, shiftId: shiftB.id }));
       cartB = await tx((c) => addPosCartLine(c, cashierContext, cartB.id, { itemId, quantity: 1, expectedVersion: cartB.version }));
       cartB = await tx((c) => applyPosCartCoupon(c, cashierContext, cartB.id, { code: "STORECAP1", expectedVersion: cartB.version }));
@@ -281,8 +281,8 @@ test("Matrix #18 (per-store half): promotion/coupon usage_limit_per_store is sto
         storeAId,
         adminUserId,
       ]);
-      const shiftA3 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA3Id, openingCash: 0 }));
-      const shiftA4 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA4Id, openingCash: 0 }));
+      const shiftA3 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA3Id, openingCash: 0, idempotencyKey: randomUUID() }));
+      const shiftA4 = await tx((c) => openShift(c, cashierContext, { storeId: storeAId, terminalId: terminalA4Id, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartA3 = await tx((c) => createPosCart(c, cashierContext, { storeId: storeAId, terminalId: terminalA3Id, shiftId: shiftA3.id }));
       let cartA4 = await tx((c) => createPosCart(c, cashierContext, { storeId: storeAId, terminalId: terminalA4Id, shiftId: shiftA4.id }));
       // A promotion auto-applies during reprice -- no explicit "apply" step.
@@ -347,7 +347,7 @@ test("Matrix #18 (per-store half): promotion/coupon usage_limit_per_store is sto
         storeBId,
         adminUserId,
       ]);
-      const shiftB2 = await tx((c) => openShift(c, cashierContext, { storeId: storeBId, terminalId: terminalB2Id, openingCash: 0 }));
+      const shiftB2 = await tx((c) => openShift(c, cashierContext, { storeId: storeBId, terminalId: terminalB2Id, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartB2 = await tx((c) => createPosCart(c, cashierContext, { storeId: storeBId, terminalId: terminalB2Id, shiftId: shiftB2.id }));
       cartB2 = await tx((c) => addPosCartLine(c, cashierContext, cartB2.id, { itemId, quantity: 1, expectedVersion: cartB2.version }));
       assert.equal(cartB2.promotion_discount_total, "5.000000", "the promotion must still apply at a different store once store A's own cap is hit");

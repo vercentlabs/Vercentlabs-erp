@@ -228,7 +228,7 @@ test("POS Phase 3+4: audit-field integrity and promotion/coupon per-customer usa
 
     let cashierShift;
     await t.test("AUDIT INTEGRITY: openShift/closeShift stamp opened_by/closed_by from the real authenticated actor", async () => {
-      cashierShift = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalAId, openingCash: 0 }));
+      cashierShift = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalAId, openingCash: 0, idempotencyKey: randomUUID() }));
       assert.equal(cashierShift.opened_by, cashierId);
       const closed = await tx((c) => closeShift(c, cashierContext, cashierShift.id, { countedCash: "0" }));
       assert.equal(closed.closed_by, cashierId);
@@ -239,8 +239,8 @@ test("POS Phase 3+4: audit-field integrity and promotion/coupon per-customer usa
         createPosCoupon(c, adminContext, { code: "LASTUSE1", discountType: "amount", discountValue: 5, usageLimitPerCustomer: 1 }),
       );
 
-      const shiftA = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalAId, openingCash: 0 }));
-      const shiftB = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalBId, openingCash: 0 }));
+      const shiftA = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalAId, openingCash: 0, idempotencyKey: randomUUID() }));
+      const shiftB = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalBId, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartA = await tx((c) => createPosCart(c, cashierContext, { storeId, terminalId: terminalAId, shiftId: shiftA.id, customerId }));
       let cartB = await tx((c) => createPosCart(c, cashierContext, { storeId, terminalId: terminalBId, shiftId: shiftB.id, customerId }));
       cartA = await tx((c) => addPosCartLine(c, cashierContext, cartA.id, { itemId, quantity: 1, expectedVersion: cartA.version }));
@@ -320,8 +320,8 @@ test("POS Phase 3+4: audit-field integrity and promotion/coupon per-customer usa
         storeId,
         adminUserId,
       ]);
-      const shiftC = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalCId, openingCash: 0 }));
-      const shiftD = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalDId, openingCash: 0 }));
+      const shiftC = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalCId, openingCash: 0, idempotencyKey: randomUUID() }));
+      const shiftD = await tx((c) => openShift(c, cashierContext, { storeId, terminalId: terminalDId, openingCash: 0, idempotencyKey: randomUUID() }));
       let cartC = await tx((c) => createPosCart(c, cashierContext, { storeId, terminalId: terminalCId, shiftId: shiftC.id, customerId }));
       let cartD = await tx((c) => createPosCart(c, cashierContext, { storeId, terminalId: terminalDId, shiftId: shiftD.id, customerId }));
       // A promotion auto-applies during reprice -- no explicit "apply" step.

@@ -326,6 +326,7 @@ async function buildPosWorld(): Promise<PosWorld> {
         storeId,
         terminalId,
         openingCash: 500,
+        idempotencyKey: crypto.randomUUID(),
       }),
     );
     const supervisorShift = await tx(client, organizationId, (c) =>
@@ -333,6 +334,7 @@ async function buildPosWorld(): Promise<PosWorld> {
         storeId: supervisorStoreId,
         terminalId: supervisorTerminalId,
         openingCash: 500,
+        idempotencyKey: crypto.randomUUID(),
       }),
     );
 

@@ -38,6 +38,7 @@ export function PosOverviewScreen() {
   const [movementAmount, setMovementAmount] = useState(0);
   const [movementReason, setMovementReason] = useState("");
   const [movementIdempotencyKey, setMovementIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [openShiftIdempotencyKey, setOpenShiftIdempotencyKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(null);
 
   const dashboardQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "dashboard"), queryFn: getPosDashboard });
@@ -69,9 +70,16 @@ export function PosOverviewScreen() {
   );
 
   const openMutation = useMutation({
-    mutationFn: () => openPosShift({ storeId, terminalId, openingCash }),
+    // F301: a client retry (network blip, double-tap) now safely replays
+    // the original shift-open response instead of hitting a raw
+    // unique-constraint error — same reserve-then-complete idempotency
+    // contract as recordPosCashMovement below. The key rotates only after
+    // a genuinely new attempt succeeds or the store/terminal selection
+    // changes, never on every render.
+    mutationFn: () => openPosShift({ storeId, terminalId, openingCash, idempotencyKey: openShiftIdempotencyKey }),
     onSuccess: () => {
       setError(null);
+      setOpenShiftIdempotencyKey(crypto.randomUUID());
       queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "shifts") });
     },
     onError: (err) => setError(err instanceof PosApiError ? err.message : "The shift could not be opened."),
@@ -99,7 +107,7 @@ export function PosOverviewScreen() {
   });
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-text">Point of Sale</h1>
         <p className="text-sm text-text-secondary">Open a shift to start ringing up sales, or resume checkout if a shift is already open.</p>

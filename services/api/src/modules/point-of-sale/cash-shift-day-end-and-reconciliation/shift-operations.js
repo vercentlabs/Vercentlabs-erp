@@ -5,6 +5,8 @@
 // built.
 import { nextDocumentNumber } from "../../../core/document-numbering.js";
 import { requireCompanyRecord } from "../../../core/references.js";
+import { decimal, sub, asDatabaseDecimal } from "../../../core/decimal.js";
+import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
@@ -37,6 +39,22 @@ export async function openShift(client, context, input) {
     // vouch for someone else's store access).
     await assertPosStoreAccess(client, { organizationId: context.organizationId, companyId: context.companyId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id, terminal.id);
   }
+  // F301: previously relied only on the DB's one-open-shift-per-terminal
+  // unique index to reject a genuine double-attempt -- correct for a
+  // DIFFERENT request racing in, but a retry of the SAME request (client
+  // timeout, double-tap) had no replay contract: it would just hit the
+  // same unique-index violation and surface as a raw error instead of
+  // safely returning the shift that already opened. Same reserve-then-
+  // complete idempotency primitive every other POS financial mutation
+  // uses (see cash-movements.js's recordPosCashMovement).
+  const idempotency = await beginIdempotentOperation(client, context, {
+    operation: "pos.shift.open",
+    key: input.idempotencyKey,
+    payload: { ...input, idempotencyKey: undefined },
+    required: true,
+  });
+  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+
   const shiftNumber = input.shiftNumber || await nextDocumentNumber(client, context, {
     documentType: `pos_shift:${input.terminalId}`,
     prefix: "SHIFT",
@@ -79,7 +97,9 @@ export async function openShift(client, context, input) {
     );
   }
   await event(client, context, "shift", shift.rows[0].id, "pos.shift.opened");
-  return shift.rows[0];
+  const response = shift.rows[0];
+  await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_shift", aggregateId: response.id });
+  return response;
 }
 
 export async function closeShift(client, context, shiftId, input) {
@@ -122,9 +142,14 @@ export async function closeShift(client, context, shiftId, input) {
      WHERE organization_id=$1 AND shift_id=$2`,
     [context.organizationId, shiftId],
   );
-  const expected = Number(cash.rows[0].expected_cash);
-  const counted = Number(input.countedCash);
-  const variance = counted - expected;
+  // F302: was `Number(...) - Number(...)` -- native floating-point
+  // arithmetic for a financial variance figure that feeds the shift
+  // record, the audit event, and (via F303) the day-end Z report. Every
+  // other monetary calculation in this module goes through the
+  // fixed-point decimal utilities (core/decimal.js); this one didn't.
+  const expected = decimal(cash.rows[0].expected_cash);
+  const counted = decimal(input.countedCash);
+  const variance = sub(counted, expected);
 
   const result = await client.query(
     `UPDATE tenant.pos_shifts
@@ -136,17 +161,17 @@ export async function closeShift(client, context, shiftId, input) {
       context.organizationId,
       context.companyId,
       shiftId,
-      String(expected),
-      String(counted),
-      String(variance),
+      asDatabaseDecimal(expected),
+      asDatabaseDecimal(counted),
+      asDatabaseDecimal(variance),
       context.userId,
       input.closeNotes || null,
     ],
   );
   await event(client, context, "shift", shiftId, "pos.shift.closed", {
-    expected,
-    counted,
-    variance,
+    expected: asDatabaseDecimal(expected),
+    counted: asDatabaseDecimal(counted),
+    variance: asDatabaseDecimal(variance),
   });
   return result.rows[0];
 }
