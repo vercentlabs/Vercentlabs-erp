@@ -13,27 +13,20 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { RotateCcw, XCircle } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
-import { listPosOfflineSyncConflicts, resolvePosOfflineSyncConflict, type PosOfflineSyncConflict } from "@/features/pos/offline/api/offline-api";
+import {
+  listPosOfflineSyncConflicts,
+  resolvePosOfflineSyncConflict,
+  POS_CONFLICT_TYPE_LABEL as CONFLICT_TYPE_LABEL,
+  type PosOfflineSyncConflict,
+} from "@/features/pos/offline/api/offline-api";
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-const CONFLICT_TYPE_LABEL: Record<string, string> = {
-  price_changed: "Price changed",
-  item_not_found: "Item no longer available",
-  insufficient_stock: "Insufficient stock",
-  shift_closed: "Shift already closed",
-  customer_inactive: "Customer inactive",
-  payment_unsupported: "Unsupported tender",
-  permission_denied: "Permission denied",
-  underpayment: "Underpayment",
-  other: "Other",
-};
 
 export function PosOfflineSyncConflictsScreen() {
   const workspace = useWorkspaceContext();
@@ -45,7 +38,7 @@ export function PosOfflineSyncConflictsScreen() {
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "pos", "offline-sync-conflicts", "pending"),
-    queryFn: () => listPosOfflineSyncConflicts("pending"),
+    queryFn: () => listPosOfflineSyncConflicts({ status: "pending" }),
     enabled: canResolve,
   });
   const rows = query.data?.conflicts ?? [];
@@ -94,7 +87,8 @@ export function PosOfflineSyncConflictsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          errorContent={<ErrorState title="Could not load offline sync conflicts" description="Something went wrong fetching the conflict queue." action={{ label: "Retry", onPress: () => query.refetch() }} />}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()}>
               <Button variant="secondary" size="compact" onPress={() => setSelected(row)}>

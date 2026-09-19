@@ -124,6 +124,13 @@ export function PosCheckoutScreen() {
   // finishes BOTH the return and this sale as one linked exchange
   // (completePosExchange) instead of an ordinary sale.
   const exchangeReturnId = searchParams.get("exchangeReturnId");
+  // Arriving here from the Customers workspace's "Start sale for this
+  // customer" action (/pos/checkout?customerId=...&customerName=...) --
+  // the customer is applied to the cart the same way any other customer
+  // selection is (selectCustomer/setPosCartCustomer below), just triggered
+  // from a URL instead of a search pick.
+  const presetCustomerId = searchParams.get("customerId");
+  const presetCustomerName = searchParams.get("customerName");
   const canDiscount = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApply);
   const canRedeemLoyalty = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.loyaltyRedeem);
   const online = useOnlineStatus();
@@ -364,6 +371,20 @@ export function PosCheckoutScreen() {
     setDebouncedCustomerSearch("");
     run(() => setPosCartCustomer(cart.id, customer?.id ?? null, cart.version));
   }
+
+  // Applies a preset customer from the URL exactly once per cart -- a ref
+  // guard (not just "cart.customer_id is empty") because selectCustomer(null)
+  // is a legitimate action a cashier can take afterward, which must not be
+  // immediately overridden by this effect re-firing.
+  const appliedPresetCustomerForCartIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cart || !presetCustomerId) return;
+    if (appliedPresetCustomerForCartIdRef.current === cart.id) return;
+    appliedPresetCustomerForCartIdRef.current = cart.id;
+    if (cart.customer_id === presetCustomerId) return;
+    queueMicrotask(() => selectCustomer({ id: presetCustomerId, code: "", displayName: presetCustomerName || "Customer", phone: null, email: null }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart?.id, presetCustomerId]);
 
   // F287: hold releases this terminal's active-cart slot (the checkout
   // effect above re-creates/resumes a cart on this terminal the next time

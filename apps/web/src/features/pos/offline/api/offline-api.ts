@@ -31,7 +31,27 @@ export type PosOfflineSyncConflict = {
   created_at: string;
   [key: string]: unknown;
 };
-export const listPosOfflineSyncConflicts = (status?: string) =>
-  request<{ conflicts: PosOfflineSyncConflict[] }>(`/offline/conflicts${status ? `?status=${status}` : ""}`);
+// Shared with PosOfflineSyncConflictsScreen and the POS Inventory
+// workspace's Exceptions tab so both surfaces describe the same
+// conflict_type values identically rather than drifting.
+export const POS_CONFLICT_TYPE_LABEL: Record<string, string> = {
+  price_changed: "Price changed",
+  item_not_found: "Item no longer available",
+  insufficient_stock: "Insufficient stock",
+  shift_closed: "Shift already closed",
+  customer_inactive: "Customer inactive",
+  payment_unsupported: "Unsupported tender",
+  permission_denied: "Permission denied",
+  underpayment: "Underpayment",
+  other: "Other",
+};
+
+export const listPosOfflineSyncConflicts = (options?: { status?: string; storeId?: string }) => {
+  const params = new URLSearchParams();
+  if (options?.status) params.set("status", options.status);
+  if (options?.storeId) params.set("storeId", options.storeId);
+  const query = params.toString();
+  return request<{ conflicts: PosOfflineSyncConflict[] }>(`/offline/conflicts${query ? `?${query}` : ""}`);
+};
 export const resolvePosOfflineSyncConflict = (id: string, input: Record<string, unknown>) =>
   post<{ conflict: PosOfflineSyncConflict }>(`/offline/conflicts/${id}/resolve`, input);

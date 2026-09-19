@@ -7,7 +7,24 @@ export type PointOfSaleContext = {
 };
 
 export declare function getPointOfSaleDashboard(client: any, context: PointOfSaleContext): Promise<any>;
-export declare function listPointOfSaleResource(client: any, context: PointOfSaleContext, resource: string, options?: Record<string, unknown>): Promise<any[]>;
+export declare function listPointOfSaleResource(
+  client: any,
+  context: PointOfSaleContext,
+  resource: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+    shiftId?: string | null;
+    storeId?: string | null;
+    terminalId?: string | null;
+    status?: string | null;
+    cashierUserId?: string | null;
+    movementType?: string | null;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+    withTotal?: boolean;
+  },
+): Promise<any[] | { rows: any[]; total: number }>;
 export declare function listPosStoreSetupOptions(client: any, context: PointOfSaleContext): Promise<{ branches: any[]; warehouses: any[]; priceLists: any[] }>;
 export declare function createStore(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function updatePosStore(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<any>;
@@ -43,6 +60,9 @@ export declare function completePosExchange(client: any, context: PointOfSaleCon
   expectedGrandTotal?: string;
 }): Promise<{ return: any; sale: any }>;
 export declare function closeShift(client: any, context: PointOfSaleContext, shiftId: string, input: Record<string, any>): Promise<any>;
+export type PosShiftPaymentBreakdown = { payment_method: string; status: string; amount: string; count: number };
+export type PosShiftSaleSummary = { id: string; receipt_number: string; customer_name: string | null; grand_total: string; status: string; created_at: string };
+export declare function getPosShift(client: any, context: PointOfSaleContext, shiftId: string): Promise<Record<string, any> & { cashMovements: any[]; sales: PosShiftSaleSummary[]; paymentBreakdown: PosShiftPaymentBreakdown[] }>;
 
 // F300 cash movements
 export declare function recordPosCashMovement(client: any, context: PointOfSaleContext, shiftId: string, input: { movementType: "paid_in" | "paid_out"; amount: number; reason: string; idempotencyKey: string }): Promise<any>;
@@ -204,7 +224,7 @@ export type PosOfflineSyncConflict = {
   server_context_snapshot: Record<string, any>;
   [key: string]: any;
 };
-export declare function listPosOfflineSyncConflicts(client: any, context: PointOfSaleContext, options?: { status?: string; limit?: number; offset?: number }): Promise<PosOfflineSyncConflict[]>;
+export declare function listPosOfflineSyncConflicts(client: any, context: PointOfSaleContext, options?: { status?: string; storeId?: string; limit?: number; offset?: number }): Promise<PosOfflineSyncConflict[]>;
 // A retry line never carries capturedUnitPrice: resolvePosOfflineSyncConflict's
 // retry path always re-resolves the CURRENT price fresh server-side
 // (currentOfflineCatalogUnitPrice), never trusts a client-supplied
@@ -364,6 +384,34 @@ export declare function getPosSaleReceipt(client: any, context: PointOfSaleConte
 }>;
 export declare function recordPosReceiptPrintAttempt(client: any, context: PointOfSaleContext, saleId: string): Promise<PosReceiptPrintEvent>;
 export declare function listPosReceiptPrintEvents(client: any, context: PointOfSaleContext, saleId: string): Promise<PosReceiptPrintEvent[]>;
+
+// Transactions workspace — search/drill-down over completed sales.
+export type PosTransactionListOptions = {
+  search?: string;
+  storeId?: string;
+  terminalId?: string;
+  cashierId?: string;
+  shiftId?: string;
+  customerId?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  paymentMethod?: string;
+  sortBy?: "sale_date" | "grand_total" | "receipt_number" | "status";
+  sortDir?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+};
+export declare function listPosTransactions(client: any, context: PointOfSaleContext, options?: PosTransactionListOptions): Promise<{ rows: Record<string, any>[]; total: number }>;
+export declare function getPosTransactionDetail(client: any, context: PointOfSaleContext, saleId: string): Promise<{
+  sale: Record<string, any>;
+  lines: Record<string, any>[];
+  payments: Record<string, any>[];
+  returns: Record<string, any>[];
+  promotionEvidence: Record<string, any>[];
+  stockMovements: Record<string, any>[];
+  auditTrail: Record<string, any>[];
+}>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
 export declare function redeemPosCartLoyaltyPoints(client: any, context: PointOfSaleContext, cartId: string, input: { points: number | string; expectedVersion?: number }): Promise<PosCart>;
 export declare function removePosCartLoyaltyRedemption(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
@@ -495,3 +543,42 @@ export declare class PaymentAdapterError extends Error {
   status: number;
   code: string;
 }
+
+// F294/F296 -- read-only store inventory/stock-sync-activity visibility.
+export type PosStoreInventoryRow = {
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  barcode: string | null;
+  tracking_type: "none" | "batch" | "serial";
+  warehouse_location_id: string | null;
+  location_code: string | null;
+  batch_id: string | null;
+  batch_number: string | null;
+  expires_on: string | null;
+  on_hand_quantity: string;
+  reserved_quantity: string;
+  available_quantity: string;
+  updated_at: string;
+  quality_held: boolean;
+};
+export type PosStoreRef = { id: string; code: string; name: string; warehouse_id: string };
+export declare function listPosStoreInventory(client: any, context: PointOfSaleContext, options: { storeId: string; search?: string; limit?: number; offset?: number }): Promise<{ store: PosStoreRef; rows: PosStoreInventoryRow[] }>;
+export type PosStoreStockActivityRow = {
+  id: string;
+  movement_number: string;
+  movement_type: "receipt" | "issue" | "adjustment";
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  quantity: string;
+  unit_cost: string;
+  reference_type: string;
+  reference_id: string;
+  occurred_at: string;
+  sale_id: string | null;
+  sale_receipt_number: string | null;
+  return_id: string | null;
+  return_number: string | null;
+};
+export declare function listPosStoreStockActivity(client: any, context: PointOfSaleContext, options: { storeId: string; limit?: number; offset?: number }): Promise<{ store: PosStoreRef; rows: PosStoreStockActivityRow[] }>;

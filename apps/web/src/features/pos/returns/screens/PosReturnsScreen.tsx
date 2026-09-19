@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeftRight, Check, Plus, RotateCcw } from "lucide-react";
-import { Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, NumberField, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NumberField, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -52,6 +52,7 @@ export function PosReturnsScreen() {
 
   const [error, setError] = useState<string | null>(null);
   const [newReturnOpen, setNewReturnOpen] = useState(false);
+  const [completeTarget, setCompleteTarget] = useState<PosReturn | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "returns"), queryFn: listPosReturns, enabled: canView });
   const rows = query.data?.rows ?? [];
@@ -63,8 +64,20 @@ export function PosReturnsScreen() {
     setError(err instanceof PosApiError ? err.message : "This action could not be completed.");
   }
 
+  // Idempotency keys here are derived ONLY from the return's own id, not
+  // wall-clock time (Date.now()) -- approve/complete are each a single,
+  // once-per-return operation with a deterministic request payload
+  // ({returnId}), so a genuine retry of the exact same click (double-tap,
+  // client timeout, network blip) must reuse the SAME key. That's what lets
+  // the backend's beginIdempotentOperation (services/api/src/core/
+  // idempotency.js) recognize the retry and replay the cached result
+  // instead of racing a second transaction against the row lock in
+  // completePointOfSaleReturn. A timestamp-suffixed key defeated that: two
+  // clicks a few milliseconds apart got two different keys, so the
+  // idempotency table never caught the duplicate and correctness fell back
+  // entirely on the FOR UPDATE row lock + status re-check further down.
   const approveMutation = useMutation({
-    mutationFn: (posReturn: PosReturn) => approvePosReturn(posReturn.id, { idempotencyKey: `approve-${posReturn.id}-${Date.now()}` }),
+    mutationFn: (posReturn: PosReturn) => approvePosReturn(posReturn.id, { idempotencyKey: `approve-${posReturn.id}` }),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -72,9 +85,10 @@ export function PosReturnsScreen() {
     onError: handleError,
   });
   const completeMutation = useMutation({
-    mutationFn: (posReturn: PosReturn) => completePosReturn(posReturn.id, { idempotencyKey: `complete-${posReturn.id}-${Date.now()}` }),
+    mutationFn: (posReturn: PosReturn) => completePosReturn(posReturn.id, { idempotencyKey: `complete-${posReturn.id}` }),
     onSuccess: () => {
       setError(null);
+      setCompleteTarget(null);
       invalidate();
     },
     onError: handleError,
@@ -102,7 +116,7 @@ export function PosReturnsScreen() {
           if (r.status === "approved" && canApprove) {
             return (
               <div className="flex items-center gap-1.5">
-                <Button variant="primary" size="compact" onPress={() => completeMutation.mutate(r)} isLoading={completeMutation.isPending}>
+                <Button variant="primary" size="compact" onPress={() => setCompleteTarget(r)} isLoading={completeMutation.isPending && completeTarget?.id === r.id}>
                   <RotateCcw className="size-4" aria-hidden="true" />
                   Complete refund
                 </Button>
@@ -117,7 +131,7 @@ export function PosReturnsScreen() {
         },
       },
     ],
-    [canApprove, approveMutation, completeMutation, router],
+    [canApprove, approveMutation, completeMutation, completeTarget, router],
   );
 
   if (!canView) return <PermissionState title="You don't have access to POS Returns" description="Ask an administrator to grant pos.return.create or pos.return.approve." />;
@@ -142,7 +156,14 @@ export function PosReturnsScreen() {
           ) : undefined,
         }}
       >
-        <EnterpriseDataGrid<PosReturn> aria-label="Returns" columns={columns} data={rows} getRowId={(row) => row.id} state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"} />
+        <EnterpriseDataGrid<PosReturn>
+          aria-label="Returns"
+          columns={columns}
+          data={rows}
+          getRowId={(row) => row.id}
+          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          errorContent={<ErrorState title="Could not load returns" description="Something went wrong fetching the returns list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
+        />
       </EnterpriseListPage>
 
       {newReturnOpen && (
@@ -155,6 +176,16 @@ export function PosReturnsScreen() {
           onError={handleError}
         />
       )}
+
+      <AlertDialog
+        isOpen={Boolean(completeTarget)}
+        onOpenChange={(open) => !open && setCompleteTarget(null)}
+        title={`Complete refund for ${completeTarget?.return_number ?? "this return"}?`}
+        description={`This issues a refund of ${completeTarget ? money("", completeTarget.refund_total) : ""} back through the same payment method(s) used on the original sale. This cannot be undone.`}
+        confirmLabel="Complete refund"
+        isConfirming={completeMutation.isPending}
+        onConfirm={() => completeTarget && completeMutation.mutate(completeTarget)}
+      />
     </div>
   );
 }
@@ -167,6 +198,12 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [restock, setRestock] = useState<Record<string, boolean>>({});
   const [reason, setReason] = useState("");
+  // Generated once per dialog session (not per mutate() call) so a
+  // double-click or a client retry of this exact submission reuses the
+  // same key instead of minting a new one via Date.now() each time -- the
+  // latter would let two duplicate return records (each with its own
+  // refund + restock) both go through.
+  const [idempotencyKey] = useState(() => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `return-${Date.now()}-${Math.random()}`));
 
   async function search() {
     if (!receiptNumber.trim()) return;
@@ -197,7 +234,7 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
         saleId: found!.sale.id,
         lines: returnLines,
         reason,
-        idempotencyKey: `return-${found!.sale.id}-${Date.now()}`,
+        idempotencyKey,
       }),
     onSuccess: onCreated,
     onError,

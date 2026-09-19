@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Power } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, IconButton, NumberField, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, NumberField, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import type { PosCoupon } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -122,7 +122,8 @@ export function PosCouponsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          errorContent={<ErrorState title="Could not load coupons" description="Something went wrong fetching the coupon list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
           onRowClick={(row) => setEditing(row)}
         />
       </EnterpriseListPage>

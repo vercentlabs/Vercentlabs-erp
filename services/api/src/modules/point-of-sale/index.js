@@ -78,6 +78,10 @@ export {
 // POS-CAP-004 -- transaction continuity and documents (F287-F290).
 export { getPosSaleReceipt, recordPosReceiptPrintAttempt, listPosReceiptPrintEvents } from "./transaction-continuity-and-documents/receipts.js";
 export { generatePosInvoice, getPosInvoiceForSale, listPosInvoices } from "./transaction-continuity-and-documents/invoices.js";
+// Transactions workspace — search/drill-down over completed sales. Same
+// capability directory as receipts/invoices: a completed sale IS the
+// transaction this reads, just a richer, filterable/paginated view of it.
+export { listPosTransactions, getPosTransactionDetail } from "./transaction-continuity-and-documents/transactions.js";
 
 // POS-CAP-005 -- returns, refunds and exchanges (F291-F293).
 export { findPosSaleForReturn } from "./returns-refunds-and-exchanges/returns.js";
@@ -85,7 +89,7 @@ export { createPointOfSaleReturn, approvePointOfSaleReturn, completePointOfSaleR
 export { completePosExchange } from "./returns-refunds-and-exchanges/exchange.js";
 
 // POS-CAP-007 -- cash, shift, day-end and reconciliation (F299-F305).
-export { openShift, closeShift } from "./cash-shift-day-end-and-reconciliation/shift-operations.js";
+export { openShift, closeShift, getPosShift } from "./cash-shift-day-end-and-reconciliation/shift-operations.js";
 export { recordPosCashMovement, listPosCashMovements } from "./cash-shift-day-end-and-reconciliation/cash-movements.js";
 export {
   generatePosDayEndReport,
@@ -124,3 +128,7 @@ export {
   syncOfflinePosSale,
   resolvePosOfflineSyncConflict,
 } from "./inventory-and-offline-continuity/offline-sync.js";
+// F294/F296 -- read-only store inventory/stock-sync-activity visibility,
+// sourced directly from Stock's own ledger (see that file's own header
+// comment for why this never writes stock_balances/stock_movements).
+export { listPosStoreInventory, listPosStoreStockActivity } from "./inventory-and-offline-continuity/inventory-visibility.js";

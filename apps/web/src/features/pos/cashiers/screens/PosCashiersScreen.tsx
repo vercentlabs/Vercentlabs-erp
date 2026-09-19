@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Settings2 } from "lucide-react";
-import { Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, IconButton, PermissionState } from "@vercentlabs/design-system";
+import { Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, PermissionState } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -121,7 +121,8 @@ export function PosCashiersScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={cashiersQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={cashiersQuery.isError ? "error" : cashiersQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          errorContent={<ErrorState title="Could not load cashiers" description="Something went wrong fetching eligible cashiers." action={{ label: "Retry", onPress: () => cashiersQuery.refetch() }} />}
         />
       </EnterpriseListPage>
 

@@ -707,7 +707,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F277-F282",
         items: [
           available("Open POS", "/pos/checkout"),
-          planned("Transactions", "/pos/transactions"),
+          available("Transactions", "/pos/transactions"),
         ],
       },
       {
@@ -734,10 +734,16 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "cash",
         label: "Cash",
         featureRange: "F278-F282",
+        // "Day Close" was removed as a separate nav destination
+        // (consolidation, not a build): closing a day's business is already
+        // two real, complete operations elsewhere -- ending a shift (Shifts,
+        // pos.shift.close) and generating/reviewing/finalizing that day's
+        // immutable Z report (/pos/reports/day-end, F303) -- and a third
+        // screen for the same underlying "close the day" operation would
+        // just be a second front door onto one of those, not new capability.
         items: [
           planned("Shifts", "/pos/shifts"),
           planned("Cash Movement", "/pos/cash-movement"),
-          planned("Day Close", "/pos/day-close"),
         ],
       },
       {
@@ -754,7 +760,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Customers",
         featureRange: "F287-F290",
         items: [
-          planned("Customers", "/pos/customers"),
+          available("Customers", "/pos/customers"),
           // F306: program config + real customer balance/ledger lookup.
           // Editing the program is gated inside the screen itself
           // (pos.loyalty.manage) since balance lookup stays open to cashiers.
@@ -769,8 +775,12 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Inventory",
         featureRange: "F291-F294",
         items: [
-          planned("POS Inventory", "/pos/inventory"),
-          planned("Stock Sync", "/pos/stock-sync"),
+          // F294/F295/F296: one consolidated read-only workspace (store
+          // availability + lot/batch + real-time stock-sync activity) --
+          // the dossiers describe a single coherent inventory-visibility
+          // capability, not two destinations, so this also replaces the
+          // separate "Stock Sync" placeholder that used to sit here.
+          available("POS Inventory", "/pos/inventory"),
           // F297/F298: a real screen for reviewing/resolving offline sales
           // that couldn't sync cleanly (price/stock/shift divergence).
           { ...available("Offline Sync Conflicts", "/pos/offline-sync-conflicts"), requiredPermission: "pos.offline.resolve" },
@@ -795,7 +805,12 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // F307: real date-range/store/terminal/cashier drilldown
           // analytics, replacing the coarse today-only dashboard aggregate.
           { ...available("Analytics", "/pos/analytics"), requiredPermission: "pos.analytics.view" },
-          planned("Reports", "/pos/reports"),
+          // F295-F307 hub -- a lightweight index page linking out to the
+          // four screens above (day-end reports, reconciliation, accounting
+          // posting, analytics) plus ad hoc POS reporting access; it computes
+          // nothing of its own, so it only needs the general pos.reports.view
+          // floor, not any one of those screens' own narrower permission.
+          { ...available("Reports", "/pos/reports"), requiredPermission: "pos.reports.view" },
         ],
       },
     ],

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { StatusBadge } from "@vercentlabs/design-system";
+import { ErrorState, StatusBadge } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -26,6 +26,8 @@ export function PosInvoicesScreen() {
       <div className="rounded-[var(--radius-panel)] border border-border-strong bg-surface">
         {query.isLoading ? (
           <p className="p-4 text-sm text-text-secondary">Loading…</p>
+        ) : query.isError ? (
+          <ErrorState title="Could not load invoices" description="Something went wrong fetching the invoice list." action={{ label: "Retry", onPress: () => query.refetch() }} />
         ) : !query.data?.rows?.length ? (
           <p className="p-4 text-sm text-text-muted">No invoices have been generated yet.</p>
         ) : (

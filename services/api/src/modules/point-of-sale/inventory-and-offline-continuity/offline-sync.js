@@ -259,13 +259,21 @@ export async function getPosOfflineSnapshot(client, context, { storeId } = {}) {
   };
 }
 
-export async function listPosOfflineSyncConflicts(client, context, { status = null, limit = 100, offset = 0 } = {}) {
+export async function listPosOfflineSyncConflicts(client, context, { status = null, storeId = null, limit = 100, offset = 0 } = {}) {
   requirePermission(context, "pos.offline.resolve");
   const values = [context.organizationId, context.companyId];
   let filter = "";
   if (status) {
     values.push(status);
-    filter = ` AND status=$${values.length}`;
+    filter += ` AND status=$${values.length}`;
+  }
+  // Additive: lets the F296 inventory/stock-sync workspace scope its
+  // Exceptions tab to the store currently being viewed, the same way every
+  // other list here already scopes to a store. Omitted entirely (not just
+  // null), this keeps every existing caller's behavior unchanged.
+  if (storeId) {
+    values.push(storeId);
+    filter += ` AND store_id=$${values.length}`;
   }
   values.push(Math.min(Number(limit) || 100, 200), Number(offset) || 0);
   const result = await client.query(

@@ -9,6 +9,7 @@ import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context"
 
 const querySchema = z.object({
   status: z.enum(["pending", "resolved_retried", "resolved_voided"]).optional(),
+  storeId: z.string().uuid().optional(),
   limit: z.coerce.number().int().positive().max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const input = querySchema.parse({
       status: searchParams.get("status") || undefined,
+      storeId: searchParams.get("storeId") || undefined,
       limit: searchParams.get("limit") || undefined,
       offset: searchParams.get("offset") || undefined,
     });

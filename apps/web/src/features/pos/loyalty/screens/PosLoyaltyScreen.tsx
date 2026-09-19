@@ -183,7 +183,9 @@ export function PosLoyaltyScreen() {
             <div>
               <p className="mb-2 text-sm font-medium text-text">Ledger history</p>
               <div className="max-h-96 overflow-y-auto rounded-[var(--radius-control)] border border-border-strong">
-                {!ledgerQuery.data?.rows?.length ? (
+                {ledgerQuery.isError ? (
+                  <ErrorState title="Could not load ledger history" description="Something went wrong fetching this customer's ledger." action={{ label: "Retry", onPress: () => ledgerQuery.refetch() }} />
+                ) : !ledgerQuery.data?.rows?.length ? (
                   <p className="p-3 text-sm text-text-muted">No ledger activity yet.</p>
                 ) : (
                   ledgerQuery.data.rows.map((entry) => (

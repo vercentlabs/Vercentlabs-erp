@@ -66,6 +66,13 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   const invoiceNotFound = invoiceQuery.isError && invoiceQuery.error instanceof PosApiError && invoiceQuery.error.status === 404;
   const lastPrint = printEvents[0] ?? null;
   const isReprint = lastPrint?.print_type === "reprint";
+  // F289 browser-side recovery: a failed print-attempt record (network
+  // blip, permission change, server error) previously failed silently --
+  // onSuccess fired window.print() but nothing ever reported a failure, so
+  // a cashier had no way to know the click didn't work. The Print button
+  // itself IS the retry action (react-query's mutate can simply be
+  // re-invoked); this banner makes the failure and the retry path visible
+  // instead of a silent no-op.
   const printError = recordPrint.isError ? (recordPrint.error instanceof PosApiError ? recordPrint.error.message : "The print attempt could not be recorded.") : null;
 
   return (
@@ -75,8 +82,9 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
           className={`rounded-full px-2 py-0.5 text-xs font-medium ${
             !lastPrint ? "bg-surface-muted text-text-secondary" : isReprint ? "bg-warning-soft text-warning" : "bg-success-soft text-success"
           }`}
+          title="Reflects a recorded print request, not confirmation from the physical printer — the browser has no way to observe that."
         >
-          {!lastPrint ? "Not yet printed" : isReprint ? `Reprinted (${printEvents.length}×)` : "Printed — original"}
+          {!lastPrint ? "Not yet printed" : isReprint ? `Reprint attempted (${printEvents.length}×)` : "Print attempted — original"}
         </span>
         <Button variant="secondary" size="compact" onPress={handlePrint} isLoading={recordPrint.isPending}>
           <Printer className="size-4" aria-hidden="true" />
@@ -84,13 +92,6 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
         </Button>
       </div>
       {printError && (
-        // F289 browser-side recovery: a failed print-attempt record (network
-        // blip, permission change, server error) previously failed silently
-        // -- onSuccess fired window.print() but nothing ever reported a
-        // failure, so a cashier had no way to know the click didn't work.
-        // The Print button itself IS the retry action (react-query's
-        // mutate can simply be re-invoked); this banner makes the failure
-        // and the retry path visible instead of a silent no-op.
         <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger print:hidden">
           {printError} — click Retry print to try again.
         </p>

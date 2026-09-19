@@ -43,14 +43,51 @@ const STORE_SCOPED_TABLES = Object.freeze({
   pos_reconciliations: "store_id",
 });
 
-export async function listPointOfSaleResource(client, context, resource, { limit = 100, offset = 0, shiftId = null } = {}) {
+// Shifts/cash-movements history workspaces (F301/F300 UI) need real
+// narrowing beyond the blanket store-access intersection above -- a
+// specific store/terminal/cashier/status/date-range the caller asked for,
+// on top of (never instead of) the access-control filtering. Kept as
+// explicit, additive AND-clauses so every existing caller that never
+// passes these keeps today's exact query shape and result set.
+// `withTotal` is opt-in and changes the return shape from a bare array to
+// `{ rows, total }` -- every pre-existing call site (stores/terminals/
+// sales/returns/... admin screens, both integration test suites) never
+// passes it and keeps getting a bare array back unchanged. Only the new
+// shift-history/cash-movement-history workspaces ask for a total, since
+// only they paginate server-side.
+export async function listPointOfSaleResource(
+  client,
+  context,
+  resource,
+  {
+    limit = 100,
+    offset = 0,
+    shiftId = null,
+    customerId = null,
+    storeId = null,
+    terminalId = null,
+    status = null,
+    cashierUserId = null,
+    movementType = null,
+    dateFrom = null,
+    dateTo = null,
+    withTotal = false,
+  } = {},
+) {
   requirePermission(context, "pos.view");
   const target = table(resource);
   const values = [context.organizationId, context.companyId];
   let filter = "";
   if (shiftId && ["pos_sales", "pos_payments", "pos_cash_movements", "pos_reconciliations"].includes(target)) {
     values.push(shiftId);
-    filter = ` AND shift_id=$${values.length}`;
+    filter += ` AND shift_id=$${values.length}`;
+  }
+  // POS-scoped "purchase history" for a customer (the Customers workspace) --
+  // pos_returns has no customer_id column of its own (only reachable by
+  // joining back to its sale), so this only applies to pos_sales.
+  if (customerId && target === "pos_sales") {
+    values.push(customerId);
+    filter += ` AND customer_id=$${values.length}`;
   }
   const storeColumn = STORE_SCOPED_TABLES[target];
   if (storeColumn) {
@@ -70,12 +107,73 @@ export async function listPointOfSaleResource(client, context, resource, { limit
         filter += ` AND id=ANY($${values.length}::uuid[])`;
       }
     }
+    if (storeId) {
+      values.push(storeId);
+      filter += ` AND ${storeColumn}=$${values.length}`;
+    }
   } else if (target === "pos_cash_movements") {
     const accessibleStoreIds = await accessiblePosStoreIds(client, context);
+    const shiftConds = ["organization_id=$1"];
     if (accessibleStoreIds) {
       values.push(accessibleStoreIds);
-      filter += ` AND shift_id IN (SELECT id FROM tenant.pos_shifts WHERE organization_id=$1 AND store_id=ANY($${values.length}::uuid[]))`;
+      shiftConds.push(`store_id=ANY($${values.length}::uuid[])`);
     }
+    if (storeId) {
+      values.push(storeId);
+      shiftConds.push(`store_id=$${values.length}`);
+    }
+    if (terminalId) {
+      values.push(terminalId);
+      shiftConds.push(`terminal_id=$${values.length}`);
+    }
+    if (shiftConds.length > 1) {
+      filter += ` AND shift_id IN (SELECT id FROM tenant.pos_shifts WHERE ${shiftConds.join(" AND ")})`;
+    }
+  }
+  if (target === "pos_shifts") {
+    if (terminalId) {
+      values.push(terminalId);
+      filter += ` AND terminal_id=$${values.length}`;
+    }
+    if (status) {
+      values.push(status);
+      filter += ` AND status=$${values.length}`;
+    }
+    if (cashierUserId) {
+      values.push(cashierUserId);
+      filter += ` AND cashier_user_id=$${values.length}`;
+    }
+    if (dateFrom) {
+      values.push(dateFrom);
+      filter += ` AND opened_at>=$${values.length}`;
+    }
+    if (dateTo) {
+      values.push(dateTo);
+      filter += ` AND opened_at<$${values.length}::date + interval '1 day'`;
+    }
+  }
+  if (target === "pos_cash_movements") {
+    if (movementType) {
+      values.push(movementType);
+      filter += ` AND movement_type=$${values.length}`;
+    }
+    if (cashierUserId) {
+      values.push(cashierUserId);
+      filter += ` AND created_by=$${values.length}`;
+    }
+    if (dateFrom) {
+      values.push(dateFrom);
+      filter += ` AND created_at>=$${values.length}`;
+    }
+    if (dateTo) {
+      values.push(dateTo);
+      filter += ` AND created_at<$${values.length}::date + interval '1 day'`;
+    }
+  }
+  let total;
+  if (withTotal) {
+    const countResult = await client.query(`SELECT count(*)::int AS total FROM tenant.${target} WHERE organization_id=$1 AND company_id=$2${filter}`, values);
+    total = countResult.rows[0]?.total ?? 0;
   }
   values.push(Math.min(Number(limit) || 100, 200), Number(offset) || 0);
   const result = await client.query(
@@ -85,5 +183,5 @@ export async function listPointOfSaleResource(client, context, resource, { limit
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
-  return result.rows;
+  return withTotal ? { rows: result.rows, total } : result.rows;
 }

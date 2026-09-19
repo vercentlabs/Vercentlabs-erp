@@ -102,6 +102,45 @@ export async function openShift(client, context, input) {
   return response;
 }
 
+// Shift-detail workspace (F301/F302 UI): the shift row itself plus enough
+// of its own transactions -- sales, tendered payments, cash movements --
+// to explain expected/counted/variance without a second round trip per
+// section. Read-only, so no FOR UPDATE lock and no store-access mutation
+// gate; still store-scoped like every other per-shift read in this module.
+export async function getPosShift(client, context, shiftId) {
+  requirePermission(context, "pos.view");
+  const shift = await client.query(`SELECT * FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [
+    context.organizationId,
+    context.companyId,
+    shiftId,
+  ]);
+  if (!shift.rows[0]) throw posError(404, "Shift was not found.", "POS_SHIFT_NOT_FOUND");
+  await assertPosStoreAccess(client, context, shift.rows[0].store_id);
+
+  const cashMovements = await client.query(
+    `SELECT * FROM tenant.pos_cash_movements WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 ORDER BY created_at`,
+    [context.organizationId, context.companyId, shiftId],
+  );
+  const sales = await client.query(
+    `SELECT id, receipt_number, customer_name, grand_total, status, created_at
+     FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 ORDER BY created_at`,
+    [context.organizationId, context.companyId, shiftId],
+  );
+  const payments = await client.query(
+    `SELECT payment_method, status, sum(amount)::text AS amount, count(*)::int AS count
+     FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3
+     GROUP BY payment_method, status ORDER BY payment_method, status`,
+    [context.organizationId, context.companyId, shiftId],
+  );
+
+  return {
+    ...shift.rows[0],
+    cashMovements: cashMovements.rows,
+    sales: sales.rows,
+    paymentBreakdown: payments.rows,
+  };
+}
+
 export async function closeShift(client, context, shiftId, input) {
   requirePermission(context, "pos.shift.close");
   const shift = await client.query(

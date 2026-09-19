@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, NumberField, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, ErrorState, NumberField, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -153,6 +153,8 @@ export function PosReconciliationScreen() {
       <div className="rounded-[var(--radius-panel)] border border-border-strong bg-surface">
         {query.isLoading ? (
           <p className="p-4 text-sm text-text-secondary">Loading…</p>
+        ) : query.isError ? (
+          <ErrorState title="Could not load reconciliations" description="Something went wrong fetching this filter." action={{ label: "Retry", onPress: () => query.refetch() }} />
         ) : !query.data?.rows?.length ? (
           <p className="p-4 text-sm text-text-muted">Nothing in this filter.</p>
         ) : (

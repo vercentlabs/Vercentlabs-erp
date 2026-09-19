@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -111,7 +111,8 @@ export function PosTerminalsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={terminalsQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={terminalsQuery.isError ? "error" : terminalsQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          errorContent={<ErrorState title="Could not load terminals" description="Something went wrong fetching the terminal list." action={{ label: "Retry", onPress: () => terminalsQuery.refetch() }} />}
           onRowClick={(row) => setEditing(row)}
         />
       </EnterpriseListPage>

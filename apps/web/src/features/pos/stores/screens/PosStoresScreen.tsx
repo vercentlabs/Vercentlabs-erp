@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Power } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, IconButton, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -35,6 +35,7 @@ export function PosStoresScreen() {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<PosStore | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<PosStore | null>(null);
 
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores, enabled: canManage });
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "store-setup-options"), queryFn: getPosStoreSetupOptions, enabled: canManage });
@@ -53,6 +54,7 @@ export function PosStoresScreen() {
     mutationFn: (store: PosStore) => setPosStoreActiveRecord(store.id, !store.active),
     onSuccess: () => {
       setError(null);
+      setDeactivateTarget(null);
       invalidate();
     },
     onError: handleError,
@@ -97,7 +99,8 @@ export function PosStoresScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={storesQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={storesQuery.isError ? "error" : storesQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          errorContent={<ErrorState title="Could not load stores" description="Something went wrong fetching the store list." action={{ label: "Retry", onPress: () => storesQuery.refetch() }} />}
           onRowClick={(row) => setEditing(row)}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()}>
@@ -105,13 +108,23 @@ export function PosStoresScreen() {
                 aria-label={row.active ? `Deactivate ${row.name}` : `Activate ${row.name}`}
                 size="compact"
                 variant={row.active ? "danger" : "ghost"}
-                onPress={() => toggleActiveMutation.mutate(row)}
+                onPress={() => (row.active ? setDeactivateTarget(row) : toggleActiveMutation.mutate(row))}
                 isDisabled={toggleActiveMutation.isPending}
               >
                 <Power className="size-4" aria-hidden="true" />
               </IconButton>
             </span>
           )}
+        />
+
+        <AlertDialog
+          isOpen={Boolean(deactivateTarget)}
+          onOpenChange={(open) => !open && setDeactivateTarget(null)}
+          title={`Deactivate ${deactivateTarget?.name ?? "this store"}?`}
+          description={`Terminals at ${deactivateTarget?.name ?? "this store"} will no longer be able to complete sales or sync offline transactions until it is reactivated. This is blocked automatically while a shift or cart is still open, so use this only once the store is safely closed out.`}
+          confirmLabel="Deactivate"
+          isConfirming={toggleActiveMutation.isPending}
+          onConfirm={() => deactivateTarget && toggleActiveMutation.mutate(deactivateTarget)}
         />
       </EnterpriseListPage>
 

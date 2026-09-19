@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, completePointOfSale, listPointOfSaleResource } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, completePointOfSale, listPosTransactions } from "@vercentlabs/api";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -45,19 +45,39 @@ const completeSaleSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(200),
 });
 
+// F268-F307 completion gap closure -- the Transactions workspace's search
+// screen. listPosTransactions (transaction-continuity-and-documents/
+// transactions.js) is a superset of the old listPointOfSaleResource(
+// "sales") call this route used to make: same store-scoping, same
+// shiftId filter, plus receipt-number search, terminal/cashier/status/
+// date-range/payment-method filters, sorting and a real total count for
+// pagination. Nothing else in the app called this route's GET before
+// this feature existed, so widening it here is not a breaking change.
 export async function GET(request: Request) {
   try {
     const session = await requireWorkspace();
     const url = new URL(request.url);
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
+    const params = url.searchParams;
+    const result = await tenantTransaction(session.organizationId, async (client) => {
       await requirePosAccess(client, session);
-      return listPointOfSaleResource(client, posContext(session), "sales", {
-        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
-        offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
-        shiftId: url.searchParams.get("shiftId") || null,
+      return listPosTransactions(client, posContext(session), {
+        search: params.get("search") || undefined,
+        storeId: params.get("storeId") || undefined,
+        terminalId: params.get("terminalId") || undefined,
+        cashierId: params.get("cashierId") || undefined,
+        shiftId: params.get("shiftId") || undefined,
+        customerId: params.get("customerId") || undefined,
+        status: params.get("status") || undefined,
+        dateFrom: params.get("dateFrom") || undefined,
+        dateTo: params.get("dateTo") || undefined,
+        paymentMethod: params.get("paymentMethod") || undefined,
+        sortBy: (params.get("sortBy") as "sale_date" | "grand_total" | "receipt_number" | "status") || undefined,
+        sortDir: (params.get("sortDir") as "asc" | "desc") || undefined,
+        limit: params.get("limit") ? Number(params.get("limit")) : undefined,
+        offset: params.get("offset") ? Number(params.get("offset")) : undefined,
       });
     });
-    return ok({ rows });
+    return ok(result);
   } catch (error) {
     return errorResponse(error);
   }

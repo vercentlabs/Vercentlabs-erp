@@ -20,14 +20,22 @@ export async function GET(request: Request) {
   try {
     const session = await requireWorkspace();
     const url = new URL(request.url);
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
+    const withTotal = url.searchParams.get("withTotal") === "1";
+    const result = await tenantTransaction(session.organizationId, async (client) => {
       await requirePosAccess(client, session);
       return listPointOfSaleResource(client, posContext(session), "shifts", {
         limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
         offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
+        storeId: url.searchParams.get("storeId") || undefined,
+        terminalId: url.searchParams.get("terminalId") || undefined,
+        status: url.searchParams.get("status") || undefined,
+        cashierUserId: url.searchParams.get("cashierUserId") || undefined,
+        dateFrom: url.searchParams.get("dateFrom") || undefined,
+        dateTo: url.searchParams.get("dateTo") || undefined,
+        withTotal,
       });
     });
-    return ok({ rows });
+    return ok(withTotal ? (result as { rows: unknown[]; total: number }) : { rows: result });
   } catch (error) {
     return errorResponse(error);
   }

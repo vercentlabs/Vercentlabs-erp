@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Select, StatusBadge } from "@vercentlabs/design-system";
+import { Button, ErrorState, Select, StatusBadge } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -85,6 +85,8 @@ export function PosAccountingPostingScreen() {
       <div className="rounded-[var(--radius-panel)] border border-border-strong bg-surface">
         {query.isLoading ? (
           <p className="p-4 text-sm text-text-secondary">Loading…</p>
+        ) : query.isError ? (
+          <ErrorState title="Could not load the posting queue" description="Something went wrong fetching this filter." action={{ label: "Retry", onPress: () => query.refetch() }} />
         ) : !query.data?.rows?.length ? (
           <p className="p-4 text-sm text-text-muted">Nothing in this filter.</p>
         ) : (
@@ -162,6 +164,8 @@ function AccountMappingSection() {
       {!query.data?.ledger ? (
         query.isLoading ? (
           <p className="text-sm text-text-secondary">Loading…</p>
+        ) : query.isError ? (
+          <ErrorState title="Could not load account mappings" description="Something went wrong fetching the mapping configuration." action={{ label: "Retry", onPress: () => query.refetch() }} />
         ) : (
           <p className="text-sm text-danger">No active Accounting ledger exists for this company yet — configure Accounting before mapping POS accounts.</p>
         )

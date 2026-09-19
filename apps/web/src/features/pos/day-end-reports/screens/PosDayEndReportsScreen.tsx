@@ -74,7 +74,7 @@ export function PosDayEndReportsScreen() {
   // is a UX convenience, not a security boundary.
   const shiftsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "pos", "shifts-for-day-end"),
-    queryFn: () => listPosShifts({ limit: "200" }),
+    queryFn: () => listPosShifts({ limit: 200 }),
   });
 
   const query = useQuery({

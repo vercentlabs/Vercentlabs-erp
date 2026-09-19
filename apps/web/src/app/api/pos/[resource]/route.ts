@@ -13,15 +13,23 @@ export async function GET(request: Request, context: { params: Promise<{ resourc
     const limit = url.searchParams.get("limit");
     const offset = url.searchParams.get("offset");
     const shiftId = url.searchParams.get("shiftId");
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
+    const withTotal = url.searchParams.get("withTotal") === "1";
+    const result = await tenantTransaction(session.organizationId, async (client) => {
       await requirePosAccess(client, session);
       return listPointOfSaleResource(client, posContext(session), resource, {
         limit: limit ? Number(limit) : undefined,
         offset: offset ? Number(offset) : undefined,
         shiftId: shiftId || null,
+        storeId: url.searchParams.get("storeId") || undefined,
+        terminalId: url.searchParams.get("terminalId") || undefined,
+        movementType: url.searchParams.get("movementType") || undefined,
+        cashierUserId: url.searchParams.get("cashierUserId") || undefined,
+        dateFrom: url.searchParams.get("dateFrom") || undefined,
+        dateTo: url.searchParams.get("dateTo") || undefined,
+        withTotal,
       });
     });
-    return ok({ rows });
+    return ok(withTotal ? (result as { rows: unknown[]; total: number }) : { rows: result });
   } catch (error) {
     return errorResponse(error);
   }
