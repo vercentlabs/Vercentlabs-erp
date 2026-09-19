@@ -346,26 +346,29 @@ export async function getCustomerInvoice(client, context, idValue) {
   const invoice = result.rows[0];
   if (!invoice) throw new AccountingError(404, "Customer invoice not found.");
   if (!context.allowAllCompanies && context.activeCompanyId && invoice.company_id !== context.activeCompanyId) throw new AccountingError(403, "Switch to the invoice company to view it.");
-  const [lines, schedules, allocations, creditAllocations, creditCandidates, events] = await Promise.all([
-    client.query(`SELECT line.*,account.code AS revenue_account_code,account.name AS revenue_account_name FROM tenant.accounting_customer_invoice_lines line JOIN tenant.accounting_accounts account ON account.id=line.revenue_account_id WHERE line.organization_id=$1 AND line.customer_invoice_id=$2 ORDER BY line.sequence`, [context.organizationId, id]),
-    client.query(`SELECT * FROM tenant.accounting_customer_invoice_schedules WHERE organization_id=$1 AND customer_invoice_id=$2 ORDER BY sequence`, [context.organizationId, id]),
-    client.query(`SELECT allocation.*,receipt.receipt_number,receipt.receipt_date FROM tenant.accounting_customer_receipt_allocations allocation JOIN tenant.accounting_customer_receipts receipt ON receipt.id=allocation.receipt_id WHERE allocation.organization_id=$1 AND allocation.customer_invoice_id=$2 ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]),
-    client.query(`SELECT allocation.*,credit.invoice_number AS credit_note_number,target.invoice_number AS target_invoice_number
+  // Sequential, not Promise.all: a single pg client can only run one query
+  // at a time (concurrent queries on the same connection are deprecated
+  // and will error in pg@9) -- this six-way Promise.all was surfacing as a
+  // real DeprecationWarning when getCustomerInvoice was called from POS's
+  // F290 invoice-generation path, which reuses this same connection.
+  const lines = await client.query(`SELECT line.*,account.code AS revenue_account_code,account.name AS revenue_account_name FROM tenant.accounting_customer_invoice_lines line JOIN tenant.accounting_accounts account ON account.id=line.revenue_account_id WHERE line.organization_id=$1 AND line.customer_invoice_id=$2 ORDER BY line.sequence`, [context.organizationId, id]);
+  const schedules = await client.query(`SELECT * FROM tenant.accounting_customer_invoice_schedules WHERE organization_id=$1 AND customer_invoice_id=$2 ORDER BY sequence`, [context.organizationId, id]);
+  const allocations = await client.query(`SELECT allocation.*,receipt.receipt_number,receipt.receipt_date FROM tenant.accounting_customer_receipt_allocations allocation JOIN tenant.accounting_customer_receipts receipt ON receipt.id=allocation.receipt_id WHERE allocation.organization_id=$1 AND allocation.customer_invoice_id=$2 ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]);
+  const creditAllocations = await client.query(`SELECT allocation.*,credit.invoice_number AS credit_note_number,target.invoice_number AS target_invoice_number
       FROM tenant.accounting_customer_credit_allocations allocation
       JOIN tenant.accounting_customer_invoices credit ON credit.id=allocation.credit_note_id
       JOIN tenant.accounting_customer_invoices target ON target.id=allocation.customer_invoice_id
       WHERE allocation.organization_id=$1 AND (allocation.credit_note_id=$2 OR allocation.customer_invoice_id=$2)
-      ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]),
-    invoice.invoice_type === "credit_note"
-      ? client.query(`SELECT id,invoice_number,invoice_date,due_date,currency_code,outstanding_amount
+      ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]);
+  const creditCandidates = invoice.invoice_type === "credit_note"
+    ? await client.query(`SELECT id,invoice_number,invoice_date,due_date,currency_code,outstanding_amount
           FROM tenant.accounting_customer_invoices
           WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND party_id=$4
             AND invoice_type IN ('invoice','debit_note','opening')
             AND status IN ('posted','partially_paid','overdue','disputed') AND outstanding_amount>0
           ORDER BY due_date,invoice_date`, [context.organizationId, invoice.company_id, invoice.ledger_id, invoice.party_id])
-      : Promise.resolve({ rows: [] }),
-    client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='customer_invoice' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, id]),
-  ]);
+    : { rows: [] };
+  const events = await client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='customer_invoice' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, id]);
   return { invoice, lines: lines.rows, schedules: schedules.rows, allocations: allocations.rows,
     creditAllocations: creditAllocations.rows, creditCandidates: creditCandidates.rows, events: events.rows };
 }
