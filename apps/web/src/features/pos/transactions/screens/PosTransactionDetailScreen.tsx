@@ -57,7 +57,7 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
     () =>
       (query.data?.auditTrail ?? []).map((event) => ({
         id: event.id,
-        title: `${event.actor_name ?? "System"} — ${event.event_type.replace(/^pos\./, "").replace(/_/g, " ")}`,
+        title: `${event.actor_name ?? "System"} — ${event.event_type.replace(/^pos\./, "").replace(/[._]/g, " ")}`,
         timestamp: new Date(event.occurred_at).toLocaleString(),
       })),
     [query.data?.auditTrail],

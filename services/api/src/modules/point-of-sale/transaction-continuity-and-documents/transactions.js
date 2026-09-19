@@ -182,7 +182,10 @@ export async function getPosTransactionDetail(client, context, saleId) {
     `SELECT event.id, event.event_type, event.payload, event.occurred_at, actor.full_name AS actor_name
        FROM tenant.pos_events event
        LEFT JOIN public.users actor ON actor.id = event.actor_user_id
-      WHERE event.organization_id=$1 AND event.company_id=$2 AND event.aggregate_type='pos_sale' AND event.aggregate_id=$3
+      WHERE event.organization_id=$1 AND event.company_id=$2
+        AND ((event.aggregate_type IN ('sale','pos_sale') AND event.aggregate_id=$3)
+          OR (event.aggregate_type='payment'
+              AND event.aggregate_id IN (SELECT id FROM tenant.pos_payments WHERE organization_id=$1 AND sale_id=$3)))
       ORDER BY event.occurred_at DESC`,
     [context.organizationId, context.companyId, saleId],
   );

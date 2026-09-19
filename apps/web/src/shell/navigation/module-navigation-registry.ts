@@ -718,7 +718,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Stores", "/pos/stores"), requiredPermission: "pos.store.manage" },
           { ...available("Terminals", "/pos/terminals"), requiredPermission: "pos.terminal.manage" },
           { ...available("Cashiers", "/pos/cashiers"), requiredPermission: "pos.store.manage" },
-          planned("Sessions", "/pos/sessions"),
         ],
       },
       {
@@ -742,8 +741,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         // screen for the same underlying "close the day" operation would
         // just be a second front door onto one of those, not new capability.
         items: [
-          planned("Shifts", "/pos/shifts"),
-          planned("Cash Movement", "/pos/cash-movement"),
+          available("Shifts", "/pos/shifts"),
+          available("Cash Movement", "/pos/cash-movement"),
         ],
       },
       {

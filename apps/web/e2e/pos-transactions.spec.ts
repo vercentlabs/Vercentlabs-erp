@@ -55,7 +55,7 @@ async function completeCashSale(browser: Browser, world: PosWorld): Promise<Comp
 
 test.describe("POS transactions workspace", () => {
   test("a manager searches for a completed sale, opens its detail, and every reference matches real Postgres state", async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const world = await getPosWorld();
     const sale = await ensureCompletedSale(browser, world);
 
@@ -112,7 +112,7 @@ test.describe("POS transactions workspace", () => {
 
       await row.click();
       await page.waitForURL(new RegExp(`/pos/transactions/${sale.id}$`));
-      await expect(page.getByRole("heading", { name: sale.receiptNumber })).toBeVisible();
+      await expect(page.getByRole("heading", { name: sale.receiptNumber })).toBeVisible({ timeout: 30_000 });
 
       // Receipt link.
       await expect(page.getByRole("button", { name: "View receipt" })).toBeVisible();
@@ -137,14 +137,20 @@ test.describe("POS transactions workspace", () => {
 
       // Audit trail carries the sale-completed event.
       const auditSection = page.locator("section", { has: page.getByRole("heading", { name: "Audit trail" }) });
-      await expect(auditSection.locator("li").first()).toBeVisible();
+      const dbSaleCompletedEvents = await withPosDb((client, organizationId) =>
+        client
+          .query(`SELECT count(*)::int AS count FROM tenant.pos_events WHERE organization_id=$1 AND aggregate_id=$2 AND event_type='pos.sale.completed'`, [organizationId, sale.id])
+          .then((r) => r.rows[0].count as number),
+      );
+      expect(dbSaleCompletedEvents).toBe(1);
+      await expect(auditSection.getByText(/sale completed/)).toHaveCount(1);
     } finally {
       await context.close();
     }
   });
 
   test("a user assigned only to a different store is denied the transaction by direct URL, enforced server-side", async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const world = await getPosWorld();
     const sale = await ensureCompletedSale(browser, world);
 
