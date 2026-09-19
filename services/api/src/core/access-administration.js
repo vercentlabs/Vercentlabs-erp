@@ -742,31 +742,35 @@ export async function setUserRoles(client, session, { targetUserId, roleIds, pri
 }
 
 export async function getUserAccessState(client, organizationId, userId) {
-  const [roles, companies, branches, departments, teams] = await Promise.all([
-    client.query(
-      `SELECT ura.role_id,ura.is_primary,ura.starts_at,ura.expires_at,ura.status,r.slug,r.name
-         FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
-        WHERE ura.organization_id=$1 AND ura.user_id=$2 AND ura.status='active'
-        ORDER BY ura.is_primary DESC,r.name`,
-      [organizationId, userId],
-    ),
-    client.query(
-      "SELECT company_id FROM membership_company_access WHERE organization_id=$1 AND user_id=$2 ORDER BY company_id",
-      [organizationId, userId],
-    ),
-    client.query(
-      "SELECT branch_id FROM membership_branch_access WHERE organization_id=$1 AND user_id=$2 ORDER BY branch_id",
-      [organizationId, userId],
-    ),
-    client.query(
-      "SELECT department_id FROM membership_department_access WHERE organization_id=$1 AND user_id=$2 ORDER BY department_id",
-      [organizationId, userId],
-    ),
-    client.query(
-      "SELECT team_id FROM membership_team_access WHERE organization_id=$1 AND user_id=$2 ORDER BY team_id",
-      [organizationId, userId],
-    ),
-  ]);
+  // Sequential, not Promise.all: a single pg client/connection can only
+  // run one query at a time -- see entitlements.js's getBillingSummary
+  // and module-entitlements.js's getAccessibleModules for the same fix,
+  // made for the same reason (a real "client.query() when the client is
+  // already executing a query" deprecation warning surfaced in production
+  // usage).
+  const roles = await client.query(
+    `SELECT ura.role_id,ura.is_primary,ura.starts_at,ura.expires_at,ura.status,r.slug,r.name
+       FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
+      WHERE ura.organization_id=$1 AND ura.user_id=$2 AND ura.status='active'
+      ORDER BY ura.is_primary DESC,r.name`,
+    [organizationId, userId],
+  );
+  const companies = await client.query(
+    "SELECT company_id FROM membership_company_access WHERE organization_id=$1 AND user_id=$2 ORDER BY company_id",
+    [organizationId, userId],
+  );
+  const branches = await client.query(
+    "SELECT branch_id FROM membership_branch_access WHERE organization_id=$1 AND user_id=$2 ORDER BY branch_id",
+    [organizationId, userId],
+  );
+  const departments = await client.query(
+    "SELECT department_id FROM membership_department_access WHERE organization_id=$1 AND user_id=$2 ORDER BY department_id",
+    [organizationId, userId],
+  );
+  const teams = await client.query(
+    "SELECT team_id FROM membership_team_access WHERE organization_id=$1 AND user_id=$2 ORDER BY team_id",
+    [organizationId, userId],
+  );
   return {
     roles: roles.rows,
     companyIds: companies.rows.map((row) => row.company_id),

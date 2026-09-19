@@ -81,18 +81,24 @@ export async function getBillingSummary(client, organizationId, env = process.en
   const row = rows.rows[0];
   if (!row) throw new EntitlementError(409, "Billing is not initialised for this organisation.");
 
-  const [usageRows, overrideRows] = await Promise.all([
-    client.query(
-      `SELECT metric, quantity FROM billing_usage_monthly
-        WHERE organization_id = $1 AND month_start = date_trunc('month', current_date)::date`,
-      [organizationId],
-    ),
-    client.query(
-      `SELECT entitlement_key, entitlement_value FROM billing_entitlement_overrides
-        WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > now())`,
-      [organizationId],
-    ),
-  ]);
+  // Sequential, not Promise.all: a single pg client/connection can only
+  // run one query at a time -- two queries issued concurrently on the
+  // same client is a deprecated pattern (pg queues them internally today,
+  // but warns, and pg@9 removes the queueing) that surfaced as a real
+  // console warning in production usage (getAccessibleModules calls
+  // resolveModuleAccess, which calls this, for all 12 modules concurrently
+  // via its own Promise.all -- compounding the same mistake at two
+  // levels).
+  const usageRows = await client.query(
+    `SELECT metric, quantity FROM billing_usage_monthly
+      WHERE organization_id = $1 AND month_start = date_trunc('month', current_date)::date`,
+    [organizationId],
+  );
+  const overrideRows = await client.query(
+    `SELECT entitlement_key, entitlement_value FROM billing_entitlement_overrides
+      WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > now())`,
+    [organizationId],
+  );
   const usage = Object.fromEntries(usageRows.rows.map((item) => [item.metric, Number(item.quantity)]));
   const effectiveLimits = limits(row.limits_snapshot);
   let effectiveModules = Array.isArray(row.modules_snapshot) ? row.modules_snapshot.map(String) : [];

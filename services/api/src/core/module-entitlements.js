@@ -140,9 +140,20 @@ export async function getAccessibleModules(client, session, env = process.env) {
   } catch {
     enabledModuleKeys = new Set();
   }
-  return Promise.all(
-    ERP_MODULE_CATALOG.map((module) => resolveModuleAccess(client, session, module.key, { enabledModuleKeys }, env)),
-  );
+  // Sequential, not Promise.all: resolveModuleAccess issues real queries
+  // on this same client/connection (via isModuleEntitled -> getBillingSummary),
+  // and a single pg client can only run one query at a time -- running all
+  // 12 modules concurrently here is exactly what surfaced as a real
+  // "client.query() when the client is already executing a query"
+  // deprecation warning in the workspace shell (every authenticated page
+  // calls this to build its navigation). The module catalog is small
+  // (12 entries), so sequential resolution is not a meaningful latency
+  // cost.
+  const results = [];
+  for (const module of ERP_MODULE_CATALOG) {
+    results.push(await resolveModuleAccess(client, session, module.key, { enabledModuleKeys }, env));
+  }
+  return results;
 }
 
 export { PERMISSIONS };

@@ -27,16 +27,22 @@ export type WorkspaceContext = {
 // always-safe (a user's own unread count), never a decorative volume.
 export async function resolveWorkspaceContext(): Promise<WorkspaceContext> {
   const session = await requireWorkspace();
-  const [accessibleModules, pendingApprovalCount, unreadNotificationCount] =
-    await withClient((client) =>
-      Promise.all([
-        getAccessibleModules(client, session, process.env),
-        hasSessionPermission(session, "approvals.manage")
-          ? getPendingApprovalCount(client, session.organizationId)
-          : Promise.resolve(0),
-        getUnreadNotificationCount(client, session),
-      ]),
-    );
+  // Sequential, not Promise.all: all three calls issue real queries
+  // against this same withClient() connection, and a single pg
+  // client/connection can only run one query at a time. Running them
+  // concurrently here is what actually produced the "client.query() when
+  // the client is already executing a query" deprecation warning (this
+  // function is the direct caller WorkspaceLayout's own stack trace
+  // names) -- getAccessibleModules alone issues up to 12 sequential
+  // queries internally (one per module), so this was compounding the
+  // same mistake at three levels. This runs once per workspace page load,
+  // so the small latency cost of sequential resolution here is not
+  // meaningful.
+  const accessibleModules = await withClient((client) => getAccessibleModules(client, session, process.env));
+  const pendingApprovalCount = hasSessionPermission(session, "approvals.manage")
+    ? await withClient((client) => getPendingApprovalCount(client, session.organizationId))
+    : 0;
+  const unreadNotificationCount = await withClient((client) => getUnreadNotificationCount(client, session));
   return {
     session,
     accessibleModules,
