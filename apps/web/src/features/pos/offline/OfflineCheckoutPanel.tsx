@@ -214,7 +214,7 @@ export function OfflineCheckoutPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 lg:flex-row">
+    <div className="flex h-full flex-col gap-4 lg:flex-row">
       <div className="flex flex-1 flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
           <StatusBadge tone="warning">{`Offline — ${snapshot.store.name}`}</StatusBadge>

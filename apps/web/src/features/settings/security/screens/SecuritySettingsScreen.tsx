@@ -130,7 +130,7 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Security"
         description="Devices and browsers currently signed in to your account. Revoke any session you don't recognize."
@@ -200,9 +200,9 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
           {sessions.map((row) => (
             <li
               key={row.id}
-              className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4"
+              className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex min-w-0 items-start gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-text-secondary">
                   {row.sessionType === "mobile" ? (
                     <Smartphone className="size-4" aria-hidden="true" />
@@ -210,8 +210,8 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
                     <Laptop className="size-4" aria-hidden="true" />
                   )}
                 </span>
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-text">{row.deviceName}</span>
                     {row.isCurrent && <Badge tone="success">This device</Badge>}
                   </div>

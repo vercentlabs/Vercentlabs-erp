@@ -6,7 +6,7 @@ export default async function ProfilePage() {
   const session = await requireWorkspace();
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       <h1 className="text-xl font-semibold text-text">Profile</h1>
       <dl className="grid max-w-[480px] grid-cols-[140px_1fr] gap-y-3 text-sm">
         <dt className="text-text-muted">Name</dt>

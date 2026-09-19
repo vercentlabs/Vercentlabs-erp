@@ -28,7 +28,7 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
 
   if (!canManage) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      <div className="flex flex-1 flex-col gap-6">
         <PermissionState title="You don't have access to Organization settings" description="Ask an administrator to grant organization.manage." />
       </div>
     );
@@ -36,7 +36,7 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
 
   if (query.isLoading) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      <div className="flex flex-1 flex-col gap-6">
         <p className="text-sm text-text-secondary">Loading…</p>
       </div>
     );
@@ -44,7 +44,7 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
 
   if (query.isError || !query.data) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      <div className="flex flex-1 flex-col gap-6">
         <ErrorState
           title="Could not load organization profile"
           description={query.error instanceof OrganizationApiError ? query.error.message : "Something went wrong."}
@@ -55,7 +55,7 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader title="Organization" description="Your organization's name, timezone and fiscal year start." />
       <OrganizationProfileForm profile={query.data.profile} />
     </div>

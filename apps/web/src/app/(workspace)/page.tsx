@@ -13,7 +13,7 @@ export default async function HomePage() {
   const firstName = session.fullName.split(" ")[0] || session.fullName;
 
   return (
-    <div className="flex flex-1 flex-col gap-8 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-8">
       <div>
         <p className="text-sm text-text-muted">
           {session.companyName ? session.companyName : session.organizationName}

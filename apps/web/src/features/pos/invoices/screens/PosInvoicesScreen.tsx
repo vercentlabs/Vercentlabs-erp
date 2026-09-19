@@ -17,7 +17,7 @@ export function PosInvoicesScreen() {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "invoices"), queryFn: () => listPosInvoices({}) });
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-text">Invoices</h1>
         <p className="text-sm text-text-secondary">Formal tax invoices generated for completed POS sales.</p>

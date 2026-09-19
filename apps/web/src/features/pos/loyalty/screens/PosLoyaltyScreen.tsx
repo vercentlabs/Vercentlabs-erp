@@ -96,7 +96,7 @@ export function PosLoyaltyScreen() {
   });
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-text">Loyalty</h1>
         <p className="text-sm text-text-secondary">Configure the loyalty program and look up a customer&apos;s real points balance and ledger history.</p>

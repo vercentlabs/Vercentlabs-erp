@@ -117,7 +117,7 @@ export function PosDayEndReportDetailScreen({ reportId }: { reportId: string }) 
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6 print:p-0">
+    <div className="flex flex-col gap-6 print:p-0">
       <div className="flex items-start justify-between gap-4 print:hidden">
         <div>
           <button type="button" className="text-sm text-text-secondary hover:underline" onClick={() => router.push("/pos/reports/day-end")}>

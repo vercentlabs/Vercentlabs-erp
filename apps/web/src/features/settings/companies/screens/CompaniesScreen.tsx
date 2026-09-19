@@ -45,7 +45,7 @@ export function CompaniesScreen({ canManage }: { canManage: boolean }) {
 
   if (!canManage) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      <div className="flex flex-1 flex-col gap-6">
         <PermissionState title="You don't have access to Companies" description="Ask an administrator to grant company.manage." />
       </div>
     );
@@ -54,7 +54,7 @@ export function CompaniesScreen({ canManage }: { canManage: boolean }) {
   const companies = query.data?.companies ?? [];
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Companies"
         description="Legal entities within your organization."
@@ -74,9 +74,9 @@ export function CompaniesScreen({ canManage }: { canManage: boolean }) {
       ) : (
         <ul className="flex max-w-[720px] flex-col gap-2">
           {companies.map((company) => (
-            <li key={company.id} className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
+            <li key={company.id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-text">{company.name}</span>
                   {company.is_primary && <Badge tone="info">Primary</Badge>}
                   <Badge tone={company.status === "active" ? "success" : "neutral"}>{company.status}</Badge>
@@ -85,7 +85,7 @@ export function CompaniesScreen({ canManage }: { canManage: boolean }) {
                   {company.code} · {company.legal_name} · {company.country_code} · {company.base_currency}
                 </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
                   size="compact"

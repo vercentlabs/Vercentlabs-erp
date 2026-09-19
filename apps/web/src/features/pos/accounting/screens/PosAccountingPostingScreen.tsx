@@ -57,7 +57,7 @@ export function PosAccountingPostingScreen() {
   });
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-text">Accounting posting</h1>
         <p className="text-sm text-text-secondary">Every completed POS sale/return&apos;s general-ledger posting status — retry a failed posting here.</p>

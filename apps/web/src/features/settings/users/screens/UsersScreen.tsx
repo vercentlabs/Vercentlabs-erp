@@ -60,7 +60,7 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
 
   if (!canManage) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      <div className="flex flex-1 flex-col gap-6">
         <PermissionState title="You don't have access to Users" description="Ask an administrator to grant users.manage." />
       </div>
     );
@@ -71,7 +71,7 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
   const branches = branchesQuery.data?.branches ?? [];
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       <PageHeader title="Users" description="Active members, status, roles, and company/branch access." />
 
       {actionError ? (
@@ -89,14 +89,14 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
       ) : (
         <ul className="flex max-w-[860px] flex-col gap-2">
           {members.map((member) => (
-            <li key={member.user_id} className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
+            <li key={member.user_id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-text">{member.full_name}</span>
                   <Badge tone={member.membership_status === "active" ? "success" : "neutral"}>{member.membership_status}</Badge>
                   {member.user_id === currentUserId && <Badge tone="info">You</Badge>}
                 </div>
-                <span className="text-xs text-text-muted">{member.email}</span>
+                <span className="text-xs text-text-muted break-all">{member.email}</span>
                 <span className="text-xs text-text-muted">
                   {member.role_names.length ? member.role_names.join(", ") : "No role assigned"}
                   {" · "}
@@ -104,7 +104,7 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
                   {member.branch_names.length ? ` · Branches: ${member.branch_names.join(", ")}` : ""}
                 </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
                   size="compact"

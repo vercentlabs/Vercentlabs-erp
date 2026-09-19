@@ -144,7 +144,7 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
 
   if (!canManage) {
     return (
-      <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+      <div className="flex flex-1 flex-col gap-6">
         <PermissionState title="You don't have access to Roles and permissions" description="Ask an administrator to grant roles.view." />
       </div>
     );
@@ -153,15 +153,18 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
   const roles = query.data?.roles ?? [];
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
-      <div className="flex items-start justify-between gap-4">
-        <PageHeader title="Roles and permissions" description="Create custom roles, edit their permission grants, and assign roles to users." />
-        {canEdit && (
-          <Button variant="primary" onPress={openCreate}>
-            New role
-          </Button>
-        )}
-      </div>
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader
+        title="Roles and permissions"
+        description="Create custom roles, edit their permission grants, and assign roles to users."
+        primaryAction={
+          canEdit && (
+            <Button variant="primary" onPress={openCreate}>
+              New role
+            </Button>
+          )
+        }
+      />
 
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading…</p>
@@ -172,9 +175,9 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
       ) : (
         <ul className="flex max-w-[860px] flex-col gap-2">
           {roles.map((role) => (
-            <li key={role.id} className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
+            <li key={role.id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-text">{role.name}</span>
                   <Badge tone={RISK_TONE[role.risk_level] ?? "success"}>{role.risk_level}</Badge>
                   {role.is_system && <Badge tone="neutral">System role</Badge>}
@@ -186,7 +189,7 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
                 </span>
               </div>
               {canEdit && (
-                <div className="flex shrink-0 gap-2">
+                <div className="flex flex-wrap gap-2 sm:shrink-0">
                   <Button variant="secondary" size="compact" onPress={() => openEdit(role)} isDisabled={role.is_system}>
                     {role.is_system ? "Reserved" : "Edit"}
                   </Button>

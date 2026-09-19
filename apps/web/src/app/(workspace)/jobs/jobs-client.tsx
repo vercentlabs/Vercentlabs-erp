@@ -61,7 +61,7 @@ export function JobsClient() {
   });
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       <h1 className="text-xl font-semibold text-text">Background Jobs</h1>
 
       <div className="flex gap-1 border-b border-border">

@@ -78,14 +78,14 @@ export function NotificationsClient() {
 
   if (query.isLoading) {
     return (
-      <p className="px-8 py-10 text-sm text-text-secondary">
+      <p className="text-sm text-text-secondary">
         Loading notifications…
       </p>
     );
   }
   if (query.isError) {
     return (
-      <p className="px-8 py-10 text-sm text-danger">
+      <p className="text-sm text-danger">
         Could not load notifications. Try again.
       </p>
     );
@@ -95,7 +95,7 @@ export function NotificationsClient() {
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-6">
       {markRead.isError || markAllRead.isError ? (
         <p role="alert" className="text-sm text-danger">
           {(markRead.error as Error | null)?.message || (markAllRead.error as Error | null)?.message}

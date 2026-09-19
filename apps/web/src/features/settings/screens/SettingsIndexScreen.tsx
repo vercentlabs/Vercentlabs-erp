@@ -19,7 +19,7 @@ export async function SettingsIndexScreen() {
   const session = await requireWorkspace();
 
   return (
-    <div className="flex flex-1 flex-col gap-8 px-8 py-10">
+    <div className="flex flex-1 flex-col gap-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold text-text">Settings</h1>
         <p className="max-w-[640px] text-sm text-text-secondary">
