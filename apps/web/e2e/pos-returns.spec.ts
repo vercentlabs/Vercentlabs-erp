@@ -34,7 +34,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     await productButton.click();
     await expect(cashierSession.page.getByText("INR 250.00 each")).toBeVisible();
 
-    const cashTenderedInput = cashierSession.page.getByRole("textbox", { name: "Cash tendered" });
+    const cashTenderedInput = cashierSession.page.getByRole("textbox", { name: "Amount" });
     await cashTenderedInput.click();
     await cashTenderedInput.press("Control+A");
     await cashTenderedInput.pressSequentially("500");
@@ -42,7 +42,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
 
     const [completeResponse] = await Promise.all([
       cashierSession.page.waitForResponse((res) => res.url().includes("/api/pos/carts/") && res.url().endsWith("/complete")),
-      cashierSession.page.getByRole("button", { name: /Complete cash sale/i }).click(),
+      cashierSession.page.getByRole("button", { name: /Complete sale/i }).click(),
     ]);
     const sale = (await completeResponse.json()).sale as { id: string; receipt_number: string };
     receiptNumber = sale.receipt_number;
@@ -69,7 +69,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
 
     // react-aria's NumberField renders role="textbox" (not "spinbutton")
     // and only picks up a value through real keystroke events -- see
-    // pos-checkout.spec.ts's identical note for "Cash tendered".
+    // pos-checkout.spec.ts's identical note for the cash "Amount" field.
     const quantityInput = cashierSession.page.getByRole("textbox", { name: /Quantity to return for/i });
     await quantityInput.click();
     await quantityInput.press("Control+A");
@@ -93,7 +93,16 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     expect(createdReturn.status).toBe("pending_approval");
     expect(createdReturn.refund_total).toBe("295.000000"); // full line: 250 + 18% GST
 
-    await expect(cashierSession.page.getByText("pending approval")).toBeVisible();
+    // Real test bug found and fixed (POS Completion Program Prompt 2): a
+    // bare status-text match ("pending approval"/"approved"/"completed")
+    // is ambiguous the moment the shared, persistent E2E fixture org
+    // accumulates more than one return in the same status -- which it
+    // does, from pos-visual-qa.spec.ts's own seeded "Visual QA return"
+    // rows sitting in the same list. Scoping to this return's own row (by
+    // its unique reason text) makes every status check unambiguous
+    // regardless of how many other returns exist in the org.
+    const returnRowLocator = cashierSession.page.getByRole("row", { name: /E2E return journey -- customer changed their mind/ });
+    await expect(returnRowLocator.getByText("pending approval")).toBeVisible();
   } finally {
     await cashierSession.context.close();
   }
@@ -103,25 +112,26 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
   const managerSession = await openPersonaSession(browser, world.manager);
   try {
     await managerSession.page.goto("/pos/returns", { waitUntil: "domcontentloaded" });
-    await expect(managerSession.page.getByText("pending approval")).toBeVisible();
+    const managerRowLocator = managerSession.page.getByRole("row", { name: /E2E return journey -- customer changed their mind/ });
+    await expect(managerRowLocator.getByText("pending approval")).toBeVisible();
 
     const [approveResponse] = await Promise.all([
       managerSession.page.waitForResponse((res) => res.url().includes(`/api/pos/returns/${returnId}/approve`)),
-      managerSession.page.getByRole("button", { name: "Approve" }).click(),
+      managerRowLocator.getByRole("button", { name: "Approve" }).click(),
     ]);
     const approveBody = await approveResponse.json();
     expect(approveResponse.status(), JSON.stringify(approveBody)).toBe(200);
     expect(approveBody.posReturn.status).toBe("approved");
-    await expect(managerSession.page.getByText("approved", { exact: true })).toBeVisible();
+    await expect(managerRowLocator.getByText("approved", { exact: true })).toBeVisible();
 
     const [completeReturnResponse] = await Promise.all([
       managerSession.page.waitForResponse((res) => res.url().includes(`/api/pos/returns/${returnId}/complete`)),
-      managerSession.page.getByRole("button", { name: "Complete refund" }).click(),
+      managerRowLocator.getByRole("button", { name: "Complete refund" }).click(),
     ]);
     const completeBody = await completeReturnResponse.json();
     expect(completeReturnResponse.status(), JSON.stringify(completeBody)).toBe(200);
     expect(completeBody.posReturn.status).toBe("completed");
-    await expect(managerSession.page.getByText("completed", { exact: true })).toBeVisible();
+    await expect(managerRowLocator.getByText("completed", { exact: true })).toBeVisible();
 
     // Real Postgres facts: return completed, stock restored, sale status
     // reflects the return.

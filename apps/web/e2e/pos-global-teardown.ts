@@ -52,6 +52,17 @@ export default async function globalTeardown() {
     const { setTenantContext } = await import("../../../packages/database/src/index.js");
     await client.query("BEGIN");
     await setTenantContext(client, organizationId);
+    // pos_receipt_print_events (migration 129) and pos_return_payment_refunds
+    // (migration 130) are deliberately immutable in production (a
+    // BEFORE UPDATE OR DELETE trigger that raises) -- correct there, but it
+    // also blocks this script's own test-data cleanup. SET LOCAL scopes
+    // the bypass to this transaction only, using the exact standard
+    // Postgres mechanism for administrative bulk operations that must
+    // skip row-level triggers without weakening what the trigger protects
+    // against for a normal application caller (this connection uses
+    // MIGRATION_DATABASE_URL, an elevated role, not the app's own
+    // runtime role).
+    await client.query("SET LOCAL session_replication_role = replica");
 
     await client.query(`DELETE FROM tenant.operation_idempotency WHERE organization_id=$1 AND created_by = ANY($2::uuid[])`, [organizationId, userIds]);
     await client.query(
@@ -80,6 +91,21 @@ export default async function globalTeardown() {
       storeIds,
     ]);
     await client.query(`DELETE FROM tenant.pos_carts WHERE organization_id=$1 AND store_id = ANY($2::uuid[])`, [organizationId, storeIds]);
+    // Real bug found and fixed (POS Completion Program Prompt 2): both
+    // pos_receipt_print_events (F289, migration 129) and
+    // pos_return_payment_refunds (Gap B fix, migration 130) hard-FK onto
+    // pos_sales/pos_returns and were added after this teardown script was
+    // written -- left undeleted, they made this script fail outright with
+    // a foreign-key violation the moment any spec printed a receipt or
+    // completed a return, aborting cleanup for every row after them.
+    await client.query(
+      `DELETE FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND sale_id IN (SELECT id FROM tenant.pos_sales WHERE store_id = ANY($2::uuid[]))`,
+      [organizationId, storeIds],
+    );
+    await client.query(
+      `DELETE FROM tenant.pos_return_payment_refunds WHERE organization_id=$1 AND sale_id IN (SELECT id FROM tenant.pos_sales WHERE store_id = ANY($2::uuid[]))`,
+      [organizationId, storeIds],
+    );
     await client.query(
       `DELETE FROM tenant.pos_return_lines WHERE organization_id=$1 AND return_id IN (SELECT id FROM tenant.pos_returns WHERE sale_id IN (SELECT id FROM tenant.pos_sales WHERE store_id = ANY($2::uuid[])))`,
       [organizationId, storeIds],

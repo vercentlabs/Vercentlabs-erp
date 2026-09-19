@@ -83,7 +83,28 @@ test.describe("POS checkout safety", () => {
       await page.goto("/pos/checkout", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
       await expect(page.getByText("Cart is empty")).toBeVisible();
-      await expect(page.getByText(/could not be completed|conflict|already/i)).toHaveCount(0);
+      // Real test bug found and fixed (POS Completion Program Prompt 2):
+      // this regex matched ordinary, benign product copy ("...resume
+      // checkout if a shift is already open") whenever the page happened
+      // to render the /pos overview's own "Open a shift" state instead of
+      // checkout -- a false positive completely unrelated to whether an
+      // error banner exists. Every real error banner in this app uses
+      // role="alert" (see PosCheckoutScreen.tsx and every other POS
+      // screen's own error rendering) -- checking that directly is both
+      // more precise and actually verifies the thing this assertion is
+      // meant to prove.
+      // Real test bug found and fixed (POS Completion Program Prompt 2):
+      // an unscoped role="alert" check always finds one match here
+      // regardless of any real POS error state -- the app has its own
+      // always-mounted, empty-by-default accessibility live region using
+      // the same role (confirmed by dumping its text content: exactly one
+      // match, empty string, with the URL genuinely still /pos/checkout,
+      // not redirected). PosCheckoutScreen.tsx's own real error/conflict
+      // banners (the only two role="alert" elements it renders itself)
+      // are both conditionally mounted on non-empty state and always
+      // carry real text -- filtering to non-empty text is what actually
+      // distinguishes a real error banner from that unrelated live region.
+      await expect(page.getByRole("alert").filter({ hasText: /.+/ })).toHaveCount(0);
     } finally {
       await context.close();
     }
@@ -113,12 +134,12 @@ test.describe("POS checkout safety", () => {
 
       // Tender generously ahead of time so the button stays enabled no
       // matter how the second channel changes the total below.
-      const cashTenderedInput = page.getByRole("textbox", { name: "Cash tendered" });
+      const cashTenderedInput = page.getByRole("textbox", { name: "Amount" });
       await cashTenderedInput.click();
       await cashTenderedInput.press("Control+A");
       await cashTenderedInput.pressSequentially("5000");
       await cashTenderedInput.blur();
-      await expect(page.getByRole("button", { name: /Complete cash sale/i })).toBeEnabled();
+      await expect(page.getByRole("button", { name: /Complete sale/i })).toBeEnabled();
 
       // Second channel: the SAME cashier's own session (a second tab/
       // device is the realistic case; the point under test is the SERVER
@@ -140,7 +161,7 @@ test.describe("POS checkout safety", () => {
       // never silently accepted against the now-outdated snapshot.
       const [completeResponse] = await Promise.all([
         page.waitForResponse((res) => res.url().includes("/api/pos/carts/") && res.url().endsWith("/complete")),
-        page.getByRole("button", { name: /Complete cash sale/i }).click(),
+        page.getByRole("button", { name: /Complete sale/i }).click(),
       ]);
       expect(completeResponse.status(), "a stale completion attempt must be rejected, not silently succeed").not.toBe(201);
       const completeBody = await completeResponse.json();
@@ -172,7 +193,7 @@ test.describe("POS checkout safety", () => {
       await expect(page.getByText("INR 590.00").first()).toBeVisible({ timeout: 10_000 });
       const [finalComplete] = await Promise.all([
         page.waitForResponse((res) => res.url().includes("/api/pos/carts/") && res.url().endsWith("/complete")),
-        page.getByRole("button", { name: /Complete cash sale/i }).click(),
+        page.getByRole("button", { name: /Complete sale/i }).click(),
       ]);
       expect(finalComplete.status()).toBe(201);
     } finally {

@@ -70,7 +70,7 @@ test("cashier holds a cart, sees it in Held sales, resumes it with contents inta
     await expect(page.getByText(world.itemName)).toBeVisible();
     await expect(page.getByText("INR 295.00").first()).toBeVisible();
 
-    const cashTenderedInput = page.getByRole("textbox", { name: "Cash tendered" });
+    const cashTenderedInput = page.getByRole("textbox", { name: "Amount" });
     await cashTenderedInput.click();
     await cashTenderedInput.press("Control+A");
     await cashTenderedInput.pressSequentially("500");
@@ -78,7 +78,7 @@ test("cashier holds a cart, sees it in Held sales, resumes it with contents inta
 
     const [completeResponse] = await Promise.all([
       page.waitForResponse((res) => res.url().includes("/api/pos/carts/") && res.url().endsWith("/complete")),
-      page.getByRole("button", { name: /Complete cash sale/i }).click(),
+      page.getByRole("button", { name: /Complete sale/i }).click(),
     ]);
     expect(completeResponse.status()).toBe(201);
     const sale = (await completeResponse.json()).sale as { id: string; grand_total: string };

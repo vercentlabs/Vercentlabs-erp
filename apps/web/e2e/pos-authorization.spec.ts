@@ -67,9 +67,15 @@ test.describe("POS authorization boundaries", () => {
       await page.goto("/pos", { waitUntil: "domcontentloaded" });
       const origin = new URL(page.url()).origin;
 
+      // idempotencyKey is required since F301's idempotency fix -- omitting
+      // it fails Zod validation (400) before the authorization check this
+      // test is actually about ever runs, masking POS_STORE_ACCESS_DENIED
+      // behind an unrelated validation error. Real test bug found and
+      // fixed while investigating an unrelated E2E failure (POS
+      // Completion Program Prompt 2).
       const shiftAttempt = await page.request.post("/api/pos/shifts", {
         headers: { origin },
-        data: { storeId: world.secondStoreId, terminalId: world.secondTerminalId, openingCash: 0 },
+        data: { storeId: world.secondStoreId, terminalId: world.secondTerminalId, openingCash: 0, idempotencyKey: `e2e-denied-shift-${Date.now()}` },
       });
       const shiftBody = await shiftAttempt.json();
       expect(shiftAttempt.status(), JSON.stringify(shiftBody)).toBe(403);

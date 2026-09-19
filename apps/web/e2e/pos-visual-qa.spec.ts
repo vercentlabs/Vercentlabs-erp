@@ -39,6 +39,21 @@ const SAMPLE_VIEWPORTS = ["desktop-1440", "tablet-1024", "mobile-390"];
 let world: PosWorld;
 let saleId: string;
 let dayEndReportId: string;
+// Real bug found and fixed while diagnosing an unrelated E2E failure
+// (POS Completion Program Prompt 2): this file seeds a promotion/coupon
+// directly into the SHARED, PERSISTENT `CRM E2E Fixture Org` (via
+// pos-fixtures.ts's getPosWorld(), reused across the whole POS E2E
+// suite, not a throwaway org) purely so the admin list screens have
+// something to screenshot -- but never tore them down. A promotion with
+// no item/customer scope matches EVERY checkout in that org, so once
+// created it silently corrupted every OTHER spec's price/total
+// assertions (pos-checkout.spec.ts, pos-checkout-safety.spec.ts,
+// pos-hold-resume.spec.ts, pos-returns.spec.ts) for good, since nothing
+// ever deactivated it. Four separate leaked promotions from past runs
+// were found still active in the real database while diagnosing this.
+// Tracked here and deactivated in afterAll below.
+let seededPromotionId: string | undefined;
+let seededCouponId: string | undefined;
 
 test.beforeAll(async () => {
   world = await getPosWorld();
@@ -81,13 +96,17 @@ test.beforeAll(async () => {
     // Loyalty program (idempotent-ish: safe to call again if already seeded).
     await upsertPosLoyaltyProgram(client, supervisorContext, { name: "Visual QA Loyalty", earnRatePointsPerCurrency: 0.1, redemptionValuePerPoint: 1 }).catch(() => undefined);
 
-    // A promotion and a coupon for the admin list screens.
-    await createPosPromotion(client, supervisorContext, {
+    // A promotion and a coupon for the admin list screens. Tracked so
+    // afterAll below can deactivate them -- see the top-of-file note on
+    // why this matters beyond just tidiness.
+    const promotion = await createPosPromotion(client, supervisorContext, {
       code: `VQAPROMO-${Date.now()}`, name: "Visual QA Promotion", discountType: "percent", discountValue: 10, priority: 100,
     }).catch(() => undefined);
-    await createPosCoupon(client, supervisorContext, {
+    seededPromotionId = promotion?.id;
+    const coupon = await createPosCoupon(client, supervisorContext, {
       code: `VQACOUPON${Date.now()}`, discountType: "amount", discountValue: 25,
     }).catch(() => undefined);
+    seededCouponId = coupon?.id;
 
     // A completed sale with a real customer (so the receipt/invoice
     // screens have something to render).
@@ -133,6 +152,23 @@ test.beforeAll(async () => {
     // actually in (a real empty/error state is itself useful evidence),
     // logged loudly rather than silently swallowed.
     console.error("Visual QA seeding encountered an error (continuing with whatever succeeded):", error);
+  });
+});
+
+// Deactivate whatever this file seeded into the SHARED fixture org so it
+// stops silently corrupting every other spec's price/total assertions
+// once this run is done -- see the top-of-file note. Best-effort: the
+// screenshots this file exists to produce already happened by the time
+// this runs, so a cleanup failure here must never fail the suite.
+test.afterAll(async () => {
+  if (!seededPromotionId && !seededCouponId) return;
+  await withPosDb(async (client, organizationId) => {
+    const { setPosPromotionActive, setPosCouponActive } = await import("../../../services/api/src/index.js");
+    const supervisorContext = { organizationId, companyId: world.companyId, userId: world.supervisor.userId, roleSlugs: [], permissions: ["pos.view", "pos.settings.manage"] };
+    if (seededPromotionId) await setPosPromotionActive(client, supervisorContext, seededPromotionId, false).catch(() => undefined);
+    if (seededCouponId) await setPosCouponActive(client, supervisorContext, seededCouponId, false).catch(() => undefined);
+  }).catch((error) => {
+    console.error("Visual QA promotion/coupon cleanup failed (non-fatal):", error);
   });
 });
 
