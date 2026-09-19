@@ -69,10 +69,11 @@ export function PosCashMovementsScreen() {
   // to label each movement row with its shift/store/terminal.
   const shiftsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "shifts-lookup"), queryFn: () => listPosShifts({ limit: 200 }) });
 
-  const myOpenShift = useMemo(
-    () => shiftsQuery.data?.rows.find((row) => row.status === "open" && row.cashier_user_id === workspace.userId),
-    [shiftsQuery.data, workspace.userId],
-  );
+  const myOpenShiftQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "shifts", "my-open"),
+    queryFn: () => listPosShifts({ status: "open", cashierUserId: workspace.userId }),
+  });
+  const myOpenShift = myOpenShiftQuery.data?.rows[0];
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "pos", "cash-movement-history", filters),

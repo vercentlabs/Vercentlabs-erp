@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Select, TextField } from "@vercentlabs/design-system";
+import { ErrorState, Select, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getPosSalesAnalytics, type PosSalesAnalytics } from "@/features/pos/analytics/api/analytics-api";
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { PosApiError } from "@/features/pos/shared/http";
 import { money } from "@/features/pos/shared/format";
 
 function isoDaysAgo(days: number) {
@@ -57,7 +58,11 @@ export function PosAnalyticsScreen() {
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading…</p>
       ) : query.isError || !query.data ? (
-        <p className="text-sm text-danger">Analytics could not be loaded.</p>
+        <ErrorState
+          title="Analytics could not be loaded"
+          description={query.error instanceof PosApiError ? query.error.message : "Something went wrong."}
+          action={{ label: "Retry", onPress: () => query.refetch() }}
+        />
       ) : (
         <AnalyticsBody data={query.data} currency={currency} />
       )}

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
-import { Button } from "@vercentlabs/design-system";
+import { Button, ErrorState } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -57,7 +57,18 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   });
 
   if (query.isLoading) return <p className="p-8 text-center text-sm text-text-secondary">Loading receipt…</p>;
-  if (query.isError || !query.data) return <p className="p-8 text-center text-sm text-danger">This receipt could not be found.</p>;
+  if (query.isError || !query.data) {
+    if (query.error instanceof PosApiError && query.error.status === 404) {
+      return <ErrorState title="Receipt not found" description="This receipt does not exist or you do not have access to its store." />;
+    }
+    return (
+      <ErrorState
+        title="Could not load this receipt"
+        description={query.error instanceof PosApiError ? query.error.message : "Something went wrong."}
+        action={{ label: "Retry", onPress: () => query.refetch() }}
+      />
+    );
+  }
 
   const { sale, lines, payments, returns, promotionEvidence, printEvents } = query.data;
   const currency = sale.currency_code as string;

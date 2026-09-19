@@ -44,7 +44,10 @@ export function PosOverviewScreen() {
   const dashboardQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "dashboard"), queryFn: getPosDashboard });
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
   const terminalsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "terminals"), queryFn: listPosTerminals });
-  const shiftsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "shifts"), queryFn: () => listPosShifts() });
+  const shiftsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "shifts", "my-open"),
+    queryFn: () => listPosShifts({ status: "open", cashierUserId: workspace.userId }),
+  });
 
   const myOpenShift = useMemo(
     () => shiftsQuery.data?.rows.find((row) => (row as { status: string; cashier_user_id?: string }).status === "open" && (row as { cashier_user_id?: string }).cashier_user_id === workspace.userId),
