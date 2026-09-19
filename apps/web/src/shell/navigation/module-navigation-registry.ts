@@ -209,7 +209,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Commercial",
         featureRange: "F055-F058",
         items: [
-          planned("Price Lists", "/sales/price-lists"),
+          available("Price Lists", "/sales/price-lists"),
           planned("Discounts", "/sales/discounts"),
           planned("Terms", "/sales/terms"),
         ],

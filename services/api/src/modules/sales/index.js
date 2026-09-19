@@ -2924,3 +2924,4 @@ export async function completeFulfillmentRequest(
 // F275's customer-sensitive pricing fix reads -- without this export,
 // nothing could ever populate it outside a raw SQL insert.
 export * from "./pass1-operations.js";
+export * from "./price-lists.js";

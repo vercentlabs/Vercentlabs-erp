@@ -58,4 +58,11 @@ export function accrueSalesCommission(client: SalesQueryClient, context: SalesCo
 export function upsertSalesPriceListItem(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function upsertSalesCustomerPrice(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function listSalesPass1Options(client: SalesQueryClient, context: SalesContext): Promise<Record<string, any[]>>;
+export function listSalesPriceLists(client: SalesQueryClient, context: SalesContext): Promise<{ rows: Record<string, any>[] }>;
+export function createSalesPriceList(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+export function listSalesPriceListItems(client: SalesQueryClient, context: SalesContext, priceListId: string, options?: { limit?: number; offset?: number }): Promise<{ priceList: Record<string, any>; rows: Record<string, any>[]; total: number }>;
+export function listSalesCustomerPrices(client: SalesQueryClient, context: SalesContext, options?: { partyId?: string; limit?: number; offset?: number }): Promise<{ rows: Record<string, any>[]; total: number }>;
+export function listSalesPricingOptions(client: SalesQueryClient, context: SalesContext): Promise<{ items: Record<string, any>[]; customers: Record<string, any>[]; uoms: Record<string, any>[]; variants: Record<string, any>[] }>;
+export function deactivateSalesPriceListItem(client: SalesQueryClient, context: SalesContext, priceListItemId: string): Promise<any>;
+export function deactivateSalesPricingRule(client: SalesQueryClient, context: SalesContext, pricingRuleId: string): Promise<any>;
 export function getSalesOrderLineReservationContext(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
