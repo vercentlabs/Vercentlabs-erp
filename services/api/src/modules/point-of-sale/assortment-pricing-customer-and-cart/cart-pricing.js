@@ -106,7 +106,43 @@ async function resolveItemAndVariant(client, context, companyId, itemId, variant
   return { item, variant };
 }
 
-async function resolveUnitPrice(client, context, store, policy, line, item, variant) {
+// F275 fix: customer-sensitive pricing. Previously this resolver only
+// ever consulted the store's own price list, so a customer with a
+// negotiated price (tenant.sales_pricing_rules, the same table Sales'
+// own previewSalesDocument reads at services/api/src/modules/sales/
+// index.js:334-364) was silently charged the plain walk-in rate at POS
+// checkout — no separate POS-owned pricing master is created here, this
+// reuses Sales' authoritative rule table and its exact adjustment
+// semantics (discount_percent / discount_amount / fixed_rate, applied in
+// priority order). A manual price override still bypasses all of this
+// entirely, matching Sales' own manualOverride semantics.
+async function applyCustomerPricingRules(client, context, store, customerId, itemId, itemGroupId, quantity, listUnitPrice) {
+  if (!customerId) return listUnitPrice;
+  const rules = await client.query(
+    `SELECT adjustment_type,adjustment_value FROM tenant.sales_pricing_rules
+     WHERE organization_id=$1 AND status='active'
+       AND (company_id IS NULL OR company_id=$2)
+       AND party_id=$3 AND (party_type IS NULL OR party_type IN ('customer','both'))
+       AND (item_id IS NULL OR item_id=$4)
+       AND (item_group_id IS NULL OR item_group_id=$5)
+       AND (price_list_id IS NULL OR price_list_id=$6)
+       AND minimum_quantity<=$7
+       AND (valid_from IS NULL OR valid_from<=current_date)
+       AND (valid_to IS NULL OR valid_to>=current_date)
+     ORDER BY priority,id`,
+    [context.organizationId, context.companyId, customerId, itemId, itemGroupId, store.price_list_id, asDatabaseDecimal(quantity)],
+  );
+  let price = listUnitPrice;
+  for (const rule of rules.rows) {
+    const value = decimal(rule.adjustment_value);
+    if (rule.adjustment_type === "discount_percent") price = sub(price, percent(price, value));
+    else if (rule.adjustment_type === "discount_amount") price = max(0, sub(price, value));
+    else if (rule.adjustment_type === "fixed_rate") price = value;
+  }
+  return price;
+}
+
+async function resolveUnitPrice(client, context, store, policy, line, item, variant, customerId) {
   if (line.priceOverride) {
     if (!policy.allow_price_override) {
       throw posError(409, "Price override is disabled for this company.", "POS_PRICE_OVERRIDE_DISABLED");
@@ -143,19 +179,24 @@ async function resolveUnitPrice(client, context, store, policy, line, item, vari
      LIMIT 1`,
     [context.organizationId, store.price_list_id, item.id, asDatabaseDecimal(decimal(line.quantity)), store.currency_code],
   );
-  if (price.rows[0]) return decimal(price.rows[0].rate);
-  // No explicit price-list row for this item: a priced variant's own
-  // sales_price (or the item's own sales_price) is a legitimate fallback
-  // list price rather than a hard failure -- matches how
-  // searchPointOfSalePosProducts/lookupPointOfSaleBarcode already resolve
-  // a display price the same way (coalesce(variant.sales_price,
-  // item.sales_price)), so a product a cashier can find and scan is also
-  // a product they can actually sell.
-  const fallback = variant?.sales_price ?? item.sales_price;
-  if (fallback == null) {
-    throw posError(409, "No active POS price exists for this item and quantity.", "POS_PRICE_NOT_FOUND");
+  let listUnitPrice;
+  if (price.rows[0]) {
+    listUnitPrice = decimal(price.rows[0].rate);
+  } else {
+    // No explicit price-list row for this item: a priced variant's own
+    // sales_price (or the item's own sales_price) is a legitimate fallback
+    // list price rather than a hard failure -- matches how
+    // searchPointOfSalePosProducts/lookupPointOfSaleBarcode already resolve
+    // a display price the same way (coalesce(variant.sales_price,
+    // item.sales_price)), so a product a cashier can find and scan is also
+    // a product they can actually sell.
+    const fallback = variant?.sales_price ?? item.sales_price;
+    if (fallback == null) {
+      throw posError(409, "No active POS price exists for this item and quantity.", "POS_PRICE_NOT_FOUND");
+    }
+    listUnitPrice = decimal(fallback);
   }
-  return decimal(fallback);
+  return applyCustomerPricingRules(client, context, store, customerId, item.id, item.group_id, decimal(line.quantity), listUnitPrice);
 }
 
 export function normalizedDiscountAmount(discount, base, maxPercent, label) {
@@ -414,7 +455,7 @@ export async function priceCartLines(client, context, { store, policy, customerI
     const quantity = decimal(rawLine.quantity);
     if (quantity <= 0n) throw posError(400, "POS sale quantity must be greater than zero.", "POS_SALE_QUANTITY_INVALID");
     const { item, variant } = await resolveItemAndVariant(client, context, context.companyId, rawLine.itemId, rawLine.variantId || null);
-    const unitPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, quantity: asDatabaseDecimal(quantity) }, item, variant);
+    const unitPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, quantity: asDatabaseDecimal(quantity) }, item, variant, customerId);
     const listPrice = unitPrice;
     const grossAmount = roundMoney(mul(quantity, unitPrice), decimalPlaces);
     const manualDiscountAmount = normalizedDiscountAmount(rawLine.manualDiscount, grossAmount, policy.max_line_discount_percent, `Line ${lineNumber}`);
