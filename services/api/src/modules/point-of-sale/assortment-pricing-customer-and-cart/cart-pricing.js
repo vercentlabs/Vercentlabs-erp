@@ -163,21 +163,31 @@ async function resolveUnitPrice(client, context, store, policy, line, item, vari
       "POS_PRICE_LIST_REQUIRED",
     );
   }
+  // F274 gap closure: a variant-specific price_list_items row (migration
+  // 131) is preferred over a generic item-level one when both exist for
+  // the same item/quantity tier -- `variant_id=$6 OR variant_id IS NULL`
+  // means a plain (no-variant) line only ever matches a generic row
+  // (variant_id=NULL never satisfies `variant_id=NULL` on the left side
+  // when $6 is NULL, so it falls through to the IS NULL half), while a
+  // variant line matches either its own specific row or the generic
+  // fallback -- the ORDER BY then makes the specific one win when both
+  // exist.
   const price = await client.query(
     `SELECT price_item.rate
      FROM tenant.price_list_items price_item
      JOIN tenant.price_lists price_list
        ON price_list.organization_id=price_item.organization_id AND price_list.id=price_item.price_list_id
      WHERE price_item.organization_id=$1 AND price_item.price_list_id=$2 AND price_item.item_id=$3
+       AND (price_item.variant_id=$6 OR price_item.variant_id IS NULL)
        AND price_item.minimum_quantity<=$4 AND price_item.status='active' AND price_list.status='active'
        AND price_list.price_list_type='sales' AND price_list.currency_code=$5
        AND (price_item.valid_from IS NULL OR price_item.valid_from<=current_date)
        AND (price_item.valid_to IS NULL OR price_item.valid_to>=current_date)
        AND (price_list.valid_from IS NULL OR price_list.valid_from<=current_date)
        AND (price_list.valid_to IS NULL OR price_list.valid_to>=current_date)
-     ORDER BY price_item.minimum_quantity DESC,price_item.valid_from DESC NULLS LAST
+     ORDER BY (price_item.variant_id IS NOT NULL) DESC,price_item.minimum_quantity DESC,price_item.valid_from DESC NULLS LAST
      LIMIT 1`,
-    [context.organizationId, store.price_list_id, item.id, asDatabaseDecimal(decimal(line.quantity)), store.currency_code],
+    [context.organizationId, store.price_list_id, item.id, asDatabaseDecimal(decimal(line.quantity)), store.currency_code, variant?.id ?? null],
   );
   let listUnitPrice;
   if (price.rows[0]) {

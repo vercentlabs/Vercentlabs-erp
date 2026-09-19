@@ -191,11 +191,28 @@ export async function upsertSalesPriceListItem(client, c, input = {}) {
     const uom = await client.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, uomId]);
     if (!uom.rows[0]) throw new SalesError(409, "Selected UOM is not active.", "SALES_PRICE_UOM_INVALID");
   }
+  // F274 gap closure (POS Completion Program): an optional variant scopes
+  // this rate to one specific variant of the item (e.g. a Large vs. a
+  // Small) rather than every variant generically -- POS's own price
+  // resolver (cart-pricing.js) already prefers a variant-specific row
+  // over a generic one when both exist. Sales itself never sets this
+  // (Sales has no variant concept on its own lines); reused here rather
+  // than building a second, POS-owned price-list surface.
+  const variantId = input.variantId ? uuid(input.variantId, "Variant") : null;
+  if (variantId) {
+    const variant = await client.query(`SELECT id FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3 AND status='active'`, [
+      c.organizationId,
+      variantId,
+      itemId,
+    ]);
+    if (!variant.rows[0]) throw new SalesError(404, "Active variant not found for this item.", "SALES_PRICE_VARIANT_NOT_FOUND");
+  }
   const existing = await client.query(
     `SELECT id FROM tenant.price_list_items WHERE organization_id=$1 AND price_list_id=$2 AND item_id=$3
       AND uom_id IS NOT DISTINCT FROM $4 AND minimum_quantity=$5 AND valid_from IS NOT DISTINCT FROM $6::date
+      AND variant_id IS NOT DISTINCT FROM $7
       ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`,
-    [c.organizationId, priceListId, itemId, uomId, minimumQuantity, validFrom],
+    [c.organizationId, priceListId, itemId, uomId, minimumQuantity, validFrom, variantId],
   );
   if (existing.rows[0]) {
     const updated = await client.query(
@@ -206,9 +223,9 @@ export async function upsertSalesPriceListItem(client, c, input = {}) {
     return updated.rows[0];
   }
   const created = await client.query(
-    `INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,uom_id,minimum_quantity,rate,valid_from,valid_to,status,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$9) RETURNING *`,
-    [c.organizationId, priceListId, itemId, uomId, minimumQuantity, rate, validFrom, validTo, c.userId],
+    `INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,uom_id,minimum_quantity,rate,valid_from,valid_to,status,created_by,updated_by,variant_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$9,$10) RETURNING *`,
+    [c.organizationId, priceListId, itemId, uomId, minimumQuantity, rate, validFrom, validTo, c.userId, variantId],
   );
   return created.rows[0];
 }

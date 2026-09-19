@@ -2912,3 +2912,15 @@ export async function completeFulfillmentRequest(
   );
   return getSalesOrder(client, context, request.sales_order_id);
 }
+
+// Gap closure (POS Completion Program, comprehensive completion pass):
+// pass1-operations.js's exports were declared in index.d.ts and fully
+// implemented, but never actually re-exported here -- making price-list-
+// item management, customer-specific pricing rules, sales advances,
+// drop-ship requests and commission accrual completely unreachable from
+// any HTTP route or UI in the entire application, despite being real,
+// tested code. Most directly relevant to POS: upsertSalesCustomerPrice
+// is the ONLY way to create a tenant.sales_pricing_rules row, the table
+// F275's customer-sensitive pricing fix reads -- without this export,
+// nothing could ever populate it outside a raw SQL insert.
+export * from "./pass1-operations.js";
