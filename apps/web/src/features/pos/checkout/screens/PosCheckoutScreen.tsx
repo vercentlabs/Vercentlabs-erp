@@ -554,7 +554,7 @@ export function PosCheckoutScreen() {
         <p className="text-lg text-text">Total: {money(currency, confirmation.grandTotal)}</p>
         <p className="text-lg text-text">Change due: {money(currency, confirmation.changeTotal)}</p>
         <div className="flex gap-2">
-          <Button variant="secondary" onPress={() => router.push(`/pos/receipts/${confirmation.saleId}?original=1`)}>
+          <Button variant="secondary" onPress={() => router.push(`/pos/receipts/${confirmation.saleId}`)}>
             View / print receipt
           </Button>
           <Button variant="primary" onPress={startNewSale}>
@@ -568,7 +568,7 @@ export function PosCheckoutScreen() {
   const currency = store?.currencyCode ?? store?.currency_code ?? "";
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 lg:flex-row">
+    <div className="flex h-full flex-col gap-4 lg:flex-row">
       <div className="flex flex-1 flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold text-text">Checkout</h1>

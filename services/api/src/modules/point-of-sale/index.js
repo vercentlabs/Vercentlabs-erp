@@ -76,7 +76,7 @@ export {
 } from "./tender-and-payment-execution/payments.js";
 
 // POS-CAP-004 -- transaction continuity and documents (F287-F290).
-export { getPosSaleReceipt } from "./transaction-continuity-and-documents/receipts.js";
+export { getPosSaleReceipt, recordPosReceiptPrintAttempt, listPosReceiptPrintEvents } from "./transaction-continuity-and-documents/receipts.js";
 export { generatePosInvoice, getPosInvoiceForSale, listPosInvoices } from "./transaction-continuity-and-documents/invoices.js";
 
 // POS-CAP-005 -- returns, refunds and exchanges (F291-F293).

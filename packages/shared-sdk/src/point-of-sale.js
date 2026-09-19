@@ -95,6 +95,11 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
 
     // F289: receipts -- read-only, built entirely from persisted sale facts.
     getSaleReceipt: (saleId) => request(`/sales/${encodeURIComponent(saleId)}/receipt`),
+    // F289 gap closure: records that a print was requested (never that a
+    // physical printer confirmed output -- no code in this stack can
+    // observe that). Response includes the server-derived original/reprint
+    // classification.
+    recordReceiptPrint: (saleId) => post(`/sales/${encodeURIComponent(saleId)}/receipt/print`),
 
     // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286
     // (multiple payment methods). initiatePayment starts a non-cash leg;

@@ -106,10 +106,30 @@ function runCoreCheckoutJourney(label: string, viewport: { width: number; height
         await expect(page.getByRole("heading", { name: new RegExp(sale.receipt_number) })).toBeVisible();
 
         await page.getByRole("button", { name: /View \/ print receipt/i }).click();
-        await expect(page).toHaveURL(new RegExp(`/pos/receipts/${sale.id}\\?original=1`));
+        await expect(page).toHaveURL(new RegExp(`/pos/receipts/${sale.id}$`));
         await expect(page.getByText(`Receipt ${sale.receipt_number}`)).toBeVisible({ timeout: 10_000 });
-        await expect(page.getByText("Original", { exact: true })).toBeVisible();
+        // F289 gap closure: Original/Reprint is now server-derived from
+        // tenant.pos_receipt_print_events, not a `?original=1` URL param --
+        // before any print action, the badge is neutral ("Not yet
+        // printed"). Clicking Print records a real print event and flips
+        // the badge to "Printed — original" (verified against real
+        // Postgres, not just the UI's own claim).
+        await expect(page.getByText("Not yet printed", { exact: true })).toBeVisible();
         await expect(page.getByText(world.itemName)).toBeVisible();
+
+        await page.getByRole("button", { name: /^Print$/i }).click();
+        await expect(page.getByText("Printed — original", { exact: true })).toBeVisible({ timeout: 10_000 });
+        const printEventRow = await withPosDb((client) =>
+          client
+            .query(`SELECT print_type, requested_by FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3`, [
+              world.organizationId,
+              world.companyId,
+              sale.id,
+            ])
+            .then((r) => r.rows[0]),
+        );
+        expect(printEventRow).toBeTruthy();
+        expect(printEventRow.print_type).toBe("original");
 
         // Real Postgres facts, not just UI trust.
         const saleRow = await withPosDb((client) =>

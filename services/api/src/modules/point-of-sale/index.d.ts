@@ -348,13 +348,22 @@ export type PosHeldCart = {
 export declare function listHeldPosCarts(client: any, context: PointOfSaleContext, options?: { search?: string }): Promise<PosHeldCart[]>;
 
 // F289 receipts
+export type PosReceiptPrintEvent = {
+  id: string;
+  print_type: "original" | "reprint";
+  requested_at: string;
+  requested_by_name: string | null;
+};
 export declare function getPosSaleReceipt(client: any, context: PointOfSaleContext, saleId: string): Promise<{
   sale: Record<string, any>;
   lines: Record<string, any>[];
   payments: Record<string, any>[];
   returns: Record<string, any>[];
   promotionEvidence: Record<string, any>[];
+  printEvents: PosReceiptPrintEvent[];
 }>;
+export declare function recordPosReceiptPrintAttempt(client: any, context: PointOfSaleContext, saleId: string): Promise<PosReceiptPrintEvent>;
+export declare function listPosReceiptPrintEvents(client: any, context: PointOfSaleContext, saleId: string): Promise<PosReceiptPrintEvent[]>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
 export declare function redeemPosCartLoyaltyPoints(client: any, context: PointOfSaleContext, cartId: string, input: { points: number | string; expectedVersion?: number }): Promise<PosCart>;
 export declare function removePosCartLoyaltyRedemption(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;

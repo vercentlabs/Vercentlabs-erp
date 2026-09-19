@@ -1,6 +1,6 @@
 "use client";
 
-import { request } from "@/features/pos/shared/http";
+import { post, request } from "@/features/pos/shared/http";
 
 export type PosReceiptSale = {
   id: string;
@@ -31,11 +31,22 @@ export type PosReceiptLine = {
 export type PosReceiptPayment = { id: string; payment_method: string; amount: string };
 export type PosReceiptReturn = { id: string; return_number: string; status: string; refund_total: string };
 export type PosReceiptPromotionEvidence = { code: string; name: string; discount_amount: string };
+export type PosReceiptPrintEvent = {
+  id: string;
+  print_type: "original" | "reprint";
+  requested_at: string;
+  requested_by_name: string | null;
+};
 export type PosSaleReceipt = {
   sale: PosReceiptSale;
   lines: PosReceiptLine[];
   payments: PosReceiptPayment[];
   returns: PosReceiptReturn[];
   promotionEvidence: PosReceiptPromotionEvidence[];
+  printEvents: PosReceiptPrintEvent[];
 };
 export const getPosSaleReceipt = (saleId: string) => request<PosSaleReceipt>(`/sales/${saleId}/receipt`);
+// F289 gap closure: records a print was requested and returns the
+// server-derived original/reprint classification — never trust a
+// `?original=1` URL parameter for this, it proves nothing.
+export const recordPosReceiptPrint = (saleId: string) => post<{ printEvent: PosReceiptPrintEvent }>(`/sales/${saleId}/receipt/print`);

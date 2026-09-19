@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
 import { Button } from "@vercentlabs/design-system";
@@ -10,6 +9,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
   getPosSaleReceipt,
+  recordPosReceiptPrint,
   type PosReceiptLine,
   type PosReceiptPayment,
   type PosReceiptPromotionEvidence,
@@ -28,11 +28,21 @@ import { money } from "@/features/pos/shared/format";
 export function PosReceiptScreen({ saleId }: { saleId: string }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const isOriginal = searchParams.get("original") === "1";
   const canGenerateInvoice = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.invoiceGenerate);
 
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "receipt", saleId), queryFn: () => getPosSaleReceipt(saleId) });
+  const receiptQueryKey = scopedQueryKey(workspace, "pos", "receipt", saleId);
+  const query = useQuery({ queryKey: receiptQueryKey, queryFn: () => getPosSaleReceipt(saleId) });
+  // F289 gap closure: Original/Reprint is now derived from the server's own
+  // durable print-attempt log (tenant.pos_receipt_print_events), never from
+  // a client-supplied `?original=1` URL parameter — that was trivially
+  // forgeable and proved nothing about real print history.
+  const recordPrint = useMutation({
+    mutationFn: () => recordPosReceiptPrint(saleId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: receiptQueryKey }),
+  });
+  function handlePrint() {
+    recordPrint.mutate(undefined, { onSuccess: () => window.print() });
+  }
   // F290: a 404 here just means no invoice has been generated for this
   // sale yet -- not an error state, so retries are disabled and the
   // "not found" case renders the Generate button instead of an ErrorState.
@@ -49,26 +59,32 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   if (query.isLoading) return <p className="p-8 text-center text-sm text-text-secondary">Loading receipt…</p>;
   if (query.isError || !query.data) return <p className="p-8 text-center text-sm text-danger">This receipt could not be found.</p>;
 
-  const { sale, lines, payments, returns, promotionEvidence } = query.data;
+  const { sale, lines, payments, returns, promotionEvidence, printEvents } = query.data;
   const currency = sale.currency_code as string;
   const timestamp = new Date(sale.completed_at ?? sale.created_at);
   const hasCustomer = Boolean(sale.customer_display_name);
   const invoiceNotFound = invoiceQuery.isError && invoiceQuery.error instanceof PosApiError && invoiceQuery.error.status === 404;
+  const lastPrint = printEvents[0] ?? null;
+  const isReprint = lastPrint?.print_type === "reprint";
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 p-4 print:max-w-full">
       <div className="flex items-center justify-between print:hidden">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${isOriginal ? "bg-success-soft text-success" : "bg-surface-muted text-text-secondary"}`}>
-          {isOriginal ? "Original" : "Reprint"}
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            !lastPrint ? "bg-surface-muted text-text-secondary" : isReprint ? "bg-warning-soft text-warning" : "bg-success-soft text-success"
+          }`}
+        >
+          {!lastPrint ? "Not yet printed" : isReprint ? `Reprinted (${printEvents.length}×)` : "Printed — original"}
         </span>
-        <Button variant="secondary" size="compact" onPress={() => window.print()}>
+        <Button variant="secondary" size="compact" onPress={handlePrint} isLoading={recordPrint.isPending}>
           <Printer className="size-4" aria-hidden="true" />
           Print
         </Button>
       </div>
 
       <div className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-6 font-mono text-sm print:border-0 print:p-0">
-        {!isOriginal && <p className="text-center text-xs uppercase tracking-wide text-text-muted print:block">— Reprint —</p>}
+        {isReprint && <p className="text-center text-xs uppercase tracking-wide text-text-muted print:block">— Reprint —</p>}
         <div className="text-center">
           <p className="text-base font-semibold">{sale.store_name}</p>
           <p className="text-text-secondary">{sale.terminal_name}</p>

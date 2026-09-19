@@ -2,12 +2,15 @@
 // already-persisted, immutable sale facts (tenant.pos_sales/
 // pos_sale_lines/pos_payments/pos_returns) -- nothing here is computed
 // fresh or trusted from a client; it is a read of what completePosCart
-// already committed. "Original" vs "reprint" is derived from whether this
-// is the first read after completion or not tracked at all here (a real
-// print-audit-log would need its own table); this function itself has no
-// side effects and can be called any number of times safely.
+// already committed. getPosSaleReceipt itself has no side effects and can
+// be called any number of times safely; recordPosReceiptPrintAttempt
+// (below) is the actual audited action, backed by
+// tenant.pos_receipt_print_events (migration 129) rather than the
+// previous client-supplied `?original=1` URL parameter, which any viewer
+// could set regardless of real print history.
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
+import { event } from "../shared/audit.js";
 
 export async function getPosSaleReceipt(client, context, saleId) {
   requirePermission(context, "pos.view");
@@ -45,6 +48,14 @@ export async function getPosSaleReceipt(client, context, saleId) {
       WHERE application.organization_id=$1 AND application.sale_id=$2`,
     [context.organizationId, saleId],
   );
+  const printEvents = await client.query(
+    `SELECT print_event.id, print_event.print_type, print_event.requested_at, printer.full_name AS requested_by_name
+       FROM tenant.pos_receipt_print_events print_event
+       LEFT JOIN public.users printer ON printer.id = print_event.requested_by
+      WHERE print_event.organization_id=$1 AND print_event.company_id=$2 AND print_event.sale_id=$3
+      ORDER BY print_event.requested_at DESC`,
+    [context.organizationId, context.companyId, saleId],
+  );
 
   return {
     sale,
@@ -52,5 +63,62 @@ export async function getPosSaleReceipt(client, context, saleId) {
     payments: payments.rows,
     returns: returns.rows,
     promotionEvidence: promotions.rows,
+    printEvents: printEvents.rows,
   };
+}
+
+// F289 gap closure: records that a print was REQUESTED for this sale's
+// receipt. print_type is derived server-side (never from client input) --
+// the first ever recorded attempt for a sale is 'original', every
+// subsequent one is 'reprint'. This can only ever claim the print DIALOG
+// was invoked by an authenticated, store-access-checked user at a known
+// time -- never that physical paper came out, which nothing in a browser
+// can observe. Rows are immutable (migration 129's trigger) -- correcting
+// a mistake means nothing here, since a print request is simply a fact
+// that did or didn't happen.
+export async function recordPosReceiptPrintAttempt(client, context, saleId) {
+  requirePermission(context, "pos.view");
+  const saleResult = await client.query(
+    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
+    [context.organizationId, context.companyId, saleId],
+  );
+  const sale = saleResult.rows[0];
+  if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
+  await assertPosStoreAccess(client, context, sale.store_id);
+
+  const priorCount = await client.query(
+    `SELECT count(*)::int AS count FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3`,
+    [context.organizationId, context.companyId, saleId],
+  );
+  const printType = Number(priorCount.rows[0].count) === 0 ? "original" : "reprint";
+
+  const result = await client.query(
+    `INSERT INTO tenant.pos_receipt_print_events (organization_id,company_id,sale_id,print_type,requested_by)
+     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [context.organizationId, context.companyId, saleId, printType, context.userId],
+  );
+  const response = result.rows[0];
+  await event(client, context, "pos_sale", saleId, "pos.receipt.print_requested", { printType });
+  return response;
+}
+
+export async function listPosReceiptPrintEvents(client, context, saleId) {
+  requirePermission(context, "pos.view");
+  const saleResult = await client.query(
+    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
+    [context.organizationId, context.companyId, saleId],
+  );
+  const sale = saleResult.rows[0];
+  if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
+  await assertPosStoreAccess(client, context, sale.store_id);
+
+  const result = await client.query(
+    `SELECT print_event.id, print_event.print_type, print_event.requested_at, printer.full_name AS requested_by_name
+       FROM tenant.pos_receipt_print_events print_event
+       LEFT JOIN public.users printer ON printer.id = print_event.requested_by
+      WHERE print_event.organization_id=$1 AND print_event.company_id=$2 AND print_event.sale_id=$3
+      ORDER BY print_event.requested_at DESC`,
+    [context.organizationId, context.companyId, saleId],
+  );
+  return result.rows;
 }
