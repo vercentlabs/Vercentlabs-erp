@@ -10,3 +10,9 @@ export declare function validateScopeGrantCeiling(client: any, input: any): Prom
 export declare function validateInvitationRolesForAcceptance(client: any, input: any): Promise<any[]>;
 export declare function recordRoleSnapshot(client: any, input: any): Promise<void>;
 export declare function getUserAccessState(client: any, organizationId: string, userId: string): Promise<any>;
+export declare function listOrganizationRolesDetailed(client: any, session: any): Promise<any[]>;
+export declare function listPermissionCatalog(client: any, session: any): Promise<any[]>;
+export declare function createRole(client: any, session: any, input: any): Promise<any>;
+export declare function updateRole(client: any, session: any, roleId: string, input: any): Promise<any>;
+export declare function archiveRole(client: any, session: any, roleId: string): Promise<void>;
+export declare function setUserRoles(client: any, session: any, input: any): Promise<any>;

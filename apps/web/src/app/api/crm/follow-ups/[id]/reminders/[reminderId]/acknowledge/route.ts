@@ -12,7 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const session = await requireWorkspace();
     const { id, reminderId } = await context.params;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
       return acknowledgeReminder(client, crmContext(session), id, reminderId);
     });
     return ok({ record });

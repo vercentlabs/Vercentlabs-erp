@@ -13,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const body = (await readJson(request).catch(() => ({}))) as { expectedUpdatedAt?: string };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return reactivateCrmContact(client, crmContext(session), id, { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true });
     });
     return ok({ record });

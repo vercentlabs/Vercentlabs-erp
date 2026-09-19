@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     for (const transaction of input.transactions) {
       try {
         const result = await tenantTransaction(session.organizationId, async (client) => {
-          await requirePosAccess(client, session, "pos.offline.sync");
+          await requirePosAccess(client, session, "pos.offline.sync", { mutation: true });
           return syncOfflinePosSale(client, posContext(session), transaction);
         });
         results.push(result);

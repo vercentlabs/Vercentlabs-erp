@@ -13,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = (await readJson(request).catch(() => ({}))) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
       return completeCrmFollowUp(client, crmContext(session), id, input);
     });
     return ok({ record });

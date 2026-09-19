@@ -15,7 +15,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const body = (await readJson(request)) as { active?: boolean };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return setLeadStageTransitionReasonActive(client, crmContext(session), id, Boolean(body.active));
     });
     return ok({ record });

@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     if (mutations.length > 50) throw new HttpError(400, "Offline batches are limited to 50 mutations.");
 
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       const requiredPermissions = new Set<string>();
       for (const mutation of mutations) {
         const permission = RESOURCE_OPERATION_PERMISSIONS[`${mutation.resource}:${mutation.operation}`];

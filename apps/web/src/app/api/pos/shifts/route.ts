@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = openShiftSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.shift.open");
+      await requirePosAccess(client, session, "pos.shift.open", { mutation: true });
       return openShift(client, posContext(session), input);
     });
     return ok({ shift: result }, 201);

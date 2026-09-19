@@ -328,8 +328,12 @@ export async function resolveSessionContext(client, token, sessionType, env = pr
       COALESCE(preference.locale, 'en-IN') AS locale,
       COALESCE(preference.timezone, membership.organization_timezone, 'UTC') AS timezone,
       app_user.email_verified_at,
+      app_user.mfa_enrolled_at IS NOT NULL AS mfa_enrolled,
+      app_user.mfa_required AS mfa_required_self,
+      session.mfa_verified_at IS NOT NULL AS mfa_verified,
       membership.organization_id,
       membership.organization_name,
+      membership.mfa_enforced AS organization_mfa_enforced,
       membership.role AS membership_role,
       COALESCE(access_context.role_slugs, ARRAY[]::text[]) AS role_slugs,
       COALESCE(access_context.permissions, ARRAY[]::text[]) AS permissions,
@@ -347,6 +351,7 @@ export async function resolveSessionContext(client, token, sessionType, env = pr
         organization_membership.role,
         organization.name AS organization_name,
         organization.timezone AS organization_timezone,
+        organization.mfa_enforced,
         organization_membership.created_at
       FROM organization_memberships AS organization_membership
       JOIN organizations AS organization
@@ -520,6 +525,19 @@ export async function resolveSessionContext(client, token, sessionType, env = pr
     locale: row.locale,
     timezone: row.timezone,
     emailVerified: Boolean(row.email_verified_at),
+    // Has a working TOTP factor enrolled right now.
+    mfaEnrolled: Boolean(row.mfa_enrolled),
+    // Forced by policy (an admin targeting this one user, or this session's
+    // active organization's own mfa_enforced toggle — SP007's
+    // "Organization-enforced MFA") independent of whether they've actually
+    // enrolled yet — this is what routes an unenrolled-but-required user to
+    // enrollment instead of workspace access.
+    mfaPolicyRequired: Boolean(row.mfa_required_self) || Boolean(row.organization_mfa_enforced),
+    // Verified for THIS specific session already (the step-up gate itself
+    // should check mfaEnrolled || mfaPolicyRequired, not this alone — a
+    // voluntarily-enrolled user with no policy forcing it must still be
+    // asked for a code every login, or self-service MFA would be theater).
+    mfaVerified: Boolean(row.mfa_verified),
     organizationId: row.organization_id,
     organizationName: row.organization_name,
     membershipRole: row.membership_role,

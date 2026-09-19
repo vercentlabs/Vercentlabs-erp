@@ -26,7 +26,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = discountSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.discount.apply");
+      await requirePosAccess(client, session, "pos.discount.apply", { mutation: true });
       return setPosCartDiscount(client, posContext(session), id, input);
     });
     return ok({ cart: result });

@@ -11,7 +11,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const session = await requireWorkspace();
     const { id, tagId } = await context.params;
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return removeRecordTag(client, crmContext(session), "lead", id, tagId);
     });
     return ok({ rows });

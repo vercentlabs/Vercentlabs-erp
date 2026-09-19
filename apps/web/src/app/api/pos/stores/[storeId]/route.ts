@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ store
     const { storeId } = await context.params;
     const input = updateStoreSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
+      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
       return updatePosStore(client, posContext(session), storeId, input);
     });
     return ok({ store: result });

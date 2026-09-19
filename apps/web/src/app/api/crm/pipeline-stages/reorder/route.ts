@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const body = (await readJson(request)) as { pipelineId?: string; entries?: Array<{ id: string; expectedUpdatedAt: string }> };
     if (!body.pipelineId) throw new HttpError(400, "A pipeline is required.");
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return reorderSalesStages(client, crmContext(session), body.pipelineId as string, body.entries ?? []);
     });
     return ok(result);

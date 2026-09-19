@@ -19,7 +19,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id, lineId } = await context.params;
     const input = quantitySchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return updatePosCartLineQuantity(client, posContext(session), id, lineId, input);
     });
     return ok({ cart: result });
@@ -36,7 +36,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const url = new URL(request.url);
     const expectedVersion = url.searchParams.get("expectedVersion");
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return removePosCartLine(client, posContext(session), id, lineId, {
         expectedVersion: expectedVersion ? Number(expectedVersion) : undefined,
       });

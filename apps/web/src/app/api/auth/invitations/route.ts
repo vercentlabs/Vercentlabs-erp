@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, createOrganizationInvitation, requireSessionPermission } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createOrganizationInvitation, listOrganizationInvitations, requireSessionPermission } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { withClient } from "@/core/db";
@@ -10,6 +10,8 @@ import { requireWorkspace } from "@/core/session";
 const schema = z.object({
   email: z.string().trim().toLowerCase().email().max(320),
   roleId: z.string().uuid(),
+  companyIds: z.array(z.string().uuid()).max(200).default([]),
+  branchIds: z.array(z.string().uuid()).max(200).default([]),
 });
 
 export async function POST(request: Request) {
@@ -24,10 +26,23 @@ export async function POST(request: Request) {
         invitedByUserId: session.userId,
         email: body.email,
         roleId: body.roleId,
+        companyIds: body.companyIds,
+        branchIds: body.branchIds,
         inviter: { roleSlugs: session.roleSlugs, permissions: session.permissions },
       }),
     );
     return ok({ invitationId: result.invitationId, delivered: result.delivered }, 201);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function GET() {
+  try {
+    const session = await requireWorkspace();
+    requireSessionPermission(session, CORE_PERMISSIONS.usersManage);
+    const invitations = await withClient((client) => listOrganizationInvitations(client, session.organizationId));
+    return ok({ invitations });
   } catch (error) {
     return errorResponse(error);
   }

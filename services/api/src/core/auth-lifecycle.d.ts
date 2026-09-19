@@ -33,6 +33,8 @@ export declare function createOrganizationInvitation(
     invitedByUserId: string;
     email: string;
     roleId: string;
+    companyIds?: string[];
+    branchIds?: string[];
     inviter: { roleSlugs: string[]; permissions: string[] };
   },
   env?: any,
@@ -64,3 +66,16 @@ export declare function listPendingInvitationsForEmail(
   client: any,
   email: string,
 ): Promise<Array<{ id: string; organization_name: string; expires_at: string }>>;
+
+export declare function listOrganizationInvitations(client: any, organizationId: string): Promise<any[]>;
+
+export declare function revokeOrganizationInvitation(
+  client: any,
+  input: { organizationId: string; invitationId: string },
+): Promise<{ revoked: true }>;
+
+export declare function resendOrganizationInvitation(
+  client: any,
+  input: { organizationId: string; invitationId: string },
+  env?: any,
+): Promise<{ delivered: boolean }>;

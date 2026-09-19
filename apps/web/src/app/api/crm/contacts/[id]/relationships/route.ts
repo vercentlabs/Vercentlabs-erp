@@ -36,7 +36,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return addContactAccountRelationship(client, crmContext(session), id, input);
     });
     return ok({ rows }, 201);

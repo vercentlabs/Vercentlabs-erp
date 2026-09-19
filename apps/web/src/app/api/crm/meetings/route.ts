@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = (await readJson(request)) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
       return createCrmMeeting(client, crmContext(session), input);
     });
     return ok({ record }, 201);

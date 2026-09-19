@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     if (input.action === "scan") requireSessionPermission(session, CRM_PERMISSIONS.recordsViewAll);
     const context = crmContext(session);
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return input.action === "open"
         ? openLeadSlaCase(client, context, String(input.leadId || ""), input)
         : input.action === "respond"

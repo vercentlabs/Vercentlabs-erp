@@ -16,7 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ termin
     const { terminalId } = await context.params;
     const { status } = setStatusSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.terminal.manage");
+      await requirePosAccess(client, session, "pos.terminal.manage", { mutation: true });
       return setPosTerminalStatus(client, posContext(session), terminalId, status);
     });
     return ok({ terminal: result });

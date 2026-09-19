@@ -37,7 +37,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const body = (await readJson(request)) as { parentId?: string | null; reason?: string | null };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return setAccountParent(client, crmContext(session), id, body.parentId || null, body.reason || null);
     });
     return ok({ record });

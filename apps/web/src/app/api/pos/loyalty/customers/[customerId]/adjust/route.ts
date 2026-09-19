@@ -19,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ custom
     const { customerId } = await context.params;
     const input = adjustSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.loyalty.manage");
+      await requirePosAccess(client, session, "pos.loyalty.manage", { mutation: true });
       return adjustPosCustomerLoyaltyBalance(client, posContext(session), customerId, input.points, input.reason);
     });
     return ok({ balance: result });

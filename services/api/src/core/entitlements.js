@@ -10,6 +10,19 @@
 // idempotency-key-checked usage increments with divergence detection;
 // advisory-lock-serialized organization-limit checks (companies/branches)
 // to prevent a race from exceeding a plan's seat/company limit.
+//
+// hasWriteAccess is imported from billing.js, not redefined here -- this
+// file's own port originally DID redefine it, and because both modules
+// are re-exported with `export *` from the same services/api barrel
+// (index.js), the two same-named bindings collided: whichever module's
+// `export *` Node resolves last silently wins the whole app's actual
+// behavior, with no error and no indication the other definition was ever
+// dead. Confirmed empirically, not assumed -- importing hasWriteAccess
+// from "@vercentlabs/api" resolved to billing.js's version regardless of
+// what entitlements.js's own copy said, which is exactly "a competing
+// billing status predicate" this file must never have.
+import { hasWriteAccess } from "./billing.js";
+
 export class EntitlementError extends Error {
   constructor(status, message, code = "ENTITLEMENT_ERROR") {
     super(message);
@@ -42,13 +55,6 @@ export function billingEnforcementMode(env = process.env) {
   const configured = env.BILLING_ENFORCEMENT_MODE?.toLowerCase();
   if (configured === "observe" || configured === "enforce") return configured;
   return env.NODE_ENV === "production" ? "enforce" : "observe";
-}
-
-function hasWriteAccess({ status, trialEndsAt, graceEndsAt }) {
-  if (["active", "trialing"].includes(status)) return true;
-  if (status === "past_due" && graceEndsAt && new Date(graceEndsAt) > new Date()) return true;
-  if (trialEndsAt && new Date(trialEndsAt) > new Date()) return true;
-  return false;
 }
 
 export async function getBillingSummary(client, organizationId, env = process.env) {
@@ -125,12 +131,65 @@ export async function getBillingSummary(client, organizationId, env = process.en
   };
 }
 
+// A synthetic summary used ONLY when no organization_subscriptions row
+// exists AND enforcement is not active (billingEnforcementMode() !==
+// "enforce" -- the default everywhere except NODE_ENV=production, unless
+// BILLING_ENFORCEMENT_MODE is set explicitly). It grants unrestricted
+// module/limit access, matching this codebase's existing "observe mode
+// never blocks" contract, but it is an explicit, typed sentinel rather
+// than a bare null -- callers such as assertModuleEntitlement/
+// assertOrganizationLimit read summary.modules/summary.limits
+// unconditionally, so returning null here was a latent crash waiting for
+// the first real caller.
+function unprovisionedObserveSummary(env) {
+  return {
+    status: "unprovisioned",
+    planCode: null,
+    planName: "Unprovisioned",
+    billingPeriod: null,
+    currentPeriodEndsAt: null,
+    trialEndsAt: null,
+    graceEndsAt: null,
+    cancelAtCycleEnd: false,
+    providerSubscriptionId: null,
+    limits: { ...DEFAULT_LIMITS },
+    modules: ["*"],
+    usage: {},
+    writeAccess: true,
+    enforcementMode: billingEnforcementMode(env),
+  };
+}
+
 export async function requireBillingWriteAccess(client, organizationId, env = process.env) {
-  const summary = await getBillingSummary(client, organizationId, env);
+  let summary;
+  try {
+    summary = await getBillingSummary(client, organizationId, env);
+  } catch (error) {
+    if (!(error instanceof EntitlementError) || error.status !== 409) throw error;
+    // "Billing is not initialised" (no organization_subscriptions row at
+    // all) must NEVER be treated as unrestricted access on its own -- an
+    // absent subscription record is not proof of entitlement. Outside
+    // enforce mode (local/dev/test default, and any environment that
+    // hasn't explicitly turned enforcement on) this still doesn't block,
+    // matching the existing "observe mode never blocks" contract. Once
+    // enforcement is actually active, a missing row is treated exactly
+    // like an inactive subscription: deny ordinary business writes. Every
+    // real organization is expected to carry an explicit, auditable
+    // subscription row (see migrations 005 and 049's founder-preview
+    // backfill) -- a row still missing at that point is a genuine
+    // provisioning gap, not license to bypass billing.
+    if (billingEnforcementMode(env) !== "enforce") return unprovisionedObserveSummary(env);
+    throw new EntitlementError(
+      402,
+      "Billing is not initialised for this organisation. Contact an account owner or support before continuing.",
+      "ENTITLEMENT_SUBSCRIPTION_MISSING",
+    );
+  }
   if (!summary.writeAccess && summary.enforcementMode === "enforce") {
     throw new EntitlementError(
       402,
       "The subscription is not active. Billing owners can renew from the Billing workspace. Read and export access remains available.",
+      "ENTITLEMENT_SUBSCRIPTION_INACTIVE",
     );
   }
   return summary;

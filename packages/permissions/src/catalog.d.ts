@@ -23,6 +23,7 @@ export const CORE_PERMISSIONS: Readonly<{
   platformReportsManage: "platform.reports.manage";
   platformAiManage: "platform.ai.manage";
   platformWorkflowsManage: "platform.workflows.manage";
+  platformSecurityManage: "platform.security.manage";
   dataManagementView: "data_management.view";
   notificationsView: "notifications.view";
   modulesManage: "modules.manage";

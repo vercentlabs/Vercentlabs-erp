@@ -11,7 +11,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const session = await requireWorkspace();
     const { id } = await context.params;
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return resumePosCart(client, posContext(session), id);
     });
     return ok({ cart: result });

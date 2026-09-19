@@ -42,7 +42,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage, { mutation: true });
       return transitionLeadStage(client, crmContext(session), id, input);
     });
     return ok(result);

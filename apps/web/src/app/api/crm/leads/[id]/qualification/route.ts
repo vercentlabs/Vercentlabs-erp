@@ -32,7 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return decideLeadQualification(client, crmContext(session), id, input);
     });
     return ok(result);

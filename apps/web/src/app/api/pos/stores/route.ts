@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = createStoreSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
+      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
       return createStore(client, posContext(session), input);
     });
     return ok({ store: result }, 201);

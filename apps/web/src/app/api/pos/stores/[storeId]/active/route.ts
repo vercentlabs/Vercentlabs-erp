@@ -16,7 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     const { storeId } = await context.params;
     const { active } = setActiveSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
+      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
       return setPosStoreActive(client, posContext(session), storeId, active);
     });
     return ok({ store: result });

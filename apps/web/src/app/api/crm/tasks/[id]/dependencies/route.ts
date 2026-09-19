@@ -36,7 +36,7 @@ export async function POST(request: Request, context: RouteContext) {
     const dependsOnTaskId = String(input.dependsOnTaskId || "");
     if (!dependsOnTaskId) throw new HttpError(400, "A dependency Task id is required.");
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
       return addTaskDependency(client, crmContext(session), id, dependsOnTaskId);
     });
     return ok({ record }, 201);

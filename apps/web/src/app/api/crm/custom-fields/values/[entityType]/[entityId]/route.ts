@@ -30,7 +30,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ entit
     const { entityType, entityId } = await context.params;
     const body = (await readJson(request)) as { values?: Record<string, unknown> };
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return setCustomFieldValues(client, crmContext(session), entityType as never, entityId, body.values ?? {});
     });
     return ok({ rows });

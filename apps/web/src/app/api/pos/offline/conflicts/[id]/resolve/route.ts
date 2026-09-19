@@ -42,7 +42,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = resolveSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.offline.resolve");
+      await requirePosAccess(client, session, "pos.offline.resolve", { mutation: true });
       return resolvePosOfflineSyncConflict(client, posContext(session), id, input);
     });
     return ok({ conflict: result });

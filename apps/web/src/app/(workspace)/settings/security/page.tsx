@@ -4,6 +4,6 @@ import { SecuritySettingsScreen } from "@/features/settings/security/screens/Sec
 export const metadata = { title: "Security" };
 
 export default async function SecurityPage() {
-  await requireWorkspace();
-  return <SecuritySettingsScreen />;
+  const session = await requireWorkspace();
+  return <SecuritySettingsScreen initialMfaEnrolled={session.mfaEnrolled} />;
 }

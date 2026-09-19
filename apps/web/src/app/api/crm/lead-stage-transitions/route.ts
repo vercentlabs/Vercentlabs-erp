@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const body = (await readJson(request)) as { fromStageId?: string; toStageId?: string; reasonRequired?: boolean };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return addLeadStageTransition(client, crmContext(session), body.fromStageId ?? "", body.toStageId ?? "", { reasonRequired: body.reasonRequired });
     });
     return ok({ record }, 201);

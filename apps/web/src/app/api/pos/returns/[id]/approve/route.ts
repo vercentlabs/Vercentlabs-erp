@@ -19,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = approveReturnSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.return.approve");
+      await requirePosAccess(client, session, "pos.return.approve", { mutation: true });
       return approvePointOfSaleReturn(client, posContext(session), id, input);
     });
     return ok({ posReturn: result });

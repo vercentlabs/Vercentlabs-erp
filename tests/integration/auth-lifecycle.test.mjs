@@ -19,6 +19,9 @@ import {
   getInvitationByToken,
   acceptOrganizationInvitation,
   listPendingInvitationsForEmail,
+  listOrganizationInvitations,
+  revokeOrganizationInvitation,
+  resendOrganizationInvitation,
   AuthLifecycleError,
 } from "../../services/api/src/core/auth-lifecycle.js";
 import { AccessAdministrationError } from "../../services/api/src/core/access-administration.js";
@@ -56,6 +59,10 @@ test("auth-lifecycle: email verification, password reset, and organization invit
   const unverifiedUserId = randomUUID();
   const resetUserId = randomUUID();
   const inviteeEmail = `invitee-${randomUUID()}@test.invalid`;
+  const companyId = randomUUID();
+  const branchId = randomUUID();
+  const resendInviteeEmail = `resend-invitee-${randomUUID()}@test.invalid`;
+  let resendInvitationId;
 
   try {
     await admin.query(
@@ -84,6 +91,16 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     await admin.query(
       `INSERT INTO role_permissions(role_id,permission_key) VALUES($1,'crm.leads.manage')`,
       [privilegedRoleId],
+    );
+    await admin.query(
+      `INSERT INTO companies(id,organization_id,name,legal_name,code,country_code,base_currency)
+       VALUES($1,$2,'Auth Lifecycle Co','Auth Lifecycle Co Pvt Ltd','ALC','IN','INR')`,
+      [companyId, orgId],
+    );
+    await admin.query(
+      `INSERT INTO branches(id,organization_id,company_id,name,code,timezone)
+       VALUES($1,$2,$3,'HQ','HQ','Asia/Kolkata')`,
+      [branchId, orgId, companyId],
     );
 
     // --- Email verification ---
@@ -319,9 +336,39 @@ test("auth-lifecycle: email verification, password reset, and organization invit
       invitedByUserId: inviterUserId,
       email: inviteeEmail,
       roleId,
+      companyIds: [companyId],
+      branchIds: [branchId],
       inviter: inviterActor,
     });
     assert.ok(invitationId);
+
+    // An invitation targeting a company/branch from a DIFFERENT
+    // organization must be rejected, not silently accepted — proves the
+    // validation is real, not just "the array happens to be non-empty."
+    const foreignOrgId = randomUUID();
+    await admin.query(
+      `INSERT INTO organizations(id,name,slug,country_code,timezone,base_currency,created_by) VALUES($1,'Foreign Org',$2,'IN','Asia/Kolkata','INR',$3)`,
+      [foreignOrgId, `foreign-org-${foreignOrgId}`, inviterUserId],
+    );
+    const foreignCompanyId = randomUUID();
+    await admin.query(
+      `INSERT INTO companies(id,organization_id,name,legal_name,code,country_code,base_currency) VALUES($1,$2,'Foreign Co','Foreign Co','FC','IN','INR')`,
+      [foreignCompanyId, foreignOrgId],
+    );
+    await assert.rejects(
+      () =>
+        createOrganizationInvitation(admin, {
+          organizationId: orgId,
+          invitedByUserId: inviterUserId,
+          email: `cross-tenant-${randomUUID()}@test.invalid`,
+          roleId,
+          companyIds: [foreignCompanyId],
+          inviter: inviterActor,
+        }),
+      (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_COMPANY_INVALID",
+    );
+    await admin.query(`DELETE FROM companies WHERE id=$1`, [foreignCompanyId]).catch(() => undefined);
+    await admin.query(`DELETE FROM organizations WHERE id=$1`, [foreignOrgId]).catch(() => undefined);
 
     const pendingForEmail = await listPendingInvitationsForEmail(admin, inviteeEmail);
     assert.equal(pendingForEmail.length, 1);
@@ -350,6 +397,21 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     );
     assert.equal(roleAssignment.rows[0].status, "active", "the invited role was actually assigned, not just organization membership");
 
+    // Real bug this closes (migration 048): a scoped-role invitee used to
+    // get membership + role but ZERO company/branch access — invited into
+    // a workplace they could not actually see. Same acceptance transaction,
+    // atomic with the membership/role assertions just above.
+    const companyGrant = await admin.query(
+      `SELECT 1 FROM membership_company_access WHERE organization_id = $1 AND user_id = $2 AND company_id = $3`,
+      [orgId, accepted.userId, companyId],
+    );
+    assert.ok(companyGrant.rows[0], "the invited company grant was actually created, atomically with membership/role");
+    const branchGrant = await admin.query(
+      `SELECT 1 FROM membership_branch_access WHERE organization_id = $1 AND user_id = $2 AND branch_id = $3`,
+      [orgId, accepted.userId, branchId],
+    );
+    assert.ok(branchGrant.rows[0], "the invited branch grant was actually created, atomically with membership/role");
+
     const newUserVerified = await admin.query(`SELECT email_verified_at FROM users WHERE id = $1`, [accepted.userId]);
     assert.ok(newUserVerified.rows[0].email_verified_at, "accepting an invitation verifies the email — proof of mailbox control");
 
@@ -361,6 +423,71 @@ test("auth-lifecycle: email verification, password reset, and organization invit
 
     const pendingAfterAccept = await listPendingInvitationsForEmail(admin, inviteeEmail);
     assert.equal(pendingAfterAccept.length, 0, "an accepted invitation no longer shows as pending");
+
+    // --- Admin invitation management: list/revoke/resend ---
+    const adminList = await listOrganizationInvitations(admin, orgId);
+    const acceptedRow = adminList.find((row) => row.id === invitationId);
+    assert.ok(acceptedRow, "the admin list includes every invitation ever issued, not just pending ones");
+    assert.equal(acceptedRow.status, "accepted");
+    assert.deepEqual(acceptedRow.company_ids, [companyId]);
+    assert.deepEqual(acceptedRow.branch_ids, [branchId]);
+
+    await assert.rejects(
+      () => revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId }),
+      (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_REVOCABLE",
+      "an already-accepted invitation cannot be revoked",
+    );
+
+    const { invitationId: resendInvitationIdCreated } = await createOrganizationInvitation(admin, {
+      organizationId: orgId,
+      invitedByUserId: inviterUserId,
+      email: resendInviteeEmail,
+      roleId,
+      inviter: inviterActor,
+    });
+    resendInvitationId = resendInvitationIdCreated;
+    const beforeResend = await admin.query(`SELECT token_hash, send_count FROM organization_invitations WHERE id=$1`, [resendInvitationId]);
+    const resendResult = await resendOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId });
+    assert.equal(typeof resendResult.delivered, "boolean");
+    const afterResend = await admin.query(`SELECT token_hash, send_count FROM organization_invitations WHERE id=$1`, [resendInvitationId]);
+    assert.notEqual(afterResend.rows[0].token_hash, beforeResend.rows[0].token_hash, "resending issues a fresh token — the old link must stop working");
+    assert.equal(afterResend.rows[0].send_count, beforeResend.rows[0].send_count + 1);
+
+    const revokeResult = await revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId });
+    assert.equal(revokeResult.revoked, true);
+    const revokedList = await listOrganizationInvitations(admin, orgId);
+    assert.equal(revokedList.find((row) => row.id === resendInvitationId).status, "revoked");
+
+    await assert.rejects(
+      () => resendOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId }),
+      (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_RESENDABLE",
+      "a revoked invitation cannot be resent",
+    );
+    await assert.rejects(
+      () => revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId }),
+      (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_REVOCABLE",
+      "an already-revoked invitation cannot be revoked again",
+    );
+
+    // Cross-organization: revoking a genuinely still-pending invitation
+    // using the WRONG organizationId must fail exactly like "not found" —
+    // proves the organizationId check is real tenant isolation, not
+    // decorative (a naive `WHERE id = $1` alone would have let this through).
+    const { invitationId: crossOrgCheckInvitationId } = await createOrganizationInvitation(admin, {
+      organizationId: orgId,
+      invitedByUserId: inviterUserId,
+      email: `cross-org-revoke-${randomUUID()}@test.invalid`,
+      roleId,
+      inviter: inviterActor,
+    });
+    const wrongOrgId = randomUUID();
+    await assert.rejects(
+      () => revokeOrganizationInvitation(admin, { organizationId: wrongOrgId, invitationId: crossOrgCheckInvitationId }),
+      (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_REVOCABLE",
+    );
+    const stillPending = await admin.query(`SELECT revoked_at FROM organization_invitations WHERE id=$1`, [crossOrgCheckInvitationId]);
+    assert.equal(stillPending.rows[0].revoked_at, null, "the wrong-organization revoke attempt must have had zero effect");
+    await revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: crossOrgCheckInvitationId });
 
     // --- Existing-account invitation acceptance (2D) ---
     // Regression guard: acceptOrganizationInvitation used to grant a live
@@ -472,15 +599,20 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     });
     assert.ok(privilegedInvite.invitationId, "an inviter who holds the permission themselves can grant it");
   } finally {
+    await admin.query(`DELETE FROM membership_company_access WHERE organization_id = $1`, [orgId]).catch(() => undefined);
+    await admin.query(`DELETE FROM membership_branch_access WHERE organization_id = $1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM user_role_assignments WHERE organization_id = $1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM organization_memberships WHERE organization_id = $1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM organization_invitations WHERE organization_id = $1`, [orgId]).catch(() => undefined);
+    await admin.query(`DELETE FROM branches WHERE organization_id = $1`, [orgId]).catch(() => undefined);
+    await admin.query(`DELETE FROM companies WHERE organization_id = $1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM sessions WHERE user_id = $1`, [resetUserId]).catch(() => undefined);
     await admin.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [resetUserId]).catch(() => undefined);
     await admin.query(`DELETE FROM email_verification_tokens WHERE user_id = $1`, [unverifiedUserId]).catch(() => undefined);
     await admin.query(`DELETE FROM users WHERE id = $1`, [unverifiedUserId]).catch(() => undefined);
     await admin.query(`DELETE FROM users WHERE id = $1`, [resetUserId]).catch(() => undefined);
     await admin.query(`DELETE FROM users WHERE email = $1`, [inviteeEmail]).catch(() => undefined);
+    await admin.query(`DELETE FROM users WHERE email = $1`, [resendInviteeEmail]).catch(() => undefined);
     await admin.query(`DELETE FROM roles WHERE id = $1`, [roleId]).catch(() => undefined);
     await admin.query(`DELETE FROM roles WHERE id = $1`, [privilegedRoleId]).catch(() => undefined);
     await admin.query(`DELETE FROM organizations WHERE id = $1`, [orgId]).catch(() => undefined);

@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
       return updateCrmMeeting(client, crmContext(session), id, input);
     });
     return ok({ record });

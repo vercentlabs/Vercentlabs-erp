@@ -19,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id: targetId } = await context.params;
     const body = (await readJson(request)) as { sourceId: string };
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.dataQualityManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.dataQualityManage, { mutation: true });
       return mergeCrmLead(client, crmContext(session), body.sourceId, targetId);
     });
     return ok({ result });

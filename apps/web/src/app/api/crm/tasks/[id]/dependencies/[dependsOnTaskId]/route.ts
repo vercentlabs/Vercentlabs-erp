@@ -12,7 +12,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const session = await requireWorkspace();
     const { id, dependsOnTaskId } = await context.params;
     await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
       return removeTaskDependency(client, crmContext(session), id, dependsOnTaskId);
     });
     return ok({ removed: true });

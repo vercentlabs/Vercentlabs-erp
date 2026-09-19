@@ -20,7 +20,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ termi
     const { terminalId } = await context.params;
     const input = updateTerminalSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.terminal.manage");
+      await requirePosAccess(client, session, "pos.terminal.manage", { mutation: true });
       return updatePosTerminal(client, posContext(session), terminalId, input);
     });
     return ok({ terminal: result });

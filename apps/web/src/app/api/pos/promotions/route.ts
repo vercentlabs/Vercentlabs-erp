@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = createSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.settings.manage");
+      await requirePosAccess(client, session, "pos.settings.manage", { mutation: true });
       return createPosPromotion(client, posContext(session), input);
     });
     return ok({ record: result }, 201);

@@ -2,9 +2,16 @@ route,mutation_methods,has_auth,has_origin_check,has_authorization_check,documen
 api/approvals/[id]/decide/route.ts,POST,true,true,false,
 api/auth/forgot-password/route.ts,POST,false,true,false,"Public by design (account-enumeration-safe); assertSameOrigin applies, rate-limited, identical response regardless of registration state."
 api/auth/invitations/[token]/accept/route.ts,POST,false,true,false,Token-bearer for a new account; an existing account additionally requires a matching authenticated session (see acceptOrganizationInvitation's authenticatedUserId parameter). assertSameOrigin applies.
+api/auth/invitations/manage/[id]/resend/route.ts,POST,true,true,true,
+api/auth/invitations/manage/[id]/revoke/route.ts,POST,true,true,true,
 api/auth/invitations/route.ts,POST,true,true,true,
 api/auth/login/route.ts,POST,false,true,false,Pre-authentication: there is no session yet to protect; assertSameOrigin still applies to the login POST itself.
 api/auth/logout/route.ts,POST,false,true,false,"Deliberately reads the session cookie directly rather than calling requireUser()/requireWorkspace() — logout must work even for an unverified or org-less session, which those helpers would redirect away from instead of processing. Idempotent/safe with no cookie at all. assertSameOriginOrMobile still applies."
+api/auth/mfa/disable/route.ts,POST,true,true,false,
+api/auth/mfa/enroll/confirm/route.ts,POST,true,true,false,
+api/auth/mfa/enroll/start/route.ts,POST,true,true,false,
+api/auth/mfa/recovery-codes/regenerate/route.ts,POST,true,true,false,
+api/auth/mfa/verify/route.ts,POST,true,true,false,
 api/auth/resend-verification/route.ts,POST,true,true,false,
 api/auth/reset-password/route.ts,POST,false,true,false,Token-bearer authentication; assertSameOrigin applies.
 api/auth/verify-email/route.ts,POST,false,true,false,Token-bearer authentication (proof of mailbox control IS the credential); assertSameOrigin applies.
@@ -166,7 +173,18 @@ api/pos/terminals/route.ts,POST,true,true,true,
 api/privacy/requests/[id]/transition/route.ts,POST,true,true,true,
 api/privacy/requests/route.ts,POST,true,true,true,
 api/privacy/retention-policies/route.ts,POST,true,true,true,
+api/settings/branches/[id]/route.ts,PUT,true,true,false,
+api/settings/branches/route.ts,POST,true,true,false,
+api/settings/companies/[id]/route.ts,PUT,true,true,false,
+api/settings/companies/route.ts,POST,true,true,false,
+api/settings/organization/profile/route.ts,PUT,true,true,false,
+api/settings/organization/security/route.ts,PUT,true,true,false,
+api/settings/roles/[id]/route.ts,"PUT,DELETE",true,true,false,
+api/settings/roles/route.ts,POST,true,true,false,
 api/settings/sessions/[id]/route.ts,DELETE,true,true,false,
 api/settings/sessions/route.ts,DELETE,true,true,false,
+api/settings/users/[id]/access/route.ts,PUT,true,true,false,
+api/settings/users/[id]/roles/route.ts,PUT,true,true,false,
+api/settings/users/[id]/status/route.ts,PUT,true,true,false,
 api/test-support/email-capture/route.ts,POST,false,false,false,"Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here."
 api/workspace/context/route.ts,PATCH,true,true,false,

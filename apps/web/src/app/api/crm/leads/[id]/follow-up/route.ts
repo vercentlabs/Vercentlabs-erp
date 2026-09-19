@@ -46,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const crmApiContext = crmContext(session);
 
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       const before = await getCrmRecord(client, crmApiContext, "leads", id);
       if (["converted", "archived"].includes(String(before.recordStatus))) {
         throw new HttpError(409, "Follow-ups cannot be scheduled for converted or archived leads.", "CRM_LEAD_FOLLOW_UP_CLOSED");

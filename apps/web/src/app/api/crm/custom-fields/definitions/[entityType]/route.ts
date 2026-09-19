@@ -32,7 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ entity
     const { entityType } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return createCustomFieldDefinition(client, crmContext(session), { ...input, entityType });
     });
     return ok({ record }, 201);

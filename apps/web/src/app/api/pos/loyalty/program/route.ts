@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = upsertSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.loyalty.manage");
+      await requirePosAccess(client, session, "pos.loyalty.manage", { mutation: true });
       return upsertPosLoyaltyProgram(client, posContext(session), input);
     });
     return ok({ record: result });

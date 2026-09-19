@@ -14,7 +14,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return updateLeadScoringModel(client, crmContext(session), id, input);
     });
     return ok({ record });

@@ -19,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = closeShiftSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.shift.close");
+      await requirePosAccess(client, session, "pos.shift.close", { mutation: true });
       return closeShift(client, posContext(session), id, input);
     });
     return ok({ shift: result });

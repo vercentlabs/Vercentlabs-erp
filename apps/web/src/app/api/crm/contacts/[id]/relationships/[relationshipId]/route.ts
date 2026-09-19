@@ -15,7 +15,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id, relationshipId } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return updateContactAccountRelationship(client, crmContext(session), id, relationshipId, input);
     });
     return ok({ rows });
@@ -32,7 +32,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const url = new URL(request.url);
     const promoteRelationshipId = url.searchParams.get("promoteRelationshipId") ?? undefined;
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return removeContactAccountRelationship(client, crmContext(session), id, relationshipId, { promoteRelationshipId });
     });
     return ok({ rows });

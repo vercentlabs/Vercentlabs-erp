@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       outcomeNotes?: string | null;
     };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
       return moveOpportunityStage(client, crmContext(session), id, body.stageId, body.note ?? null, {
         expectedUpdatedAt: body.expectedUpdatedAt,
         expectedStageId: body.expectedStageId,

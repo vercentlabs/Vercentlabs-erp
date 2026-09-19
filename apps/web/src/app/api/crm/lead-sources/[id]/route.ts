@@ -13,7 +13,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id } = await context.params;
     const body = (await readJson(request)) as { input?: Record<string, unknown>; expectedUpdatedAt?: string };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return updateCrmLeadSource(client, crmContext(session), id, body.input ?? {}, {
         expectedUpdatedAt: body.expectedUpdatedAt,
         requireVersion: true,

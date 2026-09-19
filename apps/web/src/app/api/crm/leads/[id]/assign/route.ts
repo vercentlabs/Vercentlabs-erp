@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       overrideReason?: string;
     };
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return assignLeadOwner(client, crmContext(session), id, body.ownerUserId ?? null, {
         reason: body.reason,
         expectedUpdatedAt: body.expectedUpdatedAt,

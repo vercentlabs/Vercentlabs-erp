@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = accessSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
+      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
       return grantPosStoreAccess(client, posContext(session), input);
     });
     return ok({ grant: result }, 201);
@@ -46,7 +46,7 @@ export async function DELETE(request: Request) {
     const url = new URL(request.url);
     const input = accessSchema.parse({ userId: url.searchParams.get("userId"), storeId: url.searchParams.get("storeId"), terminalId: url.searchParams.get("terminalId") || undefined });
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
+      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
       return revokePosStoreAccess(client, posContext(session), input);
     });
     return ok(result);

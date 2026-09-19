@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     };
     if (!body.sourceId || !body.survivorId) throw new HttpError(400, "Both sourceId and survivorId are required.");
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return mergeAccountsGoverned(client, crmContext(session), body.sourceId!, body.survivorId!, body.reason ?? null, {
         fieldSelections: body.fieldSelections,
         expectedSourceUpdatedAt: body.expectedSourceUpdatedAt,

@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = createCartSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return createPosCart(client, posContext(session), input);
     });
     return ok({ cart: result }, 201);

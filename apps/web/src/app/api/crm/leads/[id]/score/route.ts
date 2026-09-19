@@ -32,7 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = (await readJson(request).catch(() => ({}))) as { reason?: string };
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return recalculateLeadScore(client, crmContext(session), id, input.reason || "Manual recalculation from Lead 360");
     });
     return ok(result);

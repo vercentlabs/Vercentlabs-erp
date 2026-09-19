@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = applyTemplateSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return applyLeadStageTemplateUpgrade(client, crmContext(session), input);
     });
     return ok(result);

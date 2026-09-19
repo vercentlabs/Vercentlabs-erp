@@ -14,7 +14,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const session = await requireWorkspace();
     const { fromId, toId } = await context.params;
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return removeLeadStageTransition(client, crmContext(session), fromId, toId);
     });
     return ok(result);

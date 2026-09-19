@@ -1,6 +1,6 @@
 import "server-only";
 
-import { assertModuleAccessible, requireSessionPermission } from "@vercentlabs/api";
+import { assertModuleAccessible, requireBillingWriteAccess, requireSessionPermission } from "@vercentlabs/api";
 
 // Relative, not the "@/" alias: that alias is a tsconfig-only path that
 // only Next's bundler resolves, not plain `node --test`. This file starts
@@ -32,9 +32,23 @@ type QueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: un
 // the one place that closes it — call it first, inside the same
 // withClient/tenantTransaction callback that runs the actual domain call,
 // for every CRM route (mutating or not).
-export async function requireCrmAccess(client: QueryClient, session: WorkspaceSessionContext, permission?: string) {
+// `mutation: true` additionally requires an active subscription
+// (requireBillingWriteAccess) before the caller proceeds -- opt-in, not
+// automatic, because this same function gates CRM's read routes too
+// (every existing call site passes no option and keeps today's exact
+// behavior). Pass it only from a route/domain path that genuinely creates,
+// updates, deletes, or otherwise writes a business record; never from a
+// read, an export, or a security/recovery/billing-admin operation, which
+// must remain reachable regardless of subscription state.
+export async function requireCrmAccess(
+  client: QueryClient,
+  session: WorkspaceSessionContext,
+  permission?: string,
+  options: { mutation?: boolean } = {},
+) {
   await assertModuleAccessible(client, session, "crm", process.env);
   if (permission) requireSessionPermission(session, permission);
+  if (options.mutation) await requireBillingWriteAccess(client, session.organizationId, process.env);
 }
 
 // Checkpoint audit (ERP completion gap register, SEC-CRM-001): the
@@ -54,9 +68,13 @@ export async function requireCrmAccess(client: QueryClient, session: WorkspaceSe
 export async function requireCrmMutationAccess(client: QueryClient, session: WorkspaceSessionContext, resource: string) {
   await assertModuleAccessible(client, session, "crm", process.env);
   const resolution = resolveCrmMutationPermission(resource);
-  if (resolution.kind === "self-scoped") return;
+  if (resolution.kind === "self-scoped") {
+    await requireBillingWriteAccess(client, session.organizationId, process.env);
+    return;
+  }
   if (resolution.kind === "requires-permission") {
     requireSessionPermission(session, resolution.permission);
+    await requireBillingWriteAccess(client, session.organizationId, process.env);
     return;
   }
   throw new HttpError(403, "You do not have permission to modify this CRM resource.", "PERMISSION_DENIED");

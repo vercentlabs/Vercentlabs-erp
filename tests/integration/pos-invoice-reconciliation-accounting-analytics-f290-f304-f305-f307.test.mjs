@@ -358,7 +358,17 @@ test("F290/F304/F305/F307: invoice generation, payment reconciliation, accountin
     });
 
     await t.test("F307: analytics totals reconcile with the fixture's own known sales, tender split and accounting posting status", async () => {
-      const today = new Date().toISOString().slice(0, 10);
+      // getPosSalesAnalytics buckets by (sale.sale_date AT TIME ZONE
+      // store.timezone)::date — this fixture's store is Asia/Kolkata
+      // (line ~150), so "today" must be computed in THAT timezone, not
+      // raw UTC. Real bug this fix replaces: new Date().toISOString()
+      // gives the UTC date, which drifts a full calendar day behind IST
+      // for the ~5.5 hours a day UTC has crossed midnight but IST hasn't
+      // yet (or vice versa) — the sales just inserted above land on
+      // "tomorrow" in the store's own timezone while this assertion was
+      // still filtering by "today" in UTC, reproducibly returning zero
+      // rows in that window despite the product code being correct.
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
       const analytics = await tx((c) => getPosSalesAnalytics(c, supervisorContext, { dateFrom: today, dateTo: today, storeId }));
       assert.equal(analytics.summary.saleCount, 3);
       assert.equal(analytics.summary.grandTotal, "300.000000");

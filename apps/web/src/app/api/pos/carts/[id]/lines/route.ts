@@ -28,7 +28,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = addLineSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return addPosCartLine(client, posContext(session), id, input);
     });
     return ok({ cart: result });

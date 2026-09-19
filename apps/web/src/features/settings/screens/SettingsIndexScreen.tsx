@@ -23,8 +23,9 @@ export async function SettingsIndexScreen() {
       <div className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold text-text">Settings</h1>
         <p className="max-w-[640px] text-sm text-text-secondary">
-          Organization, people, billing, and governance settings are being built out section by section. Profile and
-          Security are live; everything else below is planned and not yet reachable.
+          Organization, people, billing, and governance settings are being built out section by section. Account,
+          Organization and People sections are live; Billing/integrations and Governance are planned and not yet
+          reachable.
         </p>
       </div>
 

@@ -14,7 +14,7 @@ export async function POST(request: Request, context: RouteContext) {
     const session = await requireWorkspace();
     const { id, relationshipId } = await context.params;
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return setPrimaryContactAccountRelationship(client, crmContext(session), id, relationshipId);
     });
     return ok({ rows });

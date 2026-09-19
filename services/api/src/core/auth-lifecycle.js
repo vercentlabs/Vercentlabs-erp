@@ -170,11 +170,35 @@ export async function resetPasswordWithToken(client, token, newPassword) {
 
 const INVITATION_TOKEN_TTL_DAYS = 7;
 
-export async function createOrganizationInvitation(client, { organizationId, invitedByUserId, email, roleId, inviter }, env = process.env) {
+export async function createOrganizationInvitation(
+  client,
+  { organizationId, invitedByUserId, email, roleId, companyIds = [], branchIds = [], inviter },
+  env = process.env,
+) {
   const role = (
     await client.query(`SELECT id, name FROM roles WHERE id = $1 AND organization_id = $2 AND status = 'active'`, [roleId, organizationId])
   ).rows[0];
   if (!role) throw new AuthLifecycleError(422, "That role does not exist in this organization.", "AUTH_ROLE_NOT_FOUND");
+
+  // SP001/SP004 real gap this closes: without this, an invitee with a
+  // scoped (non-unrestricted) role joined the organization and saw zero
+  // companies/branches — invited into a workplace they could not actually
+  // access. Validated against this organization (never trusted blind) so
+  // an invitation can never grant access to another tenant's company/branch.
+  const uniqueCompanyIds = [...new Set(companyIds)];
+  const uniqueBranchIds = [...new Set(branchIds)];
+  if (uniqueCompanyIds.length) {
+    const found = await client.query(`SELECT id FROM companies WHERE organization_id = $1 AND id = ANY($2::uuid[])`, [organizationId, uniqueCompanyIds]);
+    if (found.rows.length !== uniqueCompanyIds.length) {
+      throw new AuthLifecycleError(422, "One or more selected companies do not belong to this organization.", "AUTH_INVITATION_COMPANY_INVALID");
+    }
+  }
+  if (uniqueBranchIds.length) {
+    const found = await client.query(`SELECT id FROM branches WHERE organization_id = $1 AND id = ANY($2::uuid[])`, [organizationId, uniqueBranchIds]);
+    if (found.rows.length !== uniqueBranchIds.length) {
+      throw new AuthLifecycleError(422, "One or more selected branches do not belong to this organization.", "AUTH_INVITATION_BRANCH_INVALID");
+    }
+  }
 
   // SP008 grant-ceiling/SoD enforcement (access-administration.js) already
   // exists and is used for role assignment, but this issuance path never
@@ -223,18 +247,18 @@ export async function createOrganizationInvitation(client, { organizationId, inv
     invitationId = pending.id;
     await client.query(
       `UPDATE organization_invitations
-          SET token_hash = $2, role_id = $3, invited_by = $4,
+          SET token_hash = $2, role_id = $3, invited_by = $4, company_ids = $5, branch_ids = $6,
               expires_at = now() + interval '${INVITATION_TOKEN_TTL_DAYS} days',
               last_sent_at = now(), send_count = send_count + 1
         WHERE id = $1`,
-      [invitationId, hash, roleId, invitedByUserId],
+      [invitationId, hash, roleId, invitedByUserId, uniqueCompanyIds, uniqueBranchIds],
     );
   } else {
     invitationId = randomUUID();
     await client.query(
-      `INSERT INTO organization_invitations (id, organization_id, email, role, role_id, token_hash, invited_by, expires_at)
-       VALUES ($1, $2, $3, 'member', $4, $5, $6, now() + interval '${INVITATION_TOKEN_TTL_DAYS} days')`,
-      [invitationId, organizationId, email, roleId, hash, invitedByUserId],
+      `INSERT INTO organization_invitations (id, organization_id, email, role, role_id, company_ids, branch_ids, token_hash, invited_by, expires_at)
+       VALUES ($1, $2, $3, 'member', $4, $5, $6, $7, $8, now() + interval '${INVITATION_TOKEN_TTL_DAYS} days')`,
+      [invitationId, organizationId, email, roleId, uniqueCompanyIds, uniqueBranchIds, hash, invitedByUserId],
     );
   }
 
@@ -295,7 +319,7 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
   const hash = tokenHash(token);
   const invitation = (
     await client.query(
-      `SELECT id, organization_id, email, role_id, expires_at, accepted_at, revoked_at
+      `SELECT id, organization_id, email, role_id, company_ids, branch_ids, expires_at, accepted_at, revoked_at
          FROM organization_invitations WHERE token_hash = $1 FOR UPDATE`,
       [hash],
     )
@@ -357,6 +381,24 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
       [invitation.organization_id, userId, invitation.role_id],
     );
   }
+  // SP001/SP004 real gap this closes (migration 048): without this, a
+  // scoped-role invitee joined the organization with membership + role but
+  // NO company/branch access at all — invited into a workplace they
+  // couldn't actually see. Same transaction as membership/role above (this
+  // whole function always runs inside one — see the accept route), so a
+  // partial grant (membership without workplace access) can never persist.
+  for (const companyId of invitation.company_ids || []) {
+    await client.query(
+      `INSERT INTO membership_company_access (organization_id, user_id, company_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [invitation.organization_id, userId, companyId],
+    );
+  }
+  for (const branchId of invitation.branch_ids || []) {
+    await client.query(
+      `INSERT INTO membership_branch_access (organization_id, user_id, branch_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [invitation.organization_id, userId, branchId],
+    );
+  }
   await client.query(`UPDATE organization_invitations SET accepted_at = now() WHERE id = $1`, [invitation.id]);
 
   return { userId, organizationId: invitation.organization_id, mintNewSession };
@@ -375,4 +417,78 @@ export async function listPendingInvitationsForEmail(client, email) {
     [email],
   );
   return rows.rows;
+}
+
+// Admin-facing view (Settings > People > Invitations) — every invitation
+// ever issued for the organization, not just this caller's own pending
+// ones (listPendingInvitationsForEmail above is the self-service "what am
+// I invited to" list, a different audience/authorization entirely).
+export async function listOrganizationInvitations(client, organizationId) {
+  const rows = await client.query(
+    `SELECT
+        invitation.id, invitation.email, invitation.role_id, role.name AS role_name,
+        invitation.company_ids, invitation.branch_ids,
+        invitation.expires_at, invitation.accepted_at, invitation.revoked_at,
+        invitation.last_sent_at, invitation.send_count, invitation.created_at,
+        inviter.full_name AS invited_by_name
+      FROM organization_invitations AS invitation
+      LEFT JOIN roles AS role ON role.id = invitation.role_id
+      JOIN users AS inviter ON inviter.id = invitation.invited_by
+      WHERE invitation.organization_id = $1
+      ORDER BY invitation.created_at DESC`,
+    [organizationId],
+  );
+  return rows.rows.map((row) => ({
+    ...row,
+    status: row.revoked_at ? "revoked" : row.accepted_at ? "accepted" : new Date(row.expires_at) < new Date() ? "expired" : "pending",
+  }));
+}
+
+export async function revokeOrganizationInvitation(client, { organizationId, invitationId }) {
+  const revoked = await client.query(
+    `UPDATE organization_invitations
+        SET revoked_at = now()
+      WHERE id = $1 AND organization_id = $2 AND accepted_at IS NULL AND revoked_at IS NULL
+      RETURNING id`,
+    [invitationId, organizationId],
+  );
+  if (!revoked.rows[0]) {
+    throw new AuthLifecycleError(409, "This invitation cannot be revoked (already accepted, already revoked, or not found).", "AUTH_INVITATION_NOT_REVOCABLE");
+  }
+  return { revoked: true };
+}
+
+// Re-sends the SAME invitation as originally issued (same role/company/
+// branch selections) rather than requiring the admin to re-fill the whole
+// form — the one thing this changes is expiry (reset to a fresh TTL) and
+// send_count/last_sent_at, matching createOrganizationInvitation's own
+// "re-inviting a still-pending email updates the existing row" behavior,
+// just reachable directly from an existing invitation instead of only via
+// re-submitting the invite form with the same email.
+export async function resendOrganizationInvitation(client, { organizationId, invitationId }, env = process.env) {
+  const invitation = (
+    await client.query(
+      `SELECT organization_invitations.*, organization.name AS organization_name
+         FROM organization_invitations
+         JOIN organizations AS organization ON organization.id = organization_invitations.organization_id
+        WHERE organization_invitations.id = $1 AND organization_invitations.organization_id = $2
+          AND accepted_at IS NULL AND revoked_at IS NULL`,
+      [invitationId, organizationId],
+    )
+  ).rows[0];
+  if (!invitation) throw new AuthLifecycleError(404, "This invitation cannot be resent (already accepted, revoked, or not found).", "AUTH_INVITATION_NOT_RESENDABLE");
+
+  const token = createOpaqueToken();
+  await client.query(
+    `UPDATE organization_invitations
+        SET token_hash = $2, expires_at = now() + interval '${INVITATION_TOKEN_TTL_DAYS} days',
+            last_sent_at = now(), send_count = send_count + 1
+      WHERE id = $1`,
+    [invitationId, tokenHash(token)],
+  );
+  const delivered = await deliverAuthMessage(
+    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name },
+    env,
+  );
+  return { delivered };
 }

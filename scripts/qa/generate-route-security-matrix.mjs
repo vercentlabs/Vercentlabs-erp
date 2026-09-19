@@ -13,7 +13,7 @@ const API_DIR = "apps/web/src/app/api";
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-const AUTH_PRIMITIVES = ["requireUser", "requireVerifiedUser", "requireWorkspace", "requireApiWorkspace"];
+const AUTH_PRIMITIVES = ["requireUser", "requireVerifiedUser", "requireWorkspace", "requireApiWorkspace", "requireApiUser"];
 const ORIGIN_PRIMITIVES = ["assertSameOrigin", "assertSameOriginOrMobile"];
 const AUTHORIZATION_PRIMITIVES = [
   "requireCrmAccess",

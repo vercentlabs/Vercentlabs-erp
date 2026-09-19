@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = createTerminalSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.terminal.manage");
+      await requirePosAccess(client, session, "pos.terminal.manage", { mutation: true });
       return createTerminal(client, posContext(session), input);
     });
     return ok({ terminal: result }, 201);

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = (await readJson(request).catch(() => ({}))) as { forecastPeriodId?: string };
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
       return capturePredictiveForecast(client, crmContext(session), { forecastPeriodId: input.forecastPeriodId || null });
     });
     return ok(result, 201);

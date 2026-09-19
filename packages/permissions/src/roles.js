@@ -84,6 +84,7 @@ export const ROLE_TEMPLATES = Object.freeze([
           "platform.reports.manage",
           "platform.ai.manage",
           "platform.workflows.manage",
+          "platform.security.manage",
         ].includes(key),
     ),
   },

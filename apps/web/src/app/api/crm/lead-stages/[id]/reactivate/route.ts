@@ -14,7 +14,7 @@ export async function POST(request: Request, context: RouteContext) {
     const session = await requireWorkspace();
     const { id } = await context.params;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return reactivateLeadStage(client, crmContext(session), id);
     });
     return ok({ record });

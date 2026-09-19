@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     requireSessionPermission(session, CRM_PERMISSIONS.leadsViewSensitive);
     const input = (await readJson(request)) as Record<string, unknown>;
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return input.action === "review"
         ? reviewLeadEnrichment(client, crmContext(session), String(input.reviewId || ""), input)
         : queueLeadEnrichment(client, crmContext(session), input);

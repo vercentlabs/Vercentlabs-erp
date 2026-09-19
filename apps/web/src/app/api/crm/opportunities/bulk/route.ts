@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     if (ids.length <= OPPORTUNITY_BULK_SYNC_LIMIT) {
       const result = await tenantTransaction(session.organizationId, async (client) => {
-        await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage);
+        await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
         return bulkUpdateOpportunities(client, crmContext(session), { ids, changes: input.changes });
       });
       return ok({ mode: "synchronous", ...result });
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     if (!input.idempotencyKey) throw new HttpError(400, "A large Opportunity selection requires an idempotency key.");
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
       return enqueueOpportunityBulkUpdateJob(client, crmContext(session), {
         selection: { type: "explicit", ids },
         changes: input.changes,

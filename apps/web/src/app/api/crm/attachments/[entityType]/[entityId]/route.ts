@@ -66,7 +66,7 @@ export async function POST(request: Request, context: { params: Promise<{ entity
     const contentSha256 = sha256(bytes);
 
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return createCrmAttachment(client, crmContext(session), entityType as never, entityId, {
         id,
         fileName: validated.fileName,

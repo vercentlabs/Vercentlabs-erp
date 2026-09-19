@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const body = (await readJson(request)) as { entityType: string; entityId: string; body: string; visibility?: string; isPinned?: boolean };
     const note = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return createCrmNote(client, crmContext(session), body.entityType, body.entityId, body);
     });
     return ok({ note }, 201);

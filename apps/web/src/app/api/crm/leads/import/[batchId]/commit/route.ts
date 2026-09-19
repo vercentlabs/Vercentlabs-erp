@@ -17,7 +17,7 @@ export async function POST(request: Request, context: { params: Promise<{ batchI
     const session = await requireWorkspace();
     const { batchId } = await context.params;
     const batch = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage, { mutation: true });
       return commitLeadImport(client, crmContext(session), batchId);
     });
     return ok({ batch });

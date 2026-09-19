@@ -14,7 +14,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = (await readJson(request)) as { active?: boolean; expectedUpdatedAt?: string };
     if (!body.expectedUpdatedAt) throw new HttpError(400, "Refresh the stage and submit its current version.");
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return setSalesStageActive(client, crmContext(session), id, Boolean(body.active), body.expectedUpdatedAt as string);
     });
     return ok({ record });

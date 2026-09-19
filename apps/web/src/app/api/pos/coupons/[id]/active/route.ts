@@ -16,7 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = activeSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.settings.manage");
+      await requirePosAccess(client, session, "pos.settings.manage", { mutation: true });
       return setPosCouponActive(client, posContext(session), id, input.active);
     });
     return ok({ record: result });

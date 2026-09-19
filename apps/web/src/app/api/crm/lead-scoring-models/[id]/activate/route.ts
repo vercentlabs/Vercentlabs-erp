@@ -17,7 +17,7 @@ export async function POST(request: Request, context: RouteContext) {
     const session = await requireWorkspace();
     const { id } = await context.params;
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return activateLeadScoringModel(client, crmContext(session), id);
     });
     return ok(result);

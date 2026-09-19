@@ -30,7 +30,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const body = (await readJson(request)) as { tagId?: string };
     const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return assignRecordTag(client, crmContext(session), "lead", id, String(body.tagId || ""));
     });
     return ok({ rows }, 201);

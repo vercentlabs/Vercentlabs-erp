@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = initiateSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return initiatePosPayment(client, posContext(session), input);
     });
     return ok({ payment: result }, 201);

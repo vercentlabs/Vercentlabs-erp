@@ -15,7 +15,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return saveLeadAssignmentPolicy(client, crmContext(session), { ...input, id });
     });
     return ok({ record });
@@ -34,7 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const body = (await readJson(request)) as { status?: "active" | "inactive"; expectedUpdatedAt?: string };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return setLeadAssignmentPolicyStatus(client, crmContext(session), id, body.status === "active" ? "active" : "inactive", body.expectedUpdatedAt);
     });
     return ok({ record });
@@ -51,7 +51,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const url = new URL(request.url);
     const expectedUpdatedAt = url.searchParams.get("expectedUpdatedAt") ?? undefined;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return archiveLeadAssignmentPolicy(client, crmContext(session), id, expectedUpdatedAt);
     });
     return ok({ record });

@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id, lineId } = await context.params;
     const input = trackingSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create");
+      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
       return setPosCartLineTracking(client, posContext(session), id, lineId, input);
     });
     return ok({ cart: result });

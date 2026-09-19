@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = createReturnSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.return.create");
+      await requirePosAccess(client, session, "pos.return.create", { mutation: true });
       return createPointOfSaleReturn(client, posContext(session), input);
     });
     return ok({ posReturn: result }, 201);

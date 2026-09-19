@@ -19,7 +19,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const body = (await readJson(request)) as { migrateToStageId?: string };
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
       return deactivateLeadStageWithMigration(client, crmContext(session), id, { migrateToStageId: body.migrateToStageId });
     });
     return ok(result);

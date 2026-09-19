@@ -27,7 +27,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id, lineId } = await context.params;
     const input = discountSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.discount.apply");
+      await requirePosAccess(client, session, "pos.discount.apply", { mutation: true });
       return applyPosCartLineDiscount(client, posContext(session), id, lineId, input);
     });
     return ok({ cart: result });
@@ -44,7 +44,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const url = new URL(request.url);
     const expectedVersion = url.searchParams.get("expectedVersion");
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.discount.apply");
+      await requirePosAccess(client, session, "pos.discount.apply", { mutation: true });
       return removePosCartLineDiscount(client, posContext(session), id, lineId, {
         expectedVersion: expectedVersion ? Number(expectedVersion) : undefined,
       });

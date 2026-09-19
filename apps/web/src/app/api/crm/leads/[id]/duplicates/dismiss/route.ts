@@ -15,7 +15,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const body = (await readJson(request)) as { matchedLeadId: string; reason: string };
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
+      await requireCrmAccess(client, session, undefined, { mutation: true });
       return dismissLeadDuplicateMatch(client, crmContext(session), id, body.matchedLeadId, body.reason);
     });
     return ok({ result });

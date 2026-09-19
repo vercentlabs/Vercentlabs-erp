@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     if (ids.length <= LEAD_BULK_SYNC_LIMIT) {
       const result = await tenantTransaction(session.organizationId, async (client) => {
-        await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
+        await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage, { mutation: true });
         return bulkUpdateLeads(client, crmContext(session), {
           ids,
           changes: input.changes,
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
     if (!input.idempotencyKey) throw new HttpError(400, "A large Lead selection requires an idempotency key.");
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage, { mutation: true });
       return enqueueLeadBulkUpdateJob(client, crmContext(session), {
         selection: { type: "explicit", ids },
         changes: input.changes,

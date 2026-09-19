@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const body = (await readJson(request)) as { input?: Record<string, unknown>; expectedUpdatedAt?: string };
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return updateCrmAccount(client, crmContext(session), id, body.input ?? {}, { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true });
     });
     return ok({ record });
@@ -46,7 +46,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const url = new URL(request.url);
     const expectedUpdatedAt = url.searchParams.get("expectedUpdatedAt") ?? undefined;
     const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
       return archiveCrmAccount(client, crmContext(session), id, { expectedUpdatedAt, requireVersion: true });
     });
     return ok({ record });

@@ -23,7 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const input = refundSchema.parse(await readJson(request));
     const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.payment.refund");
+      await requirePosAccess(client, session, "pos.payment.refund", { mutation: true });
       return refundPosPayment(client, posContext(session), { ...input, paymentId: id });
     });
     return ok({ payment: result });
