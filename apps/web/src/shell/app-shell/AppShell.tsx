@@ -13,8 +13,8 @@ import {
 // Desktop (>=1024px) three-region model per Prompt 2 Phase 6, closed out in
 // Prompt 2B: primary icon rail (fixed 64px) + module secondary sidebar
 // (240px, only when a module route is active — see SecondarySidebar.tsx)
-// + workspace content, with a persistent top strip (breadcrumbs + company/
-// branch context switcher). Below 1024px the icon rail and secondary
+// + workspace content, with a persistent top strip (breadcrumbs + search,
+// company/branch context switcher, settings and the profile menu). Below 1024px the icon rail and secondary
 // sidebar are both replaced by MobileNav's top bar + full-label drawer —
 // verified at 1440/1024/390px; never squeezed into a phone viewport.
 export function AppShell({
@@ -41,8 +41,6 @@ export function AppShell({
           <div className="hidden lg:flex">
             <ModuleRail
               organizationName={contextValue.organizationName}
-              fullName={contextValue.fullName}
-              email={contextValue.email}
               accessibleModules={accessibleModules}
               permissions={contextValue.permissions}
               pendingApprovalCount={pendingApprovalCount}

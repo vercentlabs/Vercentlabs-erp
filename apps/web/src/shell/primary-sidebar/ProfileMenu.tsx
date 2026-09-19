@@ -23,17 +23,17 @@ export function ProfileMenu({
   const [signingOut, setSigningOut] = useState(false);
   const triggerRef = useRef<HTMLSpanElement>(null);
   // Portaled, not inline next to the trigger — see PrimaryNavItem.tsx's
-  // comment (same fix, same reason: an absolutely-positioned flyout
-  // tooltip inside a container with any non-"visible" overflow on either
-  // axis contributes to that container's scrollable area regardless of
-  // its opacity, which is what caused the primary sidebar to scroll
-  // horizontally).
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+  // comment for why a tooltip must not live inside a clipped/scrollable
+  // ancestor. Sits below the trigger and is right-aligned to it: the
+  // trigger is the last item in WorkspaceTopBar, so a tooltip above it
+  // would be cut off by the viewport top and a centered one by its right
+  // edge.
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; right: number } | null>(null);
 
   function showTooltip() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setTooltipPosition({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+    setTooltipPosition({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
   }
   function hideTooltip() {
     setTooltipPosition(null);
@@ -64,7 +64,7 @@ export function ProfileMenu({
           aria-label={`Account menu for ${fullName}`}
           tooltip={false}
           variant="ghost"
-          className="h-9 w-9 rounded-full bg-white/10 text-xs font-semibold text-navigation-text hover:bg-white/20 hover:text-navigation-text"
+          className="h-9 w-9 rounded-full bg-brand-soft text-xs font-semibold text-brand hover:bg-brand-soft hover:text-brand hover:ring-2 hover:ring-brand/30"
         >
           {initials}
         </IconButton>
@@ -72,8 +72,8 @@ export function ProfileMenu({
           ? createPortal(
               <span
                 role="tooltip"
-                style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
-                className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text shadow-panel"
+                style={{ top: tooltipPosition.top, right: tooltipPosition.right }}
+                className="pointer-events-none fixed z-50 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text shadow-panel"
               >
                 {fullName}
               </span>,

@@ -58,6 +58,9 @@ export type GlobalNavEntry = {
   keywords: string[];
   /** Only an actionable count may be a badge source — never a decorative volume count. */
   badgeSource?: "pendingApprovals" | "unreadNotifications";
+  /** "topbar" = desktop renders this in WorkspaceTopBar instead of the primary
+   * sidebar. The mobile drawer and breadcrumbs still list every entry. */
+  placement?: "topbar";
 };
 
 export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
@@ -87,6 +90,7 @@ export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "foundation",
     keywords: ["search", "find"],
+    placement: "topbar",
   },
 ];
 
@@ -140,5 +144,6 @@ export const UTILITY_NAV: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "foundation",
     keywords: ["settings", "administration"],
+    placement: "topbar",
   },
 ];

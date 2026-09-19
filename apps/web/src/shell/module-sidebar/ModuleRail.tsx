@@ -12,8 +12,6 @@ import {
 
 function ModuleRailInner(props: {
   organizationName: string | null;
-  fullName: string;
-  email: string;
   accessibleModules: ModuleAccess[];
   permissions: string[];
   pendingApprovalCount: number;
@@ -72,8 +70,6 @@ function ModuleRailInner(props: {
 // AppShell only mounts it inside its `hidden lg:flex` wrapper.
 export function ModuleRail(props: {
   organizationName: string | null;
-  fullName: string;
-  email: string;
   accessibleModules: ModuleAccess[];
   permissions: string[];
   pendingApprovalCount: number;

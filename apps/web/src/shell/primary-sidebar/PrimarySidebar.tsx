@@ -10,7 +10,6 @@ import {
 } from "@/shell/navigation/moduleNavigationRegistry";
 
 import { PrimaryNavItem } from "./PrimaryNavItem";
-import { ProfileMenu } from "./ProfileMenu";
 
 const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
   not_released: "Not yet available",
@@ -32,16 +31,12 @@ const BADGE_SOURCE_VALUE: Record<
 
 export function PrimarySidebar({
   organizationName,
-  fullName,
-  email,
   accessibleModules,
   permissions,
   pendingApprovalCount,
   unreadNotificationCount,
 }: {
   organizationName: string | null;
-  fullName: string;
-  email: string;
   accessibleModules: ModuleAccess[];
   permissions: string[];
   pendingApprovalCount: number;
@@ -65,11 +60,12 @@ export function PrimarySidebar({
         V
       </Link>
 
-      {/* Scroll-safe middle region — Home/Work/Search, the 12 modules, and
-          Approvals/Notifications/Jobs. Help/Settings/Profile stay pinned
-          below regardless of how many icons this region holds. */}
+      {/* Scroll-safe middle region — Home/Work, the 12 modules, and
+          Approvals/Notifications/Jobs. Help stays pinned below regardless
+          of how many icons this region holds. Search, Settings and Profile
+          live in WorkspaceTopBar (registry `placement: "topbar"`). */}
       <div className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-        {GLOBAL_NAV_TOP.map((entry) => (
+        {GLOBAL_NAV_TOP.filter((entry) => entry.placement !== "topbar").map((entry) => (
           <PrimaryNavItem
             key={entry.key}
             href={entry.href}
@@ -131,7 +127,7 @@ export function PrimarySidebar({
       </div>
 
       <div className="flex shrink-0 flex-col items-center gap-1 pt-2">
-        {UTILITY_NAV.map((entry) => (
+        {UTILITY_NAV.filter((entry) => entry.placement !== "topbar").map((entry) => (
           <PrimaryNavItem
             key={entry.key}
             href={entry.href}
@@ -143,7 +139,6 @@ export function PrimarySidebar({
             }
           />
         ))}
-        <ProfileMenu fullName={fullName} email={email} />
       </div>
     </nav>
   );
