@@ -412,3 +412,60 @@ export async function getSalesOrderLineReservationContext(client,c,input={}){
   const remaining=Number(line.confirmed_quantity)-Number(line.fulfilled_quantity)-Number(line.cancelled_quantity)-Number(line.reserved_quantity);
   return {orderId:target.id,companyId:target.company_id,lineId:line.id,itemId:line.item_id,warehouseId:line.warehouse_id,lineQuantity:Number(line.quantity),reservedQuantity:Number(line.reserved_quantity),remainingReservableQuantity:Math.max(0,remaining)};
 }
+
+// ---- Sales settings (approval thresholds, margin floor, defaults) ----------------
+const SETTINGS_DEFAULTS = Object.freeze({
+  default_price_list_id: null,
+  default_payment_term_id: null,
+  seller_state_code: null,
+  default_quote_validity_days: 15,
+  quotation_approval_amount: 0,
+  quotation_approval_discount: 10,
+  minimum_margin_percent: 0,
+  order_approval_amount: 0,
+  allow_direct_orders: true,
+  invoice_quantity_basis: "ordered",
+});
+
+export async function getSalesSettings(client, c) {
+  need(c, "sales.view");
+  const result = await client.query("SELECT * FROM tenant.sales_settings WHERE organization_id=$1", [c.organizationId]);
+  return { ...SETTINGS_DEFAULTS, ...(result.rows[0] || {}), configured: Boolean(result.rows[0]) };
+}
+
+function boundedNumber(value, label, { min, max }) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) throw new SalesError(400, `${label} must be between ${min} and ${max}.`, "SALES_SETTINGS_INVALID");
+  return n;
+}
+
+export async function updateSalesSettings(client, c, input = {}) {
+  need(c, "sales.settings.manage");
+  const current = await getSalesSettings(client, c);
+  const next = { ...current };
+  if (input.sellerStateCode !== undefined) {
+    const code = text(input.sellerStateCode, 4).toUpperCase();
+    if (code && !/^[A-Z0-9]{2,4}$/.test(code)) throw new SalesError(400, "Seller state code is invalid.", "SALES_SETTINGS_INVALID");
+    next.seller_state_code = code || null;
+  }
+  if (input.defaultQuoteValidityDays !== undefined) next.default_quote_validity_days = Math.trunc(boundedNumber(input.defaultQuoteValidityDays, "Default quotation validity (days)", { min: 1, max: 365 }));
+  if (input.quotationApprovalAmount !== undefined) next.quotation_approval_amount = boundedNumber(input.quotationApprovalAmount, "Quotation approval amount", { min: 0, max: 1e12 });
+  if (input.quotationApprovalDiscount !== undefined) next.quotation_approval_discount = boundedNumber(input.quotationApprovalDiscount, "Quotation approval discount %", { min: 0, max: 100 });
+  if (input.minimumMarginPercent !== undefined) next.minimum_margin_percent = boundedNumber(input.minimumMarginPercent, "Minimum margin %", { min: -100, max: 100 });
+  if (input.orderApprovalAmount !== undefined) next.order_approval_amount = boundedNumber(input.orderApprovalAmount, "Order approval amount", { min: 0, max: 1e12 });
+  if (input.allowDirectOrders !== undefined) next.allow_direct_orders = Boolean(input.allowDirectOrders);
+  if (input.invoiceQuantityBasis !== undefined) {
+    if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
+    next.invoice_quantity_basis = input.invoiceQuantityBasis;
+  }
+  const result = await client.query(
+    `INSERT INTO tenant.sales_settings(organization_id,seller_state_code,default_quote_validity_days,quotation_approval_amount,quotation_approval_discount,minimum_margin_percent,order_approval_amount,allow_direct_orders,invoice_quantity_basis,created_by,updated_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+     ON CONFLICT (organization_id) DO UPDATE SET seller_state_code=EXCLUDED.seller_state_code,default_quote_validity_days=EXCLUDED.default_quote_validity_days,
+       quotation_approval_amount=EXCLUDED.quotation_approval_amount,quotation_approval_discount=EXCLUDED.quotation_approval_discount,minimum_margin_percent=EXCLUDED.minimum_margin_percent,
+       order_approval_amount=EXCLUDED.order_approval_amount,allow_direct_orders=EXCLUDED.allow_direct_orders,invoice_quantity_basis=EXCLUDED.invoice_quantity_basis,updated_by=EXCLUDED.updated_by,updated_at=now()
+     RETURNING *`,
+    [c.organizationId, next.seller_state_code, next.default_quote_validity_days, next.quotation_approval_amount, next.quotation_approval_discount, next.minimum_margin_percent, next.order_approval_amount, next.allow_direct_orders, next.invoice_quantity_basis, c.userId],
+  );
+  return { ...SETTINGS_DEFAULTS, ...result.rows[0], configured: true };
+}

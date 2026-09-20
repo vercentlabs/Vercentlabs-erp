@@ -161,7 +161,7 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
           <TextField label="PAN" value={pan} onChange={setPan} />
           <Select label="Currency" options={[{ value: "", label: "Company default" }, ...(options.data?.currencies ?? []).map((c) => ({ value: c.code, label: `${c.code} — ${c.name}` }))]} selectedKey={currencyCode} onSelectionChange={(key) => setCurrencyCode(String(key ?? ""))} />
           <Select label="Payment terms" options={[{ value: "", label: "None" }, ...(options.data?.paymentTerms ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.default_due_days} days)` }))]} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))} />
-          <NumberField label="Credit limit (0 = no limit)" value={creditLimit} onChange={setCreditLimit} minValue={0} step={100} />
+          <NumberField label="Credit limit (0 = no limit)" value={creditLimit} onChange={setCreditLimit} minValue={0} step={0.01} />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>

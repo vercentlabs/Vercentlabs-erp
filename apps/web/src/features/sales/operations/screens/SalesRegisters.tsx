@@ -405,7 +405,7 @@ function CommissionRuleDialog({ onClose, onDone }: { onClose: () => void; onDone
   return (
     <OperationDialog title="New commission rule" confirmLabel="Create rule" disabled={!name.trim() || rate < 0 || rate > 100} mutation={mutation} onClose={onClose}>
       <TextField label="Rule name" isRequired value={name} onChange={setName} />
-      <NumberField label="Rate (%)" isRequired value={rate} onChange={setRate} minValue={0} maxValue={100} step={0.5} />
+      <NumberField label="Rate (%)" isRequired value={rate} onChange={setRate} minValue={0} maxValue={100} step={0.01} />
       <Select
         label="Calculated on"
         options={[

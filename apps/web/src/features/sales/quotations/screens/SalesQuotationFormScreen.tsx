@@ -90,7 +90,7 @@ function FormBody({
   const [currencyCode, setCurrencyCode] = useState(existing?.quotation.currency_code ?? baseCurrency);
   const [priceListId, setPriceListId] = useState(existing?.quotation.price_list_id ?? "");
   const [paymentTermId, setPaymentTermId] = useState(existing?.quotation.payment_term_id ?? "");
-  const [validUntil, setValidUntil] = useState(existing?.quotation.valid_until?.slice(0, 10) ?? isoInDays(30));
+  const [validUntil, setValidUntil] = useState(existing?.quotation.valid_until?.slice(0, 10) ?? isoInDays(options.settings?.default_quote_validity_days ?? 30));
   const [headerDiscount, setHeaderDiscount] = useState(0);
   const [customerNotes, setCustomerNotes] = useState(existing?.quotation.customer_notes ?? "");
   const [internalNotes, setInternalNotes] = useState(existing?.quotation.internal_notes ?? "");

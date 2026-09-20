@@ -66,3 +66,6 @@ export function listSalesPricingOptions(client: SalesQueryClient, context: Sales
 export function deactivateSalesPriceListItem(client: SalesQueryClient, context: SalesContext, priceListItemId: string): Promise<any>;
 export function deactivateSalesPricingRule(client: SalesQueryClient, context: SalesContext, pricingRuleId: string): Promise<any>;
 export function getSalesOrderLineReservationContext(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
+
+export function getSalesSettings(client: SalesQueryClient, context: SalesContext): Promise<Record<string, any>>;
+export function updateSalesSettings(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<Record<string, any>>;

@@ -216,6 +216,7 @@ api/sales/quotations/[id]/send/route.ts,POST,none,out-of-scope,,"business-data m
 api/sales/quotations/[id]/submit/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/sales/quotations/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/sales/quotations/scan-expired/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/sales/settings/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/branches/[id]/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/branches/route.ts,POST,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/companies/[id]/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"

@@ -56,6 +56,8 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
     archiveBusinessDataRecord,
     listBusinessDataRecords,
     getSalesOptions,
+    getSalesSettings,
+    updateSalesSettings,
     getSalesDashboard,
     getSalesReport,
     recordSalesAdvancePayment,
@@ -443,6 +445,26 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       await assert.rejects(() => tx((c) => createSalesOrder(c, sellerContext, { ...document(), partyId: customer.id })), (e) => e.status >= 400 && e.status < 500);
       const after = await tx((c) => getSalesOptions(c, sellerContext));
       assert.ok(!after.parties.some((party) => party.id === customer.id), "archived customers drop out of the selling pick-lists");
+    });
+
+    await t.test("F041/F043: settings need the settings permission, are validated, and actually change behaviour", async () => {
+      const manage = { ...sellerContext, permissions: [...sellerContext.permissions, "sales.settings.manage"] };
+      await assert.rejects(() => tx((c) => updateSalesSettings(c, sellerContext, { orderApprovalAmount: 1 })), (e) => /permission/i.test(e.message));
+      await assert.rejects(() => tx((c) => updateSalesSettings(c, manage, { quotationApprovalDiscount: 150 })), (e) => e.code === "SALES_SETTINGS_INVALID");
+      await assert.rejects(() => tx((c) => updateSalesSettings(c, manage, { invoiceQuantityBasis: "whenever" })), (e) => e.code === "SALES_SETTINGS_INVALID");
+      const before = await tx((c) => getSalesSettings(c, sellerContext));
+      try {
+        const saved = await tx((c) => updateSalesSettings(c, manage, { orderApprovalAmount: 1, defaultQuoteValidityDays: 45, allowDirectOrders: false, invoiceQuantityBasis: "fulfilled" }));
+        assert.equal(Number(saved.order_approval_amount), 1);
+        assert.equal(saved.default_quote_validity_days, 45);
+        await assert.rejects(() => tx((c) => createSalesOrder(c, sellerContext, document())), (e) => e.code === "SALES_DIRECT_ORDERS_DISABLED");
+        const opts = await tx((c) => getSalesOptions(c, sellerContext));
+        assert.equal(opts.settings.default_quote_validity_days, 45);
+        assert.equal(opts.settings.allow_direct_orders, false);
+      } finally {
+        await tx((c) => updateSalesSettings(c, manage, { orderApprovalAmount: Number(before.order_approval_amount), defaultQuoteValidityDays: before.default_quote_validity_days, allowDirectOrders: before.allow_direct_orders, invoiceQuantityBasis: before.invoice_quantity_basis }));
+      }
+      assert.equal((await tx((c) => getSalesSettings(c, sellerContext))).allow_direct_orders, true, "restored");
     });
 
     await t.test("cancellation: needs a reason; refused on an order that has moved into fulfilment/invoicing paths only when quantities moved; a fresh confirmed order cancels", async () => {

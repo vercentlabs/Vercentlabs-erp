@@ -96,6 +96,7 @@ export type SalesOptions = {
   paymentTerms: Array<{ id: string; code: string; name: string; default_due_days: number }>;
   currencies: Array<{ code: string; name: string; symbol: string | null; is_base: boolean }>;
   users: Array<{ id: string; full_name: string }>;
+  settings?: { default_quote_validity_days: number; allow_direct_orders: boolean };
 };
 
 export type SalesDocumentLineInput = { itemId: string; quantity: number; discountPercent?: number; unitPrice?: number; uomId?: string | null; warehouseId?: string | null; description?: string; requestedDeliveryDate?: string | null; manualPriceReason?: string };

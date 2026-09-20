@@ -1559,6 +1559,11 @@ async function insertOrderFromPreview(
 }
 export async function createSalesOrder(client, context, input) {
   requirePermission(context, "sales.order.create");
+  // Quotation conversion goes through insertOrderFromPreview directly, so this
+  // only governs orders raised from scratch.
+  const policy = await client.query(`SELECT allow_direct_orders FROM tenant.sales_settings WHERE organization_id=$1`, [context.organizationId]);
+  if (policy.rows[0] && policy.rows[0].allow_direct_orders === false)
+    throw new SalesError(409, "Direct orders are switched off. Create a quotation and convert it.", "SALES_DIRECT_ORDERS_DISABLED");
   const preview = await previewSalesDocument(client, context, input, {
     order: true,
   });
@@ -2201,7 +2206,8 @@ export async function createInvoiceRequest(client, context, id, input) {
     throw new SalesError(409, "Only confirmed orders can request invoicing.");
   const key = text(input.idempotencyKey, 200);
   if (!key) throw new SalesError(400, "An idempotency key is required.");
-  const basis = input.quantityBasis || "ordered";
+  const defaultBasis = (await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id=$1`, [context.organizationId])).rows[0]?.invoice_quantity_basis;
+  const basis = input.quantityBasis || defaultBasis || "ordered";
   if (!["ordered", "fulfilled"].includes(basis))
     throw new SalesError(400, "Invoice quantity basis is invalid.");
   const existing = await client.query(
@@ -2443,6 +2449,10 @@ export async function getSalesOptions(
       users: users.rows,
       opportunities: opportunities.rows,
       opportunityItems,
+      // Only what the document forms need to pre-fill; thresholds stay server-side.
+      settings: await client
+        .query(`SELECT default_quote_validity_days,allow_direct_orders FROM tenant.sales_settings WHERE organization_id=$1`, [context.organizationId])
+        .then((r) => r.rows[0] || { default_quote_validity_days: 15, allow_direct_orders: true }),
     },
     context,
   );

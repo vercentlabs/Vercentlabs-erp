@@ -11,8 +11,8 @@ still open.
 
 | Layer | Evidence |
 |---|---|
-| Domain on real Postgres (RLS on) | `tests/integration/sales-quotation-lifecycle-f036-f041.test.mjs`, `tests/integration/sales-order-lifecycle-f042-f048.test.mjs` (33 tests passing across both) |
-| Real browser, real personas (rep, manager, second manager, customer with no session) | `apps/web/e2e/sales-{quotations,orders,registers,insights,deliveries,customers}.spec.ts` |
+| Domain on real Postgres (RLS on) | `tests/integration/sales-quotation-lifecycle-f036-f041.test.mjs`, `tests/integration/sales-order-lifecycle-f042-f048.test.mjs` (34 tests passing across both) |
+| Real browser, real personas (rep, manager, second manager, customer with no session) | `apps/web/e2e/sales-{quotations,orders,registers,insights,deliveries,customers,settings}.spec.ts` |
 | Static gates | route-security matrix (0 gaps), billing mutation gate, `verify-experience` (no Sales violations), eslint, tsc |
 
 Personas hold the seeded `sales_representative` / `sales_manager` roles — no bypass role — so permission
@@ -47,10 +47,10 @@ Legend: **Built+verified** · **Partial** (works, with named gaps) · **Not buil
 | F034 / F035 | Price lists / customer prices | Partial | Screen and API shipped in an earlier commit; **not re-verified in this session**. |
 | F036 | Quotations | Built+verified | Create, server-priced preview, submit, approve, send, public customer link (accept/decline once), convert. |
 | F037 | Versions and revisions | Built+verified | Revise creates an immutable version; compare API exists (UI shows summary). |
-| F038 | Quotation expiry | Partial | Expiry scan verified in a test; **no scheduler is wired to run it** — it is an endpoint only. |
+| F038 | Quotation expiry | Built+verified (scan) | Expiry scan verified in a test; a worker job (`sales.automation.detect_expired_quotations`) schedules it. The scheduled run itself was not exercised in this session. |
 | F039 | Discounts | Partial | Line and whole-document discounts, price-override permission; Discounts page lists customer pricing rules (create/edit them under Price Lists). No discount-approval matrix UI. |
 | F040 | Taxes | Built+verified | GST computed server-side (verified totals). Multi-jurisdiction/tax-inclusive cases beyond the seeded 18% not exhaustively tested. |
-| F041 | Approval workflow | Partial | Quotation/order/amendment approval with self-approval blocked and permission split, verified. **No UI to configure thresholds** (`order_approval_amount` etc. are settings-table only); approver assignment only via API. |
+| F041 | Approval workflow | Built+verified | Quotation/order/amendment approval with self-approval blocked and permission split. Thresholds (amount, discount %, minimum margin, order amount) are configurable on the Sales settings page (owner/`sales.settings.manage`), validated server-side, and shown to change approval routing in a browser test. Open: approver assignment/delegation UI, multi-level chains. |
 | F042 | Sales orders | Built+verified | Create, list, detail, versions, activity. |
 | F043 | Order confirmation | Built+verified | Auto-approve or approve → confirm; credit exposure check; holds/release. |
 | F044 | Order amendments | Built+verified | Manager amends, a **different** manager approves; version history shown. Amending drops individual charges (orders keep only the charge total) — carried over as one editable line. |
@@ -72,6 +72,9 @@ Legend: **Built+verified** · **Partial** (works, with named gaps) · **Not buil
 | F060 | Sales analytics | Partial | Conversion, intake, customer performance as tables. No charts/forecast/target views. |
 | F061 | Margin and profitability | Built+verified | Margin report gated by `sales.margin.view`, enforced server-side; cost never sent otherwise. |
 | F062 | Order-to-cash reporting | Partial | Individual reports exist; no consolidated order-to-cash pipeline or ageing view. |
+
+Also new: `/sales/settings` (F041/F043). `allow_direct_orders`, default quotation validity and the default invoice
+quantity basis are enforced (not decorative); default price list / payment term columns are deliberately not exposed.
 
 ## Known limits of this session's work
 

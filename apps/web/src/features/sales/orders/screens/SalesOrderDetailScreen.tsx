@@ -59,7 +59,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const [dialogue, setDialogue] = useState<Dialogue>(null);
   const [reason, setReason] = useState("");
   const [holdType, setHoldType] = useState("other");
-  const [basis, setBasis] = useState<"ordered" | "fulfilled">("ordered");
+  const [basis, setBasis] = useState<"default" | "ordered" | "fulfilled">("default");
   const [stockLine, setStockLine] = useState<SalesOrderLine | null>(null);
 
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
@@ -115,7 +115,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const cancelMutation = useMutation({ mutationFn: () => cancelSalesOrder(orderId, reason), onSuccess: onSuccess("Order cancelled."), onError });
   const closeMutation = useMutation({ mutationFn: () => closeSalesOrder(orderId), onSuccess: onSuccess("Order closed."), onError });
   const fulfilMutation = useMutation({ mutationFn: () => requestSalesFulfillment(orderId, crypto.randomUUID()), onSuccess: onSuccess("Fulfilment requested."), onError });
-  const invoiceMutation = useMutation({ mutationFn: () => requestSalesInvoice(orderId, crypto.randomUUID(), basis), onSuccess: onSuccess("Invoice requested."), onError });
+  const invoiceMutation = useMutation({ mutationFn: () => requestSalesInvoice(orderId, crypto.randomUUID(), basis === "default" ? undefined : basis), onSuccess: onSuccess("Invoice requested."), onError });
 
   if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading sales order…</p>;
   if (query.isError || !query.data) {
@@ -405,11 +405,12 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <Select
             label="Invoice quantities"
             options={[
+              { value: "default", label: "Default (from Sales settings)" },
               { value: "ordered", label: "Ordered quantities" },
               { value: "fulfilled", label: "Fulfilled quantities only" },
             ]}
             selectedKey={basis}
-            onSelectionChange={(key) => setBasis(key === "fulfilled" ? "fulfilled" : "ordered")}
+            onSelectionChange={(key) => setBasis(key === "fulfilled" ? "fulfilled" : key === "ordered" ? "ordered" : "default")}
           />
         </ActionDialog>
       )}

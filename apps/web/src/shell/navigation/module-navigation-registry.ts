@@ -167,7 +167,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/sales")],
+        items: [available("Home", "/sales"), available("Settings", "/sales/settings")],
       },
       {
         id: "selling",

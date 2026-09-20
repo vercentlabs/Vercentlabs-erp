@@ -13,6 +13,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { listSalesOrders, type SalesOrderRow } from "@/features/sales/orders/api/orders-api";
+import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Any status" },
@@ -30,7 +31,7 @@ const STATUS_OPTIONS = [
 export function SalesOrdersScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
-  const canCreate = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(SALES_PERMISSIONS.orderCreate);
+  const canCreateBase = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(SALES_PERMISSIONS.orderCreate);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
 
@@ -39,7 +40,10 @@ export function SalesOrdersScreen() {
     queryFn: () => listSalesOrders({ status: status === "all" ? undefined : status, search: search.trim() || undefined }),
     placeholderData: (previous) => previous,
   });
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options) });
+  const directAllowed = optionsQuery.data?.settings?.allow_direct_orders !== false;
   const rows = query.data?.rows ?? [];
+  const canCreate = canCreateBase && directAllowed;
   const denied = query.isError && query.error instanceof SalesApiError && query.error.status === 403;
 
   const columns: ColumnDef<SalesOrderRow, unknown>[] = useMemo(
