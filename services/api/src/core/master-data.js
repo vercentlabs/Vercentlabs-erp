@@ -135,6 +135,7 @@ const resources = Object.freeze({
       hsnSacCode: "hsn_sac_code",
       barcode: "barcode",
       trackInventory: "track_inventory",
+      trackingType: "tracking_type",
       allowNegativeStock: "allow_negative_stock",
       valuationMethod: "valuation_method",
       standardCost: "standard_cost",

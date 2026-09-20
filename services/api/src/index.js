@@ -86,6 +86,7 @@ export * from "./modules/crm/opportunity-and-pipeline-governance/stage-migration
 export * from "./modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/pipeline-snapshots.js";
 export * from "./modules/stock/index.js";
+export * from "./modules/stock/master-operations.js";
 export * from "./modules/manufacturing/index.js";
 export * from "./modules/projects/index.js";
 export * from "./modules/assets/index.js";

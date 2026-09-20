@@ -486,6 +486,7 @@ export function scanLeadStageDwellBreaches(client: QueryClient, context: any): P
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
 export * from "./modules/stock/index.js";
+export * from "./modules/stock/master-operations.js";
 export * from "./modules/manufacturing/index.js";
 export * from "./modules/projects/index.js";
 export * from "./modules/assets/index.js";

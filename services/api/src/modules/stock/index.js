@@ -650,7 +650,7 @@ export async function listStockReorderCandidates(client, c, { limit = 100 } = {}
   need(c, "stock.view");
   const { rows } = await client.query(
     `SELECT rule.id AS reorder_rule_id,rule.item_id,rule.warehouse_id,rule.preferred_supplier_id,
-            rule.reorder_quantity,rule.minimum_quantity,rule.maximum_quantity,rule.lead_time_days,
+            rule.reorder_quantity,rule.minimum_quantity,rule.maximum_quantity,rule.safety_quantity,rule.lead_time_days,
             COALESCE(sum(balance.quantity),0)::text AS on_hand_quantity,
             COALESCE(sum(balance.reserved_quantity),0)::text AS reserved_quantity,
             COALESCE(sum(balance.quantity-balance.reserved_quantity),0)::text AS available_quantity
@@ -660,8 +660,8 @@ export async function listStockReorderCandidates(client, c, { limit = 100 } = {}
         AND balance.item_id=rule.item_id AND balance.warehouse_id=rule.warehouse_id
       WHERE rule.organization_id=$1 AND rule.company_id=$2 AND rule.active
       GROUP BY rule.id
-     HAVING COALESCE(sum(balance.quantity-balance.reserved_quantity),0) <= rule.minimum_quantity
-      ORDER BY (rule.minimum_quantity-COALESCE(sum(balance.quantity-balance.reserved_quantity),0)) DESC,rule.created_at
+     HAVING COALESCE(sum(balance.quantity-balance.reserved_quantity),0) <= rule.minimum_quantity+rule.safety_quantity
+      ORDER BY (rule.minimum_quantity+rule.safety_quantity-COALESCE(sum(balance.quantity-balance.reserved_quantity),0)) DESC,rule.created_at
       LIMIT $3`,
     [c.organizationId,c.companyId,Math.min(Math.max(Number(limit)||100,1),250)],
   );
@@ -673,6 +673,9 @@ export async function listStockReorderCandidates(client, c, { limit = 100 } = {}
     reorderQuantity: row.reorder_quantity,
     minimumQuantity: row.minimum_quantity,
     maximumQuantity: row.maximum_quantity,
+    safetyQuantity: row.safety_quantity,
+    // Order-up-to when a maximum is set (min/max policy), otherwise the fixed reorder quantity.
+    suggestedQuantity: String(Number(row.maximum_quantity) > 0 ? Math.max(Number(row.maximum_quantity) - Number(row.available_quantity), 0) : Number(row.reorder_quantity)),
     leadTimeDays: row.lead_time_days,
     onHandQuantity: row.on_hand_quantity,
     reservedQuantity: row.reserved_quantity,
