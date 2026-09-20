@@ -1,5 +1,9 @@
 import {
+  getPickList,
   getStockAgingReport,
+  getStockTraceability,
+  listPickLists,
+  listStockQuarantine,
   getStockAvailability,
   getStockMovementSummary,
   getStockValuationReport,
@@ -83,6 +87,16 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       }
       case "landed-costs":
         return { rows: await listStockLandedCosts(client, context) };
+      case "traceability":
+        return { trace: await getStockTraceability(client, context, { code: get("code") }) };
+      case "quarantine": {
+        const q = await listStockQuarantine(client, context);
+        return { holds: q.holds, located: q.located, rows: [...q.holds.map((h) => ({ id: String(h.id), ...h })), ...q.located.map((l) => ({ ...l, id: String(l.id), source: "location" }))] };
+      }
+      case "picks":
+        return { rows: await listPickLists(client, context, { status: get("status") }) };
+      case "pick":
+        return { pick: await getPickList(client, context, get("id") ?? "") };
       case "counts":
         return { rows: await listStockCounts(client, context, { countType: get("countType"), status: get("status") }) };
       case "count":

@@ -49,7 +49,7 @@ export async function listStockLedger(client, c, { itemId = null, warehouseId = 
   if (itemId) { values.push(uuid(itemId, "Item")); filter += ` AND movement.item_id=$${values.length}`; }
   if (warehouseId) { values.push(uuid(warehouseId, "Warehouse")); filter += ` AND movement.warehouse_id=$${values.length}`; }
   if (movementType) { values.push(String(movementType)); filter += ` AND movement.movement_type=$${values.length}`; }
-  if (referenceType) { values.push(text(referenceType, 80)); filter += ` AND movement.reference_type=$${values.length}`; }
+  if (referenceType) { values.push(text(referenceType, 200).split(",").map((t) => t.trim()).filter(Boolean)); filter += ` AND movement.reference_type=ANY($${values.length}::text[])`; }
   if (referenceId) { values.push(uuid(referenceId, "Reference")); filter += ` AND movement.reference_id=$${values.length}`; }
   values.push(clampLimit(limit));
   const { rows } = await client.query(

@@ -27,5 +27,10 @@ export const INVENTORY_PAGES: Record<string, { title: string }> = {
   movement: { title: "Stock movement" },
   "landed-cost": { title: "Landed cost" },
   reports: { title: "Inventory reports" },
+  "damaged-stock": { title: "Damaged stock" },
+  returns: { title: "Stock returns" },
+  "pick-lists": { title: "Picking" },
+  genealogy: { title: "Genealogy" },
+  quarantine: { title: "Quarantine" },
   costing: { title: "Costing and settings" },
 };

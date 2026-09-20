@@ -342,8 +342,21 @@ export async function postStockMovement(client, c, input = {}) {
   const old = current.rows[0] || { quantity: 0, reserved_quantity: 0, average_cost: 0 };
   const next = Number(old.quantity) + signed;
   const canGoNegative = Boolean(cfg.allow_negative_stock || item.allow_negative_stock || warehouse.allow_negative_stock);
-  if (next < Number(old.reserved_quantity) || (!canGoNegative && next < 0))
+  if (next < Number(old.reserved_quantity) || (!canGoNegative && next < 0)) {
+    // Stock is held per location and batch. When the request names none but the warehouse holds
+    // enough elsewhere, say so -- "insufficient" alone sends people looking for a shortage that
+    // is really a missing location.
+    if (signed < 0 && (!input.warehouseLocationId || !input.batchId)) {
+      const elsewhere = Number((await client.query(
+        `SELECT COALESCE(sum(quantity-reserved_quantity),0) AS q FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4`,
+        [c.organizationId, c.companyId, input.itemId, input.warehouseId],
+      )).rows[0].q);
+      if (elsewhere >= qty) {
+        throw new StockError(409, "Insufficient available stock at that location. The warehouse holds enough in other locations or batches, so choose the location (and batch) the stock is in.", "INSUFFICIENT_STOCK");
+      }
+    }
     throw new StockError(409, "Insufficient available stock.", "INSUFFICIENT_STOCK");
+  }
   if (signed < 0) {
     await assertQualityAllowsDecrease(client, c, input, qty, old);
   }

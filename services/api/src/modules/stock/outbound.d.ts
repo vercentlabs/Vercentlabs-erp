@@ -1,0 +1,11 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+export declare function createPickList(client: any, context: StockContext, input?: Row): Promise<Row>;
+export declare function recordPicks(client: any, context: StockContext, listId: string, picks?: Array<Row>): Promise<{ updated: number }>;
+export declare function completePicking(client: any, context: StockContext, listId: string): Promise<Row>;
+export declare function createPackage(client: any, context: StockContext, listId: string, input?: Row): Promise<Row>;
+export declare function completePacking(client: any, context: StockContext, listId: string): Promise<Row>;
+export declare function shipPickList(client: any, context: StockContext, listId: string, input?: Row): Promise<Row>;
+export declare function cancelPickList(client: any, context: StockContext, listId: string, reason?: string): Promise<Row>;
+export declare function listPickLists(client: any, context: StockContext, options?: { status?: string | null; limit?: number }): Promise<Row[]>;
+export declare function getPickList(client: any, context: StockContext, listId: string): Promise<Row & { lines: Row[]; packages: Row[] }>;

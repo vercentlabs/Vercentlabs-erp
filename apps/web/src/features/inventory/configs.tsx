@@ -699,6 +699,96 @@ const landedCost: RegisterConfig = {
   rowActions: [{ label: "Allocate to stock", permission: "stock.manage", show: (r) => !r.allocated, success: "Landed cost allocated to stock.", run: (r) => act("landed-cost-allocate", { id: r.id }) }],
 };
 
+// ---------------------------------------------------------------- exceptions and outbound
+const damaged: RegisterConfig = {
+  key: "damaged-stock",
+  title: "Damaged stock",
+  description: "Write-offs for damaged, expired, spoiled or lost stock. Each is an adjustment with a reason; the ledger keeps the history.",
+  searchLabel: "Search write-offs",
+  emptyTitle: "No write-offs yet",
+  emptyDescription: "Record a write-off when stock is damaged or lost.",
+  source: { kind: "stock", view: "ledger", params: { referenceType: "stock_damage" } },
+  createLabel: "Record write-off",
+  createPermission: "stock.adjust",
+  save: { action: "damage", idempotent: true, success: "Write-off recorded." },
+  fields: stockDims([
+    { name: "quantity", label: "Quantity", kind: "number", required: true, step: QTY_STEP },
+    { name: "category", label: "Cause", kind: "select", required: true, defaultValue: "damaged", options: ["damaged", "expired", "spoiled", "lost", "theft", "other"].map((value) => ({ value, label: label(value) })) },
+    { name: "note", label: "What happened", kind: "textarea", required: true },
+  ]),
+  summary: (rows) => [{ label: "Write-offs", value: String(rows.length) }, { label: "Units written off", value: quantity(-sum(rows, "quantity")) }],
+  columns: ledgerColumns,
+  searchText: ledgerSearch,
+};
+
+const returns: RegisterConfig = {
+  key: "returns",
+  title: "Stock returns",
+  description: "Goods coming back: customer returns recorded here, plus POS and supplier returns posted by their modules. A damaged return must go to a quarantine location.",
+  searchLabel: "Search returns",
+  emptyTitle: "No returns yet",
+  emptyDescription: "Record a customer return to put stock back.",
+  source: { kind: "stock", view: "ledger", params: { referenceType: "customer_return,pos_return,procurement_return" } },
+  createLabel: "Record return",
+  createPermission: "stock.receive",
+  save: { action: "return", idempotent: true, success: "Return recorded." },
+  fields: stockDims([
+    { name: "quantity", label: "Quantity", kind: "number", required: true, step: QTY_STEP },
+    { name: "condition", label: "Condition", kind: "select", required: true, defaultValue: "good", options: [{ value: "good", label: "Good — restock" }, { value: "damaged", label: "Damaged — quarantine" }] },
+    { name: "unitCost", label: "Unit cost", kind: "number", step: 0.01 },
+    { name: "reason", label: "Reason", kind: "text", required: true, wide: true },
+  ]),
+  columns: ledgerColumns,
+  searchText: ledgerSearch,
+};
+
+const pickLists: RegisterConfig = {
+  key: "pick-lists",
+  title: "Picking, packing and shipping",
+  description: "A pick list reserves the stock. Pick what is found, pack it, then ship: stock leaves the ledger once, when it ships.",
+  searchLabel: "Search pick lists",
+  emptyTitle: "No pick lists yet",
+  emptyDescription: "Create a pick list to fulfil an order from a warehouse.",
+  source: { kind: "stock", view: "picks" },
+  filters: [{ name: "status", label: "Status", options: ["open", "picking", "picked", "packing", "packed", "shipped", "cancelled"].map((value) => ({ value, label: label(value) })) }],
+  createLabel: "New pick list",
+  createPermission: "stock.issue",
+  save: {
+    action: "pick-create",
+    idempotent: true,
+    success: "Pick list created.",
+    transform: (v) => ({
+      lines: [1, 2, 3]
+        .map((n) => ({ itemId: v[n === 1 ? "itemId" : `itemId${n}`], quantity: v[n === 1 ? "quantity" : `quantity${n}`], warehouseLocationId: n === 1 ? v.warehouseLocationId || undefined : undefined, batchId: n === 1 ? v.batchId || undefined : undefined }))
+        .filter((line) => line.itemId && Number(line.quantity) > 0),
+    }),
+  },
+  fields: [
+    { name: "warehouseId", label: "Warehouse", kind: "select", required: true, options: "warehouses" },
+    { name: "referenceLabel", label: "For order / reference", kind: "text", placeholder: "e.g. SO-1001" },
+    { name: "itemId", label: "Item", kind: "select", required: true, options: "items" },
+    { name: "quantity", label: "Quantity", kind: "number", required: true, step: QTY_STEP },
+    { name: "warehouseLocationId", label: "Pick from location", kind: "select", options: "locations", dependsOn: "warehouseId" },
+    { name: "batchId", label: "Batch / lot", kind: "select", options: "batches", dependsOn: "itemId" },
+    { name: "itemId2", label: "Second item", kind: "select", options: "items" },
+    { name: "quantity2", label: "Second quantity", kind: "number", step: QTY_STEP },
+    { name: "itemId3", label: "Third item", kind: "select", options: "items" },
+    { name: "quantity3", label: "Third quantity", kind: "number", step: QTY_STEP },
+  ],
+  columns: () => [
+    col("no", "Pick list", (r) => String(r.pick_number), ({ row }) => <Link className="font-medium text-brand hover:underline" href={`/inventory/picking/${row.original.id}`}>{String(row.original.pick_number)}</Link>),
+    badge("status", "Status", (r) => r.status),
+    col("ref", "For", (r) => String(r.reference_label ?? "—")),
+    col("warehouse", "Warehouse", (r) => String(r.warehouse_name)),
+    col("lines", "Lines", (r) => String(r.line_count)),
+    col("req", "Requested", (r) => quantity(r.requested_quantity)),
+    col("picked", "Picked", (r) => quantity(r.picked_quantity)),
+    col("carrier", "Carrier", (r) => (r.carrier ? `${r.carrier}${r.tracking_number ? ` · ${r.tracking_number}` : ""}` : "—")),
+    col("created", "Created", (r) => dateTime(r.created_at)),
+  ],
+  searchText: (r) => text(r, ["pick_number", "reference_label", "warehouse_name", "carrier", "tracking_number"]),
+};
+
 export const REGISTERS: Record<string, RegisterConfig> = {
   items,
   categories,
@@ -725,5 +815,8 @@ export const REGISTERS: Record<string, RegisterConfig> = {
   aging,
   movement,
   "landed-cost": landedCost,
+  "damaged-stock": damaged,
+  returns,
+  "pick-lists": pickLists,
 };
 

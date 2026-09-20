@@ -372,6 +372,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Issues", "/inventory/issues"),
           available("Transfers", "/inventory/transfers"),
           available("Adjustments", "/inventory/adjustments"),
+          available("Damaged Stock", "/inventory/damaged-stock"),
+          available("Returns", "/inventory/returns"),
+          available("Pick Lists", "/inventory/pick-lists"),
         ],
       },
       {
@@ -382,7 +385,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Lots / Batches", "/inventory/lots"),
           available("Serial Numbers", "/inventory/serial-numbers"),
           available("Expiry", "/inventory/expiry"),
-          planned("Genealogy", "/inventory/genealogy"),
+          available("Genealogy", "/inventory/genealogy"),
+          available("Quarantine", "/inventory/quarantine"),
         ],
       },
       {
