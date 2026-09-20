@@ -395,6 +395,67 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       assert.equal(overridden.status, "overridden");
     });
 
+    await t.test("F094: a stock item below its reorder point becomes a reorder request, then a draft PO priced from the supplier's price list -- once", async () => {
+      const ruleId = randomUUID();
+      await admin.query(`INSERT INTO tenant.stock_reorder_rules(id,organization_id,company_id,item_id,warehouse_id,minimum_quantity,reorder_quantity,maximum_quantity,preferred_supplier_id,lead_time_days,active) VALUES ($1,$2,$3,$4,$5,1000,25,2000,$6,5,true)`, [ruleId, orgId, companyId, itemId, warehouseId, supplier.id]);
+      const stock = { organizationId: orgId, companyId, userId: users.buyer, roleSlugs: [], permissions: ["stock.view"] };
+      const candidates = await tx((c) => proc.listStockReorderCandidates(c, stock, {}));
+      const candidate = candidates.find((row) => row.reorderRuleId === ruleId);
+      assert.ok(candidate, "the item is below its (deliberately high) reorder point");
+      const supplierPrice = await tx((c) => proc.upsertSupplierPurchasePrice(c, ctx.buyer, { supplierId: supplier.id, itemId, minimumQuantity: 10, rate: 88, currencyCode: "INR" }));
+      assert.equal(Number(supplierPrice.rate), 88);
+      await assert.rejects(() => tx((c) => proc.upsertSupplierPurchasePrice(c, ctx.requester, { supplierId: supplier.id, itemId, rate: 1 })), forbidden, "supplier prices need catalog.manage");
+      const request = await tx((c) => proc.createProcurementReorderRequest(c, ctx.buyer, { reorderRuleId: ruleId, itemId, warehouseId, supplierId: supplier.id, quantity: 25, idempotencyKey: `reorder-${ruleId}` }));
+      const again = await tx((c) => proc.createProcurementReorderRequest(c, ctx.buyer, { reorderRuleId: ruleId, itemId, warehouseId, supplierId: supplier.id, quantity: 25, idempotencyKey: `reorder-${ruleId}` }));
+      assert.equal(again.id, request.id, "the same trigger creates one request");
+      await assert.rejects(() => tx((c) => proc.convertReorderRequestToPurchaseOrder(c, ctx.viewer, request.id)), forbidden);
+      const converted = await tx((c) => proc.convertReorderRequestToPurchaseOrder(c, ctx.buyer, request.id));
+      assert.equal(converted.purchaseOrder.status, "draft");
+      assert.equal(converted.purchaseOrder.totals.grandTotal, "2200.00", "25 x the 88 agreed price");
+      assert.equal(converted.reorderRequest.status, "converted");
+      const replay = await tx((c) => proc.convertReorderRequestToPurchaseOrder(c, ctx.buyer, request.id));
+      assert.equal(replay.purchaseOrder.id, converted.purchaseOrder.id);
+      assert.equal(replay.idempotent, true);
+      const lead = await tx((c) => proc.upsertSupplierLeadTime(c, ctx.buyer, { supplierId: supplier.id, leadTimeDays: 12 }));
+      assert.equal(lead.lead_time_days, 12);
+      await assert.rejects(() => tx((c) => proc.upsertSupplierLeadTime(c, ctx.buyer, { supplierId: supplier.id, leadTimeDays: 99999 })), (e) => e.status === 400);
+    });
+
+    await t.test("F095/F088: landed cost and subcontract orders validate their inputs and need the right permission", async () => {
+      const order = receiptOrder;
+      await assert.rejects(() => tx((c) => proc.createProcurementLandedCost(c, ctx.buyer, { purchaseOrderId: order.id, costType: "Freight", amount: 50, currencyCode: "INR" })), forbidden, "landed cost needs matching.manage");
+      const finance = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.matching.manage"] });
+      await assert.rejects(() => tx((c) => proc.createProcurementLandedCost(c, finance, { costType: "Freight", amount: 50, currencyCode: "INR" })), (e) => /Purchase Order or Goods Receipt/i.test(e.message));
+      await assert.rejects(() => tx((c) => proc.createProcurementLandedCost(c, finance, { purchaseOrderId: order.id, costType: "Freight", amount: -5, currencyCode: "INR" })), (e) => /negative/i.test(e.message));
+      const cost = await tx((c) => proc.createProcurementLandedCost(c, finance, { purchaseOrderId: order.id, costType: "Freight", amount: 50, currencyCode: "INR", allocationMethod: "quantity" }));
+      assert.equal(Number(cost.amount), 50);
+      const sub = await tx((c) => proc.createProcurementSubcontractOrder(c, ctx.buyer, { supplierId: supplier.id, itemId, quantity: 5, expectedReturnDate: "2027-05-01" }));
+      assert.equal(Number(sub.quantity), 5);
+      await assert.rejects(() => tx((c) => proc.createProcurementSubcontractOrder(c, ctx.requester, { supplierId: supplier.id })), forbidden);
+    });
+
+    await t.test("F088/F086: the matching-tolerance policy changes what counts as a match, and needs the settings permission", async () => {
+      const po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", receiptOrder.id));
+      const poLine = po.lines[0];
+      const matcher = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.matching.manage"] });
+      const invoice = (number, price) => tx((c) => proc.runProcurementMatch(c, matcher, { purchaseOrderId: po.id, invoiceNumber: number, currencyCode: "INR", matchMode: "two-way", invoiceLines: [{ purchaseOrderLineId: poLine.id, itemId, description: "Raw Widget", quantity: "1", unitPrice: price }] }));
+      const before = await invoice("TOL-1", "105");
+      assert.equal(before.matchingRecord.status, "exception", "5% over is an exception under the default exact tolerance");
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.buyer, "policies", { policyType: "matching_tolerance", tolerancePercent: 10 })), forbidden);
+      const policy = await tx((c) => createProcurementRecord(c, ctx.manager, "policies", { policyType: "matching_tolerance", name: "Invoice matching tolerance", tolerancePercent: 10 }));
+      assert.equal(policy.status, "active");
+      const after = await invoice("TOL-2", "105");
+      assert.equal(after.matchingRecord.status, "matched", "the same 5% is now inside a 10% tolerance");
+      const way = await invoice("TOL-3", "130");
+      assert.equal(way.matchingRecord.status, "exception", "30% is still outside it");
+    });
+
+    await t.test("governance: readiness reports blockers and warnings for a document", async () => {
+      const readiness = await tx((c) => proc.assessProcurementRecordReadiness(c, ctx.viewer, "purchase-orders", receiptOrder.id));
+      assert.ok(readiness.health);
+      assert.ok(Array.isArray(readiness.health.blockers) && Array.isArray(readiness.health.warnings));
+    });
+
     // -- later slices append here --
   } finally {
     await admin.end();

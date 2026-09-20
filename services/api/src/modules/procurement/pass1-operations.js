@@ -1,4 +1,4 @@
-import { ProcurementError } from "./index.js";
+import { ProcurementError, createProcurementRecord, getProcurementRecord } from "./index.js";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const uuid=(value,label)=>{if(!UUID.test(String(value||"")))throw new ProcurementError(400,`${label} is invalid.`);return String(value)};
@@ -107,15 +107,62 @@ export async function listProcurementPass1Options(client,c){
   // live in CRM as Postgres 08P01 "bind message supplies N parameters...");
   // see services/api/src/modules/crm/opportunity-and-pipeline-governance/
   // opportunity-revenue-intelligence.js's fix for the full explanation.
-  const suppliers=await client.query(`SELECT record.id,COALESCE(record.data->>'displayName',record.data->>'legalName',record.data->>'supplierCode',record.id::text) AS label,record.status FROM tenant.procurement_suppliers record WHERE record.organization_id=$1${scope} AND record.status NOT IN ('archived','rejected') ORDER BY record.updated_at DESC LIMIT 100`,values);
-  const orders=await client.query(`SELECT record.id,COALESCE(record.data->>'purchaseOrderNumber',record.data->>'poNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
-  const receipts=await client.query(`SELECT record.id,COALESCE(record.data->>'receiptNumber',record.data->>'grnNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_receipts record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
-  const items=await client.query(`SELECT id,code,name FROM tenant.items WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 200`,[c.organizationId,c.activeCompanyId]);
-  const warehouses=await client.query(`SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND ($2::uuid IS NULL OR company_id=$2) ORDER BY name LIMIT 100`,[c.organizationId,c.activeCompanyId]);
-  const sourcingEvents=await client.query(`SELECT record.id,COALESCE(record.data->>'eventNumber',record.data->>'title',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
+  const suppliers=await client.query(`SELECT record.id,COALESCE(record.data->>'displayName',record.data->>'legalName',record.data->>'supplierCode',record.id::text) AS label,record.status FROM tenant.procurement_suppliers record WHERE record.organization_id=$1${scope} AND record.status NOT IN ('archived','rejected') ORDER BY record.updated_at DESC LIMIT 1000`,values);
+  const orders=await client.query(`SELECT record.id,COALESCE(record.data->>'purchaseOrderNumber',record.data->>'poNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
+  const receipts=await client.query(`SELECT record.id,COALESCE(record.data->>'receiptNumber',record.data->>'grnNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_receipts record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
+  const items=await client.query(`SELECT id,code,name FROM tenant.items WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 1000`,[c.organizationId,c.activeCompanyId]);
+  const warehouses=await client.query(`SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND ($2::uuid IS NULL OR company_id=$2) ORDER BY name LIMIT 1000`,[c.organizationId,c.activeCompanyId]);
+  const sourcingEvents=await client.query(`SELECT record.id,COALESCE(record.data->>'eventNumber',record.data->>'title',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
   const uoms=await client.query(`SELECT id,code,name FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 200`,[c.organizationId]);
   const categories=await client.query(`SELECT record.id,COALESCE(record.data->>'name',record.data->>'code',record.id::text) AS label,record.status FROM tenant.procurement_categories record WHERE record.organization_id=$1${scope} AND record.status='active' ORDER BY label LIMIT 200`,values);
-  const agreements=await client.query(`SELECT record.id,COALESCE(record.data->>'agreementNumber',record.data->>'title',record.id::text) AS label,record.status FROM tenant.procurement_agreements record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
-  const requisitions=await client.query(`SELECT record.id,COALESCE(record.data->>'requisitionNumber',record.data->>'title',record.id::text) AS label,record.status FROM tenant.procurement_requisitions record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,values);
+  const agreements=await client.query(`SELECT record.id,COALESCE(record.data->>'agreementNumber',record.data->>'title',record.id::text) AS label,record.status FROM tenant.procurement_agreements record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
+  const requisitions=await client.query(`SELECT record.id,COALESCE(record.data->>'requisitionNumber',record.data->>'title',record.id::text) AS label,record.status FROM tenant.procurement_requisitions record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
   return {suppliers:suppliers.rows,purchaseOrders:orders.rows,receipts:receipts.rows,items:items.rows,warehouses:warehouses.rows,sourcingEvents:sourcingEvents.rows,uoms:uoms.rows,categories:categories.rows,agreements:agreements.rows,requisitions:requisitions.rows};
+}
+
+// F094: a reorder request (a stock item at or below its reorder point) becomes a DRAFT
+// purchase order for the chosen supplier, priced from that supplier's agreed price
+// list (quantity break respected) when there is one. Idempotent: converting again
+// returns the same order. The order still goes through the normal approval.
+export async function convertReorderRequestToPurchaseOrder(client, c, requestId) {
+  need(c, "procurement.po.create");
+  const id = uuid(requestId, "Reorder request");
+  const found = await client.query(`SELECT * FROM tenant.procurement_reorder_requests WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, id]);
+  const request = found.rows[0];
+  if (!request) throw new ProcurementError(404, "Reorder request not found.", "PROCUREMENT_REORDER_NOT_FOUND");
+  if (request.purchase_order_id) return { reorderRequest: request, purchaseOrder: await getProcurementRecord(client, c, "purchase-orders", request.purchase_order_id), idempotent: true };
+  if (request.status === "cancelled") throw new ProcurementError(409, "A cancelled reorder request cannot be converted.", "PROCUREMENT_REORDER_STATE");
+  if (!request.supplier_id) throw new ProcurementError(409, "Choose a supplier for this reorder before creating the order.", "PROCUREMENT_REORDER_SUPPLIER_REQUIRED");
+  const item = (await client.query(`SELECT id,name,uom_id FROM tenant.items WHERE organization_id=$1 AND id=$2`, [c.organizationId, request.item_id])).rows[0];
+  if (!item) throw new ProcurementError(404, "The reordered item no longer exists.", "PROCUREMENT_REORDER_ITEM_NOT_FOUND");
+  const price = (
+    await client.query(
+      `SELECT rate,currency_code FROM tenant.procurement_supplier_prices
+        WHERE organization_id=$1 AND supplier_id=$2 AND item_id=$3 AND status='active' AND minimum_quantity<=$4
+          AND valid_from<=current_date AND (valid_to IS NULL OR valid_to>=current_date)
+        ORDER BY minimum_quantity DESC,valid_from DESC LIMIT 1`,
+      [c.organizationId, request.supplier_id, request.item_id, request.quantity],
+    )
+  ).rows[0];
+  const leadTime = (
+    await client.query(
+      `SELECT lead_time_days FROM tenant.procurement_supplier_lead_times
+        WHERE organization_id=$1 AND supplier_id=$2 AND (item_id=$3 OR item_id IS NULL) AND status='active'
+        ORDER BY item_id IS NULL,effective_from DESC LIMIT 1`,
+      [c.organizationId, request.supplier_id, request.item_id],
+    )
+  ).rows[0];
+  const due = request.required_by ? String(request.required_by).slice(0, 10) : new Date(Date.now() + Number(leadTime?.lead_time_days ?? 7) * 86400000).toISOString().slice(0, 10);
+  const purchaseOrder = await createProcurementRecord(client, c, "purchase-orders", {
+    companyId: request.company_id,
+    supplierId: request.supplier_id,
+    title: `Reorder: ${item.name}`,
+    expectedDeliveryDate: due,
+    currencyCode: price?.currency_code || "INR",
+    reorderRequestId: request.id,
+    lines: [{ itemId: item.id, uomId: item.uom_id || undefined, description: item.name, quantity: String(request.quantity), unitPrice: String(price?.rate ?? 0), warehouseId: request.warehouse_id }],
+    idempotencyKey: `reorder-po:${request.id}`,
+  });
+  const updated = await client.query(`UPDATE tenant.procurement_reorder_requests SET purchase_order_id=$3,status='converted',updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, request.id, purchaseOrder.id, c.userId]);
+  return { reorderRequest: updated.rows[0], purchaseOrder, idempotent: false, priced: Boolean(price) };
 }

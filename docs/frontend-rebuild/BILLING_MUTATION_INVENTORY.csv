@@ -184,6 +184,7 @@ api/procurement/[resource]/route.ts,POST,none,out-of-scope,,"business-data mutat
 api/procurement/match/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/procurement/operations/landed-costs/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/procurement/operations/lead-times/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/procurement/operations/reorder-requests/[id]/convert/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/procurement/operations/reorder-requests/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/procurement/operations/subcontract-orders/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/procurement/operations/supplier-prices/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"

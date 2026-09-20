@@ -240,7 +240,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/procurement")],
+        items: [available("Home", "/procurement"), available("Settings", "/procurement/settings")],
       },
       {
         id: "requests",
@@ -299,22 +299,24 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Categories", "/procurement/categories"),
           available("Price Lists", "/procurement/supplier-prices"),
           available("Lead Times", "/procurement/lead-times"),
-          planned("Supplier Performance", "/procurement/supplier-performance"),
+          available("Supplier Performance", "/procurement/supplier-performance"),
         ],
       },
       {
         id: "planning",
         label: "Planning",
         featureRange: "F091-F093",
-        items: [planned("Procurement Planning", "/procurement/planning")],
+        items: [available("Procurement Planning", "/procurement/planning"),
+          available("Subcontracting", "/procurement/subcontract")],
       },
       {
         id: "insights",
         label: "Insights",
         featureRange: "F094-F096",
         items: [
-          planned("Spend Analytics", "/procurement/spend-analytics"),
-          planned("Reports", "/procurement/reports"),
+          available("Spend Analytics", "/procurement/spend-analytics"),
+          available("Purchase History", "/procurement/purchase-history"),
+          available("Reports", "/procurement/reports"),
         ],
       },
     ],

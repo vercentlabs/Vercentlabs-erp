@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { test, expect, type BrowserContext, type Locator } from "@playwright/test";
 import { Client } from "pg";
 
 import { fixtures } from "./fixtures";
@@ -18,13 +18,6 @@ async function api<T>(context: BrowserContext, method: "GET" | "POST", path: str
   const body = await response.json();
   expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();
   return body as T;
-}
-async function pick(page: Page, trigger: Locator, option: RegExp) {
-  await expect(async () => {
-    const wanted = page.getByRole("option", { name: option }).first();
-    if (!(await wanted.isVisible())) await trigger.click({ timeout: 3_000 });
-    await wanted.click({ timeout: 3_000 });
-  }).toPass({ timeout: 45_000 });
 }
 async function setNumber(box: Locator, value: string) {
   await box.click();

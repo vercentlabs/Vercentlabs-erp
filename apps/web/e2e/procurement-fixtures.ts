@@ -62,9 +62,9 @@ async function buildWorld(): Promise<ProcurementWorld> {
     const receiver = await persona("receiver", "goods_receipt_user");
 
     const itemCode = `E2E-PROC-${suffix}`;
-    const itemName = "Proc E2E Component";
+    const itemName = `Proc E2E Component ${suffix}`;
     const warehouseCode = `PWH-${suffix}`;
-    const warehouseName = "Proc E2E Warehouse";
+    const warehouseName = `Proc E2E Warehouse ${suffix}`;
     await client.query("BEGIN");
     await client.query(`SELECT set_config('app.current_organization_id', $1, true)`, [organizationId]);
     const uomId = (await client.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND code='EA' AND status='active' LIMIT 1`, [organizationId])).rows[0].id;

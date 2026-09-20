@@ -81,6 +81,13 @@ export function DocumentDetail({ config, id }: { config: DetailConfig; id: strin
     retry: false,
   });
 
+  const readiness = useQuery({
+    queryKey: [...key, "readiness"],
+    queryFn: () => request<{ readiness: { health: { readiness?: string; riskBand?: string; blockers?: string[]; warnings?: string[] } } }>(`/${config.resource}/${id}/readiness`).then((r) => r.readiness.health),
+    enabled: query.isSuccess,
+    retry: false,
+  });
+
   function refresh() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") });
   }
@@ -172,6 +179,22 @@ export function DocumentDetail({ config, id }: { config: DetailConfig; id: strin
             <ProcPanel title="Details">
               <ProcFacts items={config.fields(record, lookup)} />
             </ProcPanel>
+            {readiness.data && ((readiness.data.blockers?.length ?? 0) > 0 || (readiness.data.warnings?.length ?? 0) > 0) && (
+              <ProcPanel title="Readiness" description="Checks the system runs against this document against your procurement policy.">
+                <ul className="flex flex-col gap-1 text-sm">
+                  {(readiness.data.blockers ?? []).map((text) => (
+                    <li key={text} className="text-danger">
+                      Blocker — {text}
+                    </li>
+                  ))}
+                  {(readiness.data.warnings ?? []).map((text) => (
+                    <li key={text} className="text-warning">
+                      Warning — {text}
+                    </li>
+                  ))}
+                </ul>
+              </ProcPanel>
+            )}
             {(config.lineGrids ?? []).map((grid) => {
               const rows = (Array.isArray(record[grid.key]) ? record[grid.key] : []) as Array<Record<string, unknown>>;
               return (
