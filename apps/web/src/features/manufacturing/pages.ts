@@ -4,4 +4,10 @@ export const MANUFACTURING_PAGES: Record<string, { title: string }> = {
   "bom-versions": { title: "BOM versions" },
   "where-used": { title: "Where used" },
   "engineering-changes": { title: "Engineering changes" },
+  routings: { title: "Routings" },
+  "work-centers": { title: "Work centers" },
+  calendars: { title: "Shift calendars" },
+  shifts: { title: "Shifts" },
+  "calendar-exceptions": { title: "Holidays and closures" },
+  capacity: { title: "Capacity" },
 };

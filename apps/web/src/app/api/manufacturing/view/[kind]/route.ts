@@ -1,4 +1,4 @@
-import { explodeBom, getBom, listBoms, listEngineeringChanges, listManufacturingOptions, whereUsed } from "@vercentlabs/api";
+import { explodeBom, getBom, getCapacityPlan, getRouting, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { manufacturingRead } from "@/features/manufacturing/shared/route-helpers";
@@ -24,6 +24,20 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { rows: (await whereUsed(client, context, { itemId: get("itemId") })).map((row, index) => ({ id: `${index}:${String(row.bomId)}`, ...row })) };
       case "changes":
         return { rows: await listEngineeringChanges(client, context, { status: get("status") }) };
+      case "work-centers":
+        return { rows: await listWorkCenters(client, context) };
+      case "calendars":
+        return { rows: await listCalendars(client, context) };
+      case "shifts":
+        return { rows: await listShifts(client, context) };
+      case "calendar-exceptions":
+        return { rows: await listCalendarExceptions(client, context) };
+      case "routings":
+        return { rows: await listRoutings(client, context, { status: get("status") }) };
+      case "routing":
+        return { routing: await getRouting(client, context, get("id") ?? "") };
+      case "capacity":
+        return { capacity: await getCapacityPlan(client, context, { from: get("from"), days: get("days") }) };
       default:
         throw new HttpError(404, "Unknown manufacturing view.");
     }

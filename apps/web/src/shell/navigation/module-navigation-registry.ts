@@ -445,7 +445,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("BOMs", "/manufacturing/boms"),
           available("BOM Versions", "/manufacturing/bom-versions"),
-          planned("Routings", "/manufacturing/routings"),
+          available("Routings", "/manufacturing/routings"),
           available("Where Used", "/manufacturing/where-used"),
           available("Engineering Changes", "/manufacturing/engineering-changes"),
         ],
@@ -457,7 +457,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           planned("MRP", "/manufacturing/mrp"),
           planned("Material Planning", "/manufacturing/material-planning"),
-          planned("Capacity", "/manufacturing/capacity"),
+          available("Capacity", "/manufacturing/capacity"),
           planned("Scheduling", "/manufacturing/scheduling"),
         ],
       },
@@ -502,9 +502,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Resources",
         featureRange: "F178-F181",
         items: [
-          planned("Work Centers", "/manufacturing/work-centers"),
+          available("Work Centers", "/manufacturing/work-centers"),
           planned("Resources", "/manufacturing/resources"),
-          planned("Calendars", "/manufacturing/calendars"),
+          available("Calendars", "/manufacturing/calendars"),
+          available("Shifts", "/manufacturing/shifts"),
+          available("Holidays", "/manufacturing/calendar-exceptions"),
         ],
       },
       {

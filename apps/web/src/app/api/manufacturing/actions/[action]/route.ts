@@ -1,20 +1,31 @@
 import { z } from "zod";
 
 import {
+  activateRouting,
+  addCalendarException,
   addComponentAlternate,
+  addShift,
   approveBom,
   cancelEngineeringChange,
   createBom,
+  createRouting,
   createEngineeringChange,
   decideEngineeringChange,
   implementEngineeringChange,
   obsoleteBom,
+  obsoleteRouting,
   rejectBom,
+  removeCalendarException,
   removeComponentAlternate,
+  removeShift,
   reviseBom,
+  reviseRouting,
+  saveCalendar,
+  saveWorkCenter,
   submitBom,
   submitEngineeringChange,
   updateDraftBom,
+  updateDraftRouting,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -61,6 +72,28 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         return { record: await implementEngineeringChange(client, context, idOf(input)) };
       case "change-cancel":
         return { record: await cancelEngineeringChange(client, context, idOf(input), String(input.reason ?? "")) };
+      case "work-center-save":
+        return { record: await saveWorkCenter(client, context, input) };
+      case "calendar-save":
+        return { record: await saveCalendar(client, context, input) };
+      case "shift-add":
+        return { record: await addShift(client, context, input) };
+      case "shift-remove":
+        return { record: await removeShift(client, context, idOf(input)) };
+      case "exception-add":
+        return { record: await addCalendarException(client, context, input) };
+      case "exception-remove":
+        return { record: await removeCalendarException(client, context, idOf(input)) };
+      case "routing-create":
+        return { record: await createRouting(client, context, input) };
+      case "routing-update":
+        return { record: await updateDraftRouting(client, context, idOf(input), input) };
+      case "routing-activate":
+        return { record: await activateRouting(client, context, idOf(input)) };
+      case "routing-revise":
+        return { record: await reviseRouting(client, context, idOf(input)) };
+      case "routing-obsolete":
+        return { record: await obsoleteRouting(client, context, idOf(input), String(input.reason ?? "")) };
       default:
         throw new HttpError(404, "Unknown manufacturing action.");
     }
