@@ -597,6 +597,108 @@ const physicalInventory: RegisterConfig = {
   searchText: (r) => text(r, ["count_number", "warehouse_name", "status"]),
 };
 
+// ---------------------------------------------------------------- valuation and reports
+const sum = (rows: Row[], key: string) => rows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
+const CLASS_TONE: Record<string, "success" | "warning" | "danger"> = { active: "success", slow: "warning", dead: "danger" };
+
+const valuation: RegisterConfig = {
+  key: "valuation",
+  title: "Inventory valuation",
+  description: "What the stock on hand is worth, by item and warehouse. FIFO items are valued from their remaining layers.",
+  searchLabel: "Search valuation",
+  emptyTitle: "No stock to value",
+  emptyDescription: "Valuation appears once stock is on hand.",
+  source: { kind: "stock", view: "valuation" },
+  summary: (rows) => [{ label: "Total stock value", value: amount(sum(rows, "stock_value")) }, { label: "Units on hand", value: quantity(sum(rows, "on_hand_quantity")) }, { label: "Lines", value: String(rows.length) }],
+  columns: () => [
+    strong("item", "Item", (r) => `${r.item_name} (${r.item_code})`),
+    col("warehouse", "Warehouse", (r) => String(r.warehouse_name)),
+    col("method", "Costing", (r) => label(r.method)),
+    col("onhand", "On hand", (r) => quantity(r.on_hand_quantity)),
+    col("unit", "Unit value", (r) => amount(r.unit_value)),
+    col("value", "Stock value", (r) => amount(r.stock_value)),
+  ],
+  searchText: (r) => text(r, ["item_name", "item_code", "warehouse_name", "method"]),
+};
+
+const aging: RegisterConfig = {
+  key: "aging",
+  title: "Stock aging",
+  description: "How long the stock on hand has been sitting, in age buckets. Slow: not issued within the threshold. Dead: nothing has moved within the threshold.",
+  searchLabel: "Search aging",
+  emptyTitle: "No stock on hand",
+  emptyDescription: "Aging appears once stock is on hand.",
+  source: { kind: "stock", view: "aging", params: { slowDays: "90", deadDays: "180" } },
+  filters: [
+    { name: "slowDays", label: "Slow after", options: [{ value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" }, { value: "180", label: "180 days" }] },
+    { name: "deadDays", label: "Dead after", options: [{ value: "90", label: "90 days" }, { value: "180", label: "180 days" }, { value: "365", label: "365 days" }] },
+  ],
+  summary: (rows) => [
+    { label: "Slow-moving lines", value: String(rows.filter((r) => r.classification === "slow").length) },
+    { label: "Dead-stock lines", value: String(rows.filter((r) => r.classification === "dead").length) },
+    ...(rows.some((r) => r.stock_value !== null) ? [{ label: "Value of dead stock", value: amount(rows.filter((r) => r.classification === "dead").reduce((t, r) => t + Number(r.stock_value ?? 0), 0)) }] : []),
+  ],
+  columns: () => [
+    strong("item", "Item", (r) => `${r.item_name} (${r.item_code})`),
+    col("warehouse", "Warehouse", (r) => String(r.warehouse_name)),
+    col("onhand", "On hand", (r) => quantity(r.on_hand_quantity)),
+    col("b1", "0–30d", (r) => quantity(r.age_0_30)),
+    col("b2", "31–60d", (r) => quantity(r.age_31_60)),
+    col("b3", "61–90d", (r) => quantity(r.age_61_90)),
+    col("b4", "91–180d", (r) => quantity(r.age_91_180)),
+    col("b5", "181–365d", (r) => quantity(r.age_181_365)),
+    col("b6", "365d+", (r) => quantity(r.age_over_365)),
+    col("issue", "Days since issue", (r) => (r.days_since_issue === null ? "never" : String(r.days_since_issue))),
+    col("value", "Value", (r) => amount(r.stock_value)),
+    { id: "class", header: "Status", accessorFn: (r: Row) => label(r.classification), cell: ({ row }) => <StatusBadge tone={CLASS_TONE[String(row.original.classification)] ?? "neutral"}>{label(row.original.classification)}</StatusBadge> } as Col,
+  ],
+  searchText: (r) => text(r, ["item_name", "item_code", "warehouse_name", "classification"]),
+};
+
+const movement: RegisterConfig = {
+  key: "movement",
+  title: "Stock movement",
+  description: "What came in, went out and was adjusted per item over a period.",
+  searchLabel: "Search movement",
+  emptyTitle: "No movement in this period",
+  emptyDescription: "Choose a longer period.",
+  source: { kind: "stock", view: "movement", params: { days: "30" } },
+  filters: [{ name: "days", label: "Period", options: [{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }, { value: "365", label: "Last year" }] }],
+  summary: (rows) => [{ label: "Received", value: quantity(sum(rows, "received_quantity")) }, { label: "Issued", value: quantity(sum(rows, "issued_quantity")) }, { label: "Net change", value: quantity(sum(rows, "net_quantity")) }],
+  columns: () => [
+    strong("item", "Item", (r) => `${r.item_name} (${r.item_code})`),
+    col("in", "Received", (r) => quantity(r.received_quantity)),
+    col("out", "Issued", (r) => quantity(r.issued_quantity)),
+    col("adj", "Adjusted", (r) => quantity(r.adjusted_quantity)),
+    col("xfer", "Transfers", (r) => quantity(r.transfer_quantity)),
+    col("net", "Net", (r) => quantity(r.net_quantity)),
+    col("var", "Cost variance", (r) => amount(r.cost_variance)),
+    col("n", "Movements", (r) => String(r.movements)),
+  ],
+  searchText: (r) => text(r, ["item_name", "item_code"]),
+};
+
+const landedCost: RegisterConfig = {
+  key: "landed-cost",
+  title: "Landed cost",
+  description: "Freight, duty and other costs recorded in Procurement. Allocating one adds its share to the value of the stock from that receipt that is still on hand; the part for stock already issued goes to cost of sales.",
+  searchLabel: "Search landed costs",
+  emptyTitle: "No landed costs",
+  emptyDescription: "Landed costs are recorded in Procurement against an order or receipt.",
+  source: { kind: "stock", view: "landed-costs" },
+  columns: () => [
+    strong("type", "Cost", (r) => String(r.cost_type)),
+    col("order", "Order", (r) => String(r.order_number ?? (r.receipt_id ? "Receipt" : "—"))),
+    col("amount", "Amount", (r) => `${r.currency_code} ${amount(r.amount)}`),
+    col("method", "By", (r) => label(r.allocation_method)),
+    badge("state", "Stock allocation", (r) => (r.allocated ? "completed" : "pending")),
+    col("cap", "Capitalised", (r) => (r.allocated ? amount(r.capitalised_amount) : "—")),
+    col("exp", "To cost of sales", (r) => (r.allocated ? amount(r.expensed_amount) : "—")),
+  ],
+  searchText: (r) => text(r, ["cost_type", "order_number"]),
+  rowActions: [{ label: "Allocate to stock", permission: "stock.manage", show: (r) => !r.allocated, success: "Landed cost allocated to stock.", run: (r) => act("landed-cost-allocate", { id: r.id }) }],
+};
+
 export const REGISTERS: Record<string, RegisterConfig> = {
   items,
   categories,
@@ -619,5 +721,9 @@ export const REGISTERS: Record<string, RegisterConfig> = {
   replenishment,
   "cycle-counts": cycleCounts,
   "physical-inventory": physicalInventory,
+  valuation,
+  aging,
+  movement,
+  "landed-cost": landedCost,
 };
 

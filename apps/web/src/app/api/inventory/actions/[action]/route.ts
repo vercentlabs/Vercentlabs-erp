@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   addStockCountLine,
+  allocateStockLandedCost,
   approveStockCount,
   cancelStockCount,
   completeStockTransfer,
@@ -77,6 +78,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         return { record: await approveStockCount(client, context, idOf(input)) };
       case "count-cancel":
         return { record: await cancelStockCount(client, context, idOf(input), String(input.reason ?? "")) };
+      case "landed-cost-allocate":
+        return { record: await allocateStockLandedCost(client, context, idOf(input)) };
       case "settings":
         return { record: await updateStockSettings(client, context, input) };
       default:

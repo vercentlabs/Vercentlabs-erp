@@ -1,5 +1,9 @@
 import {
+  getStockAgingReport,
   getStockAvailability,
+  getStockMovementSummary,
+  getStockValuationReport,
+  listStockLandedCosts,
   getStockCount,
   listStockCounts,
   getStockDashboard,
@@ -63,6 +67,22 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { rows: (await listStockReorderCandidates(client, context, { limit: 200 })).map((row) => ({ id: String(row.reorderRuleId), ...row })) };
       case "availability":
         return { availability: await getStockAvailability(client, context, { itemId: get("itemId"), warehouseId: get("warehouseId"), requestedQuantity: get("requestedQuantity") }) };
+      case "valuation": {
+        const report = await getStockValuationReport(client, context, { warehouseId: get("warehouseId"), groupId: get("groupId") });
+        return { rows: report.lines.map((line) => ({ id: `${line.item_id}:${line.warehouse_id}`, ...line })), totals: report.totals };
+      }
+      case "aging": {
+        const report = await getStockAgingReport(client, context, { slowDays: get("slowDays"), deadDays: get("deadDays"), warehouseId: get("warehouseId") });
+        return { rows: report.lines.map((line) => ({ id: `${line.item_id}:${line.warehouse_id}`, ...line })), slowDays: report.slowDays, deadDays: report.deadDays };
+      }
+      case "movement": {
+        const days = Number(get("days") ?? 30);
+        const from = new Date(Date.now() - (Number.isFinite(days) ? days : 30) * 86400000).toISOString().slice(0, 10);
+        const report = await getStockMovementSummary(client, context, { from, warehouseId: get("warehouseId") });
+        return { rows: report.lines.map((line) => ({ id: String(line.item_id), ...line })), from };
+      }
+      case "landed-costs":
+        return { rows: await listStockLandedCosts(client, context) };
       case "counts":
         return { rows: await listStockCounts(client, context, { countType: get("countType"), status: get("status") }) };
       case "count":

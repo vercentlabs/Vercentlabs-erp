@@ -22,5 +22,10 @@ export const INVENTORY_PAGES: Record<string, { title: string }> = {
   replenishment: { title: "Replenishment" },
   "cycle-counts": { title: "Cycle counts" },
   "physical-inventory": { title: "Physical inventory" },
+  valuation: { title: "Inventory valuation" },
+  aging: { title: "Stock aging" },
+  movement: { title: "Stock movement" },
+  "landed-cost": { title: "Landed cost" },
+  reports: { title: "Inventory reports" },
   costing: { title: "Costing and settings" },
 };

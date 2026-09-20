@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, TextArea } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, MetricStrip, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, TextArea } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -45,7 +45,26 @@ export type RegisterConfig = {
   upsert?: boolean;
   archive?: boolean;
   rowActions?: RowAction[];
+  // Headline numbers over the rows currently shown (computed from what the server returned).
+  summary?: (rows: Row[]) => Array<{ label: string; value: string }>;
 };
+
+// CSV of what is on screen: the same values the grid shows, one column per accessor.
+function downloadCsv(name: string, columns: ColumnDef<Row, unknown>[], rows: Row[]) {
+  const cells = columns.filter((column) => "accessorFn" in column && typeof column.header === "string" && column.header);
+  const escape = (value: unknown) => {
+    const text = String(value ?? "");
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const lines = [cells.map((column) => escape(column.header)).join(",")];
+  for (const row of rows) lines.push(cells.map((column, index) => escape((column as { accessorFn: (row: Row, index: number) => unknown }).accessorFn(row, index))).join(","));
+  const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${name}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 const errorText = (error: unknown) => (error instanceof InvApiError ? error.message : "This could not be saved.");
 const initial = (fields: FieldDef[], row?: Row): Record<string, FieldValue> =>
@@ -146,6 +165,11 @@ export function Register({ config }: { config: RegisterConfig }) {
               {config.createLabel ?? "New"}
             </Button>
           ) : undefined,
+          secondaryActions: rows.length ? (
+            <Button variant="secondary" onPress={() => downloadCsv(config.key, config.columns(options.data), rows)}>
+              Export CSV
+            </Button>
+          ) : undefined,
         }}
         actionBar={{
           start: (
@@ -163,6 +187,7 @@ export function Register({ config }: { config: RegisterConfig }) {
         <div className="flex flex-col gap-3">
           {notice && <InvAlert tone="success">{notice}</InvAlert>}
           {actionError && <InvAlert>{actionError}</InvAlert>}
+          {config.summary && rows.length > 0 && <MetricStrip metrics={config.summary(rows)} />}
           <EnterpriseDataGrid<Row>
             aria-label={config.title}
             columns={config.columns(options.data)}

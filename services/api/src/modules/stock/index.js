@@ -89,7 +89,7 @@ async function settings(client, c) {
 }
 async function stockDimension(client, c, input) {
   const item = (await client.query(
-    `SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost,tracking_type FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    `SELECT id,company_id,track_inventory,allow_negative_stock,standard_cost,tracking_type,valuation_method FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
     [c.organizationId, input.itemId],
   )).rows[0];
   if (!item || (item.company_id && item.company_id !== c.companyId))
@@ -262,6 +262,47 @@ async function applySerialTransition(client, c, input, item, movementType) {
   }
 }
 
+// FIFO: an issue takes stock from the oldest layers of the item's warehouse first. Layers were
+// historically never drawn down, so before consuming, any surplus over the quantity actually on
+// hand is retired from the OLDEST end -- exactly what earlier issues would have done -- which makes
+// the first FIFO issue on legacy data correct. Quantity the layers cannot cover (negative-stock
+// cases) is costed at the fallback average.
+async function consumeFifoLayers(client, c, itemId, warehouseId, qty, fallbackCost) {
+  const layers = (await client.query(
+    `SELECT id,remaining_quantity,unit_cost FROM tenant.stock_valuation_layers WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4 AND remaining_quantity>0 ORDER BY created_at,id FOR UPDATE`,
+    [c.organizationId, c.companyId, itemId, warehouseId],
+  )).rows;
+  const onHand = Number((await client.query(
+    `SELECT COALESCE(sum(quantity),0) AS q FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4`,
+    [c.organizationId, c.companyId, itemId, warehouseId],
+  )).rows[0].q);
+  let surplus = Math.max(layers.reduce((sum, l) => sum + Number(l.remaining_quantity), 0) - onHand, 0);
+  let toTake = qty;
+  let value = 0;
+  let remainingQty = 0;
+  let remainingValue = 0;
+  for (const layer of layers) {
+    let left = Number(layer.remaining_quantity);
+    const retire = Math.min(surplus, left);
+    surplus -= retire;
+    left -= retire;
+    const take = Math.min(toTake, left);
+    toTake -= take;
+    value += take * Number(layer.unit_cost);
+    left -= take;
+    if (left !== Number(layer.remaining_quantity)) {
+      await client.query(`UPDATE tenant.stock_valuation_layers SET remaining_quantity=$2 WHERE id=$1`, [layer.id, left]);
+    }
+    remainingQty += left;
+    remainingValue += left * Number(layer.unit_cost);
+  }
+  const uncovered = toTake;
+  return {
+    unitCost: (value + uncovered * fallbackCost) / qty,
+    remainingAverage: remainingQty > 0 ? remainingValue / remainingQty : null,
+  };
+}
+
 export async function postStockMovement(client, c, input = {}) {
   const movementType = String(input.movementType || "").toLowerCase();
   if (!new Set(["receipt", "issue", "adjustment"]).has(movementType))
@@ -315,18 +356,47 @@ export async function postStockMovement(client, c, input = {}) {
   const explicitCost = input.unitCost == null || input.unitCost === "" ? null : Number(input.unitCost);
   if (explicitCost != null && (!Number.isFinite(explicitCost) || explicitCost < 0))
     throw new StockError(400, "Unit cost must be zero or greater.", "STOCK_UNIT_COST_INVALID");
-  const cost = explicitCost ?? Number(old.average_cost || item.standard_cost || 0);
-  const avg = signed > 0 && next > 0
+  // Costing (F133-F135). The item's own method wins when it is not the default; otherwise the
+  // company setting applies.
+  //   moving_average: receipts blend into the running average; issues leave at that average.
+  //   fifo:           issues consume the OLDEST layers of the warehouse, so cost follows the stock.
+  //   standard:       stock is carried at the item's standard cost; a receipt at a different price
+  //                   books the difference as a purchase-price variance on the movement.
+  const method = item.valuation_method && item.valuation_method !== "moving_average" ? item.valuation_method : cfg.costing_method;
+  const standardCost = Number(item.standard_cost || 0);
+  let cost = explicitCost ?? Number(old.average_cost || item.standard_cost || 0);
+  let layerCost = cost;
+  let costVariance = 0;
+  let avg = signed > 0 && next > 0
     ? (Number(old.quantity) * Number(old.average_cost) + qty * cost) / next
     : Number(old.average_cost);
+  if (method === "standard" && standardCost > 0) {
+    if (signed > 0) {
+      cost = explicitCost ?? standardCost;
+      costVariance = (cost - standardCost) * qty;
+    } else {
+      cost = standardCost;
+    }
+    layerCost = standardCost;
+    avg = standardCost;
+  } else if (method === "fifo" && signed < 0) {
+    const consumed = await consumeFifoLayers(client, c, input.itemId, input.warehouseId, qty, Number(old.average_cost || standardCost || 0));
+    cost = consumed.unitCost;
+    layerCost = cost;
+    if (consumed.remainingAverage !== null) avg = consumed.remainingAverage;
+  } else if (signed < 0) {
+    // Other methods do not cost from layers, but layers still track what is left of each receipt
+    // (landed cost, aging and a later switch to FIFO all rely on it).
+    await consumeFifoLayers(client, c, input.itemId, input.warehouseId, qty, Number(old.average_cost || standardCost || 0));
+  }
 
   const movementNumber = await nextDocumentNumber(client, c, {
     documentType: "stock_movement",
     prefix: "STK",
   });
   const movement = await client.query(
-    `INSERT INTO tenant.stock_movements(organization_id,company_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-    [c.organizationId,c.companyId,movementNumber,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey],
+    `INSERT INTO tenant.stock_movements(organization_id,company_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key,cost_variance) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+    [c.organizationId,c.companyId,movementNumber,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey,costVariance],
   );
   await client.query(
     `INSERT INTO tenant.stock_balances(organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,reserved_quantity,average_cost) VALUES($1,$2,$3,$4,$5,$6,$7,0,$8) ON CONFLICT(organization_id,company_id,item_id,warehouse_id,warehouse_location_id,batch_id) DO UPDATE SET quantity=EXCLUDED.quantity,average_cost=EXCLUDED.average_cost,updated_at=now()`,
@@ -334,7 +404,7 @@ export async function postStockMovement(client, c, input = {}) {
   );
   await client.query(
     `INSERT INTO tenant.stock_valuation_layers(organization_id,company_id,movement_id,item_id,warehouse_id,quantity,unit_cost,remaining_quantity) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [c.organizationId,c.companyId,movement.rows[0].id,input.itemId,input.warehouseId,signed,cost,Math.max(signed, 0)],
+    [c.organizationId,c.companyId,movement.rows[0].id,input.itemId,input.warehouseId,signed,layerCost,Math.max(signed, 0)],
   );
   const response = { ...movement.rows[0], replayed: false };
   await completeIdempotentOperation(client, c, idempotency, {
