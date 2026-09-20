@@ -284,6 +284,13 @@ export async function postStockMovement(client, c, input = {}) {
   const signed = movementType === "issue" || direction === "decrease" ? -qty : qty;
   const { item, warehouse } = await stockDimension(client, c, { ...input, movementType });
   requireTrackingReference(item, movementType, input);
+  if (input.referenceType !== "stock_count") {
+    const frozen = (await client.query(
+      `SELECT count_number FROM tenant.stock_counts WHERE organization_id=$1 AND company_id=$2 AND warehouse_id=$3 AND freeze_stock AND status IN ('counting','review') LIMIT 1`,
+      [c.organizationId, c.companyId, input.warehouseId],
+    )).rows[0];
+    if (frozen) throw new StockError(409, `This warehouse is frozen for count ${frozen.count_number}. Stock cannot move until the count is posted or cancelled.`, "STOCK_WAREHOUSE_FROZEN");
+  }
   await lockInventoryItem(client, c, input.itemId);
   const cfg = await settings(client, c);
 

@@ -20,5 +20,7 @@ export const INVENTORY_PAGES: Record<string, { title: string }> = {
   "serial-numbers": { title: "Serial numbers" },
   "reorder-rules": { title: "Reorder rules" },
   replenishment: { title: "Replenishment" },
+  "cycle-counts": { title: "Cycle counts" },
+  "physical-inventory": { title: "Physical inventory" },
   costing: { title: "Costing and settings" },
 };

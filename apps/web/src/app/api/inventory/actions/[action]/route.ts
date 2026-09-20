@@ -3,11 +3,18 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import {
+  addStockCountLine,
+  approveStockCount,
+  cancelStockCount,
   completeStockTransfer,
+  createStockCount,
   createStockBatch,
   createStockTransfer,
   postStockMovement,
   receiveSerializedStock,
+  recordStockCountLines,
+  rejectStockCount,
+  submitStockCount,
   releaseStockReservation,
   reserveStock,
   saveStockReorderRule,
@@ -56,6 +63,20 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         return { record: await receiveSerializedStock(client, context, input) };
       case "reorder-rule":
         return { record: await saveStockReorderRule(client, context, input) };
+      case "count-create":
+        return { record: await createStockCount(client, context, input) };
+      case "count-lines":
+        return { record: await recordStockCountLines(client, context, String(input.countId ?? ""), Array.isArray(input.lines) ? (input.lines as Array<Record<string, unknown>>) : []) };
+      case "count-add-line":
+        return { record: await addStockCountLine(client, context, String(input.countId ?? ""), input) };
+      case "count-submit":
+        return { record: await submitStockCount(client, context, idOf(input)) };
+      case "count-reject":
+        return { record: await rejectStockCount(client, context, idOf(input), String(input.reason ?? "")) };
+      case "count-approve":
+        return { record: await approveStockCount(client, context, idOf(input)) };
+      case "count-cancel":
+        return { record: await cancelStockCount(client, context, idOf(input), String(input.reason ?? "")) };
       case "settings":
         return { record: await updateStockSettings(client, context, input) };
       default:

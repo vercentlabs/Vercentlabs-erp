@@ -390,8 +390,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Counting",
         featureRange: "F126-F128",
         items: [
-          planned("Cycle Counts", "/inventory/cycle-counts"),
-          planned("Physical Inventory", "/inventory/physical-inventory"),
+          available("Cycle Counts", "/inventory/cycle-counts"),
+          available("Physical Inventory", "/inventory/physical-inventory"),
         ],
       },
       {

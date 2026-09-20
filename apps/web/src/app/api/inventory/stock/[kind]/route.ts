@@ -1,5 +1,7 @@
 import {
   getStockAvailability,
+  getStockCount,
+  listStockCounts,
   getStockDashboard,
   getStockSettings,
   listBusinessDataRecords,
@@ -61,6 +63,10 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { rows: (await listStockReorderCandidates(client, context, { limit: 200 })).map((row) => ({ id: String(row.reorderRuleId), ...row })) };
       case "availability":
         return { availability: await getStockAvailability(client, context, { itemId: get("itemId"), warehouseId: get("warehouseId"), requestedQuantity: get("requestedQuantity") }) };
+      case "counts":
+        return { rows: await listStockCounts(client, context, { countType: get("countType"), status: get("status") }) };
+      case "count":
+        return { count: await getStockCount(client, context, get("id") ?? "") };
       case "lookup":
         return { result: await lookupStockByCode(client, context, { code: get("code") }) };
       default:

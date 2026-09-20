@@ -10,7 +10,7 @@ import type { SalesPersona } from "./sales-fixtures";
 // is created through the UI or the API by the spec itself.
 const PASSWORD = "InvE2E!2026Secure";
 
-export type InventoryWorld = { organizationId: string; companyId: string; manager: SalesPersona; issuer: SalesPersona; viewer: SalesPersona };
+export type InventoryWorld = { organizationId: string; companyId: string; manager: SalesPersona; approver: SalesPersona; issuer: SalesPersona; viewer: SalesPersona };
 
 let worldPromise: Promise<InventoryWorld> | null = null;
 export const getInventoryWorld = () => (worldPromise ??= buildWorld());
@@ -41,7 +41,7 @@ async function buildWorld(): Promise<InventoryWorld> {
       await client.query(`INSERT INTO membership_branch_access(organization_id,user_id,branch_id) VALUES ($1,$2,$3)`, [organizationId, userId, branchId]);
       return { email, password: PASSWORD, userId };
     }
-    return { organizationId, companyId, manager: await persona("manager", "inventory_manager"), issuer: await persona("issuer", "pos_supervisor"), viewer: await persona("viewer", "pos_cashier") };
+    return { organizationId, companyId, manager: await persona("manager", "inventory_manager"), approver: await persona("approver", "inventory_manager"), issuer: await persona("issuer", "pos_supervisor"), viewer: await persona("viewer", "pos_cashier") };
   } finally {
     await client.end();
   }

@@ -1,0 +1,11 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+export declare function createStockCount(client: any, context: StockContext, input?: Row): Promise<Row>;
+export declare function addStockCountLine(client: any, context: StockContext, countId: string, input?: Row): Promise<Row>;
+export declare function recordStockCountLines(client: any, context: StockContext, countId: string, lines?: Array<Row>): Promise<{ updated: number }>;
+export declare function submitStockCount(client: any, context: StockContext, countId: string): Promise<Row>;
+export declare function rejectStockCount(client: any, context: StockContext, countId: string, reason?: string): Promise<Row>;
+export declare function approveStockCount(client: any, context: StockContext, countId: string): Promise<Row>;
+export declare function cancelStockCount(client: any, context: StockContext, countId: string, reason?: string): Promise<Row>;
+export declare function listStockCounts(client: any, context: StockContext, options?: { countType?: string | null; status?: string | null; limit?: number }): Promise<Row[]>;
+export declare function getStockCount(client: any, context: StockContext, countId: string): Promise<Row & { lines: Row[] }>;

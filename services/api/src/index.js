@@ -88,6 +88,7 @@ export * from "./modules/crm/opportunity-and-pipeline-governance/pipeline-snapsh
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/stock/read-models.js";
+export * from "./modules/stock/counts.js";
 export * from "./modules/manufacturing/index.js";
 export * from "./modules/projects/index.js";
 export * from "./modules/assets/index.js";

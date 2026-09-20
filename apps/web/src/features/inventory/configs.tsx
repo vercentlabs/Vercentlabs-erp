@@ -540,6 +540,63 @@ const replenishment: RegisterConfig = {
   searchText: () => "",
 };
 
+const countColumns = (): Col[] => [
+  col("no", "Count", (r) => String(r.count_number), ({ row }) => <Link className="font-medium text-brand hover:underline" href={`/inventory/counts/${row.original.id}`}>{String(row.original.count_number)}</Link>),
+  badge("status", "Status", (r) => r.status),
+  col("warehouse", "Warehouse", (r) => String(r.warehouse_name)),
+  col("lines", "Lines", (r) => String(r.line_count)),
+  col("variances", "With variance", (r) => String(r.variance_lines)),
+  col("frozen", "Warehouse frozen", (r) => (r.freeze_stock && (r.status === "counting" || r.status === "review") ? "Yes" : "No")),
+  col("created", "Started", (r) => dateTime(r.created_at)),
+  col("posted", "Posted", (r) => dateTime(r.posted_at)),
+];
+
+const cycleCounts: RegisterConfig = {
+  key: "cycle-counts",
+  title: "Cycle counts",
+  description: "Count part of a warehouse (a location, a category or chosen items) on a rolling basis. Variances post only after a second person approves.",
+  searchLabel: "Search counts",
+  emptyTitle: "No cycle counts yet",
+  emptyDescription: "Start a count to compare the shelf with the system.",
+  source: { kind: "stock", view: "counts", params: { countType: "cycle" } },
+  filters: [{ name: "status", label: "Status", options: ["counting", "review", "posted", "cancelled"].map((value) => ({ value, label: label(value) })) }],
+  createLabel: "Start cycle count",
+  createPermission: "stock.count",
+  save: { action: "count-create", fixed: { countType: "cycle" }, idempotent: true, success: "Count started." },
+  fields: [
+    { name: "warehouseId", label: "Warehouse", kind: "select", required: true, options: "warehouses" },
+    { name: "warehouseLocationId", label: "Location / bin", kind: "select", options: "locations", dependsOn: "warehouseId" },
+    { name: "groupId", label: "Category", kind: "select", options: "groups" },
+    { name: "blind", label: "Blind count (hide expected quantity)", kind: "bool", defaultValue: "false" },
+    { name: "freezeStock", label: "Freeze the warehouse while counting", kind: "bool", defaultValue: "false" },
+    { name: "notes", label: "Notes", kind: "textarea" },
+  ],
+  columns: countColumns,
+  searchText: (r) => text(r, ["count_number", "warehouse_name", "status"]),
+};
+
+const physicalInventory: RegisterConfig = {
+  key: "physical-inventory",
+  title: "Physical inventory",
+  description: "Count a whole warehouse. The warehouse is frozen by default so nothing moves while it is counted.",
+  searchLabel: "Search counts",
+  emptyTitle: "No physical counts yet",
+  emptyDescription: "Start a physical inventory to reconcile a whole warehouse.",
+  source: { kind: "stock", view: "counts", params: { countType: "physical" } },
+  filters: [{ name: "status", label: "Status", options: ["counting", "review", "posted", "cancelled"].map((value) => ({ value, label: label(value) })) }],
+  createLabel: "Start physical inventory",
+  createPermission: "stock.count",
+  save: { action: "count-create", fixed: { countType: "physical" }, idempotent: true, success: "Physical inventory started." },
+  fields: [
+    { name: "warehouseId", label: "Warehouse", kind: "select", required: true, options: "warehouses" },
+    { name: "blind", label: "Blind count (hide expected quantity)", kind: "bool", defaultValue: "false" },
+    { name: "freezeStock", label: "Freeze the warehouse while counting", kind: "bool", defaultValue: "true" },
+    { name: "notes", label: "Notes", kind: "textarea" },
+  ],
+  columns: countColumns,
+  searchText: (r) => text(r, ["count_number", "warehouse_name", "status"]),
+};
+
 export const REGISTERS: Record<string, RegisterConfig> = {
   items,
   categories,
@@ -560,5 +617,7 @@ export const REGISTERS: Record<string, RegisterConfig> = {
   "serial-numbers": serials,
   "reorder-rules": reorderRules,
   replenishment,
+  "cycle-counts": cycleCounts,
+  "physical-inventory": physicalInventory,
 };
 
