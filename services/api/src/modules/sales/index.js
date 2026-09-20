@@ -58,6 +58,26 @@ function requirePermission(context, permission) {
     );
 }
 
+// F041-SEM-04: the person who submitted a document for approval cannot approve
+// it themselves. The role split alone does not guarantee this (a manager can also
+// author), so it is enforced against the approval request's own requester.
+async function assertNotSelfApproval(client, context, entityType, entityId) {
+  const request = (
+    await client.query(
+      `SELECT requested_by FROM public.approval_requests
+        WHERE organization_id=$1 AND entity_type=$2 AND entity_id=$3 AND status='pending'
+        ORDER BY requested_at DESC LIMIT 1`,
+      [context.organizationId, entityType, entityId],
+    )
+  ).rows[0];
+  if (request && request.requested_by && request.requested_by === context.userId)
+    throw new SalesError(
+      403,
+      "You submitted this for approval, so someone else must approve it.",
+      "SALES_SELF_APPROVAL_BLOCKED",
+    );
+}
+
 async function allocateNumber(client, organizationId, entityType) {
   const result = await client.query(
     `UPDATE public.numbering_series SET next_number=next_number+1,updated_at=now()
@@ -1133,6 +1153,7 @@ export async function approveQuotation(
 ) {
   requirePermission(context, "sales.quotation.approve");
   const quote = await lockQuotation(client, context, quotationId);
+  await assertNotSelfApproval(client, context, "sales_quotation", quotationId);
   if (quote.current_version_id !== quotationVersionId)
     throw new SalesError(
       409,
@@ -1678,10 +1699,15 @@ export async function getSalesOrder(client, context, id) {
     `SELECT * FROM tenant.sales_document_events WHERE organization_id=$1 AND entity_type='sales_order' AND entity_id=$2 ORDER BY occurred_at DESC`,
     [context.organizationId, id],
   );
+  const versions = await client.query(
+    `SELECT version.id,version.version_number,version.amendment_reason,version.currency_code,version.grand_total,version.created_at,version.created_by,amendment.approval_request_id FROM tenant.sales_order_versions version LEFT JOIN tenant.sales_order_amendments amendment ON amendment.organization_id=version.organization_id AND amendment.to_version_id=version.id WHERE version.organization_id=$1 AND version.sales_order_id=$2 ORDER BY version.version_number DESC`,
+    [context.organizationId, id],
+  );
   return redactMargin(
     {
       order,
       lines: lines.rows,
+      versions: versions.rows,
       holds: holds.rows,
       fulfillmentRequests: fulfillment.rows,
       invoiceRequests: invoices.rows,
@@ -1782,6 +1808,7 @@ export async function approveSalesOrder(
 ) {
   requirePermission(context, "sales.order.approve");
   const order = await lockOrder(client, context, orderId);
+  await assertNotSelfApproval(client, context, "sales_order", orderId);
   if (order.current_version_id !== orderVersionId)
     throw new SalesError(
       409,
@@ -2541,7 +2568,7 @@ export async function amendSalesOrder(client, context, id, input) {
         base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,
         tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,
         requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30::jsonb,$31) RETURNING id`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -2599,21 +2626,6 @@ export async function amendSalesOrder(client, context, id, input) {
       ],
     );
   }
-  const amendment = (
-    await client.query(
-      `INSERT INTO tenant.sales_order_amendments (organization_id,sales_order_id,from_version_id,to_version_id,reason,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     RETURNING id`,
-      [
-        context.organizationId,
-        order.id,
-        order.current_version_id,
-        version.id,
-        reason,
-        context.userId,
-      ],
-    )
-  ).rows[0];
   const approvalId = cryptoRandomUuid();
   await client.query(
     `INSERT INTO public.approval_requests (
@@ -2638,11 +2650,19 @@ export async function amendSalesOrder(client, context, id, input) {
     ],
   );
   await client.query(
-    `UPDATE tenant.sales_order_amendments
-        SET approval_request_id=$1
-      WHERE organization_id=$2 AND id=$3`,
-    [approvalId, context.organizationId, amendment.id],
-  );
+      `INSERT INTO tenant.sales_order_amendments (organization_id,sales_order_id,from_version_id,to_version_id,reason,approval_request_id,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     RETURNING id`,
+      [
+        context.organizationId,
+        order.id,
+        order.current_version_id,
+        version.id,
+        reason,
+        approvalId,
+        context.userId,
+      ],
+    );
   const updated = await client.query(
     `UPDATE tenant.sales_orders
         SET current_version_id=$1,lifecycle_status='pending_approval',
@@ -2696,6 +2716,7 @@ export async function approveSalesOrderAmendment(
 ) {
   requirePermission(context, "sales.order.approve");
   const order = await lockOrder(client, context, orderId);
+  await assertNotSelfApproval(client, context, "sales_order_amendment", orderId);
   if (
     order.lifecycle_status !== "pending_approval" ||
     order.approval_status !== "pending"

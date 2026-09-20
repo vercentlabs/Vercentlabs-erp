@@ -174,8 +174,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Selling",
         featureRange: "F031-F040",
         items: [
-          planned("Quotations", "/sales/quotations"),
-          planned("Sales Orders", "/sales/orders"),
+          available("Quotations", "/sales/quotations"),
+          available("Sales Orders", "/sales/orders"),
           planned("Availability", "/sales/availability"),
         ],
       },
@@ -718,6 +718,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Stores", "/pos/stores"), requiredPermission: "pos.store.manage" },
           { ...available("Terminals", "/pos/terminals"), requiredPermission: "pos.terminal.manage" },
           { ...available("Cashiers", "/pos/cashiers"), requiredPermission: "pos.store.manage" },
+          { ...available("Settings", "/pos/settings"), requiredPermission: "pos.settings.manage" },
         ],
       },
       {
@@ -727,6 +728,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Promotions", "/pos/promotions"), requiredPermission: "pos.settings.manage" },
           { ...available("Coupons", "/pos/coupons"), requiredPermission: "pos.settings.manage" },
+          { ...available("Discount Approvals", "/pos/discount-approvals"), requiredPermission: "pos.discount.approve" },
         ],
       },
       {

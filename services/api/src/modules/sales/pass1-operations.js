@@ -73,6 +73,27 @@ export async function listSalesPass1Operations(client, c, { kind = "advances", l
     );
     return rows;
   }
+  // Registers that span orders: each row carries its order number and customer so
+  // the register is usable on its own, and is scoped to the caller's company through
+  // the order (these child tables carry no company column of their own).
+  const REGISTERS = {
+    "fulfillment-requests": `SELECT record.id,record.request_number,record.status,record.retry_count,record.last_error,record.requested_at,record.completed_at,record.sales_order_id,orders.sales_order_number,orders.company_id,version.currency_code,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_fulfillment_requests record`,
+    "invoice-requests": `SELECT record.id,record.request_number,record.status,record.quantity_basis,record.retry_count,record.last_error,record.requested_at,record.completed_at,record.sales_order_id,orders.sales_order_number,orders.company_id,version.currency_code,version.grand_total,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_invoice_requests record`,
+    returns: `SELECT record.id,record.request_number,record.status,record.reason,record.lines,record.requested_at,record.decided_at,record.decision_note,record.completed_at,record.sales_order_id,orders.sales_order_number,orders.company_id,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_return_requests record`,
+  };
+  if (REGISTERS[kind]) {
+    const values = [c.organizationId];
+    const scope = companySql(c, values, "orders");
+    values.push(Math.min(Math.max(Number(limit) || 100, 1), 250));
+    const { rows } = await client.query(
+      `${REGISTERS[kind]}
+         JOIN tenant.sales_orders orders ON orders.organization_id=record.organization_id AND orders.id=record.sales_order_id
+         JOIN tenant.sales_order_versions version ON version.organization_id=orders.organization_id AND version.id=orders.current_version_id
+        WHERE record.organization_id=$1${scope} ORDER BY record.requested_at DESC LIMIT $${values.length}`,
+      values,
+    );
+    return rows;
+  }
   const table = tables[kind];
   if (!table) throw new SalesError(404, "Unknown Sales operation resource.");
   const values = [c.organizationId];
@@ -339,7 +360,7 @@ export async function listSalesPass1Options(client, c) {
   const ruleScope = companySql(c, ruleValues, "record");
   const rules = await client.query(
     `SELECT record.id,record.name,record.owner_user_id,record.rate_percent,record.basis FROM tenant.sales_commission_rules record WHERE record.organization_id=$1${ruleScope} AND record.status='active' ORDER BY record.name LIMIT 100`, ruleValues);
-  const [priceLists, items, customers, uoms, users] = await Promise.all([
+  const [priceLists, items, customers, uoms, users, suppliers] = await Promise.all([
     client.query(`SELECT id,code,name,currency_code FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' ORDER BY name LIMIT 200`, [c.organizationId]),
     client.query(`SELECT id,code,name,uom_id,company_id FROM tenant.items WHERE organization_id=$1 AND status='active' AND ($2::uuid IS NULL OR company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 500`, [c.organizationId,c.activeCompanyId || null]),
     client.query(`SELECT id,code,display_name,company_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','both') AND ($2::uuid IS NULL OR company_id IS NULL OR company_id=$2) ORDER BY display_name LIMIT 500`, [c.organizationId,c.activeCompanyId || null]),
@@ -352,8 +373,9 @@ export async function listSalesPass1Options(client, c) {
         ORDER BY users.full_name LIMIT 500`,
       [c.organizationId],
     ),
+    client.query(`SELECT id,code,display_name FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('supplier','both') ORDER BY display_name LIMIT 500`, [c.organizationId]),
   ]);
-  return { orders: orders.rows, lines: lines.rows, commissionRules: rules.rows, priceLists: priceLists.rows, items: items.rows, customers: customers.rows, uoms: uoms.rows, users: users.rows };
+  return { orders: orders.rows, lines: lines.rows, commissionRules: rules.rows, priceLists: priceLists.rows, items: items.rows, customers: customers.rows, uoms: uoms.rows, users: users.rows, suppliers: suppliers.rows };
 }
 
 export async function getSalesOrderLineReservationContext(client,c,input={}){

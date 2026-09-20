@@ -39,6 +39,7 @@ const DOCUMENTED_EXCEPTIONS = {
   "api/auth/invitations/[token]/accept/route.ts": "Token-bearer for a new account; an existing account additionally requires a matching authenticated session (see acceptOrganizationInvitation's authenticatedUserId parameter). assertSameOrigin applies.",
   "api/crm/public/meetings/links/[token]/book/route.ts": "Public by design (prospect booking a slot) — access control is the opaque per-link token, never a session cookie, so same-origin/session checks don't apply.",
   "api/crm/public/meetings/bookings/[token]/route.ts": "Public by design (prospect managing their own booking) — same token-based model as the link-booking route above.",
+  "api/sales/public/quotes/[token]/decision/route.ts": "Public by design (a customer accepting or declining the quotation link a salesperson sent them) -- access control is the opaque per-link token, never a session: 32 random bytes (base64url), only its SHA-256 stored, so the URL is the credential and cannot be derived from any id. The domain function (recordPublicQuoteDecision -> resolvePublicQuoteToken) refuses an expired or revoked link, a quotation revised since the link was sent, a lapsed valid-until, and any second decision; the body is Zod-validated and IP/user-agent are recorded as evidence. Same token-based model as the CRM public booking routes above.",
   "api/test-support/email-capture/route.ts": "Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here.",
   "api/pos/payments/webhook/[provider]/route.ts": "Public by design — a payment provider's own servers call it directly with no ERP session to present. Authenticated by the provider's cryptographic HMAC signature instead (adapter.verifyWebhookSignature over the raw body, verified before the payload is parsed or trusted, and re-verified inside handlePosPaymentWebhook's transaction), the same 'unauthenticated but cryptographically verified' pattern already established for inbound-mail webhooks (services/api/src/core/inbound-mail.js's verifyInboundMailSignature).",
 };
@@ -51,6 +52,35 @@ function hasPrimitive(source, name) {
   const importPattern = new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from`, "s");
   const callPattern = new RegExp(`\\b${name}\\s*\\(`);
   return importPattern.test(source) && callPattern.test(source);
+}
+
+// Audited route wrappers. A route that calls one of these gets the primitives
+// the wrapper is PROVEN to call -- proven here, at scan time, by reading the
+// wrapper's own source, so this trust cannot outlive the wrapper being changed
+// to drop a check (the scan then fails loudly instead of quietly passing).
+const AUDITED_WRAPPERS = {
+  salesMutation: {
+    file: "apps/web/src/features/sales/shared/route-helpers.ts",
+    provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireSalesAccess"] },
+  },
+  salesRead: {
+    file: "apps/web/src/features/sales/shared/route-helpers.ts",
+    provides: { auth: ["requireWorkspace"], origin: [], authorization: ["requireSalesAccess"] },
+  },
+};
+for (const [wrapper, spec] of Object.entries(AUDITED_WRAPPERS)) {
+  const wrapperSource = readFile(spec.file);
+  const body = wrapperSource.slice(wrapperSource.indexOf(`export async function ${wrapper}`));
+  const end = body.indexOf("\nexport ", 10);
+  const scoped = end === -1 ? body : body.slice(0, end);
+  for (const kind of Object.values(spec.provides).flat()) {
+    if (!new RegExp(`\\b${kind}\\s*\\(`).test(scoped)) {
+      throw new Error(`Audited wrapper ${wrapper} (${spec.file}) no longer calls ${kind}(); routes using it can no longer be treated as protected.`);
+    }
+  }
+}
+function viaWrapper(source, kind) {
+  return Object.entries(AUDITED_WRAPPERS).some(([name, spec]) => spec.provides[kind].length > 0 && hasPrimitive(source, name));
 }
 
 function detectMethods(source) {
@@ -76,9 +106,9 @@ for (const filePath of routeFiles) {
   if (mutationMethods.length === 0) continue; // read-only routes are out of scope for this matrix
 
   const relativePath = filePath.replaceAll("\\", "/").replace(/^apps\/web\/src\/app\//, "");
-  const hasAuth = AUTH_PRIMITIVES.some((name) => hasPrimitive(source, name));
-  const hasOrigin = ORIGIN_PRIMITIVES.some((name) => hasPrimitive(source, name));
-  const hasAuthorization = AUTHORIZATION_PRIMITIVES.some((name) => hasPrimitive(source, name));
+  const hasAuth = AUTH_PRIMITIVES.some((name) => hasPrimitive(source, name)) || viaWrapper(source, "auth");
+  const hasOrigin = ORIGIN_PRIMITIVES.some((name) => hasPrimitive(source, name)) || viaWrapper(source, "origin");
+  const hasAuthorization = AUTHORIZATION_PRIMITIVES.some((name) => hasPrimitive(source, name)) || viaWrapper(source, "authorization");
   const exceptionReason = DOCUMENTED_EXCEPTIONS[relativePath];
 
   rows.push({
