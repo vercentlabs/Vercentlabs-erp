@@ -417,6 +417,33 @@ const scrapRework: RegisterConfig = {
   searchText: (r) => text(r, ["work_order_number", "item_name", "reason_code", "note"]),
 };
 
+const mrp: RegisterConfig = {
+  key: "mrp",
+  title: "MRP",
+  description: "Net requirements over a horizon: open production orders' components and sales demand, less usable stock and what is already on order, exploded level by level. Each run recommends what to make, what to buy and what needs nothing.",
+  searchLabel: "Search MRP runs",
+  emptyTitle: "No MRP runs yet",
+  emptyDescription: "Run MRP to see what needs making or buying.",
+  source: { kind: "view", view: "mrp-runs" },
+  createLabel: "Run MRP",
+  createPermission: "manufacturing.planning.run",
+  save: { action: "mrp-run", success: "MRP run completed." },
+  fields: [
+    { name: "horizonDays", label: "Horizon (days)", kind: "select", required: true, defaultValue: "30", options: [{ value: "14", label: "14 days" }, { value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" }, { value: "180", label: "180 days" }] },
+    { name: "note", label: "Note", kind: "text" },
+  ],
+  columns: () => [
+    link("run", "Run", (r) => String(r.run_number), (r) => `/manufacturing/mrp-run/${r.id}`),
+    col("when", "Ran", (r) => dateTime(r.started_at)),
+    col("horizon", "Horizon", (r) => `${calendarDate(r.horizon_start)} → ${calendarDate(r.horizon_end)}`),
+    col("items", "Items", (r) => String(r.summary?.items ?? 0)),
+    col("make", "To make", (r) => String(r.summary?.manufacture ?? 0)),
+    col("buy", "To buy", (r) => String(r.summary?.purchase ?? 0)),
+    col("note", "Note", (r) => String(r.note ?? "—")),
+  ],
+  searchText: (r) => text(r, ["run_number", "note"]),
+};
+
 export const REGISTERS: Record<string, RegisterConfig> = {
   boms,
   "bom-versions": bomVersions,
@@ -435,4 +462,5 @@ export const REGISTERS: Record<string, RegisterConfig> = {
   "finished-output": finishedOutput,
   "by-products": byProducts,
   "scrap-rework": scrapRework,
+  mrp,
 };

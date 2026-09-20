@@ -455,10 +455,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Planning",
         featureRange: "F152-F157",
         items: [
-          planned("MRP", "/manufacturing/mrp"),
-          planned("Material Planning", "/manufacturing/material-planning"),
+          available("MRP", "/manufacturing/mrp"),
+          available("Material Planning", "/manufacturing/material-planning"),
           available("Capacity", "/manufacturing/capacity"),
-          planned("Scheduling", "/manufacturing/scheduling"),
+          available("Scheduling", "/manufacturing/scheduling"),
         ],
       },
       {

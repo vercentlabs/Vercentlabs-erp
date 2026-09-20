@@ -1,4 +1,4 @@
-import { explodeBom, getBom, getCapacityPlan, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
+import { explodeBom, getBom, getCapacityPlan, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { manufacturingRead } from "@/features/manufacturing/shared/route-helpers";
@@ -54,6 +54,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { rows: await listScrapRecords(client, context) };
       case "settings":
         return { settings: await getManufacturingSettings(client, context) };
+      case "mrp-runs":
+        return { rows: await listMrpRuns(client, context) };
+      case "mrp-run":
+        return { run: await getMrpRun(client, context, get("id") ?? "") };
+      case "material-availability":
+        return { availability: await getMaterialAvailability(client, context, { itemId: get("itemId"), bomId: get("bomId"), quantity: get("quantity") ?? 1 }) };
       default:
         throw new HttpError(404, "Unknown manufacturing view.");
     }

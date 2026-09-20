@@ -20,4 +20,7 @@ export const MANUFACTURING_PAGES: Record<string, { title: string }> = {
   "by-products": { title: "By-products" },
   "scrap-rework": { title: "Scrap and rework" },
   settings: { title: "Manufacturing settings" },
+  mrp: { title: "MRP" },
+  "material-planning": { title: "Material planning" },
+  scheduling: { title: "Scheduling" },
 };

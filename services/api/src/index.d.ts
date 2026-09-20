@@ -498,6 +498,7 @@ export * from "./modules/manufacturing/engineering.js";
 export * from "./modules/manufacturing/options.js";
 export * from "./modules/manufacturing/routing.js";
 export * from "./modules/manufacturing/shopfloor.js";
+export * from "./modules/manufacturing/planning.js";
 export * from "./modules/projects/index.js";
 export * from "./modules/assets/index.js";
 export * from "./modules/point-of-sale/index.js";

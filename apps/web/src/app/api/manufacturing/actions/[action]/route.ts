@@ -23,6 +23,9 @@ import {
   approveBom,
   cancelEngineeringChange,
   createBom,
+  createOrdersFromMrp,
+  runMrp,
+  scheduleProductionOrders,
   createRouting,
   createEngineeringChange,
   decideEngineeringChange,
@@ -139,6 +142,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         return { record: await addBomOutput(client, context, String(input.bomId ?? ""), input) };
       case "bom-output-remove":
         return { record: await removeBomOutput(client, context, idOf(input)) };
+      case "mrp-run":
+        return { record: await runMrp(client, context, input) };
+      case "mrp-convert":
+        return { record: await createOrdersFromMrp(client, context, idOf(input), input) };
+      case "schedule-run":
+        return { record: await scheduleProductionOrders(client, context, input) };
       default:
         throw new HttpError(404, "Unknown manufacturing action.");
     }
