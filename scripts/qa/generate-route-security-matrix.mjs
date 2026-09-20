@@ -71,6 +71,14 @@ const AUDITED_WRAPPERS = {
     file: "apps/web/src/features/procurement/shared/route-helpers.ts",
     provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireProcurementAccess"] },
   },
+  manufacturingMutation: {
+    file: "apps/web/src/features/manufacturing/shared/route-helpers.ts",
+    provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireManufacturingAccess"] },
+  },
+  manufacturingRead: {
+    file: "apps/web/src/features/manufacturing/shared/route-helpers.ts",
+    provides: { auth: ["requireWorkspace"], origin: [], authorization: ["requireManufacturingAccess"] },
+  },
   inventoryMutation: {
     file: "apps/web/src/features/inventory/shared/route-helpers.ts",
     provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireInventoryAccess"] },

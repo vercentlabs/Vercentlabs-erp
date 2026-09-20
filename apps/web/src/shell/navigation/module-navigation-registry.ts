@@ -443,10 +443,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Engineering",
         featureRange: "F145-F151",
         items: [
-          planned("BOMs", "/manufacturing/boms"),
-          planned("BOM Versions", "/manufacturing/bom-versions"),
+          available("BOMs", "/manufacturing/boms"),
+          available("BOM Versions", "/manufacturing/bom-versions"),
           planned("Routings", "/manufacturing/routings"),
-          planned("Engineering Changes", "/manufacturing/engineering-changes"),
+          available("Where Used", "/manufacturing/where-used"),
+          available("Engineering Changes", "/manufacturing/engineering-changes"),
         ],
       },
       {
