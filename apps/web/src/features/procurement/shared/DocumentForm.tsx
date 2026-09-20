@@ -72,11 +72,13 @@ function FormBody({ config, id, existing, options, sourceMapped, amend }: { conf
     if (rows.length) {
       return rows.map((row) => {
         const line: LineState = { _key: ++lineKey };
-        for (const field of config.lines!.fields) {
-          const value = row[field.name];
-          if (value !== undefined && value !== null) line[field.name] = field.kind === "number" ? Number(value) : String(value);
+        // Keep every scalar the server stored on the line (purchaseOrderLineId, itemId, ...),
+        // not just the visible fields, or editing would silently drop the links to other documents.
+        const numeric = new Set(config.lines!.fields.filter((field) => field.kind === "number").map((field) => field.name));
+        for (const [key, value] of Object.entries(row)) {
+          if (["createdAt", "updatedAt", "status", "version"].includes(key)) continue;
+          if (typeof value === "string" || typeof value === "number") line[key] = numeric.has(key) ? Number(value) : value;
         }
-        if (row.id) line.id = String(row.id);
         return line;
       });
     }

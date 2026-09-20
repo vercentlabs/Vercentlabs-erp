@@ -25,7 +25,7 @@ async function activeItem(client,c,id,{companyId=null,label="Item"}={}){
 
 export async function listProcurementPass1Operations(client,c,{kind="landed-costs",limit=100}={}){
   need(c,"procurement.view");
-  const tables={"supplier-prices":"procurement_supplier_prices","landed-costs":"procurement_landed_costs","supplier-lead-times":"procurement_supplier_lead_times","reorder-requests":"procurement_reorder_requests","subcontract-orders":"procurement_subcontract_orders","sourcing-invitations":"procurement_sourcing_invitations","sourcing-bids":"procurement_sourcing_bids","sourcing-evaluations":"procurement_sourcing_evaluations","supplier-scorecards":"procurement_supplier_scorecards","returns":"procurement_returns"};
+  const tables={"supplier-prices":"procurement_supplier_prices","landed-costs":"procurement_landed_costs","supplier-lead-times":"procurement_supplier_lead_times","reorder-requests":"procurement_reorder_requests","subcontract-orders":"procurement_subcontract_orders","sourcing-invitations":"procurement_sourcing_invitations","sourcing-bids":"procurement_sourcing_bids","sourcing-evaluations":"procurement_sourcing_evaluations","supplier-scorecards":"procurement_supplier_scorecards","returns":"procurement_returns","invoice-matches":"procurement_invoice_matches"};
   const table=tables[kind];if(!table)throw new ProcurementError(404,"Unknown Procurement operation resource.");
   const values=[c.organizationId];const scope=companyWhere(c,values,"record");
   const {rows}=await client.query(`SELECT * FROM tenant.${table} record WHERE record.organization_id=$1${scope} ORDER BY record.created_at DESC LIMIT $${values.length+1}`,[...values,Math.min(Math.max(Number(limit)||100,1),250)]);return rows;

@@ -11,8 +11,10 @@ const schema = z.object({
   invoiceNumber: z.string().trim().min(1).max(100),
   invoiceDate: z.string().date().nullish(),
   currencyCode: z.string().trim().length(3).nullish(),
-  matchMode: z.enum(["two_way", "three_way"]).nullish(),
-  lines: z.array(z.record(z.string(), z.unknown())).min(1).max(500),
+  matchMode: z.enum(["two-way", "three-way", "four-way"]).nullish(),
+  tolerancePercent: z.number().min(0).max(100).nullish(),
+  overrideReason: z.string().trim().max(1000).nullish(),
+  invoiceLines: z.array(z.record(z.string(), z.unknown())).min(1).max(500),
 }).passthrough();
 
 // Supplier-invoice matching against the PO (2-way) and receipts (3-way). A clean

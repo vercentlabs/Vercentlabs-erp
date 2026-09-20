@@ -275,9 +275,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Receiving",
         featureRange: "F079-F082",
         items: [
-          planned("Goods Receipts", "/procurement/receipts"),
-          planned("Rejections", "/procurement/rejections"),
-          planned("Returns", "/procurement/returns"),
+          available("Goods Receipts", "/procurement/receipts"),
+          available("Rejections", "/procurement/rejections"),
+          available("Returns", "/procurement/returns"),
         ],
       },
       {
@@ -285,9 +285,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Invoices & Cost",
         featureRange: "F083-F086",
         items: [
-          planned("Supplier Invoices", "/procurement/invoices"),
-          planned("Three-Way Match", "/procurement/three-way-match"),
-          planned("Landed Cost", "/procurement/landed-cost"),
+          available("Supplier Invoices", "/procurement/invoices"),
+          available("Three-Way Match", "/procurement/three-way-match"),
+          available("Landed Cost", "/procurement/landed-cost"),
         ],
       },
       {
@@ -297,6 +297,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Supplier Master", "/procurement/suppliers"),
           available("Categories", "/procurement/categories"),
+          available("Price Lists", "/procurement/supplier-prices"),
+          available("Lead Times", "/procurement/lead-times"),
           planned("Supplier Performance", "/procurement/supplier-performance"),
         ],
       },

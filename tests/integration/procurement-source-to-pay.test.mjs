@@ -276,6 +276,125 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "cancel", { expectedVersion: a.version })), (e) => /reason|Cannot/i.test(e.message));
     });
 
+    // ---- receiving, returns and matching ----
+    const stockCtx = { organizationId: orgId, companyId, userId: users.receiver, roleSlugs: [], permissions: ["stock.view", "stock.receive", "stock.issue"] };
+    const onHand = async () => Number((await admin.query(`SELECT COALESCE(sum(quantity),0) AS q FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`, [orgId, itemId, warehouseId])).rows[0].q);
+    let receiptOrder;
+    let receiptRow;
+    await t.test("F080/F081: partial receipts -- each approved receipt posts real stock and moves the PO to partially_received, then received", async () => {
+      // a fresh approved PO for 10 units
+      const draft = await tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Receiving PO", supplierId: supplier.id, expectedDeliveryDate: "2027-01-31", lines: lines("10", "100") }));
+      let po = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", draft.id, "submit", { expectedVersion: draft.version }));
+      po = await tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", draft.id, "approve", { expectedVersion: po.version }));
+      po = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", draft.id, "dispatch", { expectedVersion: po.version }));
+      po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", draft.id));
+      receiptOrder = po;
+      const poLine = po.lines[0];
+      const before = await onHand();
+
+      const receive = (accepted, rejected = "0") => tx((c) => createProcurementRecord(c, ctx.receiver, "receipts", { purchaseOrderId: po.id, receiptDate: "2027-01-10", lines: [{ purchaseOrderLineId: poLine.id, itemId, description: "Raw Widget", warehouseId, acceptedQuantity: accepted, rejectedQuantity: rejected, rejectionReason: rejected !== "0" ? "Damaged in transit" : undefined }] }));
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "receipts", { purchaseOrderId: po.id, receiptDate: "2027-01-10", lines: [{ purchaseOrderLineId: poLine.id, description: "x", acceptedQuantity: "1" }] })), forbidden);
+
+      let r1 = await receive("4", "1");
+      assert.match(r1.receiptNumber, /^GRN-/);
+      r1 = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "receipts", r1.id, "submit", { expectedVersion: r1.version }));
+      await assert.rejects(() => tx((c) => proc.transitionProcurementReceiptWithStockMovement(c, ctx.receiver, stockCtx, r1.id, "approve", { expectedVersion: r1.version })), forbidden, "a receiver cannot approve their own receipt (no receipts.approve)");
+      r1 = await tx((c) => proc.transitionProcurementReceiptWithStockMovement(c, ctx.approver, stockCtx, r1.id, "approve", { expectedVersion: r1.version }));
+      assert.equal(r1.status, "approved");
+      assert.equal(await onHand(), before + 4, "only the ACCEPTED quantity entered stock; the rejected unit did not");
+      receiptRow = r1;
+      po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", po.id));
+      assert.equal(po.status, "partially_received");
+      assert.equal(Number(po.lines[0].receivedQuantity), 4);
+
+      let r2 = await receive("6");
+      r2 = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "receipts", r2.id, "submit", { expectedVersion: r2.version }));
+      r2 = await tx((c) => proc.transitionProcurementReceiptWithStockMovement(c, ctx.approver, stockCtx, r2.id, "approve", { expectedVersion: r2.version }));
+      po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", po.id));
+      assert.equal(po.status, "received");
+      assert.equal(await onHand(), before + 10);
+      await assert.rejects(() => tx(async (c) => { const extra = await createProcurementRecord(c, ctx.receiver, "receipts", { purchaseOrderId: po.id, receiptDate: "2027-01-11", lines: [{ purchaseOrderLineId: poLine.id, itemId, description: "Raw Widget", warehouseId, acceptedQuantity: "1" }] }); const s = await transitionProcurementRecord(c, ctx.receiver, "receipts", extra.id, "submit", { expectedVersion: extra.version }); return proc.transitionProcurementReceiptWithStockMovement(c, ctx.approver, stockCtx, extra.id, "approve", { expectedVersion: s.version }); }), (e) => e.status === 409, "over-receiving the order is refused");
+    });
+
+    await t.test("F082: a receipt can be rejected outright (with a reason) and reversing an approved one takes the stock back out", async () => {
+      const line = receiptOrder.lines[0];
+      let rej = await tx((c) => createProcurementRecord(c, ctx.receiver, "receipts", { purchaseOrderId: receiptOrder.id, receiptDate: "2027-01-12", lines: [{ purchaseOrderLineId: line.id, itemId, description: "Raw Widget", warehouseId, acceptedQuantity: "0", rejectedQuantity: "2", rejectionReason: "Wrong spec" }] }));
+      rej = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "receipts", rej.id, "submit", { expectedVersion: rej.version }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.approver, "receipts", rej.id, "reject", { expectedVersion: rej.version })), (e) => /reason/i.test(e.message));
+      rej = await tx((c) => transitionProcurementRecord(c, ctx.approver, "receipts", rej.id, "reject", { expectedVersion: rej.version, reason: "Wrong spec" }));
+      assert.equal(rej.status, "rejected");
+      const stockBefore = await onHand();
+      await assert.rejects(() => tx((c) => proc.transitionProcurementReceiptWithStockMovement(c, ctx.approver, stockCtx, receiptRow.id, "reverse", { expectedVersion: receiptRow.version })), (e) => /reason/i.test(e.message));
+      const reversed = await tx((c) => proc.transitionProcurementReceiptWithStockMovement(c, ctx.approver, stockCtx, receiptRow.id, "reverse", { expectedVersion: receiptRow.version, reason: "Posted to wrong PO" }));
+      assert.equal(reversed.status, "reversed");
+      assert.equal(await onHand(), stockBefore - 4, "the reversal issued the 4 accepted units back out");
+    });
+
+    await t.test("F083: a purchase return references an approved receipt; dispatch takes the goods out of stock", async () => {
+      const receipts = await tx((c) => listProcurementRecords(c, ctx.viewer, "receipts", { status: "approved" }));
+      const source = receipts.rows.find((row) => row.purchaseOrderId === receiptOrder.id);
+      assert.ok(source, "the second receipt is approved");
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "returns", { receiptId: source.id, reason: "x", lines: [{ description: "y", quantity: "1" }] })), forbidden);
+      let ret = await tx((c) => createProcurementRecord(c, ctx.receiver, "returns", { receiptId: source.id, purchaseOrderId: receiptOrder.id, reason: "Defective batch", lines: [{ itemId, description: "Raw Widget", quantity: "3", warehouseId }] }));
+      assert.match(ret.returnNumber, /^RTV-/);
+      ret = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "returns", ret.id, "submit", { expectedVersion: ret.version }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.receiver, "returns", ret.id, "approve", { expectedVersion: ret.version })), forbidden);
+      ret = await tx((c) => transitionProcurementRecord(c, ctx.approver, "returns", ret.id, "approve", { expectedVersion: ret.version }));
+      const before = await onHand();
+      ret = await tx((c) => proc.transitionProcurementReturnWithStockMovement(c, ctx.receiver, stockCtx, ret.id, "dispatch", { expectedVersion: ret.version }));
+      assert.equal(ret.status, "dispatched");
+      assert.equal(await onHand(), before - 3, "dispatching the return issued 3 units");
+      ret = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "returns", ret.id, "close", { expectedVersion: ret.version }));
+      assert.equal(ret.status, "closed");
+    });
+
+    await t.test("F084-F086: invoice matching -- clean 3-way match, over-invoicing raises an exception, duplicates are refused, overriding needs its permission and a reason", async () => {
+      const po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", receiptOrder.id));
+      const poLine = po.lines[0];
+      const invoiceLines = (quantity, price) => [{ purchaseOrderLineId: poLine.id, itemId, description: "Raw Widget", quantity, unitPrice: price }];
+      const attempt = (invoiceNumber, quantity, price, extra = {}) => tx((c) => proc.runProcurementMatch(c, ctx.buyer, { purchaseOrderId: po.id, invoiceNumber, currencyCode: "INR", matchMode: "three-way", invoiceLines: invoiceLines(quantity, price), ...extra }));
+
+      await assert.rejects(() => tx((c) => proc.runProcurementMatch(c, ctx.viewer, { purchaseOrderId: po.id, invoiceNumber: "X", invoiceLines: invoiceLines("1", "100") })), forbidden);
+      const matcher = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.matching.manage"] });
+      const run = (invoiceNumber, quantity, price, extra = {}, who = matcher) => tx((c) => proc.runProcurementMatch(c, who, { purchaseOrderId: po.id, invoiceNumber, currencyCode: "INR", matchMode: "three-way", invoiceLines: invoiceLines(quantity, price), ...extra }));
+      await assert.rejects(() => attempt("INV-0", "1", "100"), forbidden, "matching needs procurement.matching.manage");
+
+      const clean = await run("INV-1001", "4", "100");
+      assert.equal(clean.matchingRecord.status, "matched");
+      assert.equal(clean.matchingRecord.invoiceTotal, "400.00");
+      await assert.rejects(() => run("inv-1001", "1", "100"), (e) => e.code === "PROCUREMENT_DUPLICATE_INVOICE", "the same invoice number cannot be matched twice");
+
+      const over = await run("INV-1002", "20", "100");
+      assert.equal(over.matchingRecord.status, "exception");
+      assert.ok(over.matchingRecord.issues.some((issue) => issue.type === "receipt-quantity-variance"), "invoicing more than was received is an exception");
+      assert.ok(over.exception, "an exception case is opened for a person to resolve");
+
+      const priced = await run("INV-1003", "1", "150");
+      assert.ok(priced.matchingRecord.issues.some((issue) => issue.type === "price-or-value-variance"), "a price above the PO is a variance");
+
+      await assert.rejects(() => run("INV-1004", "1", "150", { tolerancePercent: 60 }), forbidden, "widening the tolerance needs matching.override");
+      const manager = procurementContext({ organizationId: orgId, userId: users.manager, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.manager, "procurement.matching.manage"] });
+      await assert.rejects(() => run("INV-1004", "1", "150", { tolerancePercent: 60 }, manager), (e) => /reason/i.test(e.message));
+      const tolerated = await run("INV-1004", "1", "150", { tolerancePercent: 60, overrideReason: "Agreed price rise" }, manager);
+      assert.equal(tolerated.matchingRecord.status, "matched");
+      assert.equal(tolerated.matchingRecord.toleranceOverridden, true);
+    });
+
+    await t.test("F085/F086: match exceptions are resolved or overridden with the right permissions and a reason", async () => {
+      const list = await tx((c) => listProcurementRecords(c, ctx.viewer, "match-exceptions", { status: "open" }));
+      assert.ok(list.total >= 2);
+      const exception = list.rows[0];
+      const resolver = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.matching.manage"] });
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, resolver, "match-exceptions", exception.id, "override", { expectedVersion: exception.version, reason: "x" })), forbidden, "override is a separate, stronger permission");
+      const resolved = await tx((c) => transitionProcurementRecord(c, resolver, "match-exceptions", exception.id, "resolve", { expectedVersion: exception.version }));
+      assert.equal(resolved.status, "resolved");
+      const other = list.rows[1];
+      const overrider = procurementContext({ organizationId: orgId, userId: users.manager, activeCompanyId: companyId, roleSlugs: [], permissions: ROLE_PERMISSIONS.manager });
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, overrider, "match-exceptions", other.id, "override", { expectedVersion: other.version })), (e) => /reason/i.test(e.message), "an override must say why");
+      const overridden = await tx((c) => transitionProcurementRecord(c, overrider, "match-exceptions", other.id, "override", { expectedVersion: other.version, reason: "Accepted variance" }));
+      assert.equal(overridden.status, "overridden");
+    });
+
     // -- later slices append here --
   } finally {
     await admin.end();

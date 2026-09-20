@@ -71,3 +71,36 @@ export async function transitionProcurementReceiptWithStockMovement(
 
   return result;
 }
+
+// F083 gap: a purchase return moved through submit/approve/dispatch/close as pure
+// Procurement bookkeeping -- dispatching goods back to the supplier never took them
+// out of stock, so on-hand stayed overstated. Dispatch is the moment the goods leave;
+// like receiving, the Stock movement is NOT best-effort (insufficient stock blocks the
+// dispatch and rolls the whole transaction back).
+export async function transitionProcurementReturnWithStockMovement(client, procurementContext, stockContext, returnId, action, input = {}) {
+  if (procurementContext.organizationId !== stockContext.organizationId) {
+    throw new ProcurementError(403, "Procurement and Stock organization context must match.", "PROCUREMENT_STOCK_CONTEXT_INVALID");
+  }
+  const result = await transitionProcurementRecord(client, procurementContext, "returns", returnId, action, input);
+  if (action !== "dispatch") return result;
+  if (result.company_id && result.company_id !== stockContext.companyId) {
+    throw new ProcurementError(409, "The return and Stock active company must match.", "PROCUREMENT_STOCK_COMPANY_MISMATCH");
+  }
+  const lines = Array.isArray(result.lines) ? result.lines : [];
+  for (const line of lines) {
+    const warehouseId = line.warehouseId || line.warehouse_id || null;
+    const itemId = line.itemId || line.item_id || null;
+    const quantity = Number(line.quantity ?? 0);
+    if (!warehouseId || !itemId || !(quantity > 0)) continue; // not a stock-tracked line
+    await postStockMovement(client, stockContext, {
+      movementType: "issue",
+      itemId,
+      warehouseId,
+      quantity,
+      referenceType: "procurement_return",
+      referenceId: returnId,
+      idempotencyKey: `procurement-return:dispatch:${returnId}:${line.id}`,
+    });
+  }
+  return result;
+}

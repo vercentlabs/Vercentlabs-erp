@@ -2101,7 +2101,14 @@ export async function runProcurementMatch(client, context, input) {
       });
       continue;
     }
-    const orderAmount = lineAmount(orderLine);
+    // Compare like with like: the PO line's value for the quantity being invoiced,
+    // not for the whole line. Otherwise every partial invoice (4 of 10 units at the
+    // agreed price) looked like a large "variance".
+    const orderedForMatch = decimal(orderLine.quantity ?? "0");
+    const invoicedForMatch = decimal(invoiceLine.quantity ?? "0");
+    const orderAmount = orderedForMatch > 0n && invoicedForMatch > 0n
+      ? (lineAmount(orderLine) * invoicedForMatch) / orderedForMatch
+      : lineAmount(orderLine);
     orderMatchedTotal += orderAmount;
     const allowed =
       (orderAmount < 0n ? -orderAmount : orderAmount) *
@@ -2246,7 +2253,11 @@ export async function runProcurementMatch(client, context, input) {
           2,
         ),
         issues,
-        matchingRecords: [
+        // Kept as details ON the exception. The child-table key ("matchingRecords")
+        // would try to insert these as rows parented by the exception, but that
+        // table's parent is the purchase order (the match record was already written
+        // above), so every exception-producing match failed on the foreign key.
+        matchDetails: [
           {
             matchingRecordId: matchResult.rows[0].id,
             invoiceMatchId: ledger.rows[0].id,
