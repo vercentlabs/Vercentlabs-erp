@@ -178,6 +178,10 @@ api/pos/terminals/route.ts,POST,via-mutation-option,gated,,"business-data mutati
 api/privacy/requests/[id]/transition/route.ts,POST,none,out-of-scope,,export/privacy/recovery (likely must stay reachable)
 api/privacy/requests/route.ts,POST,none,out-of-scope,,export/privacy/recovery (likely must stay reachable)
 api/privacy/retention-policies/route.ts,POST,none,out-of-scope,,export/privacy/recovery (likely must stay reachable)
+api/procurement/[resource]/[id]/[action]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/procurement/[resource]/[id]/route.ts,PATCH,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/procurement/[resource]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/procurement/match/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/sales/customer-prices/[id]/route.ts,DELETE,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/sales/customer-prices/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/sales/documents/preview/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"

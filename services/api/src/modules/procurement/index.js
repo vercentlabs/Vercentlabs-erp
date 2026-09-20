@@ -1292,7 +1292,7 @@ const TRANSITIONS = Object.freeze({
     cancel: [["draft", "submitted"], "cancelled", "procurement.suppliers.manage"],
   },
   requisitions: {
-    submit: ["draft", "submitted", "procurement.requisition.manage"],
+    submit: [["draft", "rejected"], "submitted", "procurement.requisition.manage"],
     approve: [["submitted", "pending_approval"], "approved", "procurement.requisition.approve"],
     reject: [["submitted", "pending_approval"], "rejected", "procurement.requisition.approve"],
     close: ["approved", "closed", "procurement.requisition.manage"],
@@ -1313,7 +1313,7 @@ const TRANSITIONS = Object.freeze({
     cancel: [["draft", "submitted", "approved"], "cancelled", "procurement.contracts.manage"],
   },
   "purchase-orders": {
-    submit: ["draft", "submitted", "procurement.po.manage"],
+    submit: [["draft", "rejected"], "submitted", "procurement.po.manage"],
     approve: [["submitted", "pending_approval"], "approved", "procurement.po.approve"],
     reject: [["submitted", "pending_approval"], "rejected", "procurement.po.approve"],
     dispatch: ["approved", "dispatched", "procurement.po.dispatch"],

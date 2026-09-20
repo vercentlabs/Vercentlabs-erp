@@ -1,9 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { ProcurementHomeScreen } from "@/features/procurement/screens/ProcurementScreens";
 
 export const metadata = { title: "Procurement" };
 
-export default function ProcurementPage() {
-  return (
-    <ModuleFoundationPage moduleKey="procurement" moduleLabel="Procurement" />
-  );
+export default function Page() {
+  return <ProcurementHomeScreen />;
 }

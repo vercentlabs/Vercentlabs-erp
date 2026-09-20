@@ -247,8 +247,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Requests",
         featureRange: "F063-F066",
         items: [
-          planned("Purchase Requisitions", "/procurement/requisitions"),
-          planned("Approval Queue", "/procurement/approval-queue"),
+          available("Purchase Requisitions", "/procurement/requisitions"),
+          available("Approval Queue", "/procurement/approval-queue"),
         ],
       },
       {
@@ -295,7 +295,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Suppliers",
         featureRange: "F087-F090",
         items: [
-          planned("Supplier Master", "/procurement/suppliers"),
+          available("Supplier Master", "/procurement/suppliers"),
+          available("Categories", "/procurement/categories"),
           planned("Supplier Performance", "/procurement/supplier-performance"),
         ],
       },
